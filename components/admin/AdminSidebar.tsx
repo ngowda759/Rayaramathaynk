@@ -1,39 +1,100 @@
 "use client";
 
-import { Bell, LogOut, UserCircle } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  CalendarDays,
+  Image,
+  Clock3,
+  BookOpen,
+  HandCoins,
+  Bell,
+  Users,
+  Settings,
+} from "lucide-react";
 
-export default function AdminHeader() {
+const menuItems = [
+  {
+    title: "Dashboard",
+    href: "/admin",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Events",
+    href: "/admin/events",
+    icon: CalendarDays,
+  },
+  {
+    title: "Gallery",
+    href: "/admin/gallery",
+    icon: Image,
+  },
+  {
+    title: "Temple Timings",
+    href: "/admin/timings",
+    icon: Clock3,
+  },
+  {
+    title: "Daily Pooja",
+    href: "/admin/pooja",
+    icon: BookOpen,
+  },
+  {
+    title: "Donations",
+    href: "/admin/donations",
+    icon: HandCoins,
+  },
+  {
+    title: "Announcements",
+    href: "/admin/announcements",
+    icon: Bell,
+  },
+  {
+    title: "Users",
+    href: "/admin/users",
+    icon: Users,
+  },
+  {
+    title: "Settings",
+    href: "/admin/settings",
+    icon: Settings,
+  },
+];
+
+export default function AdminSidebar() {
+  const pathname = usePathname();
+
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-white px-6">
-      <div>
-        <h2 className="text-2xl font-bold text-stone-800">
-          Admin Dashboard
-        </h2>
+    <aside className="w-72 border-r bg-white">
+      <div className="border-b p-6">
+        <h1 className="text-xl font-bold text-orange-600">
+          🙏 Temple Admin
+        </h1>
       </div>
 
-      <div className="flex items-center gap-4">
-        <button className="rounded-full p-2 hover:bg-stone-100">
-          <Bell className="h-5 w-5" />
-        </button>
+      <nav className="space-y-2 p-4">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
 
-        <div className="flex items-center gap-2">
-          <UserCircle className="h-8 w-8 text-orange-600" />
+          const active = pathname === item.href;
 
-          <div className="text-right">
-            <p className="text-sm font-semibold">
-              Temple Admin
-            </p>
-
-            <p className="text-xs text-stone-500">
-              admin@rayaramatha.org
-            </p>
-          </div>
-        </div>
-
-        <button className="rounded-full p-2 hover:bg-red-100 hover:text-red-600">
-          <LogOut className="h-5 w-5" />
-        </button>
-      </div>
-    </header>
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 rounded-lg px-4 py-3 transition ${
+                active
+                  ? "bg-orange-100 font-semibold text-orange-700"
+                  : "hover:bg-stone-100"
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              {item.title}
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
   );
 }
