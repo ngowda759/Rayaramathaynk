@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import EventTable from "@/components/admin/events/EventTable";
 import EventStats from "@/components/admin/events/EventStats";
 import EventSearch from "@/components/admin/events/EventSearch";
+import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 
 import { TempleEvent } from "@/types/event";
 import { eventService } from "@/services/event.service";
@@ -61,23 +62,16 @@ export default function EventsPage() {
     <div className="space-y-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">
-            Temple Events
-          </h1>
-
-          <p className="text-stone-500">
-            Manage temple events and festivals.
-          </p>
-        </div>
-
-        <Link href="/admin/events/new">
-          <Button className="rounded-lg bg-orange-600 px-4 py-2 text-white hover:bg-orange-700">
-            Add Event
-          </Button>
-        </Link>
-      </div>
+      <AdminPageHeader
+  	title="Temple Events"
+  	description="Manage temple events and festivals."
+	>
+  	<Link href="/admin/events/new">
+    	<Button className="rounded-lg bg-orange-600 px-4 py-2 text-white hover:bg-orange-700">
+      	Add Event
+    	</Button>
+  	</Link>
+	</AdminPageHeader>
 
       {/* Statistics */}
       <EventStats
