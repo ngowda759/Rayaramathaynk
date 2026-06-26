@@ -1,3 +1,19 @@
 {"timestamp":"00:00:04.806","source":"Server","level":"LOG","message":""}
 {"timestamp":"00:00:09.111","source":"Server","level":"LOG","message":"○ Compiling / ..."}
 {"timestamp":"00:00:40.926","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:00:46.577","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:04:56.482","source":"Server","level":"LOG","message":"✓ Compiled in 1163ms"}
+{"timestamp":"00:06:14.546","source":"Server","level":"LOG","message":"✓ Compiled in 1907ms"}
+{"timestamp":"00:12:09.045","source":"Server","level":"LOG","message":"✓ Compiled in 115ms"}
+{"timestamp":"00:12:18.700","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:13:18.084","source":"Server","level":"LOG","message":"✓ Compiled in 3.3s"}
+{"timestamp":"00:14:03.445","source":"Server","level":"LOG","message":"✓ Compiled in 68ms"}
+{"timestamp":"00:18:04.689","source":"Server","level":"LOG","message":"✓ Compiled in 2.4s"}
+{"timestamp":"00:18:05.659","source":"Browser","level":"ERROR","message":"uncaughtError: Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: object. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.\n\nCheck the render method of `EventsPage`."}
+{"timestamp":"00:18:11.035","source":"Server","level":"LOG","message":"✓ Compiled in 0ms"}
+{"timestamp":"00:18:11.523","source":"Server","level":"WARN","message":"⚠ Fast Refresh had to perform a full reload due to a runtime error."}
+{"timestamp":"00:18:14.194","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:21:44.340","source":"Server","level":"LOG","message":"✓ Compiled in 117ms"}
+{"timestamp":"00:22:07.434","source":"Server","level":"LOG","message":"✓ Compiled in 455ms"}
+{"timestamp":"00:22:14.812","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:22:18.662","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}

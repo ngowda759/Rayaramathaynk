@@ -1,6 +1,9 @@
 import { Timestamp } from "firebase/firestore";
 
-export type EventStatus = "Upcoming" | "Ongoing" | "Completed";
+export type EventStatus =
+  | "Upcoming"
+  | "Ongoing"
+  | "Completed";
 
 export interface TempleEvent {
   id?: string;
