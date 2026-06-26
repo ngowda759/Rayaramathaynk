@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { Pencil } from "lucide-react";
+
 import { TempleEvent } from "@/types/event";
 import EventStatusBadge from "./EventStatusBadge";
 
@@ -15,6 +18,7 @@ export default function EventTable({ events }: Props) {
             <th className="px-6 py-4 text-left">Location</th>
             <th className="px-6 py-4 text-left">Featured</th>
             <th className="px-6 py-4 text-left">Status</th>
+            <th className="px-6 py-4 text-left">Actions</th>
           </tr>
         </thead>
 
@@ -22,7 +26,7 @@ export default function EventTable({ events }: Props) {
           {events.length === 0 ? (
             <tr>
               <td
-                colSpan={4}
+                colSpan={5}
                 className="px-6 py-10 text-center text-stone-500"
               >
                 No events found.
@@ -30,7 +34,10 @@ export default function EventTable({ events }: Props) {
             </tr>
           ) : (
             events.map((event) => (
-              <tr key={event.id} className="border-t hover:bg-stone-50">
+              <tr
+                key={event.id}
+                className="border-t hover:bg-stone-50"
+              >
                 <td className="px-6 py-4 font-medium">
                   {event.title}
                 </td>
@@ -45,6 +52,16 @@ export default function EventTable({ events }: Props) {
 
                 <td className="px-6 py-4">
                   <EventStatusBadge status={event.status} />
+                </td>
+
+                <td className="px-6 py-4">
+                  <Link
+                    href={`/admin/events/${event.id}/edit`}
+                    className="inline-flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-2 text-sm text-orange-700 hover:bg-orange-200"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Link>
                 </td>
               </tr>
             ))

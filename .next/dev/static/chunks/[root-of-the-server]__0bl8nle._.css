@@ -210,6 +210,7 @@
     --font-sans: var(--font-sans);
     --color-red-600: #e40014;
     --color-orange-100: #ffedd5;
+    --color-orange-200: #ffd7a8;
     --color-orange-400: #ff8b1a;
     --color-orange-600: #f05100;
     --color-orange-700: #c53c00;
@@ -278,6 +279,7 @@
     :root, :host {
       --color-red-600: lab(48.4493% 77.4328 61.5452);
       --color-orange-100: lab(94.7127% 3.58394 14.3151);
+      --color-orange-200: lab(88.4871% 9.94918 28.8378);
       --color-orange-400: lab(70.0429% 42.5156 75.8207);
       --color-orange-600: lab(57.1026% 64.2584 89.8886);
       --color-orange-700: lab(46.4615% 57.7275 70.8507);
@@ -696,6 +698,10 @@
     height: calc(var(--spacing) * 9);
   }
 
+  .h-4 {
+    height: calc(var(--spacing) * 4);
+  }
+
   .h-5 {
     height: calc(var(--spacing) * 5);
   }
@@ -734,6 +740,10 @@
 
   .min-h-screen {
     min-height: 100vh;
+  }
+
+  .w-4 {
+    width: calc(var(--spacing) * 4);
   }
 
   .w-5 {
@@ -1652,6 +1662,12 @@
   @media (hover: hover) {
     .hover\:bg-muted:hover {
       background-color: var(--muted);
+    }
+  }
+
+  @media (hover: hover) {
+    .hover\:bg-orange-200:hover {
+      background-color: var(--color-orange-200);
     }
   }
 
