@@ -29,7 +29,7 @@ export default function Hero() {
 
           <button className="rounded-xl border border-gray-300 bg-white px-8 py-4 font-semibold hover:bg-gray-100 transition flex items-center gap-2">
             Book Seva
-            <ArrowRight size={18} />
+            <ArrowRight size={18}/>
           </button>
 
         </div>
