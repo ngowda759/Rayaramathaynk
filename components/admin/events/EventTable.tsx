@@ -3,6 +3,7 @@ import { Pencil } from "lucide-react";
 
 import { TempleEvent } from "@/types/event";
 import EventStatusBadge from "./EventStatusBadge";
+import DeleteEventDialog from "./DeleteEventDialog";
 
 interface Props {
   events: TempleEvent[];
@@ -61,8 +62,28 @@ export default function EventTable({ events }: Props) {
                   >
                     <Pencil className="h-4 w-4" />
                     Edit
-                  </Link>
+                  </Link> 
                 </td>
+
+		<td className="px-6 py-4">
+  <div className="flex gap-2">
+    <Link
+      href={`/admin/events/${event.id}/edit`}
+      className="inline-flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-2 text-sm text-orange-700 hover:bg-orange-200"
+    >
+      <Pencil className="h-4 w-4" />
+      Edit
+    </Link>
+
+    {event.id && (
+      <DeleteEventDialog
+        id={event.id}
+        title={event.title}
+      />
+    )}
+  </div>
+</td>
+
               </tr>
             ))
           )}
