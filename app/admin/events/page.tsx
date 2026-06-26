@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 import EventTable from "@/components/admin/events/EventTable";
 import EventStats from "@/components/admin/events/EventStats";
-import EventSearch from "@/components/admin/events/EventSearch";
+import SearchBox from "@/components/admin/common/SearchBox";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 
 import { TempleEvent } from "@/types/event";
@@ -82,9 +82,10 @@ export default function EventsPage() {
       />
 
       {/* Search */}
-      <EventSearch
+      <SearchBox
         value={search}
         onChange={setSearch}
+	placeholder="Search events by title, location or description..."
       />
 
       {/* Table */}
