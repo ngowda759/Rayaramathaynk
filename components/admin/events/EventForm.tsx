@@ -4,55 +4,66 @@ import { useState } from "react";
 import { Timestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
-import { eventService } from "@/services/event.service";
 import { TempleEvent } from "@/types/event";
+import { eventService } from "@/services/event.service";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function EventForm() {
+interface EventFormProps {
+  mode?: "create" | "edit";
+  initialData?: TempleEvent;
+}
+
+export default function EventForm({
+  mode = "create",
+  initialData,
+}: EventFormProps) {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    title: "",
-    description: "",
-    location: "",
+    title: initialData?.title ?? "",
+    description: initialData?.description ?? "",
+    location: initialData?.location ?? "",
   });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    console.log("Submit clicked");
-    setLoading(true);
-    const now = Timestamp.now()
 
-    const event: TempleEvent = {
-      title: form.title,
-      description: form.description,
-      location: form.location,
-      startDate: now,
-      endDate: now,
-      featured: false,
-      status: "Upcoming",
-    };
+    setLoading(true);
 
     try {
-  await eventService.addEvent(event);
+      if (mode === "edit" && initialData?.id) {
+        await eventService.updateEvent(initialData.id, {
+          title: form.title,
+          description: form.description,
+          location: form.location,
+        });
+      } else {
+        const now = Timestamp.now();
 
-  console.log("✅ Event saved successfully");
+        await eventService.addEvent({
+          title: form.title,
+          description: form.description,
+          location: form.location,
+          featured: false,
+          status: "Upcoming",
+          startDate: now,
+          endDate: now,
+        });
+      }
 
-  router.push("/admin/events");
-} catch (error) {
-  console.error("❌ Error saving event:", error);
-  alert(String(error));
-} finally {
-  setLoading(false);
-}
-
-
-
+      router.push("/admin/events");
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      alert("Unable to save event.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -61,7 +72,7 @@ export default function EventForm() {
       className="space-y-6 rounded-xl bg-white p-8 shadow"
     >
       <div>
-        <Label>Event Title</Label>
+        <Label>Title</Label>
 
         <Input
           value={form.title}
@@ -78,8 +89,8 @@ export default function EventForm() {
         <Label>Description</Label>
 
         <textarea
-          className="w-full rounded-md border p-3"
           rows={5}
+          className="w-full rounded-md border p-3"
           value={form.description}
           onChange={(e) =>
             setForm({
@@ -105,7 +116,11 @@ export default function EventForm() {
       </div>
 
       <Button type="submit" disabled={loading}>
-        {loading ? "Saving..." : "Save Event"}
+        {loading
+          ? "Saving..."
+          : mode === "edit"
+          ? "Update Event"
+          : "Save Event"}
       </Button>
     </form>
   );
