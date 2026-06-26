@@ -42,7 +42,7 @@ export default function EventsPage() {
           </p>
         </div>
 	<Link href="/admin/events/new">
-  	<Button>
+  	<Button className="rounded-lg bg-orange-600 px-4 py-2 text-white hover:bg-orange-700">
     	Add Event
   	</Button>
 	</Link>
