@@ -1,81 +1,39 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  CalendarDays,
-  Image,
-  HandCoins,
-  Settings,
-  Bell,
-} from "lucide-react";
+import { Bell, LogOut, UserCircle } from "lucide-react";
 
-const menuItems = [
-  {
-    title: "Dashboard",
-    href: "/admin",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Events",
-    href: "/admin/events",
-    icon: CalendarDays,
-  },
-  {
-    title: "Gallery",
-    href: "/admin/gallery",
-    icon: Image,
-  },
-  {
-    title: "Donations",
-    href: "/admin/donations",
-    icon: HandCoins,
-  },
-  {
-    title: "Announcements",
-    href: "/admin/announcements",
-    icon: Bell,
-  },
-  {
-    title: "Settings",
-    href: "/admin/settings",
-    icon: Settings,
-  },
-];
-
-export default function AdminSidebar() {
-  const pathname = usePathname();
-
+export default function AdminHeader() {
   return (
-    <aside className="w-72 bg-white border-r min-h-screen">
-      <div className="p-6 border-b">
-        <h1 className="text-xl font-bold">
-          🙏 Temple Admin
-        </h1>
+    <header className="flex h-16 items-center justify-between border-b bg-white px-6">
+      <div>
+        <h2 className="text-2xl font-bold text-stone-800">
+          Admin Dashboard
+        </h2>
       </div>
 
-      <nav className="p-4 space-y-2">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href;
+      <div className="flex items-center gap-4">
+        <button className="rounded-full p-2 hover:bg-stone-100">
+          <Bell className="h-5 w-5" />
+        </button>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 transition ${
-                active
-                  ? "bg-orange-100 text-orange-700 font-semibold"
-                  : "hover:bg-stone-100"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {item.title}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+        <div className="flex items-center gap-2">
+          <UserCircle className="h-8 w-8 text-orange-600" />
+
+          <div className="text-right">
+            <p className="text-sm font-semibold">
+              Temple Admin
+            </p>
+
+            <p className="text-xs text-stone-500">
+              admin@rayaramatha.org
+            </p>
+          </div>
+        </div>
+
+        <button className="rounded-full p-2 hover:bg-red-100 hover:text-red-600">
+          <LogOut className="h-5 w-5" />
+        </button>
+      </div>
+    </header>
   );
 }
