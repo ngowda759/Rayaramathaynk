@@ -89,6 +89,7 @@
     --color-blue-100: #dbeafe;
     --color-blue-600: #155dfc;
     --color-blue-700: #1447e6;
+    --color-purple-600: #9810fa;
     --color-gray-100: #f3f4f6;
     --color-gray-300: #d1d5dc;
     --color-gray-500: #6a7282;
@@ -163,6 +164,7 @@
       --color-blue-100: lab(92.0301% -2.24757 -11.6453);
       --color-blue-600: lab(44.0605% 29.0279 -86.0352);
       --color-blue-700: lab(36.9089% 35.0961 -85.6872);
+      --color-purple-600: lab(43.0295% 75.21 -86.5669);
       --color-gray-100: lab(96.1596% -.0823438 -1.13575);
       --color-gray-300: lab(85.1236% -.612259 -3.7138);
       --color-gray-500: lab(47.7841% -.393182 -10.0268);
@@ -1079,6 +1081,10 @@
     padding: calc(var(--spacing) * 10);
   }
 
+  .p-12 {
+    padding: calc(var(--spacing) * 12);
+  }
+
   .px-\(--card-spacing\) {
     padding-inline: var(--card-spacing);
   }
@@ -1331,6 +1337,10 @@
 
   .text-primary-foreground {
     color: var(--primary-foreground);
+  }
+
+  .text-purple-600 {
+    color: var(--color-purple-600);
   }
 
   .text-red-600 {
