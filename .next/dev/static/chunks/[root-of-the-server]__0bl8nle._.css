@@ -209,10 +209,7 @@
 @layer theme {
   :root, :host {
     --font-sans: var(--font-sans);
-    --color-red-50: #fef2f2;
-    --color-red-200: #ffcaca;
     --color-red-600: #e40014;
-    --color-red-700: #bf000f;
     --color-orange-100: #ffedd5;
     --color-orange-200: #ffd7a8;
     --color-orange-400: #ff8b1a;
@@ -296,10 +293,7 @@
 
   @supports (color: lab(0% 0 0)) {
     :root, :host {
-      --color-red-50: lab(96.5005% 4.18508 1.52328);
-      --color-red-200: lab(86.017% 19.8815 7.75869);
       --color-red-600: lab(48.4493% 77.4328 61.5452);
-      --color-red-700: lab(40.4273% 67.2623 53.7441);
       --color-orange-100: lab(94.7127% 3.58394 14.3151);
       --color-orange-200: lab(88.4871% 9.94918 28.8378);
       --color-orange-400: lab(70.0429% 42.5156 75.8207);
@@ -1322,10 +1316,6 @@
     border-color: var(--input);
   }
 
-  .border-red-200 {
-    border-color: var(--color-red-200);
-  }
-
   .border-stone-300 {
     border-color: var(--color-stone-300);
   }
@@ -1440,10 +1430,6 @@
 
   .bg-primary {
     background-color: var(--primary);
-  }
-
-  .bg-red-50 {
-    background-color: var(--color-red-50);
   }
 
   .bg-secondary {
@@ -1852,10 +1838,6 @@
 
   .text-red-600 {
     color: var(--color-red-600);
-  }
-
-  .text-red-700 {
-    color: var(--color-red-700);
   }
 
   .text-secondary-foreground {
@@ -2592,6 +2574,24 @@
   @media (min-width: 48rem) {
     .md\:grid-cols-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .md\:flex-row {
+      flex-direction: row;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .md\:items-center {
+      align-items: center;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .md\:justify-between {
+      justify-content: space-between;
     }
   }
 
