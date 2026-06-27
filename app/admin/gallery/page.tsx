@@ -1,46 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+
+import GalleryTable from "@/components/admin/gallery/GalleryTable";
 import GalleryStats from "@/components/admin/gallery/GalleryStats";
 import SearchBox from "@/components/admin/common/SearchBox";
+import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+
+import { GalleryImage } from "@/types/gallery";
+import { galleryService } from "@/services/gallery.service";
 
 export default function GalleryPage() {
+  const [images, setImages] = useState<GalleryImage[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  async function loadImages() {
+    try {
+      const data = await galleryService.getImages();
+      setImages(data);
+    } catch (error) {
+      console.error("Failed to load images:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadImages();
+  }, []);
+
+  const filteredImages = images.filter((image) => {
+    const keyword = search.toLowerCase();
+    return (
+      image.title.toLowerCase().includes(keyword) ||
+      image.description.toLowerCase().includes(keyword) ||
+      image.category.toLowerCase().includes(keyword) ||
+      image.tags.some((tag) => tag.toLowerCase().includes(keyword))
+    );
+  });
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <AdminPageHeader
-        title="Temple Gallery"
-        description="Manage temple gallery images."
-      >
-        <Link href="/admin/gallery/new">
-          <Button>Add Image</Button>
-        </Link>
-      </AdminPageHeader>
-
-      <GalleryStats
-        total={0}
-        featured={0}
-        temple={0}
-        festivals={0}
+        title="Gallery Management"
+        description="Manage temple gallery images, categories, and featured photos."
+        action={
+          <Button asChild>
+            <Link href="/admin/gallery/create">Add Image</Link>
+          </Button>
+        }
       />
 
-      <SearchBox
-        value={search}
-        onChange={setSearch}
-        placeholder="Search gallery..."
-      />
+      <GalleryStats />
 
-      <div className="rounded-xl border bg-white p-12 text-center">
-        <h2 className="text-xl font-semibold">No Images Found</h2>
-        <p className="mt-2 text-stone-500">
-          Start by adding your first gallery image.
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <SearchBox
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by title, category, or tag..."
+        />
       </div>
+
+      {loading ? (
+        <div className="flex h-64 items-center justify-center">
+          <p className="text-muted-foreground">Loading gallery...</p>
+        </div>
+      ) : (
+        <GalleryTable images={filteredImages} onRefresh={loadImages} />
+      )}
     </div>
   );
 }
