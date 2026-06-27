@@ -3,33 +3,23 @@ import { ReactNode } from "react";
 interface AdminPageHeaderProps {
   title: string;
   description?: string;
-  children?: ReactNode;
+  action?: ReactNode;
 }
 
 export default function AdminPageHeader({
   title,
   description,
-  children,
+  action,
 }: AdminPageHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex items-start justify-between">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-stone-900">
-          {title}
-        </h1>
-
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
         {description && (
-          <p className="mt-1 text-stone-500">
-            {description}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-
-      {children && (
-        <div className="flex items-center gap-3">
-          {children}
-        </div>
-      )}
+      {action && <div>{action}</div>}
     </div>
   );
 }
