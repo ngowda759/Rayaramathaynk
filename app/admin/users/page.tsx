@@ -1,0 +1,97 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+import { Button } from "@/components/ui/button";
+
+import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import SearchBox from "@/components/admin/common/SearchBox";
+import UserStats from "@/components/admin/users/UserStats";
+import UserTable from "@/components/admin/users/UserTable";
+
+import { TempleUser } from "@/types/user";
+import { userService } from "@/services/user.service";
+
+export default function UsersPage() {
+  const [users, setUsers] = useState<TempleUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  async function loadUsers() {
+    try {
+      const data = await userService.getUsers();
+      console.log("Users:", data);
+      setUsers(data);
+    } catch (error) {
+      console.error("Failed to load users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const filteredUsers = useMemo(() => {
+    const keyword = search.toLowerCase();
+
+    return users.filter((user) => {
+      const name = user.name ?? "";
+      const email = user.email ?? "";
+      const role = user.role ?? "";
+
+      return (
+        name.toLowerCase().includes(keyword) ||
+        email.toLowerCase().includes(keyword) ||
+        role.toLowerCase().includes(keyword)
+      );
+    });
+  }, [users, search]);
+
+  return (
+    <div className="space-y-8">
+      <AdminPageHeader
+        title="Temple Users"
+        description="Manage temple staff and administrator accounts."
+        action={
+          <Link href="/admin/users/new">
+            <Button className="bg-orange-600 hover:bg-orange-700">
+              Add User
+            </Button>
+          </Link>
+        }
+      />
+
+      <UserStats
+        total={users.length}
+        active={users.filter((u) => u.active).length}
+        admins={
+          users.filter(
+            (u) =>
+              u.role === "Temple Admin" ||
+              u.role === "Super Admin"
+          ).length
+        }
+        volunteers={
+          users.filter((u) => u.role === "Volunteer").length
+        }
+      />
+
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        placeholder="Search users..."
+      />
+
+      {loading ? (
+        <div className="rounded-xl border bg-white p-8">
+          Loading users...
+        </div>
+      ) : (
+        <UserTable users={filteredUsers} />
+      )}
+    </div>
+  );
+}
