@@ -12,6 +12,7 @@ import {
   Bell,
   Users,
   Settings,
+  Flame,
 } from "lucide-react";
 
 const menuItems = [
@@ -38,7 +39,12 @@ const menuItems = [
   {
     title: "Daily Pooja",
     href: "/admin/pooja",
-    icon: BookOpen,
+    icon: Flame,
+  },
+  {
+    title: "Special Sevas",
+    href: "/admin/sevas",
+    icon: HandCoins,
   },
   {
     title: "Donations",
@@ -76,7 +82,6 @@ export default function AdminSidebar() {
       <nav className="space-y-2 p-4">
         {menuItems.map((item) => {
           const Icon = item.icon;
-
           const active = pathname === item.href;
 
           return (
