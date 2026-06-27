@@ -66,6 +66,11 @@ const menuItems = [
     href: "/admin/settings",
     icon: Settings,
   },
+  {
+    title: "Aaradhane",
+    href: "/admin/aaradhane",
+    icon: BookOpen,
+  },
 ];
 
 export default function AdminSidebar() {
