@@ -5,6 +5,7 @@ import { donationService } from "@/services/donation.service";
 import { DonationRecord } from "@/types/donation";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
+import Button from "@/components/ui/button";
 
 export default function AdminDonationsPage() {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
@@ -27,6 +28,8 @@ export default function AdminDonationsPage() {
     loadDonations();
   }, []);
 
+  const [updatingDonationId, setUpdatingDonationId] = useState<string | null>(null);
+
   const filteredDonations = donations.filter((donation) => {
     const keyword = search.toLowerCase();
     return (
@@ -36,6 +39,21 @@ export default function AdminDonationsPage() {
       donation.status.toLowerCase().includes(keyword)
     );
   });
+
+  async function updateDonationStatus(
+    donationId: string,
+    status: DonationRecord["status"]
+  ) {
+    try {
+      setUpdatingDonationId(donationId);
+      await donationService.updateDonationStatus(donationId, status);
+      await loadDonations();
+    } catch (error) {
+      console.error("Failed to update donation status:", error);
+    } finally {
+      setUpdatingDonationId(null);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -76,6 +94,7 @@ export default function AdminDonationsPage() {
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Method</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Actions</th>
                   <th className="px-4 py-3">Date</th>
                 </tr>
               </thead>
@@ -102,6 +121,28 @@ export default function AdminDonationsPage() {
                       }`}>
                         {donation.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {donation.status === "pending" ? (
+                          <>
+                            <Button
+                              variant="secondary"
+                              loading={updatingDonationId === donation.id}
+                              onClick={() => updateDonationStatus(donation.id, "received")}
+                            >
+                              Received
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              loading={updatingDonationId === donation.id}
+                              onClick={() => updateDonationStatus(donation.id, "failed")}
+                            >
+                              Failed
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-stone-500">
                       {new Date(donation.createdAt).toLocaleDateString()}
