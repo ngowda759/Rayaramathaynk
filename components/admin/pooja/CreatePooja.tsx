@@ -29,7 +29,7 @@ export default function CreatePooja() {
   const [description, setDescription] = useState("");
   const [startTime, setStartTime] = useState("");
   const [duration, setDuration] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [sevaAmount, setSevaAmount] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(0);

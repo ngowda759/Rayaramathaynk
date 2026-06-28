@@ -10,6 +10,12 @@ const colors: Record<UserRole, string> = {
   Priest: "bg-blue-100 text-blue-700",
   "Office Staff": "bg-green-100 text-green-700",
   Volunteer: "bg-purple-100 text-purple-700",
+  super_admin: "bg-red-100 text-red-700",
+  temple_admin: "bg-orange-100 text-orange-700",
+  priest: "bg-blue-100 text-blue-700",
+  staff: "bg-green-100 text-green-700",
+  volunteer: "bg-purple-100 text-purple-700",
+  devotee: "bg-slate-100 text-slate-700",
 };
 
 export default function UserRoleBadge({ role }: Props) {

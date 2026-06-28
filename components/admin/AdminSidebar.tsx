@@ -101,6 +101,11 @@ const sections: MenuSection[] = [
         href: "/admin/settings",
         icon: Settings,
       },
+      {
+        title: "Admin Assistant",
+        href: "/admin/assistant",
+        icon: Bell,
+      },
     ],
   },
 ];

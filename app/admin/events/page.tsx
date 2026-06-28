@@ -63,17 +63,14 @@ export default function EventsPage() {
 
       {/* Header */}
       <AdminPageHeader
-  	title="Temple Events"
-  	description="Manage temple events and festivals."
-	>
-  	<Link href="/admin/events/new">
-    	<Button className="rounded-lg bg-orange-600 px-4 py-2 text-white hover:bg-orange-700">
-      	Add Event
-    	</Button>
-  	</Link>
-	</AdminPageHeader>
-
-      {/* Statistics */}
+        title="Temple Events"
+        description="Manage temple events and festivals."
+        action={
+          <Button asChild>
+            <Link href="/admin/events/new">Add Event</Link>
+          </Button>
+        }
+      />
       <EventStats
         total={total}
         upcoming={upcoming}

@@ -54,7 +54,7 @@ export const poojaService = {
   },
 
   async createPooja(
-    data: Omit<DailyPooja, "id" | "createdAt">,
+    data: Omit<DailyPooja, "id" | "createdAt" | "createdBy">,
     userEmail: string
   ): Promise<string> {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {

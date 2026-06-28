@@ -1,12 +1,46 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import DashboardCard from "@/components/admin/DashboardCard";
 import {
   CalendarDays,
   Image,
   HandCoins,
   Clock3,
+  Bell,
 } from "lucide-react";
+import { eventService } from "@/services/event.service";
+import { galleryService } from "@/services/gallery.service";
+import { poojaService } from "@/services/pooja.service";
 
 export default function AdminDashboard() {
+  const [upcomingEvents, setUpcomingEvents] = useState(0);
+  const [galleryImages, setGalleryImages] = useState(0);
+  const [todayPoojas, setTodayPoojas] = useState(0);
+
+  useEffect(() => {
+    async function loadDashboardCounts() {
+      try {
+        const [events, images, poojas] = await Promise.all([
+          eventService.getEvents(),
+          galleryService.getImages(),
+          poojaService.getPoojas(),
+        ]);
+
+        setUpcomingEvents(
+          events.filter((event) => event.status === "Upcoming").length
+        );
+        setGalleryImages(images.length);
+        setTodayPoojas(poojas.filter((pooja) => pooja.isActive).length);
+      } catch (error) {
+        console.error("Failed to load dashboard counts:", error);
+      }
+    }
+
+    loadDashboardCounts();
+  }, []);
+
   return (
     <div className="space-y-8">
       <div>
@@ -22,27 +56,29 @@ export default function AdminDashboard() {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <DashboardCard
           title="Upcoming Events"
-          value={8}
+          value={upcomingEvents}
           icon={CalendarDays}
         />
 
         <DashboardCard
           title="Gallery Images"
-          value={124}
+          value={galleryImages}
           icon={Image}
         />
 
         <DashboardCard
           title="Today's Poojas"
-          value={5}
+          value={todayPoojas}
           icon={Clock3}
         />
 
-        <DashboardCard
-          title="Donations"
-          value="₹1,25,000"
-          icon={HandCoins}
-        />
+        <Link href="/admin/assistant" className="block">
+          <DashboardCard
+            title="Admin Assistant"
+            value="Open"
+            icon={Bell}
+          />
+        </Link>
       </div>
 
       <div className="rounded-xl border bg-white p-8 shadow-sm">
