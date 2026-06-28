@@ -1,20 +1,42 @@
-import * as React from "react"
-import { Input as InputPrimitive } from "@base-ui/react/input"
+"use client";
 
-import { cn } from "@/lib/utils"
+import { forwardRef, InputHTMLAttributes } from "react";
+import clsx from "clsx";
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
-  return (
-    <InputPrimitive
-      type={type}
-      data-slot="input"
-      className={cn(
-        "h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-base transition-[color,box-shadow] duration-200 outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        className
-      )}
-      {...props}
-    />
-  )
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  label: string;
+  error?: string;
 }
 
-export { Input }
+const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ label, error, className, ...props }, ref) => {
+    return (
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-stone-700">
+          {label}
+        </label>
+
+        <input
+          ref={ref}
+          className={clsx(
+            "w-full rounded-lg border border-stone-300 px-4 py-3 outline-none",
+            "focus:border-orange-500 focus:ring-2 focus:ring-orange-200",
+            error && "border-red-500",
+            className
+          )}
+          {...props}
+        />
+
+        {error && (
+          <p className="text-sm text-red-600">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+);
+
+Input.displayName = "Input";
+
+export default Input;

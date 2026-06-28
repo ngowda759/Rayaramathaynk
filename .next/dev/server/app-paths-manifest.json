@@ -1,11 +1,4 @@
 {
-  "/(public)/page": "app/(public)/page.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/admin/aaradhane/page": "app/admin/aaradhane/page.js",
-  "/admin/events/page": "app/admin/events/page.js",
   "/admin/page": "app/admin/page.js",
-  "/admin/pooja/page": "app/admin/pooja/page.js",
-  "/admin/users/[id]/edit/page": "app/admin/users/[id]/edit/page.js",
-  "/admin/users/new/page": "app/admin/users/new/page.js",
-  "/admin/users/page": "app/admin/users/page.js"
+  "/page": "app/page.js"
 }

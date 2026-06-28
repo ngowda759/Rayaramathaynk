@@ -1,26 +1,38 @@
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole =
-  | "Super Admin"
-  | "Temple Admin"
-  | "Priest"
-  | "Office Staff"
-  | "Volunteer";
+  | "super_admin"
+  | "temple_admin"
+  | "priest"
+  | "accountant"
+  | "staff"
+  | "volunteer"
+  | "devotee";
 
-export interface TempleUser {
-  id?: string;
+export interface UserProfile {
+  uid: string;
 
   name: string;
 
   email: string;
 
-  phone?: string;
+  phone: string;
 
   role: UserRole;
 
-  active: boolean;
+  templeId: string;
 
-  createdAt?: Timestamp;
+  profileImage?: string;
 
-  updatedAt?: Timestamp;
+  isApproved: boolean;
+
+  isActive: boolean;
+
+  emailVerified: boolean;
+
+  lastLogin?: Timestamp;
+
+  createdAt: Timestamp;
+
+  updatedAt: Timestamp;
 }
