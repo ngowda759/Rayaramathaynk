@@ -1,3 +1,20 @@
 {"timestamp":"00:00:04.443","source":"Server","level":"WARN","message":"⚠ Slow filesystem detected. The benchmark took 333ms. If /workspaces/Rayaramathaynk/.next/dev is a network drive, consider moving it to a local folder.\nSee more: https://nextjs.org/docs/app/guides/local-development"}
 {"timestamp":"00:00:08.287","source":"Server","level":"LOG","message":""}
 {"timestamp":"00:00:14.901","source":"Server","level":"LOG","message":"○ Compiling /admin/gallery ..."}
+{"timestamp":"00:00:57.730","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:00:58.618","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:01:33.721","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:01:53.683","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 14.9s"}
+{"timestamp":"00:02:08.238","source":"Server","level":"LOG","message":"✓ Compiled in 1970ms"}
+{"timestamp":"00:11:24.775","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:11:28.931","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:13:22.174","source":"Server","level":"LOG","message":"○ Compiling /gallery ..."}
+{"timestamp":"00:14:01.020","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 12.0s"}
+{"timestamp":"00:15:23.207","source":"Server","level":"ERROR","message":"⨯ \"upstream image response failed for\" \"https://images.unsplash.com/photo-1502920917128-1aa500764b20?w=1200\" 404"}
+{"timestamp":"00:15:23.210","source":"Server","level":"ERROR","message":"⨯ \"upstream image response failed for\" \"https://images.unsplash.com/photo-1517546805237-2d00e3c1c276?w=1200\" 404"}
+{"timestamp":"00:15:23.216","source":"Server","level":"ERROR","message":"⨯ \"upstream image response failed for\" \"https://images.unsplash.com/photo-1512965773411-943d4707fc22?w=1200\" 404"}
+{"timestamp":"00:15:23.220","source":"Server","level":"ERROR","message":"⨯ \"upstream image response failed for\" \"https://images.unsplash.com/photo-1556009994-1090b1ef9f84?w=1200\" 404"}
+{"timestamp":"00:15:23.221","source":"Server","level":"ERROR","message":"⨯ \"upstream image response failed for\" \"https://images.unsplash.com/photo-1465153698244-3f33e45c9f0b?w=1200\" 404"}
+{"timestamp":"00:15:24.991","source":"Browser","level":"WARN","message":"Image with src \"https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?w=1200\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"}
+{"timestamp":"00:15:32.240","source":"Server","level":"WARN","message":"[browser] \"\\u001b[33mImage with src \\\"https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?w=1200\\\" has \\\"fill\\\" but is missing \\\"sizes\\\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes\\u001b[39m\""}
+{"timestamp":"00:15:32.240","source":"Browser","level":"WARN","message":"\u001b[33mImage with src \"https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?w=1200\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes\u001b[39m"}
