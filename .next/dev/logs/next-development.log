@@ -1,6 +1,4 @@
-{"timestamp":"00:00:03.349","source":"Server","level":"WARN","message":"⚠ Slow filesystem detected. The benchmark took 817ms. If /workspaces/Rayaramathaynk/.next/dev is a network drive, consider moving it to a local folder.\nSee more: https://nextjs.org/docs/app/guides/local-development"}
-{"timestamp":"00:00:07.873","source":"Server","level":"LOG","message":""}
-{"timestamp":"00:00:12.752","source":"Server","level":"LOG","message":"○ Compiling / ..."}
-{"timestamp":"00:01:06.176","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:02:07.111","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:02:20.682","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 10.6s"}
+{"timestamp":"00:00:08.108","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:12.254","source":"Server","level":"LOG","message":"○ Compiling /admin ..."}
+{"timestamp":"00:00:35.048","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:00:49.830","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}

@@ -9,31 +9,21 @@ import {
 } from "react";
 
 import { User, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import {
-  loginUser,
-  logoutUser,
-  registerUser,
-  resetPassword,
-} from "@/lib/auth";
-
-import { UserProfile } from "@/types/user";
+  authService,
+  RegisterData,
+} from "@/services/auth.service";
 
 interface AuthContextType {
   user: User | null;
-  userProfile: UserProfile | null;
+  profile: any;
   loading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
 
-  register: (
-    name: string,
-    email: string,
-    phone: string,
-    password: string
-  ) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
 
   logout: () => Promise<void>;
 
@@ -42,7 +32,9 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
 export function AuthProvider({
   children,
@@ -51,19 +43,14 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState<User | null>(null);
 
-  const [userProfile, setUserProfile] =
-    useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(uid: string) {
-    const snapshot = await getDoc(doc(db, "users", uid));
+    const data = await authService.getUserProfile(uid);
 
-    if (snapshot.exists()) {
-      setUserProfile(snapshot.data() as UserProfile);
-    } else {
-      setUserProfile(null);
-    }
+    setProfile(data);
   }
 
   async function refreshProfile() {
@@ -73,47 +60,48 @@ export function AuthProvider({
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        setUser(firebaseUser);
 
-      if (firebaseUser) {
-        await loadProfile(firebaseUser.uid);
-      } else {
-        setUserProfile(null);
+        if (firebaseUser) {
+          await loadProfile(firebaseUser.uid);
+        } else {
+          setProfile(null);
+        }
+
+        setLoading(false);
       }
-
-      setLoading(false);
-    });
+    );
 
     return unsubscribe;
   }, []);
 
-  async function login(email: string, password: string) {
-    await loginUser(email, password);
-  }
-
-  async function register(
-    name: string,
+  async function login(
     email: string,
-    phone: string,
     password: string
   ) {
-    await registerUser(name, email, phone, password);
+    await authService.login(email, password);
+  }
+
+  async function register(data: RegisterData) {
+    await authService.register(data);
   }
 
   async function logout() {
-    await logoutUser();
+    await authService.logout();
   }
 
   async function forgotPassword(email: string) {
-    await resetPassword(email);
+    await authService.forgotPassword(email);
   }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        userProfile,
+        profile,
         loading,
         login,
         register,
@@ -131,7 +119,9 @@ export function useAuthContext() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error("useAuthContext must be used within AuthProvider");
+    throw new Error(
+      "useAuthContext must be used inside AuthProvider"
+    );
   }
 
   return context;
