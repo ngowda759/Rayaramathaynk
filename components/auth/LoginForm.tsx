@@ -2,103 +2,118 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { Eye, EyeOff } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 import Button from "@/components/ui/button";
-import Input from "@/components/ui/input";
 import Card from "@/components/ui/card";
+import Input from "@/components/ui/input";
 
 import LoginHeader from "./LoginHeader";
 
-const loginSchema = z.object({
-  email: z.email("Enter a valid email address"),
+const schema = z.object({
+  email: z.email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormValues = z.infer<typeof schema>;
 
 export default function LoginForm() {
+  const router = useRouter();
+
+  const { login } = useAuth();
+
   const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(schema),
   });
 
-  async function onSubmit(data: LoginFormData) {
-    console.log(data);
+  async function onSubmit(data: LoginFormValues) {
+    try {
+      await login(data.email, data.password);
+
+      toast.success("Welcome back!");
+
+      router.push("/admin");
+    } catch (error: any) {
+      switch (error.code) {
+        case "auth/invalid-credential":
+          toast.error("Invalid email or password.");
+          break;
+
+        case "auth/user-not-found":
+          toast.error("No account found.");
+          break;
+
+        case "auth/wrong-password":
+          toast.error("Incorrect password.");
+          break;
+
+        case "auth/too-many-requests":
+          toast.error("Too many login attempts.");
+          break;
+
+        default:
+          toast.error(error.message || "Login failed.");
+      }
+    }
   }
 
   return (
-    <Card className="w-full max-w-md rounded-2xl shadow-xl">
+    <Card className="w-full max-w-md">
       <div className="p-8">
         <LoginHeader />
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="mt-8 space-y-6"
+          className="mt-8 space-y-5"
         >
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Email
-            </label>
+          <Input
+            label="Email"
+            type="email"
+            placeholder="Enter your email"
+            error={errors.email?.message}
+            {...register("email")}
+          />
 
+          <div className="relative">
             <Input
-              type="email"
-              placeholder="Enter your email"
-              {...register("email")}
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              error={errors.password?.message}
+              {...register("password")}
             />
 
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.email.message}
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={() =>
+                setShowPassword(!showPassword)
+              }
+              className="absolute right-4 top-11 text-stone-500"
+            >
+              {showPassword ? (
+                <EyeOff size={20} />
+              ) : (
+                <Eye size={20} />
+              )}
+            </button>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Password
-            </label>
-
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                {...register("password")}
-              />
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowPassword(!showPassword)
-                }
-                className="absolute right-3 top-3 text-gray-500"
-              >
-                {showPassword ? (
-                  <EyeOff size={18} />
-                ) : (
-                  <Eye size={18} />
-                )}
-              </button>
-            </div>
-
-            {errors.password && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
-
-          <div className="flex justify-between text-sm">
+          <div className="flex items-center justify-between text-sm">
             <label className="flex items-center gap-2">
               <input type="checkbox" />
               Remember me
@@ -114,17 +129,16 @@ export default function LoginForm() {
 
           <Button
             type="submit"
-            className="w-full"
-            disabled={isSubmitting}
+            loading={isSubmitting}
           >
-            {isSubmitting ? "Signing In..." : "Sign In"}
+            Sign In
           </Button>
 
           <p className="text-center text-sm text-stone-600">
             Don't have an account?{" "}
             <Link
               href="/register"
-              className="text-orange-600 font-medium"
+              className="font-medium text-orange-600 hover:underline"
             >
               Register
             </Link>
