@@ -1,4 +1,5 @@
 {
+  "/(auth)/login/page": "app/(auth)/login/page.js",
   "/(public)/page": "app/(public)/page.js",
   "/admin/page": "app/admin/page.js"
 }
