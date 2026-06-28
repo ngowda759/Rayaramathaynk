@@ -4,7 +4,6 @@ export type UserRole =
   | "super_admin"
   | "temple_admin"
   | "priest"
-  | "accountant"
   | "staff"
   | "volunteer"
   | "devotee";
@@ -22,7 +21,7 @@ export interface UserProfile {
 
   templeId: string;
 
-  profileImage?: string;
+  profileImage: string;
 
   isApproved: boolean;
 
@@ -30,7 +29,7 @@ export interface UserProfile {
 
   emailVerified: boolean;
 
-  lastLogin?: Timestamp;
+  lastLogin: Timestamp | null;
 
   createdAt: Timestamp;
 

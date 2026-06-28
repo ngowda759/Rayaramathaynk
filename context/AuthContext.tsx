@@ -16,9 +16,11 @@ import {
   RegisterData,
 } from "@/services/auth.service";
 
+import { UserProfile } from "@/types/user";
+
 interface AuthContextType {
   user: User | null;
-  profile: any;
+  profile: UserProfile | null;
   loading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -36,21 +38,29 @@ const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
 export function AuthProvider({
   children,
-}: {
-  children: ReactNode;
-}) {
+}: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] =
+    useState<UserProfile | null>(null);
 
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(uid: string) {
-    const data = await authService.getUserProfile(uid);
+    try {
+      const data = await authService.getUserProfile(uid);
 
-    setProfile(data);
+      setProfile(data as UserProfile | null);
+    } catch (error) {
+      console.error("Failed to load user profile:", error);
+      setProfile(null);
+    }
   }
 
   async function refreshProfile() {
@@ -63,15 +73,19 @@ export function AuthProvider({
     const unsubscribe = onAuthStateChanged(
       auth,
       async (firebaseUser) => {
-        setUser(firebaseUser);
+        setLoading(true);
 
-        if (firebaseUser) {
-          await loadProfile(firebaseUser.uid);
-        } else {
-          setProfile(null);
+        try {
+          setUser(firebaseUser);
+
+          if (firebaseUser) {
+            await loadProfile(firebaseUser.uid);
+          } else {
+            setProfile(null);
+          }
+        } finally {
+          setLoading(false);
         }
-
-        setLoading(false);
       }
     );
 
@@ -91,6 +105,7 @@ export function AuthProvider({
 
   async function logout() {
     await authService.logout();
+    setProfile(null);
   }
 
   async function forgotPassword(email: string) {
@@ -120,7 +135,7 @@ export function useAuthContext() {
 
   if (!context) {
     throw new Error(
-      "useAuthContext must be used inside AuthProvider"
+      "useAuthContext must be used within AuthProvider"
     );
   }
 
