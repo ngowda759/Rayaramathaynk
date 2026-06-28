@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 export default function Hero() {
@@ -23,14 +24,20 @@ export default function Hero() {
 
         <div className="mt-12 flex justify-center gap-5 flex-wrap">
 
-          <button className="rounded-xl bg-amber-600 px-8 py-4 text-white font-semibold hover:bg-amber-700 transition">
+          <Link
+            href="/donation"
+            className="rounded-xl bg-amber-600 px-8 py-4 text-white font-semibold hover:bg-amber-700 transition text-center"
+          >
             Donate
-          </button>
+          </Link>
 
-          <button className="rounded-xl border border-gray-300 bg-white px-8 py-4 font-semibold hover:bg-gray-100 transition flex items-center gap-2">
+          <Link
+            href="/sevas"
+            className="rounded-xl border border-gray-300 bg-white px-8 py-4 font-semibold hover:bg-gray-100 transition flex items-center gap-2"
+          >
             Book Seva
-            <ArrowRight size={18}/>
-          </button>
+            <ArrowRight size={18} />
+          </Link>
 
         </div>
 

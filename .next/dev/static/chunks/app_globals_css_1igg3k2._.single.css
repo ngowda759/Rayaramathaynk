@@ -99,9 +99,12 @@ h1, h2, h3, h4, h5, h6 {
     --color-orange-600: #f05100;
     --color-orange-700: #c53c00;
     --color-amber-50: #fffbeb;
+    --color-amber-100: #fef3c6;
     --color-amber-500: #f99c00;
     --color-amber-600: #dd7400;
     --color-amber-700: #b75000;
+    --color-yellow-100: #fef9c2;
+    --color-yellow-200: #fff085;
     --color-yellow-300: #ffe02a;
     --color-yellow-500: #edb200;
     --color-yellow-600: #cd8900;
@@ -109,6 +112,11 @@ h1, h2, h3, h4, h5, h6 {
     --color-green-200: #b9f8cf;
     --color-green-600: #00a544;
     --color-green-700: #008138;
+    --color-emerald-50: #ecfdf5;
+    --color-emerald-100: #d0fae5;
+    --color-emerald-200: #a4f4cf;
+    --color-emerald-700: #007956;
+    --color-emerald-800: #005f46;
     --color-blue-100: #dbeafe;
     --color-blue-600: #155dfc;
     --color-blue-700: #1447e6;
@@ -198,9 +206,12 @@ h1, h2, h3, h4, h5, h6 {
       --color-orange-600: lab(57.1026% 64.2584 89.8886);
       --color-orange-700: lab(46.4615% 57.7275 70.8507);
       --color-amber-50: lab(98.6252% -.635922 8.42309);
+      --color-amber-100: lab(95.916% -1.21653 23.111);
       --color-amber-500: lab(72.7183% 31.8672 97.9407);
       --color-amber-600: lab(60.3514% 40.5624 87.1228);
       --color-amber-700: lab(47.2709% 42.9082 69.2966);
+      --color-yellow-100: lab(97.3564% -4.51407 27.344);
+      --color-yellow-200: lab(94.3433% -5.00429 52.9663);
       --color-yellow-300: lab(89.7033% -.480294 84.4917);
       --color-yellow-500: lab(76.3898% 14.5258 98.4589);
       --color-yellow-600: lab(62.7799% 22.4197 86.1544);
@@ -208,6 +219,11 @@ h1, h2, h3, h4, h5, h6 {
       --color-green-200: lab(92.4222% -26.4702 12.9427);
       --color-green-600: lab(59.0978% -58.6621 41.2579);
       --color-green-700: lab(47.0329% -47.0239 31.4788);
+      --color-emerald-50: lab(97.8462% -6.94966 1.85487);
+      --color-emerald-100: lab(94.9004% -17.0769 5.63836);
+      --color-emerald-200: lab(90.2247% -31.039 9.47084);
+      --color-emerald-700: lab(44.4871% -41.0396 11.0361);
+      --color-emerald-800: lab(35.3675% -33.1188 8.04002);
       --color-blue-100: lab(92.0301% -2.24757 -11.6453);
       --color-blue-600: lab(44.0605% 29.0279 -86.0352);
       --color-blue-700: lab(36.9089% 35.0961 -85.6872);
@@ -785,6 +801,10 @@ h1, h2, h3, h4, h5, h6 {
     height: calc(var(--spacing) * 32);
   }
 
+  .h-44 {
+    height: calc(var(--spacing) * 44);
+  }
+
   .h-64 {
     height: calc(var(--spacing) * 64);
   }
@@ -823,6 +843,10 @@ h1, h2, h3, h4, h5, h6 {
 
   .min-h-\[120px\] {
     min-height: 120px;
+  }
+
+  .min-h-\[150px\] {
+    min-height: 150px;
   }
 
   .min-h-\[calc\(100vh-120px\)\] {
@@ -1222,8 +1246,17 @@ h1, h2, h3, h4, h5, h6 {
     border-left-width: 4px;
   }
 
+  .border-dashed {
+    --tw-border-style: dashed;
+    border-style: dashed;
+  }
+
   .border-border {
     border-color: var(--border);
+  }
+
+  .border-emerald-200 {
+    border-color: var(--color-emerald-200);
   }
 
   .border-gray-300 {
@@ -1274,6 +1307,10 @@ h1, h2, h3, h4, h5, h6 {
     background-color: var(--color-amber-50);
   }
 
+  .bg-amber-100 {
+    background-color: var(--color-amber-100);
+  }
+
   .bg-amber-600 {
     background-color: var(--color-amber-600);
   }
@@ -1320,6 +1357,14 @@ h1, h2, h3, h4, h5, h6 {
     .bg-destructive\/10 {
       background-color: color-mix(in oklab, var(--destructive) 10%, transparent);
     }
+  }
+
+  .bg-emerald-50 {
+    background-color: var(--color-emerald-50);
+  }
+
+  .bg-emerald-100 {
+    background-color: var(--color-emerald-100);
   }
 
   .bg-gray-100 {
@@ -1757,6 +1802,10 @@ h1, h2, h3, h4, h5, h6 {
     letter-spacing: var(--tracking-wider);
   }
 
+  .break-all {
+    word-break: break-all;
+  }
+
   .whitespace-nowrap {
     white-space: nowrap;
   }
@@ -1779,6 +1828,14 @@ h1, h2, h3, h4, h5, h6 {
 
   .text-destructive {
     color: var(--destructive);
+  }
+
+  .text-emerald-700 {
+    color: var(--color-emerald-700);
+  }
+
+  .text-emerald-800 {
+    color: var(--color-emerald-800);
   }
 
   .text-foreground {
@@ -1889,6 +1946,10 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--color-white);
   }
 
+  .text-yellow-200 {
+    color: var(--color-yellow-200);
+  }
+
   .text-yellow-300 {
     color: var(--color-yellow-300);
   }
@@ -1903,6 +1964,10 @@ h1, h2, h3, h4, h5, h6 {
 
   .italic {
     font-style: italic;
+  }
+
+  .underline {
+    text-decoration-line: underline;
   }
 
   .underline-offset-4 {
@@ -2254,6 +2319,12 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   @media (hover: hover) {
+    .hover\:text-yellow-100:hover {
+      color: var(--color-yellow-100);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:text-yellow-600:hover {
       color: var(--color-yellow-600);
     }
@@ -2305,6 +2376,10 @@ h1, h2, h3, h4, h5, h6 {
 
   .focus\:ring-orange-200:focus {
     --tw-ring-color: var(--color-orange-200);
+  }
+
+  .focus\:ring-orange-500:focus {
+    --tw-ring-color: var(--color-orange-500);
   }
 
   .focus\:outline-none:focus {
@@ -2499,6 +2574,12 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   @media (min-width: 40rem) {
+    .sm\:grid-cols-1 {
+      grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 40rem) {
     .sm\:grid-cols-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -2507,6 +2588,18 @@ h1, h2, h3, h4, h5, h6 {
   @media (min-width: 40rem) {
     .sm\:flex-row {
       flex-direction: row;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .sm\:items-center {
+      align-items: center;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    .sm\:justify-between {
+      justify-content: space-between;
     }
   }
 
@@ -2555,6 +2648,12 @@ h1, h2, h3, h4, h5, h6 {
   @media (min-width: 48rem) {
     .md\:items-center {
       align-items: center;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .md\:items-start {
+      align-items: flex-start;
     }
   }
 
@@ -2622,8 +2721,20 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   @media (min-width: 80rem) {
+    .xl\:grid-cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 80rem) {
     .xl\:grid-cols-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .xl\:grid-cols-\[1\.25fr_0\.75fr\] {
+      grid-template-columns: 1.25fr .75fr;
     }
   }
 

@@ -1,7 +1,8 @@
 {
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(public)/gallery/page": "app/(public)/gallery/page.js",
   "/(public)/page": "app/(public)/page.js",
-  "/admin/gallery/create/page": "app/admin/gallery/create/page.js",
-  "/admin/gallery/page": "app/admin/gallery/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/announcements/page": "app/admin/announcements/page.js",
+  "/admin/events/page": "app/admin/events/page.js",
+  "/admin/page": "app/admin/page.js"
 }

@@ -12,6 +12,10 @@ import {
   Eye,
 } from "lucide-react";
 
+function isVideoPath(path: string) {
+  return /\.(mp4|webm|ogg)$/i.test(path);
+}
+
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -157,13 +161,23 @@ export default function GalleryTable({ images, onRefresh }: GalleryTableProps) {
                       onClick={() => setPreviewImage(image)}
                       className="relative block h-12 w-12 overflow-hidden rounded-lg border"
                     >
-                      <Image
-                        src={image.imagePath}
-                        alt={image.altText}
-                        fill
-                        className="object-cover"
-                        sizes="48px"
-                      />
+                      {isVideoPath(image.imagePath) ? (
+                        <video
+                          src={image.imagePath}
+                          className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                          loop
+                        />
+                      ) : (
+                        <Image
+                          src={image.imagePath}
+                          alt={image.altText}
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                        />
+                      )}
                     </button>
                   </TableCell>
                   <TableCell>
@@ -269,13 +283,21 @@ export default function GalleryTable({ images, onRefresh }: GalleryTableProps) {
           </DialogHeader>
           {previewImage && (
             <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-              <Image
-                src={previewImage.imagePath}
-                alt={previewImage.altText}
-                fill
-                className="object-contain"
-                sizes="(max-width: 768px) 100vw, 700px"
-              />
+              {isVideoPath(previewImage.imagePath) ? (
+                <video
+                  src={previewImage.imagePath}
+                  controls
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <Image
+                  src={previewImage.imagePath}
+                  alt={previewImage.altText}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 100vw, 700px"
+                />
+              )}
             </div>
           )}
           <div className="flex flex-wrap gap-2">
