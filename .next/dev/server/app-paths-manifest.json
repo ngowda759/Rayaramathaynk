@@ -1,3 +1,16 @@
 {
-  "/(auth)/login/page": "app/(auth)/login/page.js"
+  "/(public)/donation/page": "app/(public)/donation/page.js",
+  "/(public)/events/page": "app/(public)/events/page.js",
+  "/(public)/page": "app/(public)/page.js",
+  "/(public)/pooja/page": "app/(public)/pooja/page.js",
+  "/(public)/sevas/page": "app/(public)/sevas/page.js",
+  "/admin/aaradhane/page": "app/admin/aaradhane/page.js",
+  "/admin/donations/page": "app/admin/donations/page.js",
+  "/admin/events/page": "app/admin/events/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/pooja/page": "app/admin/pooja/page.js",
+  "/admin/settings/page": "app/admin/settings/page.js",
+  "/admin/sevas/page": "app/admin/sevas/page.js",
+  "/admin/timings/page": "app/admin/timings/page.js",
+  "/admin/users/page": "app/admin/users/page.js"
 }
