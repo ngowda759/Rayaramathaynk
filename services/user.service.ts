@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
-import { TempleUser } from "@/types/user";
+import { TempleUser, TempleUserCreate, TempleUserUpdate } from "@/types/user";
 
 const COLLECTION = "users";
 
@@ -21,13 +21,15 @@ class UserService {
     return snapshot.docs.map((d) => {
       const data = d.data();
 
+      const isActive = data.active ?? true;
       return {
         id: d.id,
         name: data.name ?? "",
         email: data.email ?? "",
         phone: data.phone ?? "",
         role: data.role ?? "Volunteer",
-        active: data.active ?? true,
+        active: isActive,
+        isActive,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       };
@@ -41,19 +43,21 @@ class UserService {
 
     const data = snap.data();
 
+    const isActive = data.active ?? true;
     return {
       id: snap.id,
       name: data.name ?? "",
       email: data.email ?? "",
       phone: data.phone ?? "",
       role: data.role ?? "Volunteer",
-      active: data.active ?? true,
+      active: isActive,
+      isActive,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };
   }
 
-  async addUser(user: TempleUser) {
+  async addUser(user: TempleUserCreate) {
     return addDoc(collection(db, COLLECTION), {
       ...user,
       createdAt: serverTimestamp(),
@@ -63,7 +67,7 @@ class UserService {
 
   async updateUser(
     id: string,
-    user: Partial<TempleUser>
+    user: TempleUserUpdate
   ) {
     return updateDoc(doc(db, COLLECTION, id), {
       ...user,

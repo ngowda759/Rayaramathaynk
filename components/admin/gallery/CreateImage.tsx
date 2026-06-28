@@ -27,7 +27,7 @@ export default function CreateImage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [imagePath, setImagePath] = useState("");
   const [altText, setAltText] = useState("");
   const [isFeatured, setIsFeatured] = useState(false);

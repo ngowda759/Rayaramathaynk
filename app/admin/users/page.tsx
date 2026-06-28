@@ -66,7 +66,7 @@ export default function UsersPage() {
 
       <UserStats
         total={users.length}
-        active={users.filter((u) => u.active).length}
+        active={users.filter((u) => u.isActive).length}
         admins={
           users.filter(
             (u) =>

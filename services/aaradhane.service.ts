@@ -53,7 +53,7 @@ export const aaradhaneService = {
   },
 
   async createAaradhane(
-    data: Omit<Aaradhane, "id" | "createdAt">,
+    data: Omit<Aaradhane, "id" | "createdAt" | "createdBy">,
     userEmail: string
   ): Promise<string> {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {

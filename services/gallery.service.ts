@@ -52,7 +52,7 @@ export const galleryService = {
   },
 
   async createImage(
-    data: Omit<GalleryImage, "id" | "uploadedAt">,
+    data: Omit<GalleryImage, "id" | "uploadedAt" | "uploadedBy">,
     userEmail: string
   ): Promise<string> {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {

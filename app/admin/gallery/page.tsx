@@ -13,8 +13,21 @@ import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { GalleryImage } from "@/types/gallery";
 import { galleryService } from "@/services/gallery.service";
 
+type GallerySummary = {
+  total: number;
+  featured: number;
+  temple: number;
+  festivals: number;
+};
+
 export default function GalleryPage() {
   const [images, setImages] = useState<GalleryImage[]>([]);
+  const [stats, setStats] = useState<GallerySummary>({
+    total: 0,
+    featured: 0,
+    temple: 0,
+    festivals: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -22,6 +35,14 @@ export default function GalleryPage() {
     try {
       const data = await galleryService.getImages();
       setImages(data);
+      setStats({
+        total: data.length,
+        featured: data.filter((image) => image.isFeatured).length,
+        temple: data.filter(
+          (image) => image.category === "Temple Infrastructure"
+        ).length,
+        festivals: data.filter((image) => image.category === "Utsava").length,
+      });
     } catch (error) {
       console.error("Failed to load images:", error);
     } finally {
@@ -55,7 +76,12 @@ export default function GalleryPage() {
         }
       />
 
-      <GalleryStats />
+      <GalleryStats
+        total={stats.total}
+        featured={stats.featured}
+        temple={stats.temple}
+        festivals={stats.festivals}
+      />
 
       <div className="flex items-center justify-between gap-4">
         <SearchBox
