@@ -1,6 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
+import SevaBooking from "@/components/home/SevaBooking";
 
 export default function SevasPage() {
   return (
@@ -12,27 +13,15 @@ export default function SevasPage() {
           subtitle="Book special sevas and spiritual offerings at the temple."
         />
 
-        <div className="mx-auto max-w-5xl rounded-3xl border border-stone-200 bg-stone-50 p-8 shadow-sm">
-          <p className="text-lg leading-8 text-stone-700">
-            We offer a range of sevas and special puja services for devotees.
-            Please contact the temple office for booking details and availability.
-          </p>
-
-          <div className="mt-8 grid gap-6 sm:grid-cols-2">
-            <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-stone-900">Rathotsava</h3>
-              <p className="mt-3 text-stone-700">
-                Experience the grand procession and divine blessings.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold text-stone-900">Aaradhane</h3>
-              <p className="mt-3 text-stone-700">
-                Participate in special worship ceremonies for the Matha.
-              </p>
-            </div>
+        <div className="mx-auto max-w-6xl space-y-8">
+          <div className="rounded-3xl border border-stone-200 bg-stone-50 p-8 shadow-sm">
+            <p className="text-lg leading-8 text-stone-700">
+              We offer a range of sevas and special puja services for devotees.
+              Book online or contact the temple office for more details.
+            </p>
           </div>
+
+          <SevaBooking />
         </div>
       </main>
       <Footer />

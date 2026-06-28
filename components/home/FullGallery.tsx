@@ -36,19 +36,34 @@ function getTempleImages() {
     });
 }
 
-function getGalleryItems() {
-  const images = getTempleImages();
+const videoDirectory = path.join(process.cwd(), "public", "videos");
 
-  return [
-    ...images,
-    {
-      id: `video-${images.length + 1}`,
-      type: "video" as const,
-      src: "https://www.facebook.com/plugins/video.php?href=https://www.facebook.com/reel/689817260783456/&show_text=false&width=560",
-      alt: "Facebook Reel of temple rituals",
-      title: "Temple Reel",
-    },
-  ];
+function getTempleVideos() {
+  if (!fs.existsSync(videoDirectory)) return [];
+
+  return fs
+    .readdirSync(videoDirectory)
+    .filter((file) => /\.(mp4|webm|ogg)$/i.test(file))
+    .sort()
+    .map((filename, index) => {
+      const label = path
+        .basename(filename, path.extname(filename))
+        .replace(/[-_]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return {
+        id: `video-${index + 1}`,
+        type: "video" as const,
+        src: `/videos/${filename}`,
+        alt: label || "Temple video",
+        title: label || `Temple video ${index + 1}`,
+      };
+    });
+}
+
+function getGalleryItems() {
+  return [...getTempleImages(), ...getTempleVideos()];
 }
 
 export default function FullGallery() {

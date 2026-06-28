@@ -1,0 +1,116 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { sevaService } from "@/services/seva.service";
+import { SevaBooking } from "@/types/seva";
+import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import SearchBox from "@/components/admin/common/SearchBox";
+
+export default function AdminSevasPage() {
+  const [bookings, setBookings] = useState<SevaBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  async function loadBookings() {
+    try {
+      setLoading(true);
+      const data = await sevaService.getAllBookings();
+      setBookings(data);
+    } catch (error) {
+      console.error("Failed to load seva bookings:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadBookings();
+  }, []);
+
+  const filteredBookings = bookings.filter((booking) => {
+    const keyword = search.toLowerCase();
+    return (
+      booking.sevaTitle.toLowerCase().includes(keyword) ||
+      booking.userName.toLowerCase().includes(keyword) ||
+      booking.userEmail.toLowerCase().includes(keyword) ||
+      booking.status.toLowerCase().includes(keyword)
+    );
+  });
+
+  return (
+    <div className="space-y-8">
+      <AdminPageHeader
+        title="Special Sevas"
+        description="View and manage online seva booking requests."
+      />
+
+      <div className="rounded-xl border bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-stone-900">
+              Seva Bookings
+            </h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Online seva booking requests submitted by devotees.
+            </p>
+          </div>
+          <SearchBox
+            value={search}
+            onChange={setSearch}
+            placeholder="Search seva bookings..."
+          />
+        </div>
+
+        {loading ? (
+          <div className="mt-8 text-stone-500">Loading bookings...</div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="mt-8 text-stone-500">
+            No seva bookings found.
+          </div>
+        ) : (
+          <div className="mt-8 overflow-hidden rounded-3xl border border-stone-200">
+            <table className="min-w-full divide-y divide-stone-200">
+              <thead className="bg-stone-50 text-left text-sm uppercase tracking-wider text-stone-500">
+                <tr>
+                  <th className="px-4 py-3">Devotee</th>
+                  <th className="px-4 py-3">Seva</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Preferred Date</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-200 bg-white text-sm text-stone-700">
+                {filteredBookings.map((booking) => (
+                  <tr key={booking.id} className="hover:bg-stone-50">
+                    <td className="px-4 py-4">
+                      <div className="font-medium text-stone-900">
+                        {booking.userName}
+                      </div>
+                      <div className="text-xs text-stone-500">
+                        {booking.userEmail}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">{booking.sevaTitle}</td>
+                    <td className="px-4 py-4">₹{booking.sevaAmount.toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-4 text-stone-500">{booking.preferredDate}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                        booking.status === "confirmed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : booking.status === "pending"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-red-100 text-red-700"
+                      }`}>
+                        {booking.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

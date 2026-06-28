@@ -2,6 +2,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
 import DonationCTA from "@/components/home/DonationCTA";
+import DonationForm from "@/components/home/DonationForm";
 
 export default function DonationPage() {
   return (
@@ -13,8 +14,10 @@ export default function DonationPage() {
           subtitle="Your donations help maintain the temple, support rituals, and serve the community."
         />
 
-        <div className="mx-auto max-w-4xl rounded-3xl border border-stone-200 bg-stone-50 p-8 shadow-sm">
+        <div className="mx-auto max-w-6xl space-y-8">
           <DonationCTA />
+
+          <DonationForm />
         </div>
       </main>
       <Footer />

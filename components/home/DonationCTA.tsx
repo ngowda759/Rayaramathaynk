@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { HeartHandshake } from "lucide-react";
 
 export default function DonationCTA() {
@@ -16,9 +17,12 @@ export default function DonationCTA() {
           activities.
         </p>
 
-        <button className="mt-10 rounded-full bg-white px-8 py-4 font-semibold text-orange-600 shadow-lg transition hover:scale-105">
+        <Link
+          href="/donation"
+          className="mt-10 inline-flex rounded-full bg-white px-8 py-4 font-semibold text-orange-600 shadow-lg transition hover:scale-105"
+        >
           Donate Now
-        </button>
+        </Link>
       </div>
     </section>
   );

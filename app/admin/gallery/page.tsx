@@ -7,11 +7,19 @@ import { Button } from "@/components/ui/button";
 
 import GalleryTable from "@/components/admin/gallery/GalleryTable";
 import GalleryStats from "@/components/admin/gallery/GalleryStats";
+import LocalGalleryAssets from "@/components/admin/gallery/LocalGalleryAssets";
 import SearchBox from "@/components/admin/common/SearchBox";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 
 import { GalleryImage } from "@/types/gallery";
 import { galleryService } from "@/services/gallery.service";
+
+interface LocalAsset {
+  id: string;
+  src: string;
+  title: string;
+  alt: string;
+}
 
 type GallerySummary = {
   total: number;
@@ -30,6 +38,8 @@ export default function GalleryPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [localImages, setLocalImages] = useState<LocalAsset[]>([]);
+  const [localVideos, setLocalVideos] = useState<LocalAsset[]>([]);
 
   async function loadImages() {
     try {
@@ -50,8 +60,23 @@ export default function GalleryPage() {
     }
   }
 
+  async function loadLocalAssets() {
+    try {
+      const response = await fetch("/api/gallery/local-assets");
+      if (!response.ok) {
+        throw new Error("Failed to load local assets");
+      }
+      const data = await response.json();
+      setLocalImages(data.localImages || []);
+      setLocalVideos(data.localVideos || []);
+    } catch (error) {
+      console.error("Failed to load local gallery assets:", error);
+    }
+  }
+
   useEffect(() => {
     loadImages();
+    loadLocalAssets();
   }, []);
 
   const filteredImages = images.filter((image) => {
@@ -96,7 +121,19 @@ export default function GalleryPage() {
           <p className="text-muted-foreground">Loading gallery...</p>
         </div>
       ) : (
-        <GalleryTable images={filteredImages} onRefresh={loadImages} />
+        <>
+          <GalleryTable images={filteredImages} onRefresh={loadImages} />
+          <LocalGalleryAssets
+            localImages={localImages}
+            localVideos={localVideos}
+            existingPaths={images.map((image) => image.imagePath)}
+            onDelete={() => loadLocalAssets()}
+            onAdd={() => {
+              loadImages();
+              loadLocalAssets();
+            }}
+          />
+        </>
       )}
     </div>
   );
