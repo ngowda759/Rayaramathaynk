@@ -1,14 +1,16 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   query,
+  updateDoc,
   where,
   orderBy,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { SevaBooking, SevaBookingRequest } from "@/types/seva";
+import { SevaBooking, SevaBookingRequest, SevaBookingStatus } from "@/types/seva";
 
 const COLLECTION_NAME = "sevaBookings";
 
@@ -72,5 +74,16 @@ export const sevaService = {
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToBooking);
+  },
+
+  async updateBookingStatus(
+    bookingId: string,
+    status: SevaBookingStatus
+  ): Promise<void> {
+    const bookingRef = doc(db, COLLECTION_NAME, bookingId);
+    await updateDoc(bookingRef, {
+      status,
+      updatedAt: serverTimestamp(),
+    });
   },
 };

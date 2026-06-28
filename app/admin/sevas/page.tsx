@@ -5,6 +5,7 @@ import { sevaService } from "@/services/seva.service";
 import { SevaBooking } from "@/types/seva";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
+import Button from "@/components/ui/button";
 
 export default function AdminSevasPage() {
   const [bookings, setBookings] = useState<SevaBooking[]>([]);
@@ -27,6 +28,8 @@ export default function AdminSevasPage() {
     loadBookings();
   }, []);
 
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
+
   const filteredBookings = bookings.filter((booking) => {
     const keyword = search.toLowerCase();
     return (
@@ -36,6 +39,21 @@ export default function AdminSevasPage() {
       booking.status.toLowerCase().includes(keyword)
     );
   });
+
+  async function updateBookingStatus(
+    bookingId: string,
+    status: SevaBooking["status"]
+  ) {
+    try {
+      setUpdatingBookingId(bookingId);
+      await sevaService.updateBookingStatus(bookingId, status);
+      await loadBookings();
+    } catch (error) {
+      console.error("Failed to update booking status:", error);
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -77,6 +95,7 @@ export default function AdminSevasPage() {
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Preferred Date</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-200 bg-white text-sm text-stone-700">
@@ -103,6 +122,38 @@ export default function AdminSevasPage() {
                       }`}>
                         {booking.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {booking.status === "pending" ? (
+                          <>
+                            <Button
+                              variant="secondary"
+                              loading={updatingBookingId === booking.id}
+                              onClick={() => updateBookingStatus(booking.id, "confirmed")}
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              loading={updatingBookingId === booking.id}
+                              onClick={() => updateBookingStatus(booking.id, "cancelled")}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : booking.status === "confirmed" ? (
+                          <Button
+                            variant="primary"
+                            loading={updatingBookingId === booking.id}
+                            onClick={() => updateBookingStatus(booking.id, "completed")}
+                          >
+                            Complete
+                          </Button>
+                        ) : (
+                          <span className="text-sm text-stone-500">No actions</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

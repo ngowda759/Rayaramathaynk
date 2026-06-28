@@ -1,8 +1,10 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   query,
+  updateDoc,
   orderBy,
   serverTimestamp,
 } from "firebase/firestore";
@@ -50,6 +52,17 @@ class DonationService {
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToDonation);
+  }
+
+  async updateDonationStatus(
+    donationId: string,
+    status: DonationRecord["status"]
+  ): Promise<void> {
+    const donationRef = doc(db, COLLECTION_NAME, donationId);
+    await updateDoc(donationRef, {
+      status,
+      updatedAt: serverTimestamp(),
+    });
   }
 }
 
