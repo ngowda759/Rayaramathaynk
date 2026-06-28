@@ -42,14 +42,12 @@ class AnnouncementService {
 
   async getActiveAnnouncements(): Promise<Announcement[]> {
     const snapshot = await getDocs(
-      query(
-        collection(db, COLLECTION),
-        where("isActive", "==", true),
-        orderBy("createdAt", "desc")
-      )
+      query(collection(db, COLLECTION), orderBy("createdAt", "desc"))
     );
 
-    return snapshot.docs.map(docToAnnouncement);
+    return snapshot.docs
+      .map(docToAnnouncement)
+      .filter((announcement) => announcement.isActive);
   }
 
   async addAnnouncement(announcement: Omit<Announcement, "id" | "createdAt" | "updatedAt">) {
