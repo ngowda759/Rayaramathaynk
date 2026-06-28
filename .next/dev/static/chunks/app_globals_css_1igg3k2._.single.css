@@ -550,6 +550,10 @@ h1, h2, h3, h4, h5, h6 {
     top: calc(var(--spacing) * 4);
   }
 
+  .top-11 {
+    top: calc(var(--spacing) * 11);
+  }
+
   .right-2 {
     right: calc(var(--spacing) * 2);
   }
@@ -1069,6 +1073,12 @@ h1, h2, h3, h4, h5, h6 {
     --tw-space-y-reverse: 0;
     margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
     margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.space-y-5 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 5) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 5) * calc(1 - var(--tw-space-y-reverse)));
   }
 
   :where(.space-y-6 > :not(:last-child)) {
