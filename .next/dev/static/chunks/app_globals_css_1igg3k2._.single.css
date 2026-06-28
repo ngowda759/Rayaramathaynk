@@ -588,6 +588,10 @@ h1, h2, h3, h4, h5, h6 {
     z-index: 50;
   }
 
+  .col-span-full {
+    grid-column: 1 / -1;
+  }
+
   .-mx-1 {
     margin-inline: calc(var(--spacing) * -1);
   }
@@ -791,6 +795,10 @@ h1, h2, h3, h4, h5, h6 {
 
   .h-96 {
     height: calc(var(--spacing) * 96);
+  }
+
+  .h-full {
+    height: 100%;
   }
 
   .h-px {
@@ -1274,6 +1282,10 @@ h1, h2, h3, h4, h5, h6 {
     background-color: var(--background);
   }
 
+  .bg-black {
+    background-color: var(--color-black);
+  }
+
   .bg-black\/30 {
     background-color: #0000004d;
   }
@@ -1519,6 +1531,10 @@ h1, h2, h3, h4, h5, h6 {
 
   .p-10 {
     padding: calc(var(--spacing) * 10);
+  }
+
+  .p-12 {
+    padding: calc(var(--spacing) * 12);
   }
 
   .p-16 {
