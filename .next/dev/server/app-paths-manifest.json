@@ -1,7 +1,4 @@
 {
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(public)/page": "app/(public)/page.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/admin/assistant/page": "app/admin/assistant/page.js",
-  "/admin/page": "app/admin/page.js"
+  "/admin/gallery/page": "app/admin/gallery/page.js"
 }

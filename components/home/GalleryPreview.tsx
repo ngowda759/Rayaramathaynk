@@ -1,6 +1,7 @@
 import SectionHeading from "@/components/common/SectionHeading";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 const images = [
   {
@@ -52,10 +53,13 @@ export default function GalleryPreview() {
         </div>
 
         <div className="mt-12 text-center">
-          <button className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-6 py-3 font-medium text-white transition hover:bg-orange-700">
+          <Link
+            href="/gallery"
+            className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-6 py-3 font-medium text-white transition hover:bg-orange-700"
+          >
             View Complete Gallery
             <ArrowRight size={18} />
-          </button>
+          </Link>
         </div>
       </div>
     </section>
