@@ -1,2 +1,4 @@
-{"timestamp":"00:00:09.745","source":"Server","level":"WARN","message":"⚠ Slow filesystem detected. The benchmark took 1065ms. If /workspaces/Rayaramathaynk/.next/dev is a network drive, consider moving it to a local folder.\nSee more: https://nextjs.org/docs/app/guides/local-development"}
-{"timestamp":"00:00:31.015","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:05.984","source":"Server","level":"WARN","message":"⚠ Slow filesystem detected. The benchmark took 819ms. If /workspaces/Rayaramathaynk/.next/dev is a network drive, consider moving it to a local folder.\nSee more: https://nextjs.org/docs/app/guides/local-development"}
+{"timestamp":"00:00:13.357","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:16.804","source":"Server","level":"LOG","message":"○ Compiling /donation ..."}
+{"timestamp":"00:01:43.863","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}

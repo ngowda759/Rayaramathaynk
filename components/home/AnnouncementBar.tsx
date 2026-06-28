@@ -1,36 +1,21 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { announcementService } from "@/services/announcement.service";
 import { Announcement } from "@/types/announcement";
 
-export default function AnnouncementBar() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+export default async function AnnouncementBar() {
+  let announcements: Announcement[] = [];
+  let hasError = false;
 
-  useEffect(() => {
-    async function loadAnnouncements() {
-      setLoading(true);
+  try {
+    announcements = await announcementService.getActiveAnnouncements();
+  } catch (error) {
+    console.error("Failed to load announcements:", error);
+    hasError = true;
+  }
 
-      try {
-        const activeAnnouncements = await announcementService.getActiveAnnouncements();
-        setAnnouncements(activeAnnouncements);
-      } catch (error) {
-        console.error("Failed to load announcements:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadAnnouncements();
-  }, []);
-
-  const content = loading ? (
-    <span>Loading announcements...</span>
-  ) : announcements.length === 0 ? (
+  const content = hasError || announcements.length === 0 ? (
     <span>
-      Sri Raghavendra Aradhana Mahotsava • August 14–16 • All devotees are welcome 🙏
+      Sri Raghavendra Aradhana Mahotsava • All devotees are welcome 🙏
     </span>
   ) : (
     <div className="flex flex-wrap items-center gap-4">
