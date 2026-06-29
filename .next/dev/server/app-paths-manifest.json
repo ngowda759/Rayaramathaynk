@@ -11,6 +11,5 @@
   "/admin/settings/page": "app/admin/settings/page.js",
   "/admin/sevas/page": "app/admin/sevas/page.js",
   "/admin/timings/page": "app/admin/timings/page.js",
-  "/admin/users/page": "app/admin/users/page.js",
-  "/api/gallery/local-assets/route": "app/api/gallery/local-assets/route.js"
+  "/admin/users/page": "app/admin/users/page.js"
 }

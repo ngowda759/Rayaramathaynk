@@ -1,7 +1,10 @@
 export interface DashboardStats {
-  donationsToday: number;
-  upcomingEvents: number;
-  registeredUsers: number;
-  galleryImages: number;
-  lastUpdated?: Date;
+  totalUsers: number;
+  totalEvents: number;
+  totalSevas: number;
+  totalGalleryImages: number;
+  totalAnnouncements: number;
+  totalTimings: number;
+  totalDonations: number;
+  totalSevaBookings: number;
 }

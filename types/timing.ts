@@ -9,3 +9,12 @@ export interface TempleTiming {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface TimingRequest {
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  order: number;
+  isActive: boolean;
+}
