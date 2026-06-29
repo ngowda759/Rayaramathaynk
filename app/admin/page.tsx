@@ -11,7 +11,7 @@ import QuickActionCard from "@/components/admin/dashboard/QuickActionCard";
 
 import SectionCard from "@/components/admin/common/SectionCard";
 
-import { getDashboardStats } from "@/services/dashboardService";
+import { getDashboardStats } from "@/services/dashboard.Service";
 
 export default async function DashboardPage() {
   const stats = await getDashboardStats();

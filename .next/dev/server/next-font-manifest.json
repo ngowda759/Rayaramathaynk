@@ -1,6 +1,59 @@
 {
-  "app": {},
-  "appUsingSizeAdjust": false,
+  "app": {
+    "[project]/app/(public)/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/aaradhane/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/announcements/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/assistant/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/donations/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/events/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/gallery/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/pooja/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/settings/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/sevas/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/timings/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ],
+    "[project]/app/admin/users/page": [
+      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
+      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
+    ]
+  },
+  "appUsingSizeAdjust": true,
   "pages": {},
   "pagesUsingSizeAdjust": false
 }

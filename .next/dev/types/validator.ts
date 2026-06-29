@@ -299,10 +299,10 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
-// Validate ../../../app/admin/sevas/page.tsx
+// Validate ../../../app/admin/seva-bookings/page.tsx
 {
-  type __IsExpected<Specific extends AppPageConfig<"/admin/sevas">> = Specific
-  const handler = {} as typeof import("../../../app/admin/sevas/page.js")
+  type __IsExpected<Specific extends AppPageConfig<"/admin/seva-bookings">> = Specific
+  const handler = {} as typeof import("../../../app/admin/seva-bookings/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

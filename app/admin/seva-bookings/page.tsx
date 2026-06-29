@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { sevaService } from "@/services/seva.service";
-import { SevaBooking } from "@/types/seva";
+import { sevaBookingService } from "@/services/sevaBooking.service";
+import { SevaBooking } from "@/types/seva-booking";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import Button from "@/components/ui/button";
@@ -15,7 +15,7 @@ export default function AdminSevasPage() {
   async function loadBookings() {
     try {
       setLoading(true);
-      const data = await sevaService.getAllBookings();
+      const data = await sevaBookingService.getAllBookings();
       setBookings(data);
     } catch (error) {
       console.error("Failed to load seva bookings:", error);
@@ -46,7 +46,7 @@ export default function AdminSevasPage() {
   ) {
     try {
       setUpdatingBookingId(bookingId);
-      await sevaService.updateBookingStatus(bookingId, status);
+      await sevaBookingService.updateBookingStatus(bookingId, status);
       await loadBookings();
     } catch (error) {
       console.error("Failed to update booking status:", error);
