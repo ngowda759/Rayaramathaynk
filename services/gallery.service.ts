@@ -11,7 +11,12 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { GalleryImage, GalleryStats } from "@/types/gallery";
+
+import {
+  GalleryImage,
+  GalleryImageRequest,
+  GalleryStats,
+} from "@/types/gallery";
 
 const COLLECTION_NAME = "gallery";
 
@@ -52,7 +57,7 @@ export const galleryService = {
   },
 
   async createImage(
-    data: Omit<GalleryImage, "id" | "uploadedAt" | "uploadedBy">,
+    data: GalleryImageRequest,
     userEmail: string
   ): Promise<string> {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
@@ -65,7 +70,7 @@ export const galleryService = {
 
   async updateImage(
     id: string,
-    data: Partial<Omit<GalleryImage, "id" | "uploadedAt" | "uploadedBy">>
+    data: Partial<GalleryImageRequest>
   ): Promise<void> {
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, data);

@@ -13,7 +13,11 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
-import { Announcement } from "@/types/announcement";
+
+import {
+  Announcement,
+  AnnouncementRequest,
+} from "@/types/announcement";
 
 const COLLECTION = "announcements";
 
@@ -50,7 +54,7 @@ class AnnouncementService {
       .filter((announcement) => announcement.isActive);
   }
 
-  async addAnnouncement(announcement: Omit<Announcement, "id" | "createdAt" | "updatedAt">) {
+  async addAnnouncement(announcement: AnnouncementRequest) {
     return addDoc(collection(db, COLLECTION), {
       ...announcement,
       createdAt: serverTimestamp(),
@@ -58,7 +62,7 @@ class AnnouncementService {
     });
   }
 
-  async updateAnnouncement(id: string, announcement: Partial<Announcement>) {
+  async updateAnnouncement(id: string, announcement: Partial<AnnouncementRequest>) {
     return updateDoc(doc(db, COLLECTION, id), {
       ...announcement,
       updatedAt: serverTimestamp(),

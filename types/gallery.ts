@@ -40,3 +40,14 @@ export interface GalleryStats {
   featured: number;
   byCategory: Record<string, number>;
 }
+
+export interface GalleryImageRequest {
+  title: string;
+  description: string;
+  category: GalleryCategory;
+  imagePath: string;
+  altText: string;
+  isFeatured: boolean;
+  displayOrder: number;
+  tags: string[];
+}
