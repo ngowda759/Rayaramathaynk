@@ -12,7 +12,7 @@
       "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
       "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
     ],
-    "[project]/app/admin/assistant/page": [
+    "[project]/app/admin/bookings/page": [
       "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
       "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
     ],
@@ -36,7 +36,7 @@
       "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
       "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
     ],
-    "[project]/app/admin/settings/page": [
+    "[project]/app/admin/reports/page": [
       "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
       "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
     ],
@@ -45,10 +45,6 @@
       "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
     ],
     "[project]/app/admin/timings/page": [
-      "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
-      "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
-    ],
-    "[project]/app/admin/users/page": [
       "static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2",
       "static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2"
     ]

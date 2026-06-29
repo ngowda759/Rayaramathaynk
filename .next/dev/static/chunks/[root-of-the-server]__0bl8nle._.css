@@ -2524,6 +2524,11 @@ h1, h2, h3, h4, h5, h6 {
     inset-block: calc(var(--spacing) * -2);
   }
 
+  .last\:border-none:last-child {
+    --tw-border-style: none;
+    border-style: none;
+  }
+
   @media (hover: hover) {
     .hover\:-translate-y-2:hover {
       --tw-translate-y: calc(var(--spacing) * -2);
@@ -3149,6 +3154,12 @@ h1, h2, h3, h4, h5, h6 {
   @media (min-width: 80rem) {
     .xl\:grid-cols-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .xl\:grid-cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 

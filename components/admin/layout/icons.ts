@@ -12,6 +12,8 @@ import {
   Users,
   Settings,
   Sparkles,
+  Receipt,
+  ClipboardList,
 } from "lucide-react";
 
 export const icons = {
@@ -27,4 +29,6 @@ export const icons = {
   users: Users,
   settings: Settings,
   sparkles: Sparkles,
+  reports: Receipt,
+  bookings: ClipboardList,
 };

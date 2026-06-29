@@ -1,8 +1,9 @@
-{"timestamp":"00:00:06.982","source":"Server","level":"LOG","message":""}
-{"timestamp":"00:00:30.490","source":"Server","level":"LOG","message":"○ Compiling /admin/gallery ..."}
-{"timestamp":"00:00:35.204","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:00:52.353","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:01:04.342","source":"Server","level":"LOG","message":"○ Compiling /admin/aaradhane ..."}
-{"timestamp":"00:01:08.315","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 11.6s"}
-{"timestamp":"00:01:44.057","source":"Browser","level":"LOG","message":"Users: [{\"active\":true,\"email\":\"abc@gmail.com\",\"id\":\"WAdEG5RwLLSm06XKTPo9\",\"isActive\":true,\"name\":\"admin\",\"phone\":\"8977646533\",\"role\":\"Temple Admin\",\"updatedAt\":{\"nanoseconds\":26000000,\"seconds\":1782559416,\"type\":\"firestore/timestamp/1.0\"}},{\"active\":true,\"createdAt\":{\"nanoseconds\":54000000,\"seconds\":1782558821,\"type\":\"firestore/timestamp/1.0\"},\"email\":\"ngowda759@gmail.com\",\"id\":\"dZ4oCljzxzD2FeFE5HvX\",\"isActive\":true,\"name\":\"Naveen Chitwadiggi\",\"phone\":\"9886364462\",\"role\":\"Super Admin\",\"updatedAt\":{\"nanoseconds\":54000000,\"seconds\":1782558821,\"type\":\"firestore/timestamp/1.0\"}}]"}
-{"timestamp":"00:01:44.057","source":"Browser","level":"LOG","message":"Users: [{\"active\":true,\"email\":\"abc@gmail.com\",\"id\":\"WAdEG5RwLLSm06XKTPo9\",\"isActive\":true,\"name\":\"admin\",\"phone\":\"8977646533\",\"role\":\"Temple Admin\",\"updatedAt\":{\"nanoseconds\":26000000,\"seconds\":1782559416,\"type\":\"firestore/timestamp/1.0\"}},{\"active\":true,\"createdAt\":{\"nanoseconds\":54000000,\"seconds\":1782558821,\"type\":\"firestore/timestamp/1.0\"},\"email\":\"ngowda759@gmail.com\",\"id\":\"dZ4oCljzxzD2FeFE5HvX\",\"isActive\":true,\"name\":\"Naveen Chitwadiggi\",\"phone\":\"9886364462\",\"role\":\"Super Admin\",\"updatedAt\":{\"nanoseconds\":54000000,\"seconds\":1782558821,\"type\":\"firestore/timestamp/1.0\"}}]"}
+{"timestamp":"00:00:03.993","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:43.417","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 10.6s"}
+{"timestamp":"00:01:13.288","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:01:14.430","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:01:23.489","source":"Server","level":"LOG","message":"○ Compiling /admin/reports ..."}
+{"timestamp":"00:01:52.482","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 13.4s"}
+{"timestamp":"00:02:08.859","source":"Server","level":"LOG","message":"○ Compiling /admin/bookings ..."}
+{"timestamp":"00:02:58.024","source":"Server","level":"LOG","message":"○ Compiling /admin/announcements ..."}
+{"timestamp":"00:03:16.027","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 13.5s"}

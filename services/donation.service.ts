@@ -1,15 +1,23 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
+  getDoc,
   getDocs,
-  query,
-  updateDoc,
   orderBy,
+  query,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
+
 import { db } from "@/lib/firebase";
-import { DonationRecord, DonationRequest } from "@/types/donation";
+
+import {
+  DonationRecord,
+  DonationRequest,
+  DonationStatus,
+} from "@/types/donation";
 
 const COLLECTION_NAME = "donations";
 
@@ -35,35 +43,70 @@ function docToDonation(docSnap: any): DonationRecord {
 }
 
 class DonationService {
-  async createDonation(data: DonationRequest): Promise<string> {
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-      ...data,
-      status: "pending",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  async createDonation(
+    data: DonationRequest
+  ): Promise<string> {
+    const docRef = await addDoc(
+      collection(db, COLLECTION_NAME),
+      {
+        ...data,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+    );
+
     return docRef.id;
   }
 
-  async getDonations(): Promise<DonationRecord[]> {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy("createdAt", "desc")
+  async getDonations(): Promise<
+    DonationRecord[]
+  > {
+    const snapshot = await getDocs(
+      query(
+        collection(db, COLLECTION_NAME),
+        orderBy("createdAt", "desc")
+      )
     );
-    const snapshot = await getDocs(q);
+
     return snapshot.docs.map(docToDonation);
+  }
+
+  async getDonationById(
+    donationId: string
+  ): Promise<DonationRecord | null> {
+    const snapshot = await getDoc(
+      doc(db, COLLECTION_NAME, donationId)
+    );
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return docToDonation(snapshot);
   }
 
   async updateDonationStatus(
     donationId: string,
-    status: DonationRecord["status"]
+    status: DonationStatus
   ): Promise<void> {
-    const donationRef = doc(db, COLLECTION_NAME, donationId);
-    await updateDoc(donationRef, {
-      status,
-      updatedAt: serverTimestamp(),
-    });
+    await updateDoc(
+      doc(db, COLLECTION_NAME, donationId),
+      {
+        status,
+        updatedAt: serverTimestamp(),
+      }
+    );
+  }
+
+  async deleteDonation(
+    donationId: string
+  ): Promise<void> {
+    await deleteDoc(
+      doc(db, COLLECTION_NAME, donationId)
+    );
   }
 }
 
-export const donationService = new DonationService();
+export const donationService =
+  new DonationService();

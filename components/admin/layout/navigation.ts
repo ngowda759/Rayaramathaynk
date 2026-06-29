@@ -11,18 +11,14 @@ export const navigation: NavigationGroup[] = [
       },
     ],
   },
+
   {
     title: "Temple Operations",
     items: [
       {
-        title: "Aaradhane",
-        href: "/admin/aaradhane",
-        icon: "flower",
-      },
-      {
-        title: "Poojas",
-        href: "/admin/pooja",
-        icon: "book",
+        title: "Events",
+        href: "/admin/events",
+        icon: "calendar",
       },
       {
         title: "Sevas",
@@ -30,22 +26,28 @@ export const navigation: NavigationGroup[] = [
         icon: "heart",
       },
       {
-        title: "Donations",
-        href: "/admin/donations",
-        icon: "donation",
-      },
-      {
-        title: "Events",
-        href: "/admin/events",
-        icon: "calendar",
+        title: "Bookings",
+        href: "/admin/bookings",
+        icon: "bookings",
       },
       {
         title: "Temple Timings",
         href: "/admin/timings",
         icon: "clock",
       },
+      {
+        title: "Daily Pooja",
+        href: "/admin/pooja",
+        icon: "book",
+      },
+      {
+        title: "Aaradhane",
+        href: "/admin/aaradhane",
+        icon: "flower",
+      },
     ],
   },
+
   {
     title: "Content",
     items: [
@@ -59,8 +61,19 @@ export const navigation: NavigationGroup[] = [
         href: "/admin/announcements",
         icon: "bell",
       },
+      {
+        title: "Donations",
+        href: "/admin/donations",
+        icon: "donation",
+      },
+      {
+        title: "Reports",
+        href: "/admin/reports",
+        icon: "reports",
+      },
     ],
   },
+
   {
     title: "Administration",
     items: [
