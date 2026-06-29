@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 
 import { useAuth } from "@/hooks/useAuth";
 import { poojaService } from "@/services/pooja.service";
-import { sevaService } from "@/services/seva.service";
+import { sevaBookingService } from "@/services/sevaBooking.service";
 import { DailyPooja } from "@/types/pooja";
 
 import Button from "@/components/ui/button";
@@ -78,7 +78,7 @@ export default function SevaBooking() {
     setSubmitting(true);
 
     try {
-      await sevaService.createBooking({
+      await sevaBookingService.createBooking({
         sevaId: selectedSeva.id,
         sevaTitle: selectedSeva.title,
         sevaAmount: selectedSeva.sevaAmount,

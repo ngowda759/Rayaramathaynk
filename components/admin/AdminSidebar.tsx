@@ -63,7 +63,7 @@ const sections: MenuSection[] = [
       },
       {
         title: "Special Sevas",
-        href: "/admin/sevas",
+        href: "/admin/seva-bookings",
         icon: HandCoins,
       },
       {
