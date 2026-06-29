@@ -1,53 +1,47 @@
-import { ReactNode } from "react";
+import { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
   title: string;
-  value: number | string;
-  subtitle?: string;
+  value: string | number;
+  icon?: LucideIcon;
   description?: string;
-  icon?: ReactNode;
   color?: string;
 }
 
 export default function StatCard({
   title,
   value,
-  subtitle,
+  icon: Icon,
   description,
-  icon,
   color = "text-orange-600",
 }: StatCardProps) {
   return (
-    <div className="rounded-xl border bg-white p-6 shadow-sm transition-all hover:shadow-md">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-stone-500">
+    <div className="rounded-2xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-muted-foreground">
             {title}
           </p>
 
-          <h2 className={`mt-3 text-4xl font-bold ${color}`}>
+          <h2 className="mt-2 text-3xl font-bold">
             {value}
           </h2>
+
+          {description && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {description}
+            </p>
+          )}
         </div>
 
-        {icon && (
-          <div className="rounded-full bg-orange-50 p-3 text-orange-600">
-            {icon}
+        {Icon && (
+          <div
+            className={`ml-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 ${color}`}
+          >
+            <Icon className="h-7 w-7" />
           </div>
         )}
       </div>
-
-      {description && (
-        <p className="mt-4 text-sm text-stone-500">
-          {description}
-        </p>
-      )}
-
-      {subtitle && (
-        <p className="mt-2 text-xs text-stone-400">
-          {subtitle}
-        </p>
-      )}
     </div>
   );
 }

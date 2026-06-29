@@ -43,25 +43,25 @@ export default function PoojaStats() {
       <StatCard
         title="Total Poojas"
         value={stats.total}
-        icon={<Flame className="h-5 w-5" />}
+        icon={Flame}
         description="All daily poojas"
       />
       <StatCard
         title="Active"
         value={stats.active}
-        icon={<CalendarCheck className="h-5 w-5" />}
+        icon={CalendarCheck}
         description="Currently active"
       />
       <StatCard
         title="With Seva"
         value={stats.withSeva}
-        icon={<CircleDollarSign className="h-5 w-5" />}
+        icon={CircleDollarSign}
         description="Poojas with seva amount"
       />
       <StatCard
         title="Top Category"
         value={topCategory ? topCategory[1] : 0}
-        icon={<Clock className="h-5 w-5" />}
+        icon={Clock}
         description={topCategory ? topCategory[0] : "N/A"}
       />
     </div>
