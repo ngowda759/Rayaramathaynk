@@ -6,17 +6,19 @@ interface ActionButtonProps {
   icon?: LucideIcon;
   onClick?: () => void;
   variant?:
-    | "default"
+    | "primary"
     | "secondary"
     | "outline"
-    | "destructive";
+    | "danger"
+    | "destructive"
+    | "ghost";
 }
 
 export default function ActionButton({
   label,
   icon: Icon,
   onClick,
-  variant = "default",
+  variant = "primary",
 }: ActionButtonProps) {
   return (
     <Button
