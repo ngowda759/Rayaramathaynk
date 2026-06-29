@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Calendar, History, Sparkles } from "lucide-react";
+
 import StatCard from "@/components/admin/common/StatCard";
 import { AaradhaneStats as AaradhaneStatsType } from "@/types/aaradhane";
 import { aaradhaneService } from "@/services/aaradhane.service";
@@ -21,6 +22,7 @@ export default function AaradhaneStats() {
         setLoading(false);
       }
     }
+
     load();
   }, []);
 
@@ -28,7 +30,10 @@ export default function AaradhaneStats() {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-2xl border bg-muted"
+          />
         ))}
       </div>
     );
@@ -39,25 +44,28 @@ export default function AaradhaneStats() {
       <StatCard
         title="Total Aaradhanes"
         value={stats.total}
-        icon={<BookOpen className="h-5 w-5" />}
+        icon={BookOpen}
         description="All aaradhane records"
       />
+
       <StatCard
         title="Upcoming"
         value={stats.upcoming}
-        icon={<Calendar className="h-5 w-5" />}
+        icon={Calendar}
         description="Upcoming events"
       />
+
       <StatCard
         title="Past"
         value={stats.past}
-        icon={<History className="h-5 w-5" />}
+        icon={History}
         description="Past events"
       />
+
       <StatCard
         title="Next Event"
         value={stats.upcoming > 0 ? "Yes" : "None"}
-        icon={<Sparkles className="h-5 w-5" />}
+        icon={Sparkles}
         description="Scheduled"
       />
     </div>

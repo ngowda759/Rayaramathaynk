@@ -1,3 +1,10 @@
+import {
+  CalendarDays,
+  Clock,
+  PlayCircle,
+  CheckCircle,
+} from "lucide-react";
+
 import StatCard from "@/components/admin/common/StatCard";
 
 interface EventStatsProps {
@@ -18,24 +25,28 @@ export default function EventStats({
       <StatCard
         title="Total Events"
         value={total}
+        icon={CalendarDays}
         color="text-blue-600"
       />
 
       <StatCard
         title="Upcoming"
         value={upcoming}
+        icon={Clock}
         color="text-green-600"
       />
 
       <StatCard
         title="Ongoing"
         value={ongoing}
+        icon={PlayCircle}
         color="text-orange-600"
       />
 
       <StatCard
         title="Completed"
         value={completed}
+        icon={CheckCircle}
         color="text-stone-700"
       />
     </div>

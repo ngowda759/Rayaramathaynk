@@ -1,96 +1,54 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import DashboardCard from "@/components/admin/DashboardCard";
 import {
-  CalendarDays,
+  Plus,
   Image,
-  HandCoins,
-  Clock3,
   Bell,
+  HeartHandshake,
 } from "lucide-react";
-import { eventService } from "@/services/event.service";
-import { galleryService } from "@/services/gallery.service";
-import { poojaService } from "@/services/pooja.service";
 
-export default function AdminDashboard() {
-  const [upcomingEvents, setUpcomingEvents] = useState(0);
-  const [galleryImages, setGalleryImages] = useState(0);
-  const [todayPoojas, setTodayPoojas] = useState(0);
+import WelcomeBanner from "@/components/admin/dashboard/WelcomeBanner";
+import StatsGrid from "@/components/admin/dashboard/StatsGrid";
+import QuickActionCard from "@/components/admin/dashboard/QuickActionCard";
 
-  useEffect(() => {
-    async function loadDashboardCounts() {
-      try {
-        const [events, images, poojas] = await Promise.all([
-          eventService.getEvents(),
-          galleryService.getImages(),
-          poojaService.getPoojas(),
-        ]);
+import SectionCard from "@/components/admin/common/SectionCard";
 
-        setUpcomingEvents(
-          events.filter((event) => event.status === "Upcoming").length
-        );
-        setGalleryImages(images.length);
-        setTodayPoojas(poojas.filter((pooja) => pooja.isActive).length);
-      } catch (error) {
-        console.error("Failed to load dashboard counts:", error);
-      }
-    }
+import { getDashboardStats } from "@/services/dashboardService";
 
-    loadDashboardCounts();
-  }, []);
+export default async function DashboardPage() {
+  const stats = await getDashboardStats();
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-stone-800">
-          Dashboard
-        </h1>
+      <WelcomeBanner />
 
-        <p className="mt-2 text-stone-500">
-          Welcome to the Sri Raghavendra Swamy Temple Admin Portal.
-        </p>
-      </div>
+      <StatsGrid stats={stats} />
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <DashboardCard
-          title="Upcoming Events"
-          value={upcomingEvents}
-          icon={CalendarDays}
-        />
+      <SectionCard title="Quick Actions">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <QuickActionCard
+            title="Add Event"
+            href="/admin/events"
+            icon={Plus}
+          />
 
-        <DashboardCard
-          title="Gallery Images"
-          value={galleryImages}
-          icon={Image}
-        />
+          <QuickActionCard
+            title="Upload Gallery"
+            href="/admin/gallery"
+            icon={Image}
+          />
 
-        <DashboardCard
-          title="Today's Poojas"
-          value={todayPoojas}
-          icon={Clock3}
-        />
-
-        <Link href="/admin/assistant" className="block">
-          <DashboardCard
-            title="Admin Assistant"
-            value="Open"
+          <QuickActionCard
+            title="Announcements"
+            href="/admin/announcements"
             icon={Bell}
           />
-        </Link>
-      </div>
 
-      <div className="rounded-xl border bg-white p-8 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Recent Activity
-        </h2>
-
-        <p className="mt-4 text-stone-500">
-          Firebase integration will display recent events,
-          donations, gallery uploads and announcements here.
-        </p>
-      </div>
+          <QuickActionCard
+            title="Donations"
+            href="/admin/donations"
+            icon={HeartHandshake}
+          />
+        </div>
+      </SectionCard>
     </div>
   );
 }
