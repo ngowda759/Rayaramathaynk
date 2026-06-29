@@ -1,13 +1,16 @@
 {
   "/(public)/page": "app/(public)/page.js",
   "/admin/aaradhane/page": "app/admin/aaradhane/page.js",
+  "/admin/announcements/page": "app/admin/announcements/page.js",
   "/admin/assistant/page": "app/admin/assistant/page.js",
   "/admin/donations/page": "app/admin/donations/page.js",
   "/admin/events/page": "app/admin/events/page.js",
+  "/admin/gallery/page": "app/admin/gallery/page.js",
   "/admin/page": "app/admin/page.js",
   "/admin/pooja/page": "app/admin/pooja/page.js",
   "/admin/settings/page": "app/admin/settings/page.js",
   "/admin/sevas/page": "app/admin/sevas/page.js",
   "/admin/timings/page": "app/admin/timings/page.js",
-  "/admin/users/page": "app/admin/users/page.js"
+  "/admin/users/page": "app/admin/users/page.js",
+  "/api/gallery/local-assets/route": "app/api/gallery/local-assets/route.js"
 }
