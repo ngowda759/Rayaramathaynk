@@ -1,24 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { donationService } from "@/services/donation.service";
-import { DonationRecord } from "@/types/donation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
-import Button from "@/components/ui/button";
+import CrudTable from "@/components/admin/crud/CrudTable";
 
-export default function AdminDonationsPage() {
-  const [donations, setDonations] = useState<DonationRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+import { donationColumns } from "./columns";
+
+import { donationService } from "@/services/donation.service";
+import {
+  DonationRecord,
+  DonationStatus,
+} from "@/types/donation";
+
+export default function DonationsPage() {
+  const router = useRouter();
+
+  const [donations, setDonations] = useState<
+    DonationRecord[]
+  >([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [statusFilter, setStatusFilter] =
+    useState<DonationStatus | "all">(
+      "all"
+    );
 
   async function loadDonations() {
     try {
       setLoading(true);
-      const data = await donationService.getDonations();
+
+      const data =
+        await donationService.getDonations();
+
       setDonations(data);
     } catch (error) {
-      console.error("Failed to load donations:", error);
+      console.error(error);
+
+      toast.error(
+        "Failed to load donations."
+      );
     } finally {
       setLoading(false);
     }
@@ -28,30 +57,94 @@ export default function AdminDonationsPage() {
     loadDonations();
   }, []);
 
-  const [updatingDonationId, setUpdatingDonationId] = useState<string | null>(null);
+  const filteredDonations =
+    useMemo(() => {
+      const keyword = search
+        .toLowerCase()
+        .trim();
 
-  const filteredDonations = donations.filter((donation) => {
-    const keyword = search.toLowerCase();
-    return (
-      donation.name.toLowerCase().includes(keyword) ||
-      donation.email.toLowerCase().includes(keyword) ||
-      donation.paymentMethod.toLowerCase().includes(keyword) ||
-      donation.status.toLowerCase().includes(keyword)
-    );
-  });
+      return donations.filter(
+        (donation) => {
+          const matchesSearch =
+            !keyword ||
+            [
+              donation.name,
+              donation.email,
+              donation.phone,
+            ].some((value) =>
+              value
+                .toLowerCase()
+                .includes(keyword)
+            );
 
-  async function updateDonationStatus(
-    donationId: string,
-    status: DonationRecord["status"]
+          const matchesStatus =
+            statusFilter === "all" ||
+            donation.status ===
+              statusFilter;
+
+          return (
+            matchesSearch &&
+            matchesStatus
+          );
+        }
+      );
+    }, [
+      donations,
+      search,
+      statusFilter,
+    ]);
+
+  async function updateStatus(
+    donation: DonationRecord,
+    status: DonationStatus
   ) {
     try {
-      setUpdatingDonationId(donationId);
-      await donationService.updateDonationStatus(donationId, status);
+      await donationService.updateDonationStatus(
+        donation.id,
+        status
+      );
+
+      toast.success(
+        "Donation updated."
+      );
+
       await loadDonations();
     } catch (error) {
-      console.error("Failed to update donation status:", error);
-    } finally {
-      setUpdatingDonationId(null);
+      console.error(error);
+
+      toast.error(
+        "Failed to update donation."
+      );
+    }
+  }
+
+  async function handleDelete(
+    donation: DonationRecord
+  ) {
+    if (
+      !window.confirm(
+        `Delete donation from ${donation.name}?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await donationService.deleteDonation(
+        donation.id
+      );
+
+      toast.success(
+        "Donation deleted."
+      );
+
+      await loadDonations();
+    } catch (error) {
+      console.error(error);
+
+      toast.error(
+        "Failed to delete donation."
+      );
     }
   }
 
@@ -59,19 +152,11 @@ export default function AdminDonationsPage() {
     <div className="space-y-8">
       <AdminPageHeader
         title="Donations"
-        description="Review donation requests and contribution records."
+        description="Manage temple donations."
       />
 
-      <div className="rounded-xl border bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-stone-900">
-              Donation Records
-            </h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Donations submitted by devotees through the public site.
-            </p>
-          </div>
+      <div className="flex flex-col gap-4 md:flex-row">
+        <div className="flex-1">
           <SearchBox
             value={search}
             onChange={setSearch}
@@ -79,81 +164,60 @@ export default function AdminDonationsPage() {
           />
         </div>
 
-        {loading ? (
-          <div className="mt-8 text-stone-500">Loading donations...</div>
-        ) : filteredDonations.length === 0 ? (
-          <div className="mt-8 text-stone-500">
-            No donation records found.
-          </div>
-        ) : (
-          <div className="mt-8 overflow-hidden rounded-3xl border border-stone-200">
-            <table className="min-w-full divide-y divide-stone-200">
-              <thead className="bg-stone-50 text-left text-sm uppercase tracking-wider text-stone-500">
-                <tr>
-                  <th className="px-4 py-3">Donor</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Method</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Actions</th>
-                  <th className="px-4 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-200 bg-white text-sm text-stone-700">
-                {filteredDonations.map((donation) => (
-                  <tr key={donation.id} className="hover:bg-stone-50">
-                    <td className="px-4 py-4">
-                      <div className="font-medium text-stone-900">
-                        {donation.name}
-                      </div>
-                      <div className="text-xs text-stone-500">
-                        {donation.email}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">₹{donation.amount.toLocaleString("en-IN")}</td>
-                    <td className="px-4 py-4">{donation.paymentMethod}</td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                        donation.status === "received"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : donation.status === "pending"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-red-100 text-red-700"
-                      }`}>
-                        {donation.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {donation.status === "pending" ? (
-                          <>
-                            <Button
-                              variant="secondary"
-                              loading={updatingDonationId === donation.id}
-                              onClick={() => updateDonationStatus(donation.id, "received")}
-                            >
-                              Received
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              loading={updatingDonationId === donation.id}
-                              onClick={() => updateDonationStatus(donation.id, "failed")}
-                            >
-                              Failed
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-stone-500">
-                      {new Date(donation.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <select
+          value={statusFilter}
+          onChange={(e) =>
+            setStatusFilter(
+              e.target
+                .value as DonationStatus | "all"
+            )
+          }
+          className="rounded-xl border border-stone-300 bg-white px-4 py-3"
+        >
+          <option value="all">
+            All Status
+          </option>
+
+          <option value="pending">
+            Pending
+          </option>
+
+          <option value="received">
+            Received
+          </option>
+
+          <option value="failed">
+            Failed
+          </option>
+        </select>
       </div>
+
+      {loading ? (
+        <div className="rounded-xl border bg-white p-8">
+          Loading donations...
+        </div>
+      ) : (
+        <CrudTable<DonationRecord>
+          data={filteredDonations}
+          columns={donationColumns}
+          emptyMessage="No donations found."
+          actions={{
+            onView: (donation) =>
+              router.push(
+                `/admin/donations/${donation.id}`
+              ),
+
+            onEdit: (donation) =>
+              updateStatus(
+                donation,
+                "received"
+              ),
+
+            onDelete:
+              handleDelete,
+          }}
+        />
+      )}
     </div>
   );
 }
