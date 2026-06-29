@@ -2829,6 +2829,10 @@ h1, h2, h3, h4, h5, h6 {
     cursor: not-allowed;
   }
 
+  .disabled\:bg-stone-100:disabled {
+    background-color: var(--color-stone-100);
+  }
+
   .disabled\:opacity-50:disabled {
     opacity: .5;
   }
@@ -3095,6 +3099,12 @@ h1, h2, h3, h4, h5, h6 {
   @media (min-width: 64rem) {
     .lg\:hidden {
       display: none;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .lg\:max-w-md {
+      max-width: var(--container-md);
     }
   }
 
