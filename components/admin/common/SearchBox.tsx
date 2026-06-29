@@ -1,31 +1,44 @@
 "use client";
 
+import { KeyboardEvent } from "react";
 import { Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SearchBoxProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  className?: string;
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
 
 export default function SearchBox({
   value,
   onChange,
   placeholder = "Search...",
+  autoFocus = false,
+  disabled = false,
+  className,
+  onKeyDown,
 }: SearchBoxProps) {
   return (
-    <div className="relative w-full">
+    <div className={cn("relative w-full", className)}>
       <Search
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
-        size={18}
+        className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
       />
 
       <input
-        type="text"
+        type="search"
         value={value}
         placeholder={placeholder}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        onKeyDown={onKeyDown}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-stone-300 bg-white py-3 pl-10 pr-4 focus:border-orange-500 focus:outline-none"
+        aria-label={placeholder}
+        className="w-full rounded-lg border border-stone-300 bg-white py-3 pl-10 pr-4 transition focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:cursor-not-allowed disabled:bg-stone-100"
       />
     </div>
   );
