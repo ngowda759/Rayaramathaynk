@@ -25,7 +25,7 @@ export interface CrudColumn<T> {
   key: keyof T | string;
 
   /**
-   * Column title.
+   * Column heading.
    */
   header: string;
 
@@ -51,6 +51,7 @@ export interface CrudColumn<T> {
 
   /**
    * Optional custom formatter.
+   * Receives the cell value and the full row.
    */
   formatter?: (
     value: unknown,
@@ -59,81 +60,29 @@ export interface CrudColumn<T> {
 
   /**
    * Fully custom renderer.
-   * Takes precedence over formatter/type.
+   * Takes precedence over formatter and type.
    */
   render?: (
     row: T
   ) => ReactNode;
-
-  /**
-   * Used only when type === "actions".
-   */
-  actions?: {
-    onView?: (row: T) => void;
-    onEdit?: (row: T) => void;
-    onDelete?: (row: T) => void;
-  };
 }
 
 /**
- * Toolbar Props
+ * Row-level actions supported by CrudTable.
+ * These are passed to the table itself,
+ * not defined inside individual columns.
  */
-export interface CrudToolbarProps {
-  search: string;
-
-  onSearchChange: (
-    value: string
-  ) => void;
-
-  searchPlaceholder?: string;
-
-  addLabel?: string;
-
-  addHref?: string;
-
-  onRefresh?: () => void;
-
-  actions?: ReactNode;
-
-  loading?: boolean;
+export interface CrudTableActions<T> {
+  onView?: (row: T) => void;
+  onEdit?: (row: T) => void;
+  onDelete?: (row: T) => void;
 }
 
 /**
- * Pagination Props
+ * Generic toolbar action.
+ * Can be used for Export, Import, Print, etc.
  */
-export interface CrudPaginationProps {
-  page: number;
-
-  pageSize: number;
-
-  total: number;
-
-  onPageChange: (
-    page: number
-  ) => void;
-}
-
-/**
- * Delete Dialog Props
- */
-export interface DeleteDialogProps {
-  title: string;
-
-  description: string;
-
-  open: boolean;
-
-  loading?: boolean;
-
-  onCancel: () => void;
-
-  onConfirm: () => void;
-}
-
-/**
- * Generic CRUD Action.
- */
-export interface CrudAction<T> {
+export interface CrudAction<T = unknown> {
   label: string;
 
   icon?: ReactNode;
@@ -146,44 +95,9 @@ export interface CrudAction<T> {
     | "danger"
     | "destructive";
 
-  onClick: (
-    row: T
-  ) => void;
+  onClick: (row: T) => void;
 
-  hidden?: (
-    row: T
-  ) => boolean;
+  hidden?: (row: T) => boolean;
 
-  disabled?: (
-    row: T
-  ) => boolean;
-}
-
-/**
- * Generic CRUD Page Props.
- */
-export interface CrudPageProps<T> {
-  title: string;
-
-  description?: string;
-
-  data: T[];
-
-  columns: CrudColumn<T>[];
-
-  loading?: boolean;
-
-  search: string;
-
-  onSearchChange: (
-    value: string
-  ) => void;
-
-  searchPlaceholder?: string;
-
-  addLabel?: string;
-
-  addHref?: string;
-
-  onRefresh?: () => void;
+  disabled?: (row: T) => boolean;
 }

@@ -3,7 +3,11 @@ import { ReactNode } from "react";
 import StatusBadge from "./StatusBadge";
 import TableActions from "./TableActions";
 
-import { CrudColumn } from "@/types/crud";
+import {
+  CrudColumn,
+  CrudTableActions,
+} from "@/types/crud";
+
 import {
   formatBoolean,
   formatCurrency,
@@ -15,20 +19,28 @@ import {
 interface CrudTableCellProps<T> {
   row: T;
   column: CrudColumn<T>;
+  actions?: CrudTableActions<T>;
 }
 
 export default function CrudTableCell<T>({
   row,
   column,
+  actions,
 }: CrudTableCellProps<T>) {
-  const value = (row as Record<string, unknown>)[column.key as string];
+  const value = (row as Record<string, unknown>)[String(column.key)];
 
-  // Highest priority: fully custom renderer
+  /**
+   * Highest priority:
+   * Fully custom renderer.
+   */
   if (column.render) {
     return <>{column.render(row)}</>;
   }
 
-  // Second priority: simple formatter
+  /**
+   * Second priority:
+   * Custom formatter.
+   */
   if (column.formatter) {
     return <>{column.formatter(value, row)}</>;
   }
@@ -41,16 +53,28 @@ export default function CrudTableCell<T>({
       return <>{formatNumber(Number(value ?? 0))}</>;
 
     case "date":
-      return value ? <>{formatDate(value as string | Date)}</> : <>-</>;
+      return value ? (
+        <>{formatDate(value as string | Date)}</>
+      ) : (
+        <>-</>
+      );
 
     case "datetime":
-      return value ? <>{formatDateTime(value as string | Date)}</> : <>-</>;
+      return value ? (
+        <>{formatDateTime(value as string | Date)}</>
+      ) : (
+        <>-</>
+      );
 
     case "boolean":
       return <>{formatBoolean(Boolean(value))}</>;
 
     case "status":
-      return <StatusBadge status={String(value ?? "")} />;
+      return (
+        <StatusBadge
+          status={String(value ?? "")}
+        />
+      );
 
     case "image":
       return value ? (
@@ -66,14 +90,31 @@ export default function CrudTableCell<T>({
     case "actions":
       return (
         <TableActions
-          onView={column.actions?.onView ? () => column.actions!.onView!(row) : undefined}
-          onEdit={column.actions?.onEdit ? () => column.actions!.onEdit!(row) : undefined}
-          onDelete={column.actions?.onDelete ? () => column.actions!.onDelete!(row) : undefined}
+          onView={
+            actions?.onView
+              ? () => actions.onView!(row)
+              : undefined
+          }
+          onEdit={
+            actions?.onEdit
+              ? () => actions.onEdit!(row)
+              : undefined
+          }
+          onDelete={
+            actions?.onDelete
+              ? () => actions.onDelete!(row)
+              : undefined
+          }
         />
       );
 
+    case "custom":
     case "text":
     default:
-      return <>{(value as ReactNode) ?? "-"}</>;
+      return (
+        <>
+          {(value as ReactNode) ?? "-"}
+        </>
+      );
   }
 }
