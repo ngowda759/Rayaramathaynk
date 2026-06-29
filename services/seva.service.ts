@@ -1,13 +1,63 @@
-import { Seva } from "@/types/seva";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 
-export const sevaCatalogService = {
-  async getAll(): Promise<Seva[]> {
-    return [];
-  },
+import { db } from "@/lib/firebase";
+import { Seva, SevaRequest } from "@/types/seva";
 
-  async create(data: Omit<Seva, "id">) {},
+const COLLECTION = "sevas";
 
-  async update(id: string, data: Partial<Seva>) {},
+class SevaService {
+  async getAllSevas(): Promise<Seva[]> {
+    const snapshot = await getDocs(collection(db, COLLECTION));
 
-  async delete(id: string) {},
-};
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Seva[];
+  }
+
+  async getSevaById(id: string): Promise<Seva | null> {
+    const snapshot = await getDoc(doc(db, COLLECTION, id));
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      ...snapshot.data(),
+    } as Seva;
+  }
+
+  async createSeva(data: SevaRequest) {
+    return addDoc(collection(db, COLLECTION), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  async updateSeva(
+    id: string,
+    data: Partial<SevaRequest>
+  ) {
+    return updateDoc(doc(db, COLLECTION, id), {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  async deleteSeva(id: string) {
+    return deleteDoc(doc(db, COLLECTION, id));
+  }
+}
+
+export const sevaService = new SevaService();
