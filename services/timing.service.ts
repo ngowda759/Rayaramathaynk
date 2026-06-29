@@ -11,7 +11,11 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { TempleTiming } from "@/types/timing";
+
+import {
+  TempleTiming,
+  TimingRequest,
+} from "@/types/timing";
 
 const COLLECTION_NAME = "timings";
 
@@ -51,7 +55,7 @@ class TimingService {
     return docToTiming(docSnap);
   }
 
-  async createTiming(data: Omit<TempleTiming, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  async createTiming(data: TimingRequest): Promise<string> {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...data,
       createdAt: serverTimestamp(),
@@ -62,7 +66,7 @@ class TimingService {
 
   async updateTiming(
     id: string,
-    data: Partial<Omit<TempleTiming, "id" | "createdAt" | "updatedAt">>
+    data: Partial<TimingRequest>
   ): Promise<void> {
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, {

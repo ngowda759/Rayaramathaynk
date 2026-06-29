@@ -1,28 +1,45 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
-import TimingTable from "@/components/admin/timings/TimingTable";
-import { Button } from "@/components/ui/button";
+import CrudTable from "@/components/admin/crud/CrudTable";
+import Button from "@/components/ui/button";
+
 import { timingService } from "@/services/timing.service";
 import { TempleTiming } from "@/types/timing";
 
-export default function AdminTimingsPage() {
-  const [timings, setTimings] = useState<TempleTiming[]>([]);
+import { timingColumns } from "./columns";
+
+export default function TimingsPage() {
+  const router = useRouter();
+
+  const [timings, setTimings] = useState<
+    TempleTiming[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   async function loadTimings() {
     try {
       setLoading(true);
-      const data = await timingService.getTimings();
+
+      const data =
+        await timingService.getTimings();
+
       setTimings(data);
     } catch (error) {
-      console.error("Failed to load timings:", error);
+      console.error(
+        "Failed to load timings:",
+        error
+      );
+
+      toast.error("Failed to load timings.");
     } finally {
       setLoading(false);
     }
@@ -32,57 +49,99 @@ export default function AdminTimingsPage() {
     loadTimings();
   }, []);
 
-  const filteredTimings = timings.filter((timing) => {
-    const keyword = search.toLowerCase();
-    return (
-      timing.title.toLowerCase().includes(keyword) ||
-      timing.description.toLowerCase().includes(keyword) ||
-      timing.startTime.toLowerCase().includes(keyword) ||
-      timing.endTime.toLowerCase().includes(keyword)
+  const filteredTimings = useMemo(() => {
+    const keyword = search
+      .toLowerCase()
+      .trim();
+
+    if (!keyword) return timings;
+
+    return timings.filter((timing) =>
+      [
+        timing.title,
+        timing.description,
+        timing.startTime,
+        timing.endTime,
+      ].some((value) =>
+        value
+          .toLowerCase()
+          .includes(keyword)
+      )
     );
-  });
+  }, [timings, search]);
+
+  async function handleDelete(
+    timing: TempleTiming
+  ) {
+    if (
+      !window.confirm(
+        `Delete "${timing.title}"?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await timingService.deleteTiming(
+        timing.id
+      );
+
+      toast.success(
+        "Timing deleted successfully."
+      );
+
+      await loadTimings();
+    } catch (error) {
+      console.error(
+        "Failed to delete timing:",
+        error
+      );
+
+      toast.error(
+        "Failed to delete timing."
+      );
+    }
+  }
 
   return (
     <div className="space-y-8">
       <AdminPageHeader
         title="Temple Timings"
-        description="Manage the public temple timings shown on the homepage."
+        description="Manage temple timings."
         action={
           <Button asChild>
             <Link href="/admin/timings/new">
-              <span className="flex items-center gap-2">
-                <Plus className="h-4 w-4" /> Add Timing
-              </span>
+              Add Timing
             </Link>
           </Button>
         }
       />
 
-      <div className="rounded-xl border bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-stone-900">
-              Temple Timing Schedule
-            </h2>
-            <p className="mt-1 text-sm text-stone-500">
-              Add, update, and reorder timings for devotees.
-            </p>
-          </div>
-          <SearchBox
-            value={search}
-            onChange={setSearch}
-            placeholder="Search timings..."
-          />
-        </div>
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        placeholder="Search timings..."
+      />
 
-        {loading ? (
-          <div className="mt-8 text-stone-500">Loading timings...</div>
-        ) : (
-          <div className="mt-8">
-            <TimingTable timings={filteredTimings} onRefresh={loadTimings} />
-          </div>
-        )}
-      </div>
+      {loading ? (
+        <div className="rounded-xl border bg-white p-8">
+          Loading timings...
+        </div>
+      ) : (
+        <CrudTable<TempleTiming>
+          data={filteredTimings}
+          columns={timingColumns}
+          emptyMessage="No timings found."
+          actions={{
+            onEdit: (timing) =>
+              router.push(
+                `/admin/timings/${timing.id}/edit`
+              ),
+
+            onDelete: handleDelete,
+          }}
+        />
+      )}
     </div>
   );
 }

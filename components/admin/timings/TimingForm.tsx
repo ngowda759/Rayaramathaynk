@@ -2,185 +2,203 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { Clock3, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import FormActions from "@/components/ui/form/FormActions";
+import FormContainer from "@/components/ui/form/FormContainer";
+import FormSection from "@/components/ui/form/FormSection";
+import FormNumberField from "@/components/ui/form/FormNumberField";
+import FormSwitchField from "@/components/ui/form/FormSwitchField";
+import FormTextArea from "@/components/ui/form/FormTextArea";
+import FormTextField from "@/components/ui/form/FormTextField";
 
-import { TempleTiming } from "@/types/timing";
-import { timingService } from "@/services/timing.service";
+import {
+  TempleTiming,
+  TimingRequest,
+} from "@/types/timing";
 
 interface TimingFormProps {
-  initialData?: TempleTiming;
+  mode: "create" | "edit";
+  loading?: boolean;
+  initialValues?: Partial<TempleTiming>;
+  onSubmit: (
+    data: TimingRequest
+  ) => Promise<void> | void;
 }
 
-export default function TimingForm({ initialData }: TimingFormProps) {
+export default function TimingForm({
+  mode,
+  loading = false,
+  initialValues,
+  onSubmit,
+}: TimingFormProps) {
   const router = useRouter();
-  const { user } = useAuth();
 
-  const [title, setTitle] = useState(initialData?.title || "");
-  const [description, setDescription] = useState(initialData?.description || "");
-  const [startTime, setStartTime] = useState(initialData?.startTime || "");
-  const [endTime, setEndTime] = useState(initialData?.endTime || "");
-  const [order, setOrder] = useState(initialData?.order ?? 0);
-  const [isActive, setIsActive] = useState(initialData?.isActive ?? true);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] =
+    useState<TimingRequest>({
+      title: initialValues?.title ?? "",
+      description:
+        initialValues?.description ?? "",
+      startTime:
+        initialValues?.startTime ?? "",
+      endTime:
+        initialValues?.endTime ?? "",
+      order: initialValues?.order ?? 0,
+      isActive:
+        initialValues?.isActive ?? true,
+    });
 
-  function validate() {
-    const next: Record<string, string> = {};
-    if (!title.trim()) next.title = "Title is required";
-    if (!startTime.trim()) next.startTime = "Start time is required";
-    if (!endTime.trim()) next.endTime = "End time is required";
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
+  const [errors, setErrors] = useState<
+    Record<string, string>
+  >({});
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
-    if (!user?.email) return;
+  function updateField<
+    K extends keyof TimingRequest
+  >(key: K, value: TimingRequest[K]) {
+    setFormData((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
 
-    setSaving(true);
-    try {
-      const data = {
-        title: title.trim(),
-        description: description.trim(),
-        startTime: startTime.trim(),
-        endTime: endTime.trim(),
-        order,
-        isActive,
-      };
-
-      if (initialData?.id) {
-        await timingService.updateTiming(initialData.id, data);
-      } else {
-        await timingService.createTiming(data);
-      }
-
-      router.push("/admin/timings");
-    } catch (err) {
-      console.error("Failed to save timing:", err);
-    } finally {
-      setSaving(false);
+    if (errors[key]) {
+      setErrors((prev) => ({
+        ...prev,
+        [key]: "",
+      }));
     }
   }
 
+  function validate() {
+    const validationErrors: Record<
+      string,
+      string
+    > = {};
+
+    if (!formData.title.trim()) {
+      validationErrors.title =
+        "Title is required.";
+    }
+
+    if (!formData.startTime) {
+      validationErrors.startTime =
+        "Start time is required.";
+    }
+
+    if (!formData.endTime) {
+      validationErrors.endTime =
+        "End time is required.";
+    }
+
+    setErrors(validationErrors);
+
+    return (
+      Object.keys(validationErrors).length === 0
+    );
+  }
+
+  async function handleSubmit(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
+    e.preventDefault();
+
+    if (!validate()) return;
+
+    await onSubmit(formData);
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Morning Darshan"
-            />
-            {errors.title && (
-              <p className="text-xs text-destructive">{errors.title}</p>
-            )}
-          </div>
+    <FormContainer onSubmit={handleSubmit}>
+      <FormSection
+        title="Temple Timing"
+        description="Timing details"
+      >
+        <FormTextField
+          label="Title"
+          required
+          value={formData.title}
+          error={errors.title}
+          onChange={(e) =>
+            updateField(
+              "title",
+              e.target.value
+            )
+          }
+        />
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              placeholder="Brief notes about the timing..."
-            />
-          </div>
+        <FormTextArea
+          label="Description"
+          value={formData.description}
+          onChange={(e) =>
+            updateField(
+              "description",
+              e.target.value
+            )
+          }
+        />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="startTime">Start Time</Label>
-              <Input
-                id="startTime"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                placeholder="e.g., 5:30 AM"
-              />
-              {errors.startTime && (
-                <p className="text-xs text-destructive">{errors.startTime}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endTime">End Time</Label>
-              <Input
-                id="endTime"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                placeholder="e.g., 12:30 PM"
-              />
-              {errors.endTime && (
-                <p className="text-xs text-destructive">{errors.endTime}</p>
-              )}
-            </div>
-          </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <FormTextField
+            type="time"
+            label="Start Time"
+            required
+            value={formData.startTime}
+            error={errors.startTime}
+            onChange={(e) =>
+              updateField(
+                "startTime",
+                e.target.value
+              )
+            }
+          />
+
+          <FormTextField
+            type="time"
+            label="End Time"
+            required
+            value={formData.endTime}
+            error={errors.endTime}
+            onChange={(e) =>
+              updateField(
+                "endTime",
+                e.target.value
+              )
+            }
+          />
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="order">Display Order</Label>
-            <Input
-              id="order"
-              type="number"
-              value={order}
-              onChange={(e) => setOrder(parseInt(e.target.value || "0", 10))}
-              placeholder="0"
-            />
-          </div>
+        <FormNumberField
+          label="Display Order"
+          value={formData.order}
+          onChange={(e) =>
+            updateField(
+              "order",
+              Number(e.target.value)
+            )
+          }
+        />
 
-          <div className="flex items-center justify-between rounded-xl border p-4">
-            <div>
-              <Label htmlFor="active">Active</Label>
-              <p className="text-xs text-muted-foreground">
-                Show this timing in the public schedule
-              </p>
-            </div>
-            <Switch
-              id="active"
-              checked={isActive}
-              onCheckedChange={setIsActive}
-            />
-          </div>
+        <FormSwitchField
+          label="Active"
+          checked={formData.isActive}
+          onChange={(checked) =>
+            updateField(
+              "isActive",
+              checked
+            )
+          }
+        />
+      </FormSection>
 
-          <div className="rounded-xl border border-dashed p-4 text-sm text-stone-600">
-            <p className="font-medium">Note</p>
-            <p className="mt-2">
-              Active timings will be visible on the public homepage timing section.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end gap-4">
-        <Button type="button" variant="outline" onClick={() => router.push("/admin/timings")}
-          disabled={saving}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Clock3 className="mr-2 h-4 w-4" />
-              Save Timing
-            </>
-          )}
-        </Button>
-      </div>
-    </form>
+      <FormActions
+        loading={loading}
+        submitLabel={
+          mode === "create"
+            ? "Create Timing"
+            : "Update Timing"
+        }
+        onCancel={() =>
+          router.push("/admin/timings")
+        }
+      />
+    </FormContainer>
   );
 }

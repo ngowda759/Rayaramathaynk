@@ -1,8 +1,8 @@
 import {
-  Plus,
-  Image,
   Bell,
   HeartHandshake,
+  Image,
+  Plus,
 } from "lucide-react";
 
 import WelcomeBanner from "@/components/admin/dashboard/WelcomeBanner";
@@ -11,10 +11,10 @@ import QuickActionCard from "@/components/admin/dashboard/QuickActionCard";
 
 import SectionCard from "@/components/admin/common/SectionCard";
 
-import { getDashboardStats } from "@/services/dashboard.Service";
+import { dashboardService } from "@/services/dashboard.service";
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats();
+  const stats = await dashboardService.getStats();
 
   return (
     <div className="space-y-8">

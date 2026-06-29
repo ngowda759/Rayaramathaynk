@@ -1,16 +1,24 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  orderBy,
   query,
+  serverTimestamp,
   updateDoc,
   where,
-  orderBy,
-  serverTimestamp,
 } from "firebase/firestore";
+
 import { db } from "@/lib/firebase";
-import { SevaBooking, SevaBookingRequest, SevaBookingStatus } from "@/types/seva-booking";
+
+import {
+  SevaBooking,
+  SevaBookingRequest,
+  SevaBookingStatus,
+} from "@/types/seva-booking";
 
 const COLLECTION_NAME = "sevaBookings";
 
@@ -38,7 +46,7 @@ function docToBooking(docSnap: any): SevaBooking {
   };
 }
 
-export const sevaBookingService = {
+class SevaBookingService {
   async createBooking(
     data: SevaBookingRequest
   ): Promise<string> {
@@ -53,7 +61,20 @@ export const sevaBookingService = {
     );
 
     return docRef.id;
-  },
+  }
+
+  async getAllBookings(): Promise<
+    SevaBooking[]
+  > {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      orderBy("createdAt", "desc")
+    );
+
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(docToBooking);
+  }
 
   async getBookingsByUser(
     userId: string
@@ -63,27 +84,47 @@ export const sevaBookingService = {
       where("userId", "==", userId),
       orderBy("createdAt", "desc")
     );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBooking);
-  },
 
-  async getAllBookings(): Promise<SevaBooking[]> {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy("createdAt", "desc")
-    );
     const snapshot = await getDocs(q);
+
     return snapshot.docs.map(docToBooking);
-  },
+  }
+
+  async getBookingById(
+    bookingId: string
+  ): Promise<SevaBooking | null> {
+    const snapshot = await getDoc(
+      doc(db, COLLECTION_NAME, bookingId)
+    );
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return docToBooking(snapshot);
+  }
 
   async updateBookingStatus(
     bookingId: string,
     status: SevaBookingStatus
   ): Promise<void> {
-    const bookingRef = doc(db, COLLECTION_NAME, bookingId);
-    await updateDoc(bookingRef, {
-      status,
-      updatedAt: serverTimestamp(),
-    });
-  },
-};
+    await updateDoc(
+      doc(db, COLLECTION_NAME, bookingId),
+      {
+        status,
+        updatedAt: serverTimestamp(),
+      }
+    );
+  }
+
+  async deleteBooking(
+    bookingId: string
+  ): Promise<void> {
+    await deleteDoc(
+      doc(db, COLLECTION_NAME, bookingId)
+    );
+  }
+}
+
+export const sevaBookingService =
+  new SevaBookingService();
