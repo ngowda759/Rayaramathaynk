@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SevaForm from "@/components/admin/sevas/SevaForm";
@@ -20,10 +21,13 @@ export default function NewSevaPage() {
 
       await sevaService.createSeva(data);
 
+      toast.success("Seva created successfully.");
+
       router.push("/admin/sevas");
     } catch (error) {
-      console.error("Failed to create seva:", error);
-      alert("Failed to create seva.");
+      console.error(error);
+
+      toast.error("Failed to create seva.");
     } finally {
       setLoading(false);
     }
@@ -33,7 +37,7 @@ export default function NewSevaPage() {
     <div className="space-y-8">
       <AdminPageHeader
         title="Create Seva"
-        description="Add a new seva to the temple catalog."
+        description="Add a new seva."
       />
 
       <SevaForm

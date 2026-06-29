@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import CrudTable from "@/components/admin/crud/CrudTable";
-import { Button } from "@/components/ui/button";
+import Button from "@/components/ui/button";
 
 import { sevaService } from "@/services/seva.service";
 import { Seva } from "@/types/seva";
@@ -44,15 +44,27 @@ export default function SevasPage() {
     if (!keyword) return sevas;
 
     return sevas.filter((seva) =>
-      [
-        seva.name,
-        seva.category,
-        seva.description,
-      ].some((value) =>
+      [seva.name, seva.category, seva.description].some((value) =>
         value.toLowerCase().includes(keyword)
       )
     );
   }, [search, sevas]);
+
+  async function handleDelete(seva: Seva) {
+    const confirmed = window.confirm(
+      `Delete "${seva.name}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await sevaService.deleteSeva(seva.id);
+      await loadSevas();
+    } catch (error) {
+      console.error("Failed to delete seva:", error);
+      alert("Failed to delete seva.");
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -87,15 +99,7 @@ export default function SevasPage() {
             onEdit: (seva) =>
               router.push(`/admin/sevas/${seva.id}/edit`),
 
-            onDelete: (seva) => {
-              console.log(
-                "Delete seva:",
-                seva.id
-              );
-
-              // We'll replace this with the
-              // reusable DeleteDialog in a later sprint.
-            },
+            onDelete: handleDelete,
           }}
         />
       )}
