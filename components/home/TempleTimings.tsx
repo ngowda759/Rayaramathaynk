@@ -1,150 +1,225 @@
+"use client";
+
+import { motion } from "framer-motion";
 import {
   Clock3,
   Sunrise,
   Sunset,
   CalendarHeart,
+  CheckCircle2,
 } from "lucide-react";
+
+const morningSchedule = [
+  "Suprabhata Seva",
+  "Alankara",
+  "Maha Pooja",
+  "Darshan",
+  "Theertha & Prasada",
+];
+
+const eveningSchedule = [
+  "Evening Pooja",
+  "Mangalarati",
+  "Bhajane",
+  "Darshan",
+  "Temple Closing",
+];
 
 export default function TempleTimings() {
   return (
-    <section className="bg-white py-24">
+    <section className="relative overflow-hidden bg-gradient-to-b from-[#fff8ef] via-white to-[#fffdf8] py-24">
+
       <div className="mx-auto max-w-7xl px-6">
 
-        <div className="text-center">
-          <span className="rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700">
-            Darshan Timings
+        <div className="mx-auto max-w-3xl text-center">
+
+          <span className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
+            TEMPLE TIMINGS
           </span>
 
-          <h2 className="mt-6 text-4xl font-bold text-stone-900 md:text-5xl">
-            Temple Timings
+          <h2 className="mt-6 text-5xl font-bold text-stone-900">
+            Plan Your Visit
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-stone-600">
-            We warmly welcome devotees every day. Please plan your visit
-            according to the timings below.
+          <p className="mt-6 text-lg leading-8 text-stone-600">
+            We welcome devotees every day for Darshan, Sevas and
+            spiritual activities. Please plan your visit according
+            to the timings below.
           </p>
+
         </div>
 
         <div className="mt-16 grid gap-8 lg:grid-cols-2">
 
-          {/* Morning */}
+          <motion.div
+            initial={{ opacity: 0, x: -40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className="rounded-[32px] border border-amber-100 bg-white p-10 shadow-xl"
+          >
 
-          <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-10 shadow-sm">
+            <div className="flex items-center gap-5">
 
-            <div className="flex items-center gap-4">
+              <div className="flex h-18 w-18 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500 to-orange-500 p-5 text-white shadow-lg">
 
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-600 text-white">
-                <Sunrise size={30} />
+                <Sunrise size={34} />
+
               </div>
 
               <div>
-                <p className="text-sm uppercase tracking-widest text-amber-700">
-                  Morning
+
+                <p className="font-semibold uppercase tracking-widest text-amber-700">
+                  Morning Darshan
                 </p>
 
-                <h3 className="text-3xl font-bold text-stone-900">
+                <h3 className="mt-2 text-4xl font-bold text-stone-900">
                   6:00 AM – 1:00 PM
                 </h3>
+
               </div>
 
             </div>
 
-            <div className="mt-8 space-y-4 text-stone-700">
+            <div className="mt-10 space-y-5">
 
-              <div className="flex items-center gap-3">
-                <Clock3 size={18} className="text-amber-600" />
-                Suprabhata Seva
-              </div>
+              {morningSchedule.map((item) => (
 
-              <div className="flex items-center gap-3">
-                <Clock3 size={18} className="text-amber-600" />
-                Alankara & Maha Pooja
-              </div>
+                <div
+                  key={item}
+                  className="flex items-center gap-4 rounded-2xl bg-amber-50 p-4"
+                >
 
-              <div className="flex items-center gap-3">
-                <Clock3 size={18} className="text-amber-600" />
-                Darshan & Prasada
-              </div>
+                  <CheckCircle2
+                    className="text-amber-600"
+                    size={22}
+                  />
+
+                  <span className="font-medium text-stone-700">
+                    {item}
+                  </span>
+
+                </div>
+
+              ))}
 
             </div>
 
-          </div>
+          </motion.div>
 
-          {/* Evening */}
+          <motion.div
+            initial={{ opacity: 0, x: 40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className="rounded-[32px] border border-sky-100 bg-white p-10 shadow-xl"
+          >
 
-          <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-10 shadow-sm">
+            <div className="flex items-center gap-5">
 
-            <div className="flex items-center gap-4">
+              <div className="flex h-18 w-18 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-500 to-blue-600 p-5 text-white shadow-lg">
 
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white">
-                <Sunset size={30} />
+                <Sunset size={34} />
+
               </div>
 
               <div>
-                <p className="text-sm uppercase tracking-widest text-blue-700">
-                  Evening
+
+                <p className="font-semibold uppercase tracking-widest text-sky-700">
+                  Evening Darshan
                 </p>
 
-                <h3 className="text-3xl font-bold text-stone-900">
+                <h3 className="mt-2 text-4xl font-bold text-stone-900">
                   4:30 PM – 8:30 PM
                 </h3>
+
               </div>
 
             </div>
 
-            <div className="mt-8 space-y-4 text-stone-700">
+            <div className="mt-10 space-y-5">
 
-              <div className="flex items-center gap-3">
-                <Clock3 size={18} className="text-blue-600" />
-                Evening Pooja
-              </div>
+              {eveningSchedule.map((item) => (
 
-              <div className="flex items-center gap-3">
-                <Clock3 size={18} className="text-blue-600" />
-                Mangalarati
-              </div>
+                <div
+                  key={item}
+                  className="flex items-center gap-4 rounded-2xl bg-sky-50 p-4"
+                >
 
-              <div className="flex items-center gap-3">
-                <Clock3 size={18} className="text-blue-600" />
-                Darshan Until Closing
-              </div>
+                  <CheckCircle2
+                    className="text-sky-600"
+                    size={22}
+                  />
+
+                  <span className="font-medium text-stone-700">
+                    {item}
+                  </span>
+
+                </div>
+
+              ))}
 
             </div>
 
-          </div>
+          </motion.div>
 
         </div>
 
-        <div className="mt-12 rounded-3xl bg-gradient-to-r from-amber-600 to-orange-600 p-8 text-white shadow-xl">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-14 rounded-[36px] bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 p-10 text-white shadow-2xl"
+        >
 
-          <div className="flex flex-col items-center justify-between gap-6 lg:flex-row">
+          <div className="flex flex-col items-center gap-6 lg:flex-row lg:justify-between">
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-5">
 
-              <div className="rounded-2xl bg-white/20 p-4">
-                <CalendarHeart size={32} />
+              <div className="rounded-3xl bg-white/20 p-5">
+
+                <CalendarHeart size={34} />
+
               </div>
 
               <div>
 
-                <h3 className="text-2xl font-bold">
-                  Festival Timings
+                <h3 className="text-3xl font-bold">
+                  Festival Schedule
                 </h3>
 
-                <p className="mt-2 text-amber-100">
-                  On festival days, temple timings may be extended. Please
-                  check announcements before planning your visit.
+                <p className="mt-2 max-w-2xl text-amber-100">
+                  Temple timings may be extended during festivals,
+                  Guru Aaradhane, Navaratri and other special
+                  occasions. Please check announcements before
+                  visiting.
                 </p>
 
               </div>
 
             </div>
 
+            <div className="rounded-3xl bg-white px-8 py-5 text-center shadow-lg">
+
+              <Clock3
+                className="mx-auto text-amber-600"
+                size={32}
+              />
+
+              <p className="mt-2 font-bold text-stone-900">
+                Temple Open Today
+              </p>
+
+              <p className="text-green-600 font-semibold">
+                6:00 AM – 8:30 PM
+              </p>
+
+            </div>
+
           </div>
 
-        </div>
+        </motion.div>
 
       </div>
+
     </section>
   );
 }
