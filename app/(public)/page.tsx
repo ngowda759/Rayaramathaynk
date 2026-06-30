@@ -9,6 +9,7 @@ import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GalleryPreview from "@/components/home/GalleryPreview";
 import DonationCTA from "@/components/home/DonationCTA";
 import Footer from "@/components/layout/Footer";
+import Panchanga from "@/components/home/Panchanga";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
       <Navbar />
       <AnnouncementBar />
       <Hero />
+      <Panchanga />
       <TempleInfo />
       <FeaturedSevas />
       <TempleTimings />
