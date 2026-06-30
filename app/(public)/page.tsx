@@ -1,5 +1,6 @@
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/components/home/Hero";
+import TempleInfo from "@/components/home/TempleInfo";
 import TempleTimings from "@/components/home/TempleTimings";
 import QuickServices from "@/components/home/QuickServices";
 import AnnouncementBar from "@/components/home/AnnouncementBar";
@@ -14,6 +15,7 @@ export default function Home() {
       <Navbar />
       <AnnouncementBar />
       <Hero />
+      <TempleInfo />
       <TempleTimings />
       <QuickServices />
       <UpcomingEvents />

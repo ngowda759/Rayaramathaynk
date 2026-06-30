@@ -1,74 +1,67 @@
-import fs from "fs";
-import path from "path";
-import SectionHeading from "@/components/common/SectionHeading";
-import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import SectionHeading from "@/components/common/SectionHeading";
 
-const galleryDirectory = path.join(process.cwd(), "public", "images", "temple");
-
-function getTemplePreviewImages() {
-  if (!fs.existsSync(galleryDirectory)) return [];
-
-  return fs
-    .readdirSync(galleryDirectory)
-    .filter((file) => /\.(jpe?g|png|webp)$/i.test(file))
-    .sort()
-    .slice(0, 4)
-    .map((filename, index) => ({
-      id: index + 1,
-      src: `/images/temple/${filename}`,
-      alt: path
-        .basename(filename, path.extname(filename))
-        .replace(/[-_]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    }));
-}
+const images = [
+  "/images/gallery1.jpg",
+  "/images/gallery2.jpg",
+  "/images/gallery3.jpg",
+  "/images/gallery4.jpg",
+  "/images/gallery5.jpg",
+  "/images/gallery6.jpg",
+];
 
 export default function GalleryPreview() {
-  const images = getTemplePreviewImages();
-
   return (
-    <section className="py-20 bg-white">
+    <section className="bg-stone-50 py-24">
       <div className="mx-auto max-w-7xl px-6">
+
         <SectionHeading
           title="Temple Gallery"
-          subtitle="A glimpse of our spiritual celebrations, rituals and divine atmosphere."
+          subtitle="Moments of devotion, festivals and divine celebrations."
         />
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {images.length > 0 ? (
-            images.map((image) => (
-              <div
-                key={image.id}
-                className="group overflow-hidden rounded-2xl shadow-md"
-              >
-                <Image
-                  src={image.src}
-                  alt={image.alt}
-                  width={500}
-                  height={500}
-                  className="h-72 w-full object-cover transition duration-500 group-hover:scale-110"
-                />
+        <div className="mt-14 grid grid-cols-2 gap-5 md:grid-cols-3">
+
+          {images.map((image, index) => (
+            <div
+              key={index}
+              className="group relative aspect-[4/3] overflow-hidden rounded-3xl"
+            >
+              <Image
+                src={image}
+                alt="Temple Gallery"
+                fill
+                className="object-cover transition duration-700 group-hover:scale-110"
+              />
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
+
+              <div className="absolute bottom-5 left-5 translate-y-6 text-white opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                <p className="font-semibold">
+                  Temple Moments
+                </p>
+
+                <p className="text-sm text-gray-200">
+                  Click to explore
+                </p>
               </div>
-            ))
-          ) : (
-            <div className="col-span-full rounded-2xl border border-stone-200 bg-stone-50 p-12 text-center text-stone-700 shadow-sm">
-              Temple images are not available yet. Add files under <code>public/images/temple</code>.
             </div>
-          )}
+          ))}
+
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="mt-14 text-center">
           <Link
             href="/gallery"
-            className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-6 py-3 font-medium text-white transition hover:bg-orange-700"
+            className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-8 py-4 font-semibold text-white transition hover:bg-amber-700"
           >
             View Complete Gallery
             <ArrowRight size={18} />
           </Link>
         </div>
+
       </div>
     </section>
   );
