@@ -18,7 +18,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
-import { GALLERY_CATEGORIES } from "@/types/gallery";
+import {
+  GALLERY_CATEGORIES,
+  GalleryCategory,
+} from "@/types/gallery";
+
 import { galleryService } from "@/services/gallery.service";
 
 export default function CreateImage() {
@@ -27,32 +31,39 @@ export default function CreateImage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const [category, setCategory] = useState<GalleryCategory | "">("");
   const [imagePath, setImagePath] = useState("");
   const [altText, setAltText] = useState("");
   const [isFeatured, setIsFeatured] = useState(false);
   const [displayOrder, setDisplayOrder] = useState(0);
+
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
 
   const [saving, setSaving] = useState(false);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function validate() {
     const next: Record<string, string> = {};
+
     if (!title.trim()) next.title = "Title is required";
     if (!category) next.category = "Category is required";
     if (!imagePath.trim()) next.imagePath = "Image path is required";
     if (!altText.trim()) next.altText = "Alt text is required";
+
     setErrors(next);
+
     return Object.keys(next).length === 0;
   }
 
   function addTag() {
-    const trimmed = tagInput.trim();
-    if (!trimmed) return;
-    if (tags.includes(trimmed)) return;
-    setTags([...tags, trimmed]);
+    const value = tagInput.trim();
+
+    if (!value) return;
+    if (tags.includes(value)) return;
+
+    setTags([...tags, value]);
     setTagInput("");
   }
 
@@ -62,27 +73,41 @@ export default function CreateImage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
     if (!validate()) return;
     if (!user?.email) return;
 
     setSaving(true);
+
     try {
       await galleryService.createImage(
         {
+          albumId: "temple",
+          type: "photo",
+
           title: title.trim(),
           description: description.trim(),
-          category: category as any,
+
+          category: category as GalleryCategory,
+
           imagePath: imagePath.trim(),
+
+          videoUrl: "",
+
           altText: altText.trim(),
+
           isFeatured,
+
           displayOrder,
+
           tags,
         },
         user.email
       );
+
       router.push("/admin/gallery");
-    } catch (err) {
-      console.error("Failed to create image:", err);
+    } catch (error) {
+      console.error(error);
     } finally {
       setSaving(false);
     }
@@ -90,124 +115,122 @@ export default function CreateImage() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+
         <div className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="title">
-              Title <span className="text-destructive">*</span>
-            </Label>
+
+          <div>
+            <Label>Title</Label>
             <Input
-              id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Rathotsava 2026 - Morning Procession"
             />
             {errors.title && (
-              <p className="text-xs text-destructive">{errors.title}</p>
+              <p className="text-sm text-red-500">{errors.title}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+          <div>
+            <Label>Description</Label>
             <Textarea
-              id="description"
+              rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of the image..."
-              rows={4}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">
-              Category <span className="text-destructive">*</span>
-            </Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Select a category" />
+          <div>
+            <Label>Category</Label>
+
+            <Select
+              value={category}
+              onValueChange={(v) => setCategory(v as GalleryCategory)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
               </SelectTrigger>
+
               <SelectContent>
-                {GALLERY_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
+                {GALLERY_CATEGORIES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
             {errors.category && (
-              <p className="text-xs text-destructive">{errors.category}</p>
+              <p className="text-sm text-red-500">{errors.category}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="imagePath">
-              Image Path <span className="text-destructive">*</span>
-            </Label>
+          <div>
+            <Label>Image Path</Label>
+
             <Input
-              id="imagePath"
               value={imagePath}
               onChange={(e) => setImagePath(e.target.value)}
-              placeholder="/images/gallery/rathotsava-2026.jpg"
+              placeholder="/images/gallery/temple/photo1.webp"
             />
-            <p className="text-xs text-muted-foreground">
-              Path relative to the public folder. File must already exist in the
-              repository.
-            </p>
+
             {errors.imagePath && (
-              <p className="text-xs text-destructive">{errors.imagePath}</p>
+              <p className="text-sm text-red-500">{errors.imagePath}</p>
             )}
           </div>
+
         </div>
 
         <div className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="altText">
-              Alt Text <span className="text-destructive">*</span>
-            </Label>
+
+          <div>
+            <Label>Alt Text</Label>
+
             <Input
-              id="altText"
               value={altText}
               onChange={(e) => setAltText(e.target.value)}
-              placeholder="Descriptive text for accessibility"
             />
+
             {errors.altText && (
-              <p className="text-xs text-destructive">{errors.altText}</p>
+              <p className="text-sm text-red-500">{errors.altText}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="displayOrder">Display Order</Label>
+          <div>
+            <Label>Display Order</Label>
+
             <Input
-              id="displayOrder"
               type="number"
               value={displayOrder}
               onChange={(e) =>
-                setDisplayOrder(parseInt(e.target.value || "0", 10))
+                setDisplayOrder(Number(e.target.value))
               }
-              placeholder="0"
             />
-            <p className="text-xs text-muted-foreground">
-              Lower numbers appear first. You can also reorder from the table.
-            </p>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="featured">Featured on Homepage</Label>
-              <p className="text-xs text-muted-foreground">
-                Show this image in the homepage gallery preview
+
+            <div>
+              <Label>Featured</Label>
+
+              <p className="text-sm text-muted-foreground">
+                Show on homepage gallery
               </p>
             </div>
+
             <Switch
-              id="featured"
               checked={isFeatured}
               onCheckedChange={setIsFeatured}
             />
+
           </div>
 
-          <div className="space-y-2">
+          <div>
+
             <Label>Tags</Label>
-            <div className="flex gap-2">
+
+            <div className="mt-2 flex gap-2">
+
               <Input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
@@ -217,39 +240,53 @@ export default function CreateImage() {
                     addTag();
                   }
                 }}
-                placeholder="Add a tag and press Enter"
               />
-              <Button type="button" variant="outline" onClick={addTag}>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addTag}
+              >
                 Add
               </Button>
+
             </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex cursor-pointer items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80"
-                    onClick={() => removeTag(tag)}
-                  >
-                    {tag} &times;
-                  </span>
-                ))}
-              </div>
-            )}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+
+              {tags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="rounded-full bg-amber-100 px-3 py-1 text-sm"
+                >
+                  {tag} ×
+                </button>
+              ))}
+
+            </div>
+
           </div>
+
         </div>
+
       </div>
 
-      <div className="flex items-center justify-end gap-4">
+      <div className="flex justify-end gap-3">
+
         <Button
           type="button"
           variant="outline"
           onClick={() => router.push("/admin/gallery")}
-          disabled={saving}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={saving}>
+
+        <Button
+          type="submit"
+          disabled={saving}
+        >
           {saving ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -262,7 +299,9 @@ export default function CreateImage() {
             </>
           )}
         </Button>
+
       </div>
+
     </form>
   );
 }

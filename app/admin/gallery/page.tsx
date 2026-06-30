@@ -62,6 +62,9 @@ export default function GalleryPage() {
     }
 
     try {
+
+      if (!image.id) return;
+
       await galleryService.deleteImage(image.id);
 
       toast.success("Image deleted successfully.");

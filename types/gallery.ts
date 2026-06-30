@@ -1,17 +1,3 @@
-export interface GalleryImage {
-  id: string;
-  title: string;
-  description: string;
-  category: GalleryCategory;
-  imagePath: string;
-  altText: string;
-  uploadedAt: string;
-  uploadedBy: string;
-  isFeatured: boolean;
-  displayOrder: number;
-  tags: string[];
-}
-
 export type GalleryCategory =
   | "Rathotsava"
   | "Madhva Navami"
@@ -21,6 +7,9 @@ export type GalleryCategory =
   | "Utsava"
   | "Pravachana"
   | "Temple Infrastructure"
+  | "Annadanam"
+  | "Hanuman Jayanti"
+  | "Guru Aaradhane"
   | "Other";
 
 export const GALLERY_CATEGORIES: GalleryCategory[] = [
@@ -32,22 +21,73 @@ export const GALLERY_CATEGORIES: GalleryCategory[] = [
   "Utsava",
   "Pravachana",
   "Temple Infrastructure",
+  "Annadanam",
+  "Hanuman Jayanti",
+  "Guru Aaradhane",
   "Other",
 ];
 
-export interface GalleryStats {
-  total: number;
-  featured: number;
-  byCategory: Record<string, number>;
+export interface GalleryAlbum {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  coverImage: string;
+  active: boolean;
+  displayOrder: number;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
-export interface GalleryImageRequest {
+export interface GalleryMedia {
+  id: string;
+  albumId: string;
   title: string;
   description: string;
   category: GalleryCategory;
+  type: "photo" | "video";
   imagePath: string;
+  videoUrl?: string;
   altText: string;
+  uploadedAt?: any;
+  uploadedBy: string;
   isFeatured: boolean;
   displayOrder: number;
   tags: string[];
 }
+
+export interface GalleryMediaRequest {
+  // Optional for backward compatibility
+  albumId?: string;
+  type?: "photo" | "video";
+
+  title: string;
+  description: string;
+  category: GalleryCategory;
+
+  imagePath: string;
+  videoUrl?: string;
+
+  altText: string;
+
+  isFeatured: boolean;
+  displayOrder: number;
+  tags: string[];
+}
+
+export interface GalleryStats {
+  total: number;
+  featured: number;
+  albums: number;
+  photos: number;
+  videos: number;
+  byCategory?: Record<string, number>;
+}
+
+/* ------------------------------------------------------------------
+   BACKWARD COMPATIBILITY
+------------------------------------------------------------------- */
+
+export type GalleryImage = GalleryMedia;
+
+export type GalleryImageRequest = GalleryMediaRequest;

@@ -46,13 +46,13 @@ export default function AdminAssistantPage() {
         setTotalPoojas(poojas.length);
         setActivePoojas(poojas.filter((pooja) => pooja.isActive).length);
 
-        const recs = [];
+        const recs: Recommendation[] = [];
 
         if (images.length > 0 && featuredCount / images.length < 0.15) {
           recs.push({
             title: "Feature more gallery images",
             description:
-              "Less than 15% of gallery items are marked as featured. Select your best photos to highlight the temple.",
+              "Less than 15% of gallery items are marked as featured.",
             href: "/admin/gallery",
             action: "Review Gallery",
           });
@@ -62,7 +62,7 @@ export default function AdminAssistantPage() {
           recs.push({
             title: "Complete upcoming event details",
             description:
-              "Some upcoming events are missing location information. Update them to help visitors plan their attendance.",
+              "Some upcoming events are missing location information.",
             href: "/admin/events",
             action: "Review Events",
           });
@@ -72,7 +72,7 @@ export default function AdminAssistantPage() {
           recs.push({
             title: "Add more pooja details",
             description:
-              "Several pooja schedules do not include notes. Adding notes helps devotees understand the offerings.",
+              "Several pooja schedules do not include notes.",
             href: "/admin/pooja",
             action: "Review Poojas",
           });
@@ -82,7 +82,7 @@ export default function AdminAssistantPage() {
           recs.push({
             title: "All systems look healthy",
             description:
-              "Your events, gallery, and pooja schedules are in good shape. Keep monitoring the portal regularly.",
+              "Your events, gallery, and pooja schedules are in good shape.",
             href: "/admin",
             action: "Go to Dashboard",
           });
@@ -90,7 +90,7 @@ export default function AdminAssistantPage() {
 
         setRecommendations(recs);
       } catch (error) {
-        console.error("Failed to load assistant data:", error);
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -103,12 +103,12 @@ export default function AdminAssistantPage() {
     <div className="space-y-6">
       <AdminPageHeader
         title="Admin Assistant"
-        description="Get quick insights and recommended actions for temple management."
+        description="Get quick insights and recommended actions."
       />
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center rounded-xl border bg-white p-8 shadow-sm">
-          <p className="text-stone-500">Loading assistant insights...</p>
+        <div className="flex h-64 items-center justify-center rounded-xl border bg-white">
+          Loading...
         </div>
       ) : (
         <AdminAssistant
