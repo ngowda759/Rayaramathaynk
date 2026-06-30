@@ -1,88 +1,160 @@
+"use client";
+
 import Link from "next/link";
-import { CalendarDays, ArrowRight } from "lucide-react";
-import SectionHeading from "@/components/common/SectionHeading";
+import { motion } from "framer-motion";
+import {
+  CalendarDays,
+  ArrowRight,
+  MapPin,
+  Clock3,
+} from "lucide-react";
 
 const events = [
   {
-    title: "Guru Aaradhane",
+    title: "Sri Guru Aaradhane",
     date: "14 Aug 2026",
     month: "AUG",
+    countdown: "12 Days Left",
+    location: "Sri Rayara Matha",
+    time: "6:00 AM onwards",
     description:
-      "Special poojas, bhajans, annadanam and cultural programs throughout the day.",
-    href: "/events",
+      "Special poojas, Veda Parayana, Bhajans, Annadanam and cultural programmes.",
   },
   {
     title: "Hanuman Jayanti",
     date: "29 Aug 2026",
     month: "AUG",
+    countdown: "27 Days Left",
+    location: "Temple Premises",
+    time: "7:00 AM",
     description:
-      "Celebrate with special alankara, Hanuman Chalisa parayana and maha mangalarati.",
-    href: "/events",
+      "Special Hanuman Chalisa, Abhisheka, Alankara and Maha Mangalarati.",
   },
   {
     title: "Navaratri Utsava",
     date: "03 Oct 2026",
     month: "OCT",
+    countdown: "62 Days Left",
+    location: "Temple Hall",
+    time: "Daily",
     description:
-      "Nine days of devotion with daily pooja, music, discourse and prasada seva.",
-    href: "/events",
+      "Nine divine days filled with poojas, discourses, music and prasada seva.",
   },
 ];
 
 export default function UpcomingEvents() {
   return (
-    <section className="bg-gradient-to-b from-white to-amber-50/40 py-24">
+    <section className="bg-gradient-to-b from-[#fff8ef] to-white py-24">
       <div className="mx-auto max-w-7xl px-6">
-        <SectionHeading
-          title="Upcoming Events"
-          subtitle="Celebrate festivals and spiritual gatherings with us."
-        />
 
-        <div className="mt-14 grid gap-8 lg:grid-cols-3">
-          {events.map((event) => (
-            <article
+        <div className="mx-auto max-w-3xl text-center">
+
+          <span className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
+            UPCOMING EVENTS
+          </span>
+
+          <h2 className="mt-6 text-5xl font-bold text-stone-900">
+            Celebrate Divine Festivals
+          </h2>
+
+          <p className="mt-6 text-lg leading-8 text-stone-600">
+            Join us for upcoming spiritual celebrations,
+            poojas and community gatherings.
+          </p>
+
+        </div>
+
+        <div className="mt-16 grid gap-8 lg:grid-cols-3">
+
+          {events.map((event, index) => (
+
+            <motion.div
               key={event.title}
-              className="group overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.15 }}
+              viewport={{ once: true }}
+              className="overflow-hidden rounded-[32px] border border-amber-100 bg-white shadow-lg transition hover:-translate-y-2 hover:shadow-2xl"
             >
-              <div className="relative h-48 overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-500">
-                <div className="absolute inset-0 bg-black/20" />
 
-                <div className="absolute left-6 top-6 flex h-20 w-20 flex-col items-center justify-center rounded-2xl bg-white shadow-xl">
-                  <span className="text-xs font-bold tracking-widest text-amber-700">
-                    {event.month}
-                  </span>
-                  <span className="text-3xl font-bold text-stone-900">
-                    {event.date.split(" ")[0]}
-                  </span>
+              <div className="bg-gradient-to-r from-amber-600 to-orange-500 p-8 text-white">
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+
+                    <p className="text-sm uppercase tracking-widest opacity-90">
+                      {event.month}
+                    </p>
+
+                    <h3 className="mt-2 text-4xl font-bold">
+                      {event.date.split(" ")[0]}
+                    </h3>
+
+                  </div>
+
+                  <CalendarDays size={48} />
+
                 </div>
 
-                <CalendarDays className="absolute bottom-6 right-6 h-10 w-10 text-white/80" />
               </div>
 
               <div className="p-8">
-                <p className="text-sm font-semibold uppercase tracking-widest text-amber-700">
-                  {event.date}
-                </p>
 
-                <h3 className="mt-3 text-2xl font-bold text-stone-900">
+                <span className="rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
+                  {event.countdown}
+                </span>
+
+                <h3 className="mt-6 text-2xl font-bold text-stone-900">
                   {event.title}
                 </h3>
 
-                <p className="mt-4 leading-7 text-stone-600">
+                <p className="mt-5 leading-7 text-stone-600">
                   {event.description}
                 </p>
 
+                <div className="mt-6 space-y-3">
+
+                  <div className="flex items-center gap-3">
+
+                    <Clock3
+                      className="text-amber-600"
+                      size={18}
+                    />
+
+                    <span>{event.time}</span>
+
+                  </div>
+
+                  <div className="flex items-center gap-3">
+
+                    <MapPin
+                      className="text-amber-600"
+                      size={18}
+                    />
+
+                    <span>{event.location}</span>
+
+                  </div>
+
+                </div>
+
                 <Link
-                  href={event.href}
-                  className="mt-8 inline-flex items-center gap-2 font-semibold text-amber-700 transition group-hover:gap-3"
+                  href="/events"
+                  className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white transition hover:scale-105"
                 >
-                  View Details
+                  View Event
                   <ArrowRight size={18} />
                 </Link>
+
               </div>
-            </article>
+
+            </motion.div>
+
           ))}
+
         </div>
+
       </div>
     </section>
   );

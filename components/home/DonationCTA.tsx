@@ -1,85 +1,153 @@
+"use client";
+
 import Link from "next/link";
-import { Heart, Landmark, Gift, ArrowRight } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  ArrowRight,
+  Heart,
+  HandHeart,
+  Landmark,
+  IndianRupee,
+} from "lucide-react";
+
+const donations = [
+  {
+    title: "Annadanam",
+    amount: "₹501",
+    icon: Heart,
+    description:
+      "Sponsor prasada and meals for devotees visiting the temple.",
+  },
+  {
+    title: "Goshala",
+    amount: "₹1001",
+    icon: HandHeart,
+    description:
+      "Support the care and maintenance of our sacred cows.",
+  },
+  {
+    title: "Temple Development",
+    amount: "₹5001",
+    icon: Landmark,
+    description:
+      "Contribute towards renovation and future development projects.",
+  },
+];
 
 export default function DonationCTA() {
-  const options = [
-    {
-      title: "Annadanam",
-      desc: "Support daily prasada and meals for devotees.",
-      icon: Heart,
-    },
-    {
-      title: "Temple Development",
-      desc: "Contribute towards renovation and maintenance.",
-      icon: Landmark,
-    },
-    {
-      title: "Special Sevas",
-      desc: "Sponsor poojas and religious celebrations.",
-      icon: Gift,
-    },
-  ];
-
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-700 to-amber-900 py-24 text-white">
+    <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-24">
 
-      <div className="absolute inset-0 bg-[url('/images/pattern.png')] opacity-10" />
+      <div className="absolute inset-0 opacity-10">
+        <div
+          className="h-full w-full"
+          style={{
+            backgroundImage: "url('/images/Hero.jpg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      </div>
 
       <div className="relative mx-auto max-w-7xl px-6">
 
-        <div className="mx-auto max-w-3xl text-center">
+        <div className="mx-auto max-w-3xl text-center text-white">
 
-          <span className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold backdrop-blur">
-            Offer Your Contribution
+          <span className="rounded-full bg-white/20 px-5 py-2 text-sm font-semibold backdrop-blur">
+            SUPPORT THE TEMPLE
           </span>
 
-          <h2 className="mt-6 text-4xl font-bold md:text-5xl">
-            Support Sri Rayara Matha
+          <h2 className="mt-6 text-5xl font-bold">
+            Every Contribution Matters
           </h2>
 
           <p className="mt-6 text-lg leading-8 text-amber-100">
-            Your generous contribution helps us continue daily poojas,
-            annadanam, festivals and preservation of our sacred traditions.
+            Your donations help us perform daily poojas, Annadanam,
+            temple maintenance, Veda Parayana and preserve the rich
+            spiritual heritage of Sri Rayara Matha.
           </p>
 
         </div>
 
-        <div className="mt-16 grid gap-8 md:grid-cols-3">
+        <div className="mt-16 grid gap-8 lg:grid-cols-3">
 
-          {options.map((item) => {
+          {donations.map((item, index) => {
             const Icon = item.icon;
 
             return (
-              <div
+              <motion.div
                 key={item.title}
-                className="rounded-3xl border border-white/20 bg-white/10 p-8 backdrop-blur transition hover:bg-white/15"
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.15 }}
+                viewport={{ once: true }}
+                className="rounded-[30px] border border-white/20 bg-white/10 p-8 backdrop-blur-lg transition hover:-translate-y-2 hover:bg-white/15"
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-amber-700">
+
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-lg">
+
                   <Icon size={30} />
+
                 </div>
 
-                <h3 className="mt-6 text-2xl font-bold">
+                <h3 className="mt-6 text-2xl font-bold text-white">
                   {item.title}
                 </h3>
 
-                <p className="mt-4 leading-7 text-amber-100">
-                  {item.desc}
+                <div className="mt-5 flex items-center gap-2 text-amber-200">
+
+                  <IndianRupee size={20} />
+
+                  <span className="text-3xl font-bold">
+                    {item.amount.replace("₹", "")}
+                  </span>
+
+                </div>
+
+                <p className="mt-5 leading-7 text-amber-100">
+                  {item.description}
                 </p>
-              </div>
+
+                <Link
+                  href="/donation"
+                  className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 font-semibold text-amber-700 transition hover:scale-105"
+                >
+                  Donate
+                  <ArrowRight size={18} />
+                </Link>
+
+              </motion.div>
             );
           })}
 
         </div>
 
-        <div className="mt-16 text-center">
+        <div className="mt-16 rounded-[32px] bg-white/10 p-10 backdrop-blur-lg">
 
-          <Link
-            href="/donation"
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 font-semibold text-amber-800 transition hover:scale-105"
-          >
-            Donate Now
-            <ArrowRight size={18} />
-          </Link>
+          <div className="flex flex-col items-center justify-between gap-8 lg:flex-row">
+
+            <div className="text-white">
+
+              <h3 className="text-4xl font-bold">
+                Be a Part of Divine Service
+              </h3>
+
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-amber-100">
+                Every offering, regardless of its size, supports the
+                temple's daily rituals, festivals and charitable
+                activities for the benefit of all devotees.
+              </p>
+
+            </div>
+
+            <Link
+              href="/donation"
+              className="rounded-2xl bg-white px-10 py-5 text-lg font-bold text-amber-700 transition hover:scale-105"
+            >
+              Donate Now
+            </Link>
+
+          </div>
 
         </div>
 
