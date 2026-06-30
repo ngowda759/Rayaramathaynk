@@ -1,9 +1,0 @@
-{"timestamp":"00:00:03.993","source":"Server","level":"LOG","message":""}
-{"timestamp":"00:00:43.417","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 10.6s"}
-{"timestamp":"00:01:13.288","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:01:14.430","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:01:23.489","source":"Server","level":"LOG","message":"○ Compiling /admin/reports ..."}
-{"timestamp":"00:01:52.482","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 13.4s"}
-{"timestamp":"00:02:08.859","source":"Server","level":"LOG","message":"○ Compiling /admin/bookings ..."}
-{"timestamp":"00:02:58.024","source":"Server","level":"LOG","message":"○ Compiling /admin/announcements ..."}
-{"timestamp":"00:03:16.027","source":"Server","level":"LOG","message":"✓ Finished filesystem cache database compaction in 13.5s"}
