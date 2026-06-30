@@ -15,10 +15,10 @@ export default function Hero() {
 
   if (loading) {
     return (
-      <section className="flex h-[90vh] items-center justify-center">
+      <section className="flex h-[90vh] items-center justify-center bg-stone-900">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
-          <p className="mt-6 text-stone-600">Loading Temple Information...</p>
+          <div className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
+          <p className="mt-5 text-white">Loading...</p>
         </div>
       </section>
     );
@@ -40,108 +40,126 @@ export default function Hero() {
     "Welcome to Sri Rayara Matha";
 
   return (
-    <section className="relative h-[92vh] min-h-[720px] overflow-hidden">
+    <section className="relative min-h-[92vh] overflow-hidden">
+
+      {/* Background */}
 
       <Image
         src={heroImage}
         alt={heroTitle}
         fill
         priority
-        className="object-cover"
+        className="object-cover object-right"
       />
 
-      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40" />
+      {/* Better Overlay */}
 
-      <div className="absolute left-0 top-0 h-full w-full bg-gradient-to-b from-black/10 via-transparent to-black/20" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/35 to-transparent" />
 
-      <div className="relative z-10 flex h-full items-center">
+      {/* Content */}
 
-        <div className="mx-auto max-w-7xl px-6">
+      <div className="relative z-10 flex min-h-[92vh] items-center">
 
-          <div className="max-w-3xl">
+        <div className="mx-auto w-full max-w-7xl px-6 lg:px-12">
 
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-5 py-2 text-amber-200 backdrop-blur">
+          <div className="grid lg:grid-cols-2">
 
-              <Sparkles size={16} />
+            {/* LEFT SIDE */}
 
-              {announcement}
+            <div className="max-w-xl">
 
-            </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-5 py-2 text-amber-200 backdrop-blur">
 
-            <h1 className="mt-8 text-5xl font-bold leading-tight text-white md:text-7xl">
-              {heroTitle}
-            </h1>
+                <Sparkles size={16} />
 
-            <p className="mt-8 text-xl leading-8 text-gray-200">
-              {heroSubtitle}
-            </p>
-
-            <div className="mt-10 flex flex-wrap gap-4">
-
-              <Link
-                href="/sevas"
-                className="rounded-xl bg-amber-600 px-8 py-4 font-semibold text-white transition hover:bg-amber-700"
-              >
-                Book Seva
-              </Link>
-
-              <Link
-                href="/donation"
-                className="flex items-center gap-2 rounded-xl bg-white px-8 py-4 font-semibold text-stone-900 transition hover:bg-stone-100"
-              >
-                <Heart size={18} />
-                Donate
-              </Link>
-
-              <Link
-                href="/events"
-                className="flex items-center gap-2 rounded-xl border border-white/40 px-8 py-4 font-semibold text-white backdrop-blur transition hover:bg-white/10"
-              >
-                <CalendarDays size={18} />
-                Events
-              </Link>
-
-            </div>
-
-            <div className="mt-12 grid grid-cols-3 gap-8 text-white">
-
-              <div>
-
-                <p className="text-3xl font-bold text-amber-300">
-                  100+
-                </p>
-
-                <p className="text-gray-300">
-                  Years
-                </p>
+                {announcement}
 
               </div>
 
-              <div>
+              <h1 className="mt-8 text-left text-5xl font-bold leading-tight text-white md:text-6xl">
 
-                <p className="text-3xl font-bold text-amber-300">
-                  365
-                </p>
+                {heroTitle}
 
-                <p className="text-gray-300">
-                  Days of Seva
-                </p>
+              </h1>
+
+              <p className="mt-6 max-w-lg text-left text-lg leading-8 text-gray-200">
+
+                {heroSubtitle}
+
+              </p>
+
+              <div className="mt-10 flex flex-wrap gap-4">
+
+                <Link
+                  href="/sevas"
+                  className="rounded-xl bg-amber-600 px-8 py-4 font-semibold text-white transition hover:bg-amber-700"
+                >
+                  Book Seva
+                </Link>
+
+                <Link
+                  href="/donation"
+                  className="flex items-center gap-2 rounded-xl bg-white px-8 py-4 font-semibold text-stone-900 transition hover:bg-stone-100"
+                >
+                  <Heart size={18} />
+                  Donate
+                </Link>
+
+                <Link
+                  href="/events"
+                  className="flex items-center gap-2 rounded-xl border border-white/30 px-8 py-4 font-semibold text-white backdrop-blur transition hover:bg-white/10"
+                >
+                  <CalendarDays size={18} />
+                  Events
+                </Link>
 
               </div>
 
-              <div>
+              <div className="mt-14 grid grid-cols-3 gap-8">
 
-                <p className="text-3xl font-bold text-amber-300">
-                  50K+
-                </p>
+                <div>
 
-                <p className="text-gray-300">
-                  Devotees
-                </p>
+                  <h2 className="text-3xl font-bold text-amber-300">
+                    100+
+                  </h2>
+
+                  <p className="mt-2 text-gray-300">
+                    Years
+                  </p>
+
+                </div>
+
+                <div>
+
+                  <h2 className="text-3xl font-bold text-amber-300">
+                    365
+                  </h2>
+
+                  <p className="mt-2 text-gray-300">
+                    Days of Seva
+                  </p>
+
+                </div>
+
+                <div>
+
+                  <h2 className="text-3xl font-bold text-amber-300">
+                    50K+
+                  </h2>
+
+                  <p className="mt-2 text-gray-300">
+                    Devotees
+                  </p>
+
+                </div>
 
               </div>
 
             </div>
+
+            {/* RIGHT SIDE */}
+
+            <div />
 
           </div>
 
@@ -149,8 +167,12 @@ export default function Hero() {
 
       </div>
 
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-white">
-        <ArrowDown size={28} />
+      {/* Scroll */}
+
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+
+        <ArrowDown className="text-white" size={28} />
+
       </div>
 
     </section>
