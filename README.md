@@ -1,36 +1,235 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rayara Math Temple Portal
+
+A modern, responsive temple management portal built using **Next.js**, **TypeScript**, **Tailwind CSS**, and **Firebase**. The application provides devotees with an easy way to explore temple information, book sevas, make donations, view events, and allows administrators to efficiently manage temple operations.
+
+---
+
+## Features
+
+### Public Website
+
+* Modern responsive homepage
+* Temple history and information
+* Sevas listing and booking
+* Online donations
+* Events and festivals
+* Gallery
+* Contact information
+* Mobile-friendly design
+* Search engine optimized pages
+
+### Admin Portal
+
+* Secure authentication
+* Dashboard
+* Seva management
+* Event management
+* Donation management
+* User management
+* Reports and analytics
+* Content management
+
+---
+
+## Technology Stack
+
+### Frontend
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+
+### Backend
+
+* Firebase Authentication
+* Firestore Database
+* Firebase Storage
+* Firebase Hosting (optional)
+
+### Deployment
+
+* Vercel
+* Firebase Hosting
+
+---
+
+## Project Structure
+
+```text
+app/
+components/
+context/
+hooks/
+lib/
+public/
+services/
+styles/
+types/
+utils/
+```
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+* Node.js (LTS)
+* npm
+* Git
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone <repository-url>
+cd Rayaramathaynk
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create your environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in the required Firebase configuration values.
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Available Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Runs the development server.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+```
 
-## Deploy on Vercel
+Creates a production build.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Starts the production server.
+
+```bash
+npm run lint
+```
+
+Runs ESLint.
+
+---
+
+## Development Guidelines
+
+* Use TypeScript for all new code.
+* Prefer reusable components.
+* Keep pages responsive.
+* Follow the existing folder structure.
+* Avoid duplicate components.
+* Run lint before committing.
+* Ensure the project builds successfully before pushing changes.
+
+---
+
+## Deployment
+
+### Vercel
+
+```bash
+vercel
+```
+
+### Firebase
+
+```bash
+firebase deploy
+```
+
+---
+
+## Roadmap
+
+### Phase 1
+
+* Homepage improvements
+* Temple information
+* Gallery
+* Responsive UI
+
+### Phase 2
+
+* Seva booking
+* Donations
+* Events
+* Authentication
+
+### Phase 3
+
+* Admin dashboard
+* Reports
+* Notifications
+* User management
+
+### Phase 4
+
+* SEO improvements
+* Performance optimization
+* Accessibility enhancements
+* AI-powered features
+
+---
+
+## Contributing
+
+1. Create a feature branch.
+2. Make focused, well-tested changes.
+3. Run lint and build successfully.
+4. Open a pull request with a clear description.
+
+---
+
+## License
+
+This project is intended for the Rayara Math Temple Portal. Licensing terms will be defined by the project owner.
+
+---
+
+## Acknowledgements
+
+Built with:
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+* Firebase
+* Vercel
+
+---
+
+**Maintainer:** Naveen C
