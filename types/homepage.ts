@@ -27,5 +27,31 @@ export interface HomepageConfig {
 
   footerCopyright: string;
 
+  /**
+   * Future Homepage CMS fields
+   * These are optional to remain backward compatible
+   */
+
+  panchanga?: {
+    tithi: string;
+    nakshatra: string;
+    yoga: string;
+    karana: string;
+  };
+
+  featuredSeva?: {
+    sevaId: string;
+  };
+
+  featuredFestivalRef?: {
+    eventId: string;
+  };
+
+  donationCTA?: {
+    title: string;
+    description: string;
+    buttonText: string;
+  };
+
   updatedAt?: any;
 }
