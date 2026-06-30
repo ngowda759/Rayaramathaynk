@@ -50,26 +50,66 @@ export default function DonationDetails({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Info label="Donor" value={donation.name} />
-        <Info label="Email" value={donation.email} />
-        <Info label="Phone" value={donation.phone} />
+        <Info
+          label="Donor"
+          value={donation.donorName}
+        />
+
+        <Info
+          label="Email"
+          value={donation.email}
+        />
+
+        <Info
+          label="Phone"
+          value={donation.phone}
+        />
+
+        <Info
+          label="Address"
+          value={donation.address || "-"}
+        />
+
+        <Info
+          label="Purpose"
+          value={donation.purpose || "-"}
+        />
+
         <Info
           label="Amount"
           value={`₹${donation.amount}`}
         />
+
         <Info
-          label="Payment Method"
-          value={donation.paymentMethod}
+          label="Payment Mode"
+          value={donation.paymentMode}
+        />
+
+        <Info
+          label="Receipt No."
+          value={
+            donation.receiptNumber || "-"
+          }
         />
       </div>
 
       <div>
         <h3 className="mb-2 font-medium">
-          Message
+          Devotee Message
         </h3>
 
         <div className="rounded-lg border bg-stone-50 p-4">
           {donation.message || "-"}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-2 font-medium">
+          Admin Remarks
+        </h3>
+
+        <div className="rounded-lg border bg-stone-50 p-4">
+          {donation.adminRemarks || "-"}
         </div>
       </div>
 

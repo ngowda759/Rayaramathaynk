@@ -2,25 +2,44 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { donationService } from "@/services/donation.service";
+
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+import { donationService } from "@/services/donation.service";
+import { paymentModeOptions, PaymentMode } from "@/types/donation";
+
 export default function DonationForm() {
-  const [name, setName] = useState("");
+  const [donorName, setDonorName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [campaignId] = useState("");
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Online");
-  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const [paymentMode, setPaymentMode] =
+    useState<PaymentMode>("cash");
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    if (!name || !email || !phone || !amount) {
-      toast.error("Please complete all required fields.");
+    if (
+      !donorName ||
+      !email ||
+      !phone ||
+      !amount
+    ) {
+      toast.error(
+        "Please complete all required fields."
+      );
       return;
     }
 
@@ -28,24 +47,36 @@ export default function DonationForm() {
 
     try {
       await donationService.createDonation({
-        name,
+        donorName,
         email,
         phone,
+        address,
+        purpose,
+        campaignId,
         amount: Number(amount),
         message,
-        paymentMethod,
+        paymentMode,
       });
 
-      toast.success("Donation request submitted. Thank you!");
-      setName("");
+      toast.success(
+        "Donation request submitted successfully."
+      );
+
+      setDonorName("");
       setEmail("");
       setPhone("");
+      setAddress("");
+      setPurpose("");
       setAmount("");
       setMessage("");
-      setPaymentMethod("Online");
+      setPaymentMode("cash");
     } catch (error: any) {
       console.error(error);
-      toast.error(error.message || "Unable to submit donation.");
+
+      toast.error(
+        error?.message ??
+          "Unable to submit donation."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -56,72 +87,121 @@ export default function DonationForm() {
       <h2 className="text-2xl font-semibold text-stone-900">
         Donate to the Temple
       </h2>
+
       <p className="mt-2 text-stone-600">
-        Give online, and we will follow up with payment details.
+        Submit your donation request. Temple
+        staff will contact you with payment
+        instructions.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        className="mt-8 space-y-6"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="Full Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
             required
+            value={donorName}
+            onChange={(e) =>
+              setDonorName(e.target.value)
+            }
           />
+
           <Input
             label="Email"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             required
+            value={email}
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
           />
+
           <Input
             label="Phone"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
             required
+            value={phone}
+            onChange={(e) =>
+              setPhone(e.target.value)
+            }
           />
+
           <Input
             label="Amount (₹)"
             type="number"
             min="1"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
             required
+            value={amount}
+            onChange={(e) =>
+              setAmount(e.target.value)
+            }
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">
-              Payment Method
-            </label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
-            >
-              <option>Online</option>
-              <option>Bank Transfer</option>
-              <option>Cash</option>
-            </select>
-          </div>
+        <Input
+          label="Address"
+          value={address}
+          onChange={(e) =>
+            setAddress(e.target.value)
+          }
+        />
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">
-              Message (optional)
-            </label>
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-            />
-          </div>
+        <Input
+          label="Donation Purpose"
+          placeholder="Annadanam, Goshala, Temple Development..."
+          value={purpose}
+          onChange={(e) =>
+            setPurpose(e.target.value)
+          }
+        />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-stone-700">
+            Payment Mode
+          </label>
+
+          <select
+            value={paymentMode}
+            onChange={(e) =>
+              setPaymentMode(
+                e.target.value as PaymentMode
+              )
+            }
+            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+          >
+            {paymentModeOptions.map(
+              (option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              )
+            )}
+          </select>
         </div>
 
-        <Button type="submit" loading={submitting}>
-          Submit Donation
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-stone-700">
+            Message
+          </label>
+
+          <Textarea
+            rows={4}
+            value={message}
+            onChange={(e) =>
+              setMessage(e.target.value)
+            }
+          />
+        </div>
+
+        <Button
+          type="submit"
+          loading={submitting}
+        >
+          Submit Donation Request
         </Button>
       </form>
     </div>
