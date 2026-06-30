@@ -23,16 +23,12 @@ export default function DonationsPage() {
     DonationRecord[]
   >([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
 
   const [statusFilter, setStatusFilter] =
-    useState<DonationStatus | "all">(
-      "all"
-    );
+    useState<DonationStatus | "all">("all");
 
   async function loadDonations() {
     try {
@@ -57,42 +53,36 @@ export default function DonationsPage() {
     loadDonations();
   }, []);
 
-  const filteredDonations =
-    useMemo(() => {
-      const keyword = search
-        .toLowerCase()
-        .trim();
+  const filteredDonations = useMemo(() => {
+    const keyword = search
+      .toLowerCase()
+      .trim();
 
-      return donations.filter(
-        (donation) => {
-          const matchesSearch =
-            !keyword ||
-            [
-              donation.name,
-              donation.email,
-              donation.phone,
-            ].some((value) =>
-              value
-                .toLowerCase()
-                .includes(keyword)
-            );
+    return donations.filter((donation) => {
+      const matchesSearch =
+        !keyword ||
+        [
+          donation.donorName,
+          donation.email,
+          donation.phone,
+          donation.purpose,
+        ].some((value) =>
+          value.toLowerCase().includes(keyword)
+        );
 
-          const matchesStatus =
-            statusFilter === "all" ||
-            donation.status ===
-              statusFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        donation.status === statusFilter;
 
-          return (
-            matchesSearch &&
-            matchesStatus
-          );
-        }
+      return (
+        matchesSearch && matchesStatus
       );
-    }, [
-      donations,
-      search,
-      statusFilter,
-    ]);
+    });
+  }, [
+    donations,
+    search,
+    statusFilter,
+  ]);
 
   async function updateStatus(
     donation: DonationRecord,
@@ -123,7 +113,7 @@ export default function DonationsPage() {
   ) {
     if (
       !window.confirm(
-        `Delete donation from ${donation.name}?`
+        `Delete donation from ${donation.donorName}?`
       )
     ) {
       return;
@@ -148,12 +138,55 @@ export default function DonationsPage() {
     }
   }
 
+  const totalAmount = donations.reduce(
+    (sum, donation) =>
+      sum + donation.amount,
+    0
+  );
+
+  const pendingCount = donations.filter(
+    (d) => d.status === "pending"
+  ).length;
+
+  const receivedCount = donations.filter(
+    (d) => d.status === "received"
+  ).length;
+
   return (
     <div className="space-y-8">
       <AdminPageHeader
         title="Donations"
         description="Manage temple donations."
       />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border bg-white p-5">
+          <p className="text-sm text-stone-500">
+            Total Donations
+          </p>
+          <h2 className="mt-2 text-3xl font-bold">
+            ₹{totalAmount.toLocaleString()}
+          </h2>
+        </div>
+
+        <div className="rounded-xl border bg-white p-5">
+          <p className="text-sm text-stone-500">
+            Pending
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-amber-600">
+            {pendingCount}
+          </h2>
+        </div>
+
+        <div className="rounded-xl border bg-white p-5">
+          <p className="text-sm text-stone-500">
+            Received
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-green-600">
+            {receivedCount}
+          </h2>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="flex-1">
@@ -168,8 +201,9 @@ export default function DonationsPage() {
           value={statusFilter}
           onChange={(e) =>
             setStatusFilter(
-              e.target
-                .value as DonationStatus | "all"
+              e.target.value as
+                | DonationStatus
+                | "all"
             )
           }
           className="rounded-xl border border-stone-300 bg-white px-4 py-3"
@@ -177,15 +211,12 @@ export default function DonationsPage() {
           <option value="all">
             All Status
           </option>
-
           <option value="pending">
             Pending
           </option>
-
           <option value="received">
             Received
           </option>
-
           <option value="failed">
             Failed
           </option>

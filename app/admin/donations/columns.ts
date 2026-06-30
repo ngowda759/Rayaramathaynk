@@ -3,8 +3,13 @@ import { DonationRecord } from "@/types/donation";
 
 export const donationColumns: CrudColumn<DonationRecord>[] = [
   {
-    key: "name",
+    key: "donorName",
     header: "Donor",
+    sortable: true,
+  },
+  {
+    key: "purpose",
+    header: "Purpose",
     sortable: true,
   },
   {
@@ -14,8 +19,22 @@ export const donationColumns: CrudColumn<DonationRecord>[] = [
     sortable: true,
   },
   {
-    key: "paymentMethod",
+    key: "paymentMode",
     header: "Payment",
+    formatter: (value) => {
+      switch (value) {
+        case "bank_transfer":
+          return "Bank Transfer";
+        case "upi":
+          return "UPI";
+        case "cheque":
+          return "Cheque";
+        case "cash":
+          return "Cash";
+        default:
+          return "Other";
+      }
+    },
     sortable: true,
   },
   {
