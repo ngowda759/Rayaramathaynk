@@ -13,10 +13,14 @@ export function useHomepage() {
     const unsubscribe = onSnapshot(
       doc(db, "homepage", "config"),
       (snapshot) => {
-        if (snapshot.exists()) {
-          setHomepage(snapshot.data() as HomepageConfig);
-        }
-        setLoading(false);
+
+       	if (snapshot.exists()) {
+  	setHomepage(snapshot.data() as HomepageConfig);
+	} else {
+  	setHomepage(null);
+	}
+
+	setLoading(false);
       },
       (error) => {
         console.error("Homepage listener:", error);
