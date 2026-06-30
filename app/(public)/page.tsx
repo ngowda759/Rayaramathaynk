@@ -1,6 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/components/home/Hero";
 import TempleInfo from "@/components/home/TempleInfo";
+import FeaturedSevas from "@/components/home/FeaturedSevas";
 import TempleTimings from "@/components/home/TempleTimings";
 import QuickServices from "@/components/home/QuickServices";
 import AnnouncementBar from "@/components/home/AnnouncementBar";
@@ -16,6 +17,7 @@ export default function Home() {
       <AnnouncementBar />
       <Hero />
       <TempleInfo />
+      <FeaturedSevas />
       <TempleTimings />
       <QuickServices />
       <UpcomingEvents />

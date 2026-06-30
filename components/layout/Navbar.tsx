@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, X, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, ChevronRight, Heart } from "lucide-react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 const menuItems = [
@@ -17,15 +17,29 @@ const menuItems = [
 ];
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+
+    onScroll();
+
+    window.addEventListener("scroll", onScroll);
+
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/20 bg-white/80 backdrop-blur-xl shadow-sm">
-
+    <header
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-white/90 shadow-xl backdrop-blur-xl"
+          : "bg-white/70 backdrop-blur-md"
+      }`}
+    >
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-
-        {/* Logo */}
 
         <Link href="/" className="flex items-center gap-4">
 
@@ -40,16 +54,14 @@ export default function Navbar() {
             </h1>
 
             <p className="text-sm text-amber-700">
-              Yelahanka New Town, Bengaluru
+              Yelahanka New Town
             </p>
 
           </div>
 
         </Link>
 
-        {/* Desktop Menu */}
-
-        <nav className="hidden items-center gap-2 lg:flex">
+        <nav className="hidden items-center gap-1 lg:flex">
 
           {menuItems.map((item) => {
 
@@ -61,10 +73,10 @@ export default function Navbar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`rounded-xl px-4 py-2 font-medium transition ${
+                className={`rounded-2xl px-4 py-2 transition-all duration-300 ${
                   active
-                    ? "bg-amber-100 text-amber-800"
-                    : "text-stone-700 hover:bg-amber-50 hover:text-amber-700"
+                    ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg"
+                    : "text-stone-700 hover:bg-amber-50"
                 }`}
               >
                 {item.name}
@@ -74,31 +86,26 @@ export default function Navbar() {
 
         </nav>
 
-        {/* Donate Button */}
-
         <Link
           href="/donation"
-          className="hidden rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white transition hover:bg-amber-700 lg:flex"
+          className="hidden items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-3 font-semibold text-white shadow-lg transition hover:scale-105 lg:flex"
         >
+          <Heart size={18} />
           Donate
         </Link>
 
-        {/* Mobile Button */}
-
         <button
           onClick={() => setOpen(!open)}
-          className="rounded-xl p-2 hover:bg-stone-100 lg:hidden"
+          className="rounded-xl p-2 lg:hidden"
         >
-          {open ? <X size={28} /> : <Menu size={28} />}
+          {open ? <X size={30} /> : <Menu size={30} />}
         </button>
 
       </div>
 
-      {/* Mobile Menu */}
-
       {open && (
 
-        <div className="border-t bg-white lg:hidden">
+        <div className="border-t border-amber-100 bg-white lg:hidden">
 
           <div className="space-y-2 p-5">
 
@@ -114,7 +121,7 @@ export default function Navbar() {
                   key={item.name}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center justify-between rounded-xl px-4 py-4 transition ${
+                  className={`flex items-center justify-between rounded-2xl px-4 py-4 ${
                     active
                       ? "bg-amber-100 text-amber-800"
                       : "hover:bg-stone-100"
@@ -131,8 +138,9 @@ export default function Navbar() {
             <Link
               href="/donation"
               onClick={() => setOpen(false)}
-              className="mt-3 flex justify-center rounded-xl bg-amber-600 px-4 py-4 font-semibold text-white"
+              className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white"
             >
+              <Heart size={18} />
               Donate Now
             </Link>
 
