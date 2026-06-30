@@ -16,4 +16,16 @@ export interface HomepageConfig {
 
   donationTitle: string;
   donationSubtitle: string;
+
+  templeName: string;
+  templeLocation: string;
+
+  isTempleOpen: boolean;
+
+  heroPrimaryButton: string;
+  heroSecondaryButton: string;
+
+  footerCopyright: string;
+
+  updatedAt?: any;
 }
