@@ -10,11 +10,20 @@ import { useHomepage } from "@/hooks/useHomepage";
 
 const DEFAULT_PLACEHOLDER = "—";
 
+type PanchangaShape = {
+  tithi?: string;
+  nakshatra?: string;
+  yoga?: string;
+  karana?: string;
+  sunrise?: string;
+  sunset?: string;
+};
+
 
 export default function Panchanga() {
   const { homepage, loading } = useHomepage();
 
-  const p = homepage?.panchanga ?? {};
+  const p = (homepage?.panchanga ?? {}) as PanchangaShape;
 
   const [live, setLive] = React.useState<null | {
     tithi?: string;
