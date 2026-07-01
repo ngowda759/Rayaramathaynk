@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Flame, Loader2 } from "lucide-react";
@@ -23,7 +23,7 @@ import { poojaService } from "@/services/pooja.service";
 
 export default function CreatePooja() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -38,6 +38,8 @@ export default function CreatePooja() {
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [authError, setAuthError] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
 
   function validate() {
     const next: Record<string, string> = {};
@@ -64,10 +66,19 @@ export default function CreatePooja() {
     setSelectedDays(next);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setAuthError("");
+    setSubmissionError("");
     if (!validate()) return;
-    if (!user?.email) return;
+    if (authLoading) {
+      setAuthError("Checking authentication, please wait.");
+      return;
+    }
+    if (!user?.email) {
+      setAuthError("You must be signed in to add a pooja.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -89,6 +100,9 @@ export default function CreatePooja() {
       router.push("/admin/pooja");
     } catch (err) {
       console.error("Failed to create pooja:", err);
+      setSubmissionError(
+        "Unable to save the pooja right now. Please try again or refresh the page."
+      );
     } finally {
       setSaving(false);
     }
@@ -261,6 +275,13 @@ export default function CreatePooja() {
         </div>
       </div>
 
+      {authError ? (
+        <p className="text-sm text-destructive">{authError}</p>
+      ) : null}
+      {submissionError ? (
+        <p className="text-sm text-destructive">{submissionError}</p>
+      ) : null}
+
       <div className="flex items-center justify-end gap-4">
         <Button
           type="button"
@@ -270,7 +291,7 @@ export default function CreatePooja() {
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" disabled={saving} loading={saving}>
           {saving ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
