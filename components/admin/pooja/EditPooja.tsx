@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -161,9 +160,13 @@ export default function EditPooja({ poojaId }: EditPoojaProps) {
             }
           />
 
-          <Button type="submit" loading={saving}>
-            Update Pooja
-          </Button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center justify-center font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-orange-600 hover:bg-orange-700 text-white h-11 rounded-lg px-4 py-3"
+          >
+            {saving ? "Saving..." : "Update Pooja"}
+          </button>
         </form>
       ) : (
         <p className="text-red-600">Pooja not found.</p>
