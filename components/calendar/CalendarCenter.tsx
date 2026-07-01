@@ -70,7 +70,7 @@ export default function CalendarCenter() {
               </div>
 
               <Link
-                href="/ekadashi"
+                href="/calendar/ekadashi"
                 className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white transition hover:scale-105"
               >
                 View Schedule
@@ -117,7 +117,7 @@ export default function CalendarCenter() {
               </div>
 
               <Link
-                href="/festivals"
+                href="/calendar/festivals"
                 className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white transition hover:scale-105"
               >
                 View Calendar
