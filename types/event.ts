@@ -14,17 +14,27 @@ export interface TempleEvent {
 
   location: string;
 
-  imageUrl?: string;
-
+  // Event Dates
   startDate: Timestamp;
-
   endDate: Timestamp;
 
-  featured: boolean;
+  // Event Time
+  startTime?: string;
+  endTime?: string;
 
+  // Homepage
+  featured: boolean;
+  published: boolean;
+
+  // Classification
+  category?: string;
+
+  // Media
+  imageUrl?: string;
+
+  // Legacy (will be removed later)
   status: EventStatus;
 
   createdAt?: Timestamp;
-
   updatedAt?: Timestamp;
 }

@@ -13,7 +13,7 @@ export function AnnouncementMarquee({
   hasError,
 }: AnnouncementMarqueeProps) {
   const content = hasError || announcements.length === 0 ? (
-    "Sri Raghavendra Aradhana Mahotsava • All devotees are welcome 🙏"
+    "Sri Raghavendra Swamy Aradhana Mahotsava • All devotees are welcome 🙏"
   ) : (
     announcements
       .map((ann) => {

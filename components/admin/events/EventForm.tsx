@@ -72,15 +72,21 @@ export default function EventForm({
       } else {
         const now = Timestamp.now();
 
-        await eventService.addEvent({
-          title: form.title,
-          description: form.description,
-          location: form.location,
-          featured: false,
-          status: "Upcoming",
-          startDate: now,
-          endDate: now,
-        });
+        
+	await eventService.addEvent({
+  	  title: form.title,
+  	  description: form.description,
+  	  location: form.location,
+
+  	  featured: false,
+  	  published: true,
+
+  	  status: "Upcoming",
+
+  	  startDate: now,
+  	  endDate: now,
+	});
+	
       }
 
       router.push("/admin/events");

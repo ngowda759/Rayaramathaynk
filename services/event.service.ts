@@ -54,5 +54,4 @@ class EventService {
     return deleteDoc(doc(db, COLLECTION, id));
   }
 }
-
 export const eventService = new EventService();
