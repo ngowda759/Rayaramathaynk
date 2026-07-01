@@ -1,8 +1,9 @@
 import { announcementService } from "@/services/announcement.service";
 import { AnnouncementMarquee } from "./AnnouncementMarquee";
+import { Announcement } from "@/types/announcement";
 
 export default async function AnnouncementBar() {
-  let announcements = [];
+  let announcements: Announcement[] = [];
   let hasError = false;
 
   try {
