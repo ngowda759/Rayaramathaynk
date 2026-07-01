@@ -12,7 +12,6 @@ import {
 const morningSchedule = [
   "Suprabhata Seva",
   "Alankara",
-  "Maha Pooja",
   "Darshan",
   "Theertha & Prasada",
 ];
@@ -20,7 +19,6 @@ const morningSchedule = [
 const eveningSchedule = [
   "Evening Pooja",
   "Mangalarati",
-  "Bhajane",
   "Darshan",
   "Temple Closing",
 ];
@@ -188,7 +186,7 @@ export default function TempleTimings() {
 
                 <p className="mt-2 max-w-2xl text-amber-100">
                   Temple timings may be extended during festivals,
-                  Guru Aaradhane, Navaratri and other special
+                  Raghavendra Swamygala Aaradhane, Navaratri and other special
                   occasions. Please check announcements before
                   visiting.
                 </p>

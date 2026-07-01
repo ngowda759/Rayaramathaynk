@@ -142,7 +142,7 @@ export default function TempleMap({
             <span className="font-semibold text-stone-900">Evening:</span> 4:00 PM - 8:00 PM
           </p>
           <p className="mt-4 text-sm text-stone-500">
-            Closed on Mondays • Special Timings on Festivals
+            • Special Timings on Festivals
           </p>
         </motion.div>
       </div>

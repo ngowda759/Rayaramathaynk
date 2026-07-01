@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  getEventStatus,
+  sortEventsByDate,
+} from "@/utils/event";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -36,22 +40,32 @@ export default function EventsPage() {
     loadEvents();
   }, []);
 
-  const total = events.length;
+  const sortedEvents = sortEventsByDate(events);
 
-  const upcoming = events.filter(
-    (e) => e.status === "Upcoming"
-  ).length;
+const total = sortedEvents.length;
 
-  const ongoing = events.filter(
-    (e) => e.status === "Ongoing"
-  ).length;
+const upcoming = sortedEvents.filter(
+  (e) =>
+    getEventStatus(e.startDate, e.endDate) ===
+    "Upcoming"
+).length;
 
-  const completed = events.filter(
-    (e) => e.status === "Completed"
-  ).length;
+const ongoing = sortedEvents.filter(
+  (e) =>
+    getEventStatus(e.startDate, e.endDate) ===
+    "Ongoing"
+).length;
 
-  const filteredEvents = events.filter((event) => {
-    const keyword = search.toLowerCase();
+const completed = sortedEvents.filter(
+  (e) =>
+    getEventStatus(e.startDate, e.endDate) ===
+    "Completed"
+).length;
+
+const filteredEvents = sortedEvents.filter((event) => {
+
+    
+  const keyword = search.toLowerCase();
 
     return (
       event.title.toLowerCase().includes(keyword) ||
