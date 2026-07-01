@@ -31,11 +31,11 @@ export default function Hero() {
 
   const heroTitle =
     homepage?.heroTitle ??
-    "Sri Raghavendra Swamy Temple";
+    "Sri Raghavendra Swamy Matha";
 
   const heroSubtitle =
     homepage?.heroSubtitle ??
-    "A Sacred Place of Devotion";
+    "Serving devotees through Seva, Dharma and Devotion";
 
   const announcement =
     homepage?.announcement ??
@@ -162,7 +162,7 @@ export default function Hero() {
                 </div>
 
                 <p className="text-lg font-semibold text-stone-900">
-                  Maha Pooja
+                  Daily Pooja Morning
                 </p>
 
                 <p className="mt-2 text-sm text-stone-600">
@@ -184,7 +184,7 @@ export default function Hero() {
                 </div>
 
                 <p className="text-lg font-semibold text-stone-900">
-                  Guru Aaradhane
+                  Raghavendra Swamygala Aaradhane
                 </p>
 
                 <p className="mt-2 text-sm text-stone-600">
@@ -200,11 +200,11 @@ export default function Hero() {
               <div>
 
                 <h2 className="text-4xl font-bold text-amber-600">
-                  100+
+                  Daily
                 </h2>
 
                 <p className="mt-2 text-stone-600">
-                  Years of Tradition
+                  Pooja
                 </p>
 
               </div>
@@ -224,11 +224,11 @@ export default function Hero() {
               <div>
 
                 <h2 className="text-4xl font-bold text-amber-600">
-                  50K+
+                  Guru
                 </h2>
 
                 <p className="mt-2 text-stone-600">
-                  Devotees
+                  Blessings
                 </p>
 
               </div>
