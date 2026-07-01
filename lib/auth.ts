@@ -10,9 +10,9 @@ import {
 
 import {
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
-  updateDoc,
 } from "firebase/firestore";
 
 import { auth, db } from "./firebase";
@@ -75,11 +75,35 @@ export async function loginUser(
     password
   );
 
-  await updateDoc(doc(db, "users", credential.user.uid), {
-    lastLogin: serverTimestamp(),
-    emailVerified: credential.user.emailVerified,
-    updatedAt: serverTimestamp(),
-  });
+  const userRef = doc(db, "users", credential.user.uid);
+  const profileSnapshot = await getDoc(userRef);
+  const existingProfile = profileSnapshot.exists()
+    ? profileSnapshot.data()
+    : undefined;
+
+  await setDoc(
+    userRef,
+    {
+      uid: credential.user.uid,
+      name:
+        existingProfile?.name ??
+        credential.user.displayName ??
+        credential.user.email?.split("@")[0] ??
+        "",
+      email: existingProfile?.email ?? credential.user.email ?? email,
+      phone: existingProfile?.phone ?? "",
+      role: existingProfile?.role ?? "devotee",
+      templeId: existingProfile?.templeId ?? "main",
+      profileImage: existingProfile?.profileImage ?? "",
+      isApproved: existingProfile?.isApproved ?? false,
+      isActive: existingProfile?.isActive ?? true,
+      emailVerified: credential.user.emailVerified,
+      lastLogin: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...(profileSnapshot.exists() ? {} : { createdAt: serverTimestamp() }),
+    },
+    { merge: true }
+  );
 
   return credential.user;
 }
