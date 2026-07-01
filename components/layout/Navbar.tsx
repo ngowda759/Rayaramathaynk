@@ -48,7 +48,7 @@ export default function Navbar() {
             alt="Sri Raghavendra Swamy"
             width={56}
             height={56}
-            className="rounded-full object-cover flex-shrink-0"
+            className="rounded-full object-cover flex-shrink-0 w-14 h-14"
           />
 
           <div className="flex flex-col">

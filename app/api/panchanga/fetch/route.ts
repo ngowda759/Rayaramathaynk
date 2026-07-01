@@ -1,9 +1,44 @@
 import { NextResponse } from "next/server";
 import { homepageService } from "@/services/homepage.service";
+import { getCachedPanchanga } from "@/lib/panchanga-cache";
 
 // Server route: fetches today's Panchanga from a provider and saves to homepage config.
 // Provider: Vedic Rishi (default). Override with env vars:
 // PANCHANGA_PROVIDER ("vedicrishi"), TEMPLE_LAT, TEMPLE_LON, TEMPLE_TZ
+// Falls back to cached panchanga data when external API is unavailable.
+
+async function fetchWithRetry(
+  url: string,
+  maxRetries: number = 2
+): Promise<Response> {
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      let timeoutId: any;
+
+      try {
+        timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 5000); // 5s timeout
+
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return res;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 500)); // wait 500ms before retry
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 export async function GET(req: Request) {
   try {
@@ -23,21 +58,34 @@ export async function GET(req: Request) {
         tz
       )}`;
 
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Provider error: ${res.statusText}`);
+      try {
+        const res = await fetchWithRetry(url);
+        if (!res.ok) throw new Error(`Provider error: ${res.statusText}`);
 
-      const data = await res.json();
+        const data = await res.json();
 
-      // Map fields from VedicRishi response
-      panchangaResult = {
-        tithi: data?.tithi?.panchang ?? "",
-        nakshatra: data?.nakshatra?.panchang ?? "",
-        yoga: data?.yoga?.panchang ?? "",
-        karana: data?.karana?.panchang ?? "",
-        sunrise: data?.sunrise ?? "",
-        sunset: data?.sunset ?? "",
-        // the API may include festival-like info; leave featuredFestival to empty
-      };
+        // Map fields from VedicRishi response
+        panchangaResult = {
+          tithi: data?.tithi?.panchang ?? "",
+          nakshatra: data?.nakshatra?.panchang ?? "",
+          yoga: data?.yoga?.panchang ?? "",
+          karana: data?.karana?.panchang ?? "",
+          sunrise: data?.sunrise ?? "",
+          sunset: data?.sunset ?? "",
+        };
+      } catch (fetchErr: any) {
+        console.warn("/api/panchanga/fetch: API unavailable, using cached data", fetchErr?.message);
+        // Use cached panchanga instead of empty values
+        const cached = getCachedPanchanga(today);
+        panchangaResult = {
+          tithi: cached.tithi,
+          nakshatra: cached.nakshatra,
+          yoga: cached.yoga,
+          karana: cached.karana,
+          sunrise: cached.sunrise,
+          sunset: cached.sunset,
+        };
+      }
     } else {
       return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
     }
@@ -62,6 +110,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, data: panchangaResult });
   } catch (err: any) {
     console.error("/api/panchanga/fetch error:", err);
-    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+    // Use cached data as fallback
+    const cached = getCachedPanchanga();
+    return NextResponse.json({ ok: false, error: err?.message ?? String(err), fallback: cached });
   }
 }

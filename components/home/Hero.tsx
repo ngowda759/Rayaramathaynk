@@ -254,7 +254,7 @@ export default function Hero() {
               width={520}
               height={760}
               priority
-              className="relative z-10 drop-shadow-2xl rounded-lg"
+              className="relative z-10 drop-shadow-2xl rounded-lg w-auto h-auto"
             />
 
           </motion.div>
