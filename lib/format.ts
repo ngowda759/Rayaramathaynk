@@ -13,21 +13,25 @@ export function formatCurrency(value: number): string {
  * Format a date.
  */
 export function formatDate(value: string | Date): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(new Date(value));
+  }).format(d);
 }
 
 /**
  * Format a date and time.
  */
 export function formatDateTime(value: string | Date): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(d);
 }
 
 /**
