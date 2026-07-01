@@ -249,12 +249,12 @@ export default function Hero() {
             <div className="absolute h-[520px] w-[520px] rounded-full bg-amber-300 blur-[140px] opacity-40" />
 
             <Image
-              src="/images/raghavendra_swamy.png"
-              alt="Sri Raghavendra Swamy"
+              src="/images/Hero.jpg"
+              alt="Temple Hero"
               width={520}
               height={760}
               priority
-              className="relative z-10 drop-shadow-2xl"
+              className="relative z-10 drop-shadow-2xl rounded-lg"
             />
 
           </motion.div>
