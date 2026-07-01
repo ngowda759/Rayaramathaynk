@@ -33,6 +33,8 @@ export default function EventForm({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   function validate() {
     const validationErrors: Record<string, string> = {};
 
@@ -56,10 +58,11 @@ export default function EventForm({
     e.preventDefault();
 
     if (!validate()) {
-      alert("Please fix validation errors before saving.");
+      setSaveError("Please fix the validation errors before saving.");
       return;
     }
 
+    setSaveError(null);
     setLoading(true);
 
     try {
@@ -92,8 +95,21 @@ export default function EventForm({
       router.push("/admin/events");
       router.refresh();
     } catch (err) {
-      console.error(err);
-      alert("Unable to save event.");
+      console.error("[event-save] Failed to save event:", err);
+
+      const code =
+        typeof err === "object" && err !== null && "code" in err
+          ? String((err as { code?: string }).code)
+          : "";
+
+      const message =
+        code === "permission-denied"
+          ? "You do not have permission to save events. Please make sure you are signed in as an admin and that your Firestore security rules allow authenticated writes to the events collection."
+          : err instanceof Error && err.message
+          ? `Unable to save event: ${err.message}`
+          : "Unable to save event. Please try again.";
+
+      setSaveError(message);
     } finally {
       setLoading(false);
     }
@@ -157,6 +173,15 @@ export default function EventForm({
         )}
       </div>
 
+
+      {saveError && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          {saveError}
+        </p>
+      )}
 
       <Button type="submit" disabled={loading}>
         {loading
