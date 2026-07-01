@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import AdminHeader from "./AdminHeader";
 import AdminSidebar from "./AdminSidebar";
+import AdminErrorBoundary from "@/components/admin/common/AdminErrorBoundary";
 
 interface Props {
   children: ReactNode;
@@ -15,7 +16,7 @@ export default function AdminShell({ children }: Props) {
         <AdminHeader />
 
         <main className="flex-1 p-6">
-          {children}
+          <AdminErrorBoundary>{children}</AdminErrorBoundary>
         </main>
       </div>
     </div>
