@@ -4,7 +4,6 @@ import {
   Bell,
   CalendarDays,
   Clock3,
-  MapPin,
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
@@ -31,13 +30,6 @@ const cards = [
     description: "12 Days Remaining",
     icon: CalendarDays,
     color: "from-rose-500 to-pink-500",
-  },
-  {
-    title: "Location",
-    value: "Yelahanka",
-    description: "Bengaluru, Karnataka",
-    icon: MapPin,
-    color: "from-sky-500 to-indigo-500",
   },
 ];
 
@@ -76,7 +68,7 @@ export default function TempleInfo() {
 
         </div>
 
-        <div className="mt-16 grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-16 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
 
           {cards.map((card, index) => {
             const Icon = card.icon;
