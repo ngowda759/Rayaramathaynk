@@ -53,7 +53,7 @@ export default function Navbar() {
 
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-stone-900">
-              Sri Raghavendra Swamy Temple
+              Sri Raghavendra Swamy Matha
             </h1>
 
             <p className="text-sm text-amber-700">
