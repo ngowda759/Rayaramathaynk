@@ -81,8 +81,11 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
     }
   }
 
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString("en-IN", {
+  function formatDate(dateStr?: string) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "long",
       year: "numeric",
