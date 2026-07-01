@@ -12,15 +12,15 @@ interface TempleMapProps {
 }
 
 export default function TempleMap({
-  lat = 13.1295,
-  lon = 77.5859,
-  templeAddress = "Yelahanka New Town, Bengaluru, Karnataka",
+  lat = 13.096788188005597,
+  lon = 77.58461022456063,
+  templeAddress = "428/20, 8th A Cross Rd, Yelahanka Satellite Town, Yelahanka, Bengaluru, Karnataka 560064",
   templeName = "Sri Raghavendra Swamy Mutt",
   phone = "+91 80 2332 3456",
 }: TempleMapProps) {
-  const mapsUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3887.5555555!2d${lon}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s!2zMTPCsDcnNDQuNiJOIDc3wrA1MycyMS4yIkU!5e0!3m2!1sen!2sin!4v1234567890`;
-  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&destination_place_id=ChIJ_6Jpm1DMzjsRlzHHKi3H8dQ`;
+  const mapsUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=17&output=embed`;
 
+  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
   return (
     <section className="bg-gradient-to-b from-white to-[#fff9ef] py-20">
       <div className="mx-auto max-w-7xl px-6">
