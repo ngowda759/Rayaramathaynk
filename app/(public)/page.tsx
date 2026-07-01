@@ -11,6 +11,7 @@ import DonationCTA from "@/components/home/DonationCTA";
 import SocialConnect from "@/components/home/SocialConnect";
 import Footer from "@/components/layout/Footer";
 import Panchanga from "@/components/home/Panchanga";
+import CalendarCenter from "@/components/calendar/CalendarCenter";
 
 export default function Home() {
   return (
@@ -23,6 +24,7 @@ export default function Home() {
       <TempleMap />
       <FeaturedSevas />
       <TempleTimings />
+      <CalendarCenter />
       <SocialConnect />
       <UpcomingEvents />
       <GalleryPreview />
