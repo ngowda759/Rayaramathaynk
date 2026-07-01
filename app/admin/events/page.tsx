@@ -16,6 +16,7 @@ import { eventService } from "@/services/event.service";
 export default function EventsPage() {
   const [events, setEvents] = useState<TempleEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
 
@@ -25,6 +26,7 @@ export default function EventsPage() {
       setEvents(data);
     } catch (error) {
       console.error("Failed to load events:", error);
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -89,6 +91,11 @@ export default function EventsPage() {
       {loading ? (
         <div className="rounded-xl border bg-white p-8">
           Loading events...
+        </div>
+      ) : error ? (
+        <div className="rounded-xl border bg-white p-8">
+          <h3 className="text-lg font-semibold text-destructive">Failed to load events</h3>
+          <p className="mt-2 text-sm text-stone-600">{error}</p>
         </div>
       ) : (
         <EventTable events={filteredEvents} />

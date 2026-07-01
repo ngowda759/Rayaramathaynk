@@ -31,8 +31,34 @@ export default function EventForm({
     location: initialData?.location ?? "",
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function validate() {
+    const validationErrors: Record<string, string> = {};
+
+    if (!form.title || form.title.trim().length < 3) {
+      validationErrors.title = "Title must contain at least 3 characters.";
+    }
+
+    if (!form.description || form.description.trim().length < 10) {
+      validationErrors.description = "Description must contain at least 10 characters.";
+    }
+
+    if (!form.location || form.location.trim().length < 2) {
+      validationErrors.location = "Location is required.";
+    }
+
+    setErrors(validationErrors);
+    return Object.keys(validationErrors).length === 0;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!validate()) {
+      alert("Please fix validation errors before saving.");
+      return;
+    }
 
     setLoading(true);
 
@@ -84,6 +110,9 @@ export default function EventForm({
             })
           }
         />
+        {errors.title && (
+          <p className="text-xs text-destructive">{errors.title}</p>
+        )}
       </div>
 
       <div>
@@ -100,6 +129,9 @@ export default function EventForm({
             })
           }
         />
+        {errors.description && (
+          <p className="text-xs text-destructive">{errors.description}</p>
+        )}
       </div>
 
       <div>
@@ -114,6 +146,9 @@ export default function EventForm({
             })
           }
         />
+        {errors.location && (
+          <p className="text-xs text-destructive">{errors.location}</p>
+        )}
       </div>
 
 
