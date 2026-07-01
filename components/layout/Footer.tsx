@@ -16,7 +16,7 @@ const quickLinks = [
   { name: "Home", href: "/" },
   { name: "Daily Pooja", href: "/pooja" },
   { name: "Special Sevas", href: "/sevas" },
-  { name: "Events", href: "/events" },
+  { name: "Temple Calendar", href: "/calendar" },
   { name: "Gallery", href: "/gallery" },
   { name: "Donation", href: "/donation" },
 ];
@@ -53,7 +53,7 @@ export default function Footer() {
               <div>
 
                 <h2 className="text-2xl font-bold text-white">
-                  Sri Rayara Matha
+                  Sri Raghavendra swamy Matha
                 </h2>
 
                 <p className="text-amber-400">
@@ -65,9 +65,9 @@ export default function Footer() {
             </div>
 
             <p className="mt-8 leading-8 text-stone-400">
-              Dedicated to Sri Raghavendra Swamy, preserving
-              centuries of devotion through daily poojas,
-              Annadanam and spiritual service.
+              Dedicated to Sri Raghavendra Swamy, it is a hub of devotion,
+	      Vedantic learning, and Guru Seva, 
+	      drawing lakhs of devotees each year..
             </p>
 
             <Link
@@ -169,21 +169,28 @@ export default function Footer() {
 
               <div className="flex gap-4">
 
-                <MapPin className="mt-1 text-amber-500" />
+	      <MapPin className="mt-1 text-amber-500" />
 
-                <span>
-                  Sri Rayara Matha<br />
-                  Yelahanka New Town<br />
-                  Bengaluru
-                </span>
-
+  		<a
+    		href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
+    		target="_blank"
+    		rel="noopener noreferrer"
+    		className="hover:text-amber-400 transition"
+  		>
+    		Sri Rayara Matha
+    		<br />
+    		Yelahanka New Town
+    		<br />
+    		Bengaluru
+  		</a>
+	        
               </div>
 
               <div className="flex gap-4">
 
                 <Phone className="text-amber-500" />
 
-                <span>+91 XXXXX XXXXX</span>
+                <span>+91 9886364462 </span>
 
               </div>
 
@@ -191,7 +198,7 @@ export default function Footer() {
 
                 <Mail className="text-amber-500" />
 
-                <span>info@rayaramatha.org</span>
+                <span>ngowda759@gmail.com</span>
 
               </div>
 
@@ -227,7 +234,7 @@ export default function Footer() {
 
           <p className="flex items-center gap-2">
 
-            © 2026 Sri Rayara Matha
+            © 2026 Sri Raghavendra swamy Matha
 
             <Heart
               size={15}
@@ -239,7 +246,8 @@ export default function Footer() {
           </p>
 
           <p>
-            Powered by Next.js • Firebase • Vercel
+            Sri Raghavendra Swamy Matha
+	    Yelahanka New Town
           </p>
 
         </div>
