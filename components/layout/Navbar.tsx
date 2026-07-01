@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Menu, X, ChevronRight, Heart } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
@@ -42,13 +43,15 @@ export default function Navbar() {
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
 
         <Link href="/" className="flex items-center gap-4">
+          <Image
+            src="/images/raghavendra_swamy.png"
+            alt="Sri Raghavendra Swamy"
+            width={56}
+            height={56}
+            className="rounded-full object-cover flex-shrink-0"
+          />
 
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-3xl shadow-lg">
-            🛕
-          </div>
-
-          <div>
-
+          <div className="flex flex-col">
             <h1 className="text-xl font-bold text-stone-900">
               Sri Raghavendra Swamy Temple
             </h1>
@@ -56,9 +59,7 @@ export default function Navbar() {
             <p className="text-sm text-amber-700">
               Yelahanka New Town
             </p>
-
           </div>
-
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">

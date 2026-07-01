@@ -1,44 +1,100 @@
 "use client";
 
+import React from "react";
 import { CalendarDays, Sun, MoonStar, Sunrise, Sunset } from "lucide-react";
 import { motion } from "framer-motion";
+import { useHomepage } from "@/hooks/useHomepage";
 
-const panchanga = {
-  tithi: "Ekadashi",
-  nakshatra: "Rohini",
-  sunrise: "06:02 AM",
-  sunset: "06:48 PM",
-  festival: "Guru Aaradhane",
-};
+// Use CMS-provided panchanga when available. Avoid hardcoded values.
+// If CMS doesn't provide values, fall back to temple timings or placeholders.
 
-const items = [
-  {
-    title: "Tithi",
-    value: panchanga.tithi,
-    icon: MoonStar,
-    color: "from-violet-500 to-purple-600",
-  },
-  {
-    title: "Nakshatra",
-    value: panchanga.nakshatra,
-    icon: CalendarDays,
-    color: "from-amber-500 to-orange-500",
-  },
-  {
-    title: "Sunrise",
-    value: panchanga.sunrise,
-    icon: Sunrise,
-    color: "from-orange-500 to-yellow-500",
-  },
-  {
-    title: "Sunset",
-    value: panchanga.sunset,
-    icon: Sunset,
-    color: "from-sky-500 to-indigo-600",
-  },
-];
+const DEFAULT_PLACEHOLDER = "—";
+
 
 export default function Panchanga() {
+  const { homepage, loading } = useHomepage();
+
+  const p = homepage?.panchanga ?? {};
+
+  const [live, setLive] = React.useState<null | {
+    tithi?: string;
+    nakshatra?: string;
+    yoga?: string;
+    karana?: string;
+    sunrise?: string;
+    sunset?: string;
+  }>(null);
+
+  React.useEffect(() => {
+    // Always fetch latest panchanga for current visit; don't block render.
+    fetch("/api/panchanga/current")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json && !json.error) setLive(json);
+      })
+      .catch((err) => console.error("Failed to load live panchanga:", err));
+  }, []);
+
+  function getVal(s?: string) {
+    if (!s) return DEFAULT_PLACEHOLDER;
+    if (typeof s !== "string") return DEFAULT_PLACEHOLDER;
+    return s.trim().length === 0 ? DEFAULT_PLACEHOLDER : s;
+  }
+
+  const items = [
+    {
+      title: "Tithi",
+      value: getVal(live?.tithi ?? p.tithi),
+      icon: MoonStar,
+      color: "from-violet-500 to-purple-600",
+    },
+    {
+      title: "Nakshatra",
+      value: getVal(live?.nakshatra ?? p.nakshatra),
+      icon: CalendarDays,
+      color: "from-amber-500 to-orange-500",
+    },
+    {
+      title: "Sunrise",
+      value: getVal(live?.sunrise ?? homepage?.morningOpen),
+      icon: Sunrise,
+      color: "from-orange-500 to-yellow-500",
+    },
+    {
+      title: "Sunset",
+      value: getVal(live?.sunset ?? homepage?.eveningClose),
+      icon: Sunset,
+      color: "from-sky-500 to-indigo-600",
+    },
+  ];
+
+  // If panchanga is missing, trigger server-side fetch once to populate CMS.
+  // This calls our server endpoint which will fetch from the provider and save to Firestore.
+  React.useEffect(() => {
+    // Only run when homepage exists and panchanga is empty/missing
+    if (!homepage) return;
+
+    const p = homepage.panchanga;
+    const missing = !p || !p.tithi || p.tithi.trim().length === 0;
+    if (!missing) return;
+
+    // fire-and-forget; onSnapshot will update when homepage doc changes
+    fetch("/api/panchanga/fetch").catch((err) => {
+      console.error("Failed to trigger panchanga fetch:", err);
+    });
+  }, [homepage]);
+
+  if (loading) {
+    return (
+      <section className="bg-gradient-to-b from-white to-[#fff9ef] py-20">
+        <div className="mx-auto max-w-7xl px-6 text-center">
+          <div className="h-14 w-14 animate-spin rounded-full border-4 border-amber-600 border-t-transparent mx-auto" />
+          <p className="mt-5 text-stone-600">Loading Panchanga...</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="bg-gradient-to-b from-white to-[#fff9ef] py-20">
 
@@ -104,7 +160,7 @@ export default function Panchanga() {
           </h3>
 
           <p className="mt-3 text-2xl">
-            {panchanga.festival}
+            {getVal(homepage?.featuredFestival)}
           </p>
 
         </div>
