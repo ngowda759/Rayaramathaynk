@@ -17,18 +17,53 @@ interface EventFormProps {
 }
 
 /**
- * Splits a Firestore Timestamp into separate
- * yyyy-MM-dd and HH:mm strings for native
- * <input type="date"> / <input type="time"> fields.
- * Falls back to empty strings when the timestamp
- * is missing (e.g. legacy/malformed docs).
+ * Normalizes a value that is supposed to represent a date
+ * into a JS Date. Handles:
+ *  - a real Firestore Timestamp (has .toDate())
+ *  - a Timestamp that crossed a Server Component -> Client
+ *    Component boundary and got flattened to a plain
+ *    { seconds, nanoseconds } object (loses its methods
+ *    during Next.js RSC serialization)
+ *  - an ISO date string or epoch millis
+ *  - null/undefined
  */
-function toDateTimeInputs(timestamp?: Timestamp | null) {
-  if (!timestamp) {
-    return { date: "", time: "" };
+function toJsDate(
+  value: Timestamp | { seconds: number; nanoseconds?: number } | string | number | null | undefined
+): Date | null {
+  if (!value) return null;
+
+  if (typeof (value as Timestamp)?.toDate === "function") {
+    return (value as Timestamp).toDate();
   }
 
-  const d = timestamp.toDate();
+  if (typeof (value as { seconds: number }).seconds === "number") {
+    return new Date((value as { seconds: number }).seconds * 1000);
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  return null;
+}
+
+/**
+ * Splits a date-like value into separate
+ * yyyy-MM-dd and HH:mm strings for native
+ * <input type="date"> / <input type="time"> fields.
+ * Falls back to empty strings when the value is
+ * missing or unparseable (e.g. legacy/malformed docs,
+ * or a Timestamp flattened by server->client serialization).
+ */
+function toDateTimeInputs(
+  timestamp?: Timestamp | { seconds: number; nanoseconds?: number } | string | null
+) {
+  const d = toJsDate(timestamp);
+
+  if (!d) {
+    return { date: "", time: "" };
+  }
 
   const pad = (n: number) => String(n).padStart(2, "0");
 
