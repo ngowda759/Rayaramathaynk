@@ -1,12 +1,15 @@
 "use client";
 
 import React from "react";
-import { CalendarDays, Sun, MoonStar, Sunrise, Sunset } from "lucide-react";
+import {
+  CalendarDays,
+  Sun,
+  MoonStar,
+  Sunrise,
+  Sunset,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { useHomepage } from "@/hooks/useHomepage";
-
-// Use CMS-provided panchanga when available. Avoid hardcoded values.
-// If CMS doesn't provide values, fall back to temple timings or placeholders.
 
 const DEFAULT_PLACEHOLDER = "—";
 
@@ -19,86 +22,122 @@ type PanchangaShape = {
   sunset?: string;
 };
 
+type LivePanchanga = {
+  tithi?: string;
+  nakshatra?: string;
+  yoga?: string;
+  karana?: string;
+  sunrise?: string;
+  sunset?: string;
+};
 
 export default function Panchanga() {
   const { homepage, loading } = useHomepage();
 
-  const p = (homepage?.panchanga ?? {}) as PanchangaShape;
+  const cms = (homepage?.panchanga ?? {}) as PanchangaShape;
 
-  const [live, setLive] = React.useState<null | {
-    tithi?: string;
-    nakshatra?: string;
-    yoga?: string;
-    karana?: string;
-    sunrise?: string;
-    sunset?: string;
-  }>(null);
+  const [live, setLive] = React.useState<LivePanchanga | null>(
+    null
+  );
 
   React.useEffect(() => {
-    // Always fetch latest panchanga for current visit; don't block render.
-    fetch("/api/panchanga/current")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json && !json.error) setLive(json);
-      })
-      .catch((err) => console.error("Failed to load live panchanga:", err));
+    async function load() {
+      try {
+        const res = await fetch(
+          "/api/panchanga/current",
+          {
+            cache: "no-store",
+          }
+        );
+
+        const json = await res.json();
+
+        if (!json || json.error) return;
+
+        setLive({
+          tithi: json.tithi?.name,
+          nakshatra: json.nakshatra?.name,
+          yoga: json.yoga?.name,
+          karana: json.karana?.name,
+
+          sunrise: json.sun?.sunrise
+            ? new Date(
+                json.sun.sunrise
+              ).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined,
+
+          sunset: json.sun?.sunset
+            ? new Date(
+                json.sun.sunset
+              ).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined,
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    load();
   }, []);
 
-  function getVal(s?: string) {
-    if (!s) return DEFAULT_PLACEHOLDER;
-    if (typeof s !== "string") return DEFAULT_PLACEHOLDER;
-    return s.trim().length === 0 ? DEFAULT_PLACEHOLDER : s;
+  function value(v?: string) {
+    if (!v) return DEFAULT_PLACEHOLDER;
+
+    if (v.trim().length === 0)
+      return DEFAULT_PLACEHOLDER;
+
+    return v;
   }
 
   const items = [
     {
       title: "Tithi",
-      value: getVal(live?.tithi ?? p.tithi),
+      value: value(live?.tithi ?? cms.tithi),
       icon: MoonStar,
       color: "from-violet-500 to-purple-600",
     },
     {
       title: "Nakshatra",
-      value: getVal(live?.nakshatra ?? p.nakshatra),
+      value: value(live?.nakshatra ?? cms.nakshatra),
       icon: CalendarDays,
       color: "from-amber-500 to-orange-500",
     },
     {
       title: "Sunrise",
-      value: getVal(live?.sunrise ?? homepage?.morningOpen),
+      value: value(
+        live?.sunrise ??
+          cms.sunrise ??
+          homepage?.morningOpen
+      ),
       icon: Sunrise,
       color: "from-orange-500 to-yellow-500",
     },
     {
       title: "Sunset",
-      value: getVal(live?.sunset ?? homepage?.eveningClose),
+      value: value(
+        live?.sunset ??
+          cms.sunset ??
+          homepage?.eveningClose
+      ),
       icon: Sunset,
       color: "from-sky-500 to-indigo-600",
     },
   ];
 
-  // If panchanga is missing, trigger server-side fetch once to populate CMS.
-  // This calls our server endpoint which will fetch from the provider and save to Firestore.
-  React.useEffect(() => {
-    // Only run when homepage exists and panchanga is empty/missing
-    if (!homepage) return;
-
-    const p = homepage.panchanga;
-    const missing = !p || !p.tithi || p.tithi.trim().length === 0;
-    if (!missing) return;
-
-    // fire-and-forget; onSnapshot will update when homepage doc changes
-    fetch("/api/panchanga/fetch").catch((err) => {
-      console.error("Failed to trigger panchanga fetch:", err);
-    });
-  }, [homepage]);
-
-  if (loading) {
+    if (loading) {
     return (
       <section className="bg-gradient-to-b from-white to-[#fff9ef] py-20">
         <div className="mx-auto max-w-7xl px-6 text-center">
-          <div className="h-14 w-14 animate-spin rounded-full border-4 border-amber-600 border-t-transparent mx-auto" />
-          <p className="mt-5 text-stone-600">Loading Panchanga...</p>
+          <div className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
+          <p className="mt-5 text-stone-600">
+            Loading Panchanga...
+          </p>
         </div>
       </section>
     );
@@ -106,11 +145,8 @@ export default function Panchanga() {
 
   return (
     <section className="bg-gradient-to-b from-white to-[#fff9ef] py-20">
-
       <div className="mx-auto max-w-7xl px-6">
-
         <div className="text-center">
-
           <span className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
             TODAY'S PANCHANGA
           </span>
@@ -122,11 +158,9 @@ export default function Panchanga() {
           <p className="mt-4 text-stone-600">
             Daily Hindu calendar information for devotees.
           </p>
-
         </div>
 
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-
           {items.map((item, index) => {
             const Icon = item.icon;
 
@@ -139,7 +173,6 @@ export default function Panchanga() {
                 transition={{ delay: index * 0.08 }}
                 className="rounded-[30px] border border-amber-100 bg-white p-8 shadow-lg"
               >
-
                 <div
                   className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${item.color} text-white`}
                 >
@@ -150,18 +183,15 @@ export default function Panchanga() {
                   {item.title}
                 </h3>
 
-                <p className="mt-2 text-3xl font-bold text-stone-900">
+                <p className="mt-2 text-3xl font-bold text-stone-900 break-words">
                   {item.value}
                 </p>
-
               </motion.div>
             );
           })}
-
         </div>
 
         <div className="mt-12 rounded-[30px] bg-gradient-to-r from-amber-600 to-orange-500 p-8 text-center text-white shadow-xl">
-
           <Sun className="mx-auto" size={40} />
 
           <h3 className="mt-4 text-3xl font-bold">
@@ -169,13 +199,10 @@ export default function Panchanga() {
           </h3>
 
           <p className="mt-3 text-2xl">
-            {getVal(homepage?.featuredFestival)}
+            {value(homepage?.featuredFestival)}
           </p>
-
         </div>
-
       </div>
-
     </section>
   );
 }
