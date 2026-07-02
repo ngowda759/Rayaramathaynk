@@ -11,10 +11,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-
 interface EventFormProps {
   mode?: "create" | "edit";
   initialData?: TempleEvent;
+}
+
+/**
+ * Splits a Firestore Timestamp into separate
+ * yyyy-MM-dd and HH:mm strings for native
+ * <input type="date"> / <input type="time"> fields.
+ * Falls back to empty strings when the timestamp
+ * is missing (e.g. legacy/malformed docs).
+ */
+function toDateTimeInputs(timestamp?: Timestamp | null) {
+  if (!timestamp) {
+    return { date: "", time: "" };
+  }
+
+  const d = timestamp.toDate();
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+    d.getDate()
+  )}`;
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  return { date, time };
+}
+
+/**
+ * Combines a yyyy-MM-dd date string and HH:mm time string
+ * into a Firestore Timestamp. Returns null if the date is
+ * not set (time defaults to 00:00 if omitted).
+ */
+function toTimestamp(date: string, time: string): Timestamp | null {
+  if (!date) return null;
+
+  const [hours, minutes] = time ? time.split(":").map(Number) : [0, 0];
+  const [year, month, day] = date.split("-").map(Number);
+
+  const combined = new Date(year, month - 1, day, hours || 0, minutes || 0);
+
+  return Timestamp.fromDate(combined);
 }
 
 export default function EventForm({
@@ -25,10 +64,17 @@ export default function EventForm({
 
   const [loading, setLoading] = useState(false);
 
+  const initialStart = toDateTimeInputs(initialData?.startDate);
+  const initialEnd = toDateTimeInputs(initialData?.endDate);
+
   const [form, setForm] = useState({
     title: initialData?.title ?? "",
     description: initialData?.description ?? "",
     location: initialData?.location ?? "",
+    startDate: initialStart.date,
+    startTime: initialStart.time,
+    endDate: initialEnd.date,
+    endTime: initialEnd.time,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -48,6 +94,23 @@ export default function EventForm({
       validationErrors.location = "Location is required.";
     }
 
+    if (!form.startDate) {
+      validationErrors.startDate = "Start date is required.";
+    }
+
+    if (!form.endDate) {
+      validationErrors.endDate = "End date is required.";
+    }
+
+    if (form.startDate && form.endDate) {
+      const start = toTimestamp(form.startDate, form.startTime);
+      const end = toTimestamp(form.endDate, form.endTime);
+
+      if (start && end && end.toMillis() < start.toMillis()) {
+        validationErrors.endDate = "End date must be on or after the start date.";
+      }
+    }
+
     setErrors(validationErrors);
     return Object.keys(validationErrors).length === 0;
   }
@@ -63,30 +126,36 @@ export default function EventForm({
     setLoading(true);
 
     try {
+      const startTimestamp = toTimestamp(form.startDate, form.startTime);
+      const endTimestamp = toTimestamp(form.endDate, form.endTime);
+
+      if (!startTimestamp || !endTimestamp) {
+        alert("Please provide valid start and end dates.");
+        return;
+      }
+
       if (mode === "edit" && initialData?.id) {
         await eventService.updateEvent(initialData.id, {
           title: form.title,
           description: form.description,
           location: form.location,
+          startDate: startTimestamp,
+          endDate: endTimestamp,
         });
       } else {
-        const now = Timestamp.now();
+        await eventService.addEvent({
+          title: form.title,
+          description: form.description,
+          location: form.location,
 
-        
-	await eventService.addEvent({
-  	  title: form.title,
-  	  description: form.description,
-  	  location: form.location,
+          featured: false,
+          published: true,
 
-  	  featured: false,
-  	  published: true,
+          status: "Upcoming",
 
-  	  status: "Upcoming",
-
-  	  startDate: now,
-  	  endDate: now,
-	});
-	
+          startDate: startTimestamp,
+          endDate: endTimestamp,
+        });
       }
 
       router.push("/admin/events");
@@ -157,6 +226,73 @@ export default function EventForm({
         )}
       </div>
 
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div>
+          <Label>Start Date</Label>
+
+          <Input
+            type="date"
+            value={form.startDate}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                startDate: e.target.value,
+              })
+            }
+          />
+          {errors.startDate && (
+            <p className="text-xs text-destructive">{errors.startDate}</p>
+          )}
+        </div>
+
+        <div>
+          <Label>Start Time</Label>
+
+          <Input
+            type="time"
+            value={form.startTime}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                startTime: e.target.value,
+              })
+            }
+          />
+        </div>
+
+        <div>
+          <Label>End Date</Label>
+
+          <Input
+            type="date"
+            value={form.endDate}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                endDate: e.target.value,
+              })
+            }
+          />
+          {errors.endDate && (
+            <p className="text-xs text-destructive">{errors.endDate}</p>
+          )}
+        </div>
+
+        <div>
+          <Label>End Time</Label>
+
+          <Input
+            type="time"
+            value={form.endTime}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                endTime: e.target.value,
+              })
+            }
+          />
+        </div>
+      </div>
 
       <Button type="submit" disabled={loading}>
         {loading
