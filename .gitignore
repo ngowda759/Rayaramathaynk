@@ -1,3 +1,15 @@
-node_modules
-.next
+# Environment files
+.env
 .env.local
+.env.development.local
+.env.production.local
+.env.test.local
+
+# Next.js build output
+.next
+
+# Logs
+*.log
+
+# Node modules
+node_modules
