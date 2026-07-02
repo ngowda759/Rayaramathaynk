@@ -1,6 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/components/home/Hero";
-import TempleInfo from "@/components/home/TempleInfo";
 import TempleMap from "@/components/home/TempleMap";
 import FeaturedSevas from "@/components/home/FeaturedSevas";
 import TempleTimings from "@/components/home/TempleTimings";
@@ -20,7 +19,6 @@ export default function Home() {
       <AnnouncementBar />
       <Hero />
       <Panchanga />
-      <TempleInfo />
       <TempleMap />
       <FeaturedSevas />
       <TempleTimings />
