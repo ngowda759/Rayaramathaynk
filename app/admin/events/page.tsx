@@ -112,7 +112,7 @@ const filteredEvents = sortedEvents.filter((event) => {
           <p className="mt-2 text-sm text-stone-600">{error}</p>
         </div>
       ) : (
-        <EventTable events={filteredEvents} />
+        <EventTable events={filteredEvents} onEventsChanged={loadEvents} />
       )}
 
     </div>
