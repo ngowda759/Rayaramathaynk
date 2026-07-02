@@ -26,8 +26,8 @@ const DURATION_OPTIONS = ["45 Minutes", "30 Minutes", "Sponsor", "60 Minutes", "
 
 const DEFAULT_SEVAS: SevaItem[] = [
   {
-    title: "Maha Pooja",
-    image: "/images/Hero.jpg",
+    title: "Pushpalankara",
+    image: "/images/Maha Mangalarati.jpg",
     price: "₹501",
     duration: "45 Minutes",
     description: "A special daily pooja seeking the divine blessings of Sri Raghavendra Swamy.",
@@ -35,18 +35,18 @@ const DEFAULT_SEVAS: SevaItem[] = [
   },
   {
     title: "Panchamrutha Seva",
-    image: "/images/Hero.jpg",
-    price: "₹301",
+    image: "/images/panchamruta.jpg",
+    price: "₹201",
     duration: "30 Minutes",
     description: "Traditional Panchamrutha Abhisheka performed with devotion and Vedic rituals.",
     size: "",
   },
   {
-    title: "Annadanam",
-    image: "/images/Hero.jpg",
+    title: "Annadana",
+    image: "/images/Annadana.jpg",
     price: "₹1001",
     duration: "Sponsor",
-    description: "Offer Annadanam and receive the blessings of serving devotees.",
+    description: "Offer Annadana and receive the blessings of serving devotees.",
     size: "",
   },
 ];
