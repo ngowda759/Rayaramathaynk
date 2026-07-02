@@ -2,7 +2,7 @@
 
 A modern, responsive temple management portal built using **Next.js**, **TypeScript**, **Tailwind CSS**, and **Firebase**. The application provides devotees with an easy way to explore temple information, book sevas, make donations, view events, and allows administrators to efficiently manage temple operations.
 
----
+----
 
 ## Features
 
