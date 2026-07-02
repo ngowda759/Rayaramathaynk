@@ -9,7 +9,7 @@ const DEFAULT_LAT = 13.1005;
 const DEFAULT_LON = 77.5963;
 const DEFAULT_TZ = "Asia/Kolkata";
 
-export async function GET() {
+export async function POST() {
   try {
     const script = path.join(
       process.cwd(),
@@ -24,7 +24,7 @@ export async function GET() {
       day: "2-digit",
     }).format(new Date());
 
-    const { stdout, stderr } = await execFileAsync("python3", [
+    const { stdout } = await execFileAsync("python3", [
       script,
       "--date",
       today,
@@ -36,11 +36,16 @@ export async function GET() {
       DEFAULT_TZ,
     ]);
 
-    if (stderr) {
-      console.error(stderr);
-    }
+    const data = JSON.parse(stdout);
 
-    return NextResponse.json(JSON.parse(stdout));
+    // TODO:
+    // Save `data` to Firebase/Firestore here.
+
+    return NextResponse.json({
+      success: true,
+      refreshedAt: new Date().toISOString(),
+      data,
+    });
   } catch (error: any) {
     console.error(error);
 

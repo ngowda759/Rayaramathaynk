@@ -1,0 +1,88 @@
+{
+    "metadata": {
+        "generator": "Rayara Panchanga Engine",
+        "version": "1.0.0",
+        "generated_at": "2026-07-02T12:17:44.928696"
+    },
+    "date": "2026-12-06",
+    "location": {
+        "latitude": 13.1005,
+        "longitude": 77.5963,
+        "timezone": "Asia/Kolkata"
+    },
+    "weekday": {
+        "english": "Sunday",
+        "sanskrit": "Ravivara",
+        "number": 0
+    },
+    "sun": {
+        "sunrise": "2026-12-06T06:32:31.335517+05:30",
+        "sunset": "2026-12-06T17:48:28.616638+05:30",
+        "day_duration_hours": 11.2659
+    },
+    "tithi": {
+        "number": 28,
+        "name": "Krishna Trayodashi",
+        "paksha": "Krishna",
+        "start": "2026-12-06T00:52:30.603162+05:30",
+        "end": "2026-12-07T02:22:35.876277+05:30"
+    },
+    "nakshatra": {
+        "number": 15,
+        "name": "Swati",
+        "pada": 3,
+        "lord": "Rahu",
+        "start": "2026-12-05T11:48:49.997894+05:30",
+        "end": "2026-12-06T13:38:11.911608+05:30"
+    },
+    "yoga": {
+        "number": 5,
+        "name": "Shobhana",
+        "start": "2026-12-05T07:52:45.544809+05:30",
+        "end": "2026-12-06T07:41:13.845282+05:30"
+    },
+    "karana": {
+        "number": 5,
+        "name": "Garaja",
+        "start": "2026-12-06T00:52:30.603162+05:30",
+        "end": "2026-12-06T13:34:51.520983+05:30"
+    },
+    "masa": {
+        "number": 8,
+        "name": "Kārttika",
+        "is_adhik": false,
+        "paksha": "Krishna"
+    },
+    "samvat": {
+        "vikram": 2083,
+        "shaka": 1948,
+        "samvatsara": "Parabhava"
+    },
+    "rahu_kalam": {
+        "name": "Rahu Kalam",
+        "start": "2026-12-06T16:23:58.920499+05:30",
+        "end": "2026-12-06T17:48:28.575520+05:30",
+        "is_auspicious": false
+    },
+    "yama_gandam": {
+        "name": "Yama Gandam",
+        "start": "2026-12-06T12:10:29.955518+05:30",
+        "end": "2026-12-06T13:34:59.610499+05:30",
+        "is_auspicious": false
+    },
+    "gulika_kalam": {
+        "name": "Gulika Kalam",
+        "start": "2026-12-06T14:59:29.265519+05:30",
+        "end": "2026-12-06T16:23:58.920499+05:30",
+        "is_auspicious": false
+    },
+    "abhijit_muhurat": {
+        "name": "Abhijit Muhurat",
+        "start": "2026-12-06T11:47:58.047502+05:30",
+        "end": "2026-12-06T12:33:01.863494+05:30",
+        "is_auspicious": true
+    },
+    "durmuhurta": [],
+    "varjyam": [],
+    "amrita_kalam": []
+}
