@@ -45,7 +45,13 @@ export async function GET() {
     const lon = process.env.TEMPLE_LON ?? "77.5859";
     const tz = process.env.TEMPLE_TZ ?? "Asia/Kolkata";
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new 
+    Intl.DateTimeFormat("en-CA", {
+	    timeZone: "Asia/Kolkota",
+	    year: "numeric",
+	    month: "2-digit",
+	    day: "2-digit",
+    }).format(new Date());
 
     const url = `https://api.vedicrishi.dev/v1/panchang?date=${today}&lat=${lat}&long=${lon}&tzone=${encodeURIComponent(
       tz
