@@ -1,6 +1,3 @@
-# Environment files
-.env
-.env.local
 .env.development.local
 .env.production.local
 .env.test.local
@@ -13,3 +10,32 @@
 
 # Node modules
 node_modules
+
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
