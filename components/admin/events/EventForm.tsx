@@ -16,17 +16,6 @@ interface EventFormProps {
   initialData?: TempleEvent;
 }
 
-/**
- * Normalizes a value that is supposed to represent a date
- * into a JS Date. Handles:
- *  - a real Firestore Timestamp (has .toDate())
- *  - a Timestamp that crossed a Server Component -> Client
- *    Component boundary and got flattened to a plain
- *    { seconds, nanoseconds } object (loses its methods
- *    during Next.js RSC serialization)
- *  - an ISO date string or epoch millis
- *  - null/undefined
- */
 function toJsDate(
   value: Timestamp | { seconds: number; nanoseconds?: number } | string | number | null | undefined
 ): Date | null {
@@ -48,14 +37,6 @@ function toJsDate(
   return null;
 }
 
-/**
- * Splits a date-like value into separate
- * yyyy-MM-dd and HH:mm strings for native
- * <input type="date"> / <input type="time"> fields.
- * Falls back to empty strings when the value is
- * missing or unparseable (e.g. legacy/malformed docs,
- * or a Timestamp flattened by server->client serialization).
- */
 function toDateTimeInputs(
   timestamp?: Timestamp | { seconds: number; nanoseconds?: number } | string | null
 ) {
@@ -75,11 +56,6 @@ function toDateTimeInputs(
   return { date, time };
 }
 
-/**
- * Combines a yyyy-MM-dd date string and HH:mm time string
- * into a Firestore Timestamp. Returns null if the date is
- * not set (time defaults to 00:00 if omitted).
- */
 function toTimestamp(date: string, time: string): Timestamp | null {
   if (!date) return null;
 
@@ -110,6 +86,7 @@ export default function EventForm({
     startTime: initialStart.time,
     endDate: initialEnd.date,
     endTime: initialEnd.time,
+    featured: initialData?.featured ?? false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -176,6 +153,7 @@ export default function EventForm({
           location: form.location,
           startDate: startTimestamp,
           endDate: endTimestamp,
+          featured: form.featured,
         });
       } else {
         await eventService.addEvent({
@@ -183,7 +161,7 @@ export default function EventForm({
           description: form.description,
           location: form.location,
 
-          featured: false,
+          featured: form.featured,
           published: true,
 
           status: "Upcoming",
@@ -259,6 +237,22 @@ export default function EventForm({
         {errors.location && (
           <p className="text-xs text-destructive">{errors.location}</p>
         )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          id="featured"
+          className="h-4 w-4 rounded border-stone-300"
+          checked={form.featured}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              featured: e.target.checked,
+            })
+          }
+        />
+        <Label htmlFor="featured">Featured event</Label>
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
