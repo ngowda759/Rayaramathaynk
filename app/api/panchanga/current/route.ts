@@ -11,33 +11,34 @@ const DEFAULT_TZ = "Asia/Kolkata";
 
 export async function GET() {
   try {
-    const script = path.join(
-      process.cwd(),
-      "scripts",
-      "panchanga.py"
-    );
+    const lat = process.env.TEMPLE_LAT ?? "13.1295";
+    const lon = process.env.TEMPLE_LON ?? "77.5859";
+    const tz = process.env.TEMPLE_TZ ?? "Asia/Kolkata";
 
-    const today = new Intl.DateTimeFormat("en-CA", {
-      timeZone: DEFAULT_TZ,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
+    const today = new 
+    Intl.DateTimeFormat("en-CA", {
+	    timeZone: "Asia/Kolkota",
+	    year: "numeric",
+	    month: "2-digit",
+	    day: "2-digit",
     }).format(new Date());
 
-    const { stdout, stderr } = await execFileAsync("python3", [
-      script,
-      "--date",
-      today,
-      "--lat",
-      DEFAULT_LAT.toString(),
-      "--lon",
-      DEFAULT_LON.toString(),
-      "--tz",
-      DEFAULT_TZ,
-    ]);
+    const url = `https://api.vedicrishi.dev/v1/panchang?date=${today}&lat=${lat}&long=${lon}&tzone=${encodeURIComponent(
+      tz
+    )}`;
 
-    if (stderr) {
-      console.error(stderr);
+    let data: any;
+    try {
+      const res = await fetchWithRetry(url);
+      if (!res.ok) {
+        throw new Error(`Provider returned ${res.status}`);
+      }
+      data = await res.json();
+    } catch (fetchErr: any) {
+      console.warn("/api/panchanga/current: API unavailable, using cached data", fetchErr?.message);
+      // Use cached panchanga instead of "unavailable" messages
+      const cached = getCachedPanchanga(today);
+      return NextResponse.json(cached);
     }
 
     return NextResponse.json(JSON.parse(stdout));
