@@ -153,7 +153,8 @@ export default function EventForm({
           location: form.location,
           startDate: startTimestamp,
           endDate: endTimestamp,
-          featured: form.featured,
+	  featured: form.featured,
+          published: true,
         });
       } else {
         await eventService.addEvent({

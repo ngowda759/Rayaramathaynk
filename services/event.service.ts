@@ -3,10 +3,10 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   getDoc,
-  updateDoc,
+  getDocs,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -15,6 +15,10 @@ import { TempleEvent } from "@/types/event";
 const COLLECTION = "events";
 
 class EventService {
+  // ============================
+  // Admin
+  // ============================
+
   async getEvents(): Promise<TempleEvent[]> {
     const snapshot = await getDocs(collection(db, COLLECTION));
 
@@ -24,7 +28,7 @@ class EventService {
     })) as TempleEvent[];
   }
 
-  async getEvent(id: string) {
+  async getEvent(id: string): Promise<TempleEvent | null> {
     const snap = await getDoc(doc(db, COLLECTION, id));
 
     if (!snap.exists()) return null;
@@ -53,5 +57,52 @@ class EventService {
   async deleteEvent(id: string) {
     return deleteDoc(doc(db, COLLECTION, id));
   }
+
+  // ============================
+  // Public Website
+  // ============================
+
+  async getPublishedEvents(): Promise<TempleEvent[]> {
+    const events = await this.getEvents();
+
+    return events
+      .filter((event) => event.published !== false)
+      .sort(
+        (a, b) =>
+          a.startDate.toDate().getTime() -
+          b.startDate.toDate().getTime()
+      );
+  }
+
+  async getUpcomingEvents(max = 3): Promise<TempleEvent[]> {
+    const now = new Date();
+
+    const events = await this.getPublishedEvents();
+
+    return events
+      .filter((event) => event.endDate.toDate() >= now)
+      .slice(0, max);
+  }
+
+  async getPastEvents(): Promise<TempleEvent[]> {
+    const now = new Date();
+
+    const events = await this.getPublishedEvents();
+
+    return events
+      .filter((event) => event.endDate.toDate() < now)
+      .sort(
+        (a, b) =>
+          b.startDate.toDate().getTime() -
+          a.startDate.toDate().getTime()
+      );
+  }
+
+  async getFeaturedEvent(): Promise<TempleEvent | null> {
+    const events = await this.getPublishedEvents();
+
+    return events.find((event) => event.featured) ?? null;
+  }
 }
+
 export const eventService = new EventService();
