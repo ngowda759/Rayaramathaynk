@@ -44,7 +44,7 @@ export default function Panchanga() {
     async function load() {
       try {
         const res = await fetch(
-          "/api/panchanga/current",
+          "/data/panchanga/current.json",
           {
             cache: "no-store",
           }

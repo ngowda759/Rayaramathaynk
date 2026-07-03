@@ -1,0 +1,42 @@
+name: Generate Daily Panchanga
+
+on:
+  schedule:
+    # 04:00 IST = 22:30 UTC (previous day)
+    - cron: "30 22 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install panchang
+
+      - name: Generate Panchanga
+        run: |
+          python scripts/generate_panchanga.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add public/data/panchanga/current.json
+
+          git diff --cached --quiet || \
+          git commit -m "chore: update daily panchanga"
+
+          git push
