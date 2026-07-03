@@ -42,6 +42,8 @@ def get_panchanga(date_str, lat, lon, tz):
             "generator": "Rayara Panchanga Engine",
             "version": "1.0.0",
             "generated_at": datetime.now().isoformat(),
+            "valid_for": date_str,
+            "timezone": tz,
         },
 
         "date": p.date,
