@@ -255,7 +255,8 @@ export default function Hero() {
               height={760}
               priority
               sizes="(max-width: 768px) 100vw, 520px"
-              className="relative z-10 drop-shadow-2xl rounded-lg w-auto h-auto"
+	      className="relative z-10 drop-shadow-2xl rounded-lg"
+	      style={{ width: "auto", height: "auto" }}
             />
 
           </motion.div>

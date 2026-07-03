@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "react-hot-toast";
-
+import RayaBot from "@/components/chat/RayaBot";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -67,6 +67,7 @@ export default function RootLayout({
             }}
           />
         </AuthProvider>
+	<RayaBot />
       </body>
     </html>
   );
