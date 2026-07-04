@@ -1,20 +1,13 @@
 import { announcementService } from "@/services/announcement.service";
 import { AnnouncementMarquee } from "./AnnouncementMarquee";
+import { Announcement } from "@/types/announcement";
 
 export default async function AnnouncementBar() {
-  let announcements = [];
+  let announcements: Announcement[] = [];
   let hasError = false;
 
   try {
-    const data = await announcementService.getActiveAnnouncements();
-
-    announcements = data.map((ann) => ({
-      id: ann.id,
-      title: ann.title,
-      message: ann.message,
-      link: ann.link ?? "",
-      isActive: ann.isActive,
-    }));
+    announcements = await announcementService.getActiveAnnouncements();
   } catch (error) {
     console.error("Failed to load announcements:", error);
     hasError = true;
