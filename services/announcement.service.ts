@@ -30,8 +30,8 @@ function docToAnnouncement(docSnap: any): Announcement {
     message: data.message || "",
     link: data.link || "",
     isActive: data.isActive ?? true,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
+    createdAt: data.createdAt?.toMillis?.() ?? null,
+    updatedAt: data.updatedAt?.toMillis?.() ?? null,
   };
 }
 
@@ -43,16 +43,18 @@ class AnnouncementService {
 
     return snapshot.docs.map(docToAnnouncement);
   }
-
+  
   async getActiveAnnouncements(): Promise<Announcement[]> {
-    const snapshot = await getDocs(
-      query(collection(db, COLLECTION), orderBy("createdAt", "desc"))
-    );
+  const snapshot = await getDocs(
+    query(
+      collection(db, COLLECTION),
+      where("isActive", "==", true),
+      orderBy("createdAt", "desc")
+    )
+  );
 
-    return snapshot.docs
-      .map(docToAnnouncement)
-      .filter((announcement) => announcement.isActive);
-  }
+  return snapshot.docs.map(docToAnnouncement);
+}
 
   async addAnnouncement(announcement: AnnouncementRequest) {
     return addDoc(collection(db, COLLECTION), {

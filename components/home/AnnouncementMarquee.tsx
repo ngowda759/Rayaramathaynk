@@ -12,46 +12,52 @@ export function AnnouncementMarquee({
   announcements,
   hasError,
 }: AnnouncementMarqueeProps) {
-  const content = hasError || announcements.length === 0 ? (
-    "Sri Raghavendra Swamy Aradhana Mahotsava • All devotees are welcome 🙏"
-  ) : (
-    announcements
-      .map((ann) => {
-        let text = `${ann.title}: ${ann.message}`;
-        if (ann.link) {
-          text += " • Learn more";
-        }
-        return text;
-      })
-      .join(" • ")
-  );
+  const content =
+    hasError || announcements.length === 0
+      ? "Sri Raghavendra Swamy Aradhana Mahotsava • All devotees are welcome 🙏"
+      : announcements
+          .map((ann) => {
+            let text = `${ann.title}: ${ann.message}`;
+            if (ann.link) text += " • Learn more";
+            return text;
+          })
+          .join("   ✦   ");
 
   return (
-    <div className="bg-maroon-700 bg-[#7A1024] text-white overflow-hidden">
+    <div className="bg-[#7A1024] text-white border-y border-yellow-500/30">
       <style>{`
-        @keyframes scroll {
-          0% {
+        @keyframes marquee {
+          from {
             transform: translateX(100%);
           }
-          100% {
+          to {
             transform: translateX(-100%);
           }
         }
-        .announcement-scroll {
-          animation: scroll 60s linear infinite;
-          white-space: nowrap;
+
+        .marquee-wrapper {
+          overflow: hidden;
+          width: 100%;
         }
-        .announcement-scroll:hover {
+
+        .marquee-content {
+          display: inline-block;
+          white-space: nowrap;
+          padding-left: 100%;
+          animation: marquee 25s linear infinite;
+        }
+
+        .marquee-content:hover {
           animation-play-state: paused;
         }
       `}</style>
-      <div className="mx-auto max-w-7xl px-6 py-3">
-        <div className="flex items-center gap-3 text-sm font-medium">
-          <Bell size={18} className="text-yellow-300 flex-shrink-0" />
-          <div className="overflow-hidden flex-1">
-            <div className="announcement-scroll">
-              {content}
-            </div>
+
+      <div className="mx-auto flex max-w-7xl items-center gap-3 px-6 py-3">
+        <Bell className="h-5 w-5 flex-shrink-0 text-yellow-300" />
+
+        <div className="marquee-wrapper">
+          <div className="marquee-content text-sm font-medium">
+            {content}
           </div>
         </div>
       </div>
