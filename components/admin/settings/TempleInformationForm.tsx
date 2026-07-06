@@ -1,7 +1,7 @@
 "use client";
 
 import { TempleSettings } from "@/types/temple";
-
+import TempleStatusCard from "./sections/TempleStatusCard";
 import TempleDetailsCard from "./sections/TempleDetailsCard";
 import TempleTimingsCard from "./sections/TempleTimingsCard";
 
@@ -17,6 +17,7 @@ export default function TempleInformationForm({
       <TempleDetailsCard temple={temple} />
 
       <TempleTimingsCard temple={temple} />
+      <TempleStatusCard temple={temple} />
     </div>
   );
 }
