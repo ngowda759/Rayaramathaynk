@@ -1,0 +1,52 @@
+{
+  "hero": {
+    "title": "Sri Raghavendra Swamy Matha",
+    "subtitle": "Serving devotees through Seva, Dharma and Devotion",
+    "announcement": "Om Sri Raghavendraya Namaha",
+    "image": "/images/Hero.jpg"
+  },
+
+  "buttons": {
+    "primary": {
+      "text": "Book Seva",
+      "link": "/sevas"
+    },
+    "secondary": {
+      "text": "Donate",
+      "link": "/donation"
+    },
+    "tertiary": {
+      "text": "Events",
+      "link": "/events"
+    }
+  },
+
+  "statistics": [
+    {
+      "title": "Daily",
+      "subtitle": "Pooja"
+    },
+    {
+      "title": "365",
+      "subtitle": "Days of Seva"
+    },
+    {
+      "title": "Guru",
+      "subtitle": "Blessings"
+    }
+  ],
+
+  "cards": {
+    "status": {
+      "enabled": true
+    },
+
+    "todaySeva": {
+      "enabled": true
+    },
+
+    "festival": {
+      "enabled": true
+    }
+  }
+}

@@ -25,6 +25,33 @@ export default function TimingsSection({
   return (
     <>
       <FormSection
+        title="Temple Information"
+        description="Basic information displayed across the homepage."
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          <FormTextField
+            label="Temple Name"
+            required
+            value={formData.templeName}
+            error={errors.templeName}
+            onChange={(e) =>
+              updateField("templeName", e.target.value)
+            }
+          />
+
+          <FormTextField
+            label="Temple Location"
+            required
+            value={formData.templeLocation}
+            error={errors.templeLocation}
+            onChange={(e) =>
+              updateField("templeLocation", e.target.value)
+            }
+          />
+        </div>
+      </FormSection>
+
+      <FormSection
         title="Temple Timings"
         description="Temple opening and closing timings."
       >
@@ -125,6 +152,21 @@ export default function TimingsSection({
             }
           />
         </div>
+      </FormSection>
+
+      <FormSection
+        title="Footer"
+        description="Footer information."
+      >
+        <FormTextField
+          label="Copyright"
+          value={formData.footerCopyright}
+          error={errors.footerCopyright}
+          placeholder="© 2026 Sri Raghavendra Swamy Matha"
+          onChange={(e) =>
+            updateField("footerCopyright", e.target.value)
+          }
+        />
       </FormSection>
     </>
   );

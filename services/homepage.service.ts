@@ -68,9 +68,19 @@ class HomepageService {
       isTempleOpen: true,
 
       heroPrimaryButton: "Book Seva",
+      heroPrimaryButtonLink: "/sevas",
+
       heroSecondaryButton: "Donate",
+      heroSecondaryButtonLink: "/donation",
 
       footerCopyright: "",
+
+      panchanga: {
+        tithi: "",
+        nakshatra: "",
+        yoga: "",
+        karana: "",
+      },
     };
   }
 }

@@ -23,13 +23,15 @@ export interface HomepageConfig {
   isTempleOpen: boolean;
 
   heroPrimaryButton: string;
+  heroPrimaryButtonLink: string;
+
   heroSecondaryButton: string;
+  heroSecondaryButtonLink: string;
 
   footerCopyright: string;
 
   /**
    * Future Homepage CMS fields
-   * These are optional to remain backward compatible
    */
 
   panchanga?: {
@@ -53,5 +55,5 @@ export interface HomepageConfig {
     buttonText: string;
   };
 
-  updatedAt?: any;
+  updatedAt?: unknown;
 }
