@@ -2,6 +2,7 @@
 
 import { TempleSettings } from "@/types/temple";
 import TempleStatusCard from "./sections/TempleStatusCard";
+import ContactCard from "./sections/ContactCard";
 import TempleDetailsCard from "./sections/TempleDetailsCard";
 import TempleTimingsCard from "./sections/TempleTimingsCard";
 
@@ -18,6 +19,7 @@ export default function TempleInformationForm({
 
       <TempleTimingsCard temple={temple} />
       <TempleStatusCard temple={temple} />
+      <ContactCard temple={temple} />
     </div>
   );
 }
