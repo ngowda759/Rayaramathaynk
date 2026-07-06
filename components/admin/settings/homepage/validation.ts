@@ -17,32 +17,54 @@ export function validateHomepageForm(
     errors.templeName = "Temple name is required.";
   }
 
+  if (!data.templeLocation.trim()) {
+    errors.templeLocation =
+      "Temple location is required.";
+  }
+
   if (!data.morningOpen.trim()) {
-    errors.morningOpen = "Morning opening time is required.";
+    errors.morningOpen =
+      "Morning opening time is required.";
   }
 
   if (!data.morningClose.trim()) {
-    errors.morningClose = "Morning closing time is required.";
+    errors.morningClose =
+      "Morning closing time is required.";
   }
 
   if (!data.eveningOpen.trim()) {
-    errors.eveningOpen = "Evening opening time is required.";
+    errors.eveningOpen =
+      "Evening opening time is required.";
   }
 
   if (!data.eveningClose.trim()) {
-    errors.eveningClose = "Evening closing time is required.";
+    errors.eveningClose =
+      "Evening closing time is required.";
   }
 
   if (!data.donationTitle.trim()) {
-    errors.donationTitle = "Donation title is required.";
+    errors.donationTitle =
+      "Donation title is required.";
   }
 
   if (!data.heroPrimaryButton.trim()) {
-    errors.heroPrimaryButton = "Primary button text is required.";
+    errors.heroPrimaryButton =
+      "Primary button text is required.";
+  }
+
+  if (!data.heroPrimaryButtonLink.trim()) {
+    errors.heroPrimaryButtonLink =
+      "Primary button link is required.";
   }
 
   if (!data.heroSecondaryButton.trim()) {
-    errors.heroSecondaryButton = "Secondary button text is required.";
+    errors.heroSecondaryButton =
+      "Secondary button text is required.";
+  }
+
+  if (!data.heroSecondaryButtonLink.trim()) {
+    errors.heroSecondaryButtonLink =
+      "Secondary button link is required.";
   }
 
   return errors;

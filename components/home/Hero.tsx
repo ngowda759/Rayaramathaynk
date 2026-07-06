@@ -41,6 +41,21 @@ export default function Hero() {
     homepage?.announcement ??
     "Om Sri Raghavendraya Namaha";
 
+  const heroImage =
+  homepage?.heroImage?.trim() || "/images/Hero.jpg";
+
+const primaryButtonText =
+  homepage?.heroPrimaryButton ?? "Book Seva";
+
+const primaryButtonLink =
+  homepage?.heroPrimaryButtonLink ?? "/sevas";
+
+const secondaryButtonText =
+  homepage?.heroSecondaryButton ?? "Donate";
+
+const secondaryButtonLink =
+  homepage?.heroSecondaryButtonLink ?? "/donation";
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#fffaf3] via-[#fff7eb] to-[#fdeed6]">
 
@@ -49,7 +64,7 @@ export default function Hero() {
       <div
         className="absolute inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: "url('/images/Hero.jpg')",
+          backgroundImage: "url('${heroImage}')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -97,19 +112,19 @@ export default function Hero() {
 
             <div className="mt-10 flex flex-wrap gap-4">
 
-              <TempleButton href="/sevas">
+              <TempleButton href={primaryButtonLink}>
 
-                Book Seva
+                {primaryButtonText}
 
               </TempleButton>
 
-              <TempleButton
-                href="/donation"
-                variant="secondary"
-              >
-                <Heart className="mr-2 h-4 w-4" />
-                Donate
-              </TempleButton>
+	      <TempleButton
+  href={secondaryButtonLink}
+  variant="secondary"
+>
+  <Heart className="mr-2 h-4 w-4" />
+  {secondaryButtonText}
+</TempleButton>
 
               <TempleButton
                 href="/events"
@@ -249,7 +264,7 @@ export default function Hero() {
             <div className="absolute h-[520px] w-[520px] rounded-full bg-amber-300 blur-[140px] opacity-40" />
 
             <Image
-              src="/images/Hero.jpg"
+              src={heroImage}
               alt="Temple Hero"
               width={520}
               height={760}
