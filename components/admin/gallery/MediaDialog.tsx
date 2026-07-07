@@ -71,7 +71,7 @@ export default function MediaDialog({
       setAltText(media.altText);
       setFeatured(media.isFeatured);
       setDisplayOrder(media.displayOrder);
-      setTags(media.tags.join(", "));
+      setTags(media.tags ?? []).join(", "));
     } else {
       setAlbumId(albums.length ? albums[0].id : "");
       setType("photo");
