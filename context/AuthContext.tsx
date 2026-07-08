@@ -71,8 +71,9 @@ export function AuthProvider({
 
   async function refreshProfile() {
     if (!user) return;
-
+    setLoading(true);
     await loadProfile(user.uid);
+    setLoading(false);
   }
 
   useEffect(() => {
