@@ -2,21 +2,29 @@
 
 import { Bell, Menu, Search } from "lucide-react";
 
-export default function AdminHeader() {
+interface AdminHeaderProps {
+  onMenuClick: () => void;
+}
+
+export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-6 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 md:px-6 backdrop-blur">
       {/* Left */}
-      <div className="flex items-center gap-4">
-        <button className="rounded-lg p-2 hover:bg-muted lg:hidden">
+      <div className="flex items-center gap-3 md:gap-4">
+        <button
+          onClick={onMenuClick}
+          className="rounded-lg p-2 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-orange-400 lg:hidden"
+          aria-label="Toggle menu"
+        >
           <Menu className="h-5 w-5" />
         </button>
 
         <div>
-          <h1 className="text-xl font-semibold">
+          <h1 className="text-lg md:text-xl font-semibold">
             Temple Administration
           </h1>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Manage temple operations efficiently
           </p>
         </div>
@@ -35,7 +43,7 @@ export default function AdminHeader() {
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 md:gap-4">
         <button className="relative rounded-xl p-2 hover:bg-muted">
           <Bell className="h-5 w-5" />
 
