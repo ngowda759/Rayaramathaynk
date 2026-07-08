@@ -13,7 +13,10 @@ export default function RayaBot() {
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
   const language = process.env.NEXT_PUBLIC_CHATBOT_LANGUAGE || "en";
 
-  if (!chatbotId) return null;
+  // Don't render if no chatbot ID is configured
+  if (!chatbotId || chatbotId === "") {
+    return null;
+  }
 
   return (
     <>
@@ -31,6 +34,9 @@ export default function RayaBot() {
       <Script
         src="https://www.chatbase.co/embed.min.js"
         strategy="afterInteractive"
+        onLoad={() => {
+          console.log("Chatbase loaded");
+        }}
       />
     </>
   );

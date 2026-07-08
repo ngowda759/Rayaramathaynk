@@ -6,7 +6,10 @@ export default function AdminChatbot() {
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
   const language = process.env.NEXT_PUBLIC_CHATBOT_LANGUAGE || "en";
 
-  if (!chatbotId) return null;
+  // Don't render if no chatbot ID is configured
+  if (!chatbotId || chatbotId === "") {
+    return null;
+  }
 
   return (
     <>
