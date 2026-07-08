@@ -10,6 +10,9 @@ import StatsGrid from "@/components/admin/dashboard/StatsGrid";
 import QuickActionCard from "@/components/admin/dashboard/QuickActionCard";
 import SectionCard from "@/components/admin/common/SectionCard";
 
+// Force dynamic rendering - admin pages should not be statically generated
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const stats = await dashboardService.getStats();
 
