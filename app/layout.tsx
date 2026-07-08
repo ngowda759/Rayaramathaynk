@@ -32,6 +32,64 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Hide chatbot by default until properly configured */}
+        <style>{`
+          /* Hide chatbase widget */
+          .chatbase-hosted-container,
+          #chatbase-hosted-container,
+          [class*="chatbase"],
+          [id*="chatbase"],
+          iframe[src*="chatbase"],
+          div[class*="cb"][style*="fixed"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+        `}</style>
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            // Hide any chatbot elements that load before React
+            (function() {
+              var hideChatbot = function() {
+                // Hide all possible chatbase elements
+                var selectors = [
+                  '.chatbase-hosted-container',
+                  '#chatbase-hosted-container',
+                  'div[class*="chatbase"]',
+                  'div[id*="chatbase"]',
+                  'iframe[src*="chatbase"]',
+                  'div[class*="cb-"]',
+                  '.cb-widget',
+                  '.cb-launcher'
+                ];
+                selectors.forEach(function(sel) {
+                  try {
+                    var els = document.querySelectorAll(sel);
+                    els.forEach(function(el) {
+                      el.style.display = 'none';
+                      el.style.visibility = 'hidden';
+                    });
+                  } catch(e) {}
+                });
+              };
+              
+              // Run immediately
+              hideChatbot();
+              
+              // Run again after DOM changes
+              if (typeof MutationObserver !== 'undefined') {
+                var observer = new MutationObserver(hideChatbot);
+                observer.observe(document.body, { childList: true, subtree: true });
+              }
+              
+              // Run on load
+              window.addEventListener('load', hideChatbot);
+            })();
+          `
+        }} />
+      </head>
       <body
         className={`${inter.variable} ${playfair.variable} antialiased bg-stone-50 text-stone-900 min-h-screen`}
       >
@@ -67,7 +125,7 @@ export default function RootLayout({
             }}
           />
         </AuthProvider>
-	<RayaBot />
+        <RayaBot />
       </body>
     </html>
   );
