@@ -75,3 +75,44 @@ export const paymentModeOptions = [
     value: "other",
   },
 ];
+
+// Donation purposes configuration
+export interface DonationPurpose {
+  id: string;
+  title: string;
+  description: string;
+  suggestedAmount: number;
+  icon: string;
+  isActive: boolean;
+  order: number;
+}
+
+export const defaultDonationPurposes: DonationPurpose[] = [
+  {
+    id: "1",
+    title: "Annadanam",
+    description: "Sponsor prasada and meals for devotees visiting the temple.",
+    suggestedAmount: 501,
+    icon: "heart",
+    isActive: true,
+    order: 1,
+  },
+  {
+    id: "2",
+    title: "Goshala",
+    description: "Support the care and maintenance of our sacred cows.",
+    suggestedAmount: 1001,
+    icon: "cows",
+    isActive: true,
+    order: 2,
+  },
+  {
+    id: "3",
+    title: "Temple Development",
+    description: "Contribute towards renovation and future development projects.",
+    suggestedAmount: 5001,
+    icon: "building",
+    isActive: true,
+    order: 3,
+  },
+];

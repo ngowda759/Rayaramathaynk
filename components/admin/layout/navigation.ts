@@ -93,6 +93,11 @@ export const navigation: NavigationGroup[] = [
         icon: "settings",
       },
       {
+        title: "Donation Settings",
+        href: "/admin/settings/donation",
+        icon: "donation",
+      },
+      {
         title: "AI Assistant",
         href: "/admin/assistant",
         icon: "sparkles",

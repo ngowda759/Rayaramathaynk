@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { donationService } from "@/services/donation.service";
 import { paymentModeOptions, PaymentMode } from "@/types/donation";
+import { useDonationPurposes } from "@/hooks/useDonationPurposes";
 
 export default function DonationForm() {
+  const { purposes } = useDonationPurposes();
+  
   const [donorName, setDonorName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -25,6 +28,11 @@ export default function DonationForm() {
 
   const [submitting, setSubmitting] =
     useState(false);
+
+  function selectPurpose(purposeTitle: string, suggestedAmount: number) {
+    setPurpose(purposeTitle);
+    setAmount(suggestedAmount.toString());
+  }
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>
@@ -94,6 +102,33 @@ export default function DonationForm() {
         instructions.
       </p>
 
+      {/* Donation Purpose Selection */}
+      {purposes.length > 0 && (
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-stone-700 mb-3">
+            Select Donation Purpose
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {purposes.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => selectPurpose(p.title, p.suggestedAmount)}
+                className={`rounded-xl border p-4 text-left transition-all ${
+                  purpose === p.title
+                    ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200"
+                    : "border-stone-200 hover:border-amber-300 hover:bg-stone-50"
+                }`}
+              >
+                <p className="font-medium text-stone-900">{p.title}</p>
+                <p className="mt-1 text-sm text-amber-600">₹{p.suggestedAmount}</p>
+                <p className="mt-2 text-xs text-stone-500 line-clamp-2">{p.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <form
         onSubmit={handleSubmit}
         className="mt-8 space-y-6"
@@ -149,7 +184,7 @@ export default function DonationForm() {
 
         <Input
           label="Donation Purpose"
-          placeholder="Annadanam, Goshala, Temple Development..."
+          placeholder="Select or type a purpose..."
           value={purpose}
           onChange={(e) =>
             setPurpose(e.target.value)
