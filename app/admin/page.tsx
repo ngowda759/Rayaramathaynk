@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { 
   Bell, HeartHandshake, Image, Plus, CalendarDays, 
-  BookOpen, Clock, Users, HandCoins, Book
+  BookOpen, Clock, Users, HandCoins
 } from "lucide-react";
 
 interface DashboardStats {
@@ -34,15 +34,17 @@ function StatCard({ title, value, icon: Icon }: { title: string; value: number; 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        const { dashboardService } = await import("@/services/dashboard.service");
+        const { dashboardService } = await import("@/services/dashboard.service.client");
         const data = await dashboardService.getStats();
         setStats(data);
-      } catch (error) {
-        console.error("Failed to fetch stats:", error);
+      } catch (err: any) {
+        console.error("Failed to fetch stats:", err);
+        setError(err.message || "Failed to load statistics");
       } finally {
         setLoading(false);
       }
@@ -88,6 +90,10 @@ export default function DashboardPage() {
         <div className="flex h-64 items-center justify-center">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
         </div>
+      ) : error ? (
+        <div className="rounded-2xl border bg-red-50 p-6 text-center text-red-600">
+          {error}
+        </div>
       ) : stats ? (
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard title="Users" value={stats.totalUsers} icon={Users} />
@@ -99,11 +105,7 @@ export default function DashboardPage() {
           <StatCard title="Donations" value={stats.totalDonations} icon={HeartHandshake} />
           <StatCard title="Bookings" value={stats.totalSevaBookings} icon={HandCoins} />
         </div>
-      ) : (
-        <div className="rounded-2xl border bg-red-50 p-6 text-center text-red-600">
-          Failed to load statistics. Please refresh.
-        </div>
-      )}
+      ) : null}
 
       {/* Quick Actions */}
       <div className="rounded-2xl border bg-white p-6 shadow-sm">
