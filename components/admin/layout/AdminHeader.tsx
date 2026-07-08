@@ -40,9 +40,24 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/admin?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return;
+    
+    // Navigate directly to matching pages
+    if (q.includes("event")) router.push("/admin/events");
+    else if (q.includes("gallery") || q.includes("image") || q.includes("photo")) router.push("/admin/gallery");
+    else if (q.includes("donation") || q.includes("donate")) router.push("/admin/donations");
+    else if (q.includes("announc") || q.includes("notice")) router.push("/admin/announcements");
+    else if (q.includes("user") || q.includes("staff")) router.push("/admin/users");
+    else if (q.includes("seva")) router.push("/admin/sevas");
+    else if (q.includes("pooja") || q.includes("timing")) router.push("/admin/timings");
+    else if (q.includes("booking")) router.push("/admin/bookings");
+    else if (q.includes("report")) router.push("/admin/reports");
+    else if (q.includes("setting")) router.push("/admin/settings");
+    else if (q.includes("aaradhane")) router.push("/admin/aaradhane");
+    else router.push("/admin");
+    
+    setSearchQuery("");
   };
 
   const getInitials = () => {

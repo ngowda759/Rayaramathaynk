@@ -9,20 +9,8 @@ import WelcomeBanner from "@/components/admin/dashboard/WelcomeBanner";
 import StatsGrid from "@/components/admin/dashboard/StatsGrid";
 import QuickActionCard from "@/components/admin/dashboard/QuickActionCard";
 import SectionCard from "@/components/admin/common/SectionCard";
-import AdminSearchResults from "@/components/admin/dashboard/AdminSearchResults";
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ search?: string }>;
-}) {
-  const params = await searchParams;
-  const query = params.search;
-
-  if (query) {
-    return <AdminSearchResults query={query} />;
-  }
-
+export default async function DashboardPage() {
   const stats = await dashboardService.getStats();
 
   return (
