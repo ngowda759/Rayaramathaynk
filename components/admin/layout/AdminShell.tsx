@@ -3,7 +3,6 @@
 import { ReactNode, useState } from "react";
 import AdminHeader from "./AdminHeader";
 import AdminSidebar from "./AdminSidebar";
-import AdminErrorBoundary from "@/components/admin/common/AdminErrorBoundary";
 
 interface Props {
   children: ReactNode;
@@ -31,18 +30,17 @@ export default function AdminShell({ children }: Props) {
         />
       )}
 
-      {/* Sidebar - Desktop: always visible at fixed position, Mobile: drawer */}
+      {/* Sidebar */}
       <AdminSidebar
         isOpen={isSidebarOpen}
         onClose={closeSidebar}
       />
 
-      {/* Main Content - offset by sidebar width on desktop */}
+      {/* Main Content */}
       <div className="flex flex-1 flex-col lg:pl-72">
         <AdminHeader onMenuClick={toggleSidebar} />
-
         <main className="flex-1 p-4 md:p-6">
-          <AdminErrorBoundary>{children}</AdminErrorBoundary>
+          {children}
         </main>
       </div>
     </div>

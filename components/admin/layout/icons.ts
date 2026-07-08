@@ -1,5 +1,3 @@
-"use client";
-
 import {
   LayoutDashboard,
   Flower2,
