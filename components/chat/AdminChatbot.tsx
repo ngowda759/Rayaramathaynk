@@ -1,15 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import Script from "next/script";
 
-export default function RayaBot() {
-  const pathname = usePathname();
-
-  if (pathname.startsWith("/admin")) {
-    return null;
-  }
-
+export default function AdminChatbot() {
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
   const language = process.env.NEXT_PUBLIC_CHATBOT_LANGUAGE || "en";
 
@@ -17,7 +10,7 @@ export default function RayaBot() {
 
   return (
     <>
-      <Script id="chatbase-config" strategy="beforeInteractive">
+      <Script id="chatbase-admin-config" strategy="beforeInteractive">
         {`
           window.chatbaseConfig = {
             chatbotId: "${chatbotId}",
