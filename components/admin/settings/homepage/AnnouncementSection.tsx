@@ -23,77 +23,20 @@ export default function AnnouncementSection({
   updateField,
 }: AnnouncementSectionProps) {
   return (
-    <>
-      <FormSection
-        title="Announcement"
-        description="Displayed at the top of the homepage."
-      >
-        <FormTextArea
-          label="Announcement"
-          value={formData.announcement}
-          error={errors.announcement}
-          rows={4}
-          placeholder="Enter latest temple announcement..."
-          onChange={(e) =>
-            updateField("announcement", e.target.value)
-          }
-        />
-      </FormSection>
-
-      <FormSection
-        title="Today's Panchanga"
-        description="Displayed on the homepage."
-      >
-        <div className="grid gap-6 md:grid-cols-2">
-          <FormTextArea
-            label="Tithi"
-            value={formData.panchanga?.tithi ?? ""}
-            rows={2}
-            onChange={(e) =>
-              updateField("panchanga", {
-                ...formData.panchanga!,
-                tithi: e.target.value,
-              })
-            }
-          />
-
-          <FormTextArea
-            label="Nakshatra"
-            value={formData.panchanga?.nakshatra ?? ""}
-            rows={2}
-            onChange={(e) =>
-              updateField("panchanga", {
-                ...formData.panchanga!,
-                nakshatra: e.target.value,
-              })
-            }
-          />
-
-          <FormTextArea
-            label="Yoga"
-            value={formData.panchanga?.yoga ?? ""}
-            rows={2}
-            onChange={(e) =>
-              updateField("panchanga", {
-                ...formData.panchanga!,
-                yoga: e.target.value,
-              })
-            }
-          />
-
-          <FormTextArea
-            label="Karana"
-            value={formData.panchanga?.karana ?? ""}
-            rows={2}
-            onChange={(e) =>
-              updateField("panchanga", {
-                ...formData.panchanga!,
-                karana: e.target.value,
-              })
-            }
-          />
-        </div>
-      </FormSection>
-    </>
+    <FormSection
+      title="Announcement"
+      description="Displayed at the top of the homepage."
+    >
+      <FormTextArea
+        label="Announcement"
+        value={formData.announcement}
+        error={errors.announcement}
+        rows={4}
+        placeholder="Enter latest temple announcement..."
+        onChange={(e) =>
+          updateField("announcement", e.target.value)
+        }
+      />
+    </FormSection>
   );
 }

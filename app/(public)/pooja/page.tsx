@@ -8,17 +8,17 @@ export default function PoojaPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-[calc(100vh-120px)] bg-white px-6 py-16 sm:px-8 lg:px-12">
-        <SectionHeading
-          title="Daily Pooja Schedule"
-          subtitle="Find the temple’s daily rituals, timings, and offerings."
-        />
-
-        <div className="mx-auto max-w-6xl rounded-3xl border border-stone-200 bg-stone-50 p-8 shadow-sm">
-          <TempleTimings />
+      <main className="min-h-[calc(100vh-120px)] bg-white">
+        <div className="px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+          <SectionHeading
+            title="Daily Pooja Schedule"
+            subtitle="Find the temple's daily rituals, timings, and offerings."
+          />
         </div>
 
-        <div className="mt-16">
+        <TempleTimings />
+
+        <div className="px-4 pb-16 sm:px-6 lg:px-8">
           <DonationCTA />
         </div>
       </main>
