@@ -51,6 +51,7 @@ export default function FeaturedSevasClient({ sevas }: FeaturedSevasClientProps)
                   src={seva.image}
                   alt={seva.title}
                   fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover"
                 />
 

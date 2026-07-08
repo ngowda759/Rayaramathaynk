@@ -99,6 +99,7 @@ export default function FullGallery() {
                     src={item.src}
                     alt={item.alt}
                     fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
                     className="object-cover transition duration-500 hover:scale-105"
                   />
                 ) : (
