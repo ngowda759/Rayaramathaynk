@@ -1,8 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { 
   Calendar, 
   Image, 
@@ -25,77 +23,53 @@ interface SearchResult {
   category: string;
 }
 
-export default function AdminSearchResults() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get("search") || "";
-  const [results, setResults] = useState<SearchResult[]>([]);
+interface AdminSearchResultsProps {
+  query: string;
+}
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
+const allPages: SearchResult[] = [
+  { title: "Events", description: "Manage temple events and schedules", href: "/admin/events", icon: Calendar, category: "Events" },
+  { title: "Create Event", description: "Add a new event", href: "/admin/events/new", icon: Plus, category: "Events" },
+  { title: "Gallery", description: "Manage temple gallery and media", href: "/admin/gallery", icon: Image, category: "Gallery" },
+  { title: "Upload to Gallery", description: "Upload new images or videos", href: "/admin/gallery/new", icon: Image, category: "Gallery" },
+  { title: "Announcements", description: "Create and manage announcements", href: "/admin/announcements", icon: Bell, category: "Announcements" },
+  { title: "Create Announcement", description: "Add a new announcement", href: "/admin/announcements/new", icon: Bell, category: "Announcements" },
+  { title: "Donations", description: "View and manage donations", href: "/admin/donations", icon: HeartHandshake, category: "Donations" },
+  { title: "Users", description: "Manage temple staff and users", href: "/admin/users", icon: Users, category: "Users" },
+  { title: "Add User", description: "Create a new user account", href: "/admin/users/new", icon: Users, category: "Users" },
+  { title: "Seva Services", description: "Manage temple sevas", href: "/admin/sevas", icon: Clock, category: "Sevas" },
+  { title: "Create Seva", description: "Add a new seva service", href: "/admin/sevas/new", icon: Clock, category: "Sevas" },
+  { title: "Seva Bookings", description: "View seva bookings", href: "/admin/seva-bookings", icon: Calendar, category: "Sevas" },
+  { title: "Bookings", description: "Manage all bookings", href: "/admin/bookings", icon: Calendar, category: "Bookings" },
+  { title: "Pooja Services", description: "Manage pooja timings and services", href: "/admin/pooja", icon: Clock, category: "Pooja" },
+  { title: "Timings", description: "Manage temple timings", href: "/admin/timings", icon: Clock, category: "Timings" },
+  { title: "Reports", description: "View temple reports and analytics", href: "/admin/reports", icon: FileText, category: "Reports" },
+  { title: "Settings", description: "Admin settings", href: "/admin/settings", icon: Settings, category: "Settings" },
+  { title: "Homepage Settings", description: "Configure homepage content", href: "/admin/settings/homepage", icon: Settings, category: "Settings" },
+  { title: "Aaradhane", description: "Manage aaradhane events", href: "/admin/aaradhane", icon: Calendar, category: "Aaradhane" },
+  { title: "Create Aaradhane", description: "Add new aaradhane event", href: "/admin/aaradhane/create", icon: Calendar, category: "Aaradhane" },
+];
 
-    const lowerQuery = query.toLowerCase();
-    const allPages: SearchResult[] = [
-      // Events
-      { title: "Events", description: "Manage temple events and schedules", href: "/admin/events", icon: Calendar, category: "Events" },
-      { title: "Create Event", description: "Add a new event", href: "/admin/events/new", icon: Plus, category: "Events" },
-      // Gallery
-      { title: "Gallery", description: "Manage temple gallery and media", href: "/admin/gallery", icon: Image, category: "Gallery" },
-      { title: "Upload to Gallery", description: "Upload new images or videos", href: "/admin/gallery/new", icon: Image, category: "Gallery" },
-      // Announcements
-      { title: "Announcements", description: "Create and manage announcements", href: "/admin/announcements", icon: Bell, category: "Announcements" },
-      { title: "Create Announcement", description: "Add a new announcement", href: "/admin/announcements/new", icon: Bell, category: "Announcements" },
-      // Donations
-      { title: "Donations", description: "View and manage donations", href: "/admin/donations", icon: HeartHandshake, category: "Donations" },
-      // Users
-      { title: "Users", description: "Manage temple staff and users", href: "/admin/users", icon: Users, category: "Users" },
-      { title: "Add User", description: "Create a new user account", href: "/admin/users/new", icon: Users, category: "Users" },
-      // Sevas
-      { title: "Seva Services", description: "Manage temple sevas", href: "/admin/sevas", icon: Clock, category: "Sevas" },
-      { title: "Create Seva", description: "Add a new seva service", href: "/admin/sevas/new", icon: Clock, category: "Sevas" },
-      { title: "Seva Bookings", description: "View seva bookings", href: "/admin/seva-bookings", icon: Calendar, category: "Sevas" },
-      // Bookings
-      { title: "Bookings", description: "Manage all bookings", href: "/admin/bookings", icon: Calendar, category: "Bookings" },
-      // Pooja
-      { title: "Pooja Services", description: "Manage pooja timings and services", href: "/admin/pooja", icon: Clock, category: "Pooja" },
-      { title: "Timings", description: "Manage temple timings", href: "/admin/timings", icon: Clock, category: "Timings" },
-      // Reports
-      { title: "Reports", description: "View temple reports and analytics", href: "/admin/reports", icon: FileText, category: "Reports" },
-      // Settings
-      { title: "Settings", description: "Admin settings", href: "/admin/settings", icon: Settings, category: "Settings" },
-      { title: "Homepage Settings", description: "Configure homepage content", href: "/admin/settings/homepage", icon: Settings, category: "Settings" },
-      // Aaradhane
-      { title: "Aaradhane", description: "Manage aaradhane events", href: "/admin/aaradhane", icon: Calendar, category: "Aaradhane" },
-      { title: "Create Aaradhane", description: "Add new aaradhane event", href: "/admin/aaradhane/create", icon: Calendar, category: "Aaradhane" },
-    ];
+const iconMap: Record<string, React.ElementType> = {
+  Calendar,
+  Image,
+  HeartHandshake,
+  Bell,
+  Users,
+  Clock,
+  Settings,
+  FileText,
+  CreditCard,
+};
 
-    const filtered = allPages.filter(
-      (page) =>
-        page.title.toLowerCase().includes(lowerQuery) ||
-        page.description.toLowerCase().includes(lowerQuery) ||
-        page.category.toLowerCase().includes(lowerQuery)
-    );
-
-    setResults(filtered);
-  }, [query]);
-
-  if (!query.trim()) {
-    return null;
-  }
-
-  const iconMap: Record<string, React.ElementType> = {
-    Calendar,
-    Image,
-    HeartHandshake,
-    Bell,
-    Users,
-    Clock,
-    Settings,
-    FileText,
-    CreditCard,
-  };
+export default function AdminSearchResults({ query }: AdminSearchResultsProps) {
+  const lowerQuery = query.toLowerCase();
+  const results = allPages.filter(
+    (page) =>
+      page.title.toLowerCase().includes(lowerQuery) ||
+      page.description.toLowerCase().includes(lowerQuery) ||
+      page.category.toLowerCase().includes(lowerQuery)
+  );
 
   return (
     <div className="space-y-6">
