@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
+import { useAuthContext } from "@/context/AuthContext";
 import { navigation } from "./navigation";
 import { icons } from "./icons";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,24 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const { canAccessSettings, canManageUsers } = useAuthContext();
+
+  const filteredNavigation = navigation.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      // Filter based on permissions
+      if (item.href.includes("/users") && !canManageUsers) {
+        return false;
+      }
+      if (
+        (item.href.includes("/settings") || item.href.includes("/finance")) &&
+        !canAccessSettings
+      ) {
+        return false;
+      }
+      return true;
+    }),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <>
@@ -27,7 +46,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-8">
-          {navigation.map((group) => (
+          {filteredNavigation.map((group) => (
             <div key={group.title}>
               <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {group.title}
@@ -93,7 +112,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         {/* Mobile Navigation - Scrollable */}
         <nav className="flex-1 overflow-y-auto p-4">
           <div className="space-y-6">
-            {navigation.map((group) => (
+            {filteredNavigation.map((group) => (
               <div key={group.title}>
                 <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.title}

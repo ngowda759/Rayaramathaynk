@@ -13,6 +13,32 @@ export type UserRole =
   | "Office Staff"
   | "Volunteer";
 
+// Normalized roles for consistent access control
+export type NormalizedRole = "super_admin" | "admin" | "volunteer" | "devotee";
+
+export function normalizeRole(role: UserRole): NormalizedRole {
+  const roleLower = role.toLowerCase().replace(/\s+/g, "_");
+  
+  switch (roleLower) {
+    case "super_admin":
+    case "super admin":
+      return "super_admin";
+    case "temple_admin":
+    case "temple admin":
+    case "admin":
+    case "priest":
+    case "staff":
+    case "office_staff":
+    case "office staff":
+      return "admin";
+    case "volunteer":
+      return "volunteer";
+    case "devotee":
+    default:
+      return "devotee";
+  }
+}
+
 export interface UserProfile {
   uid: string;
 

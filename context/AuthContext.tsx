@@ -16,11 +16,12 @@ import {
   RegisterData,
 } from "@/services/auth.service";
 
-import { UserProfile } from "@/types/user";
+import { UserProfile, UserRole, normalizeRole, NormalizedRole } from "@/types/user";
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
+  normalizedRole: NormalizedRole;
   loading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -32,6 +33,11 @@ interface AuthContextType {
   forgotPassword: (email: string) => Promise<void>;
 
   refreshProfile: () => Promise<void>;
+  
+  // Permission helpers
+  canAccessAdmin: boolean;
+  canAccessSettings: boolean;
+  canManageUsers: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(
@@ -112,17 +118,28 @@ export function AuthProvider({
     await authService.forgotPassword(email);
   }
 
+  // Role-based permissions
+  const normalizedRole = profile?.role ? normalizeRole(profile.role as UserRole) : "devotee";
+  
+  const canAccessAdmin = normalizedRole !== "devotee" && normalizedRole !== "volunteer";
+  const canAccessSettings = normalizedRole === "super_admin";
+  const canManageUsers = normalizedRole === "super_admin";
+
   return (
     <AuthContext.Provider
       value={{
         user,
         profile,
+        normalizedRole,
         loading,
         login,
         register,
         logout,
         forgotPassword,
         refreshProfile,
+        canAccessAdmin,
+        canAccessSettings,
+        canManageUsers,
       }}
     >
       {children}

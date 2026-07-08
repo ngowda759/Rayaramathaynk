@@ -3,30 +3,32 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Menu, Search, LogOut, User, Settings } from "lucide-react";
+import { Bell, Menu, Search, LogOut, User, Settings, Shield } from "lucide-react";
 import { useAuthContext } from "@/context/AuthContext";
-import { cn } from "@/lib/utils";
+import NotificationDropdown from "./NotificationDropdown";
 
 interface AdminHeaderProps {
   onMenuClick: () => void;
 }
 
+const roleLabels: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  volunteer: "Volunteer",
+  devotee: "Devotee",
+};
+
 export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
-  const { user, profile, logout } = useAuthContext();
+  const { user, profile, normalizedRole, canAccessSettings, logout } = useAuthContext();
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const notifMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
-      }
-      if (notifMenuRef.current && !notifMenuRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -87,9 +89,15 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
             Temple Administration
           </h1>
 
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Manage temple operations efficiently
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              Manage temple operations
+            </p>
+            <span className="hidden items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 sm:flex">
+              <Shield className="h-3 w-3" />
+              {roleLabels[normalizedRole] || "Admin"}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -111,28 +119,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
       {/* Right */}
       <div className="flex items-center gap-2 md:gap-4">
         {/* Notifications */}
-        <div className="relative" ref={notifMenuRef}>
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative rounded-xl p-2 hover:bg-muted"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"></span>
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border bg-white shadow-lg">
-              <div className="border-b p-4">
-                <h3 className="font-semibold">Notifications</h3>
-              </div>
-              <div className="max-h-64 overflow-y-auto p-4">
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No new notifications
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationDropdown />
 
         {/* User Menu */}
         <div className="relative" ref={userMenuRef}>
@@ -148,7 +135,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
                 {profile?.name || user?.email?.split("@")[0] || "Administrator"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Temple Portal
+                {roleLabels[normalizedRole] || "Admin"}
               </p>
             </div>
           </button>
@@ -158,24 +145,22 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
               <div className="border-b p-4">
                 <p className="font-medium">{profile?.name || "Administrator"}</p>
                 <p className="text-sm text-muted-foreground">{user?.email}</p>
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  <Shield className="h-3 w-3" />
+                  {roleLabels[normalizedRole] || "Admin"}
+                </span>
               </div>
               <div className="p-2">
-                <Link
-                  href="/admin/users"
-                  onClick={() => setShowUserMenu(false)}
-                  className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-muted"
-                >
-                  <User className="h-4 w-4" />
-                  Profile Settings
-                </Link>
-                <Link
-                  href="/admin/settings"
-                  onClick={() => setShowUserMenu(false)}
-                  className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-muted"
-                >
-                  <Settings className="h-4 w-4" />
-                  Admin Settings
-                </Link>
+                {canAccessSettings && (
+                  <Link
+                    href="/admin/settings"
+                    onClick={() => setShowUserMenu(false)}
+                    className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-muted"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-3 rounded-lg p-2 text-sm text-red-600 hover:bg-red-50"
