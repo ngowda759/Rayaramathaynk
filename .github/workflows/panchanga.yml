@@ -25,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install panchang
+          pip install git+https://github.com/webresh/drik-panchanga.git
 
       - name: Generate Panchanga
         run: |
