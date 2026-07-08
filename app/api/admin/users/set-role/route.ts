@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, collection, query, where, getDocs, setDoc } from "firebase/firestore";
+import { doc, collection, query, where, getDocs, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function POST(request: NextRequest) {
@@ -14,8 +14,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const profilesRef = collection(db, "profiles");
-    const q = query(profilesRef, where("email", "==", email));
+    // Search in users collection by email
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
@@ -25,12 +26,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get the first matching user
     const userDoc = snapshot.docs[0];
     const userId = userDoc.id;
 
-    await setDoc(doc(db, "profiles", userId), {
+    // Update the role
+    await setDoc(doc(db, "users", userId), {
       role: role,
-      updatedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
     }, { merge: true });
 
     return NextResponse.json({
