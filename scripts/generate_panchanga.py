@@ -8,7 +8,7 @@ Uses Swiss Ephemeris for accurate astronomical calculations
 import json
 from datetime import datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
-from math import sin, cos, acos, asin, atan2, pi, floor, mod
+from math import sin, cos, acos, asin, atan2, pi, floor
 
 # Try to import swisseph, otherwise use approximate calculations
 try:
@@ -106,7 +106,7 @@ def sun_rise_set(jd, lat, lon, timezone_offset, is_rise=True):
         H = (h + lon + 360) % 360
         T = H * 4 / 1440.0
         rise_time = jd_start + T
-        day_fraction = mod(rise_time, 1)
+        day_fraction = rise_time % 1
         hours = int(day_fraction * 24)
         minutes = int((day_fraction * 24 - hours) * 60)
         return datetime(jd_start.year, jd_start.month, jd_start.day, hours, minutes, tzinfo=dt_timezone(dt_timezone(timedelta(hours=timezone_offset)).utcoffset(None)))
