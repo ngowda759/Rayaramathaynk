@@ -14,7 +14,9 @@ export default function AdminChatbot() {
         {`
           window.chatbaseConfig = {
             chatbotId: "${chatbotId}",
-            language: "${language}"
+            language: "${language}",
+            primaryColor: "#f97316",
+            buttonColor: "#f97316"
           };
         `}
       </Script>
