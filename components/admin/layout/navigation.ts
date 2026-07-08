@@ -93,8 +93,8 @@ export const navigation: NavigationGroup[] = [
         icon: "settings",
       },
       {
-        title: "Donation Settings",
-        href: "/admin/settings/donation",
+        title: "Finance Settings",
+        href: "/admin/settings/finance",
         icon: "donation",
       },
       {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { Copy, Check } from "lucide-react";
 
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
@@ -9,10 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { donationService } from "@/services/donation.service";
 import { paymentModeOptions, PaymentMode } from "@/types/donation";
-import { useDonationPurposes } from "@/hooks/useDonationPurposes";
+import { useFinanceSettings } from "@/hooks/useFinanceSettings";
 
 export default function DonationForm() {
-  const { purposes } = useDonationPurposes();
+  const { settings, enabled, specialSevas, upiEnabled, bankTransferEnabled, upiDetails, bankDetails } = useFinanceSettings();
   
   const [donorName, setDonorName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,16 +23,28 @@ export default function DonationForm() {
   const [campaignId] = useState("");
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedSevaId, setSelectedSevaId] = useState<string | null>(null);
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   const [paymentMode, setPaymentMode] =
-    useState<PaymentMode>("cash");
+    useState<PaymentMode>("upi");
 
   const [submitting, setSubmitting] =
     useState(false);
 
-  function selectPurpose(purposeTitle: string, suggestedAmount: number) {
-    setPurpose(purposeTitle);
-    setAmount(suggestedAmount.toString());
+  function selectSeva(seva: typeof specialSevas[0]) {
+    setSelectedSevaId(seva.id);
+    setPurpose(seva.title);
+    setAmount(seva.amount.toString());
+  }
+
+  function copyToClipboard(text: string, type: "upi" | "account") {
+    navigator.clipboard.writeText(text);
+    if (type === "upi") {
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    }
+    toast.success("Copied to clipboard!");
   }
 
   async function handleSubmit(
@@ -77,7 +90,8 @@ export default function DonationForm() {
       setPurpose("");
       setAmount("");
       setMessage("");
-      setPaymentMode("cash");
+      setSelectedSevaId(null);
+      setPaymentMode("upi");
     } catch (error: any) {
       console.error(error);
 
@@ -90,155 +104,204 @@ export default function DonationForm() {
     }
   }
 
+  if (!enabled) {
+    return (
+      <div className="mx-auto max-w-3xl rounded-3xl border border-stone-200 bg-white p-8 shadow-sm text-center">
+        <h2 className="text-2xl font-semibold text-stone-900">Donations Currently Unavailable</h2>
+        <p className="mt-2 text-stone-600">The donation feature is temporarily disabled. Please check back later.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-3xl rounded-3xl border border-stone-200 bg-white p-8 shadow-sm">
-      <h2 className="text-2xl font-semibold text-stone-900">
-        Donate to the Temple
-      </h2>
+    <div className="mx-auto max-w-4xl space-y-8">
+      {/* Special Sevas Selection */}
+      {specialSevas.length > 0 && (
+        <div className="rounded-3xl border border-stone-200 bg-white p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold text-stone-900">
+            Choose Your Seva
+          </h2>
+          <p className="mt-2 text-stone-600">
+            Select a donation purpose or contribute any amount
+          </p>
 
-      <p className="mt-2 text-stone-600">
-        Submit your donation request. Temple
-        staff will contact you with payment
-        instructions.
-      </p>
-
-      {/* Donation Purpose Selection */}
-      {purposes.length > 0 && (
-        <div className="mt-6">
-          <label className="block text-sm font-medium text-stone-700 mb-3">
-            Select Donation Purpose
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {purposes.map((p) => (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {specialSevas.map((seva) => (
               <button
-                key={p.id}
+                key={seva.id}
                 type="button"
-                onClick={() => selectPurpose(p.title, p.suggestedAmount)}
-                className={`rounded-xl border p-4 text-left transition-all ${
-                  purpose === p.title
+                onClick={() => selectSeva(seva)}
+                className={`rounded-xl border-2 p-6 text-left transition-all ${
+                  selectedSevaId === seva.id
                     ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200"
                     : "border-stone-200 hover:border-amber-300 hover:bg-stone-50"
                 }`}
               >
-                <p className="font-medium text-stone-900">{p.title}</p>
-                <p className="mt-1 text-sm text-amber-600">₹{p.suggestedAmount}</p>
-                <p className="mt-2 text-xs text-stone-500 line-clamp-2">{p.description}</p>
+                <p className="text-lg font-semibold text-stone-900">{seva.title}</p>
+                <p className="mt-1 text-2xl font-bold text-amber-600">₹{seva.amount}</p>
+                <p className="mt-3 text-sm text-stone-500">{seva.description}</p>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="mt-8 space-y-6"
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Full Name"
-            required
-            value={donorName}
-            onChange={(e) =>
-              setDonorName(e.target.value)
-            }
-          />
-
-          <Input
-            label="Email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) =>
-              setEmail(e.target.value)
-            }
-          />
-
-          <Input
-            label="Phone"
-            required
-            value={phone}
-            onChange={(e) =>
-              setPhone(e.target.value)
-            }
-          />
-
-          <Input
-            label="Amount (₹)"
-            type="number"
-            min="1"
-            required
-            value={amount}
-            onChange={(e) =>
-              setAmount(e.target.value)
-            }
-          />
-        </div>
-
-        <Input
-          label="Address"
-          value={address}
-          onChange={(e) =>
-            setAddress(e.target.value)
-          }
-        />
-
-        <Input
-          label="Donation Purpose"
-          placeholder="Select or type a purpose..."
-          value={purpose}
-          onChange={(e) =>
-            setPurpose(e.target.value)
-          }
-        />
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-stone-700">
-            Payment Mode
-          </label>
-
-          <select
-            value={paymentMode}
-            onChange={(e) =>
-              setPaymentMode(
-                e.target.value as PaymentMode
-              )
-            }
-            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
-          >
-            {paymentModeOptions.map(
-              (option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              )
+      {/* Payment Details */}
+      {(upiEnabled || bankTransferEnabled) && amount && (
+        <div className="rounded-3xl border border-stone-200 bg-gradient-to-br from-amber-50 to-orange-50 p-8 shadow-sm">
+          <h3 className="text-xl font-semibold text-stone-900 mb-4">Make Payment</h3>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            {upiEnabled && upiDetails.id && (
+              <div className="rounded-xl border border-green-200 bg-white p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-700">UPI Payment</span>
+                  <button
+                    onClick={() => copyToClipboard(upiDetails.id, "upi")}
+                    className="text-green-600 hover:text-green-800"
+                  >
+                    {copiedUpi ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-lg font-semibold text-stone-900">{upiDetails.id}</p>
+                <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
+                <p className="mt-2 text-xs text-stone-400">Pay using any UPI app</p>
+              </div>
             )}
-          </select>
+
+            {bankTransferEnabled && bankDetails.accountNumber && (
+              <div className="rounded-xl border border-blue-200 bg-white p-4">
+                <span className="text-sm font-medium text-blue-700">Bank Transfer</span>
+                <div className="mt-2 space-y-1 text-sm">
+                  <p><span className="text-stone-500">A/C:</span> <span className="font-medium">{bankDetails.accountNumber}</span></p>
+                  <p><span className="text-stone-500">Name:</span> {bankDetails.accountName}</p>
+                  <p><span className="text-stone-500">Bank:</span> {bankDetails.bankName}</p>
+                  <p><span className="text-stone-500">IFSC:</span> {bankDetails.ifscCode}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <p className="mt-4 text-sm text-stone-600">
+            After making payment, please fill the form below to confirm your donation.
+          </p>
         </div>
+      )}
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-stone-700">
-            Message
-          </label>
+      {/* Donation Form */}
+      <div className="rounded-3xl border border-stone-200 bg-white p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold text-stone-900">
+          Confirm Your Donation
+        </h2>
 
-          <Textarea
-            rows={4}
-            value={message}
+        <form
+          onSubmit={handleSubmit}
+          className="mt-6 space-y-6"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Full Name"
+              required
+              value={donorName}
+              onChange={(e) =>
+                setDonorName(e.target.value)
+              }
+            />
+
+            <Input
+              label="Email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+            />
+
+            <Input
+              label="Phone"
+              required
+              value={phone}
+              onChange={(e) =>
+                setPhone(e.target.value)
+              }
+            />
+
+            <Input
+              label="Amount (₹)"
+              type="number"
+              min="1"
+              required
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setSelectedSevaId(null);
+              }}
+            />
+          </div>
+
+          <Input
+            label="Address"
+            value={address}
             onChange={(e) =>
-              setMessage(e.target.value)
+              setAddress(e.target.value)
             }
           />
-        </div>
 
-        <Button
-          type="submit"
-          loading={submitting}
-        >
-          Submit Donation Request
-        </Button>
-      </form>
+          <Input
+            label="Donation Purpose"
+            placeholder="Select or type a purpose..."
+            value={purpose}
+            onChange={(e) =>
+              setPurpose(e.target.value)
+            }
+          />
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-stone-700">
+              Payment Mode
+            </label>
+
+            <select
+              value={paymentMode}
+              onChange={(e) =>
+                setPaymentMode(
+                  e.target.value as PaymentMode
+                )
+              }
+              className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+            >
+              {upiEnabled && <option value="upi">UPI</option>}
+              {bankTransferEnabled && <option value="bank_transfer">Bank Transfer</option>}
+              <option value="cash">Cash</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-stone-700">
+              Message (Optional)
+            </label>
+
+            <Textarea
+              rows={4}
+              value={message}
+              onChange={(e) =>
+                setMessage(e.target.value)
+              }
+              placeholder="Add a message with your donation..."
+            />
+          </div>
+
+          <Button
+            type="submit"
+            loading={submitting}
+            className="w-full"
+          >
+            Submit Donation Request
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
