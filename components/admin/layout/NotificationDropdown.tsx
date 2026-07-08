@@ -1,12 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bell, Heart, X } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Bell, Heart, X, Inbox } from "lucide-react";
 import { useDonationNotifications } from "@/hooks/useDonationNotifications";
 
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
 export default function NotificationDropdown() {
-  const { notifications, unreadCount, loading, error, markAsRead, markAllAsRead } = useDonationNotifications();
+  const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useDonationNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -48,42 +61,40 @@ export default function NotificationDropdown() {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {loading ? (
               <div className="p-8 text-center text-stone-500">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent"></div>
+                <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-amber-600 border-t-transparent"></div>
                 <p className="mt-2 text-sm">Loading...</p>
-              </div>
-            ) : error ? (
-              <div className="p-8 text-center text-stone-500">
-                <Bell className="mx-auto h-8 w-8 text-stone-300" />
-                <p className="mt-2 text-sm">{error}</p>
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-stone-500">
-                <Heart className="mx-auto h-8 w-8 text-stone-300" />
-                <p className="mt-2 text-sm">No recent donations</p>
+                <Inbox className="mx-auto h-10 w-10 text-stone-300" />
+                <p className="mt-3 font-medium text-stone-600">No recent donations</p>
+                <p className="mt-1 text-xs text-stone-400">
+                  New donations will appear here
+                </p>
               </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className="flex gap-3 border-b px-4 py-3 hover:bg-stone-50"
+                  className="flex gap-3 border-b px-4 py-3 hover:bg-stone-50 last:border-b-0"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
                     <Heart className="h-5 w-5 text-amber-600" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-stone-900">
-                      New Donation
+                      {notification.donorName}
                     </p>
-                    <p className="text-sm text-stone-600 truncate">
-                      {notification.donorName} donated ₹{notification.amount}
+                    <p className="text-sm text-amber-600 font-semibold">
+                      ₹{notification.amount.toLocaleString()}
                     </p>
                     <div className="mt-1 flex items-center gap-2 text-xs text-stone-400">
-                      <span>{notification.purpose || "General"}</span>
+                      <span className="truncate">{notification.purpose}</span>
                       <span>•</span>
-                      <span>{formatDistanceToNow(notification.createdAt, { addSuffix: true })}</span>
+                      <span>{formatTimeAgo(notification.createdAt)}</span>
                     </div>
                   </div>
                   <button
@@ -91,7 +102,7 @@ export default function NotificationDropdown() {
                       e.stopPropagation();
                       markAsRead(notification.id);
                     }}
-                    className="shrink-0 text-stone-400 hover:text-stone-600"
+                    className="shrink-0 text-stone-400 hover:text-stone-600 p-1"
                   >
                     <X className="h-4 w-4" />
                   </button>
