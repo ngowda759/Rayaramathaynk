@@ -93,7 +93,7 @@ export default function Hero() {
 
             </div>
 
-            <h1 className="mt-8 text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-stone-900 leading-tight break-words">
+            <h1 className="mt-8 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-stone-900">
 
               {heroTitle}
 
