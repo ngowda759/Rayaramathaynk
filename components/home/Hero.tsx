@@ -140,7 +140,7 @@ export default function Hero() {
                   <Clock3 className="text-amber-600" size={18} />
 
                   <span className="font-semibold text-stone-900">
-                    Temple Status
+                    Temple Timings
                   </span>
 
                 </div>
@@ -149,13 +149,14 @@ export default function Hero() {
                   {templeStatus}
                 </p>
 
-                <p className="mt-2 text-sm text-stone-600">
-                  {isTempleOpen ? "Morning" : "Closed for Darshan"}
-                </p>
-
-                <p className="font-medium text-stone-800">
-                  {homepage?.morningOpen ?? "06:00 AM"} - {homepage?.morningClose ?? "01:00 PM"}
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-stone-600">
+                    Morning: {homepage?.morningOpen ?? "06:00 AM"} - {homepage?.morningClose ?? "01:00 PM"}
+                  </p>
+                  <p className="text-sm text-stone-600">
+                    Evening: {homepage?.eveningOpen ?? "04:00 PM"} - {homepage?.eveningClose ?? "08:00 PM"}
+                  </p>
+                </div>
 
               </div>
 
