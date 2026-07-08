@@ -31,13 +31,14 @@ export default function AdminShell({ children }: Props) {
         />
       )}
 
-      {/* Sidebar - Desktop: always visible, Mobile: drawer */}
+      {/* Sidebar - Desktop: always visible at fixed position, Mobile: drawer */}
       <AdminSidebar
         isOpen={isSidebarOpen}
         onClose={closeSidebar}
       />
 
-      <div className="flex flex-1 flex-col">
+      {/* Main Content - offset by sidebar width on desktop */}
+      <div className="flex flex-1 flex-col lg:pl-72">
         <AdminHeader onMenuClick={toggleSidebar} />
 
         <main className="flex-1 p-4 md:p-6">

@@ -18,10 +18,10 @@ export default function WelcomeBanner() {
   else if (hour < 17) greeting = "Good Afternoon";
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-r from-orange-500 to-amber-500 p-8 text-white shadow-lg">
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold">
-          {greeting}, Naveen 👋
+    <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-r from-orange-500 to-amber-500 p-6 md:p-8 text-white shadow-lg w-full">
+      <div className="relative z-10 space-y-2">
+        <h1 className="text-3xl md:text-4xl font-bold">
+          {greeting}, Administrator 👋
         </h1>
 
         <div className="flex items-center gap-2 text-orange-100">
@@ -31,11 +31,11 @@ export default function WelcomeBanner() {
         </div>
 
         <p className="pt-2 text-orange-50">
-          Welcome back to the Sri Raghavendra Temple Administration Portal.
+          Welcome back to the Temple Administration Portal.
         </p>
       </div>
 
-      <div className="absolute right-6 top-6 text-8xl opacity-10">
+      <div className="absolute right-4 md:right-6 top-4 md:top-6 text-6xl md:text-8xl opacity-10">
         🏛
       </div>
     </div>
