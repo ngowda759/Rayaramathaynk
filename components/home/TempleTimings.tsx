@@ -9,21 +9,50 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-const morningSchedule = [
-  "Suprabhata Seva",
-  "Alankara",
-  "Darshan",
-  "Theertha & Prasada",
-];
-
-const eveningSchedule = [
-  "Evening Pooja",
-  "Mangalarati",
-  "Darshan",
-  "Temple Closing",
-];
+import { useHomepage } from "@/hooks/useHomepage";
 
 export default function TempleTimings() {
+  const { homepage, loading } = useHomepage();
+
+  if (loading) {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#fff8ef] via-white to-[#fffdf8] py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const morningOpen = homepage?.morningOpen ?? "06:00 AM";
+  const morningClose = homepage?.morningClose ?? "01:00 PM";
+  const eveningOpen = homepage?.eveningOpen ?? "04:30 PM";
+  const eveningClose = homepage?.eveningClose ?? "08:30 PM";
+
+  const morningSchedule = homepage?.morningSchedule ?? [
+    "Suprabhata Seva",
+    "Alankara",
+    "Darshan",
+    "Theertha & Prasada",
+  ];
+
+  const eveningSchedule = homepage?.eveningSchedule ?? [
+    "Evening Pooja",
+    "Mangalarati",
+    "Darshan",
+    "Temple Closing",
+  ];
+
+  const festivalScheduleNote = homepage?.festivalScheduleNote ??
+    "Temple timings may be extended during festivals, Raghavendra Swamygala Aaradhane, Navaratri and other special occasions. Please check announcements before visiting.";
+
+  const isTempleOpen = homepage?.isTempleOpen ?? true;
+  const totalHours = isTempleOpen
+    ? `${morningOpen} - ${eveningClose}`
+    : "Closed";
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#fff8ef] via-white to-[#fffdf8] py-24">
 
@@ -71,7 +100,7 @@ export default function TempleTimings() {
                 </p>
 
                 <h3 className="mt-2 text-4xl font-bold text-stone-900">
-                  6:00 AM – 1:00 PM
+                  {morningOpen} – {morningClose}
                 </h3>
 
               </div>
@@ -126,7 +155,7 @@ export default function TempleTimings() {
                 </p>
 
                 <h3 className="mt-2 text-4xl font-bold text-stone-900">
-                  4:30 PM – 8:30 PM
+                  {eveningOpen} – {eveningClose}
                 </h3>
 
               </div>
@@ -185,10 +214,7 @@ export default function TempleTimings() {
                 </h3>
 
                 <p className="mt-2 max-w-2xl text-amber-100">
-                  Temple timings may be extended during festivals,
-                  Raghavendra Swamygala Aaradhane, Navaratri and other special
-                  occasions. Please check announcements before
-                  visiting.
+                  {festivalScheduleNote}
                 </p>
 
               </div>
@@ -206,8 +232,8 @@ export default function TempleTimings() {
                 Temple Open Today
               </p>
 
-              <p className="text-green-600 font-semibold">
-                6:00 AM – 8:30 PM
+              <p className={`font-semibold ${isTempleOpen ? "text-green-600" : "text-red-600"}`}>
+                {totalHours}
               </p>
 
             </div>

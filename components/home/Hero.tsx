@@ -41,6 +41,16 @@ export default function Hero() {
     homepage?.announcement ??
     "Om Sri Raghavendraya Namaha";
 
+  const isTempleOpen = homepage?.isTempleOpen ?? true;
+  const templeStatus = isTempleOpen ? "OPEN" : "CLOSED";
+  const statusColor = isTempleOpen ? "text-green-600" : "text-red-600";
+
+  const todaySeva = homepage?.todaySeva ?? "Daily Pooja Morning";
+  const todaySevaTime = homepage?.todaySevaTime ?? "09:30 AM";
+
+  const featuredFestival = homepage?.featuredFestival ?? "";
+  const featuredFestivalDescription = homepage?.featuredFestivalDescription ?? "Coming Soon";
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#fffaf3] via-[#fff7eb] to-[#fdeed6]">
 
@@ -121,7 +131,7 @@ export default function Hero() {
 
             </div>
 
-	                <div className="mt-12 grid gap-4 md:grid-cols-3">
+            <div className="mt-12 grid gap-4 md:grid-cols-3">
 
               <div className="rounded-3xl border border-amber-200 bg-white/70 p-5 backdrop-blur">
 
@@ -135,16 +145,16 @@ export default function Hero() {
 
                 </div>
 
-                <p className="text-2xl font-bold text-green-600">
-                  OPEN
+                <p className={`text-2xl font-bold ${statusColor}`}>
+                  {templeStatus}
                 </p>
 
                 <p className="mt-2 text-sm text-stone-600">
-                  Morning
+                  {isTempleOpen ? "Morning" : "Closed for Darshan"}
                 </p>
 
                 <p className="font-medium text-stone-800">
-                  06:00 AM - 01:00 PM
+                  {homepage?.morningOpen ?? "06:00 AM"} - {homepage?.morningClose ?? "01:00 PM"}
                 </p>
 
               </div>
@@ -162,11 +172,11 @@ export default function Hero() {
                 </div>
 
                 <p className="text-lg font-semibold text-stone-900">
-                  Daily Pooja Morning
+                  {todaySeva}
                 </p>
 
                 <p className="mt-2 text-sm text-stone-600">
-                  09:30 AM
+                  {todaySevaTime}
                 </p>
 
               </div>
@@ -184,11 +194,11 @@ export default function Hero() {
                 </div>
 
                 <p className="text-lg font-semibold text-stone-900">
-                  Raghavendra Swamygala Aaradhane
+                  {featuredFestival || "No Festival"}
                 </p>
 
                 <p className="mt-2 text-sm text-stone-600">
-                  Coming Soon
+                  {featuredFestivalDescription}
                 </p>
 
               </div>

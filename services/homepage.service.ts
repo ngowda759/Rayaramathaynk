@@ -71,6 +71,29 @@ class HomepageService {
       heroSecondaryButton: "Donate",
 
       footerCopyright: "",
+
+      // Hero Quick Info Cards
+      todaySeva: "Daily Pooja Morning",
+      todaySevaTime: "09:30 AM",
+      featuredFestivalDescription: "Coming Soon",
+
+      // Temple Timings Schedule
+      morningSchedule: [
+        "Suprabhata Seva",
+        "Alankara",
+        "Darshan",
+        "Theertha & Prasada",
+      ],
+      eveningSchedule: [
+        "Evening Pooja",
+        "Mangalarati",
+        "Darshan",
+        "Temple Closing",
+      ],
+
+      // Festival Schedule
+      festivalScheduleNote:
+        "Temple timings may be extended during festivals, Raghavendra Swamygala Aaradhane, Navaratri and other special occasions. Please check announcements before visiting.",
     };
   }
 }

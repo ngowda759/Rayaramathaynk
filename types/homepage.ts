@@ -28,6 +28,24 @@ export interface HomepageConfig {
   footerCopyright: string;
 
   /**
+   * Hero Quick Info Cards - Today's Seva & Festival
+   */
+  todaySeva: string;
+  todaySevaTime: string;
+  featuredFestivalDescription: string;
+
+  /**
+   * Temple Timings Schedule Items
+   */
+  morningSchedule: string[];
+  eveningSchedule: string[];
+
+  /**
+   * Festival Schedule Note
+   */
+  festivalScheduleNote: string;
+
+  /**
    * Future Homepage CMS fields
    * These are optional to remain backward compatible
    */
