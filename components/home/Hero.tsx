@@ -259,15 +259,16 @@ export default function Hero() {
 
             <div className="absolute h-[520px] w-[520px] rounded-full bg-amber-300 blur-[140px] opacity-40" />
 
-            <Image
-              src="/images/Hero.jpg"
-              alt="Temple Hero"
-              width={520}
-              height={760}
-              priority
-              sizes="(max-width: 768px) 100vw, 520px"
-              className="relative z-10 drop-shadow-2xl rounded-lg"
-            />
+            <div className="relative z-10 h-[760px] w-[520px] overflow-hidden rounded-lg shadow-2xl">
+              <Image
+                src="/images/Hero.jpg"
+                alt="Temple Hero"
+                fill
+                priority
+                sizes="520px"
+                className="object-cover"
+              />
+            </div>
 
           </motion.div>
 
