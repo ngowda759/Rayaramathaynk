@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useDonationNotifications } from "@/hooks/useDonationNotifications";
 
 export default function NotificationDropdown() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useDonationNotifications();
+  const { notifications, unreadCount, loading, error, markAsRead, markAllAsRead } = useDonationNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -49,7 +49,17 @@ export default function NotificationDropdown() {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {loading ? (
+              <div className="p-8 text-center text-stone-500">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent"></div>
+                <p className="mt-2 text-sm">Loading...</p>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center text-stone-500">
+                <Bell className="mx-auto h-8 w-8 text-stone-300" />
+                <p className="mt-2 text-sm">{error}</p>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-stone-500">
                 <Heart className="mx-auto h-8 w-8 text-stone-300" />
                 <p className="mt-2 text-sm">No recent donations</p>
