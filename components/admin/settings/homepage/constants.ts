@@ -69,10 +69,16 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
   },
 
   donationCTA: {
-    title: "Support Rayara Math",
-    description:
-      "Help preserve our traditions through your generous contribution.",
-    buttonText: "Donate Now",
+    title: "SUPPORT THE TEMPLE",
+    subtitle: "Every Contribution Matters",
+    items: [
+      { id: "1", title: "Annadanam", amount: "501", description: "Sponsor prasada and meals for devotees visiting the temple." },
+      { id: "2", title: "Goshala", amount: "1001", description: "Support the care and maintenance of our sacred cows." },
+      { id: "3", title: "Temple Development", amount: "5001", description: "Contribute towards renovation and future development projects." },
+    ],
+    ctaTitle: "Be a Part of Divine Service",
+    ctaDescription: "Every offering, regardless of its size, supports the temple's daily rituals, festivals and charitable activities for the benefit of all devotees.",
+    ctaButtonText: "Donate Now",
   },
 };
 

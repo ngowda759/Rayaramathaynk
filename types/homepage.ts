@@ -67,9 +67,19 @@ export interface HomepageConfig {
 
   donationCTA?: {
     title: string;
-    description: string;
-    buttonText: string;
+    subtitle: string;
+    items: DonationItem[];
+    ctaTitle: string;
+    ctaDescription: string;
+    ctaButtonText: string;
   };
 
   updatedAt?: any;
+}
+
+export interface DonationItem {
+  id: string;
+  title: string;
+  amount: string;
+  description: string;
 }
