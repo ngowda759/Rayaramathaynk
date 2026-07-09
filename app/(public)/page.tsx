@@ -2,7 +2,6 @@ import Navbar from "@/components/layout/Navbar";
 import Hero from "@/components/home/Hero";
 import TempleMap from "@/components/home/TempleMap";
 import FeaturedSevas from "@/components/home/FeaturedSevas";
-import TempleTimings from "@/components/home/TempleTimings";
 import AnnouncementBar from "@/components/home/AnnouncementBar";
 import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GalleryPreview from "@/components/home/GalleryPreview";
@@ -20,7 +19,6 @@ export default function Home() {
       <Panchanga />
       <TempleMap />
       <FeaturedSevas />
-      <TempleTimings />
       <CalendarCenter />
       <UpcomingEvents />
       <GalleryPreview />
