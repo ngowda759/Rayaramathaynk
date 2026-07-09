@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
 
 interface DonationNotification {
   id: string;
@@ -26,42 +25,35 @@ export function useDonationNotifications() {
         setLoading(true);
         setError(null);
         
-        const { collection, query, orderBy, limit, getDocs } = await import("firebase/firestore");
+        const { donationService } = await import("@/services/donation.service");
+        const donations = await donationService.getDonations();
         
-        const donationsRef = collection(db, "donations");
-        const donationsQuery = query(
-          donationsRef,
-          orderBy("createdAt", "desc"),
-          limit(20)
-        );
-
-        const snapshot = await getDocs(donationsQuery);
+        const recentDonations: DonationNotification[] = [];
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
         
-        const donations: DonationNotification[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          // Only show donations from last 7 days
-          const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now());
-          const daysDiff = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+        donations.forEach((donation) => {
+          const createdAt = donation.createdAt 
+            ? new Date(donation.createdAt) 
+            : new Date();
           
-          if (daysDiff <= 7) {
-            donations.push({
-              id: doc.id,
-              donorName: data.donorName || "Anonymous",
-              amount: data.amount || 0,
-              purpose: data.purpose || "General Donation",
-              paymentMode: data.paymentMode || "unknown",
+          if (createdAt.getTime() >= sevenDaysAgo) {
+            recentDonations.push({
+              id: donation.id,
+              donorName: donation.donorName || "Anonymous",
+              amount: donation.amount || 0,
+              purpose: donation.purpose || "General Donation",
+              paymentMode: donation.paymentMode || "unknown",
               createdAt,
             });
           }
         });
         
-        setNotifications(donations);
-        setUnreadCount(donations.length);
+        setNotifications(recentDonations);
+        setUnreadCount(recentDonations.length);
         setLoading(false);
       } catch (err: any) {
         console.log("Donation notifications unavailable:", err?.message);
-        setError(null); // Don't show error, just empty state
+        setError(null);
         setNotifications([]);
         setUnreadCount(0);
         setLoading(false);

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Timestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 import { TempleEvent } from "@/types/event";
@@ -17,17 +16,11 @@ interface EventFormProps {
 }
 
 function toJsDate(
-  value: Timestamp | { seconds: number; nanoseconds?: number } | string | number | null | undefined
+  value: string | Date | null | undefined
 ): Date | null {
   if (!value) return null;
 
-  if (typeof (value as Timestamp)?.toDate === "function") {
-    return (value as Timestamp).toDate();
-  }
-
-  if (typeof (value as { seconds: number }).seconds === "number") {
-    return new Date((value as { seconds: number }).seconds * 1000);
-  }
+  if (value instanceof Date) return value;
 
   if (typeof value === "string" || typeof value === "number") {
     const d = new Date(value);
@@ -38,7 +31,7 @@ function toJsDate(
 }
 
 function toDateTimeInputs(
-  timestamp?: Timestamp | { seconds: number; nanoseconds?: number } | string | null
+  timestamp?: string | Date | null
 ) {
   const d = toJsDate(timestamp);
 
@@ -56,7 +49,7 @@ function toDateTimeInputs(
   return { date, time };
 }
 
-function toTimestamp(date: string, time: string): Timestamp | null {
+function toISOString(date: string, time: string): string | null {
   if (!date) return null;
 
   const [hours, minutes] = time ? time.split(":").map(Number) : [0, 0];
@@ -64,7 +57,7 @@ function toTimestamp(date: string, time: string): Timestamp | null {
 
   const combined = new Date(year, month - 1, day, hours || 0, minutes || 0);
 
-  return Timestamp.fromDate(combined);
+  return combined.toISOString();
 }
 
 export default function EventForm({
@@ -115,10 +108,10 @@ export default function EventForm({
     }
 
     if (form.startDate && form.endDate) {
-      const start = toTimestamp(form.startDate, form.startTime);
-      const end = toTimestamp(form.endDate, form.endTime);
+      const start = toISOString(form.startDate, form.startTime);
+      const end = toISOString(form.endDate, form.endTime);
 
-      if (start && end && end.toMillis() < start.toMillis()) {
+      if (start && end && end < start) {
         validationErrors.endDate = "End date must be on or after the start date.";
       }
     }
@@ -138,10 +131,10 @@ export default function EventForm({
     setLoading(true);
 
     try {
-      const startTimestamp = toTimestamp(form.startDate, form.startTime);
-      const endTimestamp = toTimestamp(form.endDate, form.endTime);
+      const startDate = toISOString(form.startDate, form.startTime);
+      const endDate = toISOString(form.endDate, form.endTime);
 
-      if (!startTimestamp || !endTimestamp) {
+      if (!startDate || !endDate) {
         alert("Please provide valid start and end dates.");
         return;
       }
@@ -151,8 +144,8 @@ export default function EventForm({
           title: form.title,
           description: form.description,
           location: form.location,
-          startDate: startTimestamp,
-          endDate: endTimestamp,
+          startDate: startDate,
+          endDate: endDate,
 	  featured: form.featured,
           published: true,
         });
@@ -167,8 +160,8 @@ export default function EventForm({
 
           status: "Upcoming",
 
-          startDate: startTimestamp,
-          endDate: endTimestamp,
+          startDate: startDate,
+          endDate: endDate,
         });
       }
 

@@ -1,4 +1,6 @@
-import { Timestamp } from "firebase/firestore";
+// Note: Timestamp from firebase/firestore is no longer imported here
+// Dates are stored as ISO strings for JSON compatibility
+// This makes it easy to migrate to SQL later
 
 export type EventStatus =
   | "Upcoming"
@@ -14,9 +16,9 @@ export interface TempleEvent {
 
   location: string;
 
-  // Event Dates
-  startDate: Timestamp;
-  endDate: Timestamp;
+  // Event Dates - stored as ISO strings for JSON compatibility
+  startDate: string | Date;
+  endDate: string | Date;
 
   // Event Time
   startTime?: string;
@@ -35,6 +37,6 @@ export interface TempleEvent {
   // Legacy (will be removed later)
   status: EventStatus;
 
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }

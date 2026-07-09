@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
 
-import { db } from "@/lib/firebase";
 import { GalleryMedia } from "@/types/gallery";
+import { galleryService } from "@/services/gallery.service";
 
 export function useGallery(
   featuredOnly = false,
@@ -20,43 +13,29 @@ export function useGallery(
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let q;
+    async function loadGallery() {
+      try {
+        let items: GalleryMedia[];
 
-    if (albumId) {
-      q = query(
-        collection(db, "galleryMedia"),
-        where("albumId", "==", albumId),
-        orderBy("displayOrder", "asc")
-      );
-    } else {
-      q = query(
-        collection(db, "galleryMedia"),
-        orderBy("displayOrder", "asc")
-      );
-    }
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        let items = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<GalleryMedia, "id">),
-        }));
+        if (albumId) {
+          items = await galleryService.getMediaByAlbum(albumId);
+        } else {
+          items = await galleryService.getMedia();
+        }
 
         if (featuredOnly) {
           items = items.filter((item) => item.isFeatured);
         }
 
         setMedia(items);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Gallery listener:", error);
+      } catch (error) {
+        console.error("Error loading gallery:", error);
+      } finally {
         setLoading(false);
       }
-    );
+    }
 
-    return () => unsubscribe();
+    loadGallery();
   }, [featuredOnly, albumId]);
 
   return {

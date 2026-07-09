@@ -1,42 +1,44 @@
-import { collection, getDocs, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { DashboardStats } from "@/types/dashboard";
+
+import {
+  eventsRepository,
+  sevasRepository,
+  galleryRepository,
+  announcementsRepository,
+  timingsRepository,
+  donationsRepository,
+  sevaBookingsRepository,
+} from "@/repositories";
 
 class DashboardService {
   async getStats(): Promise<DashboardStats> {
-    const collections = [
-      "users",
-      "events", 
-      "sevas",
-      "gallery",
-      "announcements",
-      "timings",
-      "donations",
-      "sevaBookings"
-    ];
-
-    const counts = await Promise.all(
-      collections.map(async (col) => {
-        try {
-          const q = query(collection(db, col));
-          const snapshot = await getDocs(q);
-          return snapshot.size;
-        } catch (error) {
-          console.error(`Error fetching ${col}:`, error);
-          return 0;
-        }
-      })
-    );
+    const [
+      events,
+      sevas,
+      gallery,
+      announcements,
+      timings,
+      donations,
+      bookings,
+    ] = await Promise.all([
+      eventsRepository.count(),
+      sevasRepository.count(),
+      galleryRepository.countMedia(),
+      announcementsRepository.count(),
+      timingsRepository.count(),
+      donationsRepository.count(),
+      sevaBookingsRepository.count(),
+    ]);
 
     return {
-      totalUsers: counts[0],
-      totalEvents: counts[1],
-      totalSevas: counts[2],
-      totalGalleryImages: counts[3],
-      totalAnnouncements: counts[4],
-      totalTimings: counts[5],
-      totalDonations: counts[6],
-      totalSevaBookings: counts[7],
+      totalUsers: 0, // Users come from Firebase Auth
+      totalEvents: events,
+      totalSevas: sevas,
+      totalGalleryImages: gallery,
+      totalAnnouncements: announcements,
+      totalTimings: timings,
+      totalDonations: donations,
+      totalSevaBookings: bookings,
     };
   }
 }

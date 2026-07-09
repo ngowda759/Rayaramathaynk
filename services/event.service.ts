@@ -1,18 +1,6 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
 import { TempleEvent } from "@/types/event";
 
-const COLLECTION = "events";
+import { eventsRepository } from "@/repositories";
 
 class EventService {
   // ============================
@@ -20,42 +8,23 @@ class EventService {
   // ============================
 
   async getEvents(): Promise<TempleEvent[]> {
-    const snapshot = await getDocs(collection(db, COLLECTION));
-
-    return snapshot.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    })) as TempleEvent[];
+    return eventsRepository.getAll();
   }
 
   async getEvent(id: string): Promise<TempleEvent | null> {
-    const snap = await getDoc(doc(db, COLLECTION, id));
-
-    if (!snap.exists()) return null;
-
-    return {
-      id: snap.id,
-      ...snap.data(),
-    } as TempleEvent;
+    return eventsRepository.getById(id);
   }
 
   async addEvent(event: TempleEvent) {
-    return addDoc(collection(db, COLLECTION), {
-      ...event,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    return eventsRepository.create(event);
   }
 
   async updateEvent(id: string, event: Partial<TempleEvent>) {
-    return updateDoc(doc(db, COLLECTION, id), {
-      ...event,
-      updatedAt: serverTimestamp(),
-    });
+    return eventsRepository.update(id, event);
   }
 
   async deleteEvent(id: string) {
-    return deleteDoc(doc(db, COLLECTION, id));
+    return eventsRepository.delete(id);
   }
 
   // ============================
@@ -63,45 +32,19 @@ class EventService {
   // ============================
 
   async getPublishedEvents(): Promise<TempleEvent[]> {
-    const events = await this.getEvents();
-
-    return events
-      .filter((event) => event.published !== false)
-      .sort(
-        (a, b) =>
-          a.startDate.toDate().getTime() -
-          b.startDate.toDate().getTime()
-      );
+    return eventsRepository.getPublished();
   }
 
   async getUpcomingEvents(max = 3): Promise<TempleEvent[]> {
-    const now = new Date();
-
-    const events = await this.getPublishedEvents();
-
-    return events
-      .filter((event) => event.endDate.toDate() >= now)
-      .slice(0, max);
+    return eventsRepository.getUpcoming(max);
   }
 
   async getPastEvents(): Promise<TempleEvent[]> {
-    const now = new Date();
-
-    const events = await this.getPublishedEvents();
-
-    return events
-      .filter((event) => event.endDate.toDate() < now)
-      .sort(
-        (a, b) =>
-          b.startDate.toDate().getTime() -
-          a.startDate.toDate().getTime()
-      );
+    return eventsRepository.getPast();
   }
 
   async getFeaturedEvent(): Promise<TempleEvent | null> {
-    const events = await this.getPublishedEvents();
-
-    return events.find((event) => event.featured) ?? null;
+    return eventsRepository.getFeatured();
   }
 }
 

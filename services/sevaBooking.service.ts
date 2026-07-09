@@ -1,129 +1,43 @@
 import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
-
-import {
   SevaBooking,
   SevaBookingRequest,
   SevaBookingStatus,
   PaymentStatus,
 } from "@/types/seva-booking";
 
-const COLLECTION_NAME = "sevaBookings";
-
-function docToBooking(docSnap: any): SevaBooking {
-  const data = docSnap.data();
-
-  return {
-    id: docSnap.id,
-    sevaId: data.sevaId || "",
-    sevaTitle: data.sevaTitle || "",
-    sevaAmount: data.sevaAmount ?? 0,
-    userId: data.userId || "",
-    userName: data.userName || "",
-    userEmail: data.userEmail || "",
-    userPhone: data.userPhone || "",
-    preferredDate: data.preferredDate || "",
-    notes: data.notes || "",
-    status: data.status || "pending",
-    paymentReference: data.paymentReference || "",
-    paymentStatus: data.paymentStatus || "pending",
-    paymentDate: data.paymentDate || "",
-    paymentMethod: data.paymentMethod || "",
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || "",
-    updatedAt: data.updatedAt?.toDate
-      ? data.updatedAt.toDate().toISOString()
-      : data.updatedAt || "",
-  };
-}
+import { sevaBookingsRepository } from "@/repositories";
 
 class SevaBookingService {
   async createBooking(
     data: SevaBookingRequest
   ): Promise<string> {
-    const docRef = await addDoc(
-      collection(db, COLLECTION_NAME),
-      {
-        ...data,
-        status: "pending",
-        paymentReference: "",
-        paymentStatus: "pending",
-        paymentDate: "",
-        paymentMethod: "",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }
-    );
-
-    return docRef.id;
+    const result = await sevaBookingsRepository.create(data);
+    return result.id;
   }
 
   async getAllBookings(): Promise<
     SevaBooking[]
   > {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy("createdAt", "desc")
-    );
-
-    const snapshot = await getDocs(q);
-
-    return snapshot.docs.map(docToBooking);
+    return sevaBookingsRepository.getAll();
   }
 
   async getBookingsByUser(
     userId: string
   ): Promise<SevaBooking[]> {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc")
-    );
-
-    const snapshot = await getDocs(q);
-
-    return snapshot.docs.map(docToBooking);
+    return sevaBookingsRepository.getByUser(userId);
   }
 
   async getBookingById(
     bookingId: string
   ): Promise<SevaBooking | null> {
-    const snapshot = await getDoc(
-      doc(db, COLLECTION_NAME, bookingId)
-    );
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return docToBooking(snapshot);
+    return sevaBookingsRepository.getById(bookingId);
   }
 
   async updateBookingStatus(
     bookingId: string,
     status: SevaBookingStatus
   ): Promise<void> {
-    await updateDoc(
-      doc(db, COLLECTION_NAME, bookingId),
-      {
-        status,
-        updatedAt: serverTimestamp(),
-      }
-    );
+    await sevaBookingsRepository.updateStatus(bookingId, status);
   }
 
   async updatePayment(
@@ -134,29 +48,13 @@ class SevaBookingService {
       paymentMethod: string;
     }
   ): Promise<void> {
-    await updateDoc(
-      doc(db, COLLECTION_NAME, bookingId),
-      {
-        paymentReference: paymentData.paymentReference,
-        paymentStatus: paymentData.paymentStatus,
-        paymentMethod: paymentData.paymentMethod,
-        paymentDate: paymentData.paymentStatus === "completed" 
-          ? new Date().toISOString() 
-          : "",
-        status: paymentData.paymentStatus === "completed" 
-          ? "confirmed" 
-          : "pending",
-        updatedAt: serverTimestamp(),
-      }
-    );
+    await sevaBookingsRepository.updatePayment(bookingId, paymentData);
   }
 
   async deleteBooking(
     bookingId: string
   ): Promise<void> {
-    await deleteDoc(
-      doc(db, COLLECTION_NAME, bookingId)
-    );
+    await sevaBookingsRepository.delete(bookingId);
   }
 }
 

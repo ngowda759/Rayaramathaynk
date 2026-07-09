@@ -1,81 +1,36 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { DailyPooja, PoojaStats } from "@/types/pooja";
 
-const COLLECTION_NAME = "dailyPoojas";
-
-function docToPooja(docSnap: any): DailyPooja {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    title: data.title || "",
-    description: data.description || "",
-    startTime: data.startTime || "",
-    duration: data.duration || "",
-    category: data.category || "Morning",
-    sevaAmount: data.sevaAmount ?? 0,
-    isActive: data.isActive ?? true,
-    displayOrder: data.displayOrder ?? 0,
-    days: data.days || ["All"],
-    notes: data.notes || "",
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || new Date().toISOString(),
-    createdBy: data.createdBy || "",
-  };
-}
+import { poojasRepository } from "@/repositories";
 
 export const poojaService = {
   async getPoojas(): Promise<DailyPooja[]> {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy("displayOrder", "asc")
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToPooja);
+    return poojasRepository.getAll();
   },
 
   async getPoojaById(id: string): Promise<DailyPooja | null> {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return docToPooja(docSnap);
+    return poojasRepository.getById(id);
   },
 
   async createPooja(
     data: Omit<DailyPooja, "id" | "createdAt" | "createdBy">,
     userEmail: string
   ): Promise<string> {
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+    const result = await poojasRepository.create({
       ...data,
       createdBy: userEmail,
-      createdAt: serverTimestamp(),
     });
-    return docRef.id;
+    return result.id;
   },
 
   async updatePooja(
     id: string,
     data: Partial<Omit<DailyPooja, "id" | "createdAt" | "createdBy">>
   ): Promise<void> {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await updateDoc(docRef, data);
+    await poojasRepository.update(id, data);
   },
 
   async deletePooja(id: string): Promise<void> {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(docRef);
+    await poojasRepository.delete(id);
   },
 
   async getStats(): Promise<PoojaStats> {

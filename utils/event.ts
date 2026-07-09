@@ -1,26 +1,38 @@
-import { Timestamp } from "firebase/firestore";
 import { TempleEvent, EventStatus } from "@/types/event";
+
+/**
+ * Converts a date value (string or Date) to a Date object
+ */
+function toDate(value: string | Date | undefined | null): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  try {
+    return new Date(value);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Returns the current status of an event
  * based on today's date.
  *
  * Null-safe: if startDate or endDate is missing/null
- * (e.g. legacy or malformed Firestore docs), falls back
+ * (e.g. legacy or malformed data), falls back
  * to "Upcoming" instead of throwing.
  */
 export function getEventStatus(
-  startDate: Timestamp | null | undefined,
-  endDate: Timestamp | null | undefined
+  startDate: string | Date | null | undefined,
+  endDate: string | Date | null | undefined
 ): EventStatus {
-  if (!startDate || !endDate) {
+  const start = toDate(startDate);
+  const end = toDate(endDate);
+
+  if (!start || !end) {
     return "Upcoming";
   }
 
   const today = new Date();
-
-  const start = startDate.toDate();
-  const end = endDate.toDate();
 
   // Ignore time when comparing dates
   today.setHours(0, 0, 0, 0);
@@ -43,13 +55,14 @@ export function getEventStatus(
  *
  * Null-safe: returns 0 if startDate is missing/null.
  */
-export function getDaysLeft(startDate: Timestamp | null | undefined): number {
-  if (!startDate) {
+export function getDaysLeft(startDate: string | Date | null | undefined): number {
+  const start = toDate(startDate);
+
+  if (!start) {
     return 0;
   }
 
   const today = new Date();
-  const start = startDate.toDate();
 
   today.setHours(0, 0, 0, 0);
   start.setHours(0, 0, 0, 0);
@@ -73,8 +86,10 @@ export function sortEventsByDate(
   events: TempleEvent[]
 ): TempleEvent[] {
   return [...events].sort((a, b) => {
-    const aTime = a.startDate?.toMillis?.() ?? 0;
-    const bTime = b.startDate?.toMillis?.() ?? 0;
+    const aDate = toDate(a.startDate);
+    const bDate = toDate(b.startDate);
+    const aTime = aDate?.getTime() ?? 0;
+    const bTime = bDate?.getTime() ?? 0;
     return aTime - bTime;
   });
 }

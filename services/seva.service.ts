@@ -1,62 +1,29 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
 import { Seva, SevaRequest } from "@/types/seva";
 
-const COLLECTION = "sevas";
+import { sevasRepository } from "@/repositories";
 
 class SevaService {
   async getAllSevas(): Promise<Seva[]> {
-    const snapshot = await getDocs(collection(db, COLLECTION));
-
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Seva[];
+    return sevasRepository.getAll();
   }
 
   async getSevaById(id: string): Promise<Seva | null> {
-    const snapshot = await getDoc(doc(db, COLLECTION, id));
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return {
-      id: snapshot.id,
-      ...snapshot.data(),
-    } as Seva;
+    return sevasRepository.getById(id);
   }
 
   async createSeva(data: SevaRequest) {
-    return addDoc(collection(db, COLLECTION), {
-      ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    return sevasRepository.create(data);
   }
 
   async updateSeva(
     id: string,
     data: Partial<SevaRequest>
   ) {
-    return updateDoc(doc(db, COLLECTION, id), {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
+    return sevasRepository.update(id, data);
   }
 
   async deleteSeva(id: string) {
-    return deleteDoc(doc(db, COLLECTION, id));
+    return sevasRepository.delete(id);
   }
 }
 

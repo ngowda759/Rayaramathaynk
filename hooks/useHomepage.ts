@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
 
-import { db } from "@/lib/firebase";
 import { HomepageConfig } from "@/types/homepage";
 import { homepageService } from "@/services/homepage.service";
 
@@ -12,38 +10,19 @@ export function useHomepage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let initialized = false;
-
-    const unsubscribe = onSnapshot(
-      doc(db, "homepage", "config"),
-      async (snapshot) => {
-        try {
-          if (snapshot.exists()) {
-            setHomepage({
-              ...homepageService.getDefaultConfig(),
-              ...(snapshot.data() as HomepageConfig),
-            });
-          } else {
-            setHomepage(homepageService.getDefaultConfig());
-          }
-        } catch (error) {
-          console.error("Homepage listener:", error);
-          setHomepage(homepageService.getDefaultConfig());
-        } finally {
-          if (!initialized) {
-            initialized = true;
-            setLoading(false);
-          }
-        }
-      },
-      (error) => {
-        console.error("Homepage listener:", error);
+    async function loadHomepage() {
+      try {
+        const data = await homepageService.getHomepage();
+        setHomepage(data);
+      } catch (error) {
+        console.error("Error loading homepage:", error);
         setHomepage(homepageService.getDefaultConfig());
+      } finally {
         setLoading(false);
       }
-    );
+    }
 
-    return () => unsubscribe();
+    loadHomepage();
   }, []);
 
   return {

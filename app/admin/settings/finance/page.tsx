@@ -3,12 +3,8 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Save, RotateCcw, Eye, EyeOff, CreditCard, Smartphone, Building } from "lucide-react";
 import toast from "react-hot-toast";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { FinanceSettings, SpecialSeva, defaultFinanceSettings } from "@/types/finance";
-
-const SETTINGS_DOC = "financeSettings";
-const SETTINGS_COLLECTION = "settings";
+import { settingsRepository } from "@/repositories";
 
 export default function FinanceSettingsPage() {
   const [settings, setSettings] = useState<FinanceSettings>(defaultFinanceSettings);
@@ -22,12 +18,8 @@ export default function FinanceSettingsPage() {
 
   async function loadSettings() {
     try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        setSettings({ ...defaultFinanceSettings, ...docSnap.data() } as FinanceSettings);
-      }
+      const data = await settingsRepository.getFinanceSettings();
+      setSettings(data);
     } catch (error) {
       console.error("Error loading settings:", error);
       toast.error("Failed to load settings");
@@ -39,11 +31,10 @@ export default function FinanceSettingsPage() {
   async function saveSettings() {
     setSaving(true);
     try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      await setDoc(docRef, {
+      await settingsRepository.updateFinanceSettings({
         ...settings,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      });
       
       toast.success("Finance settings saved successfully!");
     } catch (error) {

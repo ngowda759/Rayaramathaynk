@@ -1,12 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { FinanceSettings, defaultFinanceSettings } from "@/types/finance";
-
-const SETTINGS_DOC = "financeSettings";
-const SETTINGS_COLLECTION = "settings";
+import { settingsRepository } from "@/repositories";
 
 export function useFinanceSettings() {
   const [settings, setSettings] = useState<FinanceSettings>(defaultFinanceSettings);
@@ -15,13 +11,8 @@ export function useFinanceSettings() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          const data = docSnap.data() as FinanceSettings;
-          setSettings({ ...defaultFinanceSettings, ...data });
-        }
+        const data = await settingsRepository.getFinanceSettings();
+        setSettings(data);
       } catch (error) {
         console.error("Error loading finance settings:", error);
       } finally {
