@@ -9,12 +9,6 @@ import {
   Heart,
   ChevronRight,
 } from "lucide-react";
-import {
-  FaFacebookF,
-  FaInstagram,
-  FaYoutube,
-  FaWhatsapp,
-} from "react-icons/fa";
 
 const quickLinks = [
   { name: "Home", href: "/" },
@@ -245,65 +239,6 @@ export default function Footer() {
 
         </div>
 
-      </div>
-
-      {/* Social Icons Bar - Above Copyright */}
-      <div className="border-t border-stone-800 bg-stone-900">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
-            
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link
-                href="https://www.facebook.com/srs.mutt.yelahanka.newtown"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-blue-700"
-              >
-                <FaFacebookF size={18} />
-                <span className="text-sm font-medium">Facebook</span>
-              </Link>
-
-              <Link
-                href="https://www.instagram.com/srs_mutt_yelahanka_newtown"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 px-5 py-2.5 text-white transition-all hover:scale-105"
-              >
-                <FaInstagram size={18} />
-                <span className="text-sm font-medium">Instagram</span>
-              </Link>
-
-              <Link
-                href="https://www.youtube.com/@Guru_Raghavendra_Rayaru"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-red-700"
-              >
-                <FaYoutube size={18} />
-                <span className="text-sm font-medium">YouTube</span>
-              </Link>
-
-              <Link
-                href="#"
-                className="flex items-center gap-2 rounded-full bg-green-500 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-green-600"
-              >
-                <FaWhatsapp size={18} />
-                <span className="text-sm font-medium">WhatsApp</span>
-              </Link>
-
-              <Link
-                href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-full bg-amber-600 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-amber-700"
-              >
-                <MapPin size={18} />
-                <span className="text-sm font-medium">Location</span>
-              </Link>
-            </div>
-
-          </div>
-        </div>
       </div>
 
       {/* Copyright Bar */}

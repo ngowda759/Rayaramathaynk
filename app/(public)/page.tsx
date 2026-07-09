@@ -6,6 +6,7 @@ import TempleTimings from "@/components/home/TempleTimings";
 import AnnouncementBar from "@/components/home/AnnouncementBar";
 import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GalleryPreview from "@/components/home/GalleryPreview";
+import SocialBar from "@/components/home/SocialBar";
 import Footer from "@/components/layout/Footer";
 import Panchanga from "@/components/home/Panchanga";
 import CalendarCenter from "@/components/calendar/CalendarCenter";
@@ -23,6 +24,7 @@ export default function Home() {
       <CalendarCenter />
       <UpcomingEvents />
       <GalleryPreview />
+      <SocialBar />
       <Footer />
     </>
   );
