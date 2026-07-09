@@ -247,6 +247,66 @@ export default function Footer() {
 
       </div>
 
+      {/* Social Icons Bar - Above Copyright */}
+      <div className="border-t border-stone-800 bg-stone-900">
+        <div className="mx-auto max-w-7xl px-6 py-8">
+          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+            
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link
+                href="https://www.facebook.com/srs.mutt.yelahanka.newtown"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-blue-700"
+              >
+                <FaFacebookF size={18} />
+                <span className="text-sm font-medium">Facebook</span>
+              </Link>
+
+              <Link
+                href="https://www.instagram.com/srs_mutt_yelahanka_newtown"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 px-5 py-2.5 text-white transition-all hover:scale-105"
+              >
+                <FaInstagram size={18} />
+                <span className="text-sm font-medium">Instagram</span>
+              </Link>
+
+              <Link
+                href="https://www.youtube.com/@Guru_Raghavendra_Rayaru"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-red-700"
+              >
+                <FaYoutube size={18} />
+                <span className="text-sm font-medium">YouTube</span>
+              </Link>
+
+              <Link
+                href="#"
+                className="flex items-center gap-2 rounded-full bg-green-500 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-green-600"
+              >
+                <FaWhatsapp size={18} />
+                <span className="text-sm font-medium">WhatsApp</span>
+              </Link>
+
+              <Link
+                href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-full bg-amber-600 px-5 py-2.5 text-white transition-all hover:scale-105 hover:bg-amber-700"
+              >
+                <MapPin size={18} />
+                <span className="text-sm font-medium">Location</span>
+              </Link>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* Copyright Bar */}
       <div className="border-t border-stone-800">
 
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-6 text-sm text-stone-400 md:flex-row">
@@ -264,52 +324,9 @@ export default function Footer() {
 
           </p>
 
-          <div className="flex items-center gap-4">
-            <p className="hidden md:block">
-              Sri Raghavendra Swamy Matha • Yelahanka New Town
-            </p>
-
-            {/* Social Icons */}
-            <div className="flex items-center gap-2">
-              <Link
-                href="https://www.facebook.com/srs.mutt.yelahanka.newtown"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white transition-all hover:scale-110"
-                aria-label="Facebook"
-              >
-                <FaFacebookF size={16} />
-              </Link>
-
-              <Link
-                href="https://www.instagram.com/srs_mutt_yelahanka_newtown"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-white transition-all hover:scale-110"
-                aria-label="Instagram"
-              >
-                <FaInstagram size={16} />
-              </Link>
-
-              <Link
-                href="https://www.youtube.com/@Guru_Raghavendra_Rayaru"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-white transition-all hover:scale-110"
-                aria-label="YouTube"
-              >
-                <FaYoutube size={16} />
-              </Link>
-
-              <Link
-                href="#"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-green-500 text-white transition-all hover:scale-110"
-                aria-label="WhatsApp"
-              >
-                <FaWhatsapp size={16} />
-              </Link>
-            </div>
-          </div>
+          <p>
+            Sri Raghavendra Swamy Matha • Yelahanka New Town
+          </p>
 
         </div>
 
