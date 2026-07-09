@@ -21,7 +21,7 @@ export const navigation: NavigationGroup[] = [
         icon: "calendar",
       },
       {
-        title: "Sevas",
+        title: "Member / Volunteer",
         href: "/admin/sevas",
         icon: "heart",
       },

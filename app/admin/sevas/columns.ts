@@ -1,30 +1,86 @@
 import { CrudColumn } from "@/types/crud";
-import { Seva } from "@/types/seva";
+import { Member, Volunteer } from "@/types/volunteer";
 
-export const sevaColumns: CrudColumn<Seva>[] = [
+export const memberColumns: CrudColumn<Member>[] = [
+  {
+    key: "memberId",
+    header: "Member ID",
+    type: "text",
+    sortable: true,
+  },
   {
     key: "name",
-    header: "Seva",
+    header: "Name",
     type: "text",
     sortable: true,
   },
   {
-    key: "category",
-    header: "Category",
+    key: "phone",
+    header: "Phone",
     type: "text",
-    sortable: true,
+    sortable: false,
   },
   {
-    key: "amount",
-    header: "Amount",
-    type: "currency",
+    key: "sex",
+    header: "Sex",
+    type: "text",
     sortable: true,
   },
   {
     key: "active",
-    header: "Status",
+    header: "Active",
     formatter: (value) =>
-      value ? "🟢 Active" : "🔴 Inactive",
+      value ? "🟢 Yes" : "🔴 No",
+  },
+  {
+    key: "address",
+    header: "Address",
+    type: "text",
+    sortable: false,
+  },
+  {
+    key: "actions",
+    header: "Actions",
+    type: "actions",
+  },
+];
+
+export const volunteerColumns: CrudColumn<Volunteer>[] = [
+  {
+    key: "volunteerId",
+    header: "Volunteer ID",
+    type: "text",
+    sortable: true,
+  },
+  {
+    key: "name",
+    header: "Name",
+    type: "text",
+    sortable: true,
+  },
+  {
+    key: "phone",
+    header: "Phone",
+    type: "text",
+    sortable: false,
+  },
+  {
+    key: "sex",
+    header: "Sex",
+    type: "text",
+    sortable: true,
+  },
+  {
+    key: "active",
+    header: "Active",
+    formatter: (value) =>
+      value ? "🟢 Yes" : "🔴 No",
+  },
+  {
+    key: "address",
+    header: "Address",
+    type: "text",
+    sortable: false,
   },
   {
     key: "actions",
