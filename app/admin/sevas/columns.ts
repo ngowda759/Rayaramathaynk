@@ -21,12 +21,6 @@ export const sevaColumns: CrudColumn<Seva>[] = [
     sortable: true,
   },
   {
-    key: "duration",
-    header: "Duration",
-    formatter: (value) => `${value} mins`,
-    sortable: true,
-  },
-  {
     key: "active",
     header: "Status",
     formatter: (value) =>
