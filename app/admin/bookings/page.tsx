@@ -15,6 +15,7 @@ import { sevaBookingService } from "@/services/sevaBooking.service";
 import {
   SevaBooking,
   SevaBookingStatus,
+  PaymentStatus,
 } from "@/types/seva-booking";
 
 export default function BookingsPage() {
@@ -29,6 +30,9 @@ export default function BookingsPage() {
 
   const [statusFilter, setStatusFilter] =
     useState<SevaBookingStatus | "all">("all");
+
+  const [paymentFilter, setPaymentFilter] =
+    useState<PaymentStatus | "all">("all");
 
   async function loadBookings() {
     try {
@@ -61,6 +65,7 @@ export default function BookingsPage() {
           booking.userName,
           booking.userEmail,
           booking.userPhone,
+          booking.paymentReference,
         ].some((value) =>
           value
             .toLowerCase()
@@ -71,11 +76,15 @@ export default function BookingsPage() {
         statusFilter === "all" ||
         booking.status === statusFilter;
 
+      const matchesPayment =
+        paymentFilter === "all" ||
+        booking.paymentStatus === paymentFilter;
+
       return (
-        matchesSearch && matchesStatus
+        matchesSearch && matchesStatus && matchesPayment
       );
     });
-  }, [bookings, search, statusFilter]);
+  }, [bookings, search, statusFilter, paymentFilter]);
 
   async function updateStatus(
     booking: SevaBooking,
@@ -167,6 +176,30 @@ export default function BookingsPage() {
           </option>
           <option value="cancelled">
             Cancelled
+          </option>
+        </select>
+
+        <select
+          value={paymentFilter}
+          onChange={(e) =>
+            setPaymentFilter(
+              e.target
+                .value as PaymentStatus | "all"
+            )
+          }
+          className="rounded-xl border border-stone-300 bg-white px-4 py-3"
+        >
+          <option value="all">
+            All Payments
+          </option>
+          <option value="pending">
+            Payment Pending
+          </option>
+          <option value="completed">
+            Payment Done
+          </option>
+          <option value="failed">
+            Payment Failed
           </option>
         </select>
       </div>

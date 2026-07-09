@@ -23,8 +23,11 @@ export default function SevaBooking() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
+  const [bookingId, setBookingId] = useState("");
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [showPaymentRefForm, setShowPaymentRefForm] = useState(false);
+  const [paymentReference, setPaymentReference] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [preferredDate, setPreferredDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -33,6 +36,7 @@ export default function SevaBooking() {
   const [phone, setPhone] = useState("");
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
   const confirmDialogRef = useRef<HTMLDialogElement>(null);
   const paymentDialogRef = useRef<HTMLDialogElement>(null);
 
@@ -89,14 +93,14 @@ export default function SevaBooking() {
   }, [showPaymentDialog]);
 
   useEffect(() => {
-    if (paymentInitiated && countdown > 0) {
+    if (paymentInitiated && countdown > 0 && !showPaymentRefForm) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
-    } else if (paymentInitiated && countdown === 0) {
-      // Auto redirect after countdown
-      handlePaymentDone();
+    } else if (paymentInitiated && countdown === 0 && !showPaymentRefForm) {
+      // After countdown, show payment reference form
+      setShowPaymentRefForm(true);
     }
-  }, [paymentInitiated, countdown]);
+  }, [paymentInitiated, countdown, showPaymentRefForm]);
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
@@ -111,16 +115,20 @@ export default function SevaBooking() {
     const upiId = upiDetails?.id || "9886364462@ptsbi";
     const note = `Seva:${selectedSeva.title}|${preferredDate}`;
     
-    // Try multiple UPI app deep links
+    // UPI URL for payment
     const upiUrl = `upi://pay?pa=${upiId}&pn=Sri%20Raghavendra%20Swamy%20Matha&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
-    const playStoreUrl = `https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user`;
     
-    // Try to open UPI app
+    // Try to open UPI app - this works on mobile devices
+    // On desktop, it may fail, which is fine - user can copy UPI ID instead
     const opened = window.open(upiUrl, '_blank');
     
-    // If popup blocked or didn't open, try location change
-    if (!opened || opened.closed) {
-      window.location.href = upiUrl;
+    // If popup was blocked or didn't open properly, just proceed
+    // Don't redirect to about:blank - let user copy UPI ID manually
+    // We only proceed if the popup opened successfully
+    if (!opened || opened.closed || opened.location.href === 'about:blank') {
+      // The UPI app didn't open, but we'll still let user enter transaction ID
+      // They can manually open their UPI app and pay
+      toast.success('Please open your UPI app and make the payment. Then enter the transaction ID below.');
     }
     
     // Start countdown to show receipt after 5 seconds
@@ -157,7 +165,7 @@ export default function SevaBooking() {
       const ref = `SVA-${Date.now().toString(36).toUpperCase()}`;
       setBookingRef(ref);
       
-      await sevaBookingService.createBooking({
+      const newBookingId = await sevaBookingService.createBooking({
         sevaId: selectedSeva.id,
         sevaTitle: selectedSeva.title,
         sevaAmount: selectedSeva.sevaAmount,
@@ -169,6 +177,7 @@ export default function SevaBooking() {
         notes,
       });
 
+      setBookingId(newBookingId);
       setShowConfirmDialog(false);
       setShowPaymentDialog(true);
     } catch (error: any) {
@@ -176,6 +185,31 @@ export default function SevaBooking() {
       toast.error(error.message || "Could not submit booking.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSavePaymentReference() {
+    if (!bookingId || !paymentReference.trim()) {
+      toast.error("Please enter your payment reference/transaction ID.");
+      return;
+    }
+
+    setSavingPayment(true);
+
+    try {
+      await sevaBookingService.updatePayment(bookingId, {
+        paymentReference: paymentReference.trim(),
+        paymentStatus: "completed",
+        paymentMethod: "UPI",
+      });
+
+      toast.success("Payment reference saved! Your booking is confirmed.");
+      handlePaymentDone();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Could not save payment reference.");
+    } finally {
+      setSavingPayment(false);
     }
   }
 
@@ -188,7 +222,10 @@ export default function SevaBooking() {
     setPhone("");
     setShowPaymentDialog(false);
     setPaymentInitiated(false);
+    setShowPaymentRefForm(false);
+    setPaymentReference("");
     setCountdown(5);
+    setBookingId("");
     toast.success("Booking completed! Thank you for your contribution.");
   }
 
@@ -455,7 +492,7 @@ export default function SevaBooking() {
       <div className="p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-green-800">
-            {paymentInitiated ? "Receipt" : "Payment Required"}
+            {showPaymentRefForm ? "Confirm Payment" : paymentInitiated ? "Receipt" : "Payment Required"}
           </h2>
           <button
             onClick={handlePaymentDone}
@@ -496,7 +533,47 @@ export default function SevaBooking() {
             </div>
           </div>
 
-          {!paymentInitiated && upiEnabled && upiDetails?.id && (
+          {/* Payment Reference Form - shown after countdown */}
+          {showPaymentRefForm ? (
+            <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
+                <p className="text-green-700">
+                  Please enter your UPI transaction ID to confirm payment.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
+                    UPI Transaction ID / Reference Number <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    placeholder="e.g., NPS551234567890 or Gpay transaction ID"
+                    required
+                  />
+                  <p className="text-xs text-stone-500 mt-1">
+                    Find this in your UPI app's transaction history
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSavePaymentReference}
+                  loading={savingPayment}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={!paymentReference.trim()}
+                >
+                  Confirm Payment
+                </Button>
+              </div>
+            </div>
+          ) : !paymentInitiated && upiEnabled && upiDetails?.id ? (
             <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
               <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
               
@@ -525,9 +602,7 @@ export default function SevaBooking() {
                 Tap the button to open your UPI payment app
               </p>
             </div>
-          )}
-
-          {paymentInitiated && (
+          ) : paymentInitiated ? (
             <div className="rounded-2xl border-2 border-green-400 bg-gradient-to-br from-green-100 to-emerald-100 p-6 text-center">
               <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-10 h-10 text-white" />
@@ -537,15 +612,15 @@ export default function SevaBooking() {
                 Please complete the payment in your UPI app.
               </p>
               <div className="bg-white rounded-lg p-4 mb-4">
-                <p className="text-sm text-stone-600 mb-1">Redirecting in</p>
+                <p className="text-sm text-stone-600 mb-1">Entering transaction ID in</p>
                 <p className="text-4xl font-bold text-green-600">{countdown}</p>
                 <p className="text-sm text-stone-600">seconds</p>
               </div>
               <p className="text-xs text-stone-500">
-                The temple will verify your payment and send a confirmation.
+                After paying, you will need to enter your transaction ID.
               </p>
             </div>
-          )}
+          ) : null}
 
           {!upiEnabled && !paymentInitiated && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">

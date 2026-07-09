@@ -18,6 +18,7 @@ import {
   SevaBooking,
   SevaBookingRequest,
   SevaBookingStatus,
+  PaymentStatus,
 } from "@/types/seva-booking";
 
 const COLLECTION_NAME = "sevaBookings";
@@ -37,6 +38,10 @@ function docToBooking(docSnap: any): SevaBooking {
     preferredDate: data.preferredDate || "",
     notes: data.notes || "",
     status: data.status || "pending",
+    paymentReference: data.paymentReference || "",
+    paymentStatus: data.paymentStatus || "pending",
+    paymentDate: data.paymentDate || "",
+    paymentMethod: data.paymentMethod || "",
     createdAt: data.createdAt?.toDate
       ? data.createdAt.toDate().toISOString()
       : data.createdAt || "",
@@ -55,6 +60,10 @@ class SevaBookingService {
       {
         ...data,
         status: "pending",
+        paymentReference: "",
+        paymentStatus: "pending",
+        paymentDate: "",
+        paymentMethod: "",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }
@@ -112,6 +121,31 @@ class SevaBookingService {
       doc(db, COLLECTION_NAME, bookingId),
       {
         status,
+        updatedAt: serverTimestamp(),
+      }
+    );
+  }
+
+  async updatePayment(
+    bookingId: string,
+    paymentData: {
+      paymentReference: string;
+      paymentStatus: PaymentStatus;
+      paymentMethod: string;
+    }
+  ): Promise<void> {
+    await updateDoc(
+      doc(db, COLLECTION_NAME, bookingId),
+      {
+        paymentReference: paymentData.paymentReference,
+        paymentStatus: paymentData.paymentStatus,
+        paymentMethod: paymentData.paymentMethod,
+        paymentDate: paymentData.paymentStatus === "completed" 
+          ? new Date().toISOString() 
+          : "",
+        status: paymentData.paymentStatus === "completed" 
+          ? "confirmed" 
+          : "pending",
         updatedAt: serverTimestamp(),
       }
     );

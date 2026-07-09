@@ -4,6 +4,8 @@ export type SevaBookingStatus =
   | "completed"
   | "cancelled";
 
+export type PaymentStatus = "pending" | "completed" | "failed";
+
 export interface SevaBooking {
   id: string;
   sevaId: string;
@@ -16,11 +18,16 @@ export interface SevaBooking {
   preferredDate: string;
   notes: string;
   status: SevaBookingStatus;
+  // Payment fields
+  paymentReference: string;
+  paymentStatus: PaymentStatus;
+  paymentDate: string;
+  paymentMethod: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export type SevaBookingRequest = Omit<
   SevaBooking,
-  "id" | "status" | "createdAt" | "updatedAt"
+  "id" | "status" | "paymentReference" | "paymentStatus" | "paymentDate" | "paymentMethod" | "createdAt" | "updatedAt"
 >;

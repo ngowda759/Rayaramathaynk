@@ -94,6 +94,7 @@ export default function AdminSevasPage() {
                   <th className="px-4 py-3">Seva</th>
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Preferred Date</th>
+                  <th className="px-4 py-3">Payment</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
@@ -108,16 +109,55 @@ export default function AdminSevasPage() {
                       <div className="text-xs text-stone-500">
                         {booking.userEmail}
                       </div>
+                      {booking.userPhone && (
+                        <div className="text-xs text-stone-400">
+                          {booking.userPhone}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-4">{booking.sevaTitle}</td>
-                    <td className="px-4 py-4">₹{booking.sevaAmount.toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-4">
+                      <div className="font-medium">{booking.sevaTitle}</div>
+                      {booking.notes && (
+                        <div className="text-xs text-stone-500 max-w-[200px] truncate" title={booking.notes}>
+                          {booking.notes}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 font-medium">₹{booking.sevaAmount.toLocaleString("en-IN")}</td>
                     <td className="px-4 py-4 text-stone-500">{booking.preferredDate}</td>
+                    <td className="px-4 py-4">
+                      {booking.paymentStatus === "completed" ? (
+                        <div>
+                          <span className="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700">
+                            Paid
+                          </span>
+                          {booking.paymentReference && (
+                            <div className="text-xs text-stone-500 mt-1 font-mono" title={booking.paymentReference}>
+                              {booking.paymentReference.slice(0, 15)}...
+                            </div>
+                          )}
+                        </div>
+                      ) : booking.paymentStatus === "failed" ? (
+                        <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                          Failed
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                          Pending
+                        </span>
+                      )}
+                      {booking.paymentMethod && (
+                        <div className="text-xs text-stone-400 mt-1">{booking.paymentMethod}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-4">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                         booking.status === "confirmed"
                           ? "bg-emerald-100 text-emerald-700"
                           : booking.status === "pending"
                           ? "bg-amber-100 text-amber-800"
+                          : booking.status === "completed"
+                          ? "bg-blue-100 text-blue-700"
                           : "bg-red-100 text-red-700"
                       }`}>
                         {booking.status}
@@ -151,7 +191,7 @@ export default function AdminSevasPage() {
                             Complete
                           </Button>
                         ) : (
-                          <span className="text-sm text-stone-500">No actions</span>
+                          <span className="text-sm text-stone-500">—</span>
                         )}
                       </div>
                     </td>
