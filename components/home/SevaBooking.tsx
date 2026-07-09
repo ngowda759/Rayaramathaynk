@@ -14,6 +14,7 @@ import { useFinanceSettings } from "@/hooks/useFinanceSettings";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import SevaReceipt from "./SevaReceipt";
 
 export default function SevaBooking() {
   const { user, profile, loading } = useAuth();
@@ -37,6 +38,16 @@ export default function SevaBooking() {
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState<{
+    receiptNumber: string;
+    devoteeName: string;
+    phone: string;
+    sevaDate: string;
+    sevaTitle: string;
+    sevaAmount: number;
+    paymentReference: string;
+  } | null>(null);
 
   useEffect(() => {
     async function loadSevas() {
@@ -166,14 +177,32 @@ export default function SevaBooking() {
         paymentMethod: "UPI",
       });
 
-      toast.success("Payment reference saved! Your booking is confirmed.");
-      handlePaymentDone();
+      // Set receipt data before closing payment dialog
+      setReceiptData({
+        receiptNumber: bookingRef,
+        devoteeName: name || profile?.name || "",
+        phone: phone,
+        sevaDate: preferredDate,
+        sevaTitle: selectedSeva?.title || "",
+        sevaAmount: selectedSeva?.sevaAmount || 0,
+        paymentReference: paymentReference.trim(),
+      });
+
+      // Show receipt instead of closing
+      setShowPaymentDialog(false);
+      setShowReceipt(true);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Could not save payment reference.");
     } finally {
       setSavingPayment(false);
     }
+  }
+
+  function handleReceiptClose() {
+    setShowReceipt(false);
+    setReceiptData(null);
+    handlePaymentDone();
   }
 
   function handlePaymentDone() {
@@ -585,6 +614,21 @@ export default function SevaBooking() {
           </div>
         </div>
       </div>
+    )}
+
+    {/* Receipt Modal */}
+    {showReceipt && receiptData && (
+      <SevaReceipt
+        receiptNumber={receiptData.receiptNumber}
+        date={new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+        devoteeName={receiptData.devoteeName}
+        phone={receiptData.phone}
+        sevaDate={receiptData.sevaDate}
+        sevaTitle={receiptData.sevaTitle}
+        sevaAmount={receiptData.sevaAmount}
+        paymentReference={receiptData.paymentReference}
+        onClose={handleReceiptClose}
+      />
     )}
     </>
   );
