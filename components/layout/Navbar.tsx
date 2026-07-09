@@ -11,7 +11,6 @@ const menuItems = [
   { name: "Aaradhane", href: "/aaradhane" },
   { name: "Facilities", href: "/facilities" },
   { name: "Guru Parampara", href: "/guruparampara" },
-  { name: "Donation", href: "/donation" },
   { name: "Gallery", href: "/gallery" },
   { name: "Events", href: "/events" },
   { name: "About", href: "/about" },
