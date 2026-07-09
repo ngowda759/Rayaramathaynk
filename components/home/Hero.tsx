@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   CalendarDays,
+  Calendar,
   Clock3,
   Sparkles,
 } from "lucide-react";
@@ -110,6 +111,14 @@ export default function Hero() {
 
                 Book Seva
 
+              </TempleButton>
+
+              <TempleButton
+                href="/calendar"
+                variant="outline"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Festivities
               </TempleButton>
 
               <TempleButton
