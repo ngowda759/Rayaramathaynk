@@ -45,7 +45,9 @@ export default function SocialBar() {
           </Link>
 
           <Link
-            href="#"
+            href="https://whatsapp.com/channel/0029VbDCCue5Ejy3d6EQfh1g"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-full bg-green-500 px-6 py-3 text-white transition-all hover:scale-105 hover:bg-green-600"
           >
             <FaWhatsapp size={20} />
