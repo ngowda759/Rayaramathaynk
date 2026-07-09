@@ -17,6 +17,8 @@ const quickLinks = [
   { name: "Daily Pooja", href: "/pooja" },
   { name: "Special Sevas", href: "/sevas" },
   { name: "Temple Calendar", href: "/calendar" },
+  { name: "Facilities", href: "/facilities" },
+  { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Gallery", href: "/gallery" },
   { name: "Donation", href: "/donation" },
 ];
