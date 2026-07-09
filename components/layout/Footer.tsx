@@ -7,10 +7,14 @@ import {
   Mail,
   Clock3,
   Heart,
-  Globe,
-  ExternalLink,
   ChevronRight,
 } from "lucide-react";
+import {
+  FaFacebookF,
+  FaInstagram,
+  FaYoutube,
+  FaWhatsapp,
+} from "react-icons/fa";
 
 const quickLinks = [
   { name: "Home", href: "/" },
@@ -278,10 +282,52 @@ export default function Footer() {
 
           </p>
 
-          <p>
-            Sri Raghavendra Swamy Matha
-	    Yelahanka New Town
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="hidden md:block">
+              Sri Raghavendra Swamy Matha • Yelahanka New Town
+            </p>
+
+            {/* Social Icons */}
+            <div className="flex items-center gap-2">
+              <Link
+                href="https://www.facebook.com/srs.mutt.yelahanka.newtown"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white transition-all hover:scale-110"
+                aria-label="Facebook"
+              >
+                <FaFacebookF size={16} />
+              </Link>
+
+              <Link
+                href="https://www.instagram.com/srs_mutt_yelahanka_newtown"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-white transition-all hover:scale-110"
+                aria-label="Instagram"
+              >
+                <FaInstagram size={16} />
+              </Link>
+
+              <Link
+                href="https://www.youtube.com/@Guru_Raghavendra_Rayaru"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-white transition-all hover:scale-110"
+                aria-label="YouTube"
+              >
+                <FaYoutube size={16} />
+              </Link>
+
+              <Link
+                href="#"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-green-500 text-white transition-all hover:scale-110"
+                aria-label="WhatsApp"
+              >
+                <FaWhatsapp size={16} />
+              </Link>
+            </div>
+          </div>
 
         </div>
 
