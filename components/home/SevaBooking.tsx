@@ -3,12 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { X } from "lucide-react";
+import { X, Copy, Check, ExternalLink } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { poojaService } from "@/services/pooja.service";
 import { sevaBookingService } from "@/services/sevaBooking.service";
 import { DailyPooja } from "@/types/pooja";
+import { useFinanceSettings } from "@/hooks/useFinanceSettings";
 
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
@@ -16,9 +17,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function SevaBooking() {
   const { user, profile, loading } = useAuth();
+  const { upiEnabled, upiDetails } = useFinanceSettings();
   const [poojas, setPoojas] = useState<DailyPooja[]>([]);
   const [selectedSeva, setSelectedSeva] = useState<DailyPooja | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
+  const [copiedUpi, setCopiedUpi] = useState(false);
   const [preferredDate, setPreferredDate] = useState("");
   const [notes, setNotes] = useState("");
   const [name, setName] = useState("");
@@ -26,7 +31,8 @@ export default function SevaBooking() {
   const [phone, setPhone] = useState("");
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const confirmDialogRef = useRef<HTMLDialogElement>(null);
+  const paymentDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     async function loadSevas() {
@@ -59,7 +65,7 @@ export default function SevaBooking() {
   }, [profile, user]);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
+    const dialog = confirmDialogRef.current;
     if (!dialog) return;
 
     if (showConfirmDialog) {
@@ -68,6 +74,34 @@ export default function SevaBooking() {
       dialog.close();
     }
   }, [showConfirmDialog]);
+
+  useEffect(() => {
+    const dialog = paymentDialogRef.current;
+    if (!dialog) return;
+
+    if (showPaymentDialog) {
+      dialog.showModal();
+    } else {
+      dialog.close();
+    }
+  }, [showPaymentDialog]);
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
+    toast.success("Copied to clipboard!");
+  }
+
+  function openUPIApp() {
+    if (!selectedSeva) return;
+    const amount = selectedSeva.sevaAmount;
+    const upiId = upiDetails?.id || "9886364462@ptsbi";
+    const note = `Seva:${selectedSeva.title}|Date:${preferredDate}`;
+    // UPI Deep Link - opens in UPI app
+    const upiUrl = `upi://pay?pa=${upiId}&pn=Sri%20Raghavendra%20Swamy%20Matha&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+    window.location.href = upiUrl;
+  }
 
   const availableSevas = poojas;
 
@@ -96,6 +130,9 @@ export default function SevaBooking() {
     setSubmitting(true);
 
     try {
+      const ref = `SVA-${Date.now().toString(36).toUpperCase()}`;
+      setBookingRef(ref);
+      
       await sevaBookingService.createBooking({
         sevaId: selectedSeva.id,
         sevaTitle: selectedSeva.title,
@@ -108,19 +145,25 @@ export default function SevaBooking() {
         notes,
       });
 
-      toast.success(
-        "Booking request submitted. The temple will contact you soon."
-      );
-      setSelectedSeva(null);
-      setPreferredDate("");
-      setNotes("");
       setShowConfirmDialog(false);
+      setShowPaymentDialog(true);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Could not submit booking.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handlePaymentDone() {
+    setSelectedSeva(null);
+    setPreferredDate("");
+    setNotes("");
+    setName("");
+    setEmail("");
+    setPhone("");
+    setShowPaymentDialog(false);
+    toast.success("Booking completed! Thank you for your contribution.");
   }
 
   return (
@@ -292,7 +335,7 @@ export default function SevaBooking() {
 
     {/* Seva Confirmation Dialog */}
     <dialog
-      ref={dialogRef}
+      ref={confirmDialogRef}
       className="rounded-2xl p-0 max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white"
     >
       <div className="p-6">
@@ -373,6 +416,108 @@ export default function SevaBooking() {
             >
               Confirm Booking
             </Button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    {/* Payment Dialog */}
+    <dialog
+      ref={paymentDialogRef}
+      className="rounded-2xl p-0 max-w-lg w-full max-h-[90vh] overflow-y-auto bg-white"
+    >
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-green-800">
+            Payment Required
+          </h2>
+          <button
+            onClick={handlePaymentDone}
+            className="p-2 hover:bg-stone-100 rounded-full transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded-2xl bg-green-50 border border-green-200 p-6 text-center">
+            <p className="text-sm text-green-700 mb-2">Booking Reference</p>
+            <p className="text-2xl font-bold text-green-800">{bookingRef}</p>
+          </div>
+
+          <div className="rounded-xl border border-stone-200 bg-white">
+            <div className="border-b p-4">
+              <h3 className="font-semibold text-stone-800">Seva Details</h3>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-stone-600">Seva:</span>
+                <span className="font-medium">{selectedSeva?.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-600">Date:</span>
+                <span className="font-medium">{preferredDate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-600">Devotee:</span>
+                <span className="font-medium">{name || profile?.name}</span>
+              </div>
+              <hr className="my-2" />
+              <div className="flex justify-between text-lg font-bold">
+                <span>Amount:</span>
+                <span className="text-green-700">₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+          </div>
+
+          {upiEnabled && upiDetails?.id && (
+            <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+              <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
+              
+              <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
+                <div>
+                  <p className="font-semibold text-stone-900">{upiDetails.id}</p>
+                  <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(upiDetails.id)}
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                >
+                  {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
+                </button>
+              </div>
+
+              <Button
+                onClick={openUPIApp}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open UPI App to Pay
+              </Button>
+
+              <p className="text-center text-sm text-stone-500 mt-3">
+                Tap above to open your UPI payment app with pre-filled details
+              </p>
+            </div>
+          )}
+
+          {!upiEnabled && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+              <p className="text-amber-800">Please contact the temple for payment instructions.</p>
+            </div>
+          )}
+
+          <div className="text-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePaymentDone}
+            >
+              I've Completed the Payment
+            </Button>
+            <p className="text-xs text-stone-500 mt-2">
+              The temple will verify your payment and confirm your booking.
+            </p>
           </div>
         </div>
       </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, ExternalLink, X } from "lucide-react";
 
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
@@ -25,12 +25,26 @@ export default function DonationForm() {
   const [message, setMessage] = useState("");
   const [selectedSevaId, setSelectedSevaId] = useState<string | null>(null);
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [donationRef, setDonationRef] = useState("");
+  const paymentDialogRef = useRef<HTMLDialogElement>(null);
 
   const [paymentMode, setPaymentMode] =
     useState<PaymentMode>("upi");
 
   const [submitting, setSubmitting] =
     useState(false);
+
+  useEffect(() => {
+    const dialog = paymentDialogRef.current;
+    if (!dialog) return;
+
+    if (showPaymentDialog) {
+      dialog.showModal();
+    } else {
+      dialog.close();
+    }
+  }, [showPaymentDialog]);
 
   function selectSeva(seva: typeof specialSevas[0]) {
     setSelectedSevaId(seva.id);
@@ -45,6 +59,14 @@ export default function DonationForm() {
       setTimeout(() => setCopiedUpi(false), 2000);
     }
     toast.success("Copied to clipboard!");
+  }
+
+  function openUPIApp() {
+    const amountNum = Number(amount);
+    const upiId = upiDetails?.id || "9886364462@ptsbi";
+    const note = `Donation:${purpose || 'General'}`;
+    const upiUrl = `upi://pay?pa=${upiId}&pn=Sri%20Raghavendra%20Swamy%20Matha&am=${amountNum}&cu=INR&tn=${encodeURIComponent(note)}`;
+    window.location.href = upiUrl;
   }
 
   async function handleSubmit(
@@ -67,6 +89,9 @@ export default function DonationForm() {
     setSubmitting(true);
 
     try {
+      const ref = `DON-${Date.now().toString(36).toUpperCase()}`;
+      setDonationRef(ref);
+      
       await donationService.createDonation({
         donorName,
         email,
@@ -79,19 +104,7 @@ export default function DonationForm() {
         paymentMode,
       });
 
-      toast.success(
-        "Donation request submitted successfully."
-      );
-
-      setDonorName("");
-      setEmail("");
-      setPhone("");
-      setAddress("");
-      setPurpose("");
-      setAmount("");
-      setMessage("");
-      setSelectedSevaId(null);
-      setPaymentMode("upi");
+      setShowPaymentDialog(true);
     } catch (error: any) {
       console.error(error);
 
@@ -102,6 +115,20 @@ export default function DonationForm() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handlePaymentDone() {
+    setDonorName("");
+    setEmail("");
+    setPhone("");
+    setAddress("");
+    setPurpose("");
+    setAmount("");
+    setMessage("");
+    setSelectedSevaId(null);
+    setPaymentMode("upi");
+    setShowPaymentDialog(false);
+    toast.success("Thank you for your generous donation!");
   }
 
   if (!enabled) {
@@ -302,6 +329,108 @@ export default function DonationForm() {
           </Button>
         </form>
       </div>
+
+      {/* Payment Dialog */}
+      <dialog
+        ref={paymentDialogRef}
+        className="rounded-2xl p-0 max-w-lg w-full max-h-[90vh] overflow-y-auto bg-white"
+      >
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-green-800">
+              Payment Required
+            </h2>
+            <button
+              onClick={handlePaymentDone}
+              className="p-2 hover:bg-stone-100 rounded-full transition"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-green-50 border border-green-200 p-6 text-center">
+              <p className="text-sm text-green-700 mb-2">Donation Reference</p>
+              <p className="text-2xl font-bold text-green-800">{donationRef}</p>
+            </div>
+
+            <div className="rounded-xl border border-stone-200 bg-white">
+              <div className="border-b p-4">
+                <h3 className="font-semibold text-stone-800">Donation Details</h3>
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Donor:</span>
+                  <span className="font-medium">{donorName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Purpose:</span>
+                  <span className="font-medium">{purpose || 'General'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-600">Email:</span>
+                  <span className="font-medium">{email}</span>
+                </div>
+                <hr className="my-2" />
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Amount:</span>
+                  <span className="text-green-700">₹{Number(amount).toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            </div>
+
+            {upiEnabled && upiDetails?.id && (
+              <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+                <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
+                
+                <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
+                  <div>
+                    <p className="font-semibold text-stone-900">{upiDetails.id}</p>
+                    <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(upiDetails.id, "upi")}
+                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                  >
+                    {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
+                  </button>
+                </div>
+
+                <Button
+                  onClick={openUPIApp}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Open UPI App to Pay
+                </Button>
+
+                <p className="text-center text-sm text-stone-500 mt-3">
+                  Tap above to open your UPI payment app with pre-filled details
+                </p>
+              </div>
+            )}
+
+            {!upiEnabled && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+                <p className="text-amber-800">Please contact the temple for payment instructions.</p>
+              </div>
+            )}
+
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePaymentDone}
+              >
+                I've Completed the Payment
+              </Button>
+              <p className="text-xs text-stone-500 mt-2">
+                The temple will verify your payment and send a receipt.
+              </p>
+            </div>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }
