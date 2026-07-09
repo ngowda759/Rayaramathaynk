@@ -11,6 +11,8 @@ const menuItems = [
   { name: "Daily Pooja", href: "/pooja" },
   { name: "Special Sevas", href: "/sevas" },
   { name: "Aaradhane", href: "/aaradhane" },
+  { name: "Facilities", href: "/facilities" },
+  { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Donation", href: "/donation" },
   { name: "Gallery", href: "/gallery" },
   { name: "Events", href: "/events" },

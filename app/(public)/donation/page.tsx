@@ -3,22 +3,75 @@ import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
 import DonationCTA from "@/components/home/DonationCTA";
 import DonationForm from "@/components/home/DonationForm";
+import { Heart } from "lucide-react";
 
 export default function DonationPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-[calc(100vh-120px)] bg-white px-6 py-16 sm:px-8 lg:px-12">
-        <SectionHeading
-          title="Support the Temple"
-          subtitle="Your donations help maintain the temple, support rituals, and serve the community."
-        />
+      <main className="min-h-[calc(100vh-120px)] bg-white">
+        {/* Hero Section */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-16">
+          <div className="absolute inset-0 opacity-10">
+            <div
+              className="h-full w-full"
+              style={{
+                backgroundImage: "url('/images/Hero.jpg')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+          </div>
 
-        <div className="mx-auto max-w-6xl space-y-8">
-          <DonationCTA />
+          <div className="relative mx-auto max-w-7xl px-6 text-center">
+            <h1 className="text-4xl font-bold text-white md:text-5xl">
+              E-Donations
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-amber-100">
+              Your generous contributions help maintain the temple, support
+              rituals, and serve the community.
+            </p>
 
-          <DonationForm />
-        </div>
+            <div className="mt-8 flex justify-center gap-8 text-amber-200">
+              <div className="text-center">
+                <Heart className="mx-auto h-8 w-8" />
+                <p className="mt-2 text-sm">Support Rituals</p>
+              </div>
+              <div className="text-center">
+                <Heart className="mx-auto h-8 w-8" />
+                <p className="mt-2 text-sm">Temple Maintenance</p>
+              </div>
+              <div className="text-center">
+                <Heart className="mx-auto h-8 w-8" />
+                <p className="mt-2 text-sm">Community Service</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Donation Content */}
+        <section className="px-6 py-16 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-6xl space-y-8">
+            <DonationCTA />
+
+            <DonationForm />
+          </div>
+        </section>
+
+        {/* Temple Info Banner */}
+        <section className="bg-stone-50 px-6 py-12 sm:px-8 lg:px-12">
+          <div className="mx-auto max-w-4xl text-center">
+            <h3 className="text-2xl font-bold text-stone-900">
+              Shri Raghavendra Swamy Matha
+            </h3>
+            <p className="mt-2 text-stone-600">
+              11th Cross Road, Thyagarajanagar, Bangalore - 560070
+            </p>
+            <p className="mt-1 text-stone-600">
+              <span className="font-medium">Phone:</span> 99002 15389
+            </p>
+          </div>
+        </section>
       </main>
       <Footer />
     </>
