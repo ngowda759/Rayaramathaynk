@@ -14,13 +14,17 @@ import {
 
 const quickLinks = [
   { name: "Home", href: "/" },
-  { name: "Daily Pooja", href: "/pooja" },
-  { name: "Special Sevas", href: "/sevas" },
-  { name: "Temple Calendar", href: "/calendar" },
+  { name: "Aaradhane", href: "/aaradhane" },
   { name: "Facilities", href: "/facilities" },
   { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Gallery", href: "/gallery" },
-  { name: "Donation", href: "/donation" },
+  { name: "Events", href: "/events" },
+  { name: "About", href: "/about" },
+];
+
+const sevasLinks = [
+  { name: "Daily Pooja", href: "/pooja" },
+  { name: "Special Sevas", href: "/sevas" },
 ];
 
 export default function Footer() {
@@ -40,7 +44,7 @@ export default function Footer() {
 
       <div className="relative mx-auto max-w-7xl px-6 py-20">
 
-        <div className="grid gap-14 lg:grid-cols-4">
+        <div className="grid gap-14 lg:grid-cols-5">
 
           {/* Temple */}
 
@@ -93,6 +97,33 @@ export default function Footer() {
             <div className="space-y-4">
 
               {quickLinks.map((link) => (
+
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className="flex items-center gap-2 transition hover:text-amber-400"
+                >
+                  <ChevronRight size={16} />
+                  {link.name}
+                </Link>
+
+              ))}
+
+            </div>
+
+          </div>
+
+          {/* Sevas */}
+
+          <div>
+
+            <h3 className="mb-8 text-xl font-bold text-white">
+              Sevas
+            </h3>
+
+            <div className="space-y-4">
+
+              {sevasLinks.map((link) => (
 
                 <Link
                   key={link.name}
