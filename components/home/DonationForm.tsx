@@ -27,6 +27,8 @@ export default function DonationForm() {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [donationRef, setDonationRef] = useState("");
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [countdown, setCountdown] = useState(5);
   const paymentDialogRef = useRef<HTMLDialogElement>(null);
 
   const [paymentMode, setPaymentMode] =
@@ -45,6 +47,15 @@ export default function DonationForm() {
       dialog.close();
     }
   }, [showPaymentDialog]);
+
+  useEffect(() => {
+    if (paymentInitiated && countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (paymentInitiated && countdown === 0) {
+      handlePaymentDone();
+    }
+  }, [paymentInitiated, countdown]);
 
   function selectSeva(seva: typeof specialSevas[0]) {
     setSelectedSevaId(seva.id);
@@ -66,7 +77,13 @@ export default function DonationForm() {
     const upiId = upiDetails?.id || "9886364462@ptsbi";
     const note = `Donation:${purpose || 'General'}`;
     const upiUrl = `upi://pay?pa=${upiId}&pn=Sri%20Raghavendra%20Swamy%20Matha&am=${amountNum}&cu=INR&tn=${encodeURIComponent(note)}`;
-    window.location.href = upiUrl;
+    
+    const opened = window.open(upiUrl, '_blank');
+    if (!opened || opened.closed) {
+      window.location.href = upiUrl;
+    }
+    
+    setPaymentInitiated(true);
   }
 
   async function handleSubmit(
@@ -128,6 +145,8 @@ export default function DonationForm() {
     setSelectedSevaId(null);
     setPaymentMode("upi");
     setShowPaymentDialog(false);
+    setPaymentInitiated(false);
+    setCountdown(5);
     toast.success("Thank you for your generous donation!");
   }
 
@@ -338,7 +357,7 @@ export default function DonationForm() {
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-green-800">
-              Payment Required
+              {paymentInitiated ? "Receipt" : "Payment Required"}
             </h2>
             <button
               onClick={handlePaymentDone}
@@ -379,7 +398,7 @@ export default function DonationForm() {
               </div>
             </div>
 
-            {upiEnabled && upiDetails?.id && (
+            {!paymentInitiated && upiEnabled && upiDetails?.id && (
               <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
                 <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
                 
@@ -401,33 +420,40 @@ export default function DonationForm() {
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Open UPI App to Pay
+                  Pay ₹{Number(amount).toLocaleString("en-IN")} via UPI
                 </Button>
 
                 <p className="text-center text-sm text-stone-500 mt-3">
-                  Tap above to open your UPI payment app with pre-filled details
+                  Tap the button to open your UPI payment app
                 </p>
               </div>
             )}
 
-            {!upiEnabled && (
+            {paymentInitiated && (
+              <div className="rounded-2xl border-2 border-green-400 bg-gradient-to-br from-green-100 to-emerald-100 p-6 text-center">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
+                <p className="text-green-700 mb-4">
+                  Please complete the payment in your UPI app.
+                </p>
+                <div className="bg-white rounded-lg p-4 mb-4">
+                  <p className="text-sm text-stone-600 mb-1">Redirecting in</p>
+                  <p className="text-4xl font-bold text-green-600">{countdown}</p>
+                  <p className="text-sm text-stone-600">seconds</p>
+                </div>
+                <p className="text-xs text-stone-500">
+                  The temple will verify your payment and send a confirmation.
+                </p>
+              </div>
+            )}
+
+            {!upiEnabled && !paymentInitiated && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
                 <p className="text-amber-800">Please contact the temple for payment instructions.</p>
               </div>
             )}
-
-            <div className="text-center">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePaymentDone}
-              >
-                I've Completed the Payment
-              </Button>
-              <p className="text-xs text-stone-500 mt-2">
-                The temple will verify your payment and send a receipt.
-              </p>
-            </div>
           </div>
         </div>
       </dialog>
