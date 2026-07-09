@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   CalendarDays,
-  Heart,
   Clock3,
   Sparkles,
 } from "lucide-react";
@@ -111,14 +110,6 @@ export default function Hero() {
 
                 Book Seva
 
-              </TempleButton>
-
-              <TempleButton
-                href="/donation"
-                variant="secondary"
-              >
-                <Heart className="mr-2 h-4 w-4" />
-                Donate
               </TempleButton>
 
               <TempleButton
