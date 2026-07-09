@@ -241,24 +241,6 @@ export default function Footer() {
 
             </div>
 
-            <div className="mt-8 flex gap-3">
-
-              <a
-                href="#"
-                className="rounded-2xl bg-stone-800 p-4 transition hover:bg-amber-600"
-              >
-                <Globe size={18} />
-              </a>
-
-              <a
-                href="#"
-                className="rounded-2xl bg-stone-800 p-4 transition hover:bg-amber-600"
-              >
-                <ExternalLink size={18} />
-              </a>
-
-            </div>
-
           </div>
 
         </div>
