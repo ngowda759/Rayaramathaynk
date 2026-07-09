@@ -5,7 +5,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  Clock3,
   Heart,
   ChevronRight,
 } from "lucide-react";
@@ -40,9 +39,9 @@ export default function Footer() {
         />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-6 py-20">
+      <div className="relative mx-auto max-w-7xl px-6 py-16">
 
-        <div className="grid gap-14 lg:grid-cols-5">
+        <div className="grid gap-10 lg:grid-cols-4">
 
           {/* Temple */}
 
@@ -50,13 +49,13 @@ export default function Footer() {
 
             <div className="flex items-center gap-4">
 
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500 to-orange-600 text-4xl shadow-xl">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-3xl shadow-xl">
                 🛕
               </div>
 
               <div>
 
-                <h2 className="text-2xl font-bold text-white">
+                <h2 className="text-xl font-bold text-white">
                   Sri Raghavendra swamy Matha
                 </h2>
 
@@ -68,31 +67,17 @@ export default function Footer() {
 
             </div>
 
-            <p className="mt-8 leading-8 text-stone-400">
-              Dedicated to Sri Raghavendra Swamy, it is a hub of devotion,
-	      Vedantic learning, and Guru Seva, 
-	      drawing lakhs of devotees each year..
-            </p>
-
-            <Link
-              href="/donation"
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-3 font-semibold text-white transition hover:scale-105"
-            >
-              Donate Now
-              <Heart size={18} />
-            </Link>
-
           </div>
 
           {/* Quick Links */}
 
           <div>
 
-            <h3 className="mb-8 text-xl font-bold text-white">
+            <h3 className="mb-6 text-lg font-bold text-white">
               Quick Links
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
 
               {quickLinks.map((link) => (
 
@@ -101,7 +86,7 @@ export default function Footer() {
                   href={link.href}
                   className="flex items-center gap-2 transition hover:text-amber-400"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} />
                   {link.name}
                 </Link>
 
@@ -115,11 +100,11 @@ export default function Footer() {
 
           <div>
 
-            <h3 className="mb-8 text-xl font-bold text-white">
+            <h3 className="mb-6 text-lg font-bold text-white">
               Sevas
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
 
               {sevasLinks.map((link) => (
 
@@ -128,7 +113,7 @@ export default function Footer() {
                   href={link.href}
                   className="flex items-center gap-2 transition hover:text-amber-400"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} />
                   {link.name}
                 </Link>
 
@@ -138,69 +123,19 @@ export default function Footer() {
 
           </div>
 
-          {/* Temple Timings */}
-
-          <div>
-
-            <h3 className="mb-8 text-xl font-bold text-white">
-              Temple Timings
-            </h3>
-
-            <div className="space-y-6">
-
-              <div className="flex gap-4">
-
-                <Clock3 className="mt-1 text-amber-500" />
-
-                <div>
-
-                  <p className="font-semibold text-white">
-                    Morning Darshan
-                  </p>
-
-                  <p className="text-stone-400">
-                    6:00 AM – 1:00 PM
-                  </p>
-
-                </div>
-
-              </div>
-
-              <div className="flex gap-4">
-
-                <Clock3 className="mt-1 text-amber-500" />
-
-                <div>
-
-                  <p className="font-semibold text-white">
-                    Evening Darshan
-                  </p>
-
-                  <p className="text-stone-400">
-                    4:30 PM – 8:30 PM
-                  </p>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
           {/* Contact */}
 
           <div>
 
-            <h3 className="mb-8 text-xl font-bold text-white">
+            <h3 className="mb-6 text-lg font-bold text-white">
               Contact Us
             </h3>
 
-            <div className="space-y-5">
+            <div className="space-y-4">
 
-              <div className="flex gap-4">
+              <div className="flex gap-3">
 
-	      <MapPin className="mt-1 text-amber-500" />
+	        <MapPin className="mt-1 flex-shrink-0 text-amber-500" />
 
   		<a
     		href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
@@ -217,17 +152,17 @@ export default function Footer() {
 	        
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-3">
 
-                <Phone className="text-amber-500" />
+                <Phone className="flex-shrink-0 text-amber-500" />
 
                 <span>+91 9886364462 </span>
 
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-3">
 
-                <Mail className="text-amber-500" />
+                <Mail className="flex-shrink-0 text-amber-500" />
 
                 <span>ngowda759@gmail.com</span>
 
