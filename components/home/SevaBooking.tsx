@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { X, Copy, Check, ExternalLink } from "lucide-react";
+import { X, Copy, Check } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { poojaService } from "@/services/pooja.service";
@@ -87,25 +87,12 @@ export default function SevaBooking() {
 
   function openUPIApp() {
     if (!selectedSeva) return;
-    const amount = selectedSeva.sevaAmount;
     const upiId = upiDetails?.id || "9886364462@ptsbi";
-    const note = `Seva:${selectedSeva.title}|${preferredDate}`;
     
-    // UPI URL for payment
-    const upiUrl = `upi://pay?pa=${upiId}&pn=Sri%20Raghavendra%20Swamy%20Matha&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
-    
-    // Try to open UPI app - this works on mobile devices
-    // On desktop, it may fail, which is fine - user can copy UPI ID instead
-    const opened = window.open(upiUrl, '_blank');
-    
-    // If popup was blocked or didn't open properly, just proceed
-    // Don't redirect to about:blank - let user copy UPI ID manually
-    // We only proceed if the popup opened successfully
-    if (!opened || opened.closed || opened.location.href === 'about:blank') {
-      // The UPI app didn't open, but we'll still let user enter transaction ID
-      // They can manually open their UPI app and pay
-      toast.success('Please open your UPI app and make the payment. Then enter the transaction ID below.');
-    }
+    // Don't try to open UPI URL in browser - it causes blank page
+    // Instead, copy UPI ID to clipboard so user can paste in their UPI app
+    navigator.clipboard.writeText(upiId);
+    toast.success('UPI ID copied! Open your UPI app, paste and pay.');
     
     // Start countdown to show receipt after 5 seconds
     setPaymentInitiated(true);
@@ -561,12 +548,12 @@ export default function SevaBooking() {
                     onClick={openUPIApp}
                     className="w-full bg-green-600 hover:bg-green-700"
                   >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Pay ₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")} via UPI
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy UPI ID &amp; Pay ₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}
                   </Button>
 
                   <p className="text-center text-sm text-stone-500 mt-3">
-                    Tap the button to open your UPI payment app
+                    Tap the button to copy UPI ID, then open your UPI app and paste
                   </p>
                 </div>
               ) : paymentInitiated ? (
