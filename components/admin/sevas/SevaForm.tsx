@@ -35,7 +35,7 @@ export default function SevaForm({
     description: initialValues?.description ?? "",
     category: initialValues?.category ?? "",
     amount: initialValues?.amount ?? 0,
-    duration: initialValues?.duration ?? 0,
+    duration: 0,
     imageUrl: initialValues?.imageUrl ?? "",
     active: initialValues?.active ?? true,
     displayOrder: initialValues?.displayOrder ?? 0,
@@ -73,10 +73,6 @@ export default function SevaForm({
 
     if (formData.amount <= 0) {
       validationErrors.amount = "Amount must be greater than zero.";
-    }
-
-    if (formData.duration <= 0) {
-      validationErrors.duration = "Duration must be greater than zero.";
     }
 
     setErrors(validationErrors);
@@ -129,10 +125,10 @@ export default function SevaForm({
       </FormSection>
 
       <FormSection
-        title="Pricing & Duration"
+        title="Pricing"
         description="Configure seva pricing."
       >
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2">
           <FormNumberField
             label="Amount (₹)"
             value={formData.amount}
@@ -140,16 +136,6 @@ export default function SevaForm({
             error={errors.amount}
             onChange={(e) =>
               updateField("amount", Number(e.target.value))
-            }
-          />
-
-          <FormNumberField
-            label="Duration (Minutes)"
-            value={formData.duration}
-            required
-            error={errors.duration}
-            onChange={(e) =>
-              updateField("duration", Number(e.target.value))
             }
           />
 

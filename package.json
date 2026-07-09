@@ -18,7 +18,6 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.15.0",
-    "firebase-admin": "^14.1.0",
     "framer-motion": "^12.42.0",
     "lucide-react": "^1.21.0",
     "next": "^16.2.9",
@@ -43,6 +42,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "firebase-admin": "^14.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
