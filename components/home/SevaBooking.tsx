@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { X } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { poojaService } from "@/services/pooja.service";
@@ -16,9 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 export default function SevaBooking() {
   const { user, profile, loading } = useAuth();
   const [poojas, setPoojas] = useState<DailyPooja[]>([]);
-  const [selectedSeva, setSelectedSeva] = useState<DailyPooja | null>(
-    null
-  );
+  const [selectedSeva, setSelectedSeva] = useState<DailyPooja | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [preferredDate, setPreferredDate] = useState("");
   const [notes, setNotes] = useState("");
   const [name, setName] = useState("");
@@ -26,6 +26,7 @@ export default function SevaBooking() {
   const [phone, setPhone] = useState("");
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     async function loadSevas() {
@@ -57,9 +58,20 @@ export default function SevaBooking() {
     }
   }, [profile, user]);
 
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (showConfirmDialog) {
+      dialog.showModal();
+    } else {
+      dialog.close();
+    }
+  }, [showConfirmDialog]);
+
   const availableSevas = poojas;
 
-  async function handleBooking() {
+  function handleSubmitClick() {
     if (!user) {
       toast.error("Please sign in to book a seva.");
       return;
@@ -74,6 +86,12 @@ export default function SevaBooking() {
       toast.error("Please choose a preferred date.");
       return;
     }
+
+    setShowConfirmDialog(true);
+  }
+
+  async function handleBooking() {
+    if (!user || !selectedSeva) return;
 
     setSubmitting(true);
 
@@ -96,6 +114,7 @@ export default function SevaBooking() {
       setSelectedSeva(null);
       setPreferredDate("");
       setNotes("");
+      setShowConfirmDialog(false);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Could not submit booking.");
@@ -105,6 +124,7 @@ export default function SevaBooking() {
   }
 
   return (
+    <>
     <div className="space-y-8">
       <div className="rounded-3xl border border-stone-200 bg-white p-8 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -235,8 +255,8 @@ export default function SevaBooking() {
               />
 
               <Textarea
-                label="Notes"
-                placeholder="Any special requests or puja details"
+                label="Message"
+                placeholder="Any special requests, additional Sankalpa details, or notes for the temple"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={4}
@@ -244,7 +264,7 @@ export default function SevaBooking() {
 
               <Button
                 type="button"
-                onClick={handleBooking}
+                onClick={handleSubmitClick}
                 loading={submitting}
                 disabled={loading || !user}
                 className="w-full"
@@ -269,5 +289,94 @@ export default function SevaBooking() {
         </aside>
       </div>
     </div>
+
+    {/* Seva Confirmation Dialog */}
+    <dialog
+      ref={dialogRef}
+      className="rounded-2xl p-0 max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white"
+    >
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-orange-800">
+            {selectedSeva?.title}
+          </h2>
+          <button
+            onClick={() => setShowConfirmDialog(false)}
+            className="p-2 hover:bg-stone-100 rounded-full transition"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded-2xl bg-orange-50 border border-orange-200 p-6">
+            <h3 className="text-lg font-bold text-orange-900 mb-4">Important Seva Guidelines</h3>
+            <ul className="space-y-3 text-sm text-stone-700">
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Advance Booking:</strong> All Sevas must be booked at least two days in advance to allow for necessary arrangements.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Ekadasi Rule:</strong> No Pooja or Seva is performed on Ekadasi.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Attendance on Seva Day:</strong> On the day of the Seva, Sevakartas must be present at the Mutt premises at the informed timings for Sankalpa and Seva/Pooja.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Seva on Dwadasi:</strong> If the booked Seva date falls on Dwadasi, Sevakartas must follow the specific timings provided for Seva/Pooja.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>If Unable to Attend:</strong> If the Sevakarta cannot be present in person but wishes the Seva to be performed, this must be clearly mentioned in the Message column during booking.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Multiple Persons for Sankalpa:</strong> If Sankalpa is required for multiple individuals, please enter the Name, Gothra, and Nakshatra of the additional persons in the Message column at the time of booking.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Seva Timings:</strong> Seva timings may vary based on the type of Seva and the daily schedule. Please call the Mutt one day prior to confirm the exact timings.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Changes to Booked Seva:</strong> For any modifications to an already booked Seva, please contact the Mutt office directly.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Cancellation Policy:</strong> Seva once booked cannot be cancelled.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="text-center">
+            <p className="text-lg font-semibold text-stone-800">
+              Seva Fee: <span className="text-orange-700">INR {selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowConfirmDialog(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleBooking}
+              loading={submitting}
+            >
+              Confirm Booking
+            </Button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+    </>
   );
 }
