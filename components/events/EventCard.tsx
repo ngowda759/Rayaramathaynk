@@ -99,8 +99,8 @@ export default function EventCard({
         </div>
 
         <Link
-          href="/events"
-          className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white"
+          href={`/events/${event.id}`}
+          className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white transition hover:scale-105"
         >
           View Event
           <ArrowRight size={18} />
