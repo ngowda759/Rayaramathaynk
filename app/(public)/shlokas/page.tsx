@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
 import { shlokas, shlokaCategories, Shloka } from "@/data/shlokas";
-import { ChevronDown, ChevronUp, BookOpen } from "lucide-react";
+import { ChevronDown, ChevronUp, BookOpen, Moon } from "lucide-react";
 
 export default function ShlokasPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [expandedShloka, setExpandedShloka] = useState<string | null>(null);
+  const [isAvailable, setIsAvailable] = useState(true);
+
+  useEffect(() => {
+    // Check if current time is before 11 PM (23:00)
+    const hour = new Date().getHours();
+    setIsAvailable(hour < 23);
+  }, []);
 
   const filteredShlokas = selectedCategory === "All"
     ? shlokas
@@ -18,6 +25,39 @@ export default function ShlokasPage() {
   const toggleShloka = (id: string) => {
     setExpandedShloka(expandedShloka === id ? null : id);
   };
+
+  // Show unavailable message after 11 PM
+  if (!isAvailable) {
+    return (
+      <>
+        <Navbar />
+        <main className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-amber-50 to-white px-6 py-12 sm:px-8 lg:px-12 flex items-center justify-center">
+          <div className="max-w-md text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-orange-100 text-orange-600 mb-6">
+              <Moon className="w-10 h-10" />
+            </div>
+            <h1 className="text-2xl font-bold text-stone-900 mb-4">
+              ಶ್ಲೋಕಗಳು ಲಭ್ಯವಿಲ್ಲ
+            </h1>
+            <h2 className="text-xl text-stone-700 mb-4">
+              Shlokas Not Available
+            </h2>
+            <p className="text-stone-600 mb-6">
+              ಶ್ಲೋಕಗಳನ್ನು ರಾತ್ರಿ 11 ಗಂಟೆಯ ನಂತರ ವೀಕ್ಷಿಸಲಾಗುವುದಿಲ್ಲ.
+            </p>
+            <p className="text-stone-500 text-sm">
+              Shlokas can only be viewed before 11:00 PM as per temple tradition. 
+              Please visit again tomorrow.
+            </p>
+            <p className="text-amber-600 mt-6 font-medium">
+              🙏 ಓಂ ಶಾಂತಿಃ ಶಾಂತಿಃ ಶಾಂತಿಃ 🙏
+            </p>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
