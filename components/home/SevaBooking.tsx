@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { X, Copy, Check, ExternalLink } from "lucide-react";
@@ -37,8 +37,6 @@ export default function SevaBooking() {
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
-  const confirmDialogRef = useRef<HTMLDialogElement>(null);
-  const paymentDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     async function loadSevas() {
@@ -69,28 +67,6 @@ export default function SevaBooking() {
       setEmail(user.email || "");
     }
   }, [profile, user]);
-
-  useEffect(() => {
-    const dialog = confirmDialogRef.current;
-    if (!dialog) return;
-
-    if (showConfirmDialog) {
-      dialog.showModal();
-    } else {
-      dialog.close();
-    }
-  }, [showConfirmDialog]);
-
-  useEffect(() => {
-    const dialog = paymentDialogRef.current;
-    if (!dialog) return;
-
-    if (showPaymentDialog) {
-      dialog.showModal();
-    } else {
-      dialog.close();
-    }
-  }, [showPaymentDialog]);
 
   useEffect(() => {
     if (paymentInitiated && countdown > 0 && !showPaymentRefForm) {
@@ -396,240 +372,233 @@ export default function SevaBooking() {
       </div>
     </div>
 
-    {/* Seva Confirmation Dialog */}
-    <dialog
-      ref={confirmDialogRef}
-      className="rounded-2xl p-0 max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white"
-    >
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-orange-800">
-            {selectedSeva?.title}
-          </h2>
-          <button
-            onClick={() => setShowConfirmDialog(false)}
-            className="p-2 hover:bg-stone-100 rounded-full transition"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-6">
-          <div className="rounded-2xl bg-orange-50 border border-orange-200 p-6">
-            <h3 className="text-lg font-bold text-orange-900 mb-4">Important Seva Guidelines</h3>
-            <ul className="space-y-3 text-sm text-stone-700">
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Advance Booking:</strong> All Sevas must be booked at least two days in advance to allow for necessary arrangements.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Ekadasi Rule:</strong> No Pooja or Seva is performed on Ekadasi.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Attendance on Seva Day:</strong> On the day of the Seva, Sevakartas must be present at the Mutt premises at the informed timings for Sankalpa and Seva/Pooja.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Seva on Dwadasi:</strong> If the booked Seva date falls on Dwadasi, Sevakartas must follow the specific timings provided for Seva/Pooja.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>If Unable to Attend:</strong> If the Sevakarta cannot be present in person but wishes the Seva to be performed, this must be clearly mentioned in the Message column during booking.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Multiple Persons for Sankalpa:</strong> If Sankalpa is required for multiple individuals, please enter the Name, Gothra, and Nakshatra of the additional persons in the Message column at the time of booking.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Seva Timings:</strong> Seva timings may vary based on the type of Seva and the daily schedule. Please call the Mutt one day prior to confirm the exact timings.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Changes to Booked Seva:</strong> For any modifications to an already booked Seva, please contact the Mutt office directly.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-orange-600 font-bold">•</span>
-                <span><strong>Cancellation Policy:</strong> Seva once booked cannot be cancelled.</span>
-              </li>
-            </ul>
-          </div>
-
-          <div className="text-center">
-            <p className="text-lg font-semibold text-stone-800">
-              Seva Fee: <span className="text-orange-700">INR {selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowConfirmDialog(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleBooking}
-              loading={submitting}
-            >
-              Confirm Booking
-            </Button>
-          </div>
-        </div>
-      </div>
-    </dialog>
-
-    {/* Payment Dialog */}
-    <dialog
-      ref={paymentDialogRef}
-      className="rounded-2xl p-0 max-w-lg w-full max-h-[90vh] overflow-y-auto bg-white"
-    >
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-green-800">
-            {showPaymentRefForm ? "Confirm Payment" : paymentInitiated ? "Receipt" : "Payment Required"}
-          </h2>
-          <button
-            onClick={handlePaymentDone}
-            className="p-2 hover:bg-stone-100 rounded-full transition"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-6">
-          <div className="rounded-2xl bg-green-50 border border-green-200 p-6 text-center">
-            <p className="text-sm text-green-700 mb-2">Booking Reference</p>
-            <p className="text-2xl font-bold text-green-800">{bookingRef}</p>
-          </div>
-
-          <div className="rounded-xl border border-stone-200 bg-white">
-            <div className="border-b p-4">
-              <h3 className="font-semibold text-stone-800">Seva Details</h3>
+    {/* Seva Confirmation Dialog - React Modal */}
+    {showConfirmDialog && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div 
+          className="absolute inset-0 bg-black/50"
+          onClick={() => setShowConfirmDialog(false)}
+        />
+        <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-orange-800">
+                {selectedSeva?.title}
+              </h2>
+              <button
+                onClick={() => setShowConfirmDialog(false)}
+                className="p-2 hover:bg-stone-100 rounded-full transition"
+              >
+                <X size={20} />
+              </button>
             </div>
-            <div className="p-4 space-y-2">
-              <div className="flex justify-between">
-                <span className="text-stone-600">Seva:</span>
-                <span className="font-medium">{selectedSeva?.title}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-600">Date:</span>
-                <span className="font-medium">{preferredDate}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-600">Devotee:</span>
-                <span className="font-medium">{name || profile?.name}</span>
-              </div>
-              <hr className="my-2" />
-              <div className="flex justify-between text-lg font-bold">
-                <span>Amount:</span>
-                <span className="text-green-700">₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Payment Reference Form - shown after countdown */}
-          {showPaymentRefForm ? (
-            <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
-              <div className="text-center mb-4">
-                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
-                <p className="text-green-700">
-                  Please enter your UPI transaction ID to confirm payment.
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-orange-50 border border-orange-200 p-6">
+                <h3 className="text-lg font-bold text-orange-900 mb-4">Important Seva Guidelines</h3>
+                <ul className="space-y-3 text-sm text-stone-700">
+                  <li className="flex gap-2">
+                    <span className="text-orange-600 font-bold">•</span>
+                    <span><strong>Advance Booking:</strong> All Sevas must be booked at least two days in advance.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-orange-600 font-bold">•</span>
+                    <span><strong>Ekadasi Rule:</strong> No Pooja or Seva is performed on Ekadasi.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-orange-600 font-bold">•</span>
+                    <span><strong>Attendance:</strong> Sevakartas must be present at the Mutt premises for Sankalpa and Seva/Pooja.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-orange-600 font-bold">•</span>
+                    <span><strong>Seva Timings:</strong> Please call the Mutt one day prior to confirm exact timings.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-orange-600 font-bold">•</span>
+                    <span><strong>Cancellation:</strong> Seva once booked cannot be cancelled.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="text-center">
+                <p className="text-lg font-semibold text-stone-800">
+                  Seva Fee: <span className="text-orange-700">₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
                 </p>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
-                    UPI Transaction ID / Reference Number <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    type="text"
-                    value={paymentReference}
-                    onChange={(e) => setPaymentReference(e.target.value)}
-                    placeholder="e.g., NPS551234567890 or Gpay transaction ID"
-                    required
-                  />
-                  <p className="text-xs text-stone-500 mt-1">
-                    Find this in your UPI app's transaction history
-                  </p>
-                </div>
-
+              <div className="flex justify-end gap-3">
                 <Button
-                  onClick={handleSavePaymentReference}
-                  loading={savingPayment}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  disabled={!paymentReference.trim()}
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowConfirmDialog(false)}
+                  disabled={submitting}
                 >
-                  Confirm Payment
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleBooking}
+                  loading={submitting}
+                >
+                  Confirm Booking
                 </Button>
               </div>
             </div>
-          ) : !paymentInitiated && upiEnabled && upiDetails?.id ? (
-            <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
-              <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
-              
-              <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
-                <div>
-                  <p className="font-semibold text-stone-900">{upiDetails.id}</p>
-                  <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(upiDetails.id)}
-                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                >
-                  {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
-                </button>
-              </div>
-
-              <Button
-                onClick={openUPIApp}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Pay ₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")} via UPI
-              </Button>
-
-              <p className="text-center text-sm text-stone-500 mt-3">
-                Tap the button to open your UPI payment app
-              </p>
-            </div>
-          ) : paymentInitiated ? (
-            <div className="rounded-2xl border-2 border-green-400 bg-gradient-to-br from-green-100 to-emerald-100 p-6 text-center">
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="w-10 h-10 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
-              <p className="text-green-700 mb-4">
-                Please complete the payment in your UPI app.
-              </p>
-              <div className="bg-white rounded-lg p-4 mb-4">
-                <p className="text-sm text-stone-600 mb-1">Entering transaction ID in</p>
-                <p className="text-4xl font-bold text-green-600">{countdown}</p>
-                <p className="text-sm text-stone-600">seconds</p>
-              </div>
-              <p className="text-xs text-stone-500">
-                After paying, you will need to enter your transaction ID.
-              </p>
-            </div>
-          ) : null}
-
-          {!upiEnabled && !paymentInitiated && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
-              <p className="text-amber-800">Please contact the temple for payment instructions.</p>
-            </div>
-          )}
+          </div>
         </div>
       </div>
-    </dialog>
+    )}
+
+    {/* Payment Dialog - React Modal */}
+    {showPaymentDialog && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div 
+          className="absolute inset-0 bg-black/50"
+          onClick={handlePaymentDone}
+        />
+        <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-green-800">
+                {showPaymentRefForm ? "Confirm Payment" : paymentInitiated ? "Receipt" : "Payment Required"}
+              </h2>
+              <button
+                onClick={handlePaymentDone}
+                className="p-2 hover:bg-stone-100 rounded-full transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-green-50 border border-green-200 p-6 text-center">
+                <p className="text-sm text-green-700 mb-2">Booking Reference</p>
+                <p className="text-2xl font-bold text-green-800">{bookingRef}</p>
+              </div>
+
+              <div className="rounded-xl border border-stone-200 bg-white">
+                <div className="border-b p-4">
+                  <h3 className="font-semibold text-stone-800">Seva Details</h3>
+                </div>
+                <div className="p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-stone-600">Seva:</span>
+                    <span className="font-medium">{selectedSeva?.title}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-600">Date:</span>
+                    <span className="font-medium">{preferredDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-600">Devotee:</span>
+                    <span className="font-medium">{name || profile?.name}</span>
+                  </div>
+                  <hr className="my-2" />
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Amount:</span>
+                    <span className="text-green-700">₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Reference Form - shown after countdown */}
+              {showPaymentRefForm ? (
+                <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+                  <div className="text-center mb-4">
+                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
+                    <p className="text-green-700">
+                      Please enter your UPI transaction ID to confirm payment.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">
+                        UPI Transaction ID / Reference Number <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        type="text"
+                        value={paymentReference}
+                        onChange={(e) => setPaymentReference(e.target.value)}
+                        placeholder="e.g., NPS551234567890 or Gpay transaction ID"
+                      />
+                      <p className="text-xs text-stone-500 mt-1">
+                        Find this in your UPI app's transaction history
+                      </p>
+                    </div>
+
+                    <Button
+                      onClick={handleSavePaymentReference}
+                      loading={savingPayment}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      disabled={!paymentReference.trim()}
+                    >
+                      Confirm Payment
+                    </Button>
+                  </div>
+                </div>
+              ) : !paymentInitiated && upiEnabled && upiDetails?.id ? (
+                <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+                  <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
+                  
+                  <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
+                    <div>
+                      <p className="font-semibold text-stone-900">{upiDetails.id}</p>
+                      <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(upiDetails.id)}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                    >
+                      {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
+                    </button>
+                  </div>
+
+                  <Button
+                    onClick={openUPIApp}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Pay ₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")} via UPI
+                  </Button>
+
+                  <p className="text-center text-sm text-stone-500 mt-3">
+                    Tap the button to open your UPI payment app
+                  </p>
+                </div>
+              ) : paymentInitiated ? (
+                <div className="rounded-2xl border-2 border-green-400 bg-gradient-to-br from-green-100 to-emerald-100 p-6 text-center">
+                  <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check className="w-10 h-10 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
+                  <p className="text-green-700 mb-4">
+                    Please complete the payment in your UPI app.
+                  </p>
+                  <div className="bg-white rounded-lg p-4 mb-4">
+                    <p className="text-sm text-stone-600 mb-1">Entering transaction ID in</p>
+                    <p className="text-4xl font-bold text-green-600">{countdown}</p>
+                    <p className="text-sm text-stone-600">seconds</p>
+                  </div>
+                  <p className="text-xs text-stone-500">
+                    After paying, you will need to enter your transaction ID.
+                  </p>
+                </div>
+              ) : null}
+
+              {!upiEnabled && !paymentInitiated && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+                  <p className="text-amber-800">Please contact the temple for payment instructions.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
