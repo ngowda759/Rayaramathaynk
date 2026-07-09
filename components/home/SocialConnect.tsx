@@ -5,6 +5,7 @@ import {
   FaYoutube,
   FaWhatsapp,
 } from "react-icons/fa";
+import { ArrowRight } from "lucide-react";
 
 const socialLinks = [
   {
@@ -12,97 +13,137 @@ const socialLinks = [
     subtitle: "Sri Raghavendra Rayaru Yelahanka New Town",
     href: "https://www.facebook.com/srs.mutt.yelahanka.newtown",
     icon: FaFacebookF,
-    theme: "from-blue-600 to-sky-500",
+    theme: "bg-blue-600 hover:bg-blue-700",
   },
   {
     title: "Instagram Account",
     subtitle: "srs_mutt_yelahanka_newtown",
     href: "https://www.instagram.com/srs_mutt_yelahanka_newtown",
     icon: FaInstagram,
-    theme: "from-pink-500 via-purple-500 to-orange-500",
+    theme: "bg-gradient-to-br from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700",
   },
   {
     title: "YouTube Channel",
     subtitle: "Guru_Raghavendra_Rayaru",
     href: "https://www.youtube.com/@Guru_Raghavendra_Rayaru",
     icon: FaYoutube,
-    theme: "from-red-600 to-red-500",
+    theme: "bg-red-600 hover:bg-red-700",
   },
   {
     title: "WhatsApp Community",
-    subtitle: "Coming Soon",
+    subtitle: "SRS MUTT Yelahanka New Town",
     href: "#",
     icon: FaWhatsapp,
-    theme: "from-green-500 to-emerald-500",
-    disabled: true,
+    theme: "bg-green-500 hover:bg-green-600",
   },
 ];
 
 export default function SocialConnect() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-[#0b1120] via-[#121827] to-[#11151f] py-24 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.25),_transparent_35%)] opacity-20" />
+    <section className="bg-gradient-to-b from-amber-50 to-white py-16">
+      <div className="mx-auto max-w-4xl px-6 text-center">
+        <span className="inline-block rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-amber-700">
+          Connect With Sri Matha
+        </span>
 
-      <div className="relative mx-auto max-w-7xl px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <span className="inline-block rounded-full bg-amber-500/20 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-amber-300">
-            Connect With Sri Matha
-          </span>
+        <h2 className="mt-6 text-3xl font-bold text-stone-900 md:text-4xl">
+          Stay Connected With Us
+        </h2>
 
-          <h2 className="mt-6 text-4xl font-bold md:text-5xl">
-            Stay Connected With Us
-          </h2>
+        <p className="mt-4 text-lg leading-8 text-stone-600">
+          Receive temple updates, daily darshanas, sevas, festivals and
+          spiritual content by following our official social media channels.
+        </p>
 
-          <p className="mt-6 text-lg leading-8 text-stone-300">
-            Receive temple updates, daily darshanas, sevas, festivals and
-            spiritual content by following our official social media channels.
-          </p>
-        </div>
-
-        <div className="mt-16 grid gap-8 md:grid-cols-2 xl:grid-cols-4">
-          {socialLinks.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <div
-                key={item.title}
-                className="group rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl transition-all duration-300 hover:-translate-y-2 hover:border-amber-400/40 hover:bg-white/10"
-              >
-                <div
-                  className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${item.theme} text-white shadow-xl`}
-                >
-                  <Icon size={30} />
-                </div>
-
-                <h3 className="mt-8 text-2xl font-bold">
-                  {item.title}
-                </h3>
-
-                <p className="mt-4 text-sm leading-7 text-stone-300">
-                  {item.subtitle}
-                </p>
-
-                <div className="mt-8">
-                  {item.disabled ? (
-                    <span className="inline-flex rounded-xl border border-stone-600 bg-stone-900/80 px-5 py-3 text-sm font-semibold text-stone-300">
-                      Coming Soon
-                    </span>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-xl bg-amber-500 px-5 py-3 font-semibold text-white transition-all duration-300 hover:bg-amber-400 hover:shadow-lg"
-                    >
-                      Visit →
-                    </Link>
-                  )}
-                </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-2">
+          {/* Facebook */}
+          <Link
+            href="https://www.facebook.com/srs.mutt.yelahanka.newtown"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center justify-between rounded-2xl border-2 border-stone-200 bg-white p-6 shadow-sm transition-all hover:border-blue-400 hover:shadow-md"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 text-white">
+                <FaFacebookF size={28} />
               </div>
-            );
-          })}
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-stone-900">Facebook Page</h3>
+                <p className="text-sm text-stone-600">Sri Raghavendra Rayaru Yelahanka New Town</p>
+              </div>
+            </div>
+            <span className="text-amber-600 font-semibold group-hover:translate-x-1 transition-transform">
+              Visit →
+            </span>
+          </Link>
+
+          {/* Instagram */}
+          <Link
+            href="https://www.instagram.com/srs_mutt_yelahanka_newtown"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center justify-between rounded-2xl border-2 border-stone-200 bg-white p-6 shadow-sm transition-all hover:border-pink-400 hover:shadow-md"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 text-white">
+                <FaInstagram size={28} />
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-stone-900">Instagram Account</h3>
+                <p className="text-sm text-stone-600">srs_mutt_yelahanka_newtown</p>
+              </div>
+            </div>
+            <span className="text-amber-600 font-semibold group-hover:translate-x-1 transition-transform">
+              Visit →
+            </span>
+          </Link>
         </div>
       </div>
     </section>
+  );
+}
+
+// Small icons component for above footer
+export function SocialIcons() {
+  return (
+    <div className="flex items-center justify-center gap-4 py-6 bg-stone-50">
+      <Link
+        href="https://www.facebook.com/srs.mutt.yelahanka.newtown"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition-all hover:scale-110 hover:shadow-lg"
+        aria-label="Facebook"
+      >
+        <FaFacebookF size={22} />
+      </Link>
+
+      <Link
+        href="https://www.instagram.com/srs_mutt_yelahanka_newtown"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-600 text-white shadow-md transition-all hover:scale-110 hover:shadow-lg"
+        aria-label="Instagram"
+      >
+        <FaInstagram size={22} />
+      </Link>
+
+      <Link
+        href="https://www.youtube.com/@Guru_Raghavendra_Rayaru"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-md transition-all hover:scale-110 hover:shadow-lg"
+        aria-label="YouTube"
+      >
+        <FaYoutube size={22} />
+      </Link>
+
+      <Link
+        href="#"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500 text-white shadow-md transition-all hover:scale-110 hover:shadow-lg"
+        aria-label="WhatsApp"
+      >
+        <FaWhatsapp size={22} />
+      </Link>
+    </div>
   );
 }

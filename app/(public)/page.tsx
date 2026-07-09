@@ -7,6 +7,7 @@ import AnnouncementBar from "@/components/home/AnnouncementBar";
 import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GalleryPreview from "@/components/home/GalleryPreview";
 import SocialConnect from "@/components/home/SocialConnect";
+import { SocialIcons } from "@/components/home/SocialConnect";
 import Footer from "@/components/layout/Footer";
 import Panchanga from "@/components/home/Panchanga";
 import CalendarCenter from "@/components/calendar/CalendarCenter";
@@ -25,6 +26,7 @@ export default function Home() {
       <SocialConnect />
       <UpcomingEvents />
       <GalleryPreview />
+      <SocialIcons />
       <Footer />
     </>
   );
