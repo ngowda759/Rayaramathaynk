@@ -1,7 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
-import { Temple, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
+import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
 import Link from "next/link";
 
 export default function AboutPage() {
@@ -47,7 +47,7 @@ export default function AboutPage() {
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
-                <Temple className="w-6 h-6" />
+                <Building2 className="w-6 h-6" />
               </div>
               <h2 className="text-2xl font-bold text-stone-900">About the Temple</h2>
             </div>
