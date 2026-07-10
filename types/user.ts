@@ -16,7 +16,7 @@ export type UserRole =
   | "Volunteer";
 
 // Normalized roles for consistent access control
-export type NormalizedRole = "super_admin" | "admin" | "volunteer" | "devotee";
+export type NormalizedRole = "super_admin" | "admin" | "billing" | "volunteer" | "devotee";
 
 export function normalizeRole(role: UserRole): NormalizedRole {
   const roleLower = role.toLowerCase().replace(/\s+/g, "_");
@@ -25,6 +25,8 @@ export function normalizeRole(role: UserRole): NormalizedRole {
     case "super_admin":
     case "super admin":
       return "super_admin";
+    case "billing":
+      return "billing";
     case "temple_admin":
     case "temple admin":
     case "admin":

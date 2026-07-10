@@ -15,17 +15,47 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const { canAccessSettings, canManageUsers, canAccessBilling } = useAuthContext();
+  const { 
+    canAccessSettings, 
+    canManageUsers, 
+    canAccessBilling, 
+    canAccessFinance,
+    canAccessAdministration,
+    normalizedRole 
+  } = useAuthContext();
 
   const filteredNavigation = navigation.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
       // Filter based on permissions
+      // Temple Admin: Cannot access Finance and Administration
+      if (normalizedRole === "admin") {
+        if (group.title === "Finance") return false;
+        if (group.title === "Administration") return false;
+        if (item.href.includes("/finance")) return false;
+        if (item.href.includes("/billing")) return false;
+        if (item.href.includes("/reports")) return false;
+        if (item.href.includes("/donations")) return false;
+        if (item.href.includes("/users")) return false;
+        if (item.href.includes("/settings")) return false;
+        if (item.href.includes("/assistant")) return false;
+      }
+      
+      // Billing role: Only Finance section and Dashboard
+      if (normalizedRole === "billing") {
+        if (group.title === "Finance") return true;
+        if (item.href === "/admin") return true;
+        if (group.title === "Dashboard") return true;
+        return false;
+      }
+      
+      // Super Admin: Has access to everything
+      // Filter based on permissions
       if (item.href.includes("/users") && !canManageUsers) {
         return false;
       }
       if (
-        (item.href.includes("/settings") || item.href.includes("/finance")) &&
+        item.href.includes("/settings") &&
         !canAccessSettings
       ) {
         return false;
@@ -33,6 +63,10 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       // Filter billing menu - only show for super_admin or billing users
       if (item.href.includes("/billing")) {
         return canAccessBilling;
+      }
+      // Filter Administration section - only super_admin
+      if (group.title === "Administration" && !canAccessAdministration) {
+        return false;
       }
       return true;
     }),

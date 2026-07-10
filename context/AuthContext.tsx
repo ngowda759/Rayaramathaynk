@@ -37,8 +37,10 @@ interface AuthContextType {
   // Permission helpers
   canAccessAdmin: boolean;
   canAccessSettings: boolean;
+  canAccessFinance: boolean;
   canManageUsers: boolean;
   canAccessBilling: boolean;
+  canAccessAdministration: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(
@@ -123,12 +125,15 @@ export function AuthProvider({
   // Role-based permissions
   const normalizedRole = profile?.role ? normalizeRole(profile.role as UserRole) : "devotee";
   
+  // Super Admin: Access to everything
+  // Temple Admin: All except Finance and Administration
+  // Billing: Only Finance module
   const canAccessAdmin = normalizedRole !== "devotee" && normalizedRole !== "volunteer";
-  const canAccessSettings = normalizedRole === "super_admin";
+  const canAccessSettings = normalizedRole === "super_admin" || normalizedRole === "admin";
+  const canAccessFinance = normalizedRole === "super_admin" || normalizedRole === "billing";
   const canManageUsers = normalizedRole === "super_admin";
-  
-  // Billing access: super_admin or usertype = "Billing"
-  const canAccessBilling = normalizedRole === "super_admin" || profile?.role === "Billing" || profile?.role === "billing";
+  const canAccessBilling = normalizedRole === "super_admin" || normalizedRole === "billing";
+  const canAccessAdministration = normalizedRole === "super_admin";
 
   return (
     <AuthContext.Provider
@@ -144,8 +149,10 @@ export function AuthProvider({
         refreshProfile,
         canAccessAdmin,
         canAccessSettings,
+        canAccessFinance,
         canManageUsers,
         canAccessBilling,
+        canAccessAdministration,
       }}
     >
       {children}
