@@ -75,26 +75,26 @@ export default function AaradhanePage() {
         )}
 
         {!loading && !error && upcomingAaradhanes.length > 0 && (
-          <div className="mx-auto mt-10 max-w-5xl">
+          <div className="mx-auto mt-10 max-w-6xl space-y-8">
             <h2 className="mb-6 text-2xl font-bold text-stone-900">
               Upcoming Aaradhane
             </h2>
-            <div className="grid gap-6 md:grid-cols-2">
-              {upcomingAaradhanes.map((aaradhane) => (
-                <div
-                  key={aaradhane.id}
-                  className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 shadow-md"
-                >
-                  {aaradhane.imageUrl && (
-                    <div className="mb-4 overflow-hidden rounded-2xl">
-                      <img
-                        src={`/images/aaradhane/${aaradhane.imageUrl}`}
-                        alt={aaradhane.title}
-                        className="h-48 sm:h-56 md:h-64 lg:h-72 w-full object-cover"
-                      />
-                    </div>
-                  )}
-                  
+            {upcomingAaradhanes.map((aaradhane) => (
+              <div
+                key={aaradhane.id}
+                className="flex flex-col md:flex-row gap-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 shadow-md"
+              >
+                {aaradhane.imageUrl && (
+                  <div className="w-full md:w-1/2 overflow-hidden rounded-2xl">
+                    <img
+                      src={`/images/aaradhane/${aaradhane.imageUrl}`}
+                      alt={aaradhane.title}
+                      className="h-64 sm:h-80 md:h-96 w-full object-cover"
+                    />
+                  </div>
+                )}
+                
+                <div className="flex-1">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-xl font-bold text-stone-900">
@@ -172,55 +172,53 @@ export default function AaradhanePage() {
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         )}
 
         {!loading && !error && pastAaradhanes.length > 0 && (
-          <div className="mx-auto mt-12 max-w-5xl">
+          <div className="mx-auto mt-12 max-w-6xl space-y-6">
             <h2 className="mb-6 text-2xl font-bold text-stone-900">
               Past Aaradhane
             </h2>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {pastAaradhanes.map((aaradhane) => (
-                <div
-                  key={aaradhane.id}
-                  className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-stone-900">
-                        {aaradhane.title}
-                      </h3>
-                      <p className="mt-1 text-sm text-stone-500">
-                        by {aaradhane.guruName}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-stone-200 px-3 py-1 text-xs font-medium text-stone-600">
-                      Past
-                    </span>
+            {pastAaradhanes.map((aaradhane) => (
+              <div
+                key={aaradhane.id}
+                className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-stone-900">
+                      {aaradhane.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-stone-500">
+                      by {aaradhane.guruName}
+                    </p>
                   </div>
-
-                  <div className="mt-4 space-y-1">
-                    {aaradhane.dates && aaradhane.dates.length > 0 ? (
-                      aaradhane.dates.map((date, index) => (
-                        <div key={index} className="flex items-center gap-2 text-sm text-stone-500">
-                          <Calendar className="h-4 w-4" />
-                          <span>{formatDate(date)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No dates</p>
-                    )}
-                  </div>
-
-                  <p className="mt-4 line-clamp-3 text-sm text-stone-600">
-                    {aaradhane.description}
-                  </p>
+                  <span className="rounded-full bg-stone-200 px-3 py-1 text-xs font-medium text-stone-600">
+                    Past
+                  </span>
                 </div>
-              ))}
-            </div>
+
+                <div className="mt-4 space-y-1">
+                  {aaradhane.dates && aaradhane.dates.length > 0 ? (
+                    aaradhane.dates.map((date, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm text-stone-500">
+                        <Calendar className="h-4 w-4" />
+                        <span>{formatDate(date)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No dates</p>
+                  )}
+                </div>
+
+                <p className="mt-4 text-stone-600">
+                  {aaradhane.description}
+                </p>
+              </div>
+            ))}
           </div>
         )}
 
