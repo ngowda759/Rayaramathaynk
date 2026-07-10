@@ -104,18 +104,11 @@ export default function GalleryDashboard() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-10 text-center">
-        <p className="text-red-600 font-medium">{error}</p>
-        <button
-          onClick={load}
-          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-        >
-          Try Again
-        </button>
-      </div>
-    );
+  // Show empty state instead of error - the page will still be usable
+  // This allows admins to see the page even if Firebase isn't configured
+  if (error && albums.length === 0 && media.length === 0) {
+    console.warn("Gallery loading error:", error);
+    // Don't show error, just continue with empty data
   }
 
   return (

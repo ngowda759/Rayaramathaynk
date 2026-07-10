@@ -80,26 +80,45 @@ export function AuthProvider({
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser) => {
-        setLoading(true);
+    // Skip Firebase auth if not properly configured
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
 
-        try {
-          setUser(firebaseUser);
+    let unsubscribe: (() => void) | undefined;
 
-          if (firebaseUser) {
-            await loadProfile(firebaseUser.uid);
-          } else {
-            setProfile(null);
+    try {
+      unsubscribe = onAuthStateChanged(
+        auth,
+        async (firebaseUser) => {
+          setLoading(true);
+
+          try {
+            setUser(firebaseUser);
+
+            if (firebaseUser) {
+              await loadProfile(firebaseUser.uid);
+            } else {
+              setProfile(null);
+            }
+          } catch (err) {
+            console.error("Auth state change error:", err);
+          } finally {
+            setLoading(false);
           }
-        } finally {
-          setLoading(false);
         }
-      }
-    );
+      );
+    } catch (err) {
+      console.error("Firebase auth initialization error:", err);
+      setLoading(false);
+    }
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   async function login(
