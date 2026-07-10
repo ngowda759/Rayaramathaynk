@@ -10,6 +10,7 @@ import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { shlokas as shlokasData } from "@/data/shlokas";
 
 interface Shloka {
   id: string;
@@ -34,12 +35,13 @@ interface ShlokasData {
 const COLLECTION = "settings";
 const DOCUMENT = "shlokas";
 
+// Load default data from static file
 const defaultData: ShlokasData = {
   heading: "Shlokas & Stotrams",
   headingKannada: "ಶ್ಲೋಕಗಳು",
   subheading: "Sacred hymns and prayers for daily worship",
   subheadingKannada: "ದೈನಿಕ ಆರಾಧನೆಗಾಗಿ ಪವಿತ್ರ ಜಪ ಮತ್ತು ಪ್ರಾರ್ಥನೆಗಳು",
-  shlokas: [],
+  shlokas: shlokasData,
   categories: ["All", "Daily Prayers", "Sri Raghavendra Swamy", "Venkateswara", "Vishnu", "Hanuman", "Shiva", "Ganesha", "Lakshmi", "Durga"],
 };
 
