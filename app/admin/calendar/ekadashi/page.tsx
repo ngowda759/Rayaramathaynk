@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus, Trash2, Edit2, Save, X, Calendar } from "lucide-react";
 import { Ekadashi } from "@/types/calendar";
+import { calendar } from "@/data/calendar";
 
 const getDayOfWeek = (dateStr: string): string => {
   const date = new Date(dateStr);
@@ -10,39 +11,12 @@ const getDayOfWeek = (dateStr: string): string => {
 };
 
 export default function EkadashiAdminPage() {
-  const [ekadashiList, setEkadashiList] = useState<Ekadashi[]>([]);
+  const [ekadashiList, setEkadashiList] = useState<Ekadashi[]>(calendar.ekadashi);
   const [newDate, setNewDate] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editDate, setEditDate] = useState("");
-  const [samvatsara, setSamvatsara] = useState("Sri Parabhava");
-  const [isLoading, setIsLoading] = useState(true);
+  const [samvatsara] = useState(calendar.samvatsara);
   const [showForm, setShowForm] = useState(false);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const response = await fetch("/api/calendar");
-      if (response.ok) {
-        const data = await response.json();
-        setEkadashiList(data.ekadashi || []);
-        setSamvatsara(data.samvatsara || "Sri Parabhava");
-      } else {
-        // Load from static data
-        const staticData = await import("@/data/calendar").then((mod) => mod.calendar);
-        setEkadashiList(staticData.ekadashi);
-        setSamvatsara(staticData.samvatsara);
-      }
-    } catch (error) {
-      console.error("Error fetching calendar:", error);
-      const staticData = await import("@/data/calendar").then((mod) => mod.calendar);
-      setEkadashiList(staticData.ekadashi);
-      setSamvatsara(staticData.samvatsara);
-    }
-    setIsLoading(false);
-  };
 
   const handleAdd = async () => {
     if (!newDate) return;
@@ -119,14 +93,6 @@ export default function EkadashiAdminPage() {
     setEditingIndex(index);
     setEditDate(ekadashiList[index].date);
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

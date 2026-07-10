@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus, Trash2, Edit2, Save, X, BookOpen, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { Shloka } from "@/types/shlokas";
+import { shlokas as shlokasData } from "@/data/shlokas";
 
 const categories = [
   "Daily Prayers",
@@ -16,8 +17,7 @@ const categories = [
 ];
 
 export default function ShlokasAdminPage() {
-  const [shlokas, setShlokas] = useState<Shloka[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [shlokas, setShlokas] = useState<Shloka[]>(shlokasData);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -32,20 +32,6 @@ export default function ShlokasAdminPage() {
     verses: "",
     meaning: ""
   });
-
-  useEffect(() => {
-    fetchShlokas();
-  }, []);
-
-  const fetchShlokas = async () => {
-    try {
-      const staticData = await import("@/data/shlokas").then((mod) => mod.shlokas);
-      setShlokas(staticData);
-    } catch (error) {
-      console.error("Error fetching shlokas:", error);
-    }
-    setIsLoading(false);
-  };
 
   const resetForm = () => {
     setFormData({
@@ -130,14 +116,6 @@ export default function ShlokasAdminPage() {
     acc[shloka.category].push(shloka);
     return acc;
   }, {} as Record<string, Shloka[]>);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

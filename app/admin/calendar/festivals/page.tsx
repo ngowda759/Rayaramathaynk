@@ -1,44 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus, Trash2, Edit2, Save, X, PartyPopper } from "lucide-react";
 import { Festival } from "@/types/calendar";
+import { calendar } from "@/data/calendar";
 
 export default function FestivalsAdminPage() {
-  const [festivalsList, setFestivalsList] = useState<Festival[]>([]);
+  const [festivalsList, setFestivalsList] = useState<Festival[]>(calendar.festivals);
   const [newDate, setNewDate] = useState("");
   const [newFestival, setNewFestival] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editFestival, setEditFestival] = useState("");
-  const [samvatsara, setSamvatsara] = useState("Sri Parabhava");
-  const [isLoading, setIsLoading] = useState(true);
+  const [samvatsara] = useState(calendar.samvatsara);
   const [showForm, setShowForm] = useState(false);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const response = await fetch("/api/calendar");
-      if (response.ok) {
-        const data = await response.json();
-        setFestivalsList(data.festivals || []);
-        setSamvatsara(data.samvatsara || "Sri Parabhava");
-      } else {
-        const staticData = await import("@/data/calendar").then((mod) => mod.calendar);
-        setFestivalsList(staticData.festivals);
-        setSamvatsara(staticData.samvatsara);
-      }
-    } catch (error) {
-      console.error("Error fetching calendar:", error);
-      const staticData = await import("@/data/calendar").then((mod) => mod.calendar);
-      setFestivalsList(staticData.festivals);
-      setSamvatsara(staticData.samvatsara);
-    }
-    setIsLoading(false);
-  };
 
   const handleAdd = async () => {
     if (!newDate || !newFestival) return;
@@ -118,14 +93,6 @@ export default function FestivalsAdminPage() {
     setEditDate(festivalsList[index].date);
     setEditFestival(festivalsList[index].festival);
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
