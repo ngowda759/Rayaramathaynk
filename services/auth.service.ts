@@ -48,23 +48,14 @@ class AuthService {
       name,
       email,
       phone,
-
       role: "devotee",
-
       templeId: "main",
-
       profileImage: "",
-
       isApproved: false,
-
       isActive: true,
-
       emailVerified: false,
-
       lastLogin: null,
-
       createdAt: serverTimestamp(),
-
       updatedAt: serverTimestamp(),
     });
 

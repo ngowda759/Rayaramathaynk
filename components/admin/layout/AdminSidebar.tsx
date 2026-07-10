@@ -65,13 +65,15 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     }),
   })).filter((group) => group.items.length > 0);
 
-  // Auto-expand groups with active items
+  // Auto-expand groups with active items or Dashboard by default
   useEffect(() => {
     const newExpanded: Record<string, boolean> = {};
     filteredNavigation.forEach((group) => {
-      newExpanded[group.title] = group.items.some((item) => {
+      const hasActiveItem = group.items.some((item) => {
         return pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
       });
+      // Always expand Dashboard group
+      newExpanded[group.title] = hasActiveItem || group.title === "Dashboard";
     });
     setExpandedGroups(newExpanded);
   }, [pathname, filteredNavigation]);
@@ -135,7 +137,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     <>
       {/* Desktop Sidebar - Fixed position */}
       <aside
-        className="hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:z-30 lg:h-screen lg:w-64 lg:border-r lg:bg-card lg:overflow-hidden"
+        className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-64 lg:border-r lg:bg-card"
         aria-label="Main navigation"
       >
         {/* Logo */}
@@ -172,8 +174,8 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
               </button>
               <div
                 className={cn(
-                  "space-y-0.5 overflow-hidden transition-all duration-200",
-                  expandedGroups[group.title] ? "mt-1 max-h-96" : "max-h-0"
+                  "space-y-0.5 transition-all duration-200 pointer-events-auto",
+                  expandedGroups[group.title] ? "mt-1" : "h-0 overflow-hidden pointer-events-none"
                 )}
               >
                 {group.items.map((item) => renderNavItem(item))}
