@@ -15,7 +15,7 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const { canAccessSettings, canManageUsers } = useAuthContext();
+  const { canAccessSettings, canManageUsers, canAccessBilling } = useAuthContext();
 
   const filteredNavigation = navigation.map((group) => ({
     ...group,
@@ -29,6 +29,10 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         !canAccessSettings
       ) {
         return false;
+      }
+      // Filter billing menu - only show for super_admin or billing users
+      if (item.href.includes("/billing")) {
+        return canAccessBilling;
       }
       return true;
     }),
