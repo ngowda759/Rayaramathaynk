@@ -21,6 +21,16 @@ export const navigation: NavigationGroup[] = [
         icon: "calendar",
       },
       {
+        title: "Ekadashi Calendar",
+        href: "/admin/calendar/ekadashi",
+        icon: "calendar",
+      },
+      {
+        title: "Festival Calendar",
+        href: "/admin/calendar/festivals",
+        icon: "calendar",
+      },
+      {
         title: "Member / Volunteer",
         href: "/admin/sevas",
         icon: "heart",
