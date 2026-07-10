@@ -188,6 +188,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           height: "100dvh",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
+          touchAction: "none",
         }}
       >
         {/* Header - fixed at top, not part of scroll */}
@@ -220,6 +221,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           style={{
             overscrollBehavior: "contain",
             WebkitOverflowScrolling: "touch",
+            touchAction: "pan-y",
           }}
         >
           {navigation.map((group) => (
@@ -249,12 +251,14 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         </nav>
       </aside>
 
-      {/* Mobile Overlay */}
+      {/* Mobile Overlay - captures touch events to prevent background scrolling */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={onClose}
+          onTouchMove={(e) => e.preventDefault()}
           aria-hidden="true"
+          style={{ touchAction: "none" }}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useEffect, useCallback } from "react";
+import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import AdminHeader from "./AdminHeader";
 import AdminSidebar from "./AdminSidebar";
 
@@ -10,6 +10,7 @@ interface Props {
 
 export default function AdminShell({ children }: Props) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const scrollPositionRef = useRef(0);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
@@ -21,8 +22,6 @@ export default function AdminShell({ children }: Props) {
 
   // Handle ESC key to close sidebar and body scroll locking
   useEffect(() => {
-    let scrollY = 0;
-
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isSidebarOpen) {
         closeSidebar();
@@ -32,13 +31,15 @@ export default function AdminShell({ children }: Props) {
     if (isSidebarOpen) {
       document.addEventListener("keydown", handleEsc);
       // Save current scroll position before locking
-      scrollY = window.scrollY;
+      scrollPositionRef.current = window.scrollY;
       // Lock body scrolling when sidebar is open
       document.body.style.overflow = "hidden";
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
-      document.body.style.top = `-${scrollY}px`;
+      document.body.style.top = `-${scrollPositionRef.current}px`;
       document.body.style.touchAction = "none";
+      document.body.style.msOverflowStyle = "none";
+      document.body.style.scrollbarWidth = "none";
     } else {
       // Restore body scrolling
       document.body.style.overflow = "";
@@ -46,8 +47,10 @@ export default function AdminShell({ children }: Props) {
       document.body.style.width = "";
       document.body.style.top = "";
       document.body.style.touchAction = "";
+      document.body.style.msOverflowStyle = "";
+      document.body.style.scrollbarWidth = "";
       // Restore scroll position
-      window.scrollTo(0, scrollY);
+      window.scrollTo(0, scrollPositionRef.current);
     }
 
     return () => {
@@ -58,6 +61,8 @@ export default function AdminShell({ children }: Props) {
       document.body.style.width = "";
       document.body.style.top = "";
       document.body.style.touchAction = "";
+      document.body.style.msOverflowStyle = "";
+      document.body.style.scrollbarWidth = "";
     };
   }, [isSidebarOpen, closeSidebar]);
 
@@ -72,7 +77,7 @@ export default function AdminShell({ children }: Props) {
       {/* Main Content Area */}
       <div className="flex h-full flex-col lg:pl-64">
         <AdminHeader onMenuClick={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto lg:overflow-y-visible">
           {children}
         </main>
       </div>
