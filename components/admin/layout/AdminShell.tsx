@@ -19,8 +19,10 @@ export default function AdminShell({ children }: Props) {
     setIsSidebarOpen(false);
   }, []);
 
-  // Handle ESC key to close sidebar
+  // Handle ESC key to close sidebar and body scroll locking
   useEffect(() => {
+    let scrollY = 0;
+
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isSidebarOpen) {
         closeSidebar();
@@ -29,14 +31,33 @@ export default function AdminShell({ children }: Props) {
 
     if (isSidebarOpen) {
       document.addEventListener("keydown", handleEsc);
+      // Save current scroll position before locking
+      scrollY = window.scrollY;
+      // Lock body scrolling when sidebar is open
       document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.touchAction = "none";
     } else {
+      // Restore body scrolling
       document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      document.body.style.touchAction = "";
+      // Restore scroll position
+      window.scrollTo(0, scrollY);
     }
 
     return () => {
       document.removeEventListener("keydown", handleEsc);
+      // Clean up styles
       document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      document.body.style.touchAction = "";
     };
   }, [isSidebarOpen, closeSidebar]);
 
