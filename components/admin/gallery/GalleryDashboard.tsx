@@ -20,6 +20,7 @@ export default function GalleryDashboard() {
   const [albums, setAlbums] = useState<GalleryAlbum[]>([]);
   const [media, setMedia] = useState<GalleryMedia[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [albumDialogOpen, setAlbumDialogOpen] =
     useState(false);
@@ -32,17 +33,23 @@ export default function GalleryDashboard() {
 
   async function load() {
     setLoading(true);
+    setError(null);
 
-    const [albumData, mediaData] =
-      await Promise.all([
-        galleryService.getAlbums(),
-        galleryService.getMedia(),
-      ]);
+    try {
+      const [albumData, mediaData] =
+        await Promise.all([
+          galleryService.getAlbums(),
+          galleryService.getMedia(),
+        ]);
 
-    setAlbums(albumData);
-    setMedia(mediaData);
-
-    setLoading(false);
+      setAlbums(albumData);
+      setMedia(mediaData);
+    } catch (err) {
+      console.error("Failed to load gallery:", err);
+      setError("Failed to load gallery. Please check your Firebase configuration.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -52,36 +59,58 @@ export default function GalleryDashboard() {
   async function saveAlbum(
     data: Omit<GalleryAlbum, "id">
   ) {
-    if (selectedAlbum) {
-      await galleryService.updateAlbum(
-        selectedAlbum.id,
-        data
-      );
-    } else {
-      await galleryService.createAlbum(data);
+    try {
+      if (selectedAlbum) {
+        await galleryService.updateAlbum(
+          selectedAlbum.id,
+          data
+        );
+      } else {
+        await galleryService.createAlbum(data);
+      }
+
+      setSelectedAlbum(null);
+      await load();
+    } catch (err) {
+      console.error("Failed to save album:", err);
+      alert("Failed to save album. Please try again.");
     }
-
-    setSelectedAlbum(null);
-
-    await load();
   }
 
   async function deleteAlbum() {
     if (!selectedAlbum) return;
 
-    await galleryService.deleteAlbum(
-      selectedAlbum.id
-    );
+    try {
+      await galleryService.deleteAlbum(
+        selectedAlbum.id
+      );
 
-    setSelectedAlbum(null);
-
-    await load();
+      setSelectedAlbum(null);
+      await load();
+    } catch (err) {
+      console.error("Failed to delete album:", err);
+      alert("Failed to delete album. Please try again.");
+    }
   }
 
   if (loading) {
     return (
       <div className="rounded-xl border bg-white p-10 text-center">
         Loading Gallery...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-10 text-center">
+        <p className="text-red-600 font-medium">{error}</p>
+        <button
+          onClick={load}
+          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+        >
+          Try Again
+        </button>
       </div>
     );
   }

@@ -21,6 +21,7 @@ function formatTimeAgo(date: Date): string {
 export default function NotificationDropdown() {
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useDonationNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,6 +33,11 @@ export default function NotificationDropdown() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Don't render if there's an error
+  if (hasError) {
+    return null;
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>
