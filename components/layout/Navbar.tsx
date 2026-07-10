@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 
 const menuItems = [
@@ -48,6 +48,7 @@ export default function Navbar() {
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
   const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
   const calendarDropdownRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef(0);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -58,6 +59,33 @@ export default function Navbar() {
 
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (open) {
+      scrollPositionRef.current = window.scrollY;
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+      document.body.style.top = `-${scrollPositionRef.current}px`;
+      document.body.style.touchAction = "none";
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      document.body.style.touchAction = "";
+      window.scrollTo(0, scrollPositionRef.current);
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      document.body.style.touchAction = "";
+    };
+  }, [open]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
