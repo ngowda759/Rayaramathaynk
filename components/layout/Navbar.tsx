@@ -28,6 +28,13 @@ const aboutDropdown = [
   { name: "About Us", href: "/about" },
   { name: "Facilities", href: "/facilities" },
   { name: "Trust Committee", href: "/trust" },
+  { name: "Future Plans", href: "/future-plans" },
+];
+
+const onlineServicesDropdown = [
+  { name: "Daily Seva", href: "/pooja" },
+  { name: "Special Seva", href: "/sevas" },
+  { name: "Donate", href: "/donation" },
 ];
 
 export default function Navbar() {
@@ -37,9 +44,11 @@ export default function Navbar() {
   const [sevasOpen, setSevaOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [onlineServicesOpen, setOnlineServicesOpen] = useState(false);
   const sevasDropdownRef = useRef<HTMLDivElement>(null);
   const eventsDropdownRef = useRef<HTMLDivElement>(null);
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
+  const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -63,6 +72,9 @@ export default function Navbar() {
       if (aboutDropdownRef.current && !aboutDropdownRef.current.contains(event.target as Node)) {
         setAboutOpen(false);
       }
+      if (onlineServicesDropdownRef.current && !onlineServicesDropdownRef.current.contains(event.target as Node)) {
+        setOnlineServicesOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -71,7 +83,8 @@ export default function Navbar() {
 
   const isSevaActive = pathname === "/pooja" || pathname === "/sevas";
   const isEventsActive = pathname === "/events" || pathname === "/aaradhane";
-  const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust";
+  const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans";
+  const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation";
 
   return (
     <header
@@ -246,15 +259,47 @@ export default function Navbar() {
             )}
           </div>
 
-        </nav>
+          {/* Online Services Dropdown with Heart */}
+          <div className="relative" ref={onlineServicesDropdownRef}>
+            <button
+              onClick={() => setOnlineServicesOpen(!onlineServicesOpen)}
+              className={`flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-5 py-2 font-semibold text-white shadow-lg transition-all duration-300 hover:scale-105 ${
+                isOnlineServicesActive ? "ring-2 ring-white ring-offset-2" : ""
+              }`}
+            >
+              <Heart size={18} />
+              Online Services
+              <ChevronDown size={16} className={`transition-transform ${onlineServicesOpen ? "rotate-180" : ""}`} />
+            </button>
 
-        <Link
-          href="/donation"
-          className="hidden items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-3 font-semibold text-white shadow-lg transition hover:scale-105 lg:flex"
-        >
-          <Heart size={18} />
-          Donate
-        </Link>
+            {onlineServicesOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-amber-200 bg-white shadow-xl overflow-hidden">
+                {onlineServicesDropdown.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => {
+                        setOnlineServicesOpen(false);
+                        setOpen(false);
+                      }}
+                      className={`flex items-center gap-2 px-4 py-3 transition-all ${
+                        active
+                          ? "bg-amber-100 text-amber-800 font-semibold"
+                          : "text-stone-700 hover:bg-amber-50"
+                      }`}
+                    >
+                      {item.name === "Donate" && <Heart size={14} className="text-amber-600" />}
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+        </nav>
 
         <button
           onClick={() => setOpen(!open)}
@@ -366,14 +411,32 @@ export default function Navbar() {
               })}
             </div>
 
-            <Link
-              href="/donation"
-              onClick={() => setOpen(false)}
-              className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white"
-            >
-              <Heart size={18} />
-              Donate Now
-            </Link>
+            {/* Online Services dropdown in mobile */}
+            <div className="space-y-1">
+              <p className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-600">
+                <Heart size={14} />
+                Online Services
+              </p>
+              {onlineServicesDropdown.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-2 rounded-2xl px-8 py-4 ${
+                      active
+                        ? "bg-amber-100 text-amber-800"
+                        : "hover:bg-stone-100"
+                    }`}
+                  >
+                    {item.name === "Donate" && <Heart size={14} className="text-amber-600" />}
+                    {item.name}
+                    <ChevronRight size={18} className="ml-auto" />
+                  </Link>
+                );
+              })}
+            </div>
 
           </div>
 

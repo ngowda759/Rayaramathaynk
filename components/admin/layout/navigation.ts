@@ -119,6 +119,16 @@ export const navigation: NavigationGroup[] = [
         icon: "donation",
       },
       {
+        title: "Future Plans",
+        href: "/admin/settings/future-plans",
+        icon: "calendar",
+      },
+      {
+        title: "Trust Committee",
+        href: "/admin/settings/trust-committee",
+        icon: "users",
+      },
+      {
         title: "AI Assistant",
         href: "/admin/assistant",
         icon: "sparkles",
