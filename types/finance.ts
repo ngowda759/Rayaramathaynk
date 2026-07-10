@@ -1,5 +1,7 @@
 export interface FinanceSettings {
   enabled: boolean;
+  billingEnabled: boolean;
+  billing: BillingSettings;
   upi: {
     enabled: boolean;
     id: string;
@@ -17,6 +19,20 @@ export interface FinanceSettings {
   updatedAt?: string;
 }
 
+export interface BillingSettings {
+  invoicePrefix: string;
+  invoiceNumber: number;
+  defaultDueDays: number;
+  taxRate: number;
+  currency: string;
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyEmail: string;
+  companyGstin: string;
+  notes: string;
+}
+
 export interface SpecialSeva {
   id: string;
   title: string;
@@ -29,6 +45,20 @@ export interface SpecialSeva {
 
 export const defaultFinanceSettings: FinanceSettings = {
   enabled: true,
+  billingEnabled: false,
+  billing: {
+    invoicePrefix: "INV",
+    invoiceNumber: 1000,
+    defaultDueDays: 15,
+    taxRate: 0,
+    currency: "INR",
+    companyName: "",
+    companyAddress: "",
+    companyPhone: "",
+    companyEmail: "",
+    companyGstin: "",
+    notes: "Thank you for your contribution to the temple.",
+  },
   upi: {
     enabled: true,
     id: "",

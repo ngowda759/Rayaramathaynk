@@ -12,6 +12,7 @@ import {
   Sparkles,
   Receipt,
   ClipboardList,
+  FileText,
 } from "lucide-react";
 
 export const icons = {
@@ -29,4 +30,5 @@ export const icons = {
   sparkles: Sparkles,
   reports: Receipt,
   bookings: ClipboardList,
+  billing: FileText,
 };

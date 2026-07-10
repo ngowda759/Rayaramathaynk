@@ -38,6 +38,7 @@ interface AuthContextType {
   canAccessAdmin: boolean;
   canAccessSettings: boolean;
   canManageUsers: boolean;
+  canAccessBilling: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(
@@ -125,6 +126,9 @@ export function AuthProvider({
   const canAccessAdmin = normalizedRole !== "devotee" && normalizedRole !== "volunteer";
   const canAccessSettings = normalizedRole === "super_admin";
   const canManageUsers = normalizedRole === "super_admin";
+  
+  // Billing access: super_admin or usertype = "Billing"
+  const canAccessBilling = normalizedRole === "super_admin" || profile?.role === "Billing" || profile?.role === "billing";
 
   return (
     <AuthContext.Provider
@@ -141,6 +145,7 @@ export function AuthProvider({
         canAccessAdmin,
         canAccessSettings,
         canManageUsers,
+        canAccessBilling,
       }}
     >
       {children}

@@ -7,6 +7,8 @@ export type UserRole =
   | "staff"
   | "volunteer"
   | "devotee"
+  | "billing"
+  | "Billing"
   | "Super Admin"
   | "Temple Admin"
   | "Priest"

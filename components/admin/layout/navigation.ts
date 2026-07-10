@@ -75,6 +75,27 @@ export const navigation: NavigationGroup[] = [
   },
 
   {
+    title: "Finance",
+    items: [
+      {
+        title: "Billing",
+        href: "/admin/billing",
+        icon: "billing",
+      },
+      {
+        title: "Donations",
+        href: "/admin/donations",
+        icon: "donation",
+      },
+      {
+        title: "Reports",
+        href: "/admin/reports",
+        icon: "reports",
+      },
+    ],
+  },
+
+  {
     title: "Administration",
     items: [
       {

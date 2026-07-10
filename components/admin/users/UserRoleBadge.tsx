@@ -16,6 +16,8 @@ const colors: Record<UserRole, string> = {
   staff: "bg-green-100 text-green-700",
   volunteer: "bg-purple-100 text-purple-700",
   devotee: "bg-slate-100 text-slate-700",
+  Billing: "bg-violet-100 text-violet-700",
+  billing: "bg-violet-100 text-violet-700",
 };
 
 export default function UserRoleBadge({ role }: Props) {
