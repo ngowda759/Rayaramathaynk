@@ -93,7 +93,7 @@ export default function AaradhanePage() {
                   <div className="mt-4 flex items-center gap-4 text-sm text-stone-600">
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
-                      {aaradhane.date}
+                      {aaradhane.dates}
                     </div>
                   </div>
 
@@ -164,7 +164,7 @@ export default function AaradhanePage() {
                   <div className="mt-4 flex items-center gap-4 text-sm text-stone-500">
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
-                      {aaradhane.date}
+                      {aaradhane.dates}
                     </div>
                   </div>
 

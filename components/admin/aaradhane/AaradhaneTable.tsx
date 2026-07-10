@@ -81,8 +81,19 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
     }
   }
 
-  function formatDate(dateStr?: string) {
+  function formatDate(dateStr?: string | string[]) {
     if (!dateStr) return "";
+    if (Array.isArray(dateStr)) {
+      return dateStr.map(d => {
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return "";
+        return date.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      }).join(", ");
+    }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "";
     return d.toLocaleDateString("en-IN", {
@@ -158,7 +169,7 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
                   <TableCell>
                     <div className="flex items-center gap-1.5 text-sm">
                       <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      {formatDate(item.date)}
+                      {formatDate(item.dates)}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -258,7 +269,7 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
           <DialogHeader>
             <DialogTitle>{detailItem?.title}</DialogTitle>
             <DialogDescription>
-              {detailItem?.guruName} &mdash; {detailItem?.date ? formatDate(detailItem.date) : ""}
+              {detailItem?.guruName} &mdash; {detailItem?.dates ? formatDate(detailItem.dates) : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

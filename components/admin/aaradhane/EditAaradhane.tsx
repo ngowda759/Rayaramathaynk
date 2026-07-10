@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Loader2, Plus, X } from "lucide-react";
+import { Save, Loader2, Plus, X, Image as ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
-import { Aaradhane } from "@/types/aaradhane";
+import { Aaradhane, AaradhaneSeva } from "@/types/aaradhane";
 import { aaradhaneService } from "@/services/aaradhane.service";
 
 interface EditAaradhaneProps {
@@ -27,6 +27,10 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
 
   const [ritualInput, setRitualInput] = useState("");
   const [offeringInput, setOfferingInput] = useState("");
+  const [dateInput, setDateInput] = useState("");
+  const [sevaName, setSevaName] = useState("");
+  const [sevaPrice, setSevaPrice] = useState("");
+  const [sevaDescription, setSevaDescription] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -35,6 +39,16 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
         if (!data) {
           router.push("/admin/aaradhane");
           return;
+        }
+        // Initialize dates array if not present
+        if (!data.dates) {
+          data.dates = [];
+        }
+        if (!data.sevaDetails) {
+          data.sevaDetails = [];
+        }
+        if (!data.imageUrl) {
+          data.imageUrl = "";
         }
         setItem(data);
       } catch (err) {
@@ -51,7 +65,7 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
     if (!item) return false;
     if (!item.title.trim()) next.title = "Title is required";
     if (!item.guruName.trim()) next.guruName = "Guru name is required";
-    if (!item.date) next.date = "Date is required";
+    if (!item.dates || item.dates.length === 0) next.dates = "At least one date is required";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -59,6 +73,18 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
   function updateField<K extends keyof Aaradhane>(field: K, value: Aaradhane[K]) {
     if (!item) return;
     setItem({ ...item, [field]: value });
+  }
+
+  function addDate() {
+    if (!item || !dateInput) return;
+    if (item.dates.includes(dateInput)) return;
+    updateField("dates", [...item.dates, dateInput]);
+    setDateInput("");
+  }
+
+  function removeDate(d: string) {
+    if (!item) return;
+    updateField("dates", item.dates.filter((x) => x !== d));
   }
 
   function addRitual() {
@@ -87,6 +113,25 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
     updateField("offerings", item.offerings.filter((x) => x !== o));
   }
 
+  function addSeva() {
+    if (!item || !sevaName.trim()) return;
+    const newSeva: AaradhaneSeva = {
+      id: Date.now().toString(),
+      name: sevaName.trim(),
+      price: parseFloat(sevaPrice) || 0,
+      description: sevaDescription.trim(),
+    };
+    updateField("sevaDetails", [...item.sevaDetails, newSeva]);
+    setSevaName("");
+    setSevaPrice("");
+    setSevaDescription("");
+  }
+
+  function removeSeva(id: string) {
+    if (!item) return;
+    updateField("sevaDetails", item.sevaDetails.filter((s) => s.id !== id));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!item || !validate()) return;
@@ -96,11 +141,13 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
       await aaradhaneService.updateAaradhane(item.id, {
         title: item.title.trim(),
         guruName: item.guruName.trim(),
-        date: item.date,
+        dates: item.dates,
         description: item.description.trim(),
         significance: item.significance.trim(),
         rituals: item.rituals,
         offerings: item.offerings,
+        imageUrl: item.imageUrl,
+        sevaDetails: item.sevaDetails,
         isUpcoming: item.isUpcoming,
         displayOrder: item.displayOrder,
       });
@@ -155,17 +202,38 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="date">
-              Date <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="date"
-              type="date"
-              value={item.date}
-              onChange={(e) => updateField("date", e.target.value)}
-            />
-            {errors.date && (
-              <p className="text-xs text-destructive">{errors.date}</p>
+            <Label>Dates <span className="text-destructive">*</span></Label>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={dateInput}
+                onChange={(e) => setDateInput(e.target.value)}
+              />
+              <Button type="button" variant="outline" onClick={addDate}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {item.dates && item.dates.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {item.dates.map((d) => (
+                  <span
+                    key={d}
+                    className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800"
+                  >
+                    {new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    <button
+                      type="button"
+                      onClick={() => removeDate(d)}
+                      className="ml-1 hover:text-amber-900"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {errors.dates && (
+              <p className="text-xs text-destructive">{errors.dates}</p>
             )}
           </div>
 
@@ -191,6 +259,33 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
         </div>
 
         <div className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="imageUrl">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Image URL (JPG)
+              </div>
+            </Label>
+            <Input
+              id="imageUrl"
+              value={item.imageUrl || ""}
+              onChange={(e) => updateField("imageUrl", e.target.value)}
+              placeholder="https://example.com/image.jpg"
+            />
+            {item.imageUrl && (
+              <div className="mt-2 relative h-40 w-full overflow-hidden rounded-lg border">
+                <img
+                  src={item.imageUrl}
+                  alt="Aaradhane preview"
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="displayOrder">Display Order</Label>
             <Input
@@ -235,7 +330,7 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {item.rituals.length > 0 && (
+            {item.rituals && item.rituals.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-2">
                 {item.rituals.map((r) => (
                   <span
@@ -274,7 +369,7 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {item.offerings.length > 0 && (
+            {item.offerings && item.offerings.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-2">
                 {item.offerings.map((o) => (
                   <span
@@ -290,6 +385,65 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
                       <X className="h-3 w-3" />
                     </button>
                   </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Seva Details Section */}
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">Seva Details</Label>
+            <p className="text-xs text-muted-foreground">
+              Add sevas available for this aaradhane
+            </p>
+            
+            <div className="grid gap-2 pt-2">
+              <Input
+                value={sevaName}
+                onChange={(e) => setSevaName(e.target.value)}
+                placeholder="Seva name (e.g., Kanike Seva)"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  value={sevaPrice}
+                  onChange={(e) => setSevaPrice(e.target.value)}
+                  placeholder="Price (₹)"
+                />
+                <Input
+                  value={sevaDescription}
+                  onChange={(e) => setSevaDescription(e.target.value)}
+                  placeholder="Short description"
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={addSeva} className="w-full">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Seva
+              </Button>
+            </div>
+
+            {item.sevaDetails && item.sevaDetails.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <Label className="text-sm font-medium">Added Sevas:</Label>
+                {item.sevaDetails.map((seva) => (
+                  <div
+                    key={seva.id}
+                    className="flex items-center justify-between rounded-lg bg-amber-50 p-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">{seva.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ₹{seva.price} - {seva.description || "No description"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeSeva(seva.id)}
+                      className="text-destructive hover:text-destructive/80"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
