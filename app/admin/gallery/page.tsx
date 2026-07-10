@@ -2,6 +2,7 @@
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import AdminPageWrapper from "@/components/admin/common/AdminPageWrapper";
+import FirebaseDebug from "@/components/admin/common/FirebaseDebug";
 import GalleryDashboard from "@/components/admin/gallery/GalleryDashboard";
 
 export default function AdminGalleryPage() {
@@ -12,6 +13,9 @@ export default function AdminGalleryPage() {
           title="Gallery Management"
           description="Manage albums, photos and videos."
         />
+
+        {/* Debug info - remove after troubleshooting */}
+        <FirebaseDebug />
 
         <GalleryDashboard />
       </div>
