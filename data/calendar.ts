@@ -5,13 +5,6 @@ export const calendar: CalendarData = {
   samvatsara: "Sri Parabhava",
 
   ekadashi: [
-    { date: "2026-03-29", day: "Sunday" },
-    { date: "2026-04-13", day: "Monday" },
-    { date: "2026-04-27", day: "Monday" },
-    { date: "2026-05-13", day: "Wednesday" },
-    { date: "2026-05-27", day: "Wednesday" },
-    { date: "2026-06-11", day: "Thursday" },
-    { date: "2026-06-25", day: "Thursday" },
     { date: "2026-07-11", day: "Saturday" },
     { date: "2026-07-25", day: "Saturday" },
     { date: "2026-08-09", day: "Sunday" },
@@ -34,10 +27,6 @@ export const calendar: CalendarData = {
   ],
 
   festivals: [
-    { date: "2026-03-19", festival: "Ugadi" },
-    { date: "2026-03-27", festival: "Sri Ramanavami" },
-    { date: "2026-04-20", festival: "Akshaya Truteeya" },
-    { date: "2026-04-30", festival: "Narasimha Jayanti" },
     { date: "2026-08-16", festival: "Naga Chaturthi" },
     { date: "2026-08-17", festival: "Naga Panchami" },
     { date: "2026-08-26", festival: "Rig Upakarma" },
