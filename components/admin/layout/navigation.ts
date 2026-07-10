@@ -26,14 +26,30 @@ export const navigation: NavigationGroup[] = [
         icon: "heart",
       },
       {
-        title: "Bookings",
-        href: "/admin/bookings",
-        icon: "bookings",
-      },
-      {
         title: "Temple Timings",
         href: "/admin/timings",
         icon: "clock",
+      },
+      {
+        title: "Aaradhane",
+        href: "/admin/aaradhane",
+        icon: "flower",
+      },
+    ],
+  },
+
+  {
+    title: "Finance",
+    items: [
+      {
+        title: "Billing",
+        href: "/admin/billing",
+        icon: "billing",
+      },
+      {
+        title: "Bookings",
+        href: "/admin/bookings",
+        icon: "bookings",
       },
       {
         title: "Daily Pooja",
@@ -41,9 +57,14 @@ export const navigation: NavigationGroup[] = [
         icon: "book",
       },
       {
-        title: "Aaradhane",
-        href: "/admin/aaradhane",
-        icon: "flower",
+        title: "Donations",
+        href: "/admin/donations",
+        icon: "donation",
+      },
+      {
+        title: "Reports",
+        href: "/admin/reports",
+        icon: "reports",
       },
     ],
   },
@@ -60,37 +81,6 @@ export const navigation: NavigationGroup[] = [
         title: "Announcements",
         href: "/admin/announcements",
         icon: "bell",
-      },
-      {
-        title: "Donations",
-        href: "/admin/donations",
-        icon: "donation",
-      },
-      {
-        title: "Reports",
-        href: "/admin/reports",
-        icon: "reports",
-      },
-    ],
-  },
-
-  {
-    title: "Finance",
-    items: [
-      {
-        title: "Billing",
-        href: "/admin/billing",
-        icon: "billing",
-      },
-      {
-        title: "Donations",
-        href: "/admin/donations",
-        icon: "donation",
-      },
-      {
-        title: "Reports",
-        href: "/admin/reports",
-        icon: "reports",
       },
     ],
   },
