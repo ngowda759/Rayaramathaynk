@@ -75,7 +75,7 @@ export default function Hero() {
 
       <div className="relative mx-auto flex min-h-[92vh] max-w-7xl items-center px-6 lg:px-10">
 
-        <div className="grid w-full items-center gap-10 lg:grid-cols-2">
+        <div className="grid w-full items-center gap-8 lg:gap-10 lg:grid-cols-2">
 
           {/* LEFT */}
 
@@ -83,6 +83,7 @@ export default function Hero() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
+            className="order-2 lg:order-1"
           >
 
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700">
@@ -254,10 +255,10 @@ export default function Hero() {
             initial={{ opacity: 0, x: 80 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
-            className="relative hidden lg:block"
+            className="relative order-1 lg:order-2"
           >
-            <div className="relative z-10 overflow-hidden rounded-2xl border border-amber-200 bg-white/80 p-6 shadow-xl backdrop-blur">
-              <h3 className="mb-4 text-center text-xl font-bold text-amber-700">
+            <div className="relative z-10 overflow-hidden rounded-2xl border border-amber-200 bg-white/80 p-4 sm:p-6 shadow-xl backdrop-blur">
+              <h3 className="mb-2 sm:mb-4 text-center text-lg sm:text-xl font-bold text-amber-700">
                 Today's Panchanga
               </h3>
               <Panchanga />
