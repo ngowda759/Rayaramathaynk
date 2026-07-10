@@ -1,0 +1,150 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { Eye, EyeOff } from "lucide-react";
+import toast from "react-hot-toast";
+
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import { useAuth } from "@/hooks/useAuth";
+
+import Button from "@/components/ui/button";
+import Card from "@/components/ui/card";
+import Input from "@/components/ui/input";
+
+import LoginHeader from "./LoginHeader";
+
+const schema = z.object({
+  email: z.email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+type LoginFormValues = z.infer<typeof schema>;
+
+export default function LoginForm() {
+  const router = useRouter();
+
+  const { login } = useAuth();
+
+  const [showPassword, setShowPassword] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(schema),
+  });
+
+  async function onSubmit(data: LoginFormValues) {
+    try {
+      await login(data.email, data.password);
+
+      toast.success("Welcome back!");
+
+      router.push("/admin");
+    } catch (error: any) {
+      switch (error.code) {
+        case "auth/invalid-credential":
+          toast.error("Invalid email or password.");
+          break;
+
+        case "auth/user-not-found":
+          toast.error("No account found.");
+          break;
+
+        case "auth/wrong-password":
+          toast.error("Incorrect password.");
+          break;
+
+        case "auth/too-many-requests":
+          toast.error("Too many login attempts.");
+          break;
+
+        default:
+          toast.error(error.message || "Login failed.");
+      }
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-md">
+      <div className="p-8">
+        <LoginHeader />
+
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="mt-8 space-y-5"
+        >
+          <Input
+            label="Email"
+            type="email"
+            placeholder="Enter your email"
+            error={errors.email?.message}
+            {...register("email")}
+          />
+
+          <div className="relative">
+            <Input
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              error={errors.password?.message}
+              {...register("password")}
+            />
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowPassword(!showPassword)
+              }
+              className="absolute right-4 top-11 text-stone-500"
+            >
+              {showPassword ? (
+                <EyeOff size={20} />
+              ) : (
+                <Eye size={20} />
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" />
+              Remember me
+            </label>
+
+            <Link
+              href="/forgot-password"
+              className="text-orange-600 hover:underline"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+
+          <Button
+            type="submit"
+            loading={isSubmitting}
+          >
+            Sign In
+          </Button>
+
+          <p className="text-center text-sm text-stone-600">
+            Don't have an account?{" "}
+            <Link
+              href="/register"
+              className="font-medium text-orange-600 hover:underline"
+            >
+              Register
+            </Link>
+          </p>
+        </form>
+      </div>
+    </Card>
+  );
+}

@@ -1,0 +1,48 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { FinanceSettings, defaultFinanceSettings } from "@/types/finance";
+
+const SETTINGS_DOC = "financeSettings";
+const SETTINGS_COLLECTION = "settings";
+
+export function useFinanceSettings() {
+  const [settings, setSettings] = useState<FinanceSettings>(defaultFinanceSettings);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data() as FinanceSettings;
+          setSettings({ ...defaultFinanceSettings, ...data });
+        }
+      } catch (error) {
+        console.error("Error loading finance settings:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const activeSevas = settings.specialSevas
+    .filter(s => s.isActive)
+    .sort((a, b) => a.order - b.order);
+
+  return {
+    settings,
+    loading,
+    enabled: settings.enabled,
+    upiEnabled: settings.upi.enabled,
+    bankTransferEnabled: settings.bankTransfer.enabled,
+    upiDetails: settings.upi,
+    bankDetails: settings.bankTransfer,
+    specialSevas: activeSevas,
+  };
+}

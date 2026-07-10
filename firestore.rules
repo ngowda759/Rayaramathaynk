@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin'];
+    }
+    
+    function isPriestOrAbove() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'priest'];
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isOwner(userId);
+      // Admins can read all users
+      allow read: if isAdmin();
+      // Users can update their own profile (except role)
+      allow update: if isOwner(userId) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isApproved', 'isActive']);
+      // Only admins can create/update roles and approvals
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Public collections - anyone can read
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    match /gallery/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    match /timings/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Protected collections - require authentication to read
+    match /sevas/{sevaId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+    
+    match /sevaBookings/{bookingId} {
+      // Users can read their own bookings
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      // Users can create bookings
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Only admins can update/delete bookings
+      allow update, delete: if isAdmin();
+    }
+    
+    match /donations/{donationId} {
+      // Users can read their own donations
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      // Users can create donations
+      allow create: if isAuthenticated();
+      // Only admins can update donations
+      allow update, delete: if isAdmin();
+    }
+    
+    // Aaradhana/Math services (if exists)
+    match /aaradhanes/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

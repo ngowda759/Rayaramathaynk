@@ -1,0 +1,32 @@
+import {
+  LayoutDashboard,
+  Flower2,
+  BookOpen,
+  HeartHandshake,
+  CalendarDays,
+  Clock3,
+  Images,
+  Bell,
+  Users,
+  Settings,
+  Sparkles,
+  Receipt,
+  ClipboardList,
+} from "lucide-react";
+
+export const icons = {
+  dashboard: LayoutDashboard,
+  flower: Flower2,
+  book: BookOpen,
+  heart: HeartHandshake,
+  donation: HeartHandshake,
+  calendar: CalendarDays,
+  clock: Clock3,
+  image: Images,
+  bell: Bell,
+  users: Users,
+  settings: Settings,
+  sparkles: Sparkles,
+  reports: Receipt,
+  bookings: ClipboardList,
+};

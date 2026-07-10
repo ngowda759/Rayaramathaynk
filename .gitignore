@@ -1,0 +1,43 @@
+.env.development.local
+.env.production.local
+.env.test.local
+
+# Next.js build output
+.next
+
+# Logs
+*.log
+
+# Node modules
+node_modules
+
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env.local
+.env.local
