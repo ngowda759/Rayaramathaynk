@@ -88,7 +88,7 @@ export default function AaradhanePage() {
                   {aaradhane.imageUrl && (
                     <div className="mb-4 -mx-6 -mt-6 overflow-hidden rounded-t-3xl">
                       <img
-                        src={`/images/aaradhane/${aaradhane.imageUrl}`}
+                        src={aaradhane.imageUrl}
                         alt={aaradhane.title}
                         className="h-48 w-full object-cover"
                       />

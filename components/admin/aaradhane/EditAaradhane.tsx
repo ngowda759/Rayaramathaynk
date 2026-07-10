@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Loader2, Plus, X, Image as ImageIcon } from "lucide-react";
+import { Save, Loader2, Plus, X, Image as ImageIcon, Upload, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 
 import { Aaradhane, AaradhaneSeva } from "@/types/aaradhane";
 import { aaradhaneService } from "@/services/aaradhane.service";
+import { storageService } from "@/services/storage.service";
 
 interface EditAaradhaneProps {
   aaradhaneId: string;
@@ -19,10 +20,12 @@ interface EditAaradhaneProps {
 
 export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [item, setItem] = useState<Aaradhane | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [ritualInput, setRitualInput] = useState("");
@@ -31,6 +34,22 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
   const [sevaName, setSevaName] = useState("");
   const [sevaPrice, setSevaPrice] = useState("");
   const [sevaDescription, setSevaDescription] = useState("");
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !item) return;
+
+    setUploading(true);
+    try {
+      const url = await storageService.uploadImage(file, "aaradhane");
+      updateField("imageUrl", url);
+    } catch (err) {
+      console.error("Failed to upload image:", err);
+      alert("Failed to upload image. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -260,25 +279,65 @@ export default function EditAaradhane({ aaradhaneId }: EditAaradhaneProps) {
 
         <div className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="imageUrl">
+            <Label>
               <div className="flex items-center gap-2">
                 <ImageIcon className="h-4 w-4" />
-                Image Filename (JPG)
+                Upload Image (JPG)
               </div>
             </Label>
-            <Input
-              id="imageUrl"
-              value={item.imageUrl || ""}
-              onChange={(e) => updateField("imageUrl", e.target.value)}
-              placeholder="e.g., aaradhane-1.jpg"
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/jpeg,image/png,image/jpg"
+              onChange={handleImageUpload}
+              className="hidden"
             />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : item.imageUrl ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                    Change Image
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Choose Image
+                  </>
+                )}
+              </Button>
+              {item.imageUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    updateField("imageUrl", "");
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Place image file in public/images/aaradhane/
+              Upload a JPG or PNG image (max 5MB)
             </p>
             {item.imageUrl && (
               <div className="mt-2 relative h-40 w-full overflow-hidden rounded-lg border">
                 <img
-                  src={`/images/aaradhane/${item.imageUrl}`}
+                  src={item.imageUrl}
                   alt="Aaradhane preview"
                   className="h-full w-full object-cover"
                   onError={(e) => {
