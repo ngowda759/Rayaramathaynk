@@ -11,6 +11,7 @@ import {
 
 import TempleButton from "@/components/ui/TempleButton";
 import { useHomepage } from "@/hooks/useHomepage";
+import Panchanga from "@/components/home/Panchanga";
 
 export default function Hero() {
   const { homepage, loading } = useHomepage();
@@ -245,6 +246,22 @@ export default function Hero() {
 
             </div>
 
+          </motion.div>
+
+          {/* RIGHT - Daily Panchanga */}
+
+          <motion.div
+            initial={{ opacity: 0, x: 80 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 1 }}
+            className="relative hidden lg:block"
+          >
+            <div className="relative z-10 overflow-hidden rounded-2xl border border-amber-200 bg-white/80 p-6 shadow-xl backdrop-blur">
+              <h3 className="mb-4 text-center text-xl font-bold text-amber-700">
+                Today's Panchanga
+              </h3>
+              <Panchanga />
+            </div>
           </motion.div>
 
         </div>
