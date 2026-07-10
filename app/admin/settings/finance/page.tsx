@@ -61,15 +61,17 @@ export default function FinanceSettingsPage() {
     setSaving(true);
     try {
       const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
+      console.log("Saving settings:", settings);
       await setDoc(docRef, {
         ...settings,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
       
       toast.success("Finance settings saved successfully!");
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save settings. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to save settings: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
