@@ -60,10 +60,13 @@ const navigation = [
       { title: "Announcements", href: "/admin/announcements", icon: "bell" },
       { title: "About Us", href: "/admin/settings/about", icon: "info" },
       { title: "Guru Parampara", href: "/admin/settings/guru-parampara", icon: "book" },
+      { title: "Shlokas", href: "/admin/settings/shlokas", icon: "book" },
       { title: "Footer Settings", href: "/admin/settings/footer", icon: "settings" },
       { title: "Social Links", href: "/admin/settings/social-links", icon: "settings" },
       { title: "Pooja Schedule", href: "/admin/settings/puja-schedule", icon: "calendar" },
       { title: "Future Plans", href: "/admin/settings/future-plans", icon: "calendar" },
+      { title: "Ekadashi Calendar", href: "/admin/settings/ekadashi-calendar", icon: "calendar" },
+      { title: "Festival Calendar", href: "/admin/settings/festival-calendar", icon: "calendar" },
     ],
   },
   {
