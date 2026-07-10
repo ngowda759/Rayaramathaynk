@@ -11,6 +11,6 @@ export const SITE = {
 
   assets: {
     hero: "/images/hero/desktop.jpg",
-    logo: "/images/logos/logo.png",
+    logo: "/images/logos/ynk_matha_logo.png",
   },
 };
