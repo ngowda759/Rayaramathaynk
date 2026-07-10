@@ -3,7 +3,6 @@
 import React from "react";
 import {
   CalendarDays,
-  Sun,
   MoonStar,
   Sunrise,
   Sunset,
@@ -191,17 +190,6 @@ export default function Panchanga() {
           })}
         </div>
 
-        <div className="mt-12 rounded-[30px] bg-gradient-to-r from-amber-600 to-orange-500 p-8 text-center text-white shadow-xl">
-          <Sun className="mx-auto" size={40} />
-
-          <h3 className="mt-4 text-3xl font-bold">
-            Today's Festival
-          </h3>
-
-          <p className="mt-3 text-2xl">
-            {value(homepage?.featuredFestival)}
-          </p>
-        </div>
       </div>
     </section>
   );
