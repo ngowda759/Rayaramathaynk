@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import {
-  MapPin,
-  Phone,
-  Mail,
-  Heart,
-  ChevronRight,
-} from "lucide-react";
+import { MapPin, Phone, Mail, Heart, ChevronRight } from "lucide-react";
 
 const quickLinks = [
   { name: "Home", href: "/" },
@@ -35,212 +29,141 @@ const calendarLinks = [
 export default function Footer() {
   return (
     <footer className="relative overflow-hidden bg-gradient-to-br from-stone-950 via-stone-900 to-black text-stone-300">
+      <div
+        className="absolute inset-0 opacity-5 bg-cover bg-center"
+        style={{ backgroundImage: "url('/images/Hero.jpg')" }}
+      />
 
-      <div className="absolute inset-0 opacity-5">
-        <div
-          className="h-full w-full"
-          style={{
-            backgroundImage: "url('/images/Hero.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-      </div>
+      <div className="relative mx-auto max-w-7xl px-4 py-8 lg:px-6 lg:py-10">
+        <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-5 lg:gap-8">
 
-      <div className="relative mx-auto max-w-7xl px-6 py-16">
-
-        <div className="grid gap-10 lg:grid-cols-4">
-
-          {/* Temple */}
-
-          <div>
-
-            <div className="flex items-center gap-4">
-
-              <Image
-                src="/images/logos/ynk_matha_logo.png"
-                alt="Sri Raghavendra Swamy Matha"
-                width={56}
-                height={56}
-                className="rounded-full object-cover w-14 h-14"
-              />
-
-              <div>
-
-                <h2 className="text-xl font-bold text-white">
-                  Sri Raghavendra swamy Matha
-                </h2>
-
-                <p className="text-amber-400">
-                  Yelahanka New Town
-                </p>
-
-              </div>
-
+          {/* Logo & Temple Name */}
+          <div className="flex items-start gap-3">
+            <Image
+              src="/images/logos/ynk_matha_logo.png"
+              alt="Sri Raghavendra Swamy Matha"
+              width={44}
+              height={44}
+              className="rounded-full object-cover w-11 h-11 flex-shrink-0"
+            />
+            <div>
+              <h2 className="font-bold text-white leading-tight">
+                Sri Raghavendra Swamy Matha
+              </h2>
+              <p className="text-amber-400 text-sm">
+                Yelahanka New Town
+              </p>
             </div>
-
           </div>
 
           {/* Quick Links */}
-
-          <div>
-
-            <h3 className="mb-6 text-lg font-bold text-white">
+          <nav>
+            <h3 className="mb-3 text-sm font-bold text-white uppercase tracking-wide">
               Quick Links
             </h3>
-
-            <div className="space-y-3">
-
+            <ul className="space-y-1.5">
               {quickLinks.map((link) => (
-
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className="flex items-center gap-2 transition hover:text-amber-400"
-                >
-                  <ChevronRight size={14} />
-                  {link.name}
-                </Link>
-
+                <li key={link.name}>
+                  <Link
+                    href={link.href}
+                    className="flex items-center gap-1.5 text-sm transition hover:text-amber-400"
+                  >
+                    <ChevronRight size={12} className="flex-shrink-0" />
+                    {link.name}
+                  </Link>
+                </li>
               ))}
-
-            </div>
-
-          </div>
+            </ul>
+          </nav>
 
           {/* Sevas */}
-
-          <div>
-
-            <h3 className="mb-6 text-lg font-bold text-white">
+          <nav>
+            <h3 className="mb-3 text-sm font-bold text-white uppercase tracking-wide">
               Sevas
             </h3>
-
-            <div className="space-y-3">
-
+            <ul className="space-y-1.5">
               {sevasLinks.map((link) => (
-
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className="flex items-center gap-2 transition hover:text-amber-400"
-                >
-                  <ChevronRight size={14} />
-                  {link.name}
-                </Link>
-
+                <li key={link.name}>
+                  <Link
+                    href={link.href}
+                    className="flex items-center gap-1.5 text-sm transition hover:text-amber-400"
+                  >
+                    <ChevronRight size={12} className="flex-shrink-0" />
+                    {link.name}
+                  </Link>
+                </li>
               ))}
-
-            </div>
-
-          </div>
+            </ul>
+          </nav>
 
           {/* Calendar */}
-
-          <div>
-
-            <h3 className="mb-6 text-lg font-bold text-white">
+          <nav>
+            <h3 className="mb-3 text-sm font-bold text-white uppercase tracking-wide">
               Calendar
             </h3>
-
-            <div className="space-y-3">
-
+            <ul className="space-y-1.5">
               {calendarLinks.map((link) => (
-
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className="flex items-center gap-2 transition hover:text-amber-400"
-                >
-                  <ChevronRight size={14} />
-                  {link.name}
-                </Link>
-
+                <li key={link.name}>
+                  <Link
+                    href={link.href}
+                    className="flex items-center gap-1.5 text-sm transition hover:text-amber-400"
+                  >
+                    <ChevronRight size={12} className="flex-shrink-0" />
+                    {link.name}
+                  </Link>
+                </li>
               ))}
+            </ul>
+          </nav>
 
-            </div>
-
-          </div>
-
-          {/* Contact */}
-
-          <div>
-
-            <h3 className="mb-6 text-lg font-bold text-white">
+          {/* Contact Us */}
+          <address className="not-italic">
+            <h3 className="mb-3 text-sm font-bold text-white uppercase tracking-wide">
               Contact Us
             </h3>
-
-            <div className="space-y-4">
-
-              <div className="flex gap-3">
-
-	        <MapPin className="mt-1 flex-shrink-0 text-amber-500" />
-
-  		<a
-    		href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
-    		target="_blank"
-    		rel="noopener noreferrer"
-    		className="hover:text-amber-400 transition"
-  		>
-    		Sri Rayara Matha
-    		<br />
-    		Yelahanka New Town
-    		<br />
-    		Bengaluru
-  		</a>
-	        
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin size={14} className="mt-0.5 flex-shrink-0 text-amber-500" />
+                <a
+                  href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm hover:text-amber-400 transition leading-snug"
+                >
+                  Sri Rayara Matha, Yelahanka New Town, Bengaluru
+                </a>
               </div>
-
-              <div className="flex gap-3">
-
-                <Phone className="flex-shrink-0 text-amber-500" />
-
-                <span>+91 9886364462 </span>
-
+              <div className="flex items-center gap-2">
+                <Phone size={14} className="flex-shrink-0 text-amber-500" />
+                <a href="tel:+919886364462" className="text-sm hover:text-amber-400 transition">
+                  +91 9886364462
+                </a>
               </div>
-
-              <div className="flex gap-3">
-
-                <Mail className="flex-shrink-0 text-amber-500" />
-
-                <span>ngowda759@gmail.com</span>
-
+              <div className="flex items-center gap-2">
+                <Mail size={14} className="flex-shrink-0 text-amber-500" />
+                <a href="mailto:ngowda759@gmail.com" className="text-sm hover:text-amber-400 transition truncate">
+                  ngowda759@gmail.com
+                </a>
               </div>
-
             </div>
-
-          </div>
+          </address>
 
         </div>
-
       </div>
 
       {/* Copyright Bar */}
       <div className="border-t border-stone-800">
-
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-6 text-sm text-stone-400 md:flex-row">
-
-          <p className="flex items-center gap-2">
-
-            © 2026 Sri Raghavendra swamy Matha
-
-            <Heart
-              size={15}
-              className="fill-red-500 text-red-500"
-            />
-
-            Built with devotion.
-
-          </p>
-
-          <p>
-            Sri Raghavendra Swamy Matha • Yelahanka New Town
-          </p>
-
+        <div className="mx-auto max-w-7xl px-4 py-4 lg:px-6">
+          <div className="flex flex-col items-center justify-between gap-2 text-xs text-stone-400 md:flex-row">
+            <p className="flex items-center gap-1.5">
+              © 2026 Sri Raghavendra Swamy Matha
+              <Heart size={12} className="fill-red-500 text-red-500" />
+              Built with devotion.
+            </p>
+            <p>Sri Raghavendra Swamy Matha • Yelahanka New Town</p>
+          </div>
         </div>
-
       </div>
-
     </footer>
   );
 }
