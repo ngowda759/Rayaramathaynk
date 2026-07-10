@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   reports: Receipt,
   bookings: ClipboardList,
   billing: FileText,
+  info: Info,
 };
 
 // Navigation data
@@ -57,6 +58,7 @@ const navigation = [
     items: [
       { title: "Gallery", href: "/admin/gallery", icon: "image" },
       { title: "Announcements", href: "/admin/announcements", icon: "bell" },
+      { title: "About Us", href: "/admin/settings/about", icon: "info" },
     ],
   },
   {
@@ -65,8 +67,8 @@ const navigation = [
       { title: "Users", href: "/admin/users", icon: "users" },
       { title: "General Settings", href: "/admin/settings", icon: "settings" },
       { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
-      { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Future Plans", href: "/admin/settings/future-plans", icon: "calendar" },
+      { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
       { title: "AI Assistant", href: "/admin/assistant", icon: "sparkles" },
     ],
