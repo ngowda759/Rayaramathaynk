@@ -16,22 +16,24 @@ import { BillingSettings } from "@/types/finance";
 const SETTINGS_DOC = "financeSettings";
 const SETTINGS_COLLECTION = "settings";
 
+const defaultBillingSettings: BillingSettings = {
+  invoicePrefix: "INV",
+  invoiceNumber: 1000,
+  defaultDueDays: 15,
+  taxRate: 0,
+  currency: "INR",
+  companyName: "",
+  companyAddress: "",
+  companyPhone: "",
+  companyEmail: "",
+  companyGstin: "",
+  notes: "Thank you for your contribution.",
+};
+
 export default function BillingSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<BillingSettings>({
-    invoicePrefix: "INV",
-    invoiceNumber: 1000,
-    defaultDueDays: 15,
-    taxRate: 0,
-    currency: "INR",
-    companyName: "",
-    companyAddress: "",
-    companyPhone: "",
-    companyEmail: "",
-    companyGstin: "",
-    notes: "Thank you for your contribution.",
-  });
+  const [settings, setSettings] = useState<BillingSettings>(defaultBillingSettings);
 
   const loadSettings = async () => {
     try {
@@ -41,7 +43,11 @@ export default function BillingSettingsPage() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.billing) {
-          setSettings((prev) => ({ ...prev, ...data.billing }));
+          // Merge with defaults to ensure all fields exist
+          setSettings({
+            ...defaultBillingSettings,
+            ...data.billing,
+          });
         }
       }
     } catch (error) {
@@ -64,6 +70,7 @@ export default function BillingSettingsPage() {
         docRef,
         {
           billing: settings,
+          billingEnabled: true,
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
