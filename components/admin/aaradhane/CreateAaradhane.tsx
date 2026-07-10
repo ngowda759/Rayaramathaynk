@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { BookOpen, Loader2, Plus, X, Upload, Image as ImageIcon, Check } from "lucide-react";
+import { BookOpen, Loader2, Plus, X, Image as ImageIcon, Check, FolderOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,6 @@ import { AaradhaneSeva } from "@/types/aaradhane";
 export default function CreateAaradhane() {
   const router = useRouter();
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [title, setTitle] = useState("");
   const [guruName, setGuruName] = useState("");
@@ -29,7 +28,7 @@ export default function CreateAaradhane() {
   const [isUpcoming, setIsUpcoming] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [imageUrl, setImageUrl] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
 
   const [rituals, setRituals] = useState<string[]>([]);
   const [ritualInput, setRitualInput] = useState("");
@@ -44,22 +43,6 @@ export default function CreateAaradhane() {
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const url = await storageService.uploadImage(file, "aaradhane");
-      setImageUrl(url);
-    } catch (err) {
-      console.error("Failed to upload image:", err);
-      alert("Failed to upload image. Please try again.");
-    } finally {
-      setUploading(false);
-    }
-  }
 
   function validate() {
     const next: Record<string, string> = {};
@@ -256,65 +239,37 @@ export default function CreateAaradhane() {
 
         <div className="space-y-6">
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="imageUrl">
               <div className="flex items-center gap-2">
                 <ImageIcon className="h-4 w-4" />
-                Upload Image (JPG)
+                Image Filename (JPG)
               </div>
             </Label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/jpeg,image/png,image/jpg"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="w-full"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : imageUrl ? (
-                  <>
-                    <Check className="mr-2 h-4 w-4 text-green-600" />
-                    Image Uploaded
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Choose Image
-                  </>
-                )}
-              </Button>
+            <div className="flex gap-2">
+              <Input
+                id="imageUrl"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="e.g., aaradhane-1.jpg"
+              />
               {imageUrl && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    setImageUrl("");
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
+                  onClick={() => setImageUrl("")}
                 >
                   <X className="h-4 w-4" />
                 </Button>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Upload a JPG or PNG image (max 5MB)
+              Add images to public/images/aaradhane/ in GitHub repo, then enter filename here
             </p>
             {imageUrl && (
               <div className="mt-2 relative h-40 w-full overflow-hidden rounded-lg border">
                 <img
-                  src={imageUrl}
+                  src={`/images/aaradhane/${imageUrl}`}
                   alt="Aaradhane preview"
                   className="h-full w-full object-cover"
                   onError={(e) => {
