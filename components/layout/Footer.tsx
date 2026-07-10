@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   MapPin,
   Phone,
@@ -49,9 +50,13 @@ export default function Footer() {
 
             <div className="flex items-center gap-4">
 
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-3xl shadow-xl">
-                🛕
-              </div>
+              <Image
+                src="/images/logos/ynk_matha_logo.png"
+                alt="Sri Raghavendra Swamy Matha"
+                width={56}
+                height={56}
+                className="rounded-full object-cover w-14 h-14"
+              />
 
               <div>
 
