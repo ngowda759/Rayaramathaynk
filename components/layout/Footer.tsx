@@ -18,11 +18,18 @@ const quickLinks = [
   { name: "Gallery", href: "/gallery" },
   { name: "Events", href: "/events" },
   { name: "About", href: "/about" },
+  { name: "Shlokas", href: "/shlokas" },
 ];
 
 const sevasLinks = [
   { name: "Daily Pooja", href: "/pooja" },
   { name: "Special Sevas", href: "/sevas" },
+  { name: "Donate", href: "/donation" },
+];
+
+const calendarLinks = [
+  { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
+  { name: "Festival Calendar", href: "/calendar/festivals" },
 ];
 
 export default function Footer() {
@@ -112,6 +119,33 @@ export default function Footer() {
             <div className="space-y-3">
 
               {sevasLinks.map((link) => (
+
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className="flex items-center gap-2 transition hover:text-amber-400"
+                >
+                  <ChevronRight size={14} />
+                  {link.name}
+                </Link>
+
+              ))}
+
+            </div>
+
+          </div>
+
+          {/* Calendar */}
+
+          <div>
+
+            <h3 className="mb-6 text-lg font-bold text-white">
+              Calendar
+            </h3>
+
+            <div className="space-y-3">
+
+              {calendarLinks.map((link) => (
 
                 <Link
                   key={link.name}
