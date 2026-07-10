@@ -2,12 +2,76 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useAuthContext } from "@/context/AuthContext";
-import { navigation } from "./navigation";
-import { icons } from "./icons";
 import { cn } from "@/lib/utils";
+
+// Icon mapping
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  flower: Flower2,
+  book: BookOpen,
+  heart: Heart,
+  donation: Heart,
+  calendar: Calendar,
+  clock: Clock,
+  image: Images,
+  bell: Bell,
+  users: Users,
+  settings: Settings,
+  sparkles: Sparkles,
+  reports: Receipt,
+  bookings: ClipboardList,
+  billing: FileText,
+};
+
+// Navigation data
+const navigation = [
+  {
+    title: "Dashboard",
+    items: [
+      { title: "Dashboard", href: "/admin", icon: "dashboard" },
+    ],
+  },
+  {
+    title: "Temple Operations",
+    items: [
+      { title: "Events", href: "/admin/events", icon: "calendar" },
+      { title: "Member / Volunteer", href: "/admin/sevas", icon: "heart" },
+      { title: "Temple Timings", href: "/admin/timings", icon: "clock" },
+      { title: "Aaradhane", href: "/admin/aaradhane", icon: "flower" },
+    ],
+  },
+  {
+    title: "Finance",
+    items: [
+      { title: "Billing", href: "/admin/billing", icon: "billing" },
+      { title: "Bookings", href: "/admin/bookings", icon: "bookings" },
+      { title: "Daily Pooja", href: "/admin/pooja", icon: "book" },
+      { title: "Donations", href: "/admin/donations", icon: "donation" },
+      { title: "Reports", href: "/admin/reports", icon: "reports" },
+    ],
+  },
+  {
+    title: "Content",
+    items: [
+      { title: "Gallery", href: "/admin/gallery", icon: "image" },
+      { title: "Announcements", href: "/admin/announcements", icon: "bell" },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
+      { title: "Users", href: "/admin/users", icon: "users" },
+      { title: "General Settings", href: "/admin/settings", icon: "settings" },
+      { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
+      { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
+      { title: "Future Plans", href: "/admin/settings/future-plans", icon: "calendar" },
+      { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
+      { title: "AI Assistant", href: "/admin/assistant", icon: "sparkles" },
+    ],
+  },
+];
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -16,170 +80,85 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const sidebarRef = useRef<HTMLDivElement>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
-  const {
-    canAccessSettings,
-    canManageUsers,
-    canAccessBilling,
-    canAccessFinance,
-    canAccessAdministration,
-    normalizedRole,
-  } = useAuthContext();
+  const [isExpanded, setIsExpanded] = useState(true); // Sidebar expanded by default
 
-  const filteredNavigation = navigation.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => {
-      if (normalizedRole === "admin") {
-        if (group.title === "Finance") return false;
-        if (group.title === "Administration") return false;
-        if (item.href.includes("/finance")) return false;
-        if (item.href.includes("/billing")) return false;
-        if (item.href.includes("/reports")) return false;
-        if (item.href.includes("/donations")) return false;
-        if (item.href.includes("/users")) return false;
-        if (item.href.includes("/settings")) return false;
-        if (item.href.includes("/assistant")) return false;
-      }
-
-      if (normalizedRole === "billing") {
-        if (group.title === "Finance") return true;
-        if (item.href === "/admin") return true;
-        if (group.title === "Dashboard") return true;
-        return false;
-      }
-
-      if (item.href.includes("/users") && !canManageUsers) {
-        return false;
-      }
-      if (item.href.includes("/settings") && !canAccessSettings) {
-        return false;
-      }
-      if (item.href.includes("/billing")) {
-        return canAccessBilling;
-      }
-      if (group.title === "Administration" && !canAccessAdministration) {
-        return false;
-      }
-      return true;
-    }),
-  })).filter((group) => group.items.length > 0);
-
-  // Auto-expand groups with active items or Dashboard by default
+  // Initialize expanded state - show Dashboard and current section
   useEffect(() => {
-    const newExpanded: Record<string, boolean> = {};
-    filteredNavigation.forEach((group) => {
-      const hasActiveItem = group.items.some((item) => {
-        return pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
-      });
-      // Always expand Dashboard group
-      newExpanded[group.title] = hasActiveItem || group.title === "Dashboard";
+    const expanded: Record<string, boolean> = {};
+    navigation.forEach((group) => {
+      const isActive = group.items.some(
+        (item) => pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href))
+      );
+      expanded[group.title] = isActive || group.title === "Dashboard" || group.title === "Temple Operations";
     });
-    setExpandedGroups(newExpanded);
-  }, [pathname, filteredNavigation]);
+    setExpandedGroups(expanded);
+  }, [pathname]);
 
   const toggleGroup = (title: string) => {
     setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Tab" && sidebarRef.current) {
-        const focusable = sidebarRef.current.querySelectorAll<HTMLElement>(
-          'a, button, [tabindex]:not([tabindex="-1"])'
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    if (isOpen) {
-      sidebarRef.current?.focus();
-      document.addEventListener("keydown", handleKeyDown);
-    }
-
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
-
-  const renderNavItem = (item: { href: string; title: string; icon: string }, closeMenu?: () => void) => {
-    const Icon = icons[item.icon as keyof typeof icons];
-    const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+  const NavItem = ({ href, title, icon, onClick }: { href: string; title: string; icon: string; onClick?: () => void }) => {
+    const Icon = iconMap[icon] || LayoutDashboard;
+    const isActive = pathname === href || (href !== "/admin" && pathname.startsWith(href));
 
     return (
       <Link
-        key={item.href}
-        href={item.href}
-        onClick={closeMenu}
+        href={href}
+        onClick={onClick}
         className={cn(
-          "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
-          active
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          isActive
             ? "bg-orange-50 text-orange-600 font-semibold"
-            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         )}
-        aria-current={active ? "page" : undefined}
       >
-        {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
-        <span>{item.title}</span>
+        <Icon className="h-4 w-4" />
+        <span>{title}</span>
       </Link>
     );
   };
 
   return (
     <>
-      {/* Desktop Sidebar - Fixed position */}
-      <aside
-        className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-64 lg:border-r lg:bg-card"
-        aria-label="Main navigation"
-      >
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:bg-white lg:border-r lg:border-gray-200">
         {/* Logo */}
-        <div className="flex-shrink-0 border-b px-4 py-4">
-          <Link href="/admin" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
-              🙏
-            </div>
-            <div>
-              <h1 className="text-sm font-semibold leading-tight">Temple Portal</h1>
-              <p className="text-xs text-muted-foreground">Administration</p>
-            </div>
-          </Link>
+        <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
+            🙏
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-gray-900">Temple Portal</h1>
+            <p className="text-xs text-gray-500">Administration</p>
+          </div>
         </div>
 
-        {/* Scrollable Navigation */}
-        <nav
-          className="flex-1 overflow-y-auto overscroll-contain py-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
-          aria-label="Navigation"
-        >
-          {filteredNavigation.map((group) => (
-            <div key={group.title} className="px-3 py-1">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {navigation.map((group) => (
+            <div key={group.title} className="mb-4">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600"
               >
                 <span>{group.title}</span>
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 transition-transform duration-200",
+                    "h-4 w-4 transition-transform",
                     expandedGroups[group.title] ? "rotate-180" : ""
                   )}
                 />
               </button>
-              <div
-                className={cn(
-                  "space-y-0.5 transition-all duration-200 pointer-events-auto",
-                  expandedGroups[group.title] ? "mt-1" : "h-0 overflow-hidden pointer-events-none"
-                )}
-              >
-                {group.items.map((item) => renderNavItem(item))}
-              </div>
+              
+              {expandedGroups[group.title] && (
+                <div className="mt-1 space-y-1">
+                  {group.items.map((item) => (
+                    <NavItem key={item.href} {...item} />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </nav>
@@ -187,69 +166,68 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
       {/* Mobile Sidebar Drawer */}
       <aside
-        ref={sidebarRef}
-        tabIndex={-1}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-card shadow-xl transition-transform duration-300 ease-out lg:hidden",
-          "focus:outline-none",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transition-transform duration-300 lg:hidden",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
-        aria-label="Mobile navigation"
-        aria-hidden={!isOpen}
-        role="dialog"
-        aria-modal="true"
       >
-        {/* Mobile Header */}
-        <div className="flex-shrink-0 flex items-center justify-between border-b px-4 py-3">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
           <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
               🙏
             </div>
             <div>
-              <h1 className="text-sm font-semibold leading-tight">Temple Portal</h1>
-              <p className="text-xs text-muted-foreground">Administration</p>
+              <h1 className="text-sm font-semibold text-gray-900">Temple Portal</h1>
+              <p className="text-xs text-gray-500">Administration</p>
             </div>
           </Link>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className="rounded-lg p-2 hover:bg-gray-100"
             aria-label="Close menu"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
-        {/* Mobile Navigation - Scrollable */}
-        <nav
-          className="flex-1 overflow-y-auto overscroll-contain py-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
-          aria-label="Mobile navigation links"
-        >
-          {filteredNavigation.map((group) => (
-            <div key={group.title} className="px-3 py-1">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {navigation.map((group) => (
+            <div key={group.title} className="mb-4">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600"
               >
                 <span>{group.title}</span>
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 transition-transform duration-200",
+                    "h-4 w-4 transition-transform",
                     expandedGroups[group.title] ? "rotate-180" : ""
                   )}
                 />
               </button>
-              <div
-                className={cn(
-                  "space-y-0.5 overflow-hidden transition-all duration-200",
-                  expandedGroups[group.title] ? "mt-1 max-h-96" : "max-h-0"
-                )}
-              >
-                {group.items.map((item) => renderNavItem(item, onClose))}
-              </div>
+              
+              {expandedGroups[group.title] && (
+                <div className="mt-1 space-y-1">
+                  {group.items.map((item) => (
+                    <NavItem key={item.href} {...item} onClick={onClose} />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </nav>
       </aside>
+
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
     </>
   );
 }
