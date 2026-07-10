@@ -59,6 +59,7 @@ const navigation = [
       { title: "Gallery", href: "/admin/gallery", icon: "image" },
       { title: "Announcements", href: "/admin/announcements", icon: "bell" },
       { title: "About Us", href: "/admin/settings/about", icon: "info" },
+      { title: "Guru Parampara", href: "/admin/settings/guru-parampara", icon: "book" },
     ],
   },
   {
@@ -67,6 +68,9 @@ const navigation = [
       { title: "Users", href: "/admin/users", icon: "users" },
       { title: "General Settings", href: "/admin/settings", icon: "settings" },
       { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
+      { title: "Footer Settings", href: "/admin/settings/footer", icon: "settings" },
+      { title: "Social Links", href: "/admin/settings/social-links", icon: "settings" },
+      { title: "Pooja Schedule", href: "/admin/settings/puja-schedule", icon: "calendar" },
       { title: "Future Plans", href: "/admin/settings/future-plans", icon: "calendar" },
       { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
