@@ -85,6 +85,16 @@ export default function AaradhanePage() {
                   key={aaradhane.id}
                   className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 shadow-md"
                 >
+                  {aaradhane.imageUrl && (
+                    <div className="mb-4 -mx-6 -mt-6 overflow-hidden rounded-t-3xl">
+                      <img
+                        src={aaradhane.imageUrl}
+                        alt={aaradhane.title}
+                        className="h-48 w-full object-cover"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-xl font-bold text-stone-900">
