@@ -44,9 +44,12 @@ export default function GalleryDashboard() {
 
       setAlbums(albumData);
       setMedia(mediaData);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load gallery:", err);
-      setError("Failed to load gallery. Please check your Firebase configuration.");
+      // More detailed error message
+      const errorMessage = err?.message || err?.code || "Unknown error";
+      console.log("Error details:", errorMessage);
+      setError(`Failed to load gallery: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
