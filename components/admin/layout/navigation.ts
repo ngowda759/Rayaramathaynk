@@ -88,6 +88,11 @@ export const navigation: NavigationGroup[] = [
         icon: "image",
       },
       {
+        title: "Shlokas",
+        href: "/admin/shlokas",
+        icon: "book",
+      },
+      {
         title: "Announcements",
         href: "/admin/announcements",
         icon: "bell",
