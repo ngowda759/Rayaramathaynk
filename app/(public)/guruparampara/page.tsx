@@ -95,21 +95,39 @@ const guruParampara = [
   {
     number: "12",
     name: "Jitamitra Teertharu",
-    kannada: "ಜಯಮಿತ್ರ ತೀರ್ಥ ಶ್ಲೋಕ",
+    kannada: "ಸಪ್ತರಾತ್ರದ ಕೃಷ್ಣವೇಣ್ಯಾ ಮುಶಿತ್ವಾ ಪುನರುತ್ಥಿತದ ಜಿತಾಮಿತ್ರ ಗುರು ವಂದೇ ವಿಭುದೇಂದ್ರ ಕರೋದ್ಭವದ ||",
     description: "The victorious friend who conquered all enemies of knowledge",
   },
   {
     number: "13",
-    name: "Vijayeendra Teertharu",
-    kannada: "ವಿಜಯೀಂದ್ರ ತೀರ್ಥ ಶ್ಲೋಕ",
-    description: "The lord of victory who bestows triumph in all endeavors",
+    name: "Raghunandana Teertharu",
+    kannada: "ಪರೈರಪಹೃತಾ ಮೂಲರಾಮಾರ್ಚಾ ಗುರ್ವನುಗ್ರಹಾತ್ ಯೇನಾನೀತಾ ನಮಸ್ತಸ್ಮೈ ರಘುನಂದನ್ ಭಿಕ್ಷವೇ ||",
+    description: "The one who received the essence of service to the Lord's feet through the guru's grace",
   },
   {
     number: "14",
+    name: "Surendra Teertharu",
+    kannada: "ಯಶ್ಚಕಾರೋಪವಾಸೇನ ತ್ರಿವಾರದ ಭೂ ಪ್ರದಕ್ಷಿಣದ ತಸ್ಮೈ ನಮೋ ಯತೀಂದ್ರಾಯ ಶ್ರೀ ಸುರೇಂದ್ರ ತಪಸ್ವಿನೇ ||",
+    description: "The austere practitioner who worshipped with three daily circuits of the earth through renunciation",
+  },
+  {
+    number: "15",
+    name: "Vijayeendra Teertharu",
+    kannada: "ಭಕ್ತಾನಾಂ ಮಾನಸಾಂ ಭೋಜಭಾನವೇ ಕಾಮಧೇನವೇ ಭಜತಾಂ ಕಲ್ಪತರವೇ ಜಯೀಂದ್ರ ಗುರವೇ ನಮಃ ||",
+    description: "The lord of victory who is the wish-fulfilling tree for devotees, fulfilling all desires",
+  },
+  {
+    number: "16",
+    name: "Sudheendra Teertharu",
+    kannada: "ಕುಶಾಗ್ರಮತಯೇ ಭಾನುದ್ಯುತಯೇ ವಾದಿ ಭೀತಯೇ ಆರಾಧಿತ ಶ್ರೀಪತಯೇ ಶ್ರೀಸುಧೀಂದ್ರ ಯತಯೇ ನಮಃ ||",
+    description: "The excellent one who is the crest-jewel of scholars, radiant like the sun, worshipped by the learned",
+  },
+  {
+    number: "17",
     name: "Raghavendra Teertharu",
-    kannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ತೀರ್ಥ ಶ್ಲೋಕ",
+    kannada: "ದುರ್ವಾದಿಧ್ವಾಂತರವಯೇ ವೈಷ್ಣವೇಂದೀವರೇಂದವೇ ಶ್ರೀ ರಾಘವೇಂದ್ರ ಗುರವೇ ನಮೋ ಅತ್ಯಂತ ದಯಾಳವೇ ||",
     description:
-      "The presiding deity of our Matha, the great saint who is the embodiment of Lord Rama's grace",
+      "The presiding deity of our Matha, the great saint who is the embodiment of Lord Rama's grace, extremely compassionate",
   },
 ];
 
