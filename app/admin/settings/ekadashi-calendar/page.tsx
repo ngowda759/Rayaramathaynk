@@ -9,6 +9,7 @@ import { db } from "@/lib/firebase";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { calendar } from "@/data/calendar";
 
 interface EkadashiEntry {
   id: string;
@@ -27,12 +28,17 @@ interface EkadashiCalendarData {
 const COLLECTION = "settings";
 const DOCUMENT = "ekadashiCalendar";
 
+// Load default data from static file
 const defaultData: EkadashiCalendarData = {
   heading: "Ekadashi Schedule",
   headingKannada: "ಏಕಾದಶಿ ವೇಳಾಪಟ್ಟಿ",
-  samvatsara: "Sri Parabhava",
+  samvatsara: calendar.samvatsara,
   samvatsaraKannada: "ಶ್ರೀ ಪರಭವ ಸಂವತ್ಸರ",
-  entries: [],
+  entries: calendar.ekadashi.map((e, i) => ({
+    id: `entry-${i}`,
+    date: e.date,
+    day: e.day,
+  })),
 };
 
 function getDayOfWeek(dateStr: string): string {

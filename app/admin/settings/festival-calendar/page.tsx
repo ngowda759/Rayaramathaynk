@@ -9,6 +9,7 @@ import { db } from "@/lib/firebase";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { calendar } from "@/data/calendar";
 
 interface FestivalEntry {
   id: string;
@@ -28,12 +29,18 @@ interface FestivalCalendarData {
 const COLLECTION = "settings";
 const DOCUMENT = "festivalCalendar";
 
+// Load default data from static file
 const defaultData: FestivalCalendarData = {
   heading: "Festival Calendar",
   headingKannada: "ಉತ್ಸವ ಕ್ಯಾಲೆಂಡರ್",
-  samvatsara: "Sri Parabhava",
+  samvatsara: calendar.samvatsara,
   samvatsaraKannada: "ಶ್ರೀ ಪರಭವ ಸಂವತ್ಸರ",
-  entries: [],
+  entries: calendar.festivals.map((f, i) => ({
+    id: `entry-${i}`,
+    date: f.date,
+    festival: f.festival,
+    festivalKannada: "",
+  })),
 };
 
 export default function FestivalCalendarSettingsPage() {
