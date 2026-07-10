@@ -240,19 +240,22 @@ export default function CreateAaradhane() {
             <Label htmlFor="imageUrl">
               <div className="flex items-center gap-2">
                 <ImageIcon className="h-4 w-4" />
-                Image URL (JPG)
+                Image Filename (JPG)
               </div>
             </Label>
             <Input
               id="imageUrl"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
+              placeholder="e.g., aaradhane-1.jpg"
             />
+            <p className="text-xs text-muted-foreground">
+              Place image file in public/images/aaradhane/
+            </p>
             {imageUrl && (
               <div className="mt-2 relative h-40 w-full overflow-hidden rounded-lg border">
                 <img
-                  src={imageUrl}
+                  src={`/images/aaradhane/${imageUrl}`}
                   alt="Aaradhane preview"
                   className="h-full w-full object-cover"
                   onError={(e) => {
