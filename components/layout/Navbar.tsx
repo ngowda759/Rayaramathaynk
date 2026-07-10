@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
@@ -10,7 +10,11 @@ const menuItems = [
   { name: "Home", href: "/" },
   { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Shlokas", href: "/shlokas" },
-  { name: "Gallery", href: "/gallery" },
+];
+
+const calendarDropdown = [
+  { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
+  { name: "Festival Calendar", href: "/calendar/festivals" },
 ];
 
 const eventsDropdown = [
@@ -39,9 +43,11 @@ export default function Navbar() {
   const [eventsOpen, setEventsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [onlineServicesOpen, setOnlineServicesOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const eventsDropdownRef = useRef<HTMLDivElement>(null);
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
   const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
+  const calendarDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -65,6 +71,9 @@ export default function Navbar() {
       if (onlineServicesDropdownRef.current && !onlineServicesDropdownRef.current.contains(event.target as Node)) {
         setOnlineServicesOpen(false);
       }
+      if (calendarDropdownRef.current && !calendarDropdownRef.current.contains(event.target as Node)) {
+        setCalendarOpen(false);
+      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -74,6 +83,7 @@ export default function Navbar() {
   const isEventsActive = pathname === "/events" || pathname === "/aaradhane";
   const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans";
   const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation";
+  const isCalendarActive = pathname.startsWith("/calendar");
 
   return (
     <header
@@ -127,6 +137,58 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          {/* Calendar Dropdown */}
+          <div className="relative" ref={calendarDropdownRef}>
+            <button
+              onClick={() => setCalendarOpen(!calendarOpen)}
+              className={`flex items-center gap-2 rounded-2xl px-4 py-2 transition-all duration-300 ${
+                isCalendarActive
+                  ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg"
+                  : "text-stone-700 hover:bg-amber-50"
+              }`}
+            >
+              <Calendar size={18} />
+              Calendar
+              <ChevronDown size={16} className={`transition-transform ${calendarOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {calendarOpen && (
+              <div className="absolute left-0 top-full mt-2 w-48 rounded-2xl border border-amber-200 bg-white shadow-xl overflow-hidden">
+                {calendarDropdown.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => {
+                        setCalendarOpen(false);
+                        setOpen(false);
+                      }}
+                      className={`block px-4 py-3 transition-all ${
+                        active
+                          ? "bg-amber-100 text-amber-800 font-semibold"
+                          : "text-stone-700 hover:bg-amber-50"
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/gallery"
+            className={`rounded-2xl px-4 py-2 transition-all duration-300 ${
+              pathname === "/gallery"
+                ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg"
+                : "text-stone-700 hover:bg-amber-50"
+            }`}
+          >
+            Gallery
+          </Link>
 
           {/* Events Dropdown */}
           <div className="relative" ref={eventsDropdownRef}>
@@ -290,6 +352,46 @@ export default function Navbar() {
               );
 
             })}
+
+            {/* Calendar dropdown in mobile */}
+            <div className="space-y-1">
+              <p className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-stone-500">
+                <Calendar size={14} />
+                Calendar
+              </p>
+              {calendarDropdown.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center justify-between rounded-2xl px-8 py-4 ${
+                      active
+                        ? "bg-amber-100 text-amber-800"
+                        : "hover:bg-stone-100"
+                    }`}
+                  >
+                    {item.name}
+                    <ChevronRight size={18} />
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Gallery link in mobile */}
+            <Link
+              href="/gallery"
+              onClick={() => setOpen(false)}
+              className={`flex items-center justify-between rounded-2xl px-4 py-4 ${
+                pathname === "/gallery"
+                  ? "bg-amber-100 text-amber-800"
+                  : "hover:bg-stone-100"
+              }`}
+            >
+              Gallery
+              <ChevronRight size={18} />
+            </Link>
 
             {/* Events dropdown in mobile */}
             <div className="space-y-1">
