@@ -82,14 +82,14 @@ export default function AaradhanePage() {
             {upcomingAaradhanes.map((aaradhane) => (
               <div
                 key={aaradhane.id}
-                className="flex flex-col md:flex-row gap-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4 md:p-6 shadow-md"
+                className="flex flex-col md:flex-row gap-4 md:gap-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 md:p-6 shadow-md"
               >
                 {aaradhane.imageUrl && (
                   <div className="w-full md:w-1/2 overflow-hidden rounded-2xl">
                     <img
                       src={`/images/aaradhane/${aaradhane.imageUrl}`}
                       alt={aaradhane.title}
-                      className="h-[50vh] sm:h-[60vh] md:h-96 w-full object-cover"
+                      className="h-[60vh] sm:h-[70vh] md:h-96 w-full object-cover"
                     />
                   </div>
                 )}
