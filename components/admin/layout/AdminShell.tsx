@@ -41,17 +41,8 @@ export default function AdminShell({ children }: Props) {
   }, [isSidebarOpen, closeSidebar]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-muted/20">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-          onClick={closeSidebar}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Sidebar */}
+    <div className="h-screen w-screen overflow-hidden bg-gray-50">
+      {/* Sidebar - includes mobile overlay internally */}
       <AdminSidebar
         isOpen={isSidebarOpen}
         onClose={closeSidebar}
@@ -60,7 +51,7 @@ export default function AdminShell({ children }: Props) {
       {/* Main Content Area */}
       <div className="flex h-full flex-col lg:pl-64">
         <AdminHeader onMenuClick={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto overscroll-contain">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
