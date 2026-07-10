@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -11,7 +12,6 @@ import {
 
 import TempleButton from "@/components/ui/TempleButton";
 import { useHomepage } from "@/hooks/useHomepage";
-import Panchanga from "@/components/home/Panchanga";
 
 export default function Hero() {
   const { homepage, loading } = useHomepage();
@@ -75,7 +75,7 @@ export default function Hero() {
 
       <div className="relative mx-auto flex min-h-[92vh] max-w-7xl items-center px-6 lg:px-10">
 
-        <div className="grid w-full items-center gap-8 lg:gap-10 lg:grid-cols-2">
+        <div className="grid w-full items-center gap-10 lg:grid-cols-2">
 
           {/* LEFT */}
 
@@ -83,7 +83,6 @@ export default function Hero() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
-            className="order-2 lg:order-1"
           >
 
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700">
@@ -249,20 +248,28 @@ export default function Hero() {
 
           </motion.div>
 
-          {/* RIGHT - Daily Panchanga */}
+          {/* RIGHT */}
 
           <motion.div
             initial={{ opacity: 0, x: 80 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
-            className="relative order-1 lg:order-2"
+            className="relative hidden lg:flex justify-center"
           >
-            <div className="relative z-10 overflow-hidden rounded-2xl border border-amber-200 bg-white/80 p-4 sm:p-6 shadow-xl backdrop-blur">
-              <h3 className="mb-2 sm:mb-4 text-center text-lg sm:text-xl font-bold text-amber-700">
-                Today's Panchanga
-              </h3>
-              <Panchanga />
+
+            <div className="absolute h-[520px] w-[520px] rounded-full bg-amber-300 blur-[140px] opacity-40" />
+
+            <div className="relative z-10 h-[760px] w-[520px] overflow-hidden rounded-lg shadow-2xl">
+              <Image
+                src="/images/Hero.jpg"
+                alt="Temple Hero"
+                fill
+                priority
+                sizes="520px"
+                className="object-cover"
+              />
             </div>
+
           </motion.div>
 
         </div>

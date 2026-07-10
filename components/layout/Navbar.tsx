@@ -87,7 +87,7 @@ export default function Navbar() {
 
         <Link href="/" className="flex items-center gap-4">
           <Image
-            src="/images/raghavendra_swamy.png"
+            src="/images/logos/ynk_matha_logo.png"
             alt="Sri Raghavendra Swamy"
             width={56}
             height={56}

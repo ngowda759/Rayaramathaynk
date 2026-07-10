@@ -7,6 +7,7 @@ import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GalleryPreview from "@/components/home/GalleryPreview";
 import SocialBar from "@/components/home/SocialBar";
 import Footer from "@/components/layout/Footer";
+import Panchanga from "@/components/home/Panchanga";
 import CalendarCenter from "@/components/calendar/CalendarCenter";
 
 // Revalidate every 60 seconds to get fresh announcements
@@ -18,6 +19,7 @@ export default function Home() {
       <Navbar />
       <AnnouncementBar />
       <Hero />
+      <Panchanga />
       <TempleMap />
       <FeaturedSevas />
       <CalendarCenter />
