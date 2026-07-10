@@ -351,9 +351,9 @@ export default function Navbar() {
 
       {open && (
 
-        <div className="border-t border-amber-100 bg-white lg:hidden">
+        <div className="border-t border-amber-100 bg-white lg:hidden max-h-[calc(100vh-5rem)] overflow-y-auto" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
 
-          <div className="space-y-2 p-5">
+          <div className="space-y-2 p-5 pb-safe">
 
             {menuItems.map((item) => {
 
