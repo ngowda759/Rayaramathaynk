@@ -79,6 +79,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     
+    match /aaradhane/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
     match /aaradhanes/{docId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -99,6 +104,18 @@ service cloud.firestore {
 
     // Homepage collection
     match /homepage/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Future Plans collection
+    match /futurePlans/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Trust Committee collection
+    match /trustCommittee/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
