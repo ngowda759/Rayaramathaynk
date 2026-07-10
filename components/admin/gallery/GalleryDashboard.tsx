@@ -42,11 +42,14 @@ export default function GalleryDashboard() {
           galleryService.getMedia(),
         ]);
 
+      console.log("Gallery data loaded:", { albums: albumData.length, media: mediaData.length });
+      console.log("Albums:", albumData);
+      console.log("Media:", mediaData);
+
       setAlbums(albumData);
       setMedia(mediaData);
     } catch (err: any) {
       console.error("Failed to load gallery:", err);
-      // More detailed error message
       const errorMessage = err?.message || err?.code || "Unknown error";
       console.log("Error details:", errorMessage);
       setError(`Failed to load gallery: ${errorMessage}`);
@@ -104,15 +107,23 @@ export default function GalleryDashboard() {
     );
   }
 
-  // Show empty state instead of error - the page will still be usable
-  // This allows admins to see the page even if Firebase isn't configured
-  if (error && albums.length === 0 && media.length === 0) {
-    console.warn("Gallery loading error:", error);
-    // Don't show error, just continue with empty data
-  }
+  // Show empty state when there's no data
+  const isEmpty = albums.length === 0 && media.length === 0;
 
   return (
     <div className="space-y-8">
+
+      {isEmpty && (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+          <p className="text-gray-500 mb-4">No gallery data found. The collections may not exist in Firebase or contain no data.</p>
+          <button
+            onClick={load}
+            className="rounded-lg bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
 
       <GalleryStats
         albums={albums}
