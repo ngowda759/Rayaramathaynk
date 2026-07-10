@@ -9,6 +9,15 @@ import SectionHeading from "@/components/common/SectionHeading";
 import { Aaradhane } from "@/types/aaradhane";
 import { aaradhaneService } from "@/services/aaradhane.service";
 
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export default function AaradhanePage() {
   const [aaradhanes, setAaradhanes] = useState<Aaradhane[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,11 +99,17 @@ export default function AaradhanePage() {
                     </span>
                   </div>
 
-                  <div className="mt-4 flex items-center gap-4 text-sm text-stone-600">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {aaradhane.dates}
-                    </div>
+                  <div className="mt-4 space-y-2">
+                    {aaradhane.dates && aaradhane.dates.length > 0 ? (
+                      aaradhane.dates.map((date, index) => (
+                        <div key={index} className="flex items-center gap-2 text-sm text-stone-600">
+                          <Calendar className="h-4 w-4 text-amber-600" />
+                          <span>{formatDate(date)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Dates to be announced</p>
+                    )}
                   </div>
 
                   <p className="mt-4 text-stone-700">
@@ -109,6 +124,22 @@ export default function AaradhanePage() {
                       <p className="mt-1 text-sm text-stone-600">
                         {aaradhane.significance}
                       </p>
+                    </div>
+                  )}
+
+                  {aaradhane.sevaDetails && aaradhane.sevaDetails.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-amber-800">
+                        Available Sevas
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {aaradhane.sevaDetails.map((seva) => (
+                          <div key={seva.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-2 text-sm">
+                            <span className="text-stone-700">{seva.name}</span>
+                            <span className="font-medium text-amber-700">₹{seva.price}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -161,11 +192,17 @@ export default function AaradhanePage() {
                     </span>
                   </div>
 
-                  <div className="mt-4 flex items-center gap-4 text-sm text-stone-500">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {aaradhane.dates}
-                    </div>
+                  <div className="mt-4 space-y-1">
+                    {aaradhane.dates && aaradhane.dates.length > 0 ? (
+                      aaradhane.dates.map((date, index) => (
+                        <div key={index} className="flex items-center gap-2 text-sm text-stone-500">
+                          <Calendar className="h-4 w-4" />
+                          <span>{formatDate(date)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No dates</p>
+                    )}
                   </div>
 
                   <p className="mt-4 line-clamp-3 text-sm text-stone-600">

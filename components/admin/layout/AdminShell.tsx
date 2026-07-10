@@ -39,7 +39,7 @@ export default function AdminShell({ children }: Props) {
       {/* Main Content */}
       <div className="flex flex-1 flex-col lg:pl-72">
         <AdminHeader onMenuClick={toggleSidebar} />
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 overflow-x-hidden p-4 md:p-6">
           {children}
         </main>
       </div>
