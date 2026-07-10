@@ -96,5 +96,11 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
     }
+
+    // Homepage collection
+    match /homepage/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
