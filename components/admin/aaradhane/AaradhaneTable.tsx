@@ -105,14 +105,14 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
 
   return (
     <>
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-xl border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-16">Order</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Guru</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead className="whitespace-nowrap">Date</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Rituals</TableHead>
               <TableHead>Offerings</TableHead>
@@ -166,10 +166,18 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">{item.guruName}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 text-sm">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      {formatDate(item.dates)}
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex flex-col gap-1 text-xs">
+                      {item.dates && item.dates.length > 0 ? (
+                        item.dates.map((d, i) => (
+                          <span key={i} className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            {formatDate(d)}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground">No date</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -193,13 +201,13 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
                   <TableCell className="text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <List className="h-3.5 w-3.5" />
-                      {item.rituals.length}
+                      {item.rituals?.length || 0}
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Gift className="h-3.5 w-3.5" />
-                      {item.offerings.length}
+                      {item.offerings?.length || 0}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
