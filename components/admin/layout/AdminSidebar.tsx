@@ -184,9 +184,14 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transition-transform duration-300 lg:hidden flex flex-col",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
+        style={{
+          height: "100dvh",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+        }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
+        {/* Header - fixed at top, not part of scroll */}
+        <div className="flex-shrink-0 flex items-center justify-between border-b border-gray-200 px-4 py-4">
           <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
             <Image
               src="/images/logos/ynk_matha_logo.png"
@@ -209,8 +214,14 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Navigation - this is the scroll container */}
+        <nav 
+          className="flex-1 overflow-y-auto px-3 py-4"
+          style={{
+            overscrollBehavior: "contain",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {navigation.map((group) => (
             <div key={group.title} className="mb-4">
               <button
