@@ -5,13 +5,9 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-
 import { createCrudColumns } from "./createCrudColumns";
-
-import {
-  CrudColumn,
-  CrudTableActions,
-} from "@/types/crud";
+import { CrudColumn, CrudTableActions } from "@/types/crud";
+import { cn } from "@/lib/utils";
 
 interface CrudTableProps<T> {
   data: T[];
@@ -33,16 +29,16 @@ export default function CrudTable<T>({
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-stone-100">
+          <thead className="bg-muted/50 sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-6 py-4 text-left text-sm font-semibold text-stone-700"
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
                     {header.isPlaceholder
                       ? null
@@ -56,12 +52,12 @@ export default function CrudTable<T>({
             ))}
           </thead>
 
-          <tbody>
+          <tbody className="divide-y divide-border">
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-6 py-10 text-center text-stone-500"
+                  className="px-4 py-12 text-center text-sm text-muted-foreground"
                 >
                   {emptyMessage}
                 </td>
@@ -70,12 +66,12 @@ export default function CrudTable<T>({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-t transition-colors hover:bg-stone-50"
+                  className="transition-colors hover:bg-muted/30"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className="px-6 py-4 align-middle"
+                      className="px-4 py-3 align-middle text-sm"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,

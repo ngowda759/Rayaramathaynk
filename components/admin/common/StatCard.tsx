@@ -16,29 +16,21 @@ export default function StatCard({
   color = "text-orange-600",
 }: StatCardProps) {
   return (
-    <div className="rounded-2xl border bg-card p-6 shadow-sm transition-all hover:shadow-md">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-muted-foreground">
+    <div className="rounded-xl border bg-card p-4 transition-all hover:shadow-sm hover:border-orange-200">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 flex-col">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {title}
           </p>
-
-          <h2 className="mt-2 text-3xl font-bold">
-            {value}
-          </h2>
-
+          <h2 className="text-2xl font-bold tabular-nums">{value}</h2>
           {description && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {description}
-            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
           )}
         </div>
 
         {Icon && (
-          <div
-            className={`ml-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 ${color}`}
-          >
-            <Icon className="h-7 w-7" />
+          <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-orange-50 ${color}`}>
+            <Icon className="h-5 w-5" />
           </div>
         )}
       </div>

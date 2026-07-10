@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { useAuthContext } from "@/context/AuthContext";
 import { navigation } from "./navigation";
 import { icons } from "./icons";
@@ -15,20 +16,20 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const { 
-    canAccessSettings, 
-    canManageUsers, 
-    canAccessBilling, 
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const {
+    canAccessSettings,
+    canManageUsers,
+    canAccessBilling,
     canAccessFinance,
     canAccessAdministration,
-    normalizedRole 
+    normalizedRole,
   } = useAuthContext();
 
   const filteredNavigation = navigation.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
-      // Filter based on permissions
-      // Temple Admin: Cannot access Finance and Administration
       if (normalizedRole === "admin") {
         if (group.title === "Finance") return false;
         if (group.title === "Administration") return false;
@@ -40,31 +41,23 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         if (item.href.includes("/settings")) return false;
         if (item.href.includes("/assistant")) return false;
       }
-      
-      // Billing role: Only Finance section and Dashboard
+
       if (normalizedRole === "billing") {
         if (group.title === "Finance") return true;
         if (item.href === "/admin") return true;
         if (group.title === "Dashboard") return true;
         return false;
       }
-      
-      // Super Admin: Has access to everything
-      // Filter based on permissions
+
       if (item.href.includes("/users") && !canManageUsers) {
         return false;
       }
-      if (
-        item.href.includes("/settings") &&
-        !canAccessSettings
-      ) {
+      if (item.href.includes("/settings") && !canAccessSettings) {
         return false;
       }
-      // Filter billing menu - only show for super_admin or billing users
       if (item.href.includes("/billing")) {
         return canAccessBilling;
       }
-      // Filter Administration section - only super_admin
       if (group.title === "Administration" && !canAccessAdministration) {
         return false;
       }
@@ -72,120 +65,187 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     }),
   })).filter((group) => group.items.length > 0);
 
+  // Auto-expand groups with active items
+  useEffect(() => {
+    const newExpanded: Record<string, boolean> = {};
+    filteredNavigation.forEach((group) => {
+      newExpanded[group.title] = group.items.some((item) => {
+        return pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+      });
+    });
+    setExpandedGroups(newExpanded);
+  }, [pathname, filteredNavigation]);
+
+  const toggleGroup = (title: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && sidebarRef.current) {
+        const focusable = sidebarRef.current.querySelectorAll<HTMLElement>(
+          'a, button, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    if (isOpen) {
+      sidebarRef.current?.focus();
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  const renderNavItem = (item: { href: string; title: string; icon: string }, closeMenu?: () => void) => {
+    const Icon = icons[item.icon as keyof typeof icons];
+    const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={closeMenu}
+        className={cn(
+          "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+          active
+            ? "bg-orange-50 text-orange-600 font-semibold"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        )}
+        aria-current={active ? "page" : undefined}
+      >
+        {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
+        <span>{item.title}</span>
+      </Link>
+    );
+  };
+
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-72 border-r bg-white flex-col fixed h-full">
-        <div className="border-b p-6">
-          <h1 className="text-xl font-bold">🏛 Temple Portal</h1>
-          <p className="text-sm text-muted-foreground">
-            Administration
-          </p>
+      {/* Desktop Sidebar - Fixed position */}
+      <aside
+        className="hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:z-30 lg:h-screen lg:w-64 lg:border-r lg:bg-card lg:overflow-hidden"
+        aria-label="Main navigation"
+      >
+        {/* Logo */}
+        <div className="flex-shrink-0 border-b px-4 py-4">
+          <Link href="/admin" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
+              🙏
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold leading-tight">Temple Portal</h1>
+              <p className="text-xs text-muted-foreground">Administration</p>
+            </div>
+          </Link>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-8">
+        {/* Scrollable Navigation */}
+        <nav
+          className="flex-1 overflow-y-auto overscroll-contain py-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+          aria-label="Navigation"
+        >
           {filteredNavigation.map((group) => (
-            <div key={group.title}>
-              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.title}
-              </p>
-
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const Icon = icons[item.icon as keyof typeof icons];
-
-                  const active =
-                    pathname === item.href ||
-                    (item.href !== "/admin" &&
-                      pathname.startsWith(item.href));
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
-                        active
-                          ? "bg-orange-100 text-orange-700"
-                          : "hover:bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <Icon className="h-5 w-5" />
-                      {item.title}
-                    </Link>
-                  );
-                })}
+            <div key={group.title} className="px-3 py-1">
+              <button
+                onClick={() => toggleGroup(group.title)}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span>{group.title}</span>
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 transition-transform duration-200",
+                    expandedGroups[group.title] ? "rotate-180" : ""
+                  )}
+                />
+              </button>
+              <div
+                className={cn(
+                  "space-y-0.5 overflow-hidden transition-all duration-200",
+                  expandedGroups[group.title] ? "mt-1 max-h-96" : "max-h-0"
+                )}
+              >
+                {group.items.map((item) => renderNavItem(item))}
               </div>
             </div>
           ))}
-        </div>
+        </nav>
       </aside>
 
       {/* Mobile Sidebar Drawer */}
       <aside
+        ref={sidebarRef}
+        tabIndex={-1}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 border-r bg-white flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-card shadow-xl transition-transform duration-300 ease-out lg:hidden",
+          "focus:outline-none",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
+        aria-label="Mobile navigation"
+        aria-hidden={!isOpen}
+        role="dialog"
+        aria-modal="true"
       >
-        {/* Mobile Header with Close Button */}
-        <div className="flex-none border-b p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">🏛 Temple Portal</h1>
-              <p className="text-sm text-muted-foreground">
-                Administration
-              </p>
+        {/* Mobile Header */}
+        <div className="flex-shrink-0 flex items-center justify-between border-b px-4 py-3">
+          <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
+              🙏
             </div>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-2 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-orange-400"
-              aria-label="Close menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+            <div>
+              <h1 className="text-sm font-semibold leading-tight">Temple Portal</h1>
+              <p className="text-xs text-muted-foreground">Administration</p>
+            </div>
+          </Link>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-orange-400"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Mobile Navigation - Scrollable */}
-        <nav className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-6">
-            {filteredNavigation.map((group) => (
-              <div key={group.title}>
-                <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.title}
-                </p>
-
-                <div className="space-y-1">
-                  {group.items.map((item) => {
-                    const Icon = icons[item.icon as keyof typeof icons];
-
-                    const active =
-                      pathname === item.href ||
-                      (item.href !== "/admin" &&
-                        pathname.startsWith(item.href));
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={onClose}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                          active
-                            ? "bg-orange-100 text-orange-700"
-                            : "hover:bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                        {item.title}
-                      </Link>
-                    );
-                  })}
-                </div>
+        <nav
+          className="flex-1 overflow-y-auto overscroll-contain py-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+          aria-label="Mobile navigation links"
+        >
+          {filteredNavigation.map((group) => (
+            <div key={group.title} className="px-3 py-1">
+              <button
+                onClick={() => toggleGroup(group.title)}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span>{group.title}</span>
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 transition-transform duration-200",
+                    expandedGroups[group.title] ? "rotate-180" : ""
+                  )}
+                />
+              </button>
+              <div
+                className={cn(
+                  "space-y-0.5 overflow-hidden transition-all duration-200",
+                  expandedGroups[group.title] ? "mt-1 max-h-96" : "max-h-0"
+                )}
+              >
+                {group.items.map((item) => renderNavItem(item, onClose))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </nav>
       </aside>
     </>
