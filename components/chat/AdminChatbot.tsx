@@ -13,13 +13,20 @@ export default function AdminChatbot() {
 
   return (
     <>
+      <style jsx global>{`
+        .chatbase-balloon {
+          left: 20px !important;
+          right: auto !important;
+        }
+      `}</style>
       <Script id="chatbase-admin-config" strategy="beforeInteractive">
         {`
           window.chatbaseConfig = {
             chatbotId: "${chatbotId}",
             language: "${language}",
             primaryColor: "#f97316",
-            buttonColor: "#f97316"
+            buttonColor: "#f97316",
+            position: "left"
           };
         `}
       </Script>
