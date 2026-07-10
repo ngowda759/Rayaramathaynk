@@ -267,7 +267,7 @@ export default function CreateAaradhane() {
               Add images to public/images/aaradhane/ in GitHub repo, then enter filename here
             </p>
             {imageUrl && (
-              <div className="mt-2 relative h-40 w-full overflow-hidden rounded-lg border">
+              <div className="mt-2 relative h-32 sm:h-40 md:h-48 w-full overflow-hidden rounded-lg border">
                 <img
                   src={`/images/aaradhane/${imageUrl}`}
                   alt="Aaradhane preview"

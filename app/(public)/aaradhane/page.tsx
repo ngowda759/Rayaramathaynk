@@ -90,7 +90,7 @@ export default function AaradhanePage() {
                       <img
                         src={`/images/aaradhane/${aaradhane.imageUrl}`}
                         alt={aaradhane.title}
-                        className="h-48 w-full object-cover"
+                        className="h-48 sm:h-56 md:h-64 lg:h-72 w-full object-cover"
                       />
                     </div>
                   )}
