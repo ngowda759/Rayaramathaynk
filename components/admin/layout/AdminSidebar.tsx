@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -135,9 +136,13 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:bg-white lg:border-r lg:border-gray-200">
         {/* Logo */}
         <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
-            🙏
-          </div>
+          <Image
+            src="/images/logos/ynk_matha_logo.png"
+            alt="Sri Raghavendra Swamy Matha"
+            width={36}
+            height={36}
+            className="rounded-full"
+          />
           <div>
             <h1 className="text-sm font-semibold text-gray-900">Temple Portal</h1>
             <p className="text-xs text-gray-500">Administration</p>
@@ -183,9 +188,13 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
           <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
-              🙏
-            </div>
+            <Image
+              src="/images/logos/ynk_matha_logo.png"
+              alt="Sri Raghavendra Swamy Matha"
+              width={36}
+              height={36}
+              className="rounded-full"
+            />
             <div>
               <h1 className="text-sm font-semibold text-gray-900">Temple Portal</h1>
               <p className="text-xs text-gray-500">Administration</p>
