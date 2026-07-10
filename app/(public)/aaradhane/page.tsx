@@ -86,7 +86,7 @@ export default function AaradhanePage() {
                   className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 shadow-md"
                 >
                   {aaradhane.imageUrl && (
-                    <div className="mb-4 -mx-6 -mt-6 overflow-hidden rounded-t-3xl">
+                    <div className="mb-4 overflow-hidden rounded-2xl">
                       <img
                         src={`/images/aaradhane/${aaradhane.imageUrl}`}
                         alt={aaradhane.title}

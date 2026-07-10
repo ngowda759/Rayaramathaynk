@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -244,30 +243,6 @@ export default function Hero() {
 
               </div>
 
-            </div>
-
-          </motion.div>
-
-          {/* RIGHT */}
-
-          <motion.div
-            initial={{ opacity: 0, x: 80 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1 }}
-            className="relative hidden lg:flex justify-center"
-          >
-
-            <div className="absolute h-[520px] w-[520px] rounded-full bg-amber-300 blur-[140px] opacity-40" />
-
-            <div className="relative z-10 h-[760px] w-[520px] overflow-hidden rounded-lg shadow-2xl">
-              <Image
-                src="/images/Hero.jpg"
-                alt="Temple Hero"
-                fill
-                priority
-                sizes="520px"
-                className="object-cover"
-              />
             </div>
 
           </motion.div>

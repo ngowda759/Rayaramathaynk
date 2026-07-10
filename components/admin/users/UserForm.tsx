@@ -118,6 +118,7 @@ export default function UserForm({
         >
           <option>Super Admin</option>
           <option>Temple Admin</option>
+          <option>Billing</option>
           <option>Priest</option>
           <option>Office Staff</option>
           <option>Volunteer</option>

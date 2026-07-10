@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Image, BookOpen, Heart, ClipboardList, CheckCircle, Clock } from "lucide-react";
+import { Calendar, Image, BookOpen, Heart, ClipboardList, CheckCircle, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Recommendation = {
@@ -21,6 +21,8 @@ type AdminAssistantProps = {
   totalBookings?: number;
   pendingBookings?: number;
   completedBookings?: number;
+  totalAaradhanes?: number;
+  upcomingAaradhanes?: number;
   recommendations: Recommendation[];
 };
 
@@ -36,17 +38,19 @@ export default function AdminAssistant({
   totalBookings = 0,
   pendingBookings = 0,
   completedBookings = 0,
+  totalAaradhanes = 0,
+  upcomingAaradhanes = 0,
   recommendations,
 }: AdminAssistantProps) {
   return (
     <div className="space-y-8">
       {/* Statistics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           icon={<Calendar className="h-6 w-6" />}
           title="Upcoming Events"
           value={upcomingEvents}
-          description={`${totalEvents} total events`}
+          description={`${totalEvents} total`}
           color="blue"
         />
 
@@ -59,10 +63,18 @@ export default function AdminAssistant({
         />
 
         <StatCard
+          icon={<Sparkles className="h-6 w-6" />}
+          title="Aaradhanes"
+          value={upcomingAaradhanes}
+          description={`${totalAaradhanes} total`}
+          color="amber"
+        />
+
+        <StatCard
           icon={<Heart className="h-6 w-6" />}
           title="Special Sevas"
           value={activeSevas}
-          description={`${totalSevas} total sevas`}
+          description={`${totalSevas} total`}
           color="rose"
         />
 
@@ -70,14 +82,14 @@ export default function AdminAssistant({
           icon={<ClipboardList className="h-6 w-6" />}
           title="Seva Bookings"
           value={pendingBookings}
-          description={`${totalBookings} total (${completedBookings} completed)`}
-          color="amber"
+          description={`${totalBookings} total`}
+          color="green"
           highlight={pendingBookings > 0}
         />
       </div>
 
       {/* Quick Stats Row */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
@@ -85,7 +97,7 @@ export default function AdminAssistant({
             </div>
             <div>
               <p className="text-2xl font-bold text-stone-900">{activePoojas}</p>
-              <p className="text-sm text-stone-500">Active Pooja Schedules</p>
+              <p className="text-sm text-stone-500">Active Poojas</p>
             </div>
           </div>
         </div>
@@ -109,7 +121,19 @@ export default function AdminAssistant({
             </div>
             <div>
               <p className="text-2xl font-bold text-stone-900">{completedBookings}</p>
-              <p className="text-sm text-stone-500">Completed Bookings</p>
+              <p className="text-sm text-stone-500">Completed</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+              <Sparkles className="h-5 w-5 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-stone-900">{upcomingAaradhanes}</p>
+              <p className="text-sm text-stone-500">Upcoming Aaradhana</p>
             </div>
           </div>
         </div>
