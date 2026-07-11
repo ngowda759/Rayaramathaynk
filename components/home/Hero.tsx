@@ -107,9 +107,9 @@ export default function Hero() {
 
             <div className="mt-10 flex flex-wrap gap-4">
 
-              <TempleButton href="/sevas">
+              <TempleButton href="/aaradhane">
 
-                Book Seva
+                Aaradhane
 
               </TempleButton>
 
