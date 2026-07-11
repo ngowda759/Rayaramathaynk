@@ -51,7 +51,7 @@ export default function UsersPage() {
   }, [users, search]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <AdminPageHeader
         title="Temple Users"
         description="Manage temple staff and administrator accounts."

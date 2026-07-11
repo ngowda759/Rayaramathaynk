@@ -37,7 +37,7 @@ export default function AdminShell({ children }: Props) {
   }, [isSidebarOpen, closeSidebar]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gray-50">
+    <div className="min-h-screen w-screen bg-gray-50">
       {/* Sidebar */}
       <AdminSidebar
         isOpen={isSidebarOpen}
@@ -45,9 +45,9 @@ export default function AdminShell({ children }: Props) {
       />
 
       {/* Main Content Area */}
-      <div className="flex h-full flex-col lg:pl-64">
+      <div className="flex flex-col lg:pl-64">
         <AdminHeader onMenuClick={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 p-4 pb-20 lg:p-6 lg:pb-6">
           {children}
         </main>
       </div>
