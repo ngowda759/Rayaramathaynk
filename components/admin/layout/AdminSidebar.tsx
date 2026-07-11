@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -116,19 +116,20 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isExpanded, setIsExpanded] = useState(true); // Sidebar expanded by default
 
-  // Get filtered navigation based on user permissions
-  const navigation = getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false);
+  // Get filtered navigation based on user permissions (memoized to prevent infinite loops)
+  const navigation = useMemo(() => 
+    getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false),
+    [canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance]
+  );
 
   // Initialize expanded state - show all groups
   useEffect(() => {
-     
     const expanded: Record<string, boolean> = {};
     navigation.forEach((group) => {
       expanded[group.title] = true; // Show all groups expanded
     });
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedGroups(expanded);
-  }, [pathname, navigation]);
+  }, [navigation]);
 
   const toggleGroup = (title: string) => {
     setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }));

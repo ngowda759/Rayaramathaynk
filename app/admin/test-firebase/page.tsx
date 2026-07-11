@@ -29,7 +29,7 @@ export default function TestFirebasePage() {
         setStatus("Querying Firestore...");
         const snapshot = await getDocs(collection(db, "events"));
         setStatus("Got " + snapshot.docs.length + " events");
-        setData(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        setData(snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() })));
       } catch (e: any) {
         setError(e.message || String(e));
         setStatus("Error: " + e.message);

@@ -9,26 +9,31 @@ interface FirebaseConfigValidation {
   missingFields: string[];
 }
 
+// Fixed: Use direct env var access for Turbopack compatibility
 const validateFirebaseConfig = (): FirebaseConfigValidation => {
-  const requiredFields = [
-    { key: "NEXT_PUBLIC_FIREBASE_API_KEY", name: "API Key" },
-    { key: "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN", name: "Auth Domain" },
-    { key: "NEXT_PUBLIC_FIREBASE_PROJECT_ID", name: "Project ID" },
-    { key: "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID", name: "Messaging Sender ID" },
-    { key: "NEXT_PUBLIC_FIREBASE_APP_ID", name: "App ID" },
-  ];
-
-  const optionalFields = [
-    { key: "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", name: "Storage Bucket" },
-  ];
-
   const missingFields: string[] = [];
 
-  for (const field of requiredFields) {
-    const value = process.env[field.key];
-    if (!value || value === "" || value === "your-api-key") {
-      missingFields.push(field.name);
-    }
+  // Access env vars directly (required for Turbopack compatibility)
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
+  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
+
+  if (!apiKey || apiKey === "" || apiKey === "your-api-key") {
+    missingFields.push("API Key");
+  }
+  if (!authDomain || authDomain === "") {
+    missingFields.push("Auth Domain");
+  }
+  if (!projectId || projectId === "") {
+    missingFields.push("Project ID");
+  }
+  if (!messagingSenderId || messagingSenderId === "") {
+    missingFields.push("Messaging Sender ID");
+  }
+  if (!appId || appId === "") {
+    missingFields.push("App ID");
   }
 
   return {
