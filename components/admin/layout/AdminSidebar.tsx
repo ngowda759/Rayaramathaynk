@@ -119,14 +119,11 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   // Get filtered navigation based on user permissions
   const navigation = getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false);
 
-  // Initialize expanded state - show Dashboard and current section
+  // Initialize expanded state - show all groups
   useEffect(() => {
     const expanded: Record<string, boolean> = {};
     navigation.forEach((group) => {
-      const isActive = group.items.some(
-        (item) => pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href))
-      );
-      expanded[group.title] = isActive || group.title === "Dashboard" || group.title === "Temple Operations";
+      expanded[group.title] = true; // Show all groups expanded
     });
     setExpandedGroups(expanded);
   }, [pathname, navigation]);
@@ -212,9 +209,10 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Mobile Sidebar Drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl transition-transform duration-300 ease-out lg:hidden flex flex-col",
+          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl transition-transform duration-300 ease-out lg:hidden flex flex-col overflow-hidden",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
+        style={{ height: "100dvh" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4 flex-shrink-0">
