@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   Bell, HeartHandshake, Image, Plus, CalendarDays, 
@@ -34,25 +33,17 @@ function StatCard({ title, value, icon: Icon }: { title: string; value: number; 
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const { dashboardService } = await import("@/services/dashboard.service.client");
-        const data = await dashboardService.getStats();
-        setStats(data);
-      } catch (err) {
-        console.error("Failed to fetch stats:", err);
-        setError(err instanceof Error ? err.message : "Failed to load statistics");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchStats();
-  }, []);
+  // Static stats - update when database is connected
+  const stats: DashboardStats = {
+    totalUsers: 0,
+    totalEvents: 0,
+    totalSevas: 0,
+    totalGalleryImages: 0,
+    totalAnnouncements: 0,
+    totalTimings: 0,
+    totalDonations: 0,
+    totalSevaBookings: 0,
+  };
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString("en-IN", {
@@ -84,26 +75,16 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
-        </div>
-      ) : error ? (
-        <div className="rounded-2xl border bg-red-50 p-6 text-center text-red-600">
-          {error}
-        </div>
-      ) : stats ? (
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Users" value={stats.totalUsers} icon={Users} />
-          <StatCard title="Events" value={stats.totalEvents} icon={CalendarDays} />
-          <StatCard title="Sevas" value={stats.totalSevas} icon={BookOpen} />
-          <StatCard title="Gallery" value={stats.totalGalleryImages} icon={Image} />
-          <StatCard title="Announcements" value={stats.totalAnnouncements} icon={Bell} />
-          <StatCard title="Temple Timings" value={stats.totalTimings} icon={Clock} />
-          <StatCard title="Donations" value={stats.totalDonations} icon={HeartHandshake} />
-          <StatCard title="Bookings" value={stats.totalSevaBookings} icon={HandCoins} />
-        </div>
-      ) : null}
+      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Users" value={stats.totalUsers} icon={Users} />
+        <StatCard title="Events" value={stats.totalEvents} icon={CalendarDays} />
+        <StatCard title="Sevas" value={stats.totalSevas} icon={BookOpen} />
+        <StatCard title="Gallery" value={stats.totalGalleryImages} icon={Image} />
+        <StatCard title="Announcements" value={stats.totalAnnouncements} icon={Bell} />
+        <StatCard title="Temple Timings" value={stats.totalTimings} icon={Clock} />
+        <StatCard title="Donations" value={stats.totalDonations} icon={HeartHandshake} />
+        <StatCard title="Bookings" value={stats.totalSevaBookings} icon={HandCoins} />
+      </div>
 
       {/* Quick Actions */}
       <div className="rounded-2xl border bg-white p-6 shadow-sm">
