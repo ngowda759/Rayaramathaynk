@@ -12,9 +12,12 @@ import { billingService } from "@/services/billing.service";
 import { Bill, BillStatus } from "@/types/billing";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
+
 const SETTINGS_DOC = "financeSettings";
 const SETTINGS_COLLECTION = "settings";
-export default function BillingPage() {
+
+function BillingPageContent() {
   const router = useRouter();
   useFinanceSettings(); // Initialize finance settings
   const [bills, setBills] = useState<Bill[]>([]);
@@ -358,5 +361,13 @@ export default function BillingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <AdminAuthGuard requiredPermission="billing">
+      <BillingPageContent />
+    </AdminAuthGuard>
   );
 }

@@ -9,11 +9,12 @@ import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import UserStats from "@/components/admin/users/UserStats";
 import UserTable from "@/components/admin/users/UserTable";
+import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 
 import { TempleUser } from "@/types/user";
 import { userService } from "@/services/user.service";
 
-export default function UsersPage() {
+function UsersPageContent() {
   const [users, setUsers] = useState<TempleUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -92,5 +93,13 @@ export default function UsersPage() {
         <UserTable users={filteredUsers} />
       )}
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <AdminAuthGuard requiredPermission="users">
+      <UsersPageContent />
+    </AdminAuthGuard>
   );
 }

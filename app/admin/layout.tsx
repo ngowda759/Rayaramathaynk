@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import AdminShell from "@/components/admin/layout/AdminShell";
+import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 import AdminChatbot from "@/components/chat/AdminChatbot";
 import { GoUpButton } from "@/components/ui/GoUpButton";
 
@@ -9,10 +10,12 @@ interface Props {
 
 export default function AdminLayout({ children }: Props) {
   return (
-    <AdminShell>
-      {children}
-      <AdminChatbot />
-      <GoUpButton />
-    </AdminShell>
+    <AdminAuthGuard>
+      <AdminShell>
+        {children}
+        <AdminChatbot />
+        <GoUpButton />
+      </AdminShell>
+    </AdminAuthGuard>
   );
 }
