@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
 function Dialog({ children, open, onOpenChange, ...props }: DialogPrimitive.Root.Props & { children?: React.ReactNode }) {
-  if (!open) return null
+  // Handle controlled mode: only render when open is explicitly true
+  // Handle uncontrolled mode: let base-ui handle state
+  const isControlled = open !== undefined;
+  if (isControlled && !open) return null;
   
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} data-slot="dialog" {...props}>
