@@ -2,18 +2,22 @@ import Link from "next/link";
 import { CalendarDays, MoonStar, PartyPopper, ArrowRight } from "lucide-react";
 import { calendar } from "@/data/calendar";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
 export default function TempleCalendarPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#fff8ef] via-white to-[#fffdf8]">
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-gradient-to-b from-[#fff8ef] via-white to-[#fffdf8]">
 
-      {/* Hero */}
+        {/* Hero */}
 
-      <section className="border-b border-amber-100 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50">
+        <section className="border-b border-amber-100 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50">
 
-        <div className="mx-auto max-w-7xl px-6 py-16">
-          
-          <Breadcrumb current="Temple Calendar" parentHref="/" parentName="Home" />
+          <div className="mx-auto max-w-7xl px-6 py-16">
+            
+            <Breadcrumb current="Temple Calendar" parentHref="/" parentName="Home" />
 
           <div className="text-center">
 
@@ -165,6 +169,8 @@ export default function TempleCalendarPage() {
 
       </section>
 
-    </main>
+      </main>
+      <Footer />
+    </>
   );
 }
