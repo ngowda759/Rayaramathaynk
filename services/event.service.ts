@@ -16,14 +16,19 @@ const COLLECTION = "events";
 
 class EventService {
   async getEvents(): Promise<TempleEvent[]> {
+    console.log("[EventService] getEvents called");
+    console.log("[EventService] db is:", db ? "defined" : "null/undefined");
+    
     if (!db) {
       console.log("[EventService] Firebase not configured, returning empty array");
       return [];
     }
+    
     try {
+      console.log("[EventService] Querying collection:", COLLECTION);
       const snapshot = await getDocs(collection(db, COLLECTION));
+      console.log("[EventService] Query successful, docs count:", snapshot.docs.length);
       console.log("[EventService] Raw Firestore data:", JSON.stringify(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), null, 2));
-      console.log("[EventService] Number of docs:", snapshot.docs.length);
       return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as TempleEvent[];
     } catch (error) {
       console.error("[EventService] Error fetching events:", error);
