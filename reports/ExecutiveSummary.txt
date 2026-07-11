@@ -3,7 +3,7 @@
            AARADHANE TEMPLE MANAGEMENT SYSTEM - EXECUTIVE SUMMARY
 ================================================================================
 
-Generated: 2026-07-11 07:15:06
+Generated: 2026-07-11 09:46:25
 Project: Aaradhane Temple Management System
 Version: 1.0.0
 Environment: Development/Testing
@@ -13,13 +13,13 @@ Environment: Development/Testing
 ================================================================================
 
 Total Test Cases Designed:    200+
-Total Test Cases Executed:    168
-Passed:                       29
-Failed:                       139
-Blocked:                      0
-Skipped:                      0
-Pass Rate:                    17.3%
-Execution Duration:           0.42s
+Total Test Cases Executed:    178
+Passed:                       90
+Failed:                       46
+Blocked:                      41
+Skipped:                      1
+Pass Rate:                    50.6%
+Execution Duration:           N/A
 
 ================================================================================
                               MODULE COVERAGE
@@ -66,9 +66,9 @@ BUGS IDENTIFIED:                0
   - Medium:                     0
   - Low:                        0
 
-SECURITY FINDINGS:             0
+SECURITY FINDINGS:             3
   - Critical:                   0
-  - High:                       0
+  - High:                       3
   - Medium:                     0
 
 UI ISSUES:                     0
@@ -77,11 +77,11 @@ UI ISSUES:                     0
                         PERFORMANCE METRICS
 ================================================================================
 
-Homepage Load Time:            0.01s
-Admin Dashboard Load:          0.01s
-API Response Time:             0.01s
-Page Size:                     0.01KB
-First Byte Time:               0.01s
+Homepage Load Time:            12.96
+Admin Dashboard Load:          0.07
+API Response Time:             0.01
+Page Size:                     N/A
+First Byte Time:               7.47
 
 ================================================================================
                           CRITICAL OBSERVATIONS
@@ -138,7 +138,7 @@ MEDIUM-TERM ACTIONS (1 Month):
 
                     ❌ NOT READY
 
-Confidence Level:                17%
+Confidence Level:                51%
 Blockers Remaining:              0
 Risk Level:                     HIGH
 

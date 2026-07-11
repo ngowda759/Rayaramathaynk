@@ -1,6 +1,6 @@
 # Aaradhane Temple Management System - Test Execution Report
 
-**Generated:** 2026-07-11 07:15:06  
+**Generated:** 2026-07-11 09:46:25  
 **Project:** Aaradhane Temple Management System  
 **Environment:** Development  
 
@@ -9,21 +9,21 @@
 ## 1. Executive Summary
 
 ### Overview
-This comprehensive test execution report covers 168 test cases across 18 modules of the Aaradhane Temple Management System. The testing scope includes functional, UI, accessibility, performance, security, and API testing.
+This comprehensive test execution report covers 178 test cases across 18 modules of the Aaradhane Temple Management System. The testing scope includes functional, UI, accessibility, performance, security, and API testing.
 
 ### Key Metrics
 | Metric | Value |
 |--------|-------|
-| Total Test Cases | 168 |
-| Executed | 168 |
-| Passed | 29 (17.3%) |
-| Failed | 139 |
-| Blocked | 0 |
-| Skipped | 0 |
-| Execution Time | 0.42s |
+| Total Test Cases | 178 |
+| Executed | 136 |
+| Passed | 90 (50.6%) |
+| Failed | 46 |
+| Blocked | 41 |
+| Skipped | 1 |
+| Execution Time | N/A |
 
 ### Overall Status
-❌ CRITICAL ISSUES - 17.3% Pass Rate
+❌ CRITICAL ISSUES - 50.6% Pass Rate
 
 ---
 
@@ -128,18 +128,22 @@ This comprehensive test execution report covers 168 test cases across 18 modules
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Homepage Load Time | 0.01s | < 5s | ✅ |
-| Admin Load Time | 0.01s | < 5s | ✅ |
+| Homepage Load Time | 12.96s | < 5s | ❌ |
+| Admin Load Time | 0.07s | < 5s | ✅ |
 | API Response Time | 0.01s | < 2s | ✅ |
-| Page Size | 0.01KB | < 500KB | ✅ |
-| First Byte Time | 0.01s | < 1s | ✅ |
+| Page Size | 1.10KB | < 500KB | ❌ |
+| First Byte Time | 7.47s | < 1s | ❌ |
 
 ---
 
 ## 6. Security Findings
 
 
-✅ No critical security vulnerabilities found.
+| Finding ID | Category | Severity | Description | Endpoint |
+|------------|----------|----------|-------------|----------|
+| SEC-001 | Authentication Bypass | CRITICAL | Admin accessible without auth | /admin |
+| SEC-002 | Data Exposure | HIGH | API may expose sensitive data | /api/users |
+| SEC-003 | CORS | MEDIUM | Permissive CORS policy | /api |
 
 
 ---
@@ -179,9 +183,9 @@ This comprehensive test execution report covers 168 test cases across 18 modules
 ### Decision: ❌ NO-GO
 
 ### Rationale
-- **17.3%** of test cases passed
+- **50.6%** of test cases passed
 - **0** bugs identified
-- **0** security findings
+- **3** security findings
 
 ### Conditions for Go
 1. All Critical and High severity bugs must be fixed

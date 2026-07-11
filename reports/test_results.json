@@ -1,13 +1,37 @@
 {
   "total": 178,
-  "passed": 0,
-  "failed": 0,
-  "blocked": 177,
+  "passed": 90,
+  "failed": 46,
+  "blocked": 41,
   "skipped": 1,
   "bugs": [],
   "ui_issues": [],
-  "performance_metrics": {},
-  "security_findings": [],
+  "performance_metrics": {
+    "homepage_load_time": 12.96,
+    "admin_load_time": 0.07,
+    "api_response_time": 0.01,
+    "first_byte_time": 7.47
+  },
+  "security_findings": [
+    {
+      "category": "Authentication Bypass",
+      "severity": "CRITICAL",
+      "description": "Admin accessible without auth",
+      "endpoint": "/admin"
+    },
+    {
+      "category": "Data Exposure",
+      "severity": "HIGH",
+      "description": "API may expose sensitive data",
+      "endpoint": "/api/users"
+    },
+    {
+      "category": "CORS",
+      "severity": "MEDIUM",
+      "description": "Permissive CORS policy",
+      "endpoint": "/api"
+    }
+  ],
   "api_results": [],
   "accessibility_results": [],
   "browser_results": {}
