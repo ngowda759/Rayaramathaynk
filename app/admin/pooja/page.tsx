@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import PoojaTable from "@/components/admin/pooja/PoojaTable";
 import PoojaStats from "@/components/admin/pooja/PoojaStats";
 import SearchBox from "@/components/admin/common/SearchBox";
@@ -44,9 +43,12 @@ export default function PoojaPage() {
         title="Daily Pooja Management"
         description="Manage temple daily pooja schedule, timings, and seva amounts."
         action={
-          <Button asChild>
-            <Link href="/admin/pooja/create">Add Pooja</Link>
-          </Button>
+          <Link
+            href="/admin/pooja/create"
+            className="inline-flex items-center justify-center font-medium transition bg-orange-600 hover:bg-orange-700 text-white h-11 rounded-lg px-4 py-3"
+          >
+            Add Pooja
+          </Link>
         }
       />
       <PoojaStats />
