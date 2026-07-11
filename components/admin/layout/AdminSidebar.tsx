@@ -136,27 +136,6 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
-  const NavItem = ({ href, title, icon, onClick }: { href: string; title: string; icon: string; onClick?: () => void }) => {
-    const Icon = iconMap[icon] || LayoutDashboard;
-    const isActive = pathname === href || (href !== "/admin" && pathname.startsWith(href));
-
-    return (
-      <Link
-        href={href}
-        onClick={onClick}
-        className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-          isActive
-            ? "bg-amber-100 text-amber-800 font-semibold border-r-2 border-amber-600"
-            : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
-        )}
-      >
-        <Icon className="h-4 w-4" />
-        <span>{title}</span>
-      </Link>
-    );
-  };
-
   return (
     <>
       {/* Desktop Sidebar */}
@@ -195,9 +174,25 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
               
               {expandedGroups[group.title] && (
                 <div className="mt-1 space-y-1">
-                  {group.items.map((item) => (
-                    <NavItem key={item.href} {...item} />
-                  ))}
+                  {group.items.map((item) => {
+                    const Icon = iconMap[item.icon] || LayoutDashboard;
+                    const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+                          isActive
+                            ? "bg-amber-100 text-amber-800 font-semibold border-r-2 border-amber-600"
+                            : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -205,10 +200,10 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         </nav>
       </aside>
 
-      {/* Mobile Overlay - behind sidebar, captures touch to prevent background scrolling */}
+      {/* Mobile Overlay - behind sidebar */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
+          className="fixed inset-0 z-[60] bg-black/50 lg:hidden cursor-default"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -217,44 +212,44 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Mobile Sidebar Drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-xl transition-transform duration-300 lg:hidden flex flex-col",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl transition-transform duration-300 lg:hidden flex flex-col",
+          !isOpen && "pointer-events-none"
         )}
         style={{
           height: "100dvh",
         }}
       >
-        {/* Header - fixed at top, not part of scroll */}
-        <div className="flex-shrink-0 flex items-center justify-between border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4">
-          <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4 flex-shrink-0">
+          <button onClick={onClose} className="flex items-center gap-3 cursor-pointer">
             <Image
               src="/images/logos/ynk_matha_logo.png"
-              alt="Sri Raghavendra Swamy Matha"
+              alt="Temple"
               width={36}
               height={36}
               className="rounded-full shadow-sm"
             />
-            <div>
+            <div className="text-left">
               <h1 className="text-sm font-bold text-stone-800">Temple Admin</h1>
               <p className="text-xs text-amber-600">Administration</p>
             </div>
-          </Link>
+          </button>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 hover:bg-amber-100"
+            className="rounded-lg p-2 hover:bg-amber-100 cursor-pointer"
             aria-label="Close menu"
           >
             <X className="h-5 w-5 text-stone-600" />
           </button>
         </div>
 
-        {/* Navigation - scrollable */}
+        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {navigation.map((group) => (
-            <div key={group.title} className="mb-4">
+            <div key={group.title} className="mb-2">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900"
+                className="flex w-full items-center justify-between px-2 py-2 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg cursor-pointer"
               >
                 <span>{group.title}</span>
                 <ChevronDown
@@ -266,10 +261,31 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
               </button>
               
               {expandedGroups[group.title] && (
-                <div className="mt-1 space-y-1">
-                  {group.items.map((item) => (
-                    <NavItem key={item.href} {...item} onClick={onClose} />
-                  ))}
+                <div className="mt-1 space-y-0.5">
+                  {group.items.map((item) => {
+                    const Icon = iconMap[item.icon] || LayoutDashboard;
+                    const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onClose();
+                          window.location.href = item.href;
+                        }}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+                          isActive
+                            ? "bg-amber-100 text-amber-800 font-semibold"
+                            : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>
