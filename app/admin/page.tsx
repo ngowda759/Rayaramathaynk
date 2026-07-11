@@ -7,6 +7,8 @@ import {
   BookOpen, Clock, Users, HandCoins
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 interface DashboardStats {
   totalUsers: number;
@@ -55,6 +57,16 @@ async function fetchCollectionCount(collectionName: string): Promise<number> {
   }
 }
 
+async function fetchUsersCount(): Promise<number> {
+  if (!db) return 0;
+  try {
+    const snapshot = await getDocs(collection(db, "users"));
+    return snapshot.size;
+  } catch {
+    return 0;
+  }
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -71,15 +83,16 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [eventsCount, galleryAlbumsCount, announcementsCount, timingsCount] = await Promise.all([
+        const [eventsCount, galleryAlbumsCount, announcementsCount, timingsCount, usersCount] = await Promise.all([
           fetchCollectionCount("events"),
           fetchCollectionCount("galleryAlbums"),
           fetchCollectionCount("announcements"),
           fetchCollectionCount("timings"),
+          fetchUsersCount(),
         ]);
 
         setStats({
-          totalUsers: 0,
+          totalUsers: usersCount,
           totalEvents: eventsCount,
           totalSevas: 0,
           totalGalleryImages: galleryAlbumsCount,
