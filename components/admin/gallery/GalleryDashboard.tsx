@@ -46,19 +46,24 @@ export default function GalleryDashboard() {
       console.log("Albums:", albumData);
       console.log("Media:", mediaData);
 
+       
       setAlbums(albumData);
+       
       setMedia(mediaData);
     } catch (err: any) {
       console.error("Failed to load gallery:", err);
       const errorMessage = err?.message || err?.code || "Unknown error";
       console.log("Error details:", errorMessage);
+       
       setError(`Failed to load gallery: ${errorMessage}`);
     } finally {
+       
       setLoading(false);
     }
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 

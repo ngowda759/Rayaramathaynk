@@ -55,24 +55,23 @@ export default function FuturePlansSettingsPage() {
   const [data, setData] = useState<FuturePlansData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as FuturePlansData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as FuturePlansData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -333,7 +332,7 @@ export default function FuturePlansSettingsPage() {
 
         {data.plans.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No plans added yet. Click "Add Plan" to create one.
+            No plans added yet. Click &quot;Add Plan&quot; to create one.
           </div>
         )}
       </div>

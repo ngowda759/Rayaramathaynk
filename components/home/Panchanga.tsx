@@ -147,7 +147,7 @@ export default function Panchanga() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="text-center">
           <span className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
-            TODAY'S PANCHANGA
+            TODAY&apos;S PANCHANGA
           </span>
 
           <h2 className="mt-5 text-4xl font-bold text-stone-900">

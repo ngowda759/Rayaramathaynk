@@ -1,18 +1,18 @@
 {
-  "total": 176,
-  "passed": 68,
-  "failed": 30,
-  "blocked": 78,
+  "total": 168,
+  "passed": 29,
+  "failed": 139,
+  "blocked": 0,
   "skipped": 0,
   "bugs": [],
   "ui_issues": [],
-  "security_findings": [
-    {
-      "category": "SQL Injection",
-      "severity": "HIGH",
-      "endpoint": "/admin/users"
-    }
-  ],
-  "performance_metrics": {},
-  "execution_time": "26.90s"
+  "security_findings": [],
+  "performance_metrics": {
+    "homepage_load_time": "0.01s",
+    "admin_load_time": "0.01s",
+    "api_response_time": "0.01s",
+    "homepage_size_kb": "0.01KB",
+    "first_byte_time": "0.01s"
+  },
+  "execution_time": "0.42s"
 }

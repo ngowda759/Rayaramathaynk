@@ -1,32 +1,24 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Printer, Plus } from "lucide-react";
-
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
-import CrudTable from "@/components/admin/crud/CrudTable";
 import Button from "@/components/ui/button";
-
 import { memberService, volunteerService } from "@/services/volunteer.service";
 import { Member, Volunteer } from "@/types/volunteer";
 import { memberColumns, volunteerColumns } from "./columns";
-
 type TabType = "members" | "volunteers";
-
 export default function VolunteerPage() {
   const router = useRouter();
-
   const [activeTab, setActiveTab] = useState<TabType>("members");
   const [members, setMembers] = useState<Member[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [membersData, volunteersData] = await Promise.all([
@@ -40,33 +32,29 @@ export default function VolunteerPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, []);
 
   const currentData = activeTab === "members" ? members : volunteers;
   const currentColumns = activeTab === "members" ? memberColumns : volunteerColumns;
   const currentIdField = activeTab === "members" ? "memberId" : "volunteerId";
-
   const filteredData = useMemo(() => {
     const keyword = search.toLowerCase().trim();
     if (!keyword) return currentData;
-
     return currentData.filter((item) =>
       [item.name, item.phone, item.address, item[currentIdField as keyof typeof item]].some((value) =>
         String(value).toLowerCase().includes(keyword)
       )
     );
   }, [search, currentData, currentIdField]);
-
   async function handleDelete(item: Member | Volunteer) {
     const nameField = item.name;
     const confirmed = window.confirm(`Delete "${nameField}"?`);
-
     if (!confirmed) return;
-
     try {
       if (activeTab === "members") {
         await memberService.deleteMember(item.id);
@@ -79,7 +67,6 @@ export default function VolunteerPage() {
       alert("Failed to delete record.");
     }
   }
-
   function toggleSelect(id: string) {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
@@ -89,7 +76,6 @@ export default function VolunteerPage() {
     }
     setSelectedIds(newSelected);
   }
-
   function toggleSelectAll() {
     if (selectedIds.size === filteredData.length) {
       setSelectedIds(new Set());
@@ -97,7 +83,6 @@ export default function VolunteerPage() {
       setSelectedIds(new Set(filteredData.map((item) => item.id)));
     }
   }
-
   function handlePrint() {
     const printContent = filteredData
       .filter((item) => selectedIds.has(item.id))
@@ -108,7 +93,6 @@ export default function VolunteerPage() {
         return `${index + 1}. ${id} | ${item.name} | ${item.phone} | ${item.sex} | ${item.address}`;
       })
       .join("\n");
-
     const printWindow = window.open("", "_blank");
     if (printWindow) {
       printWindow.document.write(`
@@ -131,9 +115,7 @@ export default function VolunteerPage() {
       printWindow.print();
     }
   }
-
   const isAllSelected = filteredData.length > 0 && selectedIds.size === filteredData.length;
-
   return (
     <div className="space-y-8">
       <AdminPageHeader
@@ -148,7 +130,6 @@ export default function VolunteerPage() {
           </Button>
         }
       />
-
       {/* Tabs */}
       <div className="flex gap-4 border-b">
         <button
@@ -172,7 +153,6 @@ export default function VolunteerPage() {
           Volunteers
         </button>
       </div>
-
       <div className="flex gap-4">
         <div className="flex-1">
           <SearchBox
@@ -188,7 +168,6 @@ export default function VolunteerPage() {
           </Button>
         )}
       </div>
-
       {loading ? (
         <div className="rounded-xl border bg-white p-8">
           Loading...

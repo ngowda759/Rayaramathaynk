@@ -164,24 +164,23 @@ export default function GuruParamparaSettingsPage() {
   const [data, setData] = useState<GuruParamparaData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as GuruParamparaData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as GuruParamparaData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -425,7 +424,7 @@ export default function GuruParamparaSettingsPage() {
 
         {data.gurus.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No gurus added yet. Click "Add Guru" to create one.
+            No gurus added yet. Click &quot;Add Guru&quot; to create one.
           </div>
         )}
       </div>

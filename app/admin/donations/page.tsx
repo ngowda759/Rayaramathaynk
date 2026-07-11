@@ -1,46 +1,33 @@
 "use client";
-
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import CrudTable from "@/components/admin/crud/CrudTable";
-
 import { donationColumns } from "./columns";
-
 import { donationService } from "@/services/donation.service";
 import {
   DonationRecord,
   DonationStatus,
 } from "@/types/donation";
-
 export default function DonationsPage() {
   const router = useRouter();
-
   const [donations, setDonations] = useState<
     DonationRecord[]
   >([]);
-
   const [loading, setLoading] = useState(true);
-
   const [search, setSearch] = useState("");
-
   const [statusFilter, setStatusFilter] =
     useState<DonationStatus | "all">("all");
-
   const loadDonations = useCallback(async () => {
     try {
       setLoading(true);
-
       const data =
         await donationService.getDonations();
-
       setDonations(data);
     } catch (error) {
       console.error(error);
-
       toast.error(
         "Failed to load donations."
       );
@@ -50,14 +37,14 @@ export default function DonationsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDonations();
-  }, [loadDonations]);
+  }, []);
 
   const filteredDonations = useMemo(() => {
     const keyword = search
       .toLowerCase()
       .trim();
-
     return donations.filter((donation) => {
       const matchesSearch =
         !keyword ||
@@ -69,11 +56,9 @@ export default function DonationsPage() {
         ].some((value) =>
           value.toLowerCase().includes(keyword)
         );
-
       const matchesStatus =
         statusFilter === "all" ||
         donation.status === statusFilter;
-
       return (
         matchesSearch && matchesStatus
       );
@@ -83,7 +68,6 @@ export default function DonationsPage() {
     search,
     statusFilter,
   ]);
-
   async function updateStatus(
     donation: DonationRecord,
     status: DonationStatus
@@ -93,21 +77,17 @@ export default function DonationsPage() {
         donation.id,
         status
       );
-
       toast.success(
         "Donation updated."
       );
-
       await loadDonations();
     } catch (error) {
       console.error(error);
-
       toast.error(
         "Failed to update donation."
       );
     }
   }
-
   async function handleDelete(
     donation: DonationRecord
   ) {
@@ -118,47 +98,38 @@ export default function DonationsPage() {
     ) {
       return;
     }
-
     try {
       await donationService.deleteDonation(
         donation.id
       );
-
       toast.success(
         "Donation deleted."
       );
-
       await loadDonations();
     } catch (error) {
       console.error(error);
-
       toast.error(
         "Failed to delete donation."
       );
     }
   }
-
   const totalAmount = donations.reduce(
     (sum, donation) =>
       sum + donation.amount,
     0
   );
-
   const pendingCount = donations.filter(
     (d) => d.status === "pending"
   ).length;
-
   const receivedCount = donations.filter(
     (d) => d.status === "received"
   ).length;
-
   return (
     <div className="space-y-8">
       <AdminPageHeader
         title="Donations"
         description="Manage temple donations."
       />
-
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border bg-white p-5">
           <p className="text-sm text-stone-500">
@@ -168,7 +139,6 @@ export default function DonationsPage() {
             ₹{totalAmount.toLocaleString()}
           </h2>
         </div>
-
         <div className="rounded-xl border bg-white p-5">
           <p className="text-sm text-stone-500">
             Pending
@@ -177,7 +147,6 @@ export default function DonationsPage() {
             {pendingCount}
           </h2>
         </div>
-
         <div className="rounded-xl border bg-white p-5">
           <p className="text-sm text-stone-500">
             Received
@@ -187,7 +156,6 @@ export default function DonationsPage() {
           </h2>
         </div>
       </div>
-
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="flex-1">
           <SearchBox
@@ -196,7 +164,6 @@ export default function DonationsPage() {
             placeholder="Search donations..."
           />
         </div>
-
         <select
           value={statusFilter}
           onChange={(e) =>
@@ -222,7 +189,6 @@ export default function DonationsPage() {
           </option>
         </select>
       </div>
-
       {loading ? (
         <div className="rounded-xl border bg-white p-8">
           Loading donations...
@@ -237,13 +203,11 @@ export default function DonationsPage() {
               router.push(
                 `/admin/donations/${donation.id}`
               ),
-
             onEdit: (donation) =>
               updateStatus(
                 donation,
                 "received"
               ),
-
             onDelete:
               handleDelete,
           }}

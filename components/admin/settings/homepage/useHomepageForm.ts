@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { homepageService } from "@/services/homepage.service";
 import { HomepageConfig } from "@/types/homepage";
@@ -27,16 +27,14 @@ export function useHomepageForm() {
   const [errors, setErrors] =
     useState<HomepageValidationErrors>({});
 
-  useEffect(() => {
-    loadHomepage();
-  }, []);
-
-  async function loadHomepage() {
+  const loadHomepage = useCallback(async () => {
     try {
+       
       setLoading(true);
 
       const data = await homepageService.getHomepage();
 
+       
       setFormData({
         ...DEFAULT_HOMEPAGE_CONFIG,
         ...data,
@@ -44,9 +42,15 @@ export function useHomepageForm() {
     } catch (error) {
       console.error("Failed to load homepage.", error);
     } finally {
+       
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadHomepage();
+  }, [loadHomepage]);
 
   function updateField<K extends keyof HomepageConfig>(
     key: K,

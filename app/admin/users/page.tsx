@@ -18,19 +18,18 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  async function loadUsers() {
-    try {
-      const data = await userService.getUsers();
-      console.log("Users:", data);
-      setUsers(data);
-    } catch (error) {
-      console.error("Failed to load users:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
+    async function loadUsers() {
+      try {
+        const data = await userService.getUsers();
+        console.log("Users:", data);
+        setUsers(data);
+      } catch (error) {
+        console.error("Failed to load users:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
     loadUsers();
   }, []);
 

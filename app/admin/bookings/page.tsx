@@ -1,45 +1,33 @@
 "use client";
-
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import CrudTable from "@/components/admin/crud/CrudTable";
-
 import { bookingColumns } from "./columns";
-
 import { sevaBookingService } from "@/services/sevaBooking.service";
 import {
   SevaBooking,
   SevaBookingStatus,
   PaymentStatus,
 } from "@/types/seva-booking";
-
 export default function BookingsPage() {
   const router = useRouter();
-
   const [bookings, setBookings] = useState<
     SevaBooking[]
   >([]);
-
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-
   const [statusFilter, setStatusFilter] =
     useState<SevaBookingStatus | "all">("all");
-
   const [paymentFilter, setPaymentFilter] =
     useState<PaymentStatus | "all">("all");
-
   const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
-
       const data =
         await sevaBookingService.getAllBookings();
-
       setBookings(data);
     } catch (error) {
       console.error(error);
@@ -50,12 +38,12 @@ export default function BookingsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBookings();
-  }, [loadBookings]);
+  }, []);
 
   const filteredBookings = useMemo(() => {
     const keyword = search.toLowerCase().trim();
-
     return bookings.filter((booking) => {
       const matchesSearch =
         !keyword ||
@@ -70,21 +58,17 @@ export default function BookingsPage() {
             .toLowerCase()
             .includes(keyword)
         );
-
       const matchesStatus =
         statusFilter === "all" ||
         booking.status === statusFilter;
-
       const matchesPayment =
         paymentFilter === "all" ||
         booking.paymentStatus === paymentFilter;
-
       return (
         matchesSearch && matchesStatus && matchesPayment
       );
     });
   }, [bookings, search, statusFilter, paymentFilter]);
-
   async function updateStatus(
     booking: SevaBooking,
     status: SevaBookingStatus
@@ -94,19 +78,15 @@ export default function BookingsPage() {
         booking.id,
         status
       );
-
       toast.success("Status updated.");
-
       await loadBookings();
     } catch (error) {
       console.error(error);
-
       toast.error(
         "Failed to update status."
       );
     }
   }
-
   async function handleDelete(
     booking: SevaBooking
   ) {
@@ -117,31 +97,25 @@ export default function BookingsPage() {
     ) {
       return;
     }
-
     try {
       await sevaBookingService.deleteBooking(
         booking.id
       );
-
       toast.success("Booking deleted.");
-
       await loadBookings();
     } catch (error) {
       console.error(error);
-
       toast.error(
         "Failed to delete booking."
       );
     }
   }
-
   return (
     <div className="space-y-8">
       <AdminPageHeader
         title="Seva Bookings"
         description="Manage devotee bookings."
       />
-
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="flex-1">
           <SearchBox
@@ -150,7 +124,6 @@ export default function BookingsPage() {
             placeholder="Search bookings..."
           />
         </div>
-
         <select
           value={statusFilter}
           onChange={(e) =>
@@ -177,7 +150,6 @@ export default function BookingsPage() {
             Cancelled
           </option>
         </select>
-
         <select
           value={paymentFilter}
           onChange={(e) =>
@@ -202,7 +174,6 @@ export default function BookingsPage() {
           </option>
         </select>
       </div>
-
       {loading ? (
         <div className="rounded-xl border bg-white p-8">
           Loading bookings...
@@ -217,13 +188,11 @@ export default function BookingsPage() {
               router.push(
                 `/admin/bookings/${booking.id}`
               ),
-
             onEdit: (booking) =>
               updateStatus(
                 booking,
                 "confirmed"
               ),
-
             onDelete: handleDelete,
           }}
         />

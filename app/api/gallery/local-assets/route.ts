@@ -56,7 +56,7 @@ export async function DELETE(request: Request) {
   try {
     fs.unlinkSync(filePath);
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete file" }, { status: 500 });
   }
 }

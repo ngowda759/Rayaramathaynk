@@ -35,7 +35,9 @@ export default function EditPooja({ poojaId }: EditPoojaProps) {
       try {
         const data = await poojaService.getPoojaById(poojaId);
         if (data) {
+           
           setPooja(data);
+           
           setForm({
             title: data.title,
             description: data.description,
@@ -50,6 +52,7 @@ export default function EditPooja({ poojaId }: EditPoojaProps) {
       } catch (error) {
         console.error("Failed to load pooja:", error);
       } finally {
+         
         setLoading(false);
       }
     }

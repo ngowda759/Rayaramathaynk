@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { BookOpen, Loader2, Plus, X, Image as ImageIcon, Check, FolderOpen } from "lucide-react";
+import { BookOpen, Loader2, Plus, X, Image as ImageIcon, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
 import { aaradhaneService } from "@/services/aaradhane.service";
-import { storageService } from "@/services/storage.service";
 import { AaradhaneSeva } from "@/types/aaradhane";
 
 export default function CreateAaradhane() {
@@ -28,7 +27,6 @@ export default function CreateAaradhane() {
   const [isUpcoming, setIsUpcoming] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [imageUrl, setImageUrl] = useState("");
-  const [showImagePicker, setShowImagePicker] = useState(false);
 
   const [rituals, setRituals] = useState<string[]>([]);
   const [ritualInput, setRitualInput] = useState("");

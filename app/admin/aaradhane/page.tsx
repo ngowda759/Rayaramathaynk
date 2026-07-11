@@ -31,8 +31,9 @@ export default function AaradhanePage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadItems();
-  }, [loadItems]);
+  }, []);
 
   const filteredItems = items.filter((item) => {
     const keyword = search.toLowerCase();

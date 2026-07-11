@@ -1,24 +1,19 @@
 "use client";
-
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Eye, Trash2, Send, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Settings } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import { Button } from "@/components/ui/button";
 import { useFinanceSettings } from "@/hooks/useFinanceSettings";
-
 import { billingService } from "@/services/billing.service";
 import { Bill, BillStatus } from "@/types/billing";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-
 const SETTINGS_DOC = "financeSettings";
 const SETTINGS_COLLECTION = "settings";
-
 export default function BillingPage() {
   const router = useRouter();
   useFinanceSettings(); // Initialize finance settings
@@ -27,34 +22,7 @@ export default function BillingPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<BillStatus | "all">("all");
   const [billingEnabled, setBillingEnabled] = useState(false);
-
-  useEffect(() => {
-    loadBillingStatus();
-  }, []);
-
-  async function loadBillingStatus() {
-    try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setBillingEnabled(data.billingEnabled ?? false);
-        if (data.billingEnabled) {
-          loadBills();
-        } else {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error("Error loading billing status:", error);
-      setLoading(false);
-    }
-  }
-
-  async function loadBills() {
+  const loadBills = useCallback(async () => {
     try {
       setLoading(true);
       const data = await billingService.getBills();
@@ -65,11 +33,35 @@ export default function BillingPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+     
+    async function loadBillingStatus() {
+      try {
+        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setBillingEnabled(data.billingEnabled ?? false);
+          if (data.billingEnabled) {
+            await loadBills();
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error loading billing status:", error);
+        setLoading(false);
+      }
+    }
+    loadBillingStatus();
+  }, []);
 
   const filteredBills = useMemo(() => {
     const keyword = search.toLowerCase().trim();
-
     return bills.filter((bill) => {
       const matchesSearch =
         !keyword ||
@@ -79,18 +71,14 @@ export default function BillingPage() {
           bill.customerEmail,
           bill.customerPhone,
         ].some((value) => value?.toLowerCase().includes(keyword));
-
       const matchesStatus = statusFilter === "all" || bill.status === statusFilter;
-
       return matchesSearch && matchesStatus;
     });
   }, [bills, search, statusFilter]);
-
   async function handleDelete(bill: Bill) {
     if (!window.confirm(`Delete bill ${bill.invoiceNumber}?`)) {
       return;
     }
-
     try {
       await billingService.deleteBill(bill.id);
       toast.success("Bill deleted.");
@@ -100,7 +88,6 @@ export default function BillingPage() {
       toast.error("Failed to delete bill.");
     }
   }
-
   async function handleSendBill(bill: Bill) {
     try {
       await billingService.updateBillStatus(bill.id, "sent");
@@ -111,7 +98,6 @@ export default function BillingPage() {
       toast.error("Failed to send bill.");
     }
   }
-
   const stats = useMemo(() => {
     const total = bills.reduce((sum, b) => sum + b.totalAmount, 0);
     const paid = bills
@@ -123,10 +109,8 @@ export default function BillingPage() {
     const overdue = bills
       .filter((b) => b.status === "sent" && b.balanceDue > 0)
       .reduce((sum, b) => sum + b.balanceDue, 0);
-
     return { total, paid, pending, overdue, count: bills.length };
   }, [bills]);
-
   const getStatusBadge = (status: BillStatus) => {
     const styles: Record<BillStatus, { bg: string; text: string; icon: any }> = {
       draft: { bg: "bg-stone-100 text-stone-700", text: "Draft", icon: FileText },
@@ -145,7 +129,6 @@ export default function BillingPage() {
       </span>
     );
   };
-
   const formatDate = (date: any) => {
     if (!date) return "-";
     const d = date.toDate ? date.toDate() : new Date(date);
@@ -155,7 +138,6 @@ export default function BillingPage() {
       year: "numeric",
     });
   };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -164,7 +146,6 @@ export default function BillingPage() {
       maximumFractionDigits: 0,
     }).format(amount);
   };
-
   if (!billingEnabled) {
     return (
       <div className="space-y-6">
@@ -172,7 +153,6 @@ export default function BillingPage() {
           title="Billing"
           description="Create and manage invoices, bills and receipts."
         />
-
         <div className="rounded-xl border bg-white p-12 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
             <FileText className="h-8 w-8 text-purple-600" />
@@ -191,7 +171,6 @@ export default function BillingPage() {
       </div>
     );
   }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -214,7 +193,6 @@ export default function BillingPage() {
           </Link>
         </div>
       </div>
-
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-5">
         <div className="rounded-xl border bg-white p-5">
@@ -238,7 +216,6 @@ export default function BillingPage() {
           <h2 className="mt-2 text-2xl font-bold text-red-600">{formatCurrency(stats.overdue)}</h2>
         </div>
       </div>
-
       {/* Filters */}
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="flex-1">
@@ -248,7 +225,6 @@ export default function BillingPage() {
             placeholder="Search by invoice number, customer name, email or phone..."
           />
         </div>
-
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as BillStatus | "all")}
@@ -263,7 +239,6 @@ export default function BillingPage() {
           <option value="cancelled">Cancelled</option>
         </select>
       </div>
-
       {/* Bills Table */}
       {loading ? (
         <div className="rounded-xl border bg-white p-8 text-center">

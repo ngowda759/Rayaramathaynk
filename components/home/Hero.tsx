@@ -167,7 +167,7 @@ export default function Hero() {
                   <CalendarDays className="text-amber-600" size={18} />
 
                   <span className="font-semibold text-stone-900">
-                    Today's Seva
+                    Today&apos;s Seva
                   </span>
 
                 </div>

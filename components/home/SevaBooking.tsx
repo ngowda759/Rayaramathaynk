@@ -70,11 +70,16 @@ export default function SevaBooking() {
   }, []);
 
   useEffect(() => {
+     
     if (profile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(profile.name || "");
+       
       setEmail(profile.email || "");
+       
       setPhone(profile.phone || "");
     } else if (user) {
+       
       setEmail(user.email || "");
     }
   }, [profile, user]);
@@ -85,6 +90,7 @@ export default function SevaBooking() {
       return () => clearTimeout(timer);
     } else if (paymentInitiated && countdown === 0 && !showPaymentRefForm) {
       // After countdown, show payment reference form
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowPaymentRefForm(true);
     }
   }, [paymentInitiated, countdown, showPaymentRefForm]);
@@ -542,7 +548,7 @@ export default function SevaBooking() {
                         placeholder="e.g., NPS551234567890 or Gpay transaction ID"
                       />
                       <p className="text-xs text-stone-500 mt-1">
-                        Find this in your UPI app's transaction history
+                        Find this in your UPI app&apos;s transaction history
                       </p>
                     </div>
 

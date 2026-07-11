@@ -51,24 +51,23 @@ export default function ShlokasSettingsPage() {
   const [data, setData] = useState<ShlokasData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as ShlokasData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as ShlokasData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -356,7 +355,7 @@ export default function ShlokasSettingsPage() {
 
         {data.shlokas.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No shlokas added yet. Click "Add Shloka" to create one.
+            No shlokas added yet. Click &quot;Add Shloka&quot; to create one.
           </div>
         )}
       </div>

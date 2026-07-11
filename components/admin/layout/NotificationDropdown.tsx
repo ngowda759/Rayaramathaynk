@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { Bell, Heart, X, Inbox } from "lucide-react";
 import { useDonationNotifications } from "@/hooks/useDonationNotifications";
 
@@ -27,6 +28,7 @@ export default function NotificationDropdown() {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+         
         setIsOpen(false);
       }
     }
@@ -118,13 +120,13 @@ export default function NotificationDropdown() {
           </div>
 
           <div className="border-t p-3">
-            <a
+            <Link
               href="/admin/donations"
               className="block w-full rounded-lg bg-amber-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-amber-700"
               onClick={() => setIsOpen(false)}
             >
               View All Donations
-            </a>
+            </Link>
           </div>
         </div>
       )}

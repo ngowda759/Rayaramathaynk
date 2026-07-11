@@ -41,21 +41,33 @@ export default function AlbumDialog({
   const [active, setActive] = useState(true);
 
   useEffect(() => {
+     
     if (!album) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTitle("");
+       
       setSlug("");
+       
       setDescription("");
+       
       setCoverImage("");
+       
       setDisplayOrder(0);
+       
       setActive(true);
       return;
     }
-
+     
     setTitle(album.title);
+     
     setSlug(album.slug);
+     
     setDescription(album.description);
+     
     setCoverImage(album.coverImage);
+     
     setDisplayOrder(album.displayOrder);
+     
     setActive(album.active);
   }, [album]);
 

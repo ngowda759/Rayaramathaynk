@@ -91,25 +91,30 @@ export function AuthProvider({
       unsubscribe = onAuthStateChanged(
         auth,
         async (firebaseUser) => {
+           
           setLoading(true);
 
           try {
+             
             setUser(firebaseUser);
 
             if (firebaseUser) {
               await loadProfile(firebaseUser.uid);
             } else {
+               
               setProfile(null);
             }
           } catch (err) {
             console.error("Auth state change error:", err);
           } finally {
+             
             setLoading(false);
           }
         }
       );
     } catch (err) {
       console.error("Firebase auth initialization error:", err);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
 

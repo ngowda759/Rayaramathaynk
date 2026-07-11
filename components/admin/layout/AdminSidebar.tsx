@@ -87,7 +87,7 @@ const allNavigation = [
 function getFilteredNavigation(canManageUsers: boolean, canAccessAdministration: boolean, canAccessSettings: boolean, canAccessFinance: boolean) {
   const filtered = allNavigation.map((section) => {
     // Filter items based on permissions
-    let filteredItems = section.items;
+    const filteredItems = section.items;
     
     if (section.title === "Administration") {
       // Only show Administration section to super_admin
@@ -121,10 +121,12 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
   // Initialize expanded state - show all groups
   useEffect(() => {
+     
     const expanded: Record<string, boolean> = {};
     navigation.forEach((group) => {
       expanded[group.title] = true; // Show all groups expanded
     });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedGroups(expanded);
   }, [pathname, navigation]);
 

@@ -47,6 +47,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+/* eslint-disable @typescript-eslint/no-require-imports */
 var app_1 = require("firebase-admin/app");
 var firestore_1 = require("firebase-admin/firestore");
 var sevas = [

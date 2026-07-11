@@ -9,7 +9,6 @@ import { db } from "@/lib/firebase";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 interface CommitteeMember {
   id: string;
@@ -47,24 +46,23 @@ export default function TrustCommitteeSettingsPage() {
   const [data, setData] = useState<TrustCommitteeData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as TrustCommitteeData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as TrustCommitteeData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -322,7 +320,7 @@ export default function TrustCommitteeSettingsPage() {
 
         {data.members.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No members added yet. Click "Add Member" to create one.
+            No members added yet. Click &quot;Add Member&quot; to create one.
           </div>
         )}
       </div>

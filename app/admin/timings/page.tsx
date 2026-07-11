@@ -1,51 +1,41 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import CrudTable from "@/components/admin/crud/CrudTable";
 import Button from "@/components/ui/button";
-
 import { timingService } from "@/services/timing.service";
 import { TempleTiming } from "@/types/timing";
-
 import { timingColumns } from "./columns";
-
 export default function TimingsPage() {
   const router = useRouter();
-
   const [timings, setTimings] = useState<
     TempleTiming[]
   >([]);
-
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-
-  async function loadTimings() {
+  const loadTimings = useCallback(async () => {
     try {
       setLoading(true);
-
       const data =
         await timingService.getTimings();
-
       setTimings(data);
     } catch (error) {
       console.error(
         "Failed to load timings:",
         error
       );
-
       toast.error("Failed to load timings.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTimings();
   }, []);
 
@@ -53,9 +43,7 @@ export default function TimingsPage() {
     const keyword = search
       .toLowerCase()
       .trim();
-
     if (!keyword) return timings;
-
     return timings.filter((timing) =>
       [
         timing.title,
@@ -69,7 +57,6 @@ export default function TimingsPage() {
       )
     );
   }, [timings, search]);
-
   async function handleDelete(
     timing: TempleTiming
   ) {
@@ -80,29 +67,24 @@ export default function TimingsPage() {
     ) {
       return;
     }
-
     try {
       await timingService.deleteTiming(
         timing.id
       );
-
       toast.success(
         "Timing deleted successfully."
       );
-
       await loadTimings();
     } catch (error) {
       console.error(
         "Failed to delete timing:",
         error
       );
-
       toast.error(
         "Failed to delete timing."
       );
     }
   }
-
   return (
     <div className="space-y-8">
       <AdminPageHeader
@@ -116,13 +98,11 @@ export default function TimingsPage() {
           </Button>
         }
       />
-
       <SearchBox
         value={search}
         onChange={setSearch}
         placeholder="Search timings..."
       />
-
       {loading ? (
         <div className="rounded-xl border bg-white p-8">
           Loading timings...
@@ -137,7 +117,6 @@ export default function TimingsPage() {
               router.push(
                 `/admin/timings/${timing.id}/edit`
               ),
-
             onDelete: handleDelete,
           }}
         />

@@ -76,7 +76,7 @@ export default function AdminSearchResults({ query }: AdminSearchResultsProps) {
       <div className="flex items-center gap-3">
         <Search className="h-6 w-6 text-amber-600" />
         <h2 className="text-2xl font-bold">
-          Search results for "{query}"
+          Search results for &quot;{query}&quot;
         </h2>
       </div>
 

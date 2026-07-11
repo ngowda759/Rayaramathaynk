@@ -60,29 +60,52 @@ export default function MediaDialog({
   const [tags, setTags] = useState("");
 
   useEffect(() => {
+     
     if (media) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAlbumId(media.albumId);
+       
       setType(media.type);
+       
       setTitle(media.title);
+       
       setDescription(media.description);
+       
       setCategory(media.category);
+       
       setImagePath(media.imagePath);
+       
       setVideoUrl(media.videoUrl ?? "");
+       
       setAltText(media.altText);
+       
       setFeatured(media.isFeatured);
+       
       setDisplayOrder(media.displayOrder);
+       
       setTags((media.tags ?? []).join(", "));
     } else {
+       
       setAlbumId(albums.length ? albums[0].id : "");
+       
       setType("photo");
+       
       setTitle("");
+       
       setDescription("");
+       
       setCategory("Other");
+       
       setImagePath("");
+       
       setVideoUrl("");
+       
       setAltText("");
+       
       setFeatured(false);
+       
       setDisplayOrder(0);
+       
       setTags("");
     }
   }, [media, albums]);

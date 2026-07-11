@@ -110,7 +110,7 @@ export default function DonationCTA() {
               </h3>
               <p className="mt-4 max-w-2xl text-lg leading-8 text-amber-100">
                 Every offering, regardless of its size, supports the
-                temple's daily rituals, festivals and charitable
+                temple&apos;s daily rituals, festivals and charitable
                 activities for the benefit of all devotees.
               </p>
             </div>
