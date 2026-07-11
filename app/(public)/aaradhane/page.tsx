@@ -7,6 +7,7 @@ import { Calendar, Sparkles } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { Aaradhane } from "@/types/aaradhane";
 import { aaradhaneService } from "@/services/aaradhane.service";
 
@@ -46,6 +47,13 @@ export default function AaradhanePage() {
     <>
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white px-6 py-16 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <Breadcrumb 
+            current="Aaradhane" 
+            parentHref="/events" 
+            parentName="Events" 
+          />
+        </div>
         <SectionHeading
           title="Aaradhane Services"
           subtitle="Discover aaradhane timings and special worship offerings."
