@@ -11,6 +11,7 @@ import {
   MapPin,
   Phone,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 
 const services = [
@@ -22,10 +23,10 @@ const services = [
     color: "from-orange-500 to-amber-500",
   },
   {
-    title: "Book Seva",
-    description: "Reserve special sevas online",
-    icon: HeartHandshake,
-    href: "/sevas",
+    title: "Aaradhane",
+    description: "Guru Worship Celebrations",
+    icon: Sparkles,
+    href: "/aaradhane",
     color: "from-red-500 to-orange-500",
   },
   {
