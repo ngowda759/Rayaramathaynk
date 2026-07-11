@@ -1,6 +1,6 @@
-import ClientEnvDebug from "@/components/debug/ClientEnvDebug";
+"use client";
 
-export default function DebugPage() {
+export default function ClientEnvDebug() {
   const vars = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "NOT SET",
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "NOT SET",
@@ -12,12 +12,10 @@ export default function DebugPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Environment Variables Debug (Server-Side)</h1>
-      <pre className="bg-gray-100 p-4 rounded mb-8">
+      <h1 className="text-2xl font-bold mb-4">Client-Side Environment Variables Debug</h1>
+      <pre className="bg-gray-100 p-4 rounded">
         {JSON.stringify(vars, null, 2)}
       </pre>
-      <h1 className="text-2xl font-bold mb-4">Client-Side Environment Variables</h1>
-      <ClientEnvDebug />
     </div>
   );
 }
