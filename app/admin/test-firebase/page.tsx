@@ -1,22 +1,28 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
+import { db, validateFirebaseConfig } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 
 export default function TestFirebasePage() {
   const [status, setStatus] = useState<string>("Initial");
+  const [configStatus, setConfigStatus] = useState<any>(null);
   const [data, setData] = useState<any[]>([]);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
     async function test() {
-      setStatus("Starting...");
+      setStatus("Checking config...");
       try {
+        // Check validation
+        const validation = validateFirebaseConfig();
+        setConfigStatus(validation);
+        setStatus("Config validated: " + JSON.stringify(validation));
+        
         console.log("db is:", db);
-        setStatus("db = " + (db ? "defined" : "null"));
+        console.log("Config validation:", validation);
         
         if (!db) {
-          setStatus("Firebase not initialized");
+          setStatus("Firebase not initialized - check env vars above");
           return;
         }
         
@@ -39,6 +45,15 @@ export default function TestFirebasePage() {
       <p><strong>Status:</strong> {status}</p>
       <p><strong>Data count:</strong> {data.length}</p>
       {error && <p style={{ color: "red" }}><strong>Error:</strong> {error}</p>}
+      
+      {configStatus && (
+        <div style={{ background: "#f4f4f4", padding: "10px", margin: "10px 0" }}>
+          <h3>Firebase Config Validation:</h3>
+          <p><strong>isValid:</strong> {configStatus.isValid ? "✅ true" : "❌ false"}</p>
+          <p><strong>Missing Fields:</strong> {configStatus.missingFields.length === 0 ? "None" : configStatus.missingFields.join(", ")}</p>
+        </div>
+      )}
+      
       <details>
         <summary>Raw Data</summary>
         <pre style={{ background: "#f4f4f4", padding: "10px", overflow: "auto" }}>
