@@ -60,21 +60,6 @@ export default function DonationPage() {
             <DonationForm />
           </div>
         </section>
-
-        {/* Temple Info Banner */}
-        <section className="bg-stone-50 px-6 py-12 sm:px-8 lg:px-12">
-          <div className="mx-auto max-w-4xl text-center">
-            <h3 className="text-2xl font-bold text-stone-900">
-              Shri Raghavendra Swamy Matha
-            </h3>
-            <p className="mt-2 text-stone-600">
-              11th Cross Road, Thyagarajanagar, Bangalore - 560070
-            </p>
-            <p className="mt-1 text-stone-600">
-              <span className="font-medium">Phone:</span> 99002 15389
-            </p>
-          </div>
-        </section>
       </main>
       <Footer />
     </>
