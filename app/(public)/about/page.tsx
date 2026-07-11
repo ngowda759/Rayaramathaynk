@@ -1,5 +1,6 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
 import Link from "next/link";
 
@@ -9,23 +10,26 @@ export default function AboutPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-amber-50 to-white">
         {/* Hero Section */}
-        <div className="bg-gradient-to-r from-orange-600 to-amber-600 text-white py-16 px-6">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-block mb-4">
-              <p className="text-amber-200 text-sm tracking-widest uppercase">Welcome to</p>
+        <div className="bg-gradient-to-r from-orange-600 to-amber-600 text-white py-12 px-6">
+          <div className="max-w-4xl mx-auto">
+            <Breadcrumb current="About Us" parentHref="/" parentName="Home" />
+            <div className="text-center mt-4">
+              <div className="inline-block mb-4">
+                <p className="text-amber-200 text-sm tracking-widest uppercase">Welcome to</p>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)
+              </h1>
+              <h2 className="text-2xl md:text-3xl font-semibold mb-4">
+                Sri Gururaja Seva Samiti (R)
+              </h2>
+              <p className="text-amber-100 text-lg">
+                Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R)
+              </p>
+              <p className="text-amber-200 mt-2">
+                Yelahanka New Town, Bengaluru
+              </p>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)
-            </h1>
-            <h2 className="text-2xl md:text-3xl font-semibold mb-4">
-              Sri Gururaja Seva Samiti (R)
-            </h2>
-            <p className="text-amber-100 text-lg">
-              Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R)
-            </p>
-            <p className="text-amber-200 mt-2">
-              Yelahanka New Town, Bengaluru
-            </p>
           </div>
         </div>
 

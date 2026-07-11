@@ -5,6 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { Building2, BookOpen, Heart, GraduationCap, Music, Sparkles } from "lucide-react";
 
 interface FuturePlan {
@@ -134,7 +135,7 @@ export default function FuturePlansPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-emerald-800 via-teal-700 to-emerald-900 py-24">
+        <section className="relative overflow-hidden bg-gradient-to-br from-emerald-800 via-teal-700 to-emerald-900 py-16">
           <div className="absolute inset-0 opacity-10">
             <div
               className="h-full w-full"
@@ -146,24 +147,27 @@ export default function FuturePlansPage() {
             />
           </div>
 
-          <div className="relative mx-auto max-w-7xl px-6 text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
-              <Sparkles className="h-5 w-5 text-emerald-200" />
-              <span className="text-sm font-medium text-white">Vision 2025+</span>
-            </div>
+          <div className="relative mx-auto max-w-7xl px-6">
+            <Breadcrumb current="Future Plans" parentHref="/" parentName="Home" />
+            <div className="text-center mt-4">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
+                <Sparkles className="h-5 w-5 text-emerald-200" />
+                <span className="text-sm font-medium text-white">Vision 2025+</span>
+              </div>
 
-            <h1 className="text-5xl font-bold text-white md:text-6xl">
-              {data.heading}
-            </h1>
-            <p className="mx-auto mt-4 text-2xl text-emerald-100 font-serif">
-              {data.headingKannada}
-            </p>
-            <p className="mx-auto mt-6 max-w-3xl text-xl text-emerald-100">
-              {data.subheading}
-            </p>
-            <p className="mx-auto mt-2 max-w-3xl text-lg text-emerald-200 font-serif">
-              {data.subheadingKannada}
-            </p>
+              <h1 className="text-4xl font-bold text-white md:text-5xl">
+                {data.heading}
+              </h1>
+              <p className="mx-auto mt-4 text-2xl text-emerald-100 font-serif">
+                {data.headingKannada}
+              </p>
+              <p className="mx-auto mt-6 max-w-3xl text-xl text-emerald-100">
+                {data.subheading}
+              </p>
+              <p className="mx-auto mt-2 max-w-3xl text-lg text-emerald-200 font-serif">
+                {data.subheadingKannada}
+              </p>
+            </div>
           </div>
         </section>
 

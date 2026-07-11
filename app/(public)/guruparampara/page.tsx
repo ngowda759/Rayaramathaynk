@@ -1,5 +1,6 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { BookOpen, Sparkles } from "lucide-react";
 
 const guruParampara = [
@@ -136,7 +137,7 @@ export default function GuruparamparaPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-24">
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-16">
           <div className="absolute inset-0 opacity-10">
             <div
               className="h-full w-full"
@@ -148,31 +149,34 @@ export default function GuruparamparaPage() {
             />
           </div>
 
-          <div className="relative mx-auto max-w-7xl px-6 text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
-              <Sparkles className="h-5 w-5 text-amber-200" />
-              <span className="text-sm font-medium text-white">
-                Sacred Tradition
-              </span>
-            </div>
-
-            <h1 className="text-5xl font-bold text-white md:text-6xl">
-              The Sacred Guru Parampara
-            </h1>
-            <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
-              The Lineage of Pontiffs from Sri Madhwacharya to Present
-            </p>
-
-            <div className="mt-8 flex justify-center gap-8 text-amber-200">
-              <div className="text-center">
-                <div className="text-4xl font-bold text-white">
-                  {guruParampara.length}
-                </div>
-                <div className="text-sm">Gurus</div>
+          <div className="relative mx-auto max-w-7xl px-6">
+            <Breadcrumb current="Guru Parampara" parentHref="/" parentName="Home" />
+            <div className="text-center mt-4">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
+                <Sparkles className="h-5 w-5 text-amber-200" />
+                <span className="text-sm font-medium text-white">
+                  Sacred Tradition
+                </span>
               </div>
-              <div className="text-center">
-                <div className="text-4xl font-bold text-white">800+</div>
-                <div className="text-sm">Years</div>
+
+              <h1 className="text-4xl font-bold text-white md:text-5xl">
+                The Sacred Guru Parampara
+              </h1>
+              <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
+                The Lineage of Pontiffs from Sri Madhwacharya to Present
+              </p>
+
+              <div className="mt-8 flex justify-center gap-8 text-amber-200">
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-white">
+                    {guruParampara.length}
+                  </div>
+                  <div className="text-sm">Gurus</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-white">800+</div>
+                  <div className="text-sm">Years</div>
+                </div>
               </div>
             </div>
           </div>

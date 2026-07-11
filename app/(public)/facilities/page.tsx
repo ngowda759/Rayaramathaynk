@@ -1,6 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import {
   Flame,
   UtensilsCrossed,
@@ -73,7 +74,7 @@ export default function FacilitiesPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-24">
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-16">
           <div className="absolute inset-0 opacity-10">
             <div
               className="h-full w-full"
@@ -85,17 +86,20 @@ export default function FacilitiesPage() {
             />
           </div>
 
-          <div className="relative mx-auto max-w-7xl px-6 text-center">
-            <h1 className="text-5xl font-bold text-white md:text-6xl">
-              Matha Facilities
-            </h1>
-            <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
-              Sri Matha is dedicated to providing a sacred, serene, and
-              well-equipped environment for all devotees. With a blend of
-              traditional values and modern amenities, we ensure every seva,
-              homa, and Pitrukarya is performed with devotion, comfort, and
-              authenticity.
-            </p>
+          <div className="relative mx-auto max-w-7xl px-6">
+            <Breadcrumb current="Facilities" parentHref="/" parentName="Home" />
+            <div className="text-center mt-4">
+              <h1 className="text-4xl font-bold text-white md:text-5xl">
+                Matha Facilities
+              </h1>
+              <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
+                Sri Matha is dedicated to providing a sacred, serene, and
+                well-equipped environment for all devotees. With a blend of
+                traditional values and modern amenities, we ensure every seva,
+                homa, and Pitrukarya is performed with devotion, comfort, and
+                authenticity.
+              </p>
+            </div>
           </div>
         </section>
 

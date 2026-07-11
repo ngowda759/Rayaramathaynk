@@ -21,7 +21,7 @@ export default function FestivalsPage() {
 
       <div className="mx-auto max-w-7xl px-6 py-12">
 
-        <Breadcrumb current="Festival Calendar" />
+        <Breadcrumb current="Festival Calendar" parentHref="/calendar" parentName="Temple Calendar" />
 
         <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 

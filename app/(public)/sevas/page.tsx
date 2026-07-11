@@ -1,6 +1,7 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import SevaBooking from "@/components/home/SevaBooking";
 
 export default function SevasPage() {
@@ -8,6 +9,9 @@ export default function SevasPage() {
     <>
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white px-6 py-16 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <Breadcrumb current="Special Sevas" parentHref="/" parentName="Home" />
+        </div>
         <SectionHeading
           title="Special Sevas"
           subtitle="Book special sevas and spiritual offerings at the temple."

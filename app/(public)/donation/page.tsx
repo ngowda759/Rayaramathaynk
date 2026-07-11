@@ -1,5 +1,6 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import DonationCTA from "@/components/home/DonationCTA";
 import DonationForm from "@/components/home/DonationForm";
 import { Heart } from "lucide-react";
@@ -10,7 +11,7 @@ export default function DonationPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-16">
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-12">
           <div className="absolute inset-0 opacity-10">
             <div
               className="h-full w-full"
@@ -22,27 +23,30 @@ export default function DonationPage() {
             />
           </div>
 
-          <div className="relative mx-auto max-w-7xl px-6 text-center">
-            <h1 className="text-4xl font-bold text-white md:text-5xl">
-              E-Donations
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-amber-100">
-              Your generous contributions help maintain the temple, support
-              rituals, and serve the community.
-            </p>
+          <div className="relative mx-auto max-w-7xl px-6">
+            <Breadcrumb current="Donate" parentHref="/" parentName="Home" />
+            <div className="text-center">
+              <h1 className="text-4xl font-bold text-white md:text-5xl">
+                E-Donations
+              </h1>
+              <p className="mx-auto mt-4 max-w-2xl text-lg text-amber-100">
+                Your generous contributions help maintain the temple, support
+                rituals, and serve the community.
+              </p>
 
-            <div className="mt-8 flex justify-center gap-8 text-amber-200">
-              <div className="text-center">
-                <Heart className="mx-auto h-8 w-8" />
-                <p className="mt-2 text-sm">Support Rituals</p>
-              </div>
-              <div className="text-center">
-                <Heart className="mx-auto h-8 w-8" />
-                <p className="mt-2 text-sm">Temple Maintenance</p>
-              </div>
-              <div className="text-center">
-                <Heart className="mx-auto h-8 w-8" />
-                <p className="mt-2 text-sm">Community Service</p>
+              <div className="mt-8 flex justify-center gap-8 text-amber-200">
+                <div className="text-center">
+                  <Heart className="mx-auto h-8 w-8" />
+                  <p className="mt-2 text-sm">Support Rituals</p>
+                </div>
+                <div className="text-center">
+                  <Heart className="mx-auto h-8 w-8" />
+                  <p className="mt-2 text-sm">Temple Maintenance</p>
+                </div>
+                <div className="text-center">
+                  <Heart className="mx-auto h-8 w-8" />
+                  <p className="mt-2 text-sm">Community Service</p>
+                </div>
               </div>
             </div>
           </div>

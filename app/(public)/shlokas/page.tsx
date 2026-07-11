@@ -4,6 +4,7 @@ import { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { shlokas, shlokaCategories } from "@/data/shlokas";
 import { ChevronDown, ChevronUp, BookOpen, Moon } from "lucide-react";
 
@@ -60,6 +61,9 @@ export default function ShlokasPage() {
     <>
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-amber-50 to-white px-6 py-12 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <Breadcrumb current="Shlokas" parentHref="/" parentName="Home" />
+        </div>
         <SectionHeading
           title="ಶ್ಲೋಕಗಳು / Shlokas & Stotrams"
           subtitle="Sacred hymns and prayers for daily worship"

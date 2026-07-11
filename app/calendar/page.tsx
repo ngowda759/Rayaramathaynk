@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, MoonStar, PartyPopper, ArrowRight } from "lucide-react";
 import { calendar } from "@/data/calendar";
+import Breadcrumb from "@/components/calendar/Breadcrumb";
 
 export default function TempleCalendarPage() {
   return (
@@ -10,7 +11,9 @@ export default function TempleCalendarPage() {
 
       <section className="border-b border-amber-100 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50">
 
-        <div className="mx-auto max-w-7xl px-6 py-20">
+        <div className="mx-auto max-w-7xl px-6 py-16">
+          
+          <Breadcrumb current="Temple Calendar" parentHref="/" parentName="Home" />
 
           <div className="text-center">
 
