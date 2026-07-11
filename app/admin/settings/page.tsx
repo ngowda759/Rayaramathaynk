@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { settingsService } from "@/services/settings.service";
 import { SiteSettings } from "@/types/settings";
+import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 
-export default function AdminSettingsPage() {
+function AdminSettingsPageContent() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -156,5 +157,13 @@ export default function AdminSettingsPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function AdminSettingsPage() {
+  return (
+    <AdminAuthGuard requiredPermission="settings">
+      <AdminSettingsPageContent />
+    </AdminAuthGuard>
   );
 }

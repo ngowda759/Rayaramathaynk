@@ -9,6 +9,7 @@ import {
 import { type LucideIcon } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardStats {
   totalUsers: number;
@@ -68,6 +69,8 @@ async function fetchUsersCount(): Promise<number> {
 }
 
 export default function DashboardPage() {
+  const { profile, normalizedRole } = useAuth();
+  
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalEvents: 0,
@@ -123,6 +126,15 @@ export default function DashboardPage() {
   if (hour < 12) greeting = "Good Morning";
   else if (hour < 17) greeting = "Good Afternoon";
 
+  const userName = profile?.name || "Admin";
+  const roleDisplay = {
+    super_admin: "Super Admin",
+    admin: "Temple Admin",
+    billing: "Billing Staff",
+    volunteer: "Volunteer",
+    devotee: "Devotee",
+  }[normalizedRole] || "Admin";
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner - Compact */}
@@ -130,11 +142,14 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-stone-800">
-              {greeting}, Admin 👋
+              {greeting}, {userName} 👋
             </h1>
             <p className="text-sm text-stone-500 flex items-center gap-2 mt-1">
               <CalendarDays className="h-4 w-4" />
               {formattedDate}
+            </p>
+            <p className="text-xs text-amber-700 mt-1 font-medium">
+              {roleDisplay}
             </p>
           </div>
         </div>

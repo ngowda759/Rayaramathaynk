@@ -11,6 +11,7 @@ import {
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import ReportCard from "@/components/admin/reports/ReportCard";
+import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 
 import { donationService } from "@/services/donation.service";
 import { sevaBookingService } from "@/services/sevaBooking.service";
@@ -19,7 +20,7 @@ import { SevaBooking } from "@/types/seva-booking";
 
 type DateRange = "today" | "week" | "month" | "quarter" | "year" | "custom";
 
-export default function ReportsPage() {
+function ReportsPageContent() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("month");
   const [customStart, setCustomStart] = useState("");
@@ -338,6 +339,14 @@ export default function ReportsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <AdminAuthGuard requiredPermission="admin">
+      <ReportsPageContent />
+    </AdminAuthGuard>
   );
 }
 
