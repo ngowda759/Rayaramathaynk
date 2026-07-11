@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/context/AuthContext";
-import { ShieldX, Lock } from "lucide-react";
+import { ShieldX } from "lucide-react";
 
 type Permission = 
   | "admin" 
@@ -35,12 +35,31 @@ export default function AdminAuthGuard({
 }: AdminAuthGuardProps) {
   const { user, loading, canAccessAdmin, canAccessSettings, canAccessFinance, canManageUsers, canAccessBilling, canAccessAdministration } = useAuthContext();
   const router = useRouter();
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
+    // Give time for auth to initialize
+    const timer = setTimeout(() => {
+      setHasCheckedAuth(true);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Show loading while checking auth
+  if (!hasCheckedAuth || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (hasCheckedAuth && !loading && !user) {
       router.push("/login");
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, hasCheckedAuth]);
 
   // Check permission if required
   const hasPermission = (() => {
@@ -63,16 +82,15 @@ export default function AdminAuthGuard({
     }
   })();
 
-  if (loading) {
+  if (!user) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
+        <div className="text-center">
+          <div className="mb-4 mx-auto h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
+          <p className="text-stone-600">Redirecting to login...</p>
+        </div>
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   if (requiredPermission && !hasPermission) {
