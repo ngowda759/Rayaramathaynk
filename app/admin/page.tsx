@@ -71,11 +71,11 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [eventsCount, galleryAlbumsCount, galleryMediaCount, announcementsCount] = await Promise.all([
+        const [eventsCount, galleryAlbumsCount, announcementsCount, timingsCount] = await Promise.all([
           fetchCollectionCount("events"),
           fetchCollectionCount("galleryAlbums"),
-          fetchCollectionCount("galleryMedia"),
           fetchCollectionCount("announcements"),
+          fetchCollectionCount("timings"),
         ]);
 
         setStats({
@@ -84,7 +84,7 @@ export default function DashboardPage() {
           totalSevas: 0,
           totalGalleryImages: galleryAlbumsCount,
           totalAnnouncements: announcementsCount,
-          totalTimings: 0,
+          totalTimings: timingsCount,
           totalDonations: 0,
           totalSevaBookings: 0,
         });
