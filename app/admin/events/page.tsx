@@ -12,7 +12,7 @@ import SearchBox from "@/components/admin/common/SearchBox";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { TempleEvent } from "@/types/event";
 import { eventService } from "@/services/event.service";
-import { isFirebaseConfigured } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 export default function EventsPage() {
   const [events, setEvents] = useState<TempleEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,12 +23,17 @@ export default function EventsPage() {
   const loadEvents = useCallback(async () => {
     try {
       setLoading(true);
-      const firebaseReady = isFirebaseConfigured();
-      setDbStatus(firebaseReady ? "connected" : "disconnected");
+      setDbStatus("checking");
+      
+      console.log("[Events] db status:", db ? "defined" : "null/undefined");
+      
+      // Get events
       const data = await eventService.getEvents();
+      console.log("[Events] Received data:", data);
       setEvents(data);
       setRawData(JSON.stringify(data, null, 2));
       setError(null);
+      setDbStatus(data.length > 0 ? "connected" : "disconnected");
     } catch (error) {
       console.error("Failed to load events:", error);
       setError(error instanceof Error ? error.message : String(error));
