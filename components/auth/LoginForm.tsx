@@ -56,11 +56,9 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Small delay to ensure auth state is updated
-      setTimeout(() => {
-        const redirect = getRedirectUrl();
-        router.push(redirect);
-      }, 100);
+      // Use window.location for reliable redirect
+      const redirect = getRedirectUrl();
+      window.location.href = redirect;
     } catch (error: any) {
       switch (error.code) {
         case "auth/invalid-credential":
