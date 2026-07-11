@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
@@ -28,6 +28,7 @@ type LoginFormValues = z.infer<typeof schema>;
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const { login } = useAuth();
 
@@ -47,7 +48,9 @@ export default function LoginForm() {
 
       toast.success("Welcome back!");
 
-      router.push("/admin");
+      // Check for redirect parameter, default to /admin
+      const redirect = searchParams.get("redirect") || "/admin";
+      router.push(redirect);
     } catch (error: any) {
       switch (error.code) {
         case "auth/invalid-credential":

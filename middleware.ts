@@ -16,30 +16,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for any auth-related cookies from Firebase or custom session
-  const cookies = request.cookies.getAll();
-  const hasFirebaseAuthCookie = cookies.some(
-    (cookie) => cookie.name.startsWith("firebase-")
-  );
-  const hasSessionCookie = cookies.some(
-    (cookie) =>
-      cookie.name === "session" ||
-      cookie.name === "__session" ||
-      cookie.name === "auth-token"
-  );
-
-  // If accessing protected route without auth indicator, redirect to login
-  if (!hasFirebaseAuthCookie && !hasSessionCookie) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    
-    // Add header to indicate why redirect happened (for client-side handling)
-    const response = NextResponse.redirect(loginUrl);
-    response.headers.set("X-Auth-Redirect", "true");
-    return response;
-  }
-
-  return NextResponse.next();
+  // Note: Firebase Authentication uses browser state (localStorage) not cookies.
+  // The client-side AdminAuthGuard handles the actual authentication check.
+  // Middleware only adds a header for logging/debugging purposes.
+  
+  // Add header to indicate protected route access (for debugging)
+  const response = NextResponse.next();
+  response.headers.set("X-Protected-Route", "true");
+  return response;
 }
 
 export const config = {
