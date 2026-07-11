@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { 
   Bell, HeartHandshake, Image, Plus, CalendarDays, 
   BookOpen, Clock, Users, HandCoins
@@ -18,7 +19,7 @@ interface DashboardStats {
   totalSevaBookings: number;
 }
 
-function StatCard({ title, value, icon: Icon }: { title: string; value: number; icon: LucideIcon }) {
+function StatCard({ title, value, icon: Icon, loading }: { title: string; value: number; icon: LucideIcon; loading?: boolean }) {
   return (
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <div className="flex items-center gap-3 mb-3">
@@ -27,14 +28,35 @@ function StatCard({ title, value, icon: Icon }: { title: string; value: number; 
         </div>
         <p className="text-sm text-stone-500">{title}</p>
       </div>
-      <p className="text-3xl font-bold text-stone-900">{value}</p>
+      {loading ? (
+        <div className="h-8 w-16 animate-pulse rounded bg-stone-200" />
+      ) : (
+        <p className="text-3xl font-bold text-stone-900">{value}</p>
+      )}
     </div>
   );
 }
 
+async function fetchCollectionCount(collectionName: string): Promise<number> {
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  
+  if (!apiKey || !projectId) return 0;
+  
+  try {
+    const response = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionName}?key=${apiKey}`
+    );
+    if (!response.ok) return 0;
+    const data = await response.json();
+    return data.documents?.length || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export default function DashboardPage() {
-  // Static stats - update when database is connected
-  const stats: DashboardStats = {
+  const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalEvents: 0,
     totalSevas: 0,
@@ -43,7 +65,38 @@ export default function DashboardPage() {
     totalTimings: 0,
     totalDonations: 0,
     totalSevaBookings: 0,
-  };
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const [eventsCount, galleryAlbumsCount, galleryMediaCount, announcementsCount] = await Promise.all([
+          fetchCollectionCount("events"),
+          fetchCollectionCount("galleryAlbums"),
+          fetchCollectionCount("galleryMedia"),
+          fetchCollectionCount("announcements"),
+        ]);
+
+        setStats({
+          totalUsers: 0,
+          totalEvents: eventsCount,
+          totalSevas: 0,
+          totalGalleryImages: galleryAlbumsCount,
+          totalAnnouncements: announcementsCount,
+          totalTimings: 0,
+          totalDonations: 0,
+          totalSevaBookings: 0,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStats();
+  }, []);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString("en-IN", {
@@ -76,14 +129,14 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Users" value={stats.totalUsers} icon={Users} />
-        <StatCard title="Events" value={stats.totalEvents} icon={CalendarDays} />
-        <StatCard title="Sevas" value={stats.totalSevas} icon={BookOpen} />
-        <StatCard title="Gallery" value={stats.totalGalleryImages} icon={Image} />
-        <StatCard title="Announcements" value={stats.totalAnnouncements} icon={Bell} />
-        <StatCard title="Temple Timings" value={stats.totalTimings} icon={Clock} />
-        <StatCard title="Donations" value={stats.totalDonations} icon={HeartHandshake} />
-        <StatCard title="Bookings" value={stats.totalSevaBookings} icon={HandCoins} />
+        <StatCard title="Users" value={stats.totalUsers} icon={Users} loading={loading} />
+        <StatCard title="Events" value={stats.totalEvents} icon={CalendarDays} loading={loading} />
+        <StatCard title="Sevas" value={stats.totalSevas} icon={BookOpen} loading={loading} />
+        <StatCard title="Gallery" value={stats.totalGalleryImages} icon={Image} loading={loading} />
+        <StatCard title="Announcements" value={stats.totalAnnouncements} icon={Bell} loading={loading} />
+        <StatCard title="Temple Timings" value={stats.totalTimings} icon={Clock} loading={loading} />
+        <StatCard title="Donations" value={stats.totalDonations} icon={HeartHandshake} loading={loading} />
+        <StatCard title="Bookings" value={stats.totalSevaBookings} icon={HandCoins} loading={loading} />
       </div>
 
       {/* Quick Actions */}
