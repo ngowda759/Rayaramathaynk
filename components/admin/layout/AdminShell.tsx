@@ -78,7 +78,7 @@ export default function AdminShell({ children }: Props) {
       {/* Main Content Area */}
       <div className="flex h-full flex-col lg:pl-64">
         <AdminHeader onMenuClick={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto lg:overflow-y-visible">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {children}
         </main>
       </div>
