@@ -52,7 +52,13 @@ const isFirebaseConfigured = (): boolean => {
 
 // Get validation details (for debugging)
 export const getFirebaseConfigStatus = (): FirebaseConfigValidation => {
-  return validateFirebaseConfig();
+  const status = validateFirebaseConfig();
+
+
+  console.log("Firebase Config Status:", status);
+
+
+  return status;
 };
 
 const firebaseConfig = {
