@@ -10,12 +10,10 @@ interface Props {
 
 export default function AdminLayout({ children }: Props) {
   return (
-    <AdminAuthGuard>
-      <AdminShell>
-        {children}
-        <AdminChatbot />
-        <GoUpButton />
-      </AdminShell>
-    </AdminAuthGuard>
+    <AdminShell>
+      {children}
+      <AdminChatbot />
+      <GoUpButton />
+    </AdminShell>
   );
 }
