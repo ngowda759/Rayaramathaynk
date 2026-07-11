@@ -18,16 +18,21 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const loadEvents = useCallback(async () => {
+    console.log("[Events] Starting to load events...");
     try {
       setLoading(true);
+      console.log("[Events] Calling eventService.getEvents()...");
       const data = await eventService.getEvents();
+      console.log("[Events] Received data:", data);
       setEvents(data);
       setError(null);
+      console.log("[Events] Events state updated");
     } catch (error) {
-      console.error("Failed to load events:", error);
+      console.error("[Events] Failed to load events:", error);
       setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
+      console.log("[Events] Loading complete");
     }
   }, []);
 
