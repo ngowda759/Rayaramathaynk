@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -200,28 +199,30 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         </nav>
       </aside>
 
-      {/* Mobile Overlay - behind sidebar */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/50 lg:hidden cursor-default"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
+      {/* Mobile Backdrop */}
+      <div
+        className={cn(
+          "fixed inset-0 z-[60] bg-black/50 transition-opacity duration-300 lg:hidden",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
       {/* Mobile Sidebar Drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl transition-transform duration-300 lg:hidden flex flex-col",
-          !isOpen && "pointer-events-none"
+          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl transition-transform duration-300 ease-out lg:hidden flex flex-col",
+          isOpen ? "translate-x-0" : "-translate-x-full"
         )}
-        style={{
-          height: "100dvh",
-        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4 flex-shrink-0">
-          <button onClick={onClose} className="flex items-center gap-3 cursor-pointer">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="flex items-center gap-3 cursor-pointer"
+          >
             <Image
               src="/images/logos/ynk_matha_logo.png"
               alt="Temple"
@@ -235,6 +236,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             </div>
           </button>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-lg p-2 hover:bg-amber-100 cursor-pointer"
             aria-label="Close menu"
@@ -248,6 +250,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           {navigation.map((group) => (
             <div key={group.title} className="mb-2">
               <button
+                type="button"
                 onClick={() => toggleGroup(group.title)}
                 className="flex w-full items-center justify-between px-2 py-2 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg cursor-pointer"
               >
@@ -266,16 +269,15 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                     const Icon = iconMap[item.icon] || LayoutDashboard;
                     const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
                     return (
-                      <a
+                      <button
+                        type="button"
                         key={item.href}
-                        href={item.href}
-                        onClick={(e) => {
-                          e.preventDefault();
+                        onClick={() => {
                           onClose();
                           window.location.href = item.href;
                         }}
                         className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+                          "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
                           isActive
                             ? "bg-amber-100 text-amber-800 font-semibold"
                             : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
@@ -283,7 +285,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                       >
                         <Icon className="h-4 w-4" />
                         <span>{item.title}</span>
-                      </a>
+                      </button>
                     );
                   })}
                 </div>
