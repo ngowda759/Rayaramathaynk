@@ -191,3 +191,14 @@ h6 {
 .overscroll-contain {
   overscroll-behavior: contain;
 }
+
+/* Fix for dialog backdrop blocking clicks */
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+dialog:not([open]) {
+  display: none;
+  pointer-events: none;
+}

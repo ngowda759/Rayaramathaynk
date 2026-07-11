@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Copy, Check, ExternalLink, X } from "lucide-react";
 
@@ -29,24 +29,12 @@ export default function DonationForm() {
   const [donationRef, setDonationRef] = useState("");
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [countdown, setCountdown] = useState(5);
-  const paymentDialogRef = useRef<HTMLDialogElement>(null);
 
   const [paymentMode, setPaymentMode] =
     useState<PaymentMode>("upi");
 
   const [submitting, setSubmitting] =
     useState(false);
-
-  useEffect(() => {
-    const dialog = paymentDialogRef.current;
-    if (!dialog) return;
-
-    if (showPaymentDialog) {
-      dialog.showModal();
-    } else {
-      dialog.close();
-    }
-  }, [showPaymentDialog]);
 
   useEffect(() => {
     if (paymentInitiated && countdown > 0) {
@@ -350,114 +338,122 @@ export default function DonationForm() {
         </form>
       </div>
 
-      {/* Payment Dialog */}
-      <dialog
-        ref={paymentDialogRef}
-        className="rounded-2xl p-0 max-w-lg w-full max-h-[90vh] overflow-y-auto bg-white"
-      >
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-green-800">
-              {paymentInitiated ? "Receipt" : "Payment Required"}
-            </h2>
-            <button
-              onClick={handlePaymentDone}
-              className="p-2 hover:bg-stone-100 rounded-full transition"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-2xl bg-green-50 border border-green-200 p-6 text-center">
-              <p className="text-sm text-green-700 mb-2">Donation Reference</p>
-              <p className="text-2xl font-bold text-green-800">{donationRef}</p>
-            </div>
-
-            <div className="rounded-xl border border-stone-200 bg-white">
-              <div className="border-b p-4">
-                <h3 className="font-semibold text-stone-800">Donation Details</h3>
-              </div>
-              <div className="p-4 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Donor:</span>
-                  <span className="font-medium">{donorName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Purpose:</span>
-                  <span className="font-medium">{purpose || 'General'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Email:</span>
-                  <span className="font-medium">{email}</span>
-                </div>
-                <hr className="my-2" />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Amount:</span>
-                  <span className="text-green-700">₹{Number(amount).toLocaleString("en-IN")}</span>
-                </div>
-              </div>
-            </div>
-
-            {!paymentInitiated && upiEnabled && upiDetails?.id && (
-              <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
-                <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
-                
-                <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
-                  <div>
-                    <p className="font-semibold text-stone-900">{upiDetails.id}</p>
-                    <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(upiDetails.id, "upi")}
-                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                  >
-                    {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
-                  </button>
-                </div>
-
-                <Button
-                  onClick={openUPIApp}
-                  className="w-full bg-green-600 hover:bg-green-700"
+      {/* Payment Modal */}
+      {showPaymentDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50"
+            onClick={handlePaymentDone}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative rounded-2xl bg-white max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-green-800">
+                  {paymentInitiated ? "Receipt" : "Payment Required"}
+                </h2>
+                <button
+                  onClick={handlePaymentDone}
+                  className="p-2 hover:bg-stone-100 rounded-full transition"
                 >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Pay ₹{Number(amount).toLocaleString("en-IN")} via UPI
-                </Button>
-
-                <p className="text-center text-sm text-stone-500 mt-3">
-                  Tap the button to open your UPI payment app
-                </p>
+                  <X size={20} />
+                </button>
               </div>
-            )}
 
-            {paymentInitiated && (
-              <div className="rounded-2xl border-2 border-green-400 bg-gradient-to-br from-green-100 to-emerald-100 p-6 text-center">
-                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-10 h-10 text-white" />
+              <div className="space-y-6">
+                <div className="rounded-2xl bg-green-50 border border-green-200 p-6 text-center">
+                  <p className="text-sm text-green-700 mb-2">Donation Reference</p>
+                  <p className="text-2xl font-bold text-green-800">{donationRef}</p>
                 </div>
-                <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
-                <p className="text-green-700 mb-4">
-                  Please complete the payment in your UPI app.
-                </p>
-                <div className="bg-white rounded-lg p-4 mb-4">
-                  <p className="text-sm text-stone-600 mb-1">Redirecting in</p>
-                  <p className="text-4xl font-bold text-green-600">{countdown}</p>
-                  <p className="text-sm text-stone-600">seconds</p>
-                </div>
-                <p className="text-xs text-stone-500">
-                  The temple will verify your payment and send a confirmation.
-                </p>
-              </div>
-            )}
 
-            {!upiEnabled && !paymentInitiated && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
-                <p className="text-amber-800">Please contact the temple for payment instructions.</p>
+                <div className="rounded-xl border border-stone-200 bg-white">
+                  <div className="border-b p-4">
+                    <h3 className="font-semibold text-stone-800">Donation Details</h3>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-stone-600">Donor:</span>
+                      <span className="font-medium">{donorName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-600">Purpose:</span>
+                      <span className="font-medium">{purpose || 'General'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-600">Email:</span>
+                      <span className="font-medium">{email}</span>
+                    </div>
+                    <hr className="my-2" />
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Amount:</span>
+                      <span className="text-green-700">₹{Number(amount).toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {!paymentInitiated && upiEnabled && upiDetails?.id && (
+                  <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+                    <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
+                    
+                    <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
+                      <div>
+                        <p className="font-semibold text-stone-900">{upiDetails.id}</p>
+                        <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(upiDetails.id, "upi")}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                      >
+                        {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
+                      </button>
+                    </div>
+
+                    <Button
+                      onClick={openUPIApp}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Pay ₹{Number(amount).toLocaleString("en-IN")} via UPI
+                    </Button>
+
+                    <p className="text-center text-sm text-stone-500 mt-3">
+                      Tap the button to open your UPI payment app
+                    </p>
+                  </div>
+                )}
+
+                {paymentInitiated && (
+                  <div className="rounded-2xl border-2 border-green-400 bg-gradient-to-br from-green-100 to-emerald-100 p-6 text-center">
+                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-green-800 mb-2">Payment Initiated!</h3>
+                    <p className="text-green-700 mb-4">
+                      Please complete the payment in your UPI app.
+                    </p>
+                    <div className="bg-white rounded-lg p-4 mb-4">
+                      <p className="text-sm text-stone-600 mb-1">Redirecting in</p>
+                      <p className="text-4xl font-bold text-green-600">{countdown}</p>
+                      <p className="text-sm text-stone-600">seconds</p>
+                    </div>
+                    <p className="text-xs text-stone-500">
+                      The temple will verify your payment and send a confirmation.
+                    </p>
+                  </div>
+                )}
+
+                {!upiEnabled && !paymentInitiated && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+                    <p className="text-amber-800">Please contact the temple for payment instructions.</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
-      </dialog>
+      )}
     </div>
   );
 }
