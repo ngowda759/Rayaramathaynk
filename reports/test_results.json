@@ -1,0 +1,18 @@
+{
+  "total": 176,
+  "passed": 68,
+  "failed": 30,
+  "blocked": 78,
+  "skipped": 0,
+  "bugs": [],
+  "ui_issues": [],
+  "security_findings": [
+    {
+      "category": "SQL Injection",
+      "severity": "HIGH",
+      "endpoint": "/admin/users"
+    }
+  ],
+  "performance_metrics": {},
+  "execution_time": "26.90s"
+}
