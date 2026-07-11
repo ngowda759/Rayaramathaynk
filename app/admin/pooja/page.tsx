@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import PoojaTable from "@/components/admin/pooja/PoojaTable";
 import PoojaStats from "@/components/admin/pooja/PoojaStats";
 import SearchBox from "@/components/admin/common/SearchBox";
-import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { DailyPooja } from "@/types/pooja";
 import { poojaService } from "@/services/pooja.service";
 export default function PoojaPage() {
+  const router = useRouter();
   const [poojas, setPoojas] = useState<DailyPooja[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -39,18 +39,18 @@ export default function PoojaPage() {
   });
   return (
     <div className="space-y-6">
-      <AdminPageHeader
-        title="Daily Pooja Management"
-        description="Manage temple daily pooja schedule, timings, and seva amounts."
-        action={
-          <Link
-            href="/admin/pooja/create"
-            className="inline-flex items-center justify-center font-medium transition bg-orange-600 hover:bg-orange-700 text-white h-11 rounded-lg px-4 py-3"
-          >
-            Add Pooja
-          </Link>
-        }
-      />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Daily Pooja Management</h1>
+          <p className="text-sm text-muted-foreground">Manage temple daily pooja schedule, timings, and seva amounts.</p>
+        </div>
+        <button
+          onClick={() => router.push("/admin/pooja/create")}
+          className="inline-flex items-center justify-center font-medium transition bg-orange-600 hover:bg-orange-700 text-white h-11 rounded-lg px-4 py-3 cursor-pointer"
+        >
+          Add Pooja
+        </button>
+      </div>
       <PoojaStats />
       <div className="flex items-center justify-between gap-4">
         <SearchBox
