@@ -26,6 +26,12 @@ const schema = z.object({
 
 type LoginFormValues = z.infer<typeof schema>;
 
+function getRedirectUrl(): string {
+  if (typeof window === "undefined") return "/admin";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("redirect") || "/admin";
+}
+
 export default function LoginForm() {
   const router = useRouter();
 
@@ -47,7 +53,8 @@ export default function LoginForm() {
 
       toast.success("Welcome back!");
 
-      router.push("/admin");
+      const redirect = getRedirectUrl();
+      router.push(redirect);
     } catch (error: any) {
       switch (error.code) {
         case "auth/invalid-credential":
