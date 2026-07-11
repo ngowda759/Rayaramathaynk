@@ -21,18 +21,28 @@ function docToTiming(docSnap: any): TempleTiming {
 
 class TimingService {
   async getTimings(): Promise<TempleTiming[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, COLLECTION_NAME), orderBy("order", "asc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToTiming);
+    if (!db) return [];
+    try {
+      const q = query(collection(db, COLLECTION_NAME), orderBy("order", "asc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docToTiming);
+    } catch (error) {
+      console.error("[TimingService] Error:", error);
+      return [];
+    }
   }
 
   async getTimingById(id: string): Promise<TempleTiming | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, COLLECTION_NAME, id);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return docToTiming(docSnap);
+    if (!db) return null;
+    try {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return null;
+      return docToTiming(docSnap);
+    } catch (error) {
+      console.error("[TimingService] Error:", error);
+      return null;
+    }
   }
 
   async createTiming(data: TimingRequest): Promise<string> {

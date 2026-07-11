@@ -6,16 +6,26 @@ const COLLECTION = "sevas";
 
 class SevaService {
   async getAllSevas(): Promise<Seva[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDocs(collection(db, COLLECTION));
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Seva[];
+    if (!db) return [];
+    try {
+      const snapshot = await getDocs(collection(db, COLLECTION));
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Seva[];
+    } catch (error) {
+      console.error("[SevaService] Error:", error);
+      return [];
+    }
   }
 
   async getSevaById(id: string): Promise<Seva | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDoc(doc(db, COLLECTION, id));
-    if (!snapshot.exists()) return null;
-    return { id: snapshot.id, ...snapshot.data() } as Seva;
+    if (!db) return null;
+    try {
+      const snapshot = await getDoc(doc(db, COLLECTION, id));
+      if (!snapshot.exists()) return null;
+      return { id: snapshot.id, ...snapshot.data() } as Seva;
+    } catch (error) {
+      console.error("[SevaService] Error:", error);
+      return null;
+    }
   }
 
   async createSeva(data: SevaRequest) {

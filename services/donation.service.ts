@@ -41,16 +41,26 @@ class DonationService {
   }
 
   async getDonations(): Promise<DonationRecord[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDocs(query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc")));
-    return snapshot.docs.map(docToDonation);
+    if (!db) return [];
+    try {
+      const snapshot = await getDocs(query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc")));
+      return snapshot.docs.map(docToDonation);
+    } catch (error) {
+      console.error("[DonationService] Error:", error);
+      return [];
+    }
   }
 
   async getDonationById(donationId: string): Promise<DonationRecord | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDoc(doc(db, COLLECTION_NAME, donationId));
-    if (!snapshot.exists()) return null;
-    return docToDonation(snapshot);
+    if (!db) return null;
+    try {
+      const snapshot = await getDoc(doc(db, COLLECTION_NAME, donationId));
+      if (!snapshot.exists()) return null;
+      return docToDonation(snapshot);
+    } catch (error) {
+      console.error("[DonationService] Error:", error);
+      return null;
+    }
   }
 
   async updateDonationStatus(donationId: string, status: DonationStatus): Promise<void> {

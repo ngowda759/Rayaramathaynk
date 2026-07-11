@@ -16,16 +16,29 @@ const COLLECTION = "events";
 
 class EventService {
   async getEvents(): Promise<TempleEvent[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDocs(collection(db, COLLECTION));
-    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as TempleEvent[];
+    if (!db) {
+      console.log("[EventService] Firebase not configured, returning empty array");
+      return [];
+    }
+    try {
+      const snapshot = await getDocs(collection(db, COLLECTION));
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as TempleEvent[];
+    } catch (error) {
+      console.error("[EventService] Error fetching events:", error);
+      return [];
+    }
   }
 
   async getEvent(id: string): Promise<TempleEvent | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snap = await getDoc(doc(db, COLLECTION, id));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() } as TempleEvent;
+    if (!db) return null;
+    try {
+      const snap = await getDoc(doc(db, COLLECTION, id));
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...snap.data() } as TempleEvent;
+    } catch (error) {
+      console.error("[EventService] Error fetching event:", error);
+      return null;
+    }
   }
 
   async addEvent(event: TempleEvent) {

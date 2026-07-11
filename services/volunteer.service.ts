@@ -37,18 +37,28 @@ function docToVolunteer(docSnap: any): Volunteer {
 
 export const memberService = {
   async getAllMembers(): Promise<Member[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToMember);
+    if (!db) return [];
+    try {
+      const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docToMember);
+    } catch (error) {
+      console.error("[MemberService] Error:", error);
+      return [];
+    }
   },
 
   async getMemberById(id: string): Promise<Member | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, MEMBERS_COLLECTION, id);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return docToMember(docSnap);
+    if (!db) return null;
+    try {
+      const docRef = doc(db, MEMBERS_COLLECTION, id);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return null;
+      return docToMember(docSnap);
+    } catch (error) {
+      console.error("[MemberService] Error:", error);
+      return null;
+    }
   },
 
   async createMember(data: MemberRequest): Promise<string> {
@@ -72,18 +82,28 @@ export const memberService = {
 
 export const volunteerService = {
   async getAllVolunteers(): Promise<Volunteer[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, VOLUNTEERS_COLLECTION), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToVolunteer);
+    if (!db) return [];
+    try {
+      const q = query(collection(db, VOLUNTEERS_COLLECTION), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docToVolunteer);
+    } catch (error) {
+      console.error("[VolunteerService] Error:", error);
+      return [];
+    }
   },
 
   async getVolunteerById(id: string): Promise<Volunteer | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return docToVolunteer(docSnap);
+    if (!db) return null;
+    try {
+      const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return null;
+      return docToVolunteer(docSnap);
+    } catch (error) {
+      console.error("[VolunteerService] Error:", error);
+      return null;
+    }
   },
 
   async createVolunteer(data: VolunteerRequest): Promise<string> {

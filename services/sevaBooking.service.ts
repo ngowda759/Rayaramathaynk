@@ -35,24 +35,39 @@ class SevaBookingService {
   }
 
   async getAllBookings(): Promise<SevaBooking[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBooking);
+    if (!db) return [];
+    try {
+      const q = query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docToBooking);
+    } catch (error) {
+      console.error("[BookingService] Error:", error);
+      return [];
+    }
   }
 
   async getBookingsByUser(userId: string): Promise<SevaBooking[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, COLLECTION_NAME), where("userId", "==", userId), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBooking);
+    if (!db) return [];
+    try {
+      const q = query(collection(db, COLLECTION_NAME), where("userId", "==", userId), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docToBooking);
+    } catch (error) {
+      console.error("[BookingService] Error:", error);
+      return [];
+    }
   }
 
   async getBookingById(bookingId: string): Promise<SevaBooking | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDoc(doc(db, COLLECTION_NAME, bookingId));
-    if (!snapshot.exists()) return null;
-    return docToBooking(snapshot);
+    if (!db) return null;
+    try {
+      const snapshot = await getDoc(doc(db, COLLECTION_NAME, bookingId));
+      if (!snapshot.exists()) return null;
+      return docToBooking(snapshot);
+    } catch (error) {
+      console.error("[BookingService] Error:", error);
+      return null;
+    }
   }
 
   async updateBookingStatus(bookingId: string, status: SevaBookingStatus): Promise<void> {

@@ -7,17 +7,27 @@ const MEDIA_COLLECTION = "galleryMedia";
 
 export const galleryService = {
   async getAlbums(): Promise<GalleryAlbum[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, ALBUM_COLLECTION), orderBy("displayOrder", "asc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryAlbum, "id">) }));
+    if (!db) return [];
+    try {
+      const q = query(collection(db, ALBUM_COLLECTION), orderBy("displayOrder", "asc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryAlbum, "id">) }));
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return [];
+    }
   },
 
   async getAlbum(id: string): Promise<GalleryAlbum | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snap = await getDoc(doc(db, ALBUM_COLLECTION, id));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...(snap.data() as Omit<GalleryAlbum, "id">) };
+    if (!db) return null;
+    try {
+      const snap = await getDoc(doc(db, ALBUM_COLLECTION, id));
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...(snap.data() as Omit<GalleryAlbum, "id">) };
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return null;
+    }
   },
 
   async createAlbum(album: Omit<GalleryAlbum, "id">): Promise<string> {
@@ -37,10 +47,15 @@ export const galleryService = {
   },
 
   async getMedia(): Promise<GalleryMedia[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, MEDIA_COLLECTION), orderBy("displayOrder", "asc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryMedia, "id">) }));
+    if (!db) return [];
+    try {
+      const q = query(collection(db, MEDIA_COLLECTION), orderBy("displayOrder", "asc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryMedia, "id">) }));
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return [];
+    }
   },
 
   async getImages(): Promise<GalleryMedia[]> {
@@ -48,24 +63,39 @@ export const galleryService = {
   },
 
   async getMediaByAlbum(albumId: string): Promise<GalleryMedia[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, MEDIA_COLLECTION), where("albumId", "==", albumId), orderBy("displayOrder", "asc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryMedia, "id">) }));
+    if (!db) return [];
+    try {
+      const q = query(collection(db, MEDIA_COLLECTION), where("albumId", "==", albumId), orderBy("displayOrder", "asc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryMedia, "id">) }));
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return [];
+    }
   },
 
   async getFeaturedMedia(): Promise<GalleryMedia[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, MEDIA_COLLECTION), where("isFeatured", "==", true), orderBy("displayOrder", "asc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryMedia, "id">) }));
+    if (!db) return [];
+    try {
+      const q = query(collection(db, MEDIA_COLLECTION), where("isFeatured", "==", true), orderBy("displayOrder", "asc"));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<GalleryMedia, "id">) }));
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return [];
+    }
   },
 
   async getMediaById(id: string): Promise<GalleryMedia | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snap = await getDoc(doc(db, MEDIA_COLLECTION, id));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...(snap.data() as Omit<GalleryMedia, "id">) };
+    if (!db) return null;
+    try {
+      const snap = await getDoc(doc(db, MEDIA_COLLECTION, id));
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...(snap.data() as Omit<GalleryMedia, "id">) };
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return null;
+    }
   },
 
   async getImageById(id: string): Promise<GalleryMedia | null> {
@@ -102,8 +132,13 @@ export const galleryService = {
   },
 
   async getStats() {
-    if (!db) throw new Error("Firebase not configured");
-    const [albums, media] = await Promise.all([this.getAlbums(), this.getMedia()]);
-    return { albums: albums.length, total: media.length, featured: media.filter((m) => m.isFeatured).length, photos: media.filter((m) => m.type === "photo").length, videos: media.filter((m) => m.type === "video").length };
+    if (!db) return { albums: 0, total: 0, featured: 0, photos: 0, videos: 0 };
+    try {
+      const [albums, media] = await Promise.all([this.getAlbums(), this.getMedia()]);
+      return { albums: albums.length, total: media.length, featured: media.filter((m) => m.isFeatured).length, photos: media.filter((m) => m.type === "photo").length, videos: media.filter((m) => m.type === "video").length };
+    } catch (error) {
+      console.error("[GalleryService] Error:", error);
+      return { albums: 0, total: 0, featured: 0, photos: 0, videos: 0 };
+    }
   },
 };
