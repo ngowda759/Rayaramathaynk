@@ -14,9 +14,12 @@ const validateFirebaseConfig = (): FirebaseConfigValidation => {
     { key: "NEXT_PUBLIC_FIREBASE_API_KEY", name: "API Key" },
     { key: "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN", name: "Auth Domain" },
     { key: "NEXT_PUBLIC_FIREBASE_PROJECT_ID", name: "Project ID" },
-    { key: "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", name: "Storage Bucket" },
     { key: "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID", name: "Messaging Sender ID" },
     { key: "NEXT_PUBLIC_FIREBASE_APP_ID", name: "App ID" },
+  ];
+
+  const optionalFields = [
+    { key: "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", name: "Storage Bucket" },
   ];
 
   const missingFields: string[] = [];
@@ -72,7 +75,10 @@ if (isFirebaseConfigured()) {
   app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  storage = getStorage(app);
+  // Only initialize storage if storage bucket is configured
+  if (firebaseConfig.storageBucket) {
+    storage = getStorage(app);
+  }
 }
 
 export { app, auth, db, storage, isFirebaseConfigured };
