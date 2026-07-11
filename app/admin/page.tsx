@@ -65,23 +65,19 @@ export default function DashboardPage() {
   else if (hour < 17) greeting = "Good Afternoon";
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-r from-orange-500 to-amber-500 p-6 md:p-8 text-white shadow-lg w-full">
-        <div className="relative z-10 space-y-2">
-          <h1 className="text-3xl md:text-4xl font-bold">
-            {greeting}, Administrator 👋
-          </h1>
-          <div className="flex items-center gap-2 text-orange-100">
-            <CalendarDays className="h-5 w-5" />
-            <span>{formattedDate}</span>
+    <div className="space-y-6">
+      {/* Welcome Banner - Compact */}
+      <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-stone-800">
+              {greeting}, Admin 👋
+            </h1>
+            <p className="text-sm text-stone-500 flex items-center gap-2 mt-1">
+              <CalendarDays className="h-4 w-4" />
+              {formattedDate}
+            </p>
           </div>
-          <p className="pt-2 text-orange-50">
-            Welcome back to the Temple Administration Portal.
-          </p>
-        </div>
-        <div className="absolute right-4 md:right-6 top-4 md:top-6 text-6xl md:text-8xl opacity-10">
-          🏛
         </div>
       </div>
 

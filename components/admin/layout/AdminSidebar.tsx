@@ -145,8 +145,8 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         className={cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           isActive
-            ? "bg-orange-50 text-orange-600 font-semibold"
-            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            ? "bg-amber-100 text-amber-800 font-semibold border-r-2 border-amber-600"
+            : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
         )}
       >
         <Icon className="h-4 w-4" />
@@ -158,19 +158,19 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:bg-white lg:border-r lg:border-gray-200">
+      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:bg-gradient-to-b lg:from-white lg:to-amber-50 lg:border-r lg:border-amber-200">
         {/* Logo */}
-        <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center gap-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4">
           <Image
             src="/images/logos/ynk_matha_logo.png"
             alt="Sri Raghavendra Swamy Matha"
             width={36}
             height={36}
-            className="rounded-full"
+            className="rounded-full shadow-sm"
           />
           <div>
-            <h1 className="text-sm font-semibold text-gray-900">Temple Portal</h1>
-            <p className="text-xs text-gray-500">Administration</p>
+            <h1 className="text-sm font-bold text-stone-800">Temple Admin</h1>
+            <p className="text-xs text-amber-600">Administration</p>
           </div>
         </div>
 
@@ -180,7 +180,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             <div key={group.title} className="mb-4">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900"
               >
                 <span>{group.title}</span>
                 <ChevronDown
@@ -206,7 +206,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Mobile Sidebar Drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transition-transform duration-300 lg:hidden flex flex-col",
+          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-xl transition-transform duration-300 lg:hidden flex flex-col",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
         style={{
@@ -217,26 +217,26 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         }}
       >
         {/* Header - fixed at top, not part of scroll */}
-        <div className="flex-shrink-0 flex items-center justify-between border-b border-gray-200 px-4 py-4">
+        <div className="flex-shrink-0 flex items-center justify-between border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4">
           <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
             <Image
               src="/images/logos/ynk_matha_logo.png"
               alt="Sri Raghavendra Swamy Matha"
               width={36}
               height={36}
-              className="rounded-full"
+              className="rounded-full shadow-sm"
             />
             <div>
-              <h1 className="text-sm font-semibold text-gray-900">Temple Portal</h1>
-              <p className="text-xs text-gray-500">Administration</p>
+              <h1 className="text-sm font-bold text-stone-800">Temple Admin</h1>
+              <p className="text-xs text-amber-600">Administration</p>
             </div>
           </Link>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 hover:bg-gray-100"
+            className="rounded-lg p-2 hover:bg-amber-100"
             aria-label="Close menu"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-stone-600" />
           </button>
         </div>
 
@@ -253,7 +253,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             <div key={group.title} className="mb-4">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900"
               >
                 <span>{group.title}</span>
                 <ChevronDown
