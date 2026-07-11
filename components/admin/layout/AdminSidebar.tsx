@@ -86,7 +86,7 @@ const allNavigation = [
 
 // Filter navigation based on user permissions
 function getFilteredNavigation(canManageUsers: boolean, canAccessAdministration: boolean, canAccessSettings: boolean, canAccessFinance: boolean) {
-  return allNavigation.map((section) => {
+  const filtered = allNavigation.map((section) => {
     // Filter items based on permissions
     let filteredItems = section.items;
     
@@ -101,7 +101,9 @@ function getFilteredNavigation(canManageUsers: boolean, canAccessAdministration:
       ...section,
       items: filteredItems,
     };
-  }).filter(Boolean);
+  }).filter((item): item is NonNullable<typeof item> => item !== null);
+  
+  return filtered;
 }
 
 interface AdminSidebarProps {
@@ -121,7 +123,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   // Initialize expanded state - show Dashboard and current section
   useEffect(() => {
     const expanded: Record<string, boolean> = {};
-    (navigation || []).forEach((group) => {
+    navigation.forEach((group) => {
       const isActive = group.items.some(
         (item) => pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href))
       );
