@@ -27,9 +27,14 @@ const schema = z.object({
 type LoginFormValues = z.infer<typeof schema>;
 
 function getRedirectUrl(): string {
-  if (typeof window === "undefined") return "/admin";
+  if (typeof window === "undefined") return "/";
   const params = new URLSearchParams(window.location.search);
-  return params.get("redirect") || "/admin";
+  const redirect = params.get("redirect");
+  // Validate redirect is safe (starts with /)
+  if (redirect && redirect.startsWith("/")) {
+    return redirect;
+  }
+  return "/";
 }
 
 export default function LoginForm() {
