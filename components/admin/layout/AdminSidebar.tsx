@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 // Icon mapping
@@ -28,7 +29,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 // Navigation data
-const navigation = [
+const allNavigation = [
   {
     title: "Dashboard",
     items: [
@@ -83,6 +84,26 @@ const navigation = [
   },
 ];
 
+// Filter navigation based on user permissions
+function getFilteredNavigation(canManageUsers: boolean, canAccessAdministration: boolean, canAccessSettings: boolean, canAccessFinance: boolean) {
+  return allNavigation.map((section) => {
+    // Filter items based on permissions
+    let filteredItems = section.items;
+    
+    if (section.title === "Administration") {
+      // Only show Administration section to super_admin
+      if (!canAccessAdministration) {
+        return null;
+      }
+    }
+    
+    return {
+      ...section,
+      items: filteredItems,
+    };
+  }).filter(Boolean);
+}
+
 interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -90,20 +111,24 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const { canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance } = useAuthContext();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isExpanded, setIsExpanded] = useState(true); // Sidebar expanded by default
+
+  // Get filtered navigation based on user permissions
+  const navigation = getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false);
 
   // Initialize expanded state - show Dashboard and current section
   useEffect(() => {
     const expanded: Record<string, boolean> = {};
-    navigation.forEach((group) => {
+    (navigation || []).forEach((group) => {
       const isActive = group.items.some(
         (item) => pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href))
       );
       expanded[group.title] = isActive || group.title === "Dashboard" || group.title === "Temple Operations";
     });
     setExpandedGroups(expanded);
-  }, [pathname]);
+  }, [pathname, navigation]);
 
   const toggleGroup = (title: string) => {
     setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }));
