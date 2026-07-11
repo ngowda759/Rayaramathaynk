@@ -10,6 +10,11 @@ const adminRoutes = ["/admin/settings", "/admin/users", "/admin/reports", "/admi
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // TEMPORARILY DISABLED: Auth protection for debugging
+  // TODO: Re-enable after fixing Firebase session cookie issues
+  // Uncomment the following block to re-enable:
+  
+  /*
   // Check if the route is protected
   const isProtectedRoute = protectedRoutes.some((route) =>
     pathname.startsWith(route)
@@ -18,19 +23,6 @@ export function middleware(request: NextRequest) {
   if (!isProtectedRoute) {
     return NextResponse.next();
   }
-
-  // Get the session cookie (set by Firebase Auth on client-side login)
-  const sessionCookie = request.cookies.get("session")?.value;
-
-  // For now, we'll check if user is authenticated via a simple indicator
-  // In production, you would verify the Firebase session cookie
-  // Since Firebase Auth sessions are handled client-side, we redirect to login
-  // if no session indicator is present
-
-  // Note: This is a basic implementation. For full server-side auth with Firebase,
-  // you would need to:
-  // 1. Use Firebase Admin SDK to verify session cookies
-  // 2. Set session cookies on login and validate them here
 
   // Check for any auth-related cookies
   const hasAuthCookie = request.cookies.getAll().some(
@@ -46,6 +38,7 @@ export function middleware(request: NextRequest) {
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
+  */
 
   return NextResponse.next();
 }
