@@ -205,6 +205,15 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         </nav>
       </aside>
 
+      {/* Mobile Overlay - behind sidebar, captures touch to prevent background scrolling */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Mobile Sidebar Drawer */}
       <aside
         className={cn(
@@ -213,9 +222,6 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         )}
         style={{
           height: "100dvh",
-          overscrollBehavior: "contain",
-          WebkitOverflowScrolling: "touch",
-          touchAction: "none",
         }}
       >
         {/* Header - fixed at top, not part of scroll */}
@@ -242,15 +248,8 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           </button>
         </div>
 
-        {/* Navigation - this is the scroll container */}
-        <nav 
-          className="flex-1 overflow-y-auto px-3 py-4"
-          style={{
-            overscrollBehavior: "contain",
-            WebkitOverflowScrolling: "touch",
-            touchAction: "pan-y",
-          }}
-        >
+        {/* Navigation - scrollable */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
           {navigation.map((group) => (
             <div key={group.title} className="mb-4">
               <button
@@ -277,17 +276,6 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           ))}
         </nav>
       </aside>
-
-      {/* Mobile Overlay - captures touch events to prevent background scrolling */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={onClose}
-          onTouchMove={(e) => e.preventDefault()}
-          aria-hidden="true"
-          style={{ touchAction: "none" }}
-        />
-      )}
     </>
   );
 }
