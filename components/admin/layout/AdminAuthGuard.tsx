@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/context/AuthContext";
 import { ShieldX } from "lucide-react";
@@ -35,18 +35,9 @@ export default function AdminAuthGuard({
 }: AdminAuthGuardProps) {
   const { user, loading, canAccessAdmin, canAccessSettings, canAccessFinance, canManageUsers, canAccessBilling, canAccessAdministration } = useAuthContext();
   const router = useRouter();
-  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
-  useEffect(() => {
-    // Give time for auth to initialize
-    const timer = setTimeout(() => {
-      setHasCheckedAuth(true);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Show loading while checking auth
-  if (!hasCheckedAuth || loading) {
+  // Show loading spinner while auth is initializing
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
@@ -56,10 +47,11 @@ export default function AdminAuthGuard({
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (hasCheckedAuth && !loading && !user) {
-      router.push("/login");
+    if (!loading && !user) {
+      const currentPath = window.location.pathname;
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
     }
-  }, [user, loading, router, hasCheckedAuth]);
+  }, [user, loading, router]);
 
   // Check permission if required
   const hasPermission = (() => {
