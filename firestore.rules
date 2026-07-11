@@ -11,23 +11,27 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    // Check if user document exists and has admin role
+    // Normalize role string for comparison
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
     function isAdmin() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'Billing'];
+        getRole() in ['super_admin', 'Super Admin', 'temple_admin', 'Temple Admin', 'admin', 'Admin', 'Billing', 'Priest'];
     }
     
     function isSuperAdmin() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+        getRole() in ['super_admin', 'Super Admin'];
     }
     
     function isPriestOrAbove() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'priest'];
+        getRole() in ['super_admin', 'Super Admin', 'temple_admin', 'Temple Admin', 'admin', 'Admin', 'Priest', 'Billing'];
     }
     
     // Users collection
