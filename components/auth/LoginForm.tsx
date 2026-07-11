@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -35,7 +35,7 @@ function getRedirectUrl(): string {
 export default function LoginForm() {
   const router = useRouter();
 
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -47,14 +47,19 @@ export default function LoginForm() {
     resolver: zodResolver(schema),
   });
 
+  // Redirect after successful login
+  useEffect(() => {
+    if (!loading && user) {
+      const redirect = getRedirectUrl();
+      toast.success("Welcome back!");
+      router.push(redirect);
+    }
+  }, [user, loading, router]);
+
   async function onSubmit(data: LoginFormValues) {
     try {
       await login(data.email, data.password);
-
-      toast.success("Welcome back!");
-
-      const redirect = getRedirectUrl();
-      router.push(redirect);
+      // Redirect will happen in useEffect when user state updates
     } catch (error: any) {
       switch (error.code) {
         case "auth/invalid-credential":
