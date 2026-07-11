@@ -20,6 +20,11 @@ export function useGallery(
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
     let q;
 
     if (albumId) {

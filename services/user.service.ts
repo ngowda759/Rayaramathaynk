@@ -16,6 +16,7 @@ const COLLECTION = "users";
 
 class UserService {
   async getUsers(): Promise<TempleUser[]> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDocs(collection(db, COLLECTION));
 
     return snapshot.docs.map((d) => {
@@ -37,6 +38,7 @@ class UserService {
   }
 
   async getUser(id: string): Promise<TempleUser | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snap = await getDoc(doc(db, COLLECTION, id));
 
     if (!snap.exists()) return null;
@@ -58,6 +60,7 @@ class UserService {
   }
 
   async addUser(user: TempleUserCreate) {
+    if (!db) throw new Error("Firebase not configured");
     return addDoc(collection(db, COLLECTION), {
       ...user,
       createdAt: serverTimestamp(),
@@ -69,6 +72,7 @@ class UserService {
     id: string,
     user: TempleUserUpdate
   ) {
+    if (!db) throw new Error("Firebase not configured");
     return updateDoc(doc(db, COLLECTION, id), {
       ...user,
       updatedAt: serverTimestamp(),
@@ -76,6 +80,7 @@ class UserService {
   }
 
   async deleteUser(id: string) {
+    if (!db) throw new Error("Firebase not configured");
     return deleteDoc(doc(db, COLLECTION, id));
   }
 }

@@ -55,6 +55,7 @@ class SevaBookingService {
   async createBooking(
     data: SevaBookingRequest
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(
       collection(db, COLLECTION_NAME),
       {
@@ -75,6 +76,7 @@ class SevaBookingService {
   async getAllBookings(): Promise<
     SevaBooking[]
   > {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION_NAME),
       orderBy("createdAt", "desc")
@@ -88,6 +90,7 @@ class SevaBookingService {
   async getBookingsByUser(
     userId: string
   ): Promise<SevaBooking[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION_NAME),
       where("userId", "==", userId),
@@ -102,6 +105,7 @@ class SevaBookingService {
   async getBookingById(
     bookingId: string
   ): Promise<SevaBooking | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDoc(
       doc(db, COLLECTION_NAME, bookingId)
     );
@@ -117,6 +121,7 @@ class SevaBookingService {
     bookingId: string,
     status: SevaBookingStatus
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(
       doc(db, COLLECTION_NAME, bookingId),
       {
@@ -134,6 +139,7 @@ class SevaBookingService {
       paymentMethod: string;
     }
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(
       doc(db, COLLECTION_NAME, bookingId),
       {
@@ -154,6 +160,7 @@ class SevaBookingService {
   async deleteBooking(
     bookingId: string
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await deleteDoc(
       doc(db, COLLECTION_NAME, bookingId)
     );

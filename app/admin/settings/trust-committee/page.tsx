@@ -47,6 +47,10 @@ export default function TrustCommitteeSettingsPage() {
 
   useEffect(() => {
     async function loadData() {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
       try {
         const docRef = doc(db, COLLECTION, DOCUMENT);
         const docSnap = await getDoc(docRef);
@@ -65,6 +69,10 @@ export default function TrustCommitteeSettingsPage() {
   }, []);
 
   async function saveData() {
+    if (!db) {
+      toast.error("Firebase not configured");
+      return;
+    }
     setSaving(true);
     try {
       const docRef = doc(db, COLLECTION, DOCUMENT);

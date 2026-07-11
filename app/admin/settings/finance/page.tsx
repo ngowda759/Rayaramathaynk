@@ -18,6 +18,10 @@ export default function FinanceSettingsPage() {
 
   useEffect(() => {
     async function loadSettings() {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
       try {
         const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
         const docSnap = await getDoc(docRef);
@@ -57,6 +61,10 @@ export default function FinanceSettingsPage() {
   }, []);
 
   async function saveSettings() {
+    if (!db) {
+      toast.error("Firebase not configured");
+      return;
+    }
     setSaving(true);
     try {
       const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);

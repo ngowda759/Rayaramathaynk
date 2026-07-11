@@ -77,6 +77,7 @@ class DonationService {
   async createDonation(
     data: DonationRequest
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(
       collection(db, COLLECTION_NAME),
       {
@@ -95,6 +96,7 @@ class DonationService {
   }
 
   async getDonations(): Promise<DonationRecord[]> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDocs(
       query(
         collection(db, COLLECTION_NAME),
@@ -108,6 +110,7 @@ class DonationService {
   async getDonationById(
     donationId: string
   ): Promise<DonationRecord | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDoc(
       doc(db, COLLECTION_NAME, donationId)
     );
@@ -123,6 +126,7 @@ class DonationService {
     donationId: string,
     status: DonationStatus
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(
       doc(db, COLLECTION_NAME, donationId),
       {
@@ -142,6 +146,7 @@ class DonationService {
     donationId: string,
     data: Partial<DonationRecord>
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(
       doc(db, COLLECTION_NAME, donationId),
       {
@@ -154,6 +159,7 @@ class DonationService {
   async deleteDonation(
     donationId: string
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await deleteDoc(
       doc(db, COLLECTION_NAME, donationId)
     );

@@ -39,6 +39,7 @@ function docToAaradhane(docSnap: any): Aaradhane {
 
 export const aaradhaneService = {
   async getAaradhanes(): Promise<Aaradhane[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION_NAME),
       orderBy("displayOrder", "asc")
@@ -48,6 +49,7 @@ export const aaradhaneService = {
   },
 
   async getAaradhaneById(id: string): Promise<Aaradhane | null> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
@@ -58,6 +60,7 @@ export const aaradhaneService = {
     data: Omit<Aaradhane, "id" | "createdAt" | "createdBy">,
     userEmail: string
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...data,
       createdBy: userEmail,
@@ -70,11 +73,13 @@ export const aaradhaneService = {
     id: string,
     data: Partial<Omit<Aaradhane, "id" | "createdAt" | "createdBy">>
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, data);
   },
 
   async deleteAaradhane(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
   },

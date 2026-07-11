@@ -53,6 +53,10 @@ export default function TrustCommitteePage() {
   useEffect(() => {
     async function loadData() {
       try {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
         const docRef = doc(db, "settings", "trustCommittee");
         const docSnap = await getDoc(docRef);
 

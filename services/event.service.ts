@@ -20,6 +20,7 @@ class EventService {
   // ============================
 
   async getEvents(): Promise<TempleEvent[]> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDocs(collection(db, COLLECTION));
 
     return snapshot.docs.map((d) => ({
@@ -29,6 +30,7 @@ class EventService {
   }
 
   async getEvent(id: string): Promise<TempleEvent | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snap = await getDoc(doc(db, COLLECTION, id));
 
     if (!snap.exists()) return null;
@@ -40,6 +42,7 @@ class EventService {
   }
 
   async addEvent(event: TempleEvent) {
+    if (!db) throw new Error("Firebase not configured");
     return addDoc(collection(db, COLLECTION), {
       ...event,
       createdAt: serverTimestamp(),
@@ -48,6 +51,7 @@ class EventService {
   }
 
   async updateEvent(id: string, event: Partial<TempleEvent>) {
+    if (!db) throw new Error("Firebase not configured");
     return updateDoc(doc(db, COLLECTION, id), {
       ...event,
       updatedAt: serverTimestamp(),
@@ -55,6 +59,7 @@ class EventService {
   }
 
   async deleteEvent(id: string) {
+    if (!db) throw new Error("Firebase not configured");
     return deleteDoc(doc(db, COLLECTION, id));
   }
 

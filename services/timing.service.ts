@@ -40,6 +40,7 @@ function docToTiming(docSnap: any): TempleTiming {
 
 class TimingService {
   async getTimings(): Promise<TempleTiming[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION_NAME),
       orderBy("order", "asc")
@@ -49,6 +50,7 @@ class TimingService {
   }
 
   async getTimingById(id: string): Promise<TempleTiming | null> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
@@ -56,6 +58,7 @@ class TimingService {
   }
 
   async createTiming(data: TimingRequest): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...data,
       createdAt: serverTimestamp(),
@@ -68,6 +71,7 @@ class TimingService {
     id: string,
     data: Partial<TimingRequest>
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...data,
@@ -76,6 +80,7 @@ class TimingService {
   }
 
   async deleteTiming(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
   }

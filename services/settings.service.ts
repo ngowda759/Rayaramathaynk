@@ -30,6 +30,7 @@ function docToSettings(docSnap: any): SiteSettings {
 
 class SettingsService {
   async getSettings(): Promise<SiteSettings | null> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(collection(db, COLLECTION), orderBy("updatedAt", "desc"));
     const snapshot = await getDocs(q);
 
@@ -41,6 +42,7 @@ class SettingsService {
   }
 
   async createSettings(data: SiteSettingsPayload): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(collection(db, COLLECTION), {
       ...data,
       updatedAt: serverTimestamp(),
@@ -49,6 +51,7 @@ class SettingsService {
   }
 
   async updateSettings(id: string, data: Partial<SiteSettingsPayload>) {
+    if (!db) throw new Error("Firebase not configured");
     const settingsRef = doc(db, COLLECTION, id);
     return updateDoc(settingsRef, {
       ...data,

@@ -39,6 +39,10 @@ export default function BillingPage() {
      
     async function loadBillingStatus() {
       try {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
         const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {

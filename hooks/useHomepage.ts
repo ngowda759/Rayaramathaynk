@@ -12,6 +12,11 @@ export function useHomepage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
     let initialized = false;
 
     const unsubscribe = onSnapshot(

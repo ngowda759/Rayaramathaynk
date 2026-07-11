@@ -38,6 +38,7 @@ function docToPooja(docSnap: any): DailyPooja {
 
 export const poojaService = {
   async getPoojas(): Promise<DailyPooja[]> {
+      if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION_NAME),
       orderBy("displayOrder", "asc")
@@ -47,6 +48,7 @@ export const poojaService = {
   },
 
   async getPoojaById(id: string): Promise<DailyPooja | null> {
+      if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
@@ -57,6 +59,7 @@ export const poojaService = {
     data: Omit<DailyPooja, "id" | "createdAt" | "createdBy">,
     userEmail: string
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...data,
       createdBy: userEmail,
@@ -69,16 +72,19 @@ export const poojaService = {
     id: string,
     data: Partial<Omit<DailyPooja, "id" | "createdAt" | "createdBy">>
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, data);
   },
 
   async deletePooja(id: string): Promise<void> {
+      if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);
   },
 
   async getStats(): Promise<PoojaStats> {
+      if (!db) throw new Error("Firebase not configured");
     const poojas = await this.getPoojas();
     const byCategory: Record<string, number> = {};
     poojas.forEach((p) => {

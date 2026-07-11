@@ -16,6 +16,7 @@ const COLLECTION = "sevas";
 
 class SevaService {
   async getAllSevas(): Promise<Seva[]> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDocs(collection(db, COLLECTION));
 
     return snapshot.docs.map((doc) => ({
@@ -25,6 +26,7 @@ class SevaService {
   }
 
   async getSevaById(id: string): Promise<Seva | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDoc(doc(db, COLLECTION, id));
 
     if (!snapshot.exists()) {
@@ -38,6 +40,7 @@ class SevaService {
   }
 
   async createSeva(data: SevaRequest) {
+    if (!db) throw new Error("Firebase not configured");
     return addDoc(collection(db, COLLECTION), {
       ...data,
       createdAt: serverTimestamp(),
@@ -49,6 +52,7 @@ class SevaService {
     id: string,
     data: Partial<SevaRequest>
   ) {
+    if (!db) throw new Error("Firebase not configured");
     return updateDoc(doc(db, COLLECTION, id), {
       ...data,
       updatedAt: serverTimestamp(),
@@ -56,6 +60,7 @@ class SevaService {
   }
 
   async deleteSeva(id: string) {
+    if (!db) throw new Error("Firebase not configured");
     return deleteDoc(doc(db, COLLECTION, id));
   }
 }

@@ -4,6 +4,8 @@ import { DashboardStats } from "@/types/dashboard";
 
 class DashboardService {
   async getStats(): Promise<DashboardStats> {
+    if (!db) throw new Error("Firebase not configured");
+    
     const collections = [
       "users",
       "events", 
@@ -17,6 +19,7 @@ class DashboardService {
 
     const counts = await Promise.all(
       collections.map(async (col) => {
+        if (!db) return 0;
         try {
           const q = query(collection(db, col));
           const snapshot = await getDocs(q);

@@ -58,12 +58,14 @@ function docToVolunteer(docSnap: any): Volunteer {
 
 export const memberService = {
   async getAllMembers(): Promise<Member[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToMember);
   },
 
   async getMemberById(id: string): Promise<Member | null> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, MEMBERS_COLLECTION, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
@@ -71,6 +73,7 @@ export const memberService = {
   },
 
   async createMember(data: MemberRequest): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(collection(db, MEMBERS_COLLECTION), {
       ...data,
       createdAt: serverTimestamp(),
@@ -80,6 +83,7 @@ export const memberService = {
   },
 
   async updateMember(id: string, data: Partial<MemberRequest>): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, MEMBERS_COLLECTION, id);
     await updateDoc(docRef, {
       ...data,
@@ -88,6 +92,7 @@ export const memberService = {
   },
 
   async deleteMember(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, MEMBERS_COLLECTION, id);
     await deleteDoc(docRef);
   },
@@ -95,12 +100,14 @@ export const memberService = {
 
 export const volunteerService = {
   async getAllVolunteers(): Promise<Volunteer[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(collection(db, VOLUNTEERS_COLLECTION), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToVolunteer);
   },
 
   async getVolunteerById(id: string): Promise<Volunteer | null> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
@@ -108,6 +115,7 @@ export const volunteerService = {
   },
 
   async createVolunteer(data: VolunteerRequest): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = await addDoc(collection(db, VOLUNTEERS_COLLECTION), {
       ...data,
       createdAt: serverTimestamp(),
@@ -117,6 +125,7 @@ export const volunteerService = {
   },
 
   async updateVolunteer(id: string, data: Partial<VolunteerRequest>): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
     await updateDoc(docRef, {
       ...data,
@@ -125,6 +134,7 @@ export const volunteerService = {
   },
 
   async deleteVolunteer(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
     await deleteDoc(docRef);
   },

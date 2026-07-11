@@ -31,6 +31,8 @@ class AuthService {
     phone,
     password,
   }: RegisterData): Promise<UserCredential> {
+    if (!auth || !db) throw new Error("Firebase not configured");
+    
     const credential = await createUserWithEmailAndPassword(
       auth,
       email,
@@ -66,6 +68,8 @@ class AuthService {
     email: string,
     password: string
   ): Promise<UserCredential> {
+    if (!auth || !db) throw new Error("Firebase not configured");
+    
     const credential = await signInWithEmailAndPassword(
       auth,
       email,
@@ -106,14 +110,17 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
+    if (!auth) return;
     await signOut(auth);
   }
 
   async forgotPassword(email: string): Promise<void> {
+    if (!auth) throw new Error("Firebase not configured");
     await sendPasswordResetEmail(auth, email);
   }
 
   async getUserProfile(uid: string) {
+    if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDoc(doc(db, "users", uid));
 
     if (!snapshot.exists()) {
@@ -124,7 +131,7 @@ class AuthService {
   }
 
   currentUser() {
-    return auth.currentUser;
+    return auth?.currentUser ?? null;
   }
 }
 

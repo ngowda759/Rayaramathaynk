@@ -5,6 +5,10 @@ import { db } from "@/lib/firebase";
 
 export default function FirebaseTestPage() {
   async function handleTest() {
+    if (!db) {
+      alert("Firebase is not configured. Please set up Firebase environment variables.");
+      return;
+    }
     try {
       console.log("Testing Firestore...");
 

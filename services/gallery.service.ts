@@ -29,6 +29,7 @@ export const galleryService = {
   // ===========================
 
   async getAlbums(): Promise<GalleryAlbum[]> {
+      if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, ALBUM_COLLECTION),
       orderBy("displayOrder", "asc")
@@ -43,6 +44,7 @@ export const galleryService = {
   },
 
   async getAlbum(id: string): Promise<GalleryAlbum | null> {
+      if (!db) throw new Error("Firebase not configured");
     const snap = await getDoc(doc(db, ALBUM_COLLECTION, id));
 
     if (!snap.exists()) return null;
@@ -56,6 +58,7 @@ export const galleryService = {
   async createAlbum(
     album: Omit<GalleryAlbum, "id">
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const ref = await addDoc(collection(db, ALBUM_COLLECTION), {
       ...album,
       createdAt: serverTimestamp(),
@@ -69,6 +72,7 @@ export const galleryService = {
     id: string,
     album: Partial<GalleryAlbum>
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(doc(db, ALBUM_COLLECTION, id), {
       ...album,
       updatedAt: serverTimestamp(),
@@ -76,6 +80,7 @@ export const galleryService = {
   },
 
   async deleteAlbum(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await deleteDoc(doc(db, ALBUM_COLLECTION, id));
   },
 
@@ -84,6 +89,7 @@ export const galleryService = {
   // ===========================
 
   async getMedia(): Promise<GalleryMedia[]> {
+      if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, MEDIA_COLLECTION),
       orderBy("displayOrder", "asc")
@@ -99,12 +105,14 @@ export const galleryService = {
 
   // Backward compatibility
 async getImages(): Promise<GalleryMedia[]> {
+    if (!db) throw new Error("Firebase not configured");
   return this.getMedia();
 },
 
   async getMediaByAlbum(
     albumId: string
   ): Promise<GalleryMedia[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, MEDIA_COLLECTION),
       where("albumId", "==", albumId),
@@ -120,6 +128,7 @@ async getImages(): Promise<GalleryMedia[]> {
   },
 
   async getFeaturedMedia(): Promise<GalleryMedia[]> {
+      if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, MEDIA_COLLECTION),
       where("isFeatured", "==", true),
@@ -137,6 +146,7 @@ async getImages(): Promise<GalleryMedia[]> {
   async getMediaById(
     id: string
   ): Promise<GalleryMedia | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snap = await getDoc(doc(db, MEDIA_COLLECTION, id));
 
     if (!snap.exists()) return null;
@@ -149,6 +159,7 @@ async getImages(): Promise<GalleryMedia[]> {
 
   // Backward compatibility
 async getImageById(id: string): Promise<GalleryMedia | null> {
+    if (!db) throw new Error("Firebase not configured");
   return this.getMediaById(id);
 },
 
@@ -156,9 +167,10 @@ async getImageById(id: string): Promise<GalleryMedia | null> {
     media: GalleryMediaRequest,
     uploadedBy: string
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const ref = await addDoc(collection(db, MEDIA_COLLECTION), {
-albumId: media.albumId ?? "temple",
-type: media.type ?? "photo",
+      albumId: media.albumId ?? "temple",
+      type: media.type ?? "photo",
       ...media,
       uploadedBy,
       uploadedAt: serverTimestamp(),
@@ -179,6 +191,7 @@ async createImage(
     id: string,
     media: Partial<GalleryMediaRequest>
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(doc(db, MEDIA_COLLECTION, id), {
       ...media,
     });
@@ -193,11 +206,13 @@ async updateImage(
 },
 
   async deleteMedia(id: string): Promise<void> {
+      if (!db) throw new Error("Firebase not configured");
     await deleteDoc(doc(db, MEDIA_COLLECTION, id));
   },
 
   // Backward compatibility
 async deleteImage(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
   return this.deleteMedia(id);
 },
 
@@ -206,6 +221,7 @@ async deleteImage(id: string): Promise<void> {
   // ===========================
 
   async getStats() {
+      if (!db) throw new Error("Firebase not configured");
     const [albums, media] = await Promise.all([
       this.getAlbums(),
       this.getMedia(),

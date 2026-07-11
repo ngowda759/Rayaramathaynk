@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { doc, collection, query, where, getDocs, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
 
 export async function POST(request: NextRequest) {
+  // Check if Firebase is configured
+  if (!isFirebaseConfigured()) {
+    return NextResponse.json(
+      { error: "Firebase is not configured. Please set up Firebase environment variables." },
+      { status: 503 }
+    );
+  }
+
+  if (!db) {
+    return NextResponse.json(
+      { error: "Firebase services not initialized" },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { email, role } = body;

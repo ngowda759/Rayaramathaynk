@@ -43,6 +43,7 @@ export default function CreateBillPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
+        if (!db) return;
         const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {

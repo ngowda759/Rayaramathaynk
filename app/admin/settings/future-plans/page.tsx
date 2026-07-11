@@ -56,6 +56,10 @@ export default function FuturePlansSettingsPage() {
 
   useEffect(() => {
     async function loadData() {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
       try {
         const docRef = doc(db, COLLECTION, DOCUMENT);
         const docSnap = await getDoc(docRef);
@@ -74,6 +78,10 @@ export default function FuturePlansSettingsPage() {
   }, []);
 
   async function saveData() {
+    if (!db) {
+      toast.error("Firebase not configured");
+      return;
+    }
     setSaving(true);
     try {
       const docRef = doc(db, COLLECTION, DOCUMENT);

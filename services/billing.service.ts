@@ -90,18 +90,21 @@ function calculateBillTotals(items: BillItem[], discountAmount: number): {
 
 class BillingService {
   async getBills(): Promise<Bill[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToBill);
   }
 
   async getBill(id: string): Promise<Bill | null> {
+    if (!db) throw new Error("Firebase not configured");
     const snap = await getDoc(doc(db, COLLECTION, id));
     if (!snap.exists()) return null;
     return docToBill(snap);
   }
 
   async getBillsByStatus(status: BillStatus): Promise<Bill[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION),
       where("status", "==", status),
@@ -112,6 +115,7 @@ class BillingService {
   }
 
   async getBillsByCustomer(customerName: string): Promise<Bill[]> {
+    if (!db) throw new Error("Firebase not configured");
     const q = query(
       collection(db, COLLECTION),
       where("customerName", "==", customerName),
@@ -122,6 +126,7 @@ class BillingService {
   }
 
   async getOverdueBills(): Promise<Bill[]> {
+    if (!db) throw new Error("Firebase not configured");
     const now = new Date();
     const q = query(
       collection(db, COLLECTION),
@@ -138,6 +143,7 @@ class BillingService {
     invoicePrefix: string = "INV",
     invoiceNumber: number = 1
   ): Promise<string> {
+    if (!db) throw new Error("Firebase not configured");
     const items: BillItem[] = input.items.map((item) => ({
       ...item,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -180,6 +186,7 @@ class BillingService {
   }
 
   async updateBill(id: string, input: BillUpdateInput): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const updateData: Partial<Bill> & { updatedAt: FieldValue } = {
       ...input,
       updatedAt: serverTimestamp(),
@@ -210,10 +217,12 @@ class BillingService {
   }
 
   async deleteBill(id: string): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await deleteDoc(doc(db, COLLECTION, id));
   }
 
   async updateBillStatus(id: string, status: BillStatus): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     await updateDoc(doc(db, COLLECTION, id), {
       status,
       updatedAt: serverTimestamp(),
@@ -224,6 +233,7 @@ class BillingService {
     billId: string,
     payment: Omit<BillPayment, "id">
   ): Promise<void> {
+    if (!db) throw new Error("Firebase not configured");
     const bill = await this.getBill(billId);
     if (!bill) throw new Error("Bill not found");
 

@@ -100,6 +100,10 @@ export default function FuturePlansPage() {
   useEffect(() => {
     async function loadData() {
       try {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
         const docRef = doc(db, "settings", "futurePlans");
         const docSnap = await getDoc(docRef);
 

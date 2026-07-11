@@ -21,6 +21,7 @@ export function useDonationNotifications() {
   useEffect(() => {
     async function fetchDonations() {
       if (typeof window === "undefined") return;
+      if (!db) return;
       
       try {
         setLoading(true);

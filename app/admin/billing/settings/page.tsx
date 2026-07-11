@@ -38,6 +38,10 @@ export default function BillingSettingsPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
         const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
         const docSnap = await getDoc(docRef);
 
@@ -62,6 +66,10 @@ export default function BillingSettingsPage() {
   }, []);
 
   async function saveSettings() {
+    if (!db) {
+      toast.error("Firebase not configured");
+      return;
+    }
     setSaving(true);
     try {
       const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);

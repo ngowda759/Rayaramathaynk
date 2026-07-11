@@ -13,6 +13,7 @@ const DOCUMENT = "config";
 
 class HomepageService {
   async getHomepage(): Promise<HomepageConfig> {
+      if (!db) throw new Error("Firebase not configured");
     const ref = doc(db, COLLECTION, DOCUMENT);
     const snap = await getDoc(ref);
 
@@ -27,6 +28,7 @@ class HomepageService {
   }
 
   async saveHomepage(data: HomepageConfig): Promise<void> {
+      if (!db) throw new Error("Firebase not configured");
     const ref = doc(db, COLLECTION, DOCUMENT);
 
     await setDoc(

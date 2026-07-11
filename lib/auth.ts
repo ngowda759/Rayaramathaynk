@@ -15,7 +15,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-import { auth, db } from "./firebase";
+import { auth, db, isFirebaseConfigured } from "./firebase";
 
 export async function registerUser(
   name: string,
@@ -23,6 +23,10 @@ export async function registerUser(
   phone: string,
   password: string
 ) {
+  if (!auth || !db) {
+    throw new Error("Firebase is not configured");
+  }
+
   const credential = await createUserWithEmailAndPassword(
     auth,
     email,
@@ -69,6 +73,10 @@ export async function loginUser(
   email: string,
   password: string
 ) {
+  if (!auth || !db) {
+    throw new Error("Firebase is not configured");
+  }
+
   const credential = await signInWithEmailAndPassword(
     auth,
     email,
@@ -109,10 +117,14 @@ export async function loginUser(
 }
 
 export async function logoutUser() {
+  if (!auth) return;
   await signOut(auth);
 }
 
 export async function resetPassword(email: string) {
+  if (!auth) {
+    throw new Error("Firebase is not configured");
+  }
   await sendPasswordResetEmail(auth, email);
 }
 

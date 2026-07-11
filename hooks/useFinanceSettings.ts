@@ -14,6 +14,10 @@ export function useFinanceSettings() {
 
   useEffect(() => {
     async function loadSettings() {
+      if (!db) {
+        setLoading(false);
+        return;
+      }
       try {
         const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
         const docSnap = await getDoc(docRef);
