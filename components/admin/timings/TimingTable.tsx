@@ -199,32 +199,34 @@ export default function TimingTable({ timings, onRefresh }: TimingTableProps) {
         </Table>
       </div>
 
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Timing</DialogTitle>
-            <DialogDescription>
-              This will permanently remove the timing entry from the temple schedule.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteId(null)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {deleteId && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Timing</DialogTitle>
+              <DialogDescription>
+                This will permanently remove the timing entry from the temple schedule.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteId(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

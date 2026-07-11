@@ -241,77 +241,78 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
         </Table>
       </div>
 
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Aaradhane</DialogTitle>
-            <DialogDescription>
-              This will permanently remove this aaradhane record.
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteId(null)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {deleteId && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Aaradhane</DialogTitle>
+              <DialogDescription>
+                This will permanently remove this aaradhane record.
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteId(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      <Dialog
-        open={!!detailItem}
-        onOpenChange={() => setDetailItem(null)}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{detailItem?.title}</DialogTitle>
-            <DialogDescription>
-              {detailItem?.guruName} &mdash; {detailItem?.dates ? formatDate(detailItem.dates) : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium">Description</h4>
-              <p className="text-sm text-muted-foreground">{detailItem?.description}</p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium">Significance</h4>
-              <p className="text-sm text-muted-foreground">{detailItem?.significance}</p>
-            </div>
-            {detailItem?.rituals.length ? (
+      {detailItem && (
+        <Dialog open onOpenChange={() => setDetailItem(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{detailItem?.title}</DialogTitle>
+              <DialogDescription>
+                {detailItem?.guruName} &mdash; {detailItem?.dates ? formatDate(detailItem.dates) : ""}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium">Rituals</h4>
-                <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
-                  {detailItem.rituals.map((r) => (
-                    <li key={r}>{r}</li>
-                  ))}
-                </ul>
+                <h4 className="text-sm font-medium">Description</h4>
+                <p className="text-sm text-muted-foreground">{detailItem?.description}</p>
               </div>
-            ) : null}
-            {detailItem?.offerings.length ? (
               <div>
-                <h4 className="text-sm font-medium">Offerings</h4>
-                <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
-                  {detailItem.offerings.map((o) => (
-                    <li key={o}>{o}</li>
-                  ))}
-                </ul>
+                <h4 className="text-sm font-medium">Significance</h4>
+                <p className="text-sm text-muted-foreground">{detailItem?.significance}</p>
               </div>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+              {detailItem?.rituals.length ? (
+                <div>
+                  <h4 className="text-sm font-medium">Rituals</h4>
+                  <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
+                    {detailItem.rituals.map((r) => (
+                      <li key={r}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {detailItem?.offerings.length ? (
+                <div>
+                  <h4 className="text-sm font-medium">Offerings</h4>
+                  <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
+                    {detailItem.offerings.map((o) => (
+                      <li key={o}>{o}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
