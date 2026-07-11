@@ -36,7 +36,15 @@ const validateFirebaseConfig = (): FirebaseConfigValidation => {
 
 // Check if Firebase is properly configured
 const isFirebaseConfigured = (): boolean => {
-  return validateFirebaseConfig().isValid;
+  const result = validateFirebaseConfig();
+  console.log("🔥 isFirebaseConfigured check:", {
+    isValid: result.isValid,
+    missingFields: result.missingFields,
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? "SET" : "NOT SET",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ? "SET" : "NOT SET",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? "SET" : "NOT SET",
+  });
+  return result.isValid;
 };
 
 // Get validation details (for debugging)
