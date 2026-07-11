@@ -37,9 +37,7 @@ export default function AdminShell({ children }: Props) {
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
       document.body.style.top = `-${scrollPositionRef.current}px`;
-      document.body.style.touchAction = "none";
-      // Hide scrollbar for IE/Edge
-      (document.body.style as unknown as Record<string, string>).msOverflowStyle = "none";
+      // Hide scrollbar
       document.body.style.scrollbarWidth = "none";
     } else {
       // Restore body scrolling
@@ -47,8 +45,6 @@ export default function AdminShell({ children }: Props) {
       document.body.style.position = "";
       document.body.style.width = "";
       document.body.style.top = "";
-      document.body.style.touchAction = "";
-      (document.body.style as unknown as Record<string, string>).msOverflowStyle = "";
       document.body.style.scrollbarWidth = "";
       // Restore scroll position
       window.scrollTo(0, scrollPositionRef.current);
@@ -61,8 +57,6 @@ export default function AdminShell({ children }: Props) {
       document.body.style.position = "";
       document.body.style.width = "";
       document.body.style.top = "";
-      document.body.style.touchAction = "";
-      (document.body.style as unknown as Record<string, string>).msOverflowStyle = "";
       document.body.style.scrollbarWidth = "";
     };
   }, [isSidebarOpen, closeSidebar]);
