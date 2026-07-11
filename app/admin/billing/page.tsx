@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Download, Eye, Trash2, Send, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Settings } from "lucide-react";
+import { Plus, Eye, Trash2, Send, CheckCircle, Clock, AlertTriangle, XCircle, FileText, Settings } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
@@ -15,14 +15,13 @@ import { billingService } from "@/services/billing.service";
 import { Bill, BillStatus } from "@/types/billing";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { defaultFinanceSettings } from "@/types/finance";
 
 const SETTINGS_DOC = "financeSettings";
 const SETTINGS_COLLECTION = "settings";
 
 export default function BillingPage() {
   const router = useRouter();
-  const { settings: financeSettings } = useFinanceSettings();
+  useFinanceSettings(); // Initialize finance settings
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -41,19 +40,19 @@ export default function BillingPage() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setBillingEnabled(data.billingEnabled ?? false);
+        if (data.billingEnabled) {
+          loadBills();
+        } else {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       console.error("Error loading billing status:", error);
-    }
-  }
-
-  useEffect(() => {
-    if (billingEnabled) {
-      loadBills();
-    } else {
       setLoading(false);
     }
-  }, [billingEnabled]);
+  }
 
   async function loadBills() {
     try {

@@ -3,14 +3,11 @@
 import { FormHTMLAttributes } from "react";
 import clsx from "clsx";
 
-interface FormContainerProps
-  extends FormHTMLAttributes<HTMLFormElement> {}
-
 export default function FormContainer({
   children,
   className,
   ...props
-}: FormContainerProps) {
+}: FormHTMLAttributes<HTMLFormElement>) {
   return (
     <form
       className={clsx(

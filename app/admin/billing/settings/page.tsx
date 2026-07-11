@@ -35,30 +35,29 @@ export default function BillingSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<BillingSettings>(defaultBillingSettings);
 
-  const loadSettings = async () => {
-    try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.billing) {
-          // Merge with defaults to ensure all fields exist
-          setSettings({
-            ...defaultBillingSettings,
-            ...data.billing,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error loading settings:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    async function loadSettings() {
+      try {
+        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.billing) {
+            // Merge with defaults to ensure all fields exist
+            setSettings({
+              ...defaultBillingSettings,
+              ...data.billing,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadSettings();
   }, []);
 

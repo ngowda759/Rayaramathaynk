@@ -7,7 +7,6 @@ interface TempleMapProps {
   lat?: number;
   lon?: number;
   templeAddress?: string;
-  templeName?: string;
   phone?: string;
 }
 
@@ -15,7 +14,6 @@ export default function TempleMap({
   lat = 13.096788188005597,
   lon = 77.58461022456063,
   templeAddress = "428/20, 8th A Cross Rd, Yelahanka Satellite Town, Yelahanka, Bengaluru, Karnataka 560064",
-  templeName = "Sri Raghavendra Swamy Mutt",
   phone = "+91 80 2332 3456",
 }: TempleMapProps) {
   const mapsUrl = `https://maps.google.com/maps?q=${lat},${lon}&z=17&output=embed`;

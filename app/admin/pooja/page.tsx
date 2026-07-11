@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,9 @@ export default function PoojaPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  async function loadPoojas() {
+  const loadPoojas = useCallback(async () => {
     try {
+      setLoading(true);
       const data = await poojaService.getPoojas();
       setPoojas(data);
     } catch (error) {
@@ -27,11 +28,11 @@ export default function PoojaPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadPoojas();
-  }, []);
+  }, [loadPoojas]);
 
   const filteredPoojas = poojas.filter((pooja) => {
     const keyword = search.toLowerCase();

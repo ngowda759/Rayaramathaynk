@@ -113,24 +113,23 @@ export default function AboutUsSettingsPage() {
   const [data, setData] = useState<AboutUsData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as AboutUsData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as AboutUsData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -399,7 +398,7 @@ export default function AboutUsSettingsPage() {
 
         {data.activities.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No activities added yet. Click "Add Activity" to create one.
+            No activities added yet. Click &ldquo;Add Activity&rdquo; to create one.
           </div>
         )}
       </div>

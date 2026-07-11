@@ -33,7 +33,7 @@ export default function FestivalsAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ festivals: updatedList, samvatsara }),
       });
-    } catch (error) {
+    } catch {
       console.error("API not available, updating local state only");
     }
 
@@ -62,7 +62,7 @@ export default function FestivalsAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ festivals: updatedList, samvatsara }),
       });
-    } catch (error) {
+    } catch {
       console.error("API not available, updating local state only");
     }
 
@@ -81,7 +81,7 @@ export default function FestivalsAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ festivals: updatedList, samvatsara }),
       });
-    } catch (error) {
+    } catch {
       console.error("API not available, updating local state only");
     }
 

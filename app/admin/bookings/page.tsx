@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import CrudTable from "@/components/admin/crud/CrudTable";
-import Button from "@/components/ui/button";
 
 import { bookingColumns } from "./columns";
 
@@ -34,7 +33,7 @@ export default function BookingsPage() {
   const [paymentFilter, setPaymentFilter] =
     useState<PaymentStatus | "all">("all");
 
-  async function loadBookings() {
+  const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -48,11 +47,11 @@ export default function BookingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadBookings();
-  }, []);
+  }, [loadBookings]);
 
   const filteredBookings = useMemo(() => {
     const keyword = search.toLowerCase().trim();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,9 @@ export default function AaradhanePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  async function loadItems() {
+  const loadItems = useCallback(async () => {
     try {
+      setLoading(true);
       const data = await aaradhaneService.getAaradhanes();
       setItems(data);
     } catch (error) {
@@ -27,11 +28,11 @@ export default function AaradhanePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadItems();
-  }, []);
+  }, [loadItems]);
 
   const filteredItems = items.filter((item) => {
     const keyword = search.toLowerCase();

@@ -1,22 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
-import { shlokas, shlokaCategories, Shloka } from "@/data/shlokas";
+import { shlokas, shlokaCategories } from "@/data/shlokas";
 import { ChevronDown, ChevronUp, BookOpen, Moon } from "lucide-react";
 
 export default function ShlokasPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [expandedShloka, setExpandedShloka] = useState<string | null>(null);
-  const [isAvailable, setIsAvailable] = useState(true);
-
-  useEffect(() => {
-    // Check if current time is before 11 PM (23:00)
+  const [isAvailable] = useState(() => {
     const hour = new Date().getHours();
-    setIsAvailable(hour < 23);
-  }, []);
+    return hour < 23;
+  });
 
   const filteredShlokas = selectedCategory === "All"
     ? shlokas

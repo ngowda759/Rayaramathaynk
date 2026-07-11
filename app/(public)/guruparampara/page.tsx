@@ -1,6 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import SectionHeading from "@/components/common/SectionHeading";
 import { BookOpen, Sparkles } from "lucide-react";
 
 const guruParampara = [
@@ -222,7 +221,7 @@ export default function GuruparamparaPage() {
                       {/* Kannada Sloka */}
                       <div className="mt-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 p-6">
                         <p className="text-lg leading-relaxed text-stone-700 font-serif italic">
-                          "{guru.kannada}"
+                          &ldquo;{guru.kannada}&rdquo;
                         </p>
                       </div>
 
@@ -247,7 +246,7 @@ export default function GuruparamparaPage() {
             <div className="rounded-3xl bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 p-12 text-white">
               <h2 className="text-3xl font-bold">|| Gururājō Vijayatē ||</h2>
               <p className="mt-4 text-lg text-amber-100">
-                May the Guru's glory always prevail. Through this sacred
+                May the Guru&apos;s glory always prevail. Through this sacred
                 lineage, the divine teachings continue to guide and illuminate
                 the path of devotion for all seekers.
               </p>

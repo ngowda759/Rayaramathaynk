@@ -36,7 +36,7 @@ export default function EkadashiAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ekadashi: updatedList, samvatsara }),
       });
-    } catch (error) {
+    } catch {
       console.error("API not available, updating local state only");
     }
 
@@ -64,7 +64,7 @@ export default function EkadashiAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ekadashi: updatedList, samvatsara }),
       });
-    } catch (error) {
+    } catch {
       console.error("API not available, updating local state only");
     }
 
@@ -82,7 +82,7 @@ export default function EkadashiAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ekadashi: updatedList, samvatsara }),
       });
-    } catch (error) {
+    } catch {
       console.error("API not available, updating local state only");
     }
 

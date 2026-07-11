@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, Clock, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Calendar, Sparkles } from "lucide-react";
 
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -85,11 +86,13 @@ export default function AaradhanePage() {
                 className="flex flex-col md:flex-row gap-4 md:gap-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 md:p-6 shadow-md"
               >
                 {aaradhane.imageUrl && (
-                  <div className="w-full md:w-1/2 rounded-2xl bg-amber-100">
-                    <img
+                  <div className="w-full md:w-1/2 rounded-2xl bg-amber-100 overflow-hidden">
+                    <Image
                       src={`/images/aaradhane/${aaradhane.imageUrl}`}
                       alt={aaradhane.title}
-                      className="h-auto w-full rounded-2xl"
+                      width={600}
+                      height={400}
+                      className="h-auto w-full rounded-2xl object-cover"
                     />
                   </div>
                 )}

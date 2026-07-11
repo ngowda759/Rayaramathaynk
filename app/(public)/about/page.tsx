@@ -1,6 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import SectionHeading from "@/components/common/SectionHeading";
 import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
 import Link from "next/link";
 

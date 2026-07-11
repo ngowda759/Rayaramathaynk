@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { 
   Bell, HeartHandshake, Image, Plus, CalendarDays, 
   BookOpen, Clock, Users, HandCoins
 } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 interface DashboardStats {
   totalUsers: number;
@@ -17,7 +19,7 @@ interface DashboardStats {
   totalSevaBookings: number;
 }
 
-function StatCard({ title, value, icon: Icon }: { title: string; value: number; icon: any }) {
+function StatCard({ title, value, icon: Icon }: { title: string; value: number; icon: LucideIcon }) {
   return (
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <div className="flex items-center gap-3 mb-3">
@@ -42,9 +44,9 @@ export default function DashboardPage() {
         const { dashboardService } = await import("@/services/dashboard.service.client");
         const data = await dashboardService.getStats();
         setStats(data);
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to fetch stats:", err);
-        setError(err.message || "Failed to load statistics");
+        setError(err instanceof Error ? err.message : "Failed to load statistics");
       } finally {
         setLoading(false);
       }
@@ -119,10 +121,10 @@ export default function DashboardPage() {
             <Bell className="h-5 w-5 text-amber-600" />
             <span>Announcements</span>
           </a>
-          <a href="/admin/donations" className="flex items-center gap-3 rounded-xl border p-4 hover:bg-muted transition-colors">
+          <Link href="/admin/donations" className="flex items-center gap-3 rounded-xl border p-4 hover:bg-muted transition-colors">
             <HeartHandshake className="h-5 w-5 text-amber-600" />
             <span>Donations</span>
-          </a>
+          </Link>
         </div>
       </div>
     </div>

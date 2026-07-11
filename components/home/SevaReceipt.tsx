@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Printer } from "lucide-react";
 import Button from "@/components/ui/button";
 
@@ -28,6 +28,13 @@ export default function SevaReceipt({
   onClose,
 }: SevaReceiptProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [receiptId, setReceiptId] = useState<string>('');
+
+  useEffect(() => {
+    if (receiptRef.current) {
+      setReceiptId(receiptRef.current.id);
+    }
+  }, []);
 
   const amountInWords = numberToWords(sevaAmount);
 
@@ -165,12 +172,10 @@ export default function SevaReceipt({
           body * {
             visibility: hidden;
           }
-          ${receiptRef.current ? `#${receiptRef.current.id}` : '.receipt-content'}, ${
-            receiptRef.current ? `#${receiptRef.current.id} *` : '.receipt-content *'
-          } {
+          ${receiptId ? `#${receiptId}, #${receiptId} *` : '.receipt-content, .receipt-content *'} {
             visibility: visible;
           }
-          ${receiptRef.current ? `#${receiptRef.current.id}` : '.receipt-content'} {
+          ${receiptId ? `#${receiptId}` : '.receipt-content'} {
             position: absolute;
             left: 0;
             top: 0;

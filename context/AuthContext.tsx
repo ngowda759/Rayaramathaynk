@@ -59,7 +59,7 @@ export function AuthProvider({
   const [profile, setProfile] =
     useState<UserProfile | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!auth);
 
   async function loadProfile(uid: string) {
     try {
@@ -82,7 +82,6 @@ export function AuthProvider({
   useEffect(() => {
     // Skip Firebase auth if not properly configured
     if (!auth) {
-      setLoading(false);
       return;
     }
 

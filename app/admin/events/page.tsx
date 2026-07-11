@@ -4,7 +4,7 @@ import {
   getEventStatus,
   sortEventsByDate,
 } from "@/utils/event";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -24,21 +24,23 @@ export default function EventsPage() {
 
   const [search, setSearch] = useState("");
 
-  async function loadEvents() {
+  const loadEvents = useCallback(async () => {
     try {
+      setLoading(true);
       const data = await eventService.getEvents();
       setEvents(data);
+      setError(null);
     } catch (error) {
       console.error("Failed to load events:", error);
       setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadEvents();
-  }, []);
+  }, [loadEvents]);
 
   const sortedEvents = sortEventsByDate(events);
 

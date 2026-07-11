@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -24,7 +24,7 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  async function loadAnnouncements() {
+  const loadAnnouncements = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -44,11 +44,11 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadAnnouncements();
-  }, []);
+  }, [loadAnnouncements]);
 
   const filteredAnnouncements = useMemo(() => {
     const keyword = search.toLowerCase().trim();

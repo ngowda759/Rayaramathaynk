@@ -23,8 +23,8 @@ export default function AuthLayout({
 
           <div className="mt-12 border-l-4 border-orange-300 pl-6">
             <p className="italic text-orange-100">
-              "Sri Raghavendra Gurusarvabhouma,
-              Bless us with wisdom and devotion."
+              &ldquo;Sri Raghavendra Gurusarvabhouma,
+              Bless us with wisdom and devotion.&rdquo;
             </p>
           </div>
         </div>

@@ -5,38 +5,6 @@ import {
   FaYoutube,
   FaWhatsapp,
 } from "react-icons/fa";
-import { ArrowRight } from "lucide-react";
-
-const socialLinks = [
-  {
-    title: "Facebook Page",
-    subtitle: "Sri Raghavendra Rayaru Yelahanka New Town",
-    href: "https://www.facebook.com/srs.mutt.yelahanka.newtown",
-    icon: FaFacebookF,
-    theme: "bg-blue-600 hover:bg-blue-700",
-  },
-  {
-    title: "Instagram Account",
-    subtitle: "srs_mutt_yelahanka_newtown",
-    href: "https://www.instagram.com/srs_mutt_yelahanka_newtown",
-    icon: FaInstagram,
-    theme: "bg-gradient-to-br from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700",
-  },
-  {
-    title: "YouTube Channel",
-    subtitle: "Guru_Raghavendra_Rayaru",
-    href: "https://www.youtube.com/@Guru_Raghavendra_Rayaru",
-    icon: FaYoutube,
-    theme: "bg-red-600 hover:bg-red-700",
-  },
-  {
-    title: "WhatsApp Community",
-    subtitle: "SRS MUTT Yelahanka New Town",
-    href: "#",
-    icon: FaWhatsapp,
-    theme: "bg-green-500 hover:bg-green-600",
-  },
-];
 
 export default function SocialConnect() {
   return (

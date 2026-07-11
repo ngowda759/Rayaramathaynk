@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
@@ -30,7 +30,7 @@ export default function DonationsPage() {
   const [statusFilter, setStatusFilter] =
     useState<DonationStatus | "all">("all");
 
-  async function loadDonations() {
+  const loadDonations = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -47,11 +47,11 @@ export default function DonationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadDonations();
-  }, []);
+  }, [loadDonations]);
 
   const filteredDonations = useMemo(() => {
     const keyword = search

@@ -29,45 +29,37 @@ export default function CreateBillPage() {
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerGstin, setCustomerGstin] = useState("");
   const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0]);
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState(() => {
+    const due = new Date();
+    due.setDate(due.getDate() + 15);
+    return due.toISOString().split("T")[0];
+  });
   const [items, setItems] = useState<Omit<BillItem, "id">[]>([
     { description: "", quantity: 1, rate: 0, amount: 0 },
   ]);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [notes, setNotes] = useState("");
 
-  const loadSettings = async () => {
-    try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSettings({ ...defaultFinanceSettings, ...data } as FinanceSettings);
-        
-        // Set default due date based on settings
-        if (data.billing?.defaultDueDays) {
-          const due = new Date();
-          due.setDate(due.getDate() + data.billing.defaultDueDays);
-          setDueDate(due.toISOString().split("T")[0]);
-        } else {
-          const due = new Date();
-          due.setDate(due.getDate() + 15);
-          setDueDate(due.toISOString().split("T")[0]);
-        }
-      } else {
-        const due = new Date();
-        due.setDate(due.getDate() + 15);
-        setDueDate(due.toISOString().split("T")[0]);
-      }
-    } catch (error) {
-      console.error("Error loading settings:", error);
-      const due = new Date();
-      due.setDate(due.getDate() + 15);
-      setDueDate(due.toISOString().split("T")[0]);
-    }
-  };
-
   useEffect(() => {
+    async function loadSettings() {
+      try {
+        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setSettings({ ...defaultFinanceSettings, ...data } as FinanceSettings);
+          
+          // Set default due date based on settings
+          if (data.billing?.defaultDueDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + data.billing.defaultDueDays);
+            setDueDate(due.toISOString().split("T")[0]);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+      }
+    }
     loadSettings();
   }, []);
 

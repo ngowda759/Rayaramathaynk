@@ -1,6 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import SectionHeading from "@/components/common/SectionHeading";
 import DonationCTA from "@/components/home/DonationCTA";
 import DonationForm from "@/components/home/DonationForm";
 import { Heart } from "lucide-react";

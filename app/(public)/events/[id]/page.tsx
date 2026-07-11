@@ -19,7 +19,7 @@ export default function EventDetailPage() {
         const id = params.id as string;
         const data = await eventService.getEvent(id);
         setEvent(data);
-      } catch (err) {
+      } catch {
         setError("Event not found");
       } finally {
         setLoading(false);
@@ -47,7 +47,7 @@ export default function EventDetailPage() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-stone-900">Event Not Found</h1>
-          <p className="mt-4 text-stone-600">The event you're looking for doesn't exist.</p>
+          <p className="mt-4 text-stone-600">The event you&apos;re looking for doesn&apos;t exist.</p>
           <Link
             href="/events"
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-6 py-3 font-semibold text-white transition hover:bg-amber-700"
@@ -61,7 +61,6 @@ export default function EventDetailPage() {
   }
 
   const startDate = event.startDate.toDate();
-  const endDate = event.endDate.toDate();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fffaf3] to-white">

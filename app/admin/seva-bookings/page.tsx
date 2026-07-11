@@ -11,24 +11,22 @@ export default function AdminSevasPage() {
   const [bookings, setBookings] = useState<SevaBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-
-  async function loadBookings() {
-    try {
-      setLoading(true);
-      const data = await sevaBookingService.getAllBookings();
-      setBookings(data);
-    } catch (error) {
-      console.error("Failed to load seva bookings:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
 
   useEffect(() => {
+    async function loadBookings() {
+      try {
+        setLoading(true);
+        const data = await sevaBookingService.getAllBookings();
+        setBookings(data);
+      } catch (error) {
+        console.error("Failed to load seva bookings:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
     loadBookings();
   }, []);
-
-  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
 
   const filteredBookings = bookings.filter((booking) => {
     const keyword = search.toLowerCase();
@@ -47,7 +45,8 @@ export default function AdminSevasPage() {
     try {
       setUpdatingBookingId(bookingId);
       await sevaBookingService.updateBookingStatus(bookingId, status);
-      await loadBookings();
+      const data = await sevaBookingService.getAllBookings();
+      setBookings(data);
     } catch (error) {
       console.error("Failed to update booking status:", error);
     } finally {

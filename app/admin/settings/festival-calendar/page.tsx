@@ -49,24 +49,23 @@ export default function FestivalCalendarSettingsPage() {
   const [data, setData] = useState<FestivalCalendarData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as FestivalCalendarData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as FestivalCalendarData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -282,7 +281,7 @@ export default function FestivalCalendarSettingsPage() {
 
         {data.entries.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No festivals added yet. Click "Add Festival" to create one.
+            No festivals added yet. Click &ldquo;Add Festival&rdquo; to create one.
           </div>
         )}
       </div>

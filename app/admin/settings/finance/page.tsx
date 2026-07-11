@@ -17,45 +17,44 @@ export default function FinanceSettingsPage() {
   const [showAccountNumber, setShowAccountNumber] = useState(false);
 
   useEffect(() => {
+    async function loadSettings() {
+      try {
+        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          // Ensure billing fields exist even if not in existing data
+          setSettings({
+            ...defaultFinanceSettings,
+            ...data,
+            billing: data.billingEnabled !== undefined || data.billing
+              ? {
+                  invoicePrefix: data.billing?.invoicePrefix || defaultFinanceSettings.billing.invoicePrefix,
+                  invoiceNumber: data.billing?.invoiceNumber || defaultFinanceSettings.billing.invoiceNumber,
+                  defaultDueDays: data.billing?.defaultDueDays || defaultFinanceSettings.billing.defaultDueDays,
+                  taxRate: data.billing?.taxRate ?? defaultFinanceSettings.billing.taxRate,
+                  currency: data.billing?.currency || defaultFinanceSettings.billing.currency,
+                  companyName: data.billing?.companyName || defaultFinanceSettings.billing.companyName,
+                  companyAddress: data.billing?.companyAddress || defaultFinanceSettings.billing.companyAddress,
+                  companyPhone: data.billing?.companyPhone || defaultFinanceSettings.billing.companyPhone,
+                  companyEmail: data.billing?.companyEmail || defaultFinanceSettings.billing.companyEmail,
+                  companyGstin: data.billing?.companyGstin || defaultFinanceSettings.billing.companyGstin,
+                  notes: data.billing?.notes || defaultFinanceSettings.billing.notes,
+                }
+              : defaultFinanceSettings.billing,
+            billingEnabled: data.billingEnabled ?? false,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadSettings();
   }, []);
-
-  async function loadSettings() {
-    try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        // Ensure billing fields exist even if not in existing data
-        setSettings({
-          ...defaultFinanceSettings,
-          ...data,
-          billing: data.billingEnabled !== undefined || data.billing
-            ? {
-                invoicePrefix: data.billing?.invoicePrefix || defaultFinanceSettings.billing.invoicePrefix,
-                invoiceNumber: data.billing?.invoiceNumber || defaultFinanceSettings.billing.invoiceNumber,
-                defaultDueDays: data.billing?.defaultDueDays || defaultFinanceSettings.billing.defaultDueDays,
-                taxRate: data.billing?.taxRate ?? defaultFinanceSettings.billing.taxRate,
-                currency: data.billing?.currency || defaultFinanceSettings.billing.currency,
-                companyName: data.billing?.companyName || defaultFinanceSettings.billing.companyName,
-                companyAddress: data.billing?.companyAddress || defaultFinanceSettings.billing.companyAddress,
-                companyPhone: data.billing?.companyPhone || defaultFinanceSettings.billing.companyPhone,
-                companyEmail: data.billing?.companyEmail || defaultFinanceSettings.billing.companyEmail,
-                companyGstin: data.billing?.companyGstin || defaultFinanceSettings.billing.companyGstin,
-                notes: data.billing?.notes || defaultFinanceSettings.billing.notes,
-              }
-            : defaultFinanceSettings.billing,
-          billingEnabled: data.billingEnabled ?? false,
-        });
-      }
-    } catch (error) {
-      console.error("Error loading settings:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveSettings() {
     setSaving(true);

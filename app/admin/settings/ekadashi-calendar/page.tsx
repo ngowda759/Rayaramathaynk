@@ -56,24 +56,23 @@ export default function EkadashiCalendarSettingsPage() {
   const [data, setData] = useState<EkadashiCalendarData>(defaultData);
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        const docRef = doc(db, COLLECTION, DOCUMENT);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as EkadashiCalendarData);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    }
     loadData();
   }, []);
-
-  async function loadData() {
-    try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setData({ ...defaultData, ...docSnap.data() } as EkadashiCalendarData);
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function saveData() {
     setSaving(true);
@@ -278,7 +277,7 @@ export default function EkadashiCalendarSettingsPage() {
 
         {data.entries.length === 0 && (
           <div className="text-center py-8 text-stone-500">
-            No entries added yet. Click "Add Entry" to create one.
+            No entries added yet. Click &ldquo;Add Entry&rdquo; to create one.
           </div>
         )}
       </div>
