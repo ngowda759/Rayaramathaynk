@@ -12,27 +12,27 @@ import SearchBox from "@/components/admin/common/SearchBox";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { TempleEvent } from "@/types/event";
 import { eventService } from "@/services/event.service";
+import { isFirebaseConfigured } from "@/lib/firebase";
 export default function EventsPage() {
   const [events, setEvents] = useState<TempleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
   const [search, setSearch] = useState("");
   const loadEvents = useCallback(async () => {
-    console.log("[Events] Starting to load events...");
     try {
       setLoading(true);
-      console.log("[Events] Calling eventService.getEvents()...");
+      const firebaseReady = isFirebaseConfigured();
+      setDbStatus(firebaseReady ? "connected" : "disconnected");
       const data = await eventService.getEvents();
-      console.log("[Events] Received data:", data);
       setEvents(data);
       setError(null);
-      console.log("[Events] Events state updated");
     } catch (error) {
-      console.error("[Events] Failed to load events:", error);
+      console.error("Failed to load events:", error);
       setError(error instanceof Error ? error.message : String(error));
+      setDbStatus("disconnected");
     } finally {
       setLoading(false);
-      console.log("[Events] Loading complete");
     }
   }, []);
 
@@ -68,6 +68,14 @@ const filteredEvents = sortedEvents.filter((event) => {
   });
   return (
     <div className="space-y-8">
+      {/* Debug Info */}
+      <div className="rounded-lg border bg-muted p-4 text-sm">
+        <p><strong>Firebase Status:</strong> {dbStatus === "checking" ? "⏳ Checking..." : dbStatus === "connected" ? "✅ Connected" : "❌ Disconnected"}</p>
+        <p><strong>Events Loaded:</strong> {events.length}</p>
+        {dbStatus === "disconnected" && (
+          <p className="text-destructive mt-2">⚠️ Firebase is not configured. Please check your Vercel environment variables.</p>
+        )}
+      </div>
       {/* Header */}
       <AdminPageHeader
         title="Temple Events"
