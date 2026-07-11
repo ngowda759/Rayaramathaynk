@@ -233,7 +233,7 @@ export default function PoojaTable({ poojas, onRefresh }: PoojaTableProps) {
       </div>
 
       {deleteId && (
-        <Dialog open onOpenChange={() => setDeleteId(null)}>
+        <Dialog open={true} onOpenChange={() => setDeleteId(null)}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Delete Pooja</DialogTitle>
