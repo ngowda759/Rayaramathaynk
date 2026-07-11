@@ -1,22 +1,10 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  serverTimestamp,
-} from "firebase/firestore";
+import { collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Member, MemberRequest, Volunteer, VolunteerRequest } from "@/types/volunteer";
 
 const MEMBERS_COLLECTION = "members";
 const VOLUNTEERS_COLLECTION = "volunteers";
 
-// Member helpers
 function docToMember(docSnap: any): Member {
   const data = docSnap.data();
   return {
@@ -27,16 +15,11 @@ function docToMember(docSnap: any): Member {
     sex: data.sex || "Male",
     active: data.active ?? true,
     address: data.address || "",
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt?.toDate
-      ? data.updatedAt.toDate().toISOString()
-      : data.updatedAt || new Date().toISOString(),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt || new Date().toISOString(),
   };
 }
 
-// Volunteer helpers
 function docToVolunteer(docSnap: any): Volunteer {
   const data = docSnap.data();
   return {
@@ -47,12 +30,8 @@ function docToVolunteer(docSnap: any): Volunteer {
     sex: data.sex || "Male",
     active: data.active ?? true,
     address: data.address || "",
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt?.toDate
-      ? data.updatedAt.toDate().toISOString()
-      : data.updatedAt || new Date().toISOString(),
+    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt || new Date().toISOString(),
   };
 }
 
@@ -74,21 +53,14 @@ export const memberService = {
 
   async createMember(data: MemberRequest): Promise<string> {
     if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, MEMBERS_COLLECTION), {
-      ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    const docRef = await addDoc(collection(db, MEMBERS_COLLECTION), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     return docRef.id;
   },
 
   async updateMember(id: string, data: Partial<MemberRequest>): Promise<void> {
     if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, MEMBERS_COLLECTION, id);
-    await updateDoc(docRef, {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
+    await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
   },
 
   async deleteMember(id: string): Promise<void> {
@@ -116,21 +88,14 @@ export const volunteerService = {
 
   async createVolunteer(data: VolunteerRequest): Promise<string> {
     if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, VOLUNTEERS_COLLECTION), {
-      ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    const docRef = await addDoc(collection(db, VOLUNTEERS_COLLECTION), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     return docRef.id;
   },
 
   async updateVolunteer(id: string, data: Partial<VolunteerRequest>): Promise<void> {
     if (!db) throw new Error("Firebase not configured");
     const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
-    await updateDoc(docRef, {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
+    await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
   },
 
   async deleteVolunteer(id: string): Promise<void> {

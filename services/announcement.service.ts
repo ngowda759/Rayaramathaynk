@@ -13,17 +13,12 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
-
-import {
-  Announcement,
-  AnnouncementRequest,
-} from "@/types/announcement";
+import { Announcement, AnnouncementRequest } from "@/types/announcement";
 
 const COLLECTION = "announcements";
 
 function docToAnnouncement(docSnap: any): Announcement {
   const data = docSnap.data();
-
   return {
     id: docSnap.id,
     title: data.title || "",
@@ -38,41 +33,24 @@ function docToAnnouncement(docSnap: any): Announcement {
 class AnnouncementService {
   async getAnnouncements(): Promise<Announcement[]> {
     if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDocs(
-      query(collection(db, COLLECTION), orderBy("createdAt", "desc"))
-    );
-
+    const snapshot = await getDocs(query(collection(db, COLLECTION), orderBy("createdAt", "desc")));
     return snapshot.docs.map(docToAnnouncement);
   }
   
   async getActiveAnnouncements(): Promise<Announcement[]> {
     if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDocs(
-      query(
-        collection(db, COLLECTION),
-        where("isActive", "==", true),
-        orderBy("createdAt", "desc")
-      )
-    );
-
+    const snapshot = await getDocs(query(collection(db, COLLECTION), where("isActive", "==", true), orderBy("createdAt", "desc")));
     return snapshot.docs.map(docToAnnouncement);
   }
 
   async addAnnouncement(announcement: AnnouncementRequest) {
     if (!db) throw new Error("Firebase not configured");
-    return addDoc(collection(db, COLLECTION), {
-      ...announcement,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    return addDoc(collection(db, COLLECTION), { ...announcement, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }
 
   async updateAnnouncement(id: string, announcement: Partial<AnnouncementRequest>) {
     if (!db) throw new Error("Firebase not configured");
-    return updateDoc(doc(db, COLLECTION, id), {
-      ...announcement,
-      updatedAt: serverTimestamp(),
-    });
+    return updateDoc(doc(db, COLLECTION, id), { ...announcement, updatedAt: serverTimestamp() });
   }
 
   async deleteAnnouncement(id: string) {
@@ -83,9 +61,7 @@ class AnnouncementService {
   async getAnnouncement(id: string) {
     if (!db) throw new Error("Firebase not configured");
     const snap = await getDoc(doc(db, COLLECTION, id));
-
     if (!snap.exists()) return null;
-
     return docToAnnouncement(snap);
   }
 }

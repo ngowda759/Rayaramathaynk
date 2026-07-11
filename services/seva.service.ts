@@ -1,14 +1,4 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Seva, SevaRequest } from "@/types/seva";
 
@@ -18,45 +8,24 @@ class SevaService {
   async getAllSevas(): Promise<Seva[]> {
     if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDocs(collection(db, COLLECTION));
-
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Seva[];
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Seva[];
   }
 
   async getSevaById(id: string): Promise<Seva | null> {
     if (!db) throw new Error("Firebase not configured");
     const snapshot = await getDoc(doc(db, COLLECTION, id));
-
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return {
-      id: snapshot.id,
-      ...snapshot.data(),
-    } as Seva;
+    if (!snapshot.exists()) return null;
+    return { id: snapshot.id, ...snapshot.data() } as Seva;
   }
 
   async createSeva(data: SevaRequest) {
     if (!db) throw new Error("Firebase not configured");
-    return addDoc(collection(db, COLLECTION), {
-      ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    return addDoc(collection(db, COLLECTION), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }
 
-  async updateSeva(
-    id: string,
-    data: Partial<SevaRequest>
-  ) {
+  async updateSeva(id: string, data: Partial<SevaRequest>) {
     if (!db) throw new Error("Firebase not configured");
-    return updateDoc(doc(db, COLLECTION, id), {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
+    return updateDoc(doc(db, COLLECTION, id), { ...data, updatedAt: serverTimestamp() });
   }
 
   async deleteSeva(id: string) {
