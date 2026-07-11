@@ -484,6 +484,18 @@ This comprehensive test execution report covers {results['total']} test cases ac
     else:
         report += "\n✅ No critical bugs identified during testing.\n"
     
+    def fmt_val(v, unit=''):
+        if isinstance(v, (int, float)):
+            return f"{v:.2f}{unit}"
+        return str(v)
+    
+    def check(v, thresh):
+        try:
+            return "✅" if isinstance(v, (int, float)) and v < thresh else "❌"
+        except:
+            return "❌"
+    
+    pm = results.get('performance_metrics', {})
     report += f"""
 
 ---
@@ -492,11 +504,11 @@ This comprehensive test execution report covers {results['total']} test cases ac
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Homepage Load Time | 12.96s | < 5s | ❌ |
-| Admin Load Time | 0.07s | < 5s | ✅ |
-| API Response Time | 0.01s | < 2s | ✅ |
-| Page Size | 1.10KB | < 500KB | ❌ |
-| First Byte Time | 7.47s | < 1s | ❌ |
+| Homepage Load Time | {fmt_val(pm.get('homepage_load_time'), 's')} | < 5s | {check(pm.get('homepage_load_time'), 5)} |
+| Admin Load Time | {fmt_val(pm.get('admin_load_time'), 's')} | < 5s | {check(pm.get('admin_load_time'), 5)} |
+| API Response Time | {fmt_val(pm.get('api_response_time'), 's')} | < 2s | {check(pm.get('api_response_time'), 2)} |
+| Page Size | {fmt_val(pm.get('homepage_size_kb'), 'KB')} | < 500KB | {check(pm.get('homepage_size_kb'), 500)} |
+| First Byte Time | {fmt_val(pm.get('first_byte_time'), 's')} | < 1s | {check(pm.get('first_byte_time'), 1)} |
 
 ---
 

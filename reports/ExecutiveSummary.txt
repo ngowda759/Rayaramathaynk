@@ -3,7 +3,7 @@
            AARADHANE TEMPLE MANAGEMENT SYSTEM - EXECUTIVE SUMMARY
 ================================================================================
 
-Generated: 2026-07-11 09:46:25
+Generated: 2026-07-11 09:44:29
 Project: Aaradhane Temple Management System
 Version: 1.0.0
 Environment: Development/Testing
@@ -77,11 +77,11 @@ UI ISSUES:                     0
                         PERFORMANCE METRICS
 ================================================================================
 
-Homepage Load Time:            12.96
-Admin Dashboard Load:          0.07
-API Response Time:             0.01
+Homepage Load Time:            12.955273151397705
+Admin Dashboard Load:          0.06878471374511719
+API Response Time:             0.009896039962768555
 Page Size:                     N/A
-First Byte Time:               7.47
+First Byte Time:               7.467733383178711
 
 ================================================================================
                           CRITICAL OBSERVATIONS

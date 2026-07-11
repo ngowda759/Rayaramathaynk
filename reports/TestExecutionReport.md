@@ -1,6 +1,6 @@
 # Aaradhane Temple Management System - Test Execution Report
 
-**Generated:** 2026-07-11 09:46:25  
+**Generated:** 2026-07-11 09:44:29  
 **Project:** Aaradhane Temple Management System  
 **Environment:** Development  
 
@@ -131,7 +131,7 @@ This comprehensive test execution report covers 178 test cases across 18 modules
 | Homepage Load Time | 12.96s | < 5s | ❌ |
 | Admin Load Time | 0.07s | < 5s | ✅ |
 | API Response Time | 0.01s | < 2s | ✅ |
-| Page Size | 1.10KB | < 500KB | ❌ |
+| Page Size | None | < 500KB | ❌ |
 | First Byte Time | 7.47s | < 1s | ❌ |
 
 ---
