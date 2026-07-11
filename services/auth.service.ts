@@ -15,7 +15,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { auth, db } from "@/lib/firebase";
+import { auth, db, getFirebaseConfigStatus } from "@/lib/firebase";
 
 export interface RegisterData {
   name: string;
@@ -25,13 +25,22 @@ export interface RegisterData {
 }
 
 class AuthService {
+  private getFirebaseError(): Error {
+    const status = getFirebaseConfigStatus();
+    if (!status.isValid) {
+      const missing = status.missingFields.join(", ");
+      return new Error(`Firebase not configured. Missing: ${missing}`);
+    }
+    return new Error("Firebase not configured");
+  }
+
   async register({
     name,
     email,
     phone,
     password,
   }: RegisterData): Promise<UserCredential> {
-    if (!auth || !db) throw new Error("Firebase not configured");
+    if (!auth || !db) throw this.getFirebaseError();
     
     const credential = await createUserWithEmailAndPassword(
       auth,
@@ -68,7 +77,7 @@ class AuthService {
     email: string,
     password: string
   ): Promise<UserCredential> {
-    if (!auth || !db) throw new Error("Firebase not configured");
+    if (!auth || !db) throw this.getFirebaseError();
     
     const credential = await signInWithEmailAndPassword(
       auth,
@@ -115,12 +124,12 @@ class AuthService {
   }
 
   async forgotPassword(email: string): Promise<void> {
-    if (!auth) throw new Error("Firebase not configured");
+    if (!auth) throw this.getFirebaseError();
     await sendPasswordResetEmail(auth, email);
   }
 
   async getUserProfile(uid: string) {
-    if (!db) throw new Error("Firebase not configured");
+    if (!db) throw this.getFirebaseError();
     const snapshot = await getDoc(doc(db, "users", uid));
 
     if (!snapshot.exists()) {
