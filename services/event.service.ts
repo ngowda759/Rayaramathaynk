@@ -22,6 +22,8 @@ class EventService {
     }
     try {
       const snapshot = await getDocs(collection(db, COLLECTION));
+      console.log("[EventService] Raw Firestore data:", JSON.stringify(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), null, 2));
+      console.log("[EventService] Number of docs:", snapshot.docs.length);
       return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as TempleEvent[];
     } catch (error) {
       console.error("[EventService] Error fetching events:", error);

@@ -18,6 +18,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
+  const [rawData, setRawData] = useState<string>("");
   const [search, setSearch] = useState("");
   const loadEvents = useCallback(async () => {
     try {
@@ -26,6 +27,7 @@ export default function EventsPage() {
       setDbStatus(firebaseReady ? "connected" : "disconnected");
       const data = await eventService.getEvents();
       setEvents(data);
+      setRawData(JSON.stringify(data, null, 2));
       setError(null);
     } catch (error) {
       console.error("Failed to load events:", error);
@@ -72,6 +74,12 @@ const filteredEvents = sortedEvents.filter((event) => {
       <div className="rounded-lg border bg-muted p-4 text-sm">
         <p><strong>Firebase Status:</strong> {dbStatus === "checking" ? "⏳ Checking..." : dbStatus === "connected" ? "✅ Connected" : "❌ Disconnected"}</p>
         <p><strong>Events Loaded:</strong> {events.length}</p>
+        {rawData && (
+          <details className="mt-2">
+            <summary className="cursor-pointer font-semibold">Raw Firestore Data (click to expand)</summary>
+            <pre className="mt-2 max-h-96 overflow-auto rounded bg-background p-2 text-xs">{rawData}</pre>
+          </details>
+        )}
         {dbStatus === "disconnected" && (
           <p className="text-destructive mt-2">⚠️ Firebase is not configured. Please check your Vercel environment variables.</p>
         )}
