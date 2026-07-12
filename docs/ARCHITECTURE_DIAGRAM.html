@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rayara Math Temple Portal - Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --accent-amber: #f59e0b;
+            --accent-gold: #d4a853;
+            --accent-warm: #ea580c;
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --border: #27272a;
+            --glow-amber: rgba(245, 158, 11, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .background-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(245, 158, 11, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(245, 158, 11, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 4rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 0.5rem 1.25rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--accent-amber);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .logo-badge svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-gold) 50%, var(--accent-amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-top: 2rem;
+        }
+
+        .tech-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .tech-badge:hover {
+            border-color: var(--accent-amber);
+            color: var(--accent-amber);
+            transform: translateY(-2px);
+        }
+
+        .tech-badge svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .diagram-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2.5rem;
+            margin-bottom: 3rem;
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 1s ease-out 0.3s both;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .diagram-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-amber), transparent);
+        }
+
+        .diagram-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .diagram-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .diagram-title svg {
+            width: 20px;
+            height: 20px;
+            color: var(--accent-amber);
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            background: transparent;
+        }
+
+        .mermaid text {
+            font-family: 'Inter', sans-serif !important;
+            fill: var(--text-secondary) !important;
+        }
+
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .legend-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            animation: fadeIn 1s ease-out both;
+        }
+
+        .legend-card:nth-child(1) { animation-delay: 0.5s; }
+        .legend-card:nth-child(2) { animation-delay: 0.6s; }
+        .legend-card:nth-child(3) { animation-delay: 0.7s; }
+        .legend-card:nth-child(4) { animation-delay: 0.8s; }
+
+        .legend-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .legend-card h3 svg {
+            width: 18px;
+            height: 18px;
+            color: var(--accent-amber);
+        }
+
+        .legend-card ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .legend-card li {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            padding-left: 1.25rem;
+            position: relative;
+        }
+
+        .legend-card li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent-amber);
+            opacity: 0.6;
+        }
+
+        .data-flow {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 2rem;
+            animation: fadeIn 1s ease-out 0.9s both;
+        }
+
+        .data-flow h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .data-flow h3 svg {
+            width: 20px;
+            height: 20px;
+            color: var(--accent-amber);
+        }
+
+        .flow-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .flow-step {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .flow-step svg {
+            width: 16px;
+            height: 16px;
+            color: var(--accent-amber);
+        }
+
+        .flow-arrow {
+            color: var(--accent-amber);
+            font-size: 1.2rem;
+            opacity: 0.6;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+            
+            .container {
+                padding: 2rem 1rem;
+            }
+            
+            .diagram-container {
+                padding: 1.5rem;
+                border-radius: 12px;
+            }
+            
+            .flow-steps {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-grid"></div>
+    
+    <div class="container">
+        <header>
+            <div class="logo-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                Sri Raghavendra Swamy Temple
+            </div>
+            <h1>System Architecture</h1>
+            <p class="subtitle">High-level architecture of the Rayara Math Temple Portal - a modern temple management system</p>
+            <div class="tech-stack">
+                <span class="tech-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2zm0 4l6.5 11h-13L12 6z"/></svg>
+                    Next.js 16
+                </span>
+                <span class="tech-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v18H3V3zm16.5 16.5v-9l-7.5 9-7.5-9v9"/></svg>
+                    TypeScript
+                </span>
+                <span class="tech-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 6V4l-4 4h4l-4 4h4v4l4-4h-4l4-4h-4V6l4 4V6l-4 4"/></svg>
+                    Firebase
+                </span>
+                <span class="tech-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    Tailwind CSS
+                </span>
+                <span class="tech-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Vercel
+                </span>
+            </div>
+        </header>
+
+        <div class="diagram-container">
+            <div class="diagram-header">
+                <div class="diagram-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                    High-Level Architecture Diagram
+                </div>
+            </div>
+            
+            <div class="mermaid">
+flowchart TB
+    subgraph CLIENT["👤 CLIENT LAYER"]
+        Browser["🌐 Browser<br/>(React 19)"]
+        Mobile["📱 Mobile PWA"]
+    end
+
+    subgraph FRONTEND["⚛️ FRONTEND - Next.js 16 App Router"]
+        direction TB
+        
+        subgraph PAGES["📄 Pages"]
+            Public["(public)/<br/>Home, About, Events,<br/>Gallery, Sevas, Donations"]
+            Admin["admin/<br/>Dashboard, Bookings,<br/>Reports, Settings"]
+            Auth["(auth)/<br/>Login, Register,<br/>Forgot Password"]
+            Calendar["calendar/<br/>Ekadashi, Festivals"]
+        end
+
+        subgraph COMPONENTS["🧩 Components"]
+            Home["home/"]
+            AdminC["admin/"]
+            CalendarC["calendar/"]
+            EventsC["events/"]
+            Chat["chat/"]
+            UI["ui/ (shadcn)"]
+        end
+
+        subgraph STATE["🔄 State Management"]
+            AuthContext["AuthContext"]
+            Hooks["Custom Hooks<br/>useAuth, useCrudTable,<br/>useGallery, useHomepage"]
+        end
+    end
+
+    subgraph API["🔌 API LAYER"]
+        APIRoutes["Next.js API Routes<br/>/api/admin/users<br/>/api/gallery"]
+        Middleware["Middleware<br/>Auth Guards,<br/>Rate Limiting"]
+    end
+
+    subgraph BACKEND["🔥 BACKEND - Firebase"]
+        direction TB
+        
+        subgraph AUTH["🔐 Firebase Auth"]
+            AuthService["auth.service.ts"]
+            UserService["user.service.ts"]
+        end
+
+        subgraph DATABASE["💾 Firestore Database"]
+            Collections["Collections:<br/>• users<br/>• sevas<br/>• bookings<br/>• donations<br/>• events<br/>• gallery<br/>• announcements<br/>• settings"]
+        end
+
+        subgraph STORAGE["📦 Firebase Storage"]
+            StorageService["storage.service.ts<br/>Images, Documents"]
+        end
+    end
+
+    subgraph SERVICES["📋 SERVICE LAYER"]
+        SevaBooking["sevaBooking.service.ts"]
+        Donation["donation.service.ts"]
+        Event["event.service.ts"]
+        Gallery["gallery.service.ts"]
+        Dashboard["dashboard.service.ts"]
+        Report["report.service.ts"]
+        Settings["settings.service.ts"]
+        Timing["timing.service.ts"]
+    end
+
+    subgraph DATA["📊 DATA LAYER"]
+        Types["types/"]
+        DataFiles["data/"]
+        Panchanga["panchanga/"]
+    end
+
+    subgraph EXTERNAL["🌐 EXTERNAL SERVICES"]
+        Vercel["▲ Vercel Hosting"]
+        Analytics["📊 Vercel Analytics"]
+    end
+
+    subgraph AUTOMATION["⚙️ AUTOMATION"]
+        GHActions["GitHub Actions<br/>Daily Panchanga<br/>Updates"]
+        Scripts["scripts/<br/>Seed Data,<br/>Admin Setup"]
+    end
+
+    CLIENT --> FRONTEND
+    FRONTEND --> API
+    API --> BACKEND
+    FRONTEND --> SERVICES
+    SERVICES --> BACKEND
+    FRONTEND --> DATA
+    FRONTEND --> EXTERNAL
+    FRONTEND --> AUTOMATION
+    PAGES --> COMPONENTS
+    COMPONENTS --> STATE
+    PAGES --> Middleware
+    APIRoutes --> Middleware
+
+    style CLIENT fill:#1a1a24,stroke:#f59e0b,stroke-width:2px,color:#f4f4f5
+    style FRONTEND fill:#1a1a24,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5
+    style BACKEND fill:#1a1a24,stroke:#10b981,stroke-width:2px,color:#f4f4f5
+    style API fill:#1a1a24,stroke:#8b5cf6,stroke-width:2px,color:#f4f4f5
+    style SERVICES fill:#1a1a24,stroke:#f97316,stroke-width:2px,color:#f4f4f5
+    style DATA fill:#1a1a24,stroke:#ec4899,stroke-width:2px,color:#f4f4f5
+    style EXTERNAL fill:#1a1a24,stroke:#06b6d4,stroke-width:2px,color:#f4f4f5
+    style AUTOMATION fill:#1a1a24,stroke:#eab308,stroke-width:2px,color:#f4f4f5
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-card">
+                <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    Frontend Stack
+                </h3>
+                <ul>
+                    <li>Next.js 16 with App Router</li>
+                    <li>React 19 with Server Components</li>
+                    <li>TypeScript for type safety</li>
+                    <li>Tailwind CSS for styling</li>
+                    <li>Framer Motion for animations</li>
+                    <li>shadcn/ui component library</li>
+                </ul>
+            </div>
+
+            <div class="legend-card">
+                <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    Backend Services
+                </h3>
+                <ul>
+                    <li>Firebase Authentication</li>
+                    <li>Firestore NoSQL Database</li>
+                    <li>Firebase Cloud Storage</li>
+                    <li>Admin SDK for server-side ops</li>
+                    <li>Security rules & permissions</li>
+                </ul>
+            </div>
+
+            <div class="legend-card">
+                <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    </svg>
+                    Core Modules
+                </h3>
+                <ul>
+                    <li>Seva Booking System</li>
+                    <li>Donation Management</li>
+                    <li>Event Calendar</li>
+                    <li>Gallery Management</li>
+                    <li>Admin Dashboard</li>
+                    <li>Reports & Analytics</li>
+                </ul>
+            </div>
+
+            <div class="legend-card">
+                <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Infrastructure
+                </h3>
+                <ul>
+                    <li>Vercel for hosting</li>
+                    <li>Vercel Analytics</li>
+                    <li>GitHub Actions CI/CD</li>
+                    <li>Python scripts for Panchanga</li>
+                    <li>Automated daily updates</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="data-flow">
+            <h3>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                </svg>
+                Data Flow
+            </h3>
+            <div class="flow-steps">
+                <div class="flow-step">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+                    User Request
+                </div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    Next.js Pages
+                </div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+                    Services Layer
+                </div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    Firebase
+                </div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    Response
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Rayara Math Temple Portal • Built with Next.js, Firebase & ❤️</p>
+        </footer>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                nodeSpacing: 50,
+                rankSpacing: 60,
+                padding: 20
+            },
+            themeVariables: {
+                primaryColor: '#1a1a24',
+                primaryTextColor: '#f4f4f5',
+                primaryBorderColor: '#f59e0b',
+                lineColor: '#52525b',
+                secondaryColor: '#27272a',
+                tertiaryColor: '#18181b',
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '14px'
+            }
+        });
+    </script>
+</body>
+</html>
