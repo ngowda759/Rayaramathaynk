@@ -7,7 +7,9 @@ export default function PublicLayout({
 }) {
   return (
     <>
-      {children}
+      <main id="main-content" tabIndex={-1}>
+        {children}
+      </main>
       <GoUpButton />
     </>
   );
