@@ -4,6 +4,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -139,108 +140,149 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:bg-gradient-to-b lg:from-white lg:to-amber-50 lg:border-r lg:border-amber-200">
+      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-68 bg-gradient-to-b from-white via-amber-50/30 to-orange-50/20 lg:border-r lg:border-amber-200/50 shadow-xl">
+        {/* Decorative top border */}
+        <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
+        
         {/* Logo */}
-        <div className="flex items-center gap-3 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4">
-          <Image
-            src="/images/logos/ynk_matha_logo.png"
-            alt="Sri Raghavendra Swamy Matha"
-            width={36}
-            height={36}
-            className="rounded-full shadow-sm"
-          />
+        <div className="flex items-center gap-3 border-b border-amber-200/50 bg-gradient-to-r from-amber-50/50 to-orange-50/30 px-5 py-5">
+          <div className="relative">
+            <Image
+              src="/images/logos/ynk_matha_logo.png"
+              alt="Sri Raghavendra Swamy Matha"
+              width={40}
+              height={40}
+              className="rounded-full shadow-lg ring-2 ring-amber-200"
+            />
+            <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-green-500 ring-2 ring-white animate-pulse" />
+          </div>
           <div>
-            <h1 className="text-sm font-bold text-stone-800">Temple Admin</h1>
-            <p className="text-xs text-amber-600">Administration</p>
+            <h1 className="text-base font-bold text-stone-800">Temple Admin</h1>
+            <p className="text-xs text-amber-600 font-medium">Administration Panel</p>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin">
           {navigation.map((group) => (
-            <div key={group.title} className="mb-4">
+            <div key={group.title} className="mb-5">
               <button
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900"
+                className="flex w-full items-center justify-between px-3 py-2 text-xs font-bold uppercase tracking-wider text-amber-700 hover:text-amber-900 transition-colors"
               >
-                <span>{group.title}</span>
+                <span className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-amber-500" />
+                  {group.title}
+                </span>
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 transition-transform",
+                    "h-4 w-4 transition-transform duration-200",
                     expandedGroups[group.title] ? "rotate-180" : ""
                   )}
                 />
               </button>
               
-              {expandedGroups[group.title] && (
-                <div className="mt-1 space-y-1">
-                  {group.items.map((item) => {
-                    const Icon = iconMap[item.icon] || LayoutDashboard;
-                    const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
-                    return (
-                      <a
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
-                          isActive
-                            ? "bg-amber-100 text-amber-800 font-semibold border-r-2 border-amber-600"
-                            : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
+              <AnimatePresence>
+                {expandedGroups[group.title] && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-1.5 space-y-0.5">
+                      {group.items.map((item) => {
+                        const Icon = iconMap[item.icon] || LayoutDashboard;
+                        const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+                        return (
+                          <a
+                            key={item.href}
+                            href={item.href}
+                            className={cn(
+                              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
+                              isActive
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
+                                : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
+                            )}
+                          >
+                            {isActive && (
+                              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-white" />
+                            )}
+                            <Icon className={cn(
+                              "h-4 w-4 transition-transform group-hover:scale-110",
+                              isActive ? "" : "text-amber-600"
+                            )} />
+                            <span>{item.title}</span>
+                            {isActive && (
+                              <div className="ml-auto">
+                                <div className="h-1.5 w-1.5 rounded-full bg-white/80" />
+                              </div>
+                            )}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ))}
         </nav>
+        
+        {/* Footer */}
+        <div className="border-t border-amber-200/50 p-4">
+          <p className="text-center text-xs text-stone-400">ॐ Sri Raghavendraya Namaha ॐ</p>
+        </div>
       </aside>
 
       {/* Mobile Backdrop */}
-      <div
-        className={cn(
-          "fixed inset-0 z-[60] bg-black/50 transition-opacity duration-300 lg:hidden",
-          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm lg:hidden"
+            onClick={onClose}
+            aria-hidden="true"
+          />
         )}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      </AnimatePresence>
 
       {/* Mobile Sidebar Drawer */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl transition-transform duration-300 ease-out lg:hidden flex flex-col overflow-hidden",
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        )}
+      <motion.aside
+        initial={{ x: -288 }}
+        animate={{ x: isOpen ? 0 : -288 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed inset-y-0 left-0 z-[70] w-72 bg-white shadow-2xl lg:hidden flex flex-col overflow-hidden"
         style={{ height: "100dvh" }}
       >
+        {/* Decorative top border */}
+        <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
+        
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4 flex-shrink-0">
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="flex items-center gap-3 cursor-pointer"
-          >
-            <Image
-              src="/images/logos/ynk_matha_logo.png"
-              alt="Temple"
-              width={36}
-              height={36}
-              className="rounded-full shadow-sm"
-            />
-            <div className="text-left">
-              <h1 className="text-sm font-bold text-stone-800">Temple Admin</h1>
-              <p className="text-xs text-amber-600">Administration</p>
+        <div className="flex items-center justify-between border-b border-amber-200/50 bg-gradient-to-r from-amber-50/50 to-orange-50/30 px-5 py-5 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Image
+                src="/images/logos/ynk_matha_logo.png"
+                alt="Temple"
+                width={40}
+                height={40}
+                className="rounded-full shadow-lg ring-2 ring-amber-200"
+              />
+              <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-green-500 ring-2 ring-white animate-pulse" />
             </div>
-          </button>
+            <div>
+              <h1 className="text-base font-bold text-stone-800">Temple Admin</h1>
+              <p className="text-xs text-amber-600 font-medium">Administration</p>
+            </div>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 hover:bg-amber-100 cursor-pointer"
+            className="rounded-xl p-2 hover:bg-amber-100 cursor-pointer transition-colors"
             aria-label="Close menu"
           >
             <X className="h-5 w-5 text-stone-600" />
@@ -250,52 +292,70 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {navigation.map((group) => (
-            <div key={group.title} className="mb-2">
+            <div key={group.title} className="mb-3">
               <button
                 type="button"
                 onClick={() => toggleGroup(group.title)}
-                className="flex w-full items-center justify-between px-2 py-2 text-xs font-semibold uppercase tracking-wider text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg cursor-pointer"
+                className="flex w-full items-center justify-between px-3 py-2 text-xs font-bold uppercase tracking-wider text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-xl cursor-pointer transition-colors"
               >
-                <span>{group.title}</span>
+                <span className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-amber-500" />
+                  {group.title}
+                </span>
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 transition-transform",
+                    "h-4 w-4 transition-transform duration-200",
                     expandedGroups[group.title] ? "rotate-180" : ""
                   )}
                 />
               </button>
               
-              {expandedGroups[group.title] && (
-                <div className="mt-1 space-y-0.5">
-                  {group.items.map((item) => {
-                    const Icon = iconMap[item.icon] || LayoutDashboard;
-                    const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
-                    return (
-                      <button
-                        type="button"
-                        key={item.href}
-                        onClick={() => {
-                          onClose();
-                          window.location.href = item.href;
-                        }}
-                        className={cn(
-                          "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
-                          isActive
-                            ? "bg-amber-100 text-amber-800 font-semibold"
-                            : "text-stone-600 hover:bg-amber-50 hover:text-amber-800"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <AnimatePresence>
+                {expandedGroups[group.title] && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-1.5 space-y-0.5">
+                      {group.items.map((item) => {
+                        const Icon = iconMap[item.icon] || LayoutDashboard;
+                        const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+                        return (
+                          <button
+                            type="button"
+                            key={item.href}
+                            onClick={() => {
+                              onClose();
+                              window.location.href = item.href;
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
+                              isActive
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg"
+                                : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ))}
         </nav>
-      </aside>
+        
+        {/* Footer */}
+        <div className="border-t border-amber-200/50 p-4">
+          <p className="text-center text-xs text-stone-400">ॐ Sri Raghavendraya Namaha ॐ</p>
+        </div>
+      </motion.aside>
     </>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Menu, Search, LogOut, Settings, Shield, ChevronDown } from "lucide-react";
 import { useAuthContext } from "@/context/AuthContext";
 import NotificationDropdown from "./NotificationDropdown";
@@ -86,12 +87,12 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 flex-shrink-0 items-center justify-between border-b bg-gradient-to-r from-amber-50 to-orange-50 px-4 lg:px-6 shadow-sm">
+    <header className="sticky top-0 z-50 flex h-16 flex-shrink-0 items-center justify-between border-b border-amber-200/50 bg-white/80 backdrop-blur-xl px-4 lg:px-6 shadow-sm">
       {/* Left */}
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}
-          className="rounded-lg p-2 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400 lg:hidden"
+          className="rounded-xl p-2 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors lg:hidden"
           aria-label="Toggle menu"
         >
           <Menu className="h-5 w-5 text-stone-700" />
@@ -99,7 +100,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
 
         {/* Logo and Title */}
         <div className="flex items-center gap-3">
-          <div className="relative h-10 w-10 overflow-hidden rounded-full bg-white shadow-sm border border-amber-200">
+          <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-white shadow-md border border-amber-200 group-hover:shadow-lg transition-shadow hidden sm:block">
             <Image
               src="/images/logos/ynk_matha_logo.png"
               alt="Temple Logo"
@@ -107,7 +108,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
               className="object-cover"
             />
           </div>
-          <div className="hidden sm:flex flex-col">
+          <div className="flex flex-col">
             <h1 className="text-base font-bold text-stone-800">
               Temple Admin
             </h1>
@@ -121,18 +122,19 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
 
       {/* Center - Search */}
       <div className="hidden lg:block lg:w-full lg:max-w-md xl:max-w-lg">
-        <form onSubmit={handleSearch} className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+        <form onSubmit={handleSearch} className="relative w-full group">
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 opacity-0 group-focus-within:opacity-10 transition-opacity" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 group-focus-within:text-amber-600 transition-colors" />
           <input
             ref={searchRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search... (⌘K)"
-            className="h-9 w-full rounded-lg border border-amber-200 bg-white pl-9 pr-12 text-sm outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+            placeholder="Search pages... (⌘K)"
+            className="relative h-10 w-full rounded-xl border border-amber-200 bg-white pl-11 pr-14 text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 focus:shadow-lg focus:shadow-amber-500/10"
           />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs text-stone-500 xl:inline-block">
-            ⌘K
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-stone-500 xl:inline-flex items-center gap-1">
+            <span className="text-[10px]">⌘</span>K
           </kbd>
         </form>
       </div>
@@ -141,7 +143,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
       <div className="flex items-center gap-1 md:gap-2">
         {/* Mobile Search */}
         <button
-          className="rounded-lg p-2 hover:bg-amber-100 lg:hidden"
+          className="rounded-xl p-2 hover:bg-amber-100 transition-colors lg:hidden"
           aria-label="Search"
         >
           <Search className="h-5 w-5 text-stone-600" />
@@ -152,65 +154,93 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
 
         {/* User Menu */}
         <div className="relative" ref={userMenuRef}>
-          <button
+          <motion.button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors"
             aria-expanded={showUserMenu}
             aria-haspopup="true"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 font-semibold text-white text-sm shadow-sm">
-              {getInitials()}
+            <div className="relative">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 font-bold text-white text-sm shadow-lg shadow-amber-500/25">
+                {getInitials()}
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-white" />
             </div>
             <ChevronDown className="h-4 w-4 text-stone-500 hidden sm:block" />
-          </button>
+          </motion.button>
 
-          {showUserMenu && (
-            <div
-              className="absolute right-0 top-full z-[60] mt-2 w-64 rounded-xl border border-amber-200 bg-white shadow-xl animate-in fade-in slide-in-from-top-2 duration-200"
-              role="menu"
-              aria-orientation="vertical"
-            >
-              {/* User Info */}
-              <div className="border-b border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 font-semibold text-white shadow-sm">
-                    {getInitials()}
+          <AnimatePresence>
+            {showUserMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-full z-[60] mt-2 w-72 overflow-hidden rounded-2xl border border-amber-200/50 bg-white shadow-xl shadow-amber-500/10"
+                role="menu"
+                aria-orientation="vertical"
+              >
+                {/* Decorative top */}
+                <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
+                
+                {/* User Info */}
+                <div className="border-b border-amber-100/50 bg-gradient-to-r from-amber-50/50 to-orange-50/30 p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 font-bold text-white shadow-lg shadow-amber-500/25">
+                        {getInitials()}
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-green-500 ring-2 ring-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-base text-stone-800 truncate">{profile?.name || "Administrator"}</p>
+                      <p className="text-sm text-stone-500 truncate">{user?.email}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm text-stone-800">{profile?.name || "Administrator"}</p>
-                    <p className="text-xs text-stone-500 truncate">{user?.email}</p>
+                  <div className="mt-3">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                      <Shield className="h-3.5 w-3.5" />
+                      {roleLabels[normalizedRole] || "Admin"}
+                    </span>
                   </div>
                 </div>
-                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                  <Shield className="h-3 w-3" />
-                  {roleLabels[normalizedRole] || "Admin"}
-                </span>
-              </div>
 
-              {/* Menu Items */}
-              <div className="p-1.5">
-                {canAccessSettings && (
+                {/* Menu Items */}
+                <div className="p-2">
+                  {canAccessSettings && (
+                    <Link
+                      href="/admin/settings"
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-stone-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 transition-colors"
+                      role="menuitem"
+                    >
+                      <Settings className="h-4 w-4 text-amber-600" />
+                      <span>Settings</span>
+                    </Link>
+                  )}
                   <Link
-                    href="/admin/settings"
+                    href="/"
                     onClick={() => setShowUserMenu(false)}
-                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-700 hover:bg-amber-50"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-stone-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 transition-colors"
                     role="menuitem"
                   >
-                    <Settings className="h-4 w-4 text-amber-600" />
-                    Settings
+                    <span className="flex h-4 w-4 items-center justify-center text-amber-600">🏛️</span>
+                    <span>View Website</span>
                   </Link>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-red-600 hover:bg-red-50"
-                  role="menuitem"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </button>
-              </div>
-            </div>
-          )}
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    role="menuitem"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>
