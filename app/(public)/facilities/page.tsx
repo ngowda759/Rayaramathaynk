@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
@@ -171,16 +172,24 @@ export default function FacilitiesPage() {
 
               <div className="flex items-center justify-center">
                 <div className="relative">
-                  <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 opacity-20 blur-2xl" />
-                  <div className="relative rounded-3xl bg-gradient-to-br from-amber-100 to-orange-100 p-12 text-center">
-                    <div className="text-8xl">🛕</div>
-                    <h3 className="mt-6 text-2xl font-bold text-stone-900">
-                      Welcome to Sri Matha
-                    </h3>
-                    <p className="mt-4 text-stone-600">
-                      Experience the divine ambience and spiritual serenity at
-                      our sacred premises.
-                    </p>
+                  <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-amber-400 to-orange-400 opacity-20 blur-2xl" />
+                  <div className="relative overflow-hidden rounded-3xl">
+                    <Image
+                      src="/images/Hero.jpg"
+                      alt="Temple"
+                      width={400}
+                      height={300}
+                      className="object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-6 text-center">
+                      <h3 className="text-2xl font-bold text-white">
+                        Welcome to Sri Matha
+                      </h3>
+                      <p className="mt-2 text-stone-200">
+                        Experience the divine ambience and spiritual serenity at our sacred premises.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
