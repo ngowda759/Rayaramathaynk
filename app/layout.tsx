@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "react-hot-toast";
-import RayaBot from "@/components/chat/RayaBot";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
+
+const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
+const chatbaseHost = process.env.NEXT_PUBLIC_CHATBASE_HOST || "https://www.chatbase.co";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,8 +32,25 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Clean the chatbase host URL (remove trailing slash)
+  const cleanChatbaseHost = chatbaseHost?.replace(/\/$/, '') || 'https://www.chatbase.co';
+  
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Chatbase configuration - must be before the script */}
+        {chatbotId && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.chatbaseConfig = {
+                  chatbotId: "${chatbotId}",
+                };
+              `,
+            }}
+          />
+        )}
+      </head>
       <body
         className={`${inter.variable} ${playfair.variable} antialiased bg-stone-50 text-stone-900 min-h-screen`}
       >
@@ -74,7 +93,15 @@ export default function RootLayout({
             }}
           />
         </AuthProvider>
-	<RayaBot />
+        
+        {/* Chatbase Widget Script - only if chatbot ID is set */}
+        {chatbotId && (
+          <script
+            src={`${cleanChatbaseHost}/embed.min.js`}
+            data-chatbot-id={chatbotId}
+            strategy="lazyOnload"
+          />
+        )}
       </body>
     </html>
   );
