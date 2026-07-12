@@ -143,14 +143,21 @@ export default function AboutPage() {
         </div>
 
         {/* Sacred Motto */}
-        <div className="bg-stone-900 text-white py-6">
-          <div className="max-w-4xl mx-auto text-center space-y-2">
-            <p className="text-2xl font-serif tracking-wide">|| ಹರಿ ಸರ್ವೋತ್ತಮ ||</p>
-            <p className="text-xl text-amber-300">|| Hari Sarvottama ||</p>
-            <p className="text-lg text-stone-400">|| ವಾಯು ಜೀವೋತ್ತಮ ||</p>
-            <p className="text-amber-400">|| Vāyu Jīvōttama ||</p>
-            <p className="text-lg text-stone-400">|| ಗುರುರಾಜೋ ವಿಜಯತೇ ||</p>
-            <p className="text-xl text-amber-300">|| Gururājō Vijayate ||</p>
+        <div className="bg-stone-900 text-white py-4">
+          <div className="max-w-6xl mx-auto px-4">
+            <p className="text-center text-lg md:text-xl font-serif tracking-wide leading-relaxed">
+              <span className="text-amber-200">|| ಹರಿ ಸರ್ವೋತ್ತಮ ||</span>
+              <span className="text-amber-400 mx-3">•</span>
+              <span className="text-amber-300">|| Hari Sarvottama ||</span>
+              <span className="text-amber-400 mx-3">•</span>
+              <span className="text-stone-400">|| ವಾಯು ಜೀವೋತ್ತಮ ||</span>
+              <span className="text-amber-400 mx-3">•</span>
+              <span className="text-amber-400">|| Vāyu Jīvōttama ||</span>
+              <span className="text-amber-400 mx-3">•</span>
+              <span className="text-stone-400">|| ಗುರುರಾಜೋ ವಿಜಯತೇ ||</span>
+              <span className="text-amber-400 mx-3">•</span>
+              <span className="text-amber-300">|| Gururājō Vijayate ||</span>
+            </p>
           </div>
         </div>
 
