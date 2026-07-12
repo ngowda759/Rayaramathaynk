@@ -11,6 +11,7 @@ import { useHomepageForm } from "./useHomepageForm";
 import HeroSection from "./HeroSection";
 import AnnouncementSection from "./AnnouncementSection";
 import TimingsSection from "./TimingsSection";
+import TestimonialsSection from "./TestimonialsSection";
 
 export default function HomepageForm({
   onSaved,
@@ -71,6 +72,12 @@ export default function HomepageForm({
         />
 
         <TimingsSection
+          formData={formData}
+          errors={errors}
+          updateField={updateField}
+        />
+
+        <TestimonialsSection
           formData={formData}
           errors={errors}
           updateField={updateField}

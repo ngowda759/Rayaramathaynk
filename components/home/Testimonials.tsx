@@ -3,45 +3,48 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Quote } from "lucide-react";
+import { useHomepage } from "@/hooks/useHomepage";
+import { Testimonial } from "@/types/homepage";
 
-const testimonials = [
+const DEFAULT_TESTIMONIALS: Testimonial[] = [
   {
-    id: 1,
+    id: "1",
     name: "Ramesh Rao",
     location: "Bangalore",
     quote: "The peace I feel at this Matha is indescribable. Every visit brings new spiritual strength and clarity.",
-    avatar: "🙏",
     years: "25 years devotee"
   },
   {
-    id: 2,
+    id: "2",
     name: "Lakshmi Devi",
     location: "Mysore",
     quote: "Sri Raghavendra Swamy's blessings have guided my family through the most challenging times. Forever grateful.",
-    avatar: "🙏",
     years: "Family tradition"
   },
   {
-    id: 3,
+    id: "3",
     name: "Venkataramana",
     location: "Chennai",
     quote: "The daily poojas and the serene atmosphere create a divine experience. This is where my soul finds rest.",
-    avatar: "🙏",
     years: "15 years devotee"
   },
   {
-    id: 4,
+    id: "4",
     name: "Shobha Krishnan",
     location: "Hyderabad",
     quote: "Attending the Bramhotsavam was life-changing. The devotion and rituals are performed with such purity and dedication.",
-    avatar: "🙏",
     years: "Regular visitor"
   },
 ];
 
 export default function Testimonials() {
+  const { homepage } = useHomepage();
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
+
+  const testimonials = homepage?.testimonials?.length 
+    ? homepage.testimonials 
+    : DEFAULT_TESTIMONIALS;
 
   const next = () => {
     setDirection(1);
@@ -141,7 +144,7 @@ export default function Testimonials() {
                   {/* Avatar and Info */}
                   <div className="mt-8 flex flex-col items-center">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-200 to-orange-200 text-3xl">
-                      {currentTestimonial.avatar}
+                      🙏
                     </div>
                     
                     <h4 className="mt-4 text-xl font-bold text-stone-900">

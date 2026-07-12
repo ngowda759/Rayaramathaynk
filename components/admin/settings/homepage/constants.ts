@@ -80,6 +80,24 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     ctaDescription: "Every offering, regardless of its size, supports the temple's daily rituals, festivals and charitable activities for the benefit of all devotees.",
     ctaButtonText: "Donate Now",
   },
+
+  // Testimonials
+  testimonials: [
+    {
+      id: "1",
+      name: "Ramesh Rao",
+      location: "Bangalore",
+      quote: "The peace I feel at this Matha is indescribable. Every visit brings new spiritual strength and clarity.",
+      years: "25 years devotee"
+    },
+    {
+      id: "2",
+      name: "Lakshmi Devi",
+      location: "Mysore",
+      quote: "Sri Raghavendra Swamy's blessings have guided my family through the most challenging times. Forever grateful.",
+      years: "Family tradition"
+    },
+  ],
 };
 
 export const STATUS_TIMEOUT = 5000;
