@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "react-hot-toast";
-import { Suspense } from "react";
-import RayaBot from "@/components/chat/RayaBot";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -44,9 +42,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <AuthProvider>
-          <Suspense fallback={null}>
-            {children}
-          </Suspense>
+          {children}
 
           <Toaster
             position="top-right"
@@ -77,9 +73,6 @@ export default function RootLayout({
             }}
           />
         </AuthProvider>
-        <Suspense fallback={null}>
-          <RayaBot />
-        </Suspense>
       </body>
     </html>
   );
