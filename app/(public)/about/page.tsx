@@ -1,10 +1,122 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
 import Link from "next/link";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+interface Activity {
+  id: string;
+  title: string;
+  description: string;
+}
+
+interface AboutUsData {
+  templeName: string;
+  templeNameKannada: string;
+  tagline: string;
+  taglineKannada: string;
+  tagline2: string;
+  aboutTitle: string;
+  aboutContent: string;
+  aboutContentKannada: string;
+  activitiesTitle: string;
+  activities: Activity[];
+  sevaTitle: string;
+  sevaContent: string;
+  sevaContentKannada: string;
+  sevaItems: string[];
+  resourcesTitle: string;
+  resourcesContent: string;
+  visitTitle: string;
+  address: string;
+  phone: string;
+  phone2: string;
+  email: string;
+  communityTitle: string;
+  communityContent: string;
+  communityContentKannada: string;
+  communityQuote: string;
+  communityQuoteKannada: string;
+}
+
+const defaultData: AboutUsData = {
+  templeName: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  templeNameKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  tagline: "Sri Gururaja Seva Samiti (R)",
+  taglineKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  tagline2: "Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R) | Yelahanka New Town, Bengaluru",
+  aboutTitle: "About the Temple",
+  aboutContent: "A sacred space blessed with the divine presence of Lord Venkateswara, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
+  aboutContentKannada: "ಭಗವಂತ ವೆಂಕಟೇಶ್ವರನ ದಿವ್ಯ ಉಪಸ್ಥಿತಿಯಿಂದ ಆಶೀರ್ವದಿಸಲ್ಪಟ್ಟ ಪವಿತ್ರ ಸ್ಥಳವಾದ ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
+  activitiesTitle: "Our Activities",
+  activities: [
+    { id: "1", title: "Daily Poojas", description: "Morning and evening rituals including Suprabhata, Archane, and Harathi" },
+    { id: "2", title: "Special Sevas", description: "Weekly and monthly sevas including Archane with Harathi, Annadana, and more" },
+    { id: "3", title: "Festivals", description: "Celebration of all Hindu festivals including Gururaja Aradhana, Ram Navami, and Janmashtami" },
+    { id: "4", title: "Spiritual Discourses", description: "Regular bhajans, pravachanas, and religious lectures" }
+  ],
+  sevaTitle: "Seva Offerings",
+  sevaContent: "We offer various sevas (services) that devotees can book to participate in temple activities and earn punya:",
+  sevaContentKannada: "ಭಕ್ತರು ದೇವಸ್ಥಾನದ ಚಟುವಟಿಕೆಗಳಲ್ಲಿ ಭಾಗವಹಿಸಲು ಮತ್ತು ಪುಣ್ಯ ಗಳಿಸಲು ಬುಕ್ ಮಾಡಬಹುದಾದ ವಿವಿಧ ಸೇವೆಗಳನ್ನು ನಾವು ನೀಡುತ್ತೇವೆ:",
+  sevaItems: [
+    "Online Seva Booking - Book sevas conveniently from home",
+    "Donation and Annadana Seva",
+    "Special Poojas and Archane",
+    "Vahanarchane and Ratha Utsava participation"
+  ],
+  resourcesTitle: "Spiritual Resources",
+  resourcesContent: "Access sacred hymns, prayers, and stotrams for your daily worship.",
+  visitTitle: "Visit Us",
+  address: "No. 05, Kere Cross\nYelahanka Upanagara\nBengaluru – 560064\nKarnataka, India",
+  phone: "+91 99002 15389",
+  phone2: "+91 98450 79474",
+  email: "srimoolaramafoundation@gmail.com",
+  communityTitle: "Join Our Community",
+  communityContent: "We welcome all devotees to participate in our temple activities, events, and community gatherings.",
+  communityContentKannada: "ನಾವು ಎಲ್ಲಾ ಭಕ್ತರನ್ನು ನಮ್ಮ ದೇವಸ್ಥಾನದ ಚಟುವಟಿಕೆಗಳು, ಕಾರ್ಯಕ್ರಮಗಳು ಮತ್ತು ಸಮುದಾಯ ಸಭೆಗಳಲ್ಲಿ ಭಾಗವಹಿಸಲು ಸ್ವಾಗತಿಸುತ್ತೇವೆ.",
+  communityQuote: "May we all be protected, nourished, and blessed with strength together.",
+  communityQuoteKannada: "ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ |"
+};
 
 export default function AboutPage() {
+  const [data, setData] = useState<AboutUsData>(defaultData);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        if (!db) {
+          setLoading(false);
+          return;
+        }
+        const docRef = doc(db, "settings", "aboutUs");
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setData({ ...defaultData, ...docSnap.data() } as AboutUsData);
+        }
+      } catch (error) {
+        console.error("Error loading about us data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <>
       <Navbar />
@@ -18,16 +130,13 @@ export default function AboutPage() {
                 <p className="text-amber-200 text-sm tracking-widest uppercase">Welcome to</p>
               </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)
+                {data.templeNameKannada}
               </h1>
               <h2 className="text-2xl md:text-3xl font-semibold mb-4">
-                Sri Gururaja Seva Samiti (R)
+                {data.tagline}
               </h2>
               <p className="text-amber-100 text-lg">
-                Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R)
-              </p>
-              <p className="text-amber-200 mt-2">
-                Yelahanka New Town, Bengaluru
+                {data.tagline2}
               </p>
             </div>
           </div>
@@ -52,25 +161,14 @@ export default function AboutPage() {
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
                 <Building2 className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-bold text-stone-900">About the Temple</h2>
+              <h2 className="text-2xl font-bold text-stone-900">{data.aboutTitle}</h2>
             </div>
             
             <div className="prose prose-stone max-w-none space-y-4 text-base leading-8 text-stone-700">
-              <p>
-                A sacred space blessed with the divine presence of Lord Venkateswara, 
-                this temple serves as a spiritual haven for devotees in the Yelahanka 
-                New Town community.
-              </p>
-              <p>
-                The temple is dedicated to preserving ancient Hindu traditions and 
-                Madhva philosophy, offering daily rituals, special sevas, spiritual 
-                teachings, and a welcoming environment for families to gather in faith.
-              </p>
-              <p>
-                Our mission is to promote dharma, provide opportunities for devotees 
-                to perform service (seva), and maintain the sacred traditions passed 
-                down through the guru parampara.
-              </p>
+              <p className="whitespace-pre-line">{data.aboutContent}</p>
+              {data.aboutContentKannada && (
+                <p className="font-serif text-lg text-amber-700 whitespace-pre-line">{data.aboutContentKannada}</p>
+              )}
             </div>
           </section>
 
@@ -80,19 +178,14 @@ export default function AboutPage() {
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
                 <Calendar className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-bold text-stone-900">Our Activities</h2>
+              <h2 className="text-2xl font-bold text-stone-900">{data.activitiesTitle}</h2>
             </div>
             
             <div className="grid gap-4 md:grid-cols-2">
-              {[
-                { title: "Daily Poojas", desc: "Morning and evening rituals including Suprabhata, Archane, and Harathi" },
-                { title: "Special Sevas", desc: "Weekly and monthly sevas including Archane with Harathi, Annadana, and more" },
-                { title: "Festivals", desc: "Celebration of all Hindu festivals including Gururaja Aradhana, Ram Navami, and Janmashtami" },
-                { title: "Spiritual Discourses", desc: "Regular bhajans, pravachanas, and religious lectures" }
-              ].map((item, index) => (
-                <div key={index} className="p-5 bg-white rounded-xl border border-stone-200 shadow-sm">
+              {data.activities.map((item) => (
+                <div key={item.id} className="p-5 bg-white rounded-xl border border-stone-200 shadow-sm">
                   <h3 className="font-semibold text-stone-900 mb-2">{item.title}</h3>
-                  <p className="text-sm text-stone-600">{item.desc}</p>
+                  <p className="text-sm text-stone-600">{item.description}</p>
                 </div>
               ))}
             </div>
@@ -104,34 +197,27 @@ export default function AboutPage() {
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
                 <Heart className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-bold text-stone-900">Seva Offerings</h2>
+              <h2 className="text-2xl font-bold text-stone-900">{data.sevaTitle}</h2>
             </div>
             
             <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100">
-              <p className="text-stone-700 mb-4">
-                We offer various sevas (services) that devotees can book to participate 
-                in temple activities and earn punya:
-              </p>
+              <p className="text-stone-700 mb-4">{data.sevaContent}</p>
               <ul className="space-y-2 text-stone-700">
-                <li className="flex items-center gap-2">
-                  <span className="text-orange-600">•</span>
-                  <Link href="/sevas" className="text-orange-700 hover:underline font-medium">
-                    Online Seva Booking
-                  </Link>
-                  - Book sevas conveniently from home
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-orange-600">•</span>
-                  Donation and Annadana Seva
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-orange-600">•</span>
-                  Special Poojas and Archane
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-orange-600">•</span>
-                  Vahanarchane and Ratha Utsava participation
-                </li>
+                {data.sevaItems.map((item, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <span className="text-orange-600">•</span>
+                    {item.includes("Online Seva Booking") ? (
+                      <>
+                        <Link href="/sevas" className="text-orange-700 hover:underline font-medium">
+                          Online Seva Booking
+                        </Link>
+                        - Book sevas conveniently from home
+                      </>
+                    ) : (
+                      item
+                    )}
+                  </li>
+                ))}
               </ul>
             </div>
           </section>
@@ -142,7 +228,7 @@ export default function AboutPage() {
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
                 <BookOpen className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-bold text-stone-900">Spiritual Resources</h2>
+              <h2 className="text-2xl font-bold text-stone-900">{data.resourcesTitle}</h2>
             </div>
             
             <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -151,9 +237,7 @@ export default function AboutPage() {
               </div>
               <div className="p-5">
                 <p className="text-stone-600 mb-4">
-                  Access sacred hymns, prayers, and stotrams for your daily worship. 
-                  Our collection includes prayers dedicated to Lord Venkateswara, 
-                  Sri Raghavendra Swamy, and other deities.
+                  {data.resourcesContent} Our collection includes prayers dedicated to Lord Venkateswara, Sri Raghavendra Swamy, and other deities.
                 </p>
                 <Link 
                   href="/shlokas"
@@ -172,7 +256,7 @@ export default function AboutPage() {
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
                 <MapPin className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-bold text-stone-900">Visit Us</h2>
+              <h2 className="text-2xl font-bold text-stone-900">{data.visitTitle}</h2>
             </div>
             
             <div className="grid gap-6 md:grid-cols-2">
@@ -181,11 +265,8 @@ export default function AboutPage() {
                   <MapPin className="w-5 h-5 text-orange-600" />
                   Address
                 </h3>
-                <address className="not-italic text-stone-600 space-y-2">
-                  <p>No. 05, Kere Cross</p>
-                  <p>Yelahanka Upanagara</p>
-                  <p>Bengaluru – 560064</p>
-                  <p>Karnataka, India</p>
+                <address className="not-italic text-stone-600 whitespace-pre-line">
+                  {data.address}
                 </address>
               </div>
 
@@ -197,18 +278,22 @@ export default function AboutPage() {
                 <div className="space-y-3 text-stone-600">
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-stone-400" />
-                    <span>+91 99002 15389</span>
+                    <span>{data.phone}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-stone-400" />
-                    <span>+91 98450 79474</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-stone-400" />
-                    <a href="mailto:srimoolaramafoundation@gmail.com" className="text-orange-600 hover:underline">
-                      srimoolaramafoundation@gmail.com
-                    </a>
-                  </div>
+                  {data.phone2 && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-stone-400" />
+                      <span>{data.phone2}</span>
+                    </div>
+                  )}
+                  {data.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-stone-400" />
+                      <a href={`mailto:${data.email}`} className="text-orange-600 hover:underline">
+                        {data.email}
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -220,21 +305,22 @@ export default function AboutPage() {
               <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
                 <Users className="w-6 h-6" />
               </div>
-              <h2 className="text-2xl font-bold text-stone-900">Join Our Community</h2>
+              <h2 className="text-2xl font-bold text-stone-900">{data.communityTitle}</h2>
             </div>
             
             <div className="bg-gradient-to-r from-stone-800 to-stone-900 text-white rounded-2xl p-6">
-              <p className="text-stone-300 mb-4">
-                We welcome all devotees to participate in our temple activities, 
-                events, and community gatherings. Whether you are a longtime devotee 
-                or visiting for the first time, you are always welcome.
+              <p className="text-stone-300 mb-4 whitespace-pre-line">{data.communityContent}</p>
+              {data.communityContentKannada && (
+                <p className="text-amber-300 font-medium whitespace-pre-line">{data.communityContentKannada}</p>
+              )}
+              <p className="text-stone-400 text-sm mt-4">
+                {data.communityQuote}
               </p>
-              <p className="text-amber-300 font-medium">
-                ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ |
-              </p>
-              <p className="text-stone-400 text-sm mt-2">
-                May we all be protected, nourished, and blessed with strength together.
-              </p>
+              {data.communityQuoteKannada && (
+                <p className="text-amber-400 text-sm mt-2 font-serif">
+                  {data.communityQuoteKannada}
+                </p>
+              )}
             </div>
           </section>
         </div>
