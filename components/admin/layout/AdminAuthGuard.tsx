@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/context/AuthContext";
 
@@ -23,32 +23,26 @@ export default function AdminAuthGuard({
 }: AdminAuthGuardProps) {
   const { user, loading } = useAuthContext();
   const router = useRouter();
-  const initialized = useRef(false);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    // Give Firebase auth time to initialize on first load
-    if (!initialized.current) {
-      initialized.current = true;
+    // Wait for auth to finish loading
+    if (loading) return;
+    
+    // Only check once after loading is done
+    if (!checked) {
+      setChecked(true);
       return;
     }
     
-    // After initialization, if no user, redirect to login
-    if (!loading && !user) {
+    // If still no user after loading, redirect
+    if (!user) {
       const currentPath = window.location.pathname;
       router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
     }
-  }, [user, loading, router]);
+  }, [user, loading, checked, router]);
 
-  // Show loading only on initial page load
-  if (loading && !initialized.current) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
-      </div>
-    );
-  }
-
-  // Always render children - auth check happens in useEffect
+  // Always render children - auth happens in background
   return <>{children}</>;
 }
 
