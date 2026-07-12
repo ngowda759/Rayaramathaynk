@@ -19,6 +19,11 @@ interface Facility {
   color: string;
 }
 
+interface Amenity {
+  id: string;
+  title: string;
+}
+
 interface FacilitiesData {
   heroTitle: string;
   heroSubtitle: string;
@@ -28,6 +33,9 @@ interface FacilitiesData {
   sectionTitle: string;
   sectionSubtitle: string;
   facilities: Facility[];
+  amenitiesTitle: string;
+  amenitiesSubtitle: string;
+  amenities: Amenity[];
 }
 
 const COLLECTION = "settings";
@@ -104,6 +112,18 @@ const defaultData: FacilitiesData = {
       description: "Sri Matha is dedicated to providing a sacred, serene, and well-equipped environment for all devotees. With a blend of traditional values and modern amenities.",
       color: "from-rose-500 to-red-500",
     },
+  ],
+  amenitiesTitle: "Additional Amenities",
+  amenitiesSubtitle: "We strive to make every visit comfortable and convenient for all devotees, regardless of age or ability.",
+  amenities: [
+    { id: "1", title: "Wheelchair accessible premises" },
+    { id: "2", title: "Dedicated parking space" },
+    { id: "3", title: "Pure vegetarian kitchen" },
+    { id: "4", title: "Wood-fired cooking" },
+    { id: "5", title: "Madi-maintained facilities" },
+    { id: "6", title: "Clean drinking water" },
+    { id: "7", title: "First aid facility" },
+    { id: "8", title: "Dedicated Purohit services" },
   ],
 };
 
@@ -186,6 +206,32 @@ export default function FacilitiesSettingsPage() {
       setData((prev) => ({
         ...prev,
         facilities: prev.facilities.filter((f) => f.id !== id),
+      }));
+    }
+  }
+
+  function updateAmenity(id: string, title: string) {
+    setData((prev) => ({
+      ...prev,
+      amenities: prev.amenities.map((a) =>
+        a.id === id ? { ...a, title } : a
+      ),
+    }));
+  }
+
+  function addAmenity() {
+    const newAmenity: Amenity = {
+      id: Date.now().toString(),
+      title: "",
+    };
+    setData((prev) => ({ ...prev, amenities: [...prev.amenities, newAmenity] }));
+  }
+
+  function removeAmenity(id: string) {
+    if (confirm("Are you sure you want to remove this amenity?")) {
+      setData((prev) => ({
+        ...prev,
+        amenities: prev.amenities.filter((a) => a.id !== id),
       }));
     }
   }
@@ -377,6 +423,69 @@ export default function FacilitiesSettingsPage() {
           {data.facilities.length === 0 && (
             <div className="text-center py-8 text-stone-500">
               No facilities added yet. Click &ldquo;Add Facility&rdquo; to create one.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Additional Amenities Section */}
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-stone-900 mb-4">Additional Amenities</h3>
+        <div className="grid gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Section Title
+            </label>
+            <Input
+              type="text"
+              value={data.amenitiesTitle}
+              onChange={(e) => updateField("amenitiesTitle", e.target.value)}
+              placeholder="Additional Amenities"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Section Subtitle
+            </label>
+            <Textarea
+              value={data.amenitiesSubtitle}
+              onChange={(e) => updateField("amenitiesSubtitle", e.target.value)}
+              placeholder="We strive to make every visit comfortable..."
+              rows={2}
+            />
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <label className="block text-sm font-medium text-stone-700">
+              Amenity Items
+            </label>
+            <Button onClick={addAmenity} size="sm" variant="outline">
+              <Plus className="mr-1 h-3 w-3" />
+              Add Amenity
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {data.amenities.map((amenity, index) => (
+              <div key={amenity.id} className="flex gap-2">
+                <Input
+                  type="text"
+                  value={amenity.title}
+                  onChange={(e) => updateAmenity(amenity.id, e.target.value)}
+                  placeholder="Amenity item"
+                />
+                <button
+                  onClick={() => removeAmenity(amenity.id)}
+                  className="text-red-500 hover:text-red-700 p-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {data.amenities.length === 0 && (
+            <div className="text-center py-8 text-stone-500">
+              No amenities added yet. Click &ldquo;Add Amenity&rdquo; to create one.
             </div>
           )}
         </div>

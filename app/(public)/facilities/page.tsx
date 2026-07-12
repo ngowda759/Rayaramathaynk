@@ -8,6 +8,7 @@ import SectionHeading from "@/components/common/SectionHeading";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { ShieldCheck } from "lucide-react";
 
 interface Facility {
   id: string;
@@ -15,6 +16,11 @@ interface Facility {
   title: string;
   description: string;
   color: string;
+}
+
+interface Amenity {
+  id: string;
+  title: string;
 }
 
 interface FacilitiesData {
@@ -26,6 +32,9 @@ interface FacilitiesData {
   sectionTitle: string;
   sectionSubtitle: string;
   facilities: Facility[];
+  amenitiesTitle: string;
+  amenitiesSubtitle: string;
+  amenities: Amenity[];
 }
 
 const defaultData: FacilitiesData = {
@@ -79,6 +88,18 @@ const defaultData: FacilitiesData = {
       description: "Sri Matha is dedicated to providing a sacred, serene, and well-equipped environment for all devotees. With a blend of traditional values and modern amenities.",
       color: "from-rose-500 to-red-500",
     },
+  ],
+  amenitiesTitle: "Additional Amenities",
+  amenitiesSubtitle: "We strive to make every visit comfortable and convenient for all devotees, regardless of age or ability.",
+  amenities: [
+    { id: "1", title: "Wheelchair accessible premises" },
+    { id: "2", title: "Dedicated parking space" },
+    { id: "3", title: "Pure vegetarian kitchen" },
+    { id: "4", title: "Wood-fired cooking" },
+    { id: "5", title: "Madi-maintained facilities" },
+    { id: "6", title: "Clean drinking water" },
+    { id: "7", title: "First aid facility" },
+    { id: "8", title: "Dedicated Purohit services" },
   ],
 };
 
@@ -199,6 +220,57 @@ export default function FacilitiesPage() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Additional Amenities Section */}
+        {data.amenities && data.amenities.length > 0 && (
+          <section className="bg-gradient-to-br from-amber-50 to-orange-50 px-6 py-20 sm:px-8 lg:px-12">
+            <div className="mx-auto max-w-7xl">
+              <div className="grid gap-12 lg:grid-cols-2">
+                <div>
+                  <h2 className="text-4xl font-bold text-stone-900">
+                    {data.amenitiesTitle}
+                  </h2>
+                  <p className="mt-4 text-lg text-stone-600">
+                    {data.amenitiesSubtitle}
+                  </p>
+
+                  <div className="mt-8 space-y-4">
+                    {data.amenities.map((amenity) => (
+                      <div
+                        key={amenity.id}
+                        className="flex items-center gap-4 rounded-xl bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                          <ShieldCheck className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <span className="text-lg font-medium text-stone-700">
+                          {amenity.title}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {data.heroImageUrl && (
+                  <div className="flex items-center justify-center">
+                    <div className="relative">
+                      <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-amber-400 to-orange-400 opacity-20 blur-2xl" />
+                      <div className="relative overflow-hidden rounded-3xl">
+                        <Image
+                          src={data.heroImageUrl}
+                          alt="Temple"
+                          width={400}
+                          height={300}
+                          className="object-cover"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>
