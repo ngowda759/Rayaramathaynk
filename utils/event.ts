@@ -1,6 +1,21 @@
 import { Timestamp } from "firebase/firestore";
 import { TempleEvent, EventStatus } from "@/types/event";
 
+// Helper function to convert date to Date object
+function toDate(date: any): Date {
+  if (!date) return new Date(0);
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') return new Date(date);
+  if (typeof date === 'number') return new Date(date);
+  if (date.toDate && typeof date.toDate === 'function') return date.toDate();
+  return new Date(0);
+}
+
+// Helper function to get timestamp in milliseconds
+function toMillis(date: any): number {
+  return toDate(date).getTime();
+}
+
 /**
  * Returns the current status of an event
  * based on today's date.
@@ -10,8 +25,8 @@ import { TempleEvent, EventStatus } from "@/types/event";
  * to "Upcoming" instead of throwing.
  */
 export function getEventStatus(
-  startDate: Timestamp | null | undefined,
-  endDate: Timestamp | null | undefined
+  startDate: any,
+  endDate: any
 ): EventStatus {
   if (!startDate || !endDate) {
     return "Upcoming";
@@ -19,8 +34,8 @@ export function getEventStatus(
 
   const today = new Date();
 
-  const start = startDate.toDate();
-  const end = endDate.toDate();
+  const start = toDate(startDate);
+  const end = toDate(endDate);
 
   // Ignore time when comparing dates
   today.setHours(0, 0, 0, 0);
@@ -43,13 +58,13 @@ export function getEventStatus(
  *
  * Null-safe: returns 0 if startDate is missing/null.
  */
-export function getDaysLeft(startDate: Timestamp | null | undefined): number {
+export function getDaysLeft(startDate: any): number {
   if (!startDate) {
     return 0;
   }
 
   const today = new Date();
-  const start = startDate.toDate();
+  const start = toDate(startDate);
 
   today.setHours(0, 0, 0, 0);
   start.setHours(0, 0, 0, 0);
@@ -73,8 +88,8 @@ export function sortEventsByDate(
   events: TempleEvent[]
 ): TempleEvent[] {
   return [...events].sort((a, b) => {
-    const aTime = a.startDate?.toMillis?.() ?? 0;
-    const bTime = b.startDate?.toMillis?.() ?? 0;
+    const aTime = toMillis(a.startDate);
+    const bTime = toMillis(b.startDate);
     return aTime - bTime;
   });
 }

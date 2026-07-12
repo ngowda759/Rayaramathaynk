@@ -8,6 +8,15 @@ interface Props {
   event: TempleEvent;
 }
 
+function toDate(date: any): Date {
+  if (!date) return new Date(0);
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') return new Date(date);
+  if (typeof date === 'number') return new Date(date);
+  if (date.toDate && typeof date.toDate === 'function') return date.toDate();
+  return new Date(0);
+}
+
 function daysLeft(date: Date) {
   const today = new Date();
 
@@ -29,7 +38,7 @@ function daysLeft(date: Date) {
 export default function EventCard({
   event,
 }: Props) {
-  const start = event.startDate.toDate();
+  const start = toDate(event.startDate);
 
   const month = start
     .toLocaleString("en-US", {

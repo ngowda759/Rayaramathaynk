@@ -14,6 +14,21 @@ import { TempleEvent } from "@/types/event";
 
 const COLLECTION = "events";
 
+// Helper function to convert date to timestamp for sorting
+function toTimestamp(date: any): number {
+  if (!date) return 0;
+  if (typeof date === 'string') {
+    return new Date(date).getTime();
+  }
+  if (typeof date === 'number') {
+    return date;
+  }
+  if (date.toDate && typeof date.toDate === 'function') {
+    return date.toDate().getTime();
+  }
+  return 0;
+}
+
 class EventService {
   async getEvents(): Promise<TempleEvent[]> {
     console.log("[EventService] getEvents called");
@@ -65,19 +80,19 @@ class EventService {
 
   async getPublishedEvents(): Promise<TempleEvent[]> {
     const events = await this.getEvents();
-    return events.filter((event) => event.published !== false).sort((a, b) => a.startDate.toDate().getTime() - b.startDate.toDate().getTime());
+    return events.filter((event) => event.published !== false).sort((a, b) => toTimestamp(a.startDate) - toTimestamp(b.startDate));
   }
 
   async getUpcomingEvents(max = 3): Promise<TempleEvent[]> {
     const now = new Date();
     const events = await this.getPublishedEvents();
-    return events.filter((event) => event.endDate.toDate() >= now).slice(0, max);
+    return events.filter((event) => toTimestamp(event.endDate) >= now.getTime()).slice(0, max);
   }
 
   async getPastEvents(): Promise<TempleEvent[]> {
     const now = new Date();
     const events = await this.getPublishedEvents();
-    return events.filter((event) => event.endDate.toDate() < now).sort((a, b) => b.startDate.toDate().getTime() - a.startDate.toDate().getTime());
+    return events.filter((event) => toTimestamp(event.endDate) < now.getTime()).sort((a, b) => toTimestamp(b.startDate) - toTimestamp(a.startDate));
   }
 
   async getFeaturedEvent(): Promise<TempleEvent | null> {
