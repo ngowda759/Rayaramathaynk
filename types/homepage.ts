@@ -74,6 +74,11 @@ export interface HomepageConfig {
     ctaButtonText: string;
   };
 
+  /**
+   * Testimonials Section
+   */
+  testimonials?: Testimonial[];
+
   updatedAt?: any;
 }
 
@@ -82,4 +87,12 @@ export interface DonationItem {
   title: string;
   amount: string;
   description: string;
+}
+
+export interface Testimonial {
+  id: string;
+  name: string;
+  location: string;
+  quote: string;
+  years: string;
 }
