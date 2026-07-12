@@ -1,31 +1,38 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import Script from "next/script";
 
 export default function ChatbaseWidget() {
-  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
 
   useEffect(() => {
-    // Don't load on admin pages
-    if (pathname?.startsWith("/admin")) return;
-    
-    // Don't load if chatbot ID is not configured
-    if (!chatbotId || chatbotId === "your-chatbot-id") return;
+    setMounted(true);
+  }, []);
 
-    // Check if script already exists
-    if (document.querySelector('script[src*="chatbase.co"]')) return;
+  // Don't render on server
+  if (!mounted) return null;
 
-    const script = document.createElement("script");
-    script.src = "https://www.chatbase.co/embed.min.js";
-    script.setAttribute("data-chatbot-id", chatbotId);
-    script.defer = true;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    
-    document.body.appendChild(script);
-  }, [pathname, chatbotId]);
+  // Don't load if chatbot ID is not configured
+  if (!chatbotId || chatbotId === "your-chatbot-id") {
+    console.log("[Chatbase] Chatbot ID not configured");
+    return null;
+  }
 
-  return null;
+  console.log("[Chatbase] Loading chatbot with ID:", chatbotId);
+
+  return (
+    <Script
+      src="https://www.chatbase.co/embed.min.js"
+      data-chatbot-id={chatbotId}
+      strategy="lazyOnload"
+      onLoad={() => {
+        console.log("[Chatbase] Script loaded successfully");
+      }}
+      onError={(e) => {
+        console.error("[Chatbase] Script failed to load:", e);
+      }}
+    />
+  );
 }
