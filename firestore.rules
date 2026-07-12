@@ -95,7 +95,7 @@ service cloud.firestore {
 
     // Settings collection
     match /settings/{docId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
