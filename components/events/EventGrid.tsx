@@ -12,6 +12,15 @@ interface Props {
 
 type EventFilter = "upcoming" | "past";
 
+function toDate(date: any): Date {
+  if (!date) return new Date(0);
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') return new Date(date);
+  if (typeof date === 'number') return new Date(date);
+  if (date.toDate && typeof date.toDate === 'function') return date.toDate();
+  return new Date(0);
+}
+
 export default function EventGrid({ limit }: Props) {
   const [events, setEvents] = useState<TempleEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +43,7 @@ export default function EventGrid({ limit }: Props) {
   }, [limit]);
 
   const filteredEvents = events.filter((event) => {
-    const eventDate = new Date(event.startDate.toDate?.() || event.startDate);
+    const eventDate = toDate(event.startDate);
     const now = new Date();
     
     if (filter === "upcoming") {
