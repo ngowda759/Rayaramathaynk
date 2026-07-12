@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/context/AuthContext";
-import { ShieldX } from "lucide-react";
 
 type Permission = 
   | "admin" 
@@ -19,35 +18,29 @@ interface AdminAuthGuardProps {
   fallback?: React.ReactNode;
 }
 
-const permissionLabels: Record<Permission, string> = {
-  admin: "admin portal",
-  settings: "settings",
-  finance: "finance",
-  users: "user management",
-  billing: "billing",
-  administration: "administration",
-};
-
 export default function AdminAuthGuard({ 
   children, 
-  requiredPermission,
-  fallback 
 }: AdminAuthGuardProps) {
   const { user, loading } = useAuthContext();
   const router = useRouter();
-  const [redirected, setRedirected] = useState(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Only redirect once after auth is fully checked
-    if (!loading && !user && !redirected) {
+    // Give Firebase auth time to initialize on first load
+    if (!initialized.current) {
+      initialized.current = true;
+      return;
+    }
+    
+    // After initialization, if no user, redirect to login
+    if (!loading && !user) {
       const currentPath = window.location.pathname;
-      setRedirected(true);
       router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
     }
-  }, [user, loading, redirected, router]);
+  }, [user, loading, router]);
 
-  // Show loading while auth is initializing
-  if (loading) {
+  // Show loading only on initial page load
+  if (loading && !initialized.current) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
@@ -55,19 +48,7 @@ export default function AdminAuthGuard({
     );
   }
 
-  // If not authenticated after loading, show redirecting message
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
-          <p className="text-stone-600">Redirecting to login...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // User is authenticated, render children
+  // Always render children - auth check happens in useEffect
   return <>{children}</>;
 }
 
