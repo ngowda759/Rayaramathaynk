@@ -37,20 +37,6 @@ export default function RootLayout({
   
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Chatbase configuration - must be before the script */}
-        {chatbotId && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                window.chatbaseConfig = {
-                  chatbotId: "${chatbotId}",
-                };
-              `,
-            }}
-          />
-        )}
-      </head>
       <body
         className={`${inter.variable} ${playfair.variable} antialiased bg-stone-50 text-stone-900 min-h-screen`}
       >
@@ -94,7 +80,18 @@ export default function RootLayout({
           />
         </AuthProvider>
         
-        {/* Chatbase Widget Script - only if chatbot ID is set */}
+        {/* Chatbase Widget Script - with inline config */}
+        {chatbotId && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.chatbaseConfig = {
+                  chatbotId: "${chatbotId}",
+                };
+              `,
+            }}
+          />
+        )}
         {chatbotId && (
           <script
             src={`${cleanChatbaseHost}/embed.min.js`}

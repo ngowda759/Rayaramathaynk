@@ -20,7 +20,7 @@ export default function AdminLayout({ children }: Props) {
           {children}
         </main>
         
-        {/* Chatbase configuration for admin */}
+        {/* Chatbase Widget Script - with inline config */}
         {chatbotId && (
           <script
             dangerouslySetInnerHTML={{
@@ -32,8 +32,6 @@ export default function AdminLayout({ children }: Props) {
             }}
           />
         )}
-        
-        {/* Chatbase Widget Script for admin */}
         {chatbotId && (
           <script
             src={`${cleanChatbaseHost}/embed.min.js`}
