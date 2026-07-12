@@ -11,27 +11,23 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    // Normalize role string for comparison
-    function getRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-    
+    // Check if user document exists and has admin role
     function isAdmin() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        getRole() in ['super_admin', 'Super Admin', 'temple_admin', 'Temple Admin', 'admin', 'Admin', 'Billing', 'Priest'];
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'admin', 'Billing'];
     }
     
     function isSuperAdmin() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        getRole() in ['super_admin', 'Super Admin'];
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
     }
     
     function isPriestOrAbove() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        getRole() in ['super_admin', 'Super Admin', 'temple_admin', 'Temple Admin', 'admin', 'Admin', 'Priest', 'Billing'];
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'priest'];
     }
     
     // Users collection
@@ -57,6 +53,17 @@ service cloud.firestore {
     }
     
     match /gallery/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Gallery collections
+    match /galleryAlbums/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    match /galleryMedia/{docId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
@@ -93,11 +100,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Settings collection
+
+    // Settings collection (public read for About Us, Trust Committee, etc.)
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
+
 
     // Bills collection
     match /bills/{billId} {
@@ -105,6 +114,7 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
     }
+
 
     // Homepage collection
     match /homepage/{docId} {
