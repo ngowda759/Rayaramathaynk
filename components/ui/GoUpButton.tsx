@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function GoUpButton() {
   const [isVisible, setIsVisible] = useState(false);
@@ -24,15 +25,29 @@ export function GoUpButton() {
   };
 
   return (
-    <button
-      onClick={scrollToTop}
-      className={cn(
-        "fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl",
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+    <AnimatePresence>
+      {isVisible && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 md:bottom-10 md:right-10 group"
+          aria-label="Go to top"
+        >
+          {/* Glow effect */}
+          <div className="absolute inset-0 rounded-full bg-amber-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity" />
+          
+          {/* Button */}
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 shadow-xl transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/30 active:scale-95">
+            <ArrowUp className="h-6 w-6 text-white" />
+          </div>
+          
+          {/* Pulse ring on hover */}
+          <div className="absolute inset-0 rounded-full border-2 border-amber-400 opacity-0 group-hover:animate-ping group-hover:opacity-50" />
+        </motion.button>
       )}
-      aria-label="Go to top"
-    >
-      <ArrowUp className="h-5 w-5" />
-    </button>
+    </AnimatePresence>
   );
 }
