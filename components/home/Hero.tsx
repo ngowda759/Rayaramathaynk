@@ -41,6 +41,8 @@ export default function Hero() {
     homepage?.announcement ??
     "Om Sri Raghavendraya Namaha";
 
+  const heroImage = homepage?.heroImage || "/images/Hero.jpg";
+
   const isTempleOpen = homepage?.isTempleOpen ?? true;
   const templeStatus = isTempleOpen ? "OPEN" : "CLOSED";
   const statusColor = isTempleOpen ? "text-green-600" : "text-red-600";
@@ -59,7 +61,7 @@ export default function Hero() {
       <div
         className="absolute inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: "url('/images/Hero.jpg')",
+          backgroundImage: `url('${heroImage}')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -261,7 +263,7 @@ export default function Hero() {
 
             <div className="relative z-10 h-[760px] w-[520px] overflow-hidden rounded-lg shadow-2xl">
               <Image
-                src="/images/Hero.jpg"
+                src={heroImage}
                 alt="Temple Hero"
                 fill
                 priority
