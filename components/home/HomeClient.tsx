@@ -3,7 +3,6 @@
 import SacredDivider from "@/components/home/SacredDivider";
 import Testimonials from "@/components/home/Testimonials";
 import EventCountdown from "@/components/home/EventCountdown";
-import FloatingContact from "@/components/home/FloatingContact";
 import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GallerySection from "@/components/home/GallerySection";
 import SocialBar from "@/components/home/SocialBar";
@@ -72,8 +71,6 @@ export default function HomeClient({ nextMajorEvent, galleryImages }: HomeClient
       <SacredDivider variant="diya" />
       
       <SocialBar />
-      
-      <FloatingContact />
       
       <Footer />
     </>
