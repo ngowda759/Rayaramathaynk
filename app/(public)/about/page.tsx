@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
-import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
+import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail, Wifi, Car, Droplets, Accessibility } from "lucide-react";
 import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -15,15 +16,23 @@ interface Activity {
   description: string;
 }
 
+interface Facility {
+  id: string;
+  title: string;
+  description: string;
+}
+
 interface AboutUsData {
-  templeName: string;
-  templeNameKannada: string;
-  tagline: string;
-  taglineKannada: string;
-  tagline2: string;
+  heroTitle: string;
+  heroTitleKannada: string;
+  heroSubtitle: string;
+  heroImageUrl: string;
+  sacredMotto: string;
   aboutTitle: string;
   aboutContent: string;
   aboutContentKannada: string;
+  facilitiesTitle: string;
+  facilities: Facility[];
   activitiesTitle: string;
   activities: Activity[];
   sevaTitle: string;
@@ -45,14 +54,21 @@ interface AboutUsData {
 }
 
 const defaultData: AboutUsData = {
-  templeName: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
-  templeNameKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
-  tagline: "Sri Gururaja Seva Samiti (R)",
-  taglineKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
-  tagline2: "Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R) | Yelahanka New Town, Bengaluru",
+  heroTitle: "Sri Raghavendra Swamy Matha",
+  heroTitleKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ",
+  heroSubtitle: "Yelahanka New Town, Bengaluru",
+  heroImageUrl: "/images/Hero.jpg",
+  sacredMotto: "ಹರಿ ಸರ್ವೋತ್ತಮ • Hari Sarvottama • ವಾಯು ಜೀವೋತ್ತಮ • Vāyu Jīvōttama • ಗುರುರಾಜೋ ವಿಜಯತೇ • Gururājō Vijayate",
   aboutTitle: "About the Temple",
-  aboutContent: "A sacred space blessed with the divine presence of Lord Venkateswara, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
-  aboutContentKannada: "ಭಗವಂತ ವೆಂಕಟೇಶ್ವರನ ದಿವ್ಯ ಉಪಸ್ಥಿತಿಯಿಂದ ಆಶೀರ್ವದಿಸಲ್ಪಟ್ಟ ಪವಿತ್ರ ಸ್ಥಳವಾದ ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
+  aboutContent: "A sacred space blessed with the divine presence of Sri Raghavendra Swamy, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
+  aboutContentKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಗಳ ದಿವ್ಯ ಸಾನ್ನಿಧ್ಯದಿಂದ ಪಾವನವಾದ ಪವಿತ್ರ ಸ್ಥಳ, ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
+  facilitiesTitle: "Temple Facilities",
+  facilities: [
+    { id: "1", title: "Wheelchair Access", description: "Accessibility for differently-abled devotees" },
+    { id: "2", title: "Prasada Distribution", description: "Free prasadam available daily" },
+    { id: "3", title: "Parking Space", description: "Ample parking for devotees" },
+    { id: "4", title: "Drinking Water", description: "Clean drinking water facilities" },
+  ],
   activitiesTitle: "Our Activities",
   activities: [
     { id: "1", title: "Daily Poojas", description: "Morning and evening rituals including Suprabhata, Archane, and Harathi" },
@@ -82,6 +98,22 @@ const defaultData: AboutUsData = {
   communityQuote: "May we all be protected, nourished, and blessed with strength together.",
   communityQuoteKannada: "ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ |"
 };
+
+const facilityIcons: { [key: string]: React.ReactNode } = {
+  "wheelchair": <Accessibility className="w-6 h-6" />,
+  "parking": <Car className="w-6 h-6" />,
+  "water": <Droplets className="w-6 h-6" />,
+  "wifi": <Wifi className="w-6 h-6" />,
+};
+
+function getFacilityIcon(title: string) {
+  const lower = title.toLowerCase();
+  if (lower.includes("wheelchair") || lower.includes("access")) return facilityIcons["wheelchair"];
+  if (lower.includes("parking")) return facilityIcons["parking"];
+  if (lower.includes("water") || lower.includes("drinking")) return facilityIcons["water"];
+  if (lower.includes("wifi") || lower.includes("internet")) return facilityIcons["wifi"];
+  return <Heart className="w-6 h-6" />;
+}
 
 export default function AboutPage() {
   const [data, setData] = useState<AboutUsData>(defaultData);
@@ -121,47 +153,54 @@ export default function AboutPage() {
     <>
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-amber-50 to-white">
-        {/* Hero Section */}
-        <div className="bg-gradient-to-r from-orange-600 to-amber-600 text-white py-12 px-6">
-          <div className="max-w-4xl mx-auto">
+        {/* Hero Section with Image */}
+        <div className="relative bg-gradient-to-r from-orange-600 to-amber-600 text-white">
+          {data.heroImageUrl && (
+            <div className="absolute inset-0">
+              <Image
+                src={data.heroImageUrl}
+                alt="Temple"
+                fill
+                className="object-cover opacity-20"
+                priority
+              />
+            </div>
+          )}
+          <div className="relative max-w-6xl mx-auto px-6 py-16 md:py-20">
             <Breadcrumb current="About Us" />
-            <div className="text-center mt-4">
-              <div className="inline-block mb-4">
-                <p className="text-amber-200 text-sm tracking-widest uppercase">Welcome to</p>
-              </div>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                {data.templeNameKannada}
+            <div className="text-center mt-8">
+              <h1 className="text-4xl md:text-6xl font-bold mb-4">
+                {data.heroTitleKannada}
               </h1>
-              <h2 className="text-2xl md:text-3xl font-semibold mb-4">
-                {data.tagline}
+              <h2 className="text-2xl md:text-4xl font-semibold mb-4">
+                {data.heroTitle}
               </h2>
-              <p className="text-amber-100 text-lg">
-                {data.tagline2}
+              <p className="text-amber-100 text-lg md:text-xl">
+                {data.heroSubtitle}
               </p>
             </div>
           </div>
         </div>
 
         {/* Sacred Motto */}
-        <div className="bg-stone-900 text-white py-4">
-          <div className="max-w-6xl mx-auto px-4">
-            <p className="text-center text-lg md:text-xl font-serif tracking-wide leading-relaxed">
-              <span className="text-amber-200">|| ಹರಿ ಸರ್ವೋತ್ತಮ ||</span>
-              <span className="text-amber-400 mx-3">•</span>
-              <span className="text-amber-300">|| Hari Sarvottama ||</span>
-              <span className="text-amber-400 mx-3">•</span>
-              <span className="text-stone-400">|| ವಾಯು ಜೀವೋತ್ತಮ ||</span>
-              <span className="text-amber-400 mx-3">•</span>
-              <span className="text-amber-400">|| Vāyu Jīvōttama ||</span>
-              <span className="text-amber-400 mx-3">•</span>
-              <span className="text-stone-400">|| ಗುರುರಾಜೋ ವಿಜಯತೇ ||</span>
-              <span className="text-amber-400 mx-3">•</span>
-              <span className="text-amber-300">|| Gururājō Vijayate ||</span>
-            </p>
+        {data.sacredMotto && (
+          <div className="bg-stone-900 text-white py-4">
+            <div className="max-w-6xl mx-auto px-4">
+              <p className="text-center text-sm md:text-lg font-serif tracking-wide leading-relaxed">
+                {data.sacredMotto.split('•').map((phrase, index) => (
+                  <span key={index}>
+                    <span className="text-amber-200 mx-2">{phrase.trim()}</span>
+                    {index < data.sacredMotto.split('•').length - 1 && (
+                      <span className="text-amber-400 mx-1">•</span>
+                    )}
+                  </span>
+                ))}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="max-w-4xl mx-auto px-6 py-12 space-y-12">
+        <div className="max-w-6xl mx-auto px-6 py-12 space-y-12">
           {/* About Section */}
           <section className="space-y-6">
             <div className="flex items-center gap-3">
@@ -178,6 +217,30 @@ export default function AboutPage() {
               )}
             </div>
           </section>
+
+          {/* Facilities Section */}
+          {data.facilities && data.facilities.length > 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-orange-100 text-orange-600">
+                  <Heart className="w-6 h-6" />
+                </div>
+                <h2 className="text-2xl font-bold text-stone-900">{data.facilitiesTitle}</h2>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {data.facilities.map((facility) => (
+                  <div key={facility.id} className="p-5 bg-white rounded-xl border border-stone-200 shadow-sm text-center">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-3">
+                      {getFacilityIcon(facility.title)}
+                    </div>
+                    <h3 className="font-semibold text-stone-900 mb-2">{facility.title}</h3>
+                    <p className="text-sm text-stone-600">{facility.description}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Our Activities */}
           <section className="space-y-6">

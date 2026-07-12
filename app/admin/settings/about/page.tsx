@@ -17,18 +17,30 @@ interface Activity {
   description: string;
 }
 
+interface Facility {
+  id: string;
+  title: string;
+  description: string;
+}
+
 interface AboutUsData {
   // Hero Section
-  templeName: string;
-  templeNameKannada: string;
-  tagline: string;
-  taglineKannada: string;
-  tagline2: string;
+  heroTitle: string;
+  heroTitleKannada: string;
+  heroSubtitle: string;
+  heroImageUrl: string;
+  
+  // Sacred Motto
+  sacredMotto: string;
   
   // About Section
   aboutTitle: string;
   aboutContent: string;
   aboutContentKannada: string;
+  
+  // Facilities Section
+  facilitiesTitle: string;
+  facilities: Facility[];
   
   // Activities Section
   activitiesTitle: string;
@@ -63,15 +75,24 @@ const COLLECTION = "settings";
 const DOCUMENT = "aboutUs";
 
 const defaultData: AboutUsData = {
-  templeName: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
-  templeNameKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
-  tagline: "Sri Gururaja Seva Samiti (R)",
-  taglineKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
-  tagline2: "Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R) | Yelahanka New Town, Bengaluru",
+  heroTitle: "Sri Raghavendra Swamy Matha",
+  heroTitleKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ",
+  heroSubtitle: "Yelahanka New Town, Bengaluru",
+  heroImageUrl: "/images/Hero.jpg",
+  
+  sacredMotto: "ಹರಿ ಸರ್ವೋತ್ತಮ • Hari Sarvottama • ವಾಯು ಜೀವೋತ್ತಮ • Vāyu Jīvōttama • ಗುರುರಾಜೋ ವಿಜಯತೇ • Gururājō Vijayate",
   
   aboutTitle: "About the Temple",
-  aboutContent: "A sacred space blessed with the divine presence of Lord Venkateswara, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
-  aboutContentKannada: "ಭಗವಂತ ವೆಂಕಟೇಶ್ವರನ ದಿವ್ಯ ಉಪಸ್ಥಿತಿಯಿಂದ ಆಶೀರ್ವದಿಸಲ್ಪಟ್ಟ ಪವಿತ್ರ ಸ್ಥಳವಾದ ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
+  aboutContent: "A sacred space blessed with the divine presence of Sri Raghavendra Swamy, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
+  aboutContentKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಗಳ ದಿವ್ಯ ಸಾನ್ನಿಧ್ಯದಿಂದ ಪಾವನವಾದ ಪವಿತ್ರ ಸ್ಥಳ, ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
+  
+  facilitiesTitle: "Temple Facilities",
+  facilities: [
+    { id: "1", title: "Wheelchair Access", description: "Accessibility for differently-abled devotees" },
+    { id: "2", title: "Prasada Distribution", description: "Free prasadam available daily" },
+    { id: "3", title: "Parking Space", description: "Ample parking for devotees" },
+    { id: "4", title: "Drinking Water", description: "Clean drinking water facilities" },
+  ],
   
   activitiesTitle: "Our Activities",
   activities: [
@@ -188,6 +209,34 @@ export default function AboutUsSettingsPage() {
     }
   }
 
+  // Facilities handlers
+  function updateFacility(id: string, field: keyof Facility, value: string) {
+    setData((prev) => ({
+      ...prev,
+      facilities: prev.facilities.map((f) =>
+        f.id === id ? { ...f, [field]: value } : f
+      ),
+    }));
+  }
+
+  function addFacility() {
+    const newFacility: Facility = {
+      id: Date.now().toString(),
+      title: "",
+      description: "",
+    };
+    setData((prev) => ({ ...prev, facilities: [...prev.facilities, newFacility] }));
+  }
+
+  function removeFacility(id: string) {
+    if (confirm("Are you sure you want to remove this facility?")) {
+      setData((prev) => ({
+        ...prev,
+        facilities: prev.facilities.filter((f) => f.id !== id),
+      }));
+    }
+  }
+
   function updateSevaItem(index: number, value: string) {
     setData((prev) => {
       const newItems = [...prev.sevaItems];
@@ -262,9 +311,9 @@ export default function AboutUsSettingsPage() {
             </label>
             <Input
               type="text"
-              value={data.templeName}
-              onChange={(e) => updateField("templeName", e.target.value)}
-              placeholder="Sri Gururaja Seva Samiti (R)"
+              value={data.heroTitle}
+              onChange={(e) => updateField("heroTitle", e.target.value)}
+              placeholder="Sri Raghavendra Swamy Matha"
             />
           </div>
           <div>
@@ -273,44 +322,50 @@ export default function AboutUsSettingsPage() {
             </label>
             <Input
               type="text"
-              value={data.templeNameKannada}
-              onChange={(e) => updateField("templeNameKannada", e.target.value)}
-              placeholder="ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ"
+              value={data.heroTitleKannada}
+              onChange={(e) => updateField("heroTitleKannada", e.target.value)}
+              placeholder="ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Tagline (English)
+              Subtitle / Location
             </label>
             <Input
               type="text"
-              value={data.tagline}
-              onChange={(e) => updateField("tagline", e.target.value)}
-              placeholder="Sri Gururaja Seva Samiti"
+              value={data.heroSubtitle}
+              onChange={(e) => updateField("heroSubtitle", e.target.value)}
+              placeholder="Yelahanka New Town, Bengaluru"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Tagline (Kannada)
+              Hero Image URL
             </label>
             <Input
               type="text"
-              value={data.taglineKannada}
-              onChange={(e) => updateField("taglineKannada", e.target.value)}
-              placeholder="ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ"
+              value={data.heroImageUrl}
+              onChange={(e) => updateField("heroImageUrl", e.target.value)}
+              placeholder="/images/Hero.jpg"
             />
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Tagline Line 2 (Location info)
-            </label>
-            <Input
-              type="text"
-              value={data.tagline2}
-              onChange={(e) => updateField("tagline2", e.target.value)}
-              placeholder="Maintained by... | Yelahanka New Town, Bengaluru"
-            />
-          </div>
+        </div>
+      </div>
+
+      {/* Sacred Motto Section */}
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-stone-900 mb-4">Sacred Motto</h3>
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1">
+            Motto (use • as separator)
+          </label>
+          <Input
+            type="text"
+            value={data.sacredMotto}
+            onChange={(e) => updateField("sacredMotto", e.target.value)}
+            placeholder="ಹರಿ ಸರ್ವೋತ್ತಮ • Hari Sarvottama • ..."
+          />
+          <p className="text-xs text-stone-500 mt-1">Separate each phrase with • symbol</p>
         </div>
       </div>
 
@@ -337,7 +392,7 @@ export default function AboutUsSettingsPage() {
               value={data.aboutContent}
               onChange={(e) => updateField("aboutContent", e.target.value)}
               placeholder="About the temple..."
-              rows={4}
+              rows={3}
             />
           </div>
           <div>
@@ -348,67 +403,136 @@ export default function AboutUsSettingsPage() {
               value={data.aboutContentKannada}
               onChange={(e) => updateField("aboutContentKannada", e.target.value)}
               placeholder="ದೇವಸ್ಥಾನದ ಬಗ್ಗೆ..."
-              rows={4}
+              rows={3}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Facilities Section */}
+      <div className="rounded-xl border bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-stone-900 mb-4">Temple Facilities</h3>
+        <div className="grid gap-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Section Title
+            </label>
+            <Input
+              type="text"
+              value={data.facilitiesTitle}
+              onChange={(e) => updateField("facilitiesTitle", e.target.value)}
+              placeholder="Temple Facilities"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-stone-700">
+                Facilities
+              </label>
+              <Button onClick={addFacility} size="sm" variant="outline">
+                <Plus className="mr-1 h-3 w-3" />
+                Add Facility
+              </Button>
+            </div>
+            <div className="space-y-4">
+              {data.facilities.map((facility) => (
+                <div key={facility.id} className="p-4 bg-stone-50 rounded-lg border">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm font-medium text-stone-600">Facility {data.facilities.indexOf(facility) + 1}</span>
+                    <button
+                      onClick={() => removeFacility(facility.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input
+                      type="text"
+                      value={facility.title}
+                      onChange={(e) => updateFacility(facility.id, "title", e.target.value)}
+                      placeholder="Facility name"
+                    />
+                    <Input
+                      type="text"
+                      value={facility.description}
+                      onChange={(e) => updateFacility(facility.id, "description", e.target.value)}
+                      placeholder="Brief description"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {data.facilities.length === 0 && (
+              <div className="text-center py-8 text-stone-500">
+                No facilities added yet. Click &ldquo;Add Facility&rdquo; to create one.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Activities Section */}
       <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-stone-900">Activities Section</h3>
-          <Button onClick={addActivity} size="sm" className="bg-orange-600 hover:bg-orange-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Activity
-          </Button>
-        </div>
-
-        <div className="space-y-6">
-          {data.activities.map((activity, index) => (
-            <div key={activity.id} className="rounded-lg border p-4 bg-stone-50">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-stone-500">Activity #{index + 1}</span>
-                <button
-                  onClick={() => removeActivity(activity.id)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Title
-                  </label>
-                  <Input
-                    type="text"
-                    value={activity.title}
-                    onChange={(e) => updateActivity(activity.id, "title", e.target.value)}
-                    placeholder="Activity Title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Description
-                  </label>
-                  <Input
-                    type="text"
-                    value={activity.description}
-                    onChange={(e) => updateActivity(activity.id, "description", e.target.value)}
-                    placeholder="Activity description"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {data.activities.length === 0 && (
-          <div className="text-center py-8 text-stone-500">
-            No activities added yet. Click &ldquo;Add Activity&rdquo; to create one.
+        <h3 className="text-lg font-semibold text-stone-900 mb-4">Our Activities</h3>
+        <div className="grid gap-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Section Title
+            </label>
+            <Input
+              type="text"
+              value={data.activitiesTitle}
+              onChange={(e) => updateField("activitiesTitle", e.target.value)}
+              placeholder="Our Activities"
+            />
           </div>
-        )}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-stone-700">
+                Activities
+              </label>
+              <Button onClick={addActivity} size="sm" variant="outline">
+                <Plus className="mr-1 h-3 w-3" />
+                Add Activity
+              </Button>
+            </div>
+            <div className="space-y-4">
+              {data.activities.map((activity) => (
+                <div key={activity.id} className="p-4 bg-stone-50 rounded-lg border">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm font-medium text-stone-600">Activity {data.activities.indexOf(activity) + 1}</span>
+                    <button
+                      onClick={() => removeActivity(activity.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input
+                      type="text"
+                      value={activity.title}
+                      onChange={(e) => updateActivity(activity.id, "title", e.target.value)}
+                      placeholder="Activity name"
+                    />
+                    <Input
+                      type="text"
+                      value={activity.description}
+                      onChange={(e) => updateActivity(activity.id, "description", e.target.value)}
+                      placeholder="Brief description"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {data.activities.length === 0 && (
+              <div className="text-center py-8 text-stone-500">
+                No activities added yet. Click &ldquo;Add Activity&rdquo; to create one.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Seva Section */}
