@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Script from "next/script";
-import { useEffect } from "react";
+import "@/types/chatbot";
 
 export default function RayaBot() {
   const pathname = usePathname();
@@ -16,30 +16,41 @@ export default function RayaBot() {
   const language = process.env.NEXT_PUBLIC_CHATBOT_LANGUAGE || "en";
 
   if (!chatbotId || chatbotId === "") {
-    console.warn("Chatbot: NEXT_PUBLIC_CHATBOT_ID is not set");
+    if (process.env.NODE_ENV === "development") {
+      console.warn("Chatbot: NEXT_PUBLIC_CHATBOT_ID is not set. Chatbot will not be rendered.");
+    }
     return null;
   }
 
-  useEffect(() => {
-    // Set Chatbase configuration before the script loads
-    (window as any).chatbaseConfig = {
-      chatbotId: chatbotId,
-      language: language,
-    };
-  }, [chatbotId, language]);
+  // Fix double slash in URL
+  const cleanHost = chatbaseHost.endsWith("/") ? chatbaseHost.slice(0, -1) : chatbaseHost;
+  const embedUrl = `${cleanHost}/embed.min.js`;
 
   return (
-    <Script
-      id="chatbase-embed"
-      src={`${chatbaseHost.replace(/\/$/, '')}/embed.min.js`}
-      data-chatbot-id={chatbotId}
-      strategy="lazyOnload"
-      onLoad={() => {
-        console.log("Chatbase loaded successfully", chatbotId);
-      }}
-      onError={(e) => {
-        console.error("Failed to load Chatbase script:", e);
-      }}
-    />
+    <>
+      <Script id="chatbase-config" strategy="beforeInteractive">
+        {`
+          window.chatbaseConfig = {
+            chatbotId: "${chatbotId}",
+            language: "${language}",
+            primaryColor: "#f97316",
+            buttonColor: "#f97316"
+          };
+          window.chatbaseConfig && console.log("Chatbase config set:", window.chatbaseConfig);
+        `}
+      </Script>
+
+      <Script
+        src={embedUrl}
+        data-chatbot-id={chatbotId}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log("Chatbase script loaded successfully");
+        }}
+        onError={() => {
+          console.error("Failed to load Chatbase script");
+        }}
+      />
+    </>
   );
 }
