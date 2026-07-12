@@ -1,38 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Script from "next/script";
+import { useEffect } from "react";
 
 export default function ChatbaseWidget() {
-  const [mounted, setMounted] = useState(false);
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    // Don't load if chatbot ID is not configured
+    if (!chatbotId || chatbotId === "your-chatbot-id") {
+      console.log("[Chatbase] Chatbot ID not configured");
+      return;
+    }
 
-  // Don't render on server
-  if (!mounted) return null;
+    console.log("[Chatbase] Loading chatbot with ID:", chatbotId);
 
-  // Don't load if chatbot ID is not configured
-  if (!chatbotId || chatbotId === "your-chatbot-id") {
-    console.log("[Chatbase] Chatbot ID not configured");
-    return null;
-  }
+    // Check if script already exists
+    if (document.querySelector('script[src*="chatbase.co"]')) {
+      console.log("[Chatbase] Script already loaded");
+      return;
+    }
 
-  console.log("[Chatbase] Loading chatbot with ID:", chatbotId);
+    // Create script element
+    const script = document.createElement("script");
+    script.src = "https://www.chatbase.co/embed.min.js";
+    script.setAttribute("data-chatbot-id", chatbotId);
+    script.async = true;
+    script.defer = true;
+    
+    script.onload = () => {
+      console.log("[Chatbase] Script loaded successfully!");
+    };
+    
+    script.onerror = (error) => {
+      console.error("[Chatbase] Script failed to load:", error);
+    };
 
-  return (
-    <Script
-      src="https://www.chatbase.co/embed.min.js"
-      data-chatbot-id={chatbotId}
-      strategy="lazyOnload"
-      onLoad={() => {
-        console.log("[Chatbase] Script loaded successfully");
-      }}
-      onError={(e) => {
-        console.error("[Chatbase] Script failed to load:", e);
-      }}
-    />
-  );
+    // Add to document
+    document.head.appendChild(script);
+    
+    console.log("[Chatbase] Script element added to head");
+  }, [chatbotId]);
+
+  return null;
 }
