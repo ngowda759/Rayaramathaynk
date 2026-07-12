@@ -1,20 +1,31 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import {
   ArrowRight,
   CalendarDays,
   Calendar,
   Clock3,
   Sparkles,
+  Flame,
 } from "lucide-react";
+import { useRef } from "react";
 
 import TempleButton from "@/components/ui/TempleButton";
 import { useHomepage } from "@/hooks/useHomepage";
 
 export default function Hero() {
   const { homepage, loading } = useHomepage();
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end start"]
+  });
+
+  const heroImageY = useTransform(scrollYProgress, [0, 1], [0, 150]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
   if (loading) {
     return (
@@ -54,7 +65,7 @@ export default function Hero() {
   const featuredFestivalDescription = homepage?.featuredFestivalDescription ?? "Coming Soon";
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-[#fffaf3] via-[#fff7eb] to-[#fdeed6]">
+    <section ref={containerRef} className="relative overflow-hidden bg-gradient-to-br from-[#fffaf3] via-[#fff7eb] to-[#fdeed6]">
 
       {/* Temple texture */}
 
@@ -257,11 +268,16 @@ export default function Hero() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
             className="relative hidden lg:flex justify-center"
+            style={{ opacity: heroOpacity }}
           >
 
             <div className="absolute h-[520px] w-[520px] rounded-full bg-amber-300 blur-[140px] opacity-40" />
 
-            <div className="relative z-10 h-[760px] w-[520px] overflow-hidden rounded-lg shadow-2xl">
+            {/* Parallax Image Container */}
+            <motion.div
+              style={{ y: heroImageY }}
+              className="relative z-10 h-[760px] w-[520px] overflow-hidden rounded-lg shadow-2xl"
+            >
               <Image
                 src={heroImage}
                 alt="Temple Hero"
@@ -270,7 +286,52 @@ export default function Hero() {
                 sizes="520px"
                 className="object-cover"
               />
-            </div>
+              
+              {/* Glowing border overlay */}
+              <div className="absolute inset-0 rounded-lg ring-4 ring-amber-400/30" />
+            </motion.div>
+
+            {/* Floating flame decorations */}
+            <motion.div
+              animate={{
+                y: [-10, 10, -10],
+                opacity: [0.6, 1, 0.6],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="absolute -left-8 top-1/4"
+            >
+              <div className="relative">
+                <Flame className="h-12 w-12 text-orange-500" />
+                <div className="absolute inset-0 animate-ping text-amber-400 opacity-30">
+                  <Flame className="h-12 w-12" />
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              animate={{
+                y: [10, -10, 10],
+                opacity: [0.5, 0.9, 0.5],
+              }}
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 0.5,
+              }}
+              className="absolute -right-12 top-1/3"
+            >
+              <div className="relative">
+                <Flame className="h-10 w-10 text-amber-500" />
+                <div className="absolute inset-0 animate-ping text-orange-400 opacity-20">
+                  <Flame className="h-10 w-10" />
+                </div>
+              </div>
+            </motion.div>
 
           </motion.div>
 
