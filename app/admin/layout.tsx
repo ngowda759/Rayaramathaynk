@@ -38,7 +38,6 @@ export default function AdminLayout({ children }: Props) {
           <script
             src={`${cleanChatbaseHost}/embed.min.js`}
             data-chatbot-id={chatbotId}
-            strategy="lazyOnload"
           />
         )}
         

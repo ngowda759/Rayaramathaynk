@@ -99,7 +99,6 @@ export default function RootLayout({
           <script
             src={`${cleanChatbaseHost}/embed.min.js`}
             data-chatbot-id={chatbotId}
-            strategy="lazyOnload"
           />
         )}
       </body>
