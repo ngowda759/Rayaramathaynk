@@ -60,6 +60,7 @@ const allNavigation = [
       { title: "Gallery", href: "/admin/gallery", icon: "image" },
       { title: "Announcements", href: "/admin/announcements", icon: "bell" },
       { title: "About Us", href: "/admin/settings/about", icon: "info" },
+      { title: "Facilities", href: "/admin/settings/facilities", icon: "info" },
       { title: "Guru Parampara", href: "/admin/settings/guru-parampara", icon: "book" },
       { title: "Shlokas", href: "/admin/settings/shlokas", icon: "book" },
       { title: "Footer Settings", href: "/admin/settings/footer", icon: "settings" },

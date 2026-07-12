@@ -17,12 +17,6 @@ interface Activity {
   description: string;
 }
 
-interface Facility {
-  id: string;
-  title: string;
-  description: string;
-}
-
 interface AboutUsData {
   // Hero Section
   templeName: string;
@@ -39,10 +33,6 @@ interface AboutUsData {
   aboutTitle: string;
   aboutContent: string;
   aboutContentKannada: string;
-  
-  // Facilities Section
-  facilitiesTitle: string;
-  facilities: Facility[];
   
   // Activities Section
   activitiesTitle: string;
@@ -89,9 +79,6 @@ const defaultData: AboutUsData = {
   aboutTitle: "About the Temple",
   aboutContent: "A sacred space blessed with the divine presence of Sri Raghavendra Swamy, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
   aboutContentKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಗಳ ದಿವ್ಯ ಸಾನ್ನಿಧ್ಯದಿಂದ ಪಾವನವಾದ ಪವಿತ್ರ ಸ್ಥಳ, ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
-  
-  facilitiesTitle: "Temple Facilities",
-  facilities: [],
   
   activitiesTitle: "Our Activities",
   activities: [
@@ -204,34 +191,6 @@ export default function AboutUsSettingsPage() {
       setData((prev) => ({
         ...prev,
         activities: prev.activities.filter((a) => a.id !== id),
-      }));
-    }
-  }
-
-  // Facilities handlers
-  function updateFacility(id: string, field: keyof Facility, value: string) {
-    setData((prev) => ({
-      ...prev,
-      facilities: prev.facilities.map((f) =>
-        f.id === id ? { ...f, [field]: value } : f
-      ),
-    }));
-  }
-
-  function addFacility() {
-    const newFacility: Facility = {
-      id: Date.now().toString(),
-      title: "",
-      description: "",
-    };
-    setData((prev) => ({ ...prev, facilities: [...prev.facilities, newFacility] }));
-  }
-
-  function removeFacility(id: string) {
-    if (confirm("Are you sure you want to remove this facility?")) {
-      setData((prev) => ({
-        ...prev,
-        facilities: prev.facilities.filter((f) => f.id !== id),
       }));
     }
   }
@@ -427,69 +386,6 @@ export default function AboutUsSettingsPage() {
               placeholder="ದೇವಸ್ಥಾನದ ಬಗ್ಗೆ..."
               rows={3}
             />
-          </div>
-        </div>
-      </div>
-
-      {/* Facilities Section */}
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-stone-900 mb-4">Temple Facilities</h3>
-        <div className="grid gap-4">
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Section Title
-            </label>
-            <Input
-              type="text"
-              value={data.facilitiesTitle}
-              onChange={(e) => updateField("facilitiesTitle", e.target.value)}
-              placeholder="Temple Facilities"
-            />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-stone-700">
-                Facilities
-              </label>
-              <Button onClick={addFacility} size="sm" variant="outline">
-                <Plus className="mr-1 h-3 w-3" />
-                Add Facility
-              </Button>
-            </div>
-            <div className="space-y-4">
-              {data.facilities.map((facility) => (
-                <div key={facility.id} className="p-4 bg-stone-50 rounded-lg border">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-sm font-medium text-stone-600">Facility {data.facilities.indexOf(facility) + 1}</span>
-                    <button
-                      onClick={() => removeFacility(facility.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input
-                      type="text"
-                      value={facility.title}
-                      onChange={(e) => updateFacility(facility.id, "title", e.target.value)}
-                      placeholder="Facility name"
-                    />
-                    <Input
-                      type="text"
-                      value={facility.description}
-                      onChange={(e) => updateFacility(facility.id, "description", e.target.value)}
-                      placeholder="Brief description"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            {data.facilities.length === 0 && (
-              <div className="text-center py-8 text-stone-500">
-                No facilities added yet. Click &ldquo;Add Facility&rdquo; to create one.
-              </div>
-            )}
           </div>
         </div>
       </div>
