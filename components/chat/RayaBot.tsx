@@ -1,7 +1,7 @@
 "use client";
 
-import Script from "next/script";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 
 export default function RayaBot() {
   const pathname = usePathname();
@@ -19,38 +19,41 @@ export default function RayaBot() {
 
   console.log("[Chatbase] Chatbot ID loaded:", chatbotId);
 
-  // Chatbase script URL
-  const embedUrl = "https://www.chatbase.co/embed.min.js";
+  useEffect(() => {
+    // Create and inject Chatbase script
+    const script = document.createElement("script");
+    script.src = "https://www.chatbase.co/embed.min.js";
+    script.setAttribute("data-chatbot-id", chatbotId);
+    script.id = chatbotId; // Some Chatbase versions use this
+    script.defer = true;
+    script.async = true;
+    
+    script.onload = () => {
+      console.log("[Chatbase] Script loaded successfully");
+    };
+    
+    script.onerror = () => {
+      console.error("[Chatbase] Failed to load script");
+    };
 
-  const handleScriptLoad = () => {
-    console.log("[Chatbase] Script loaded successfully");
-  };
+    document.body.appendChild(script);
+    console.log("[Chatbase] Script tag added to DOM");
 
-  const handleScriptError = () => {
-    console.error("[Chatbase] Failed to load script");
-  };
+    // Initialize Chatbase
+    (window as any).chatbase = (window as any).chatbase || function() {
+      ((window as any).chatbase.q = (window as any).chatbase.q || []).push(arguments);
+    };
+    (window as any).chatbase("init", chatbotId);
+    console.log("[Chatbase] Chatbase initialized");
 
-  return (
-    <>
-      {/* Chatbase embed script with chatbot ID in data attribute */}
-      <Script
-        id="chatbase-embed"
-        src={embedUrl}
-        data-chatbot-id={chatbotId}
-        strategy="afterInteractive"
-        onLoad={handleScriptLoad}
-        onError={handleScriptError}
-      />
-      {/* Initialize Chatbase with the chatbot ID */}
-      <Script id="chatbase-init" strategy="afterInteractive">
-        {`
-          window.chatbase = window.chatbase || function() {
-            (window.chatbase.q = window.chatbase.q || []).push(arguments);
-          };
-          window.chatbase("init", "${chatbotId}");
-          console.log("[Chatbase] Chatbase initialized");
-        `}
-      </Script>
-    </>
-  );
+    // Cleanup on unmount
+    return () => {
+      const existingScript = document.getElementById(chatbotId);
+      if (existingScript) {
+        existingScript.remove();
+      }
+    };
+  }, [chatbotId]);
+
+  return null; // Script injection is handled via useEffect
 }
