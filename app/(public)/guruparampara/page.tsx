@@ -137,7 +137,7 @@ export default function GuruparamparaPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-16">
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-8 md:py-10">
           <div className="absolute inset-0 opacity-10">
             <div
               className="h-full w-full"
@@ -150,7 +150,7 @@ export default function GuruparamparaPage() {
           </div>
 
           <div className="relative mx-auto max-w-7xl px-6">
-            <Breadcrumb current="Guru Parampara" parentHref="/" parentName="Home" />
+            <Breadcrumb current="Guru Parampara" />
             <div className="text-center mt-4">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
                 <Sparkles className="h-5 w-5 text-amber-200" />

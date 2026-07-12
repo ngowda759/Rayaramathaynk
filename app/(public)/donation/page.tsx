@@ -23,7 +23,7 @@ export default function DonationPage() {
           </div>
 
           <div className="relative mx-auto max-w-7xl px-6">
-            <Breadcrumb current="Donate" parentHref="/" parentName="Home" />
+            <Breadcrumb current="Donate" />
             <div className="text-center">
               <h1 className="text-4xl font-bold text-white md:text-5xl">
                 E-Donations

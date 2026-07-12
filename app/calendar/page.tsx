@@ -17,7 +17,7 @@ export default function TempleCalendarPage() {
 
           <div className="mx-auto max-w-7xl px-6 py-16">
             
-            <Breadcrumb current="Temple Calendar" parentHref="/" parentName="Home" />
+            <Breadcrumb current="Temple Calendar" />
 
           <div className="text-center">
 

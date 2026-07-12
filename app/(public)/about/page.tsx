@@ -12,7 +12,7 @@ export default function AboutPage() {
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-orange-600 to-amber-600 text-white py-12 px-6">
           <div className="max-w-4xl mx-auto">
-            <Breadcrumb current="About Us" parentHref="/" parentName="Home" />
+            <Breadcrumb current="About Us" />
             <div className="text-center mt-4">
               <div className="inline-block mb-4">
                 <p className="text-amber-200 text-sm tracking-widest uppercase">Welcome to</p>

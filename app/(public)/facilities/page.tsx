@@ -87,7 +87,7 @@ export default function FacilitiesPage() {
           </div>
 
           <div className="relative mx-auto max-w-7xl px-6">
-            <Breadcrumb current="Facilities" parentHref="/" parentName="Home" />
+            <Breadcrumb current="Facilities" />
             <div className="text-center mt-4">
               <h1 className="text-4xl font-bold text-white md:text-5xl">
                 Matha Facilities

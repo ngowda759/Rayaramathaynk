@@ -9,11 +9,13 @@ interface BreadcrumbProps {
 
 export default function Breadcrumb({
   current,
-  parentHref = "/calendar",
-  parentName = "Temple Calendar",
+  parentHref,
+  parentName,
 }: BreadcrumbProps) {
+  const showParent = parentName && parentName !== "Home";
+
   return (
-    <div className="mb-10 flex items-center gap-2 text-sm text-stone-500">
+    <div className="mb-6 flex items-center gap-2 text-sm text-stone-500">
 
       <Link
         href="/"
@@ -23,14 +25,17 @@ export default function Breadcrumb({
         Home
       </Link>
 
-      <ChevronRight size={15} />
-
-      <Link
-        href={parentHref}
-        className="hover:text-amber-700"
-      >
-        {parentName}
-      </Link>
+      {showParent && (
+        <>
+          <ChevronRight size={15} />
+          <Link
+            href={parentHref || "/"}
+            className="hover:text-amber-700"
+          >
+            {parentName}
+          </Link>
+        </>
+      )}
 
       <ChevronRight size={15} />
 
