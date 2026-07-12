@@ -11,7 +11,7 @@ export default function PoojaPage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-white">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-          <Breadcrumb current="Daily Pooja" parentHref="/" parentName="Home" />
+          <Breadcrumb current="Daily Pooja" />
           <SectionHeading
             title="Daily Pooja Schedule"
             subtitle="Find the temple's daily rituals, timings, and offerings."

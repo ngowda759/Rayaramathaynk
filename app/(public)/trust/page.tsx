@@ -103,7 +103,7 @@ export default function TrustCommitteePage() {
           </div>
 
           <div className="relative mx-auto max-w-7xl px-6">
-            <Breadcrumb current="Trust Committee" parentHref="/" parentName="Home" />
+            <Breadcrumb current="Trust Committee" />
             <div className="text-center mt-4">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
                 <Sparkles className="h-5 w-5 text-amber-200" />

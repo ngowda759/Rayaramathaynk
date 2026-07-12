@@ -11,7 +11,7 @@ export default function EventsPage() {
 
       <main className="min-h-[calc(100vh-120px)] bg-white px-6 py-16 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
-          <Breadcrumb current="Events" parentHref="/" parentName="Home" />
+          <Breadcrumb current="Events" />
         </div>
         <SectionHeading
           title="Temple Events"
