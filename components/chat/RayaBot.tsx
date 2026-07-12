@@ -5,45 +5,61 @@ import { usePathname } from "next/navigation";
 
 export default function RayaBot() {
   const pathname = usePathname();
-
-  if (pathname.startsWith("/admin")) return null;
-
+  
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
 
-  if (!chatbotId) return null;
+  // Exclude from admin routes
+  if (pathname.startsWith("/admin")) return null;
+
+  // Don't render if no chatbot ID is configured
+  if (!chatbotId) {
+    console.log("[Chatbase] Chatbot ID not configured - NEXT_PUBLIC_CHATBOT_ID is not set");
+    return null;
+  }
+
+  console.log("[Chatbase] Chatbot ID loaded:", chatbotId);
+
+  // Chatbase script URL - using the standard embed script
+  const chatbaseHost = process.env.NEXT_PUBLIC_CHATBASE_HOST || "https://www.chatbase.co";
+  const embedUrl = `${chatbaseHost.replace(/\/$/, "")}/embed.min.js`;
+
+  const handleScriptLoad = () => {
+    console.log("[Chatbase] Script loaded successfully");
+  };
+
+  const handleScriptError = () => {
+    console.error("[Chatbase] Failed to load script from:", embedUrl);
+  };
 
   return (
-    <Script id="chatbase-widget" strategy="afterInteractive">
-      {`
-      (function(){
-        if(!window.chatbase||window.chatbase("getState")!=="initialized"){
-          window.chatbase=(...arguments)=>{
-            if(!window.chatbase.q){window.chatbase.q=[];}
-            window.chatbase.q.push(arguments);
+    <>
+      <Script
+        id="chatbase-widget"
+        src={embedUrl}
+        data-chatbot-id={chatbotId}
+        strategy="afterInteractive"
+        onLoad={handleScriptLoad}
+        onError={handleScriptError}
+      />
+      {/* Fallback initialization for older Chatbase implementations */}
+      <Script id="chatbase-init" strategy="afterInteractive">
+        {`
+          // Initialize Chatbase once the script has loaded
+          window.chatbaseConfig = {
+            chatbotId: "${chatbotId}"
           };
-          window.chatbase=new Proxy(window.chatbase,{
-            get(target,prop){
-              if(prop==="q") return target.q;
-              return (...args)=>target(prop,...args);
-            }
-          });
-        }
-
-        const onLoad=function(){
-          const script=document.createElement("script");
-          script.src="https://www.chatbase.co/embed.min.js";
-          script.id="${chatbotId}";
-          script.domain="www.chatbase.co";
-          document.body.appendChild(script);
-        };
-
-        if(document.readyState==="complete"){
-          onLoad();
-        }else{
-          window.addEventListener("load",onLoad);
-        }
-      })();
-      `}
-    </Script>
+          
+          // Queue commands until Chatbase is ready
+          window.chatbase = window.chatbase || function() {
+            (window.chatbase.q = window.chatbase.q || []).push(arguments);
+          };
+          
+          // Signal that Chatbase has been initialized
+          window.chatbase("init", "${chatbotId}");
+          
+          console.log("[Chatbase] Chatbase initialized with ID: ${chatbotId}");
+        `}
+      </Script>
+    </>
   );
 }
