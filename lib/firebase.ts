@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { Auth, getAuth } from "firebase/auth";
+import { Auth, getAuth, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
@@ -45,27 +45,12 @@ const validateFirebaseConfig = (): FirebaseConfigValidation => {
 // Check if Firebase is properly configured
 const isFirebaseConfigured = (): boolean => {
   const result = validateFirebaseConfig();
-  console.log("🔥 isFirebaseConfigured check:", {
-    isValid: result.isValid,
-    missingFields: result.missingFields,
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? `SET (${process.env.NEXT_PUBLIC_FIREBASE_API_KEY.substring(0, 10)}...)` : "NOT SET",
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "NOT SET",
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "NOT SET",
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "NOT SET",
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "NOT SET",
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "NOT SET",
-  });
   return result.isValid;
 };
 
 // Get validation details (for debugging)
 export const getFirebaseConfigStatus = (): FirebaseConfigValidation => {
   const status = validateFirebaseConfig();
-
-
-  console.log("Firebase Config Status:", status);
-
-
   return status;
 };
 
@@ -84,10 +69,35 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
+let authInitialized = false;
+
+async function initializeAuth(authInstance: Auth): Promise<void> {
+  if (authInitialized) return;
+  
+  try {
+    // Set auth persistence to LOCAL (persists across browser sessions)
+    await setPersistence(authInstance, browserLocalPersistence);
+    authInitialized = true;
+    console.log("Firebase auth persistence set to LOCAL");
+  } catch (error) {
+    console.error("Failed to set auth persistence:", error);
+    // Fallback to session persistence
+    try {
+      await setPersistence(authInstance, browserSessionPersistence);
+      console.log("Firebase auth persistence set to SESSION (fallback)");
+    } catch (sessionError) {
+      console.error("Failed to set session persistence:", sessionError);
+    }
+  }
+}
 
 if (isFirebaseConfigured()) {
   app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
+  
+  // Initialize auth with persistence
+  initializeAuth(auth);
+  
   db = getFirestore(app);
   // Only initialize storage if storage bucket is configured
   if (firebaseConfig.storageBucket) {
@@ -95,6 +105,6 @@ if (isFirebaseConfigured()) {
   }
 }
 
-export { app, auth, db, storage, isFirebaseConfigured };
+export { app, auth, db, storage, isFirebaseConfigured, initializeAuth };
 export { validateFirebaseConfig };
 export default app;
