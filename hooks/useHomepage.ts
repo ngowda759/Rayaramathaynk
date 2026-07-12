@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
 
-import { db } from "@/lib/firebase";
 import { HomepageConfig } from "@/types/homepage";
 import { homepageService } from "@/services/homepage.service";
 
@@ -12,43 +10,55 @@ export function useHomepage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!db) {
-      setLoading(false);
-      return;
+    // Set default config immediately
+    setHomepage(homepageService.getDefaultConfig());
+    setLoading(false);
+
+    // Try to load from Firebase if available
+    async function loadFromFirebase() {
+      try {
+        // Dynamic import to avoid issues if firebase is not configured
+        const { doc, onSnapshot } = await import("firebase/firestore");
+        const { db } = await import("@/lib/firebase");
+        
+        if (!db) {
+          console.log("Firebase not configured - using default homepage config");
+          return;
+        }
+
+        const unsubscribe = onSnapshot(
+          doc(db, "homepage", "config"),
+          (snapshot) => {
+            try {
+              if (snapshot.exists()) {
+                setHomepage({
+                  ...homepageService.getDefaultConfig(),
+                  ...(snapshot.data() as HomepageConfig),
+                });
+              }
+              setLoading(false);
+            } catch (error) {
+              console.error("Homepage listener:", error);
+            }
+          },
+          (error) => {
+            console.error("Homepage listener error:", error);
+          }
+        );
+
+        return unsubscribe;
+      } catch (error) {
+        console.log("Firebase not available - using default homepage config");
+      }
     }
 
-    let initialized = false;
-
-    const unsubscribe = onSnapshot(
-      doc(db, "homepage", "config"),
-      async (snapshot) => {
-        try {
-          if (snapshot.exists()) {
-            setHomepage({
-              ...homepageService.getDefaultConfig(),
-              ...(snapshot.data() as HomepageConfig),
-            });
-          } else {
-            setHomepage(homepageService.getDefaultConfig());
-          }
-        } catch (error) {
-          console.error("Homepage listener:", error);
-          setHomepage(homepageService.getDefaultConfig());
-        } finally {
-          if (!initialized) {
-            initialized = true;
-            setLoading(false);
-          }
-        }
-      },
-      (error) => {
-        console.error("Homepage listener:", error);
-        setHomepage(homepageService.getDefaultConfig());
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
+    const unsubscribePromise = loadFromFirebase();
+    
+    return () => {
+      unsubscribePromise.then(unsub => {
+        if (unsub) unsub();
+      }).catch(() => {});
+    };
   }, []);
 
   return {
