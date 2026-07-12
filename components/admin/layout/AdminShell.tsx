@@ -37,7 +37,7 @@ export default function AdminShell({ children }: Props) {
   }, [isSidebarOpen, closeSidebar]);
 
   return (
-    <div className="min-h-screen w-screen bg-gray-50">
+    <div className="min-h-screen w-screen bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-stone-50">
       {/* Sidebar */}
       <AdminSidebar
         isOpen={isSidebarOpen}

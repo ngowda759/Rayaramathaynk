@@ -84,7 +84,7 @@ export default function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
       <div className="p-8">
         <LoginHeader />
 

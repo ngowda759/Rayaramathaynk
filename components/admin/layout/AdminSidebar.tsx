@@ -140,7 +140,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-68 bg-gradient-to-b from-white via-amber-50/30 to-orange-50/20 lg:border-r lg:border-amber-200/50 shadow-xl">
+      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-68 bg-gradient-to-b from-white via-amber-50/50 to-orange-50/40 lg:border-r lg:border-amber-200/60 shadow-xl shadow-amber-500/10">
         {/* Decorative top border */}
         <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
         

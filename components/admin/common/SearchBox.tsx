@@ -25,7 +25,7 @@ export default function SearchBox({
 }: SearchBoxProps) {
   return (
     <div className={cn("relative w-full", className)}>
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
 
       <input
         type="search"
@@ -36,7 +36,7 @@ export default function SearchBox({
         onKeyDown={onKeyDown}
         onChange={(e) => onChange(e.target.value)}
         aria-label={placeholder}
-        className="h-9 w-full rounded-lg border bg-background pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-11 w-full rounded-xl border border-amber-200 bg-white pl-10 pr-4 text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 focus:shadow-lg focus:shadow-amber-500/10 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-stone-400"
       />
     </div>
   );

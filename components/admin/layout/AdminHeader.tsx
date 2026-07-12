@@ -87,7 +87,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 flex-shrink-0 items-center justify-between border-b border-amber-200/50 bg-white/80 backdrop-blur-xl px-4 lg:px-6 shadow-sm">
+    <header className="sticky top-0 z-50 flex h-16 flex-shrink-0 items-center justify-between border-b border-amber-200/50 bg-white/90 backdrop-blur-xl px-4 lg:px-6 shadow-sm shadow-amber-500/5">
       {/* Left */}
       <div className="flex items-center gap-3">
         <button

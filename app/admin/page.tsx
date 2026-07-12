@@ -30,23 +30,23 @@ function StatCard({ title, value, icon: Icon, loading, index }: { title: string;
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.1 }}
       whileHover={{ y: -4, scale: 1.02 }}
-      className="group relative overflow-hidden rounded-2xl border border-amber-100/50 bg-white p-6 shadow-lg shadow-stone-900/5 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-200"
+      className="group relative overflow-hidden rounded-3xl border border-amber-200/60 bg-white p-6 shadow-xl shadow-amber-500/5 transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/15 hover:border-amber-300"
     >
       {/* Background gradient on hover */}
-      <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-orange-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-50/80 to-orange-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       
       {/* Decorative corner */}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-amber-100/30 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-100/40 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 shadow-lg shadow-amber-500/10 group-hover:scale-110 transition-transform duration-300">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform duration-300">
             <Icon className="h-5 w-5" />
           </div>
           <p className="text-sm font-medium text-stone-500">{title}</p>
         </div>
         {loading ? (
-          <div className="h-10 w-20 animate-pulse rounded-xl bg-gradient-to-r from-stone-200 to-stone-300" />
+          <div className="h-10 w-20 rounded-xl skeleton-temple" />
         ) : (
           <p className="text-4xl font-bold text-stone-900 tracking-tight">{value}</p>
         )}
@@ -214,14 +214,14 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-amber-100/50 bg-white p-6 shadow-lg shadow-stone-900/5"
+        className="relative overflow-hidden rounded-[32px] border border-amber-200/50 bg-white p-8 shadow-xl shadow-amber-500/5"
       >
         {/* Decorative corner */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-50/50 to-transparent rounded-bl-full" />
+        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-100/30 to-transparent rounded-bl-full" />
         
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -243,17 +243,17 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 + i * 0.1 }}
-                whileHover={{ y: -2 }}
-                className="group relative flex items-center gap-4 rounded-2xl border border-amber-100/50 bg-gradient-to-br from-white to-amber-50/30 p-5 shadow-sm transition-all hover:border-amber-200 hover:shadow-lg hover:shadow-amber-500/10"
+                whileHover={{ y: -4 }}
+                className="group relative flex items-center gap-4 rounded-2xl border border-amber-100/60 bg-gradient-to-br from-white to-amber-50/50 p-5 shadow-lg transition-all hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/10"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 shadow-sm group-hover:scale-110 transition-transform">
-                  <action.icon className="h-5 w-5" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 text-amber-600 shadow-md group-hover:scale-110 transition-transform">
+                  <action.icon className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-stone-800 group-hover:text-amber-700 transition-colors">{action.label}</p>
-                  <p className="text-xs text-stone-500 truncate">{action.desc}</p>
+                  <p className="text-sm text-stone-500 truncate">{action.desc}</p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-stone-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
+                <ArrowRight className="h-5 w-5 text-stone-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
               </motion.a>
             ))}
           </div>

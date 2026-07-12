@@ -113,18 +113,21 @@ const filteredEvents = sortedEvents.filter((event) => {
       />
       {/* Table */}
       {loading ? (
-        <div className="rounded-xl border bg-white p-8">
-          Loading events...
+        <div className="rounded-3xl border border-amber-200/50 bg-white p-12 shadow-lg">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-300 border-t-transparent" />
+            <p className="text-stone-500">Loading events...</p>
+          </div>
         </div>
       ) : error ? (
-        <div className="rounded-xl border bg-white p-8">
-          <h3 className="text-lg font-semibold text-destructive">Failed to load events</h3>
+        <div className="rounded-3xl border border-red-200/50 bg-red-50/50 p-8 shadow-lg">
+          <h3 className="text-lg font-semibold text-red-700">Failed to load events</h3>
           <p className="mt-2 text-sm text-stone-600">{error}</p>
         </div>
       ) : events.length === 0 ? (
-        <div className="rounded-xl border bg-white p-8">
-          <h3 className="text-lg font-semibold">No events found</h3>
-          <p className="mt-2 text-sm text-stone-600">Add your first event using the "Add Event" button above.</p>
+        <div className="rounded-3xl border border-amber-200/50 bg-white p-12 shadow-lg text-center">
+          <h3 className="text-lg font-semibold text-stone-700">No events found</h3>
+          <p className="mt-2 text-sm text-stone-500">Add your first event using the "Add Event" button above.</p>
         </div>
       ) : (
         <EventTable events={filteredEvents} onEventsChanged={loadEvents} />
