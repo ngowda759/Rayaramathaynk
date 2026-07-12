@@ -1,15 +1,21 @@
 "use client";
 
 import Script from "next/script";
+import "@/types/chatbot";
 
 export default function AdminChatbot() {
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
+  const chatbaseHost = process.env.NEXT_PUBLIC_CHATBASE_HOST || "https://www.chatbase.co";
   const language = process.env.NEXT_PUBLIC_CHATBOT_LANGUAGE || "en";
 
-  // Don't render if no chatbot ID is configured
   if (!chatbotId || chatbotId === "") {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("Admin Chatbot: NEXT_PUBLIC_CHATBOT_ID is not set. Chatbot will not be rendered.");
+    }
     return null;
   }
+
+  const embedUrl = `${chatbaseHost}/embed.min.js`;
 
   return (
     <>
@@ -28,12 +34,19 @@ export default function AdminChatbot() {
             buttonColor: "#f97316",
             position: "left"
           };
+          window.chatbaseConfig && console.log("Chatbase admin config set:", window.chatbaseConfig);
         `}
       </Script>
 
       <Script
-        src="https://www.chatbase.co/embed.min.js"
+        src={embedUrl}
         strategy="afterInteractive"
+        onLoad={() => {
+          console.log("Admin Chatbase script loaded successfully");
+        }}
+        onError={() => {
+          console.error("Failed to load Admin Chatbase script");
+        }}
       />
     </>
   );

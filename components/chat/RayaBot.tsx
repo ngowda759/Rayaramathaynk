@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Script from "next/script";
+import "@/types/chatbot";
 
 export default function RayaBot() {
   const pathname = usePathname();
@@ -11,12 +12,17 @@ export default function RayaBot() {
   }
 
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
+  const chatbaseHost = process.env.NEXT_PUBLIC_CHATBASE_HOST || "https://www.chatbase.co";
   const language = process.env.NEXT_PUBLIC_CHATBOT_LANGUAGE || "en";
 
-  // Don't render if no chatbot ID is configured
   if (!chatbotId || chatbotId === "") {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("Chatbot: NEXT_PUBLIC_CHATBOT_ID is not set. Chatbot will not be rendered.");
+    }
     return null;
   }
+
+  const embedUrl = `${chatbaseHost}/embed.min.js`;
 
   return (
     <>
@@ -28,14 +34,18 @@ export default function RayaBot() {
             primaryColor: "#f97316",
             buttonColor: "#f97316"
           };
+          window.chatbaseConfig && console.log("Chatbase config set:", window.chatbaseConfig);
         `}
       </Script>
 
       <Script
-        src="https://www.chatbase.co/embed.min.js"
+        src={embedUrl}
         strategy="afterInteractive"
         onLoad={() => {
-          console.log("Chatbase loaded");
+          console.log("Chatbase script loaded successfully");
+        }}
+        onError={() => {
+          console.error("Failed to load Chatbase script");
         }}
       />
     </>
