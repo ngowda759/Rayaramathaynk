@@ -22,7 +22,7 @@ export default function RayaBot() {
     return null;
   }
 
-  const embedUrl = `${chatbaseHost}/embed.min.js`;
+  const embedUrl = `${chatbaseHost.replace(/\/$/, '')}/embed.min.js`;
 
   return (
     <>

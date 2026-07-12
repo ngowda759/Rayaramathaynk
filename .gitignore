@@ -41,3 +41,4 @@ __pycache__/
 .venv/
 .env.local
 .env.local
+.vercel
