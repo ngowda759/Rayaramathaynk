@@ -12,7 +12,9 @@ export default function AdminLayout({ children }: Props) {
   return (
     <AdminAuthGuard>
       <AdminShell>
-        {children}
+        <main id="main-content" tabIndex={-1}>
+          {children}
+        </main>
         <AdminChatbot />
         <GoUpButton />
       </AdminShell>

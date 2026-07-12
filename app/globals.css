@@ -202,3 +202,71 @@ dialog:not([open]) {
   display: none;
   pointer-events: none;
 }
+
+/* Accessibility: Focus styles for keyboard navigation */
+:focus-visible {
+  outline: 2px solid oklch(0.5 0.2 45);
+  outline-offset: 2px;
+}
+
+/* Ensure skip link is visible when focused */
+.sr-only:focus-visible {
+  position: absolute !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0.5rem 1rem !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  clip-path: none !important;
+  white-space: nowrap !important;
+  border-radius: 0.5rem !important;
+  background-color: #d97706 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1) !important;
+  z-index: 9999 !important;
+}
+
+/* Improve focus visibility on interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid oklch(0.5 0.2 45);
+  outline-offset: 2px;
+}
+
+/* Focus ring for form inputs */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  box-shadow: 0 0 0 3px oklch(0.7 0.15 45 / 0.3);
+}
+
+/* Main content focus styles */
+main#main-content:focus {
+  outline: none;
+}
+
+/* Smooth scroll behavior for the page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Ensure scroll behavior works with reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
