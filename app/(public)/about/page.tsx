@@ -5,7 +5,7 @@ import Image from "next/image";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
-import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail, Wifi, Car, Droplets, Accessibility } from "lucide-react";
+import { Building2, Users, Heart, Calendar, BookOpen, MapPin, Phone, Mail } from "lucide-react";
 import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -23,9 +23,11 @@ interface Facility {
 }
 
 interface AboutUsData {
-  heroTitle: string;
-  heroTitleKannada: string;
-  heroSubtitle: string;
+  templeName: string;
+  templeNameKannada: string;
+  tagline: string;
+  taglineKannada: string;
+  tagline2: string;
   heroImageUrl: string;
   sacredMotto: string;
   aboutTitle: string;
@@ -54,21 +56,18 @@ interface AboutUsData {
 }
 
 const defaultData: AboutUsData = {
-  heroTitle: "Sri Raghavendra Swamy Matha",
-  heroTitleKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ",
-  heroSubtitle: "Yelahanka New Town, Bengaluru",
+  templeName: "Sri Gururaja Seva Samiti (R)",
+  templeNameKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  tagline: "Sri Gururaja Seva Samiti (R)",
+  taglineKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  tagline2: "Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R) | Yelahanka New Town, Bengaluru",
   heroImageUrl: "/images/Hero.jpg",
   sacredMotto: "ಹರಿ ಸರ್ವೋತ್ತಮ • Hari Sarvottama • ವಾಯು ಜೀವೋತ್ತಮ • Vāyu Jīvōttama • ಗುರುರಾಜೋ ವಿಜಯತೇ • Gururājō Vijayate",
   aboutTitle: "About the Temple",
   aboutContent: "A sacred space blessed with the divine presence of Sri Raghavendra Swamy, this temple serves as a spiritual haven for devotees in the Yelahanka New Town community.",
   aboutContentKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಗಳ ದಿವ್ಯ ಸಾನ್ನಿಧ್ಯದಿಂದ ಪಾವನವಾದ ಪವಿತ್ರ ಸ್ಥಳ, ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
   facilitiesTitle: "Temple Facilities",
-  facilities: [
-    { id: "1", title: "Wheelchair Access", description: "Accessibility for differently-abled devotees" },
-    { id: "2", title: "Prasada Distribution", description: "Free prasadam available daily" },
-    { id: "3", title: "Parking Space", description: "Ample parking for devotees" },
-    { id: "4", title: "Drinking Water", description: "Clean drinking water facilities" },
-  ],
+  facilities: [],
   activitiesTitle: "Our Activities",
   activities: [
     { id: "1", title: "Daily Poojas", description: "Morning and evening rituals including Suprabhata, Archane, and Harathi" },
@@ -88,32 +87,16 @@ const defaultData: AboutUsData = {
   resourcesTitle: "Spiritual Resources",
   resourcesContent: "Access sacred hymns, prayers, and stotrams for your daily worship.",
   visitTitle: "Visit Us",
-  address: "No. 05, Kere Cross\nYelahanka Upanagara\nBengaluru – 560064\nKarnataka, India",
-  phone: "+91 99002 15389",
-  phone2: "+91 98450 79474",
-  email: "srimoolaramafoundation@gmail.com",
+  address: "428/20, 8th A Cross Rd, Yelahanka Satellite Town, Yelahanka, Bengaluru, Karnataka 560064",
+  phone: "+91 80 2332 3456",
+  phone2: "+91 80 2332 3456",
+  email: "info@rayaramathaynk.com",
   communityTitle: "Join Our Community",
   communityContent: "We welcome all devotees to participate in our temple activities, events, and community gatherings.",
   communityContentKannada: "ನಾವು ಎಲ್ಲಾ ಭಕ್ತರನ್ನು ನಮ್ಮ ದೇವಸ್ಥಾನದ ಚಟುವಟಿಕೆಗಳು, ಕಾರ್ಯಕ್ರಮಗಳು ಮತ್ತು ಸಮುದಾಯ ಸಭೆಗಳಲ್ಲಿ ಭಾಗವಹಿಸಲು ಸ್ವಾಗತಿಸುತ್ತೇವೆ.",
   communityQuote: "May we all be protected, nourished, and blessed with strength together.",
   communityQuoteKannada: "ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ |"
 };
-
-const facilityIcons: { [key: string]: React.ReactNode } = {
-  "wheelchair": <Accessibility className="w-6 h-6" />,
-  "parking": <Car className="w-6 h-6" />,
-  "water": <Droplets className="w-6 h-6" />,
-  "wifi": <Wifi className="w-6 h-6" />,
-};
-
-function getFacilityIcon(title: string) {
-  const lower = title.toLowerCase();
-  if (lower.includes("wheelchair") || lower.includes("access")) return facilityIcons["wheelchair"];
-  if (lower.includes("parking")) return facilityIcons["parking"];
-  if (lower.includes("water") || lower.includes("drinking")) return facilityIcons["water"];
-  if (lower.includes("wifi") || lower.includes("internet")) return facilityIcons["wifi"];
-  return <Heart className="w-6 h-6" />;
-}
 
 export default function AboutPage() {
   const [data, setData] = useState<AboutUsData>(defaultData);
@@ -153,30 +136,28 @@ export default function AboutPage() {
     <>
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-amber-50 to-white">
-        {/* Hero Section with Image */}
+        {/* Hero Section with Hero.jpg auto-display */}
         <div className="relative bg-gradient-to-r from-orange-600 to-amber-600 text-white">
-          {data.heroImageUrl && (
-            <div className="absolute inset-0">
-              <Image
-                src={data.heroImageUrl}
-                alt="Temple"
-                fill
-                className="object-cover opacity-20"
-                priority
-              />
-            </div>
-          )}
+          <div className="absolute inset-0">
+            <Image
+              src="/images/Hero.jpg"
+              alt="Temple"
+              fill
+              className="object-cover opacity-20"
+              priority
+            />
+          </div>
           <div className="relative max-w-6xl mx-auto px-6 py-16 md:py-20">
             <Breadcrumb current="About Us" />
             <div className="text-center mt-8">
               <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                {data.heroTitleKannada}
+                {data.templeNameKannada}
               </h1>
               <h2 className="text-2xl md:text-4xl font-semibold mb-4">
-                {data.heroTitle}
+                {data.templeName}
               </h2>
               <p className="text-amber-100 text-lg md:text-xl">
-                {data.heroSubtitle}
+                {data.tagline2}
               </p>
             </div>
           </div>
@@ -231,9 +212,6 @@ export default function AboutPage() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {data.facilities.map((facility) => (
                   <div key={facility.id} className="p-5 bg-white rounded-xl border border-stone-200 shadow-sm text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mb-3">
-                      {getFacilityIcon(facility.title)}
-                    </div>
                     <h3 className="font-semibold text-stone-900 mb-2">{facility.title}</h3>
                     <p className="text-sm text-stone-600">{facility.description}</p>
                   </div>

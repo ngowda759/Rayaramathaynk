@@ -25,9 +25,11 @@ interface Facility {
 
 interface AboutUsData {
   // Hero Section
-  heroTitle: string;
-  heroTitleKannada: string;
-  heroSubtitle: string;
+  templeName: string;
+  templeNameKannada: string;
+  tagline: string;
+  taglineKannada: string;
+  tagline2: string;
   heroImageUrl: string;
   
   // Sacred Motto
@@ -75,10 +77,12 @@ const COLLECTION = "settings";
 const DOCUMENT = "aboutUs";
 
 const defaultData: AboutUsData = {
-  heroTitle: "Sri Raghavendra Swamy Matha",
-  heroTitleKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ",
-  heroSubtitle: "Yelahanka New Town, Bengaluru",
-  heroImageUrl: "/images/Hero.jpg",
+  templeName: "Sri Gururaja Seva Samiti (R)",
+  templeNameKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  tagline: "Sri Gururaja Seva Samiti (R)",
+  taglineKannada: "ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)",
+  tagline2: "Maintained by the Sri Sri Raghavendraswamy Brindavan Seva Samithi Trust (R) | Yelahanka New Town, Bengaluru",
+  heroImageUrl: "",
   
   sacredMotto: "ಹರಿ ಸರ್ವೋತ್ತಮ • Hari Sarvottama • ವಾಯು ಜೀವೋತ್ತಮ • Vāyu Jīvōttama • ಗುರುರಾಜೋ ವಿಜಯತೇ • Gururājō Vijayate",
   
@@ -87,12 +91,7 @@ const defaultData: AboutUsData = {
   aboutContentKannada: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಗಳ ದಿವ್ಯ ಸಾನ್ನಿಧ್ಯದಿಂದ ಪಾವನವಾದ ಪವಿತ್ರ ಸ್ಥಳ, ಈ ದೇವಸ್ಥಾನವು ಯೆಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಸಮುದಾಯದ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಆಶ್ರಯವಾಗಿ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ.",
   
   facilitiesTitle: "Temple Facilities",
-  facilities: [
-    { id: "1", title: "Wheelchair Access", description: "Accessibility for differently-abled devotees" },
-    { id: "2", title: "Prasada Distribution", description: "Free prasadam available daily" },
-    { id: "3", title: "Parking Space", description: "Ample parking for devotees" },
-    { id: "4", title: "Drinking Water", description: "Clean drinking water facilities" },
-  ],
+  facilities: [],
   
   activitiesTitle: "Our Activities",
   activities: [
@@ -116,10 +115,10 @@ const defaultData: AboutUsData = {
   resourcesContent: "Access sacred hymns, prayers, and stotrams for your daily worship.",
   
   visitTitle: "Visit Us",
-  address: "No. 05, Kere Cross\nYelahanka Upanagara\nBengaluru – 560064\nKarnataka, India",
-  phone: "+91 99002 15389",
-  phone2: "+91 98450 79474",
-  email: "srimoolaramafoundation@gmail.com",
+  address: "428/20, 8th A Cross Rd, Yelahanka Satellite Town, Yelahanka, Bengaluru, Karnataka 560064",
+  phone: "+91 80 2332 3456",
+  phone2: "+91 80 2332 3456",
+  email: "info@rayaramathaynk.com",
   
   communityTitle: "Join Our Community",
   communityContent: "We welcome all devotees to participate in our temple activities, events, and community gatherings.",
@@ -311,9 +310,9 @@ export default function AboutUsSettingsPage() {
             </label>
             <Input
               type="text"
-              value={data.heroTitle}
-              onChange={(e) => updateField("heroTitle", e.target.value)}
-              placeholder="Sri Raghavendra Swamy Matha"
+              value={data.templeName}
+              onChange={(e) => updateField("templeName", e.target.value)}
+              placeholder="Sri Gururaja Seva Samiti (R)"
             />
           </div>
           <div>
@@ -322,25 +321,47 @@ export default function AboutUsSettingsPage() {
             </label>
             <Input
               type="text"
-              value={data.heroTitleKannada}
-              onChange={(e) => updateField("heroTitleKannada", e.target.value)}
-              placeholder="ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ"
+              value={data.templeNameKannada}
+              onChange={(e) => updateField("templeNameKannada", e.target.value)}
+              placeholder="ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Subtitle / Location
+              Tagline (English)
             </label>
             <Input
               type="text"
-              value={data.heroSubtitle}
-              onChange={(e) => updateField("heroSubtitle", e.target.value)}
-              placeholder="Yelahanka New Town, Bengaluru"
+              value={data.tagline}
+              onChange={(e) => updateField("tagline", e.target.value)}
+              placeholder="Sri Gururaja Seva Samiti (R)"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
-              Hero Image URL
+              Tagline (Kannada)
+            </label>
+            <Input
+              type="text"
+              value={data.taglineKannada}
+              onChange={(e) => updateField("taglineKannada", e.target.value)}
+              placeholder="ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Tagline Line 2 (Location info)
+            </label>
+            <Input
+              type="text"
+              value={data.tagline2}
+              onChange={(e) => updateField("tagline2", e.target.value)}
+              placeholder="Maintained by... | Yelahanka New Town, Bengaluru"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Hero Image URL (optional - displays Hero.jpg automatically)
             </label>
             <Input
               type="text"
@@ -348,6 +369,7 @@ export default function AboutUsSettingsPage() {
               onChange={(e) => updateField("heroImageUrl", e.target.value)}
               placeholder="/images/Hero.jpg"
             />
+            <p className="text-xs text-stone-500 mt-1">Leave empty to auto-display Hero.jpg from public/images folder</p>
           </div>
         </div>
       </div>
