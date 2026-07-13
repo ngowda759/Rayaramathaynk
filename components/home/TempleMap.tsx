@@ -124,25 +124,7 @@ export default function TempleMap({
           </div>
         </motion.div>
 
-        {/* Additional Info */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          viewport={{ once: true }}
-          className="mt-14 rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 p-8 text-center"
-        >
-          <h3 className="text-2xl font-bold text-stone-900">Visiting Hours</h3>
-          <p className="mt-4 text-stone-600">
-            <span className="font-semibold text-stone-900">Morning:</span> 6:00 AM - 1:00 PM
-          </p>
-          <p className="mt-2 text-stone-600">
-            <span className="font-semibold text-stone-900">Evening:</span> 4:00 PM - 8:00 PM
-          </p>
-          <p className="mt-4 text-sm text-stone-500">
-            • Special Timings on Festivals
-          </p>
-        </motion.div>
+
       </div>
     </section>
   );
