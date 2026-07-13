@@ -22,10 +22,11 @@ interface GalleryImage {
 
 interface HomeClientProps {
   nextMajorEvent: Date;
+  nextEventName?: string;
   galleryImages: GalleryImage[];
 }
 
-export default function HomeClient({ nextMajorEvent, galleryImages }: HomeClientProps) {
+export default function HomeClient({ nextMajorEvent, nextEventName, galleryImages }: HomeClientProps) {
   return (
     <>
       <Navbar />
@@ -50,7 +51,7 @@ export default function HomeClient({ nextMajorEvent, galleryImages }: HomeClient
       <section className="bg-gradient-to-b from-white to-[#fff8ef] py-12">
         <div className="mx-auto max-w-2xl px-6">
           <EventCountdown
-            eventName="Sri Raghavendra Jayanthi"
+            eventName={nextEventName}
             eventDate={nextMajorEvent}
           />
         </div>
