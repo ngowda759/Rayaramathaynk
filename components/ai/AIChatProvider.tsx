@@ -1,8 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { AIMessage } from "@/types/ai";
 import { useAuthContext } from "@/context/AuthContext";
+import { 
+  createChatSession, 
+  saveMessage, 
+  getSessionMessages,
+  getUserChatSessions 
+} from "@/services/chat.service";
 
 interface AIChatContextType {
   messages: AIMessage[];
@@ -10,10 +16,13 @@ interface AIChatContextType {
   isLoading: boolean;
   sessionId: string | null;
   error: string | null;
+  isLoadingHistory: boolean;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
   toggleChat: () => void;
   regenerateResponse: () => Promise<void>;
+  loadSessionHistory: (sessionId: string) => Promise<void>;
+  userSessions: string[];
 }
 
 const AIChatContext = createContext<AIChatContextType | undefined>(undefined);
@@ -34,8 +43,10 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUserMessage, setLastUserMessage] = useState<AIMessage | null>(null);
+  const [userSessions, setUserSessions] = useState<string[]>([]);
   
   const { user } = useAuthContext();
 
@@ -50,6 +61,48 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     }
     return null;
   });
+
+  // Load user's chat sessions when user logs in
+  useEffect(() => {
+    async function loadUserSessions() {
+      if (user?.uid) {
+        try {
+          const sessions = await getUserChatSessions(user.uid);
+          setUserSessions(sessions.map(s => s.id));
+        } catch (err) {
+          console.error("Failed to load user sessions:", err);
+        }
+      }
+    }
+    loadUserSessions();
+  }, [user?.uid]);
+
+  // Save messages to Firebase
+  const saveToFirebase = useCallback(async (message: AIMessage, currentSessionId: string | null) => {
+    if (!currentSessionId) return;
+    try {
+      await saveMessage(currentSessionId, message);
+    } catch (err) {
+      console.error("Failed to save message to Firebase:", err);
+      // Don't throw - we don't want to break the chat if saving fails
+    }
+  }, []);
+
+  // Load session history from Firebase
+  const loadSessionHistory = useCallback(async (historySessionId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const historyMessages = await getSessionMessages(historySessionId);
+      setMessages(historyMessages);
+      setSessionId(historySessionId);
+      localStorage.setItem("raya_session_id", historySessionId);
+    } catch (err) {
+      console.error("Failed to load session history:", err);
+      setError("Failed to load chat history");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
 
   const toggleChat = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -71,6 +124,9 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     setIsLoading(true);
     setError(null);
 
+    // Get current session ID
+    let currentSessionId = sessionId;
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -79,7 +135,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
         },
         body: JSON.stringify({
           messages: [...messages, userMessage],
-          sessionId,
+          sessionId: currentSessionId,
           userId: user?.uid || null,
         }),
       });
@@ -95,10 +151,16 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
       setMessages((prev) => [...prev, data.message]);
       
       // Update session ID if new
-      if (data.sessionId && data.sessionId !== sessionId) {
+      if (data.sessionId && data.sessionId !== currentSessionId) {
+        currentSessionId = data.sessionId;
         setSessionId(data.sessionId);
         localStorage.setItem("raya_session_id", data.sessionId);
       }
+
+      // Save messages to Firebase
+      await saveToFirebase(userMessage, currentSessionId);
+      await saveToFirebase(data.message, currentSessionId);
+      
     } catch (err) {
       console.error("Chat error:", err);
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -111,10 +173,11 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMessage]);
+      await saveToFirebase(errorMessage, currentSessionId);
     } finally {
       setIsLoading(false);
     }
-  }, [messages, sessionId, user, isLoading]);
+  }, [messages, sessionId, user, isLoading, saveToFirebase]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -166,13 +229,14 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
 
       const data = await response.json();
       setMessages((prev) => [...prev, data.message]);
+      await saveToFirebase(data.message, sessionId);
     } catch (err) {
       console.error("Regenerate error:", err);
       setError(err instanceof Error ? err.message : "Failed to regenerate response");
     } finally {
       setIsLoading(false);
     }
-  }, [lastUserMessage, isLoading, messages, sessionId, user]);
+  }, [lastUserMessage, isLoading, messages, sessionId, user, saveToFirebase]);
 
   const value: AIChatContextType = {
     messages,
@@ -180,10 +244,13 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     isLoading,
     sessionId,
     error,
+    isLoadingHistory,
     sendMessage,
     clearMessages,
     toggleChat,
     regenerateResponse,
+    loadSessionHistory,
+    userSessions,
   };
 
   return (
