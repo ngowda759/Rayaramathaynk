@@ -1,18 +1,24 @@
 import { Timestamp } from "firebase/firestore";
 import { TempleEvent, EventStatus } from "@/types/event";
 
+// Define a type for date values that can come from various sources
+type DateValue = Date | number | string | { toDate: () => Date } | Timestamp | null | undefined;
+
 // Helper function to convert date to Date object
-function toDate(date: any): Date {
+function toDate(date: DateValue): Date {
   if (!date) return new Date(0);
   if (date instanceof Date) return date;
   if (typeof date === 'string') return new Date(date);
   if (typeof date === 'number') return new Date(date);
-  if (date.toDate && typeof date.toDate === 'function') return date.toDate();
+  if (typeof date === 'object' && 'toDate' in date && typeof date.toDate === 'function') {
+    return date.toDate();
+  }
+  if (date instanceof Timestamp) return date.toDate();
   return new Date(0);
 }
 
 // Helper function to get timestamp in milliseconds
-function toMillis(date: any): number {
+function toMillis(date: DateValue): number {
   return toDate(date).getTime();
 }
 
@@ -25,8 +31,8 @@ function toMillis(date: any): number {
  * to "Upcoming" instead of throwing.
  */
 export function getEventStatus(
-  startDate: any,
-  endDate: any
+  startDate: DateValue,
+  endDate: DateValue
 ): EventStatus {
   if (!startDate || !endDate) {
     return "Upcoming";
@@ -58,7 +64,7 @@ export function getEventStatus(
  *
  * Null-safe: returns 0 if startDate is missing/null.
  */
-export function getDaysLeft(startDate: any): number {
+export function getDaysLeft(startDate: DateValue): number {
   if (!startDate) {
     return 0;
   }

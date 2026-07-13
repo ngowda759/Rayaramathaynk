@@ -266,13 +266,5 @@ This API returns functions which cannot be memoized without leading to stale UI.
 /workspace/project/Rayaramathaynk/tests/functional/comprehensive.spec.ts
   67:15  warning  'naturalWidth' is assigned a value but never used  @typescript-eslint/no-unused-vars
 
-/workspace/project/Rayaramathaynk/utils/event.ts
-   1:10  warning  'Timestamp' is defined but never used     @typescript-eslint/no-unused-vars
-   5:23  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  15:25  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  28:14  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  29:12  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  61:40  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-
-✖ 104 problems (8 errors, 96 warnings)
+✖ 98 problems (3 errors, 95 warnings)
 
