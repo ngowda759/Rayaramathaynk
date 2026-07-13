@@ -26,6 +26,7 @@ export function useHomepage() {
         
         if (!db) {
           console.log("Firebase not configured - using default homepage config");
+          setLoading(false);
           return;
         }
 
@@ -53,6 +54,7 @@ export function useHomepage() {
         return unsubscribe;
       } catch (error) {
         console.log("Firebase not available - using default homepage config");
+        setLoading(false);
       }
     }
 
