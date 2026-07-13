@@ -82,8 +82,8 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     try {
       await saveMessage(currentSessionId, message);
     } catch (err) {
-      console.error("Failed to save message to Firebase:", err);
-      // Don't throw - we don't want to break the chat if saving fails
+      // Silently ignore Firebase errors - message history is optional
+      // Don't log to console as this is not critical functionality
     }
   }, []);
 
@@ -161,18 +161,34 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
       await saveToFirebase(data.message, currentSessionId);
       
     } catch (err) {
-      console.error("Chat error:", err);
-      setError(err instanceof Error ? err.message : "Failed to send message");
+      const errorMessage = err instanceof Error ? err.message : "Failed to send message";
       
-      // Add error message
-      const errorMessage: AIMessage = {
+      // Check if AI is not configured - show specific message without console error
+      if (errorMessage.includes("AI service is not configured")) {
+        setError("Chat feature is currently unavailable");
+        const aiUnavailableMessage: AIMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "🙏 Namaste! The AI assistant is temporarily unavailable. For temple inquiries, please contact the matha office directly or visit during temple hours.",
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiUnavailableMessage]);
+        return;
+      }
+      
+      // Log other errors for debugging
+      console.error("Chat error:", err);
+      setError(errorMessage);
+      
+      // Add generic error message
+      const userFriendlyError: AIMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: "I apologize, but I encountered an issue. Please try again or contact the temple office for assistance.",
         timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
-      await saveToFirebase(errorMessage, currentSessionId);
+      setMessages((prev) => [...prev, userFriendlyError]);
+      await saveToFirebase(userFriendlyError, currentSessionId);
     } finally {
       setIsLoading(false);
     }
