@@ -1,17 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAIChat } from "./AIChatProvider";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { ChatInput } from "./ChatInput";
 import { SuggestedQuestions } from "./SuggestedQuestions";
-import { Trash2, Sparkles } from "lucide-react";
+import { Trash2, Sparkles, History, X, ChevronRight } from "lucide-react";
 
 export function ChatWindow() {
-  const { messages, isOpen, isLoading, sendMessage, clearMessages, regenerateResponse } = useAIChat();
+  const { 
+    messages, 
+    isOpen, 
+    isLoading, 
+    sendMessage, 
+    clearMessages, 
+    regenerateResponse,
+    loadSessionHistory,
+    userSessions,
+    sessionId 
+  } = useAIChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -47,15 +58,58 @@ export function ChatWindow() {
             <p className="text-xs text-white/80">Sri Raghavendra Swamy Math</p>
           </div>
         </div>
-        <button
-          onClick={clearMessages}
-          className="p-2 rounded-lg hover:bg-white/20 transition-colors"
-          aria-label="Clear conversation"
-          title="Clear chat"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {userSessions.length > 0 && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="p-2 rounded-lg hover:bg-white/20 transition-colors"
+              aria-label="Toggle chat history"
+              title="Chat history"
+            >
+              <History className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={clearMessages}
+            className="p-2 rounded-lg hover:bg-white/20 transition-colors"
+            aria-label="Clear conversation"
+            title="Clear chat"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
+
+      {/* Session History Sidebar */}
+      {showHistory && userSessions.length > 0 && (
+        <div className="border-b border-stone-200 bg-stone-50 p-3 max-h-40 overflow-y-auto">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-stone-500">Previous Chats</p>
+            <button 
+              onClick={() => setShowHistory(false)}
+              className="p-1 hover:bg-stone-200 rounded"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="space-y-1">
+            {userSessions.map((sid) => (
+              <button
+                key={sid}
+                onClick={() => {
+                  loadSessionHistory(sid);
+                  setShowHistory(false);
+                }}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center justify-between
+                          ${sid === sessionId ? 'bg-amber-100 text-amber-800' : 'hover:bg-stone-100 text-stone-600'}`}
+              >
+                <span className="truncate">{sid.slice(0, 8)}...</span>
+                <ChevronRight className="w-3 h-3 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div 
         className="flex-1 overflow-y-auto p-4 bg-stone-50"
