@@ -97,9 +97,14 @@ export default function Panchanga() {
   }, []);
 
   function value(v?: string | null) {
-    if (!v || typeof v !== 'string') return DEFAULT_PLACEHOLDER;
-    if (v.trim().length === 0) return DEFAULT_PLACEHOLDER;
-    return v;
+    try {
+      if (v == null) return DEFAULT_PLACEHOLDER;
+      if (typeof v !== 'string') return DEFAULT_PLACEHOLDER;
+      if (v.trim().length === 0) return DEFAULT_PLACEHOLDER;
+      return v;
+    } catch {
+      return DEFAULT_PLACEHOLDER;
+    }
   }
 
   const items = [
