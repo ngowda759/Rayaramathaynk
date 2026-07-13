@@ -13,15 +13,15 @@ const ChatWindow = dynamic(
   }
 );
 
-// Check if AI chat is enabled via environment variable
-const isAIEnabled = process.env.NEXT_PUBLIC_AI_CHAT_ENABLED === "true";
+// Check if AI chat is disabled via environment variable (default: enabled)
+const isAIDisabled = process.env.NEXT_PUBLIC_AI_CHAT_ENABLED === "false";
 
 export function ChatWidget() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Don't render on server and only show if AI chat is enabled
-    if (!isAIEnabled) return;
+    // Don't render on server and skip if AI is explicitly disabled
+    if (isAIDisabled) return;
     
     // Use requestAnimationFrame to defer state update
     const rafId = requestAnimationFrame(() => {
@@ -30,8 +30,8 @@ export function ChatWidget() {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  // Don't render on server to avoid hydration issues or if AI is not enabled
-  if (!mounted || !isAIEnabled) {
+  // Don't render on server to avoid hydration issues or if AI is disabled
+  if (!mounted || isAIDisabled) {
     return null;
   }
 
