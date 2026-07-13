@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { AIChatProvider } from "@/components/ai/AIChatProvider";
 import { ChatWidget } from "@/components/ai/ChatWidget";
 
 const inter = Inter({
@@ -43,38 +44,40 @@ export default function RootLayout({
           Skip to main content
         </a>
         <AuthProvider>
-          {children}
+          <AIChatProvider>
+            {children}
 
-          <Toaster
-            position="top-right"
-            reverseOrder={false}
-            gutter={8}
-            toastOptions={{
-              duration: 4000,
-              style: {
-                borderRadius: "12px",
-                background: "#ffffff",
-                color: "#1c1917",
-                border: "1px solid #e7e5e4",
-                boxShadow:
-                  "0 10px 25px rgba(0,0,0,0.08)",
-              },
-              success: {
-                iconTheme: {
-                  primary: "#16a34a",
-                  secondary: "#ffffff",
+            <Toaster
+              position="top-right"
+              reverseOrder={false}
+              gutter={8}
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  borderRadius: "12px",
+                  background: "#ffffff",
+                  color: "#1c1917",
+                  border: "1px solid #e7e5e4",
+                  boxShadow:
+                    "0 10px 25px rgba(0,0,0,0.08)",
                 },
-              },
-              error: {
-                iconTheme: {
-                  primary: "#dc2626",
-                  secondary: "#ffffff",
+                success: {
+                  iconTheme: {
+                    primary: "#16a34a",
+                    secondary: "#ffffff",
+                  },
                 },
-              },
-            }}
-          />
+                error: {
+                  iconTheme: {
+                    primary: "#dc2626",
+                    secondary: "#ffffff",
+                  },
+                },
+              }}
+            />
+            <ChatWidget />
+          </AIChatProvider>
         </AuthProvider>
-        <ChatWidget />
       </body>
     </html>
   );
