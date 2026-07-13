@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { Auth, getAuth, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
-import { Firestore, getFirestore, getDocs, collection, query, where, orderBy } from "firebase/firestore";
+import { Firestore, getFirestore, getDocs, collection } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
 // Validate Firebase configuration
@@ -111,80 +111,90 @@ export interface NextEventInfo {
   date: Date;
 }
 
+// Helper to convert various date formats to Date object
+function toDate(dateValue: any): Date | null {
+  if (!dateValue) return null;
+  if (dateValue instanceof Date) return dateValue;
+  if (typeof dateValue.toDate === 'function') return dateValue.toDate();
+  if (typeof dateValue === 'number') return new Date(dateValue);
+  if (typeof dateValue === 'string') {
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
 export async function getNextUpcomingEvent(): Promise<NextEventInfo | null> {
   if (!db) {
+    console.log("[getNextUpcomingEvent] Firebase db not available");
     return null;
   }
 
   try {
     const now = new Date();
-    const eventsRef = collection(db, "events");
+    console.log("[getNextUpcomingEvent] Fetching events at:", now.toISOString());
     
-    // Query for upcoming published events
-    const q = query(
-      eventsRef,
-      where("published", "==", true),
-      orderBy("startDate", "asc")
-    );
+    // Get all events without complex query (avoiding index requirements)
+    const snapshot = await getDocs(collection(db, "events"));
     
-    const snapshot = await getDocs(q);
+    console.log("[getNextUpcomingEvent] Total events in DB:", snapshot.size);
     
     if (snapshot.empty) {
       return null;
     }
 
-    // Find the first event that hasn't ended yet
+    // Filter and sort client-side
+    const upcomingEvents: Array<{ title: string; date: Date; endDate: Date }> = [];
+    
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      let eventEndDate: Date;
       
-      if (data.endDate) {
-        // Handle Firestore Timestamp
-        if (data.endDate.toDate && typeof data.endDate.toDate === 'function') {
-          eventEndDate = data.endDate.toDate();
-        } else if (data.endDate instanceof Date) {
-          eventEndDate = data.endDate;
-        } else {
-          eventEndDate = new Date(data.endDate);
-        }
-      } else if (data.startDate) {
-        // If no endDate, use startDate
-        if (data.startDate.toDate && typeof data.startDate.toDate === 'function') {
-          eventEndDate = data.startDate.toDate();
-        } else if (data.startDate instanceof Date) {
-          eventEndDate = data.startDate;
-        } else {
-          eventEndDate = new Date(data.startDate);
-        }
-      } else {
+      // Skip unpublished events (if published field exists and is false)
+      if (data.published === false) {
         continue;
       }
-
-      // If event hasn't ended, this is our next event
-      if (eventEndDate >= now) {
-        let eventStartDate: Date;
-        if (data.startDate) {
-          if (data.startDate.toDate && typeof data.startDate.toDate === 'function') {
-            eventStartDate = data.startDate.toDate();
-          } else if (data.startDate instanceof Date) {
-            eventStartDate = data.startDate;
-          } else {
-            eventStartDate = new Date(data.startDate);
-          }
-        } else {
-          eventStartDate = eventEndDate;
-        }
-
-        return {
-          title: data.title || "Upcoming Event",
-          date: eventStartDate,
-        };
+      
+      const startDate = toDate(data.startDate);
+      const endDate = toDate(data.endDate);
+      
+      if (!startDate && !endDate) {
+        continue;
       }
+      
+      // Use endDate if available, otherwise startDate
+      const eventEndDate = endDate || startDate!;
+      const eventStartDate = startDate || endDate!;
+      
+      // Skip past events
+      if (eventEndDate < now) {
+        continue;
+      }
+      
+      upcomingEvents.push({
+        title: data.title || "Upcoming Event",
+        date: eventStartDate,
+        endDate: eventEndDate,
+      });
     }
-
-    return null;
+    
+    // Sort by start date ascending
+    upcomingEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    console.log("[getNextUpcomingEvent] Upcoming events count:", upcomingEvents.length);
+    
+    if (upcomingEvents.length === 0) {
+      return null;
+    }
+    
+    const nextEvent = upcomingEvents[0];
+    console.log("[getNextUpcomingEvent] Next event:", nextEvent.title, "on", nextEvent.date.toISOString());
+    
+    return {
+      title: nextEvent.title,
+      date: nextEvent.date,
+    };
   } catch (error) {
-    console.error("Error fetching next event:", error);
+    console.error("[getNextUpcomingEvent] Error fetching events:", error);
     return null;
   }
 }
