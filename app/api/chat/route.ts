@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAIProvider } from "@/lib/ai/provider";
-import { SYSTEM_PROMPT } from "@/lib/ai/systemPrompt";
+import { getSystemPrompt } from "@/lib/ai/settings";
 import { generateFirebaseResponse, getTempleInfo } from "@/lib/ai/firebaseChat";
 import { AIMessage, ChatRequest, ChatResponse } from "@/types/ai";
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     let responseMessage: AIMessage;
 
     if (provider.isConfigured()) {
-      // Use AI provider
+      // Use AI provider with configurable system prompt
       console.log(`[Chat API] Using AI provider: ${provider.getProviderName()}`);
 
       const aiMessages: AIMessage[] = messages.map((msg) => ({
@@ -79,7 +79,9 @@ export async function POST(request: NextRequest) {
         timestamp: msg.timestamp || Date.now(),
       }));
 
-      const responseContent = await provider.generateResponse(aiMessages, SYSTEM_PROMPT);
+      // Get system prompt from Firebase (or defaults)
+      const systemPrompt = await getSystemPrompt();
+      const responseContent = await provider.generateResponse(aiMessages, systemPrompt);
       const latency = Date.now() - startTime;
 
       responseMessage = {

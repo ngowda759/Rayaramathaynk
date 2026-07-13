@@ -8,6 +8,7 @@ import {
   getSessionMessages,
   getUserChatSessions 
 } from "@/services/chat.service";
+import { getWelcomeMessage } from "@/lib/ai/settings";
 
 interface AIChatContextType {
   messages: AIMessage[];
@@ -22,6 +23,7 @@ interface AIChatContextType {
   regenerateResponse: () => Promise<void>;
   loadSessionHistory: (sessionId: string) => Promise<void>;
   userSessions: string[];
+  welcomeMessage: string;
 }
 
 const AIChatContext = createContext<AIChatContextType | undefined>(undefined);
@@ -46,6 +48,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastUserMessage, setLastUserMessage] = useState<AIMessage | null>(null);
   const [userSessions, setUserSessions] = useState<string[]>([]);
+  const [welcomeMessage, setWelcomeMessage] = useState<string>("");
   
   const { user } = useAuthContext();
 
@@ -60,6 +63,19 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     }
     return null;
   });
+
+  // Load AI settings (welcome message)
+  useEffect(() => {
+    async function loadWelcomeMessage() {
+      try {
+        const msg = await getWelcomeMessage();
+        setWelcomeMessage(msg);
+      } catch (err) {
+        console.error("Failed to load welcome message:", err);
+      }
+    }
+    loadWelcomeMessage();
+  }, []);
 
   // Load user's chat sessions when user logs in
   useEffect(() => {
@@ -266,6 +282,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     regenerateResponse,
     loadSessionHistory,
     userSessions,
+    welcomeMessage,
   };
 
   return (
