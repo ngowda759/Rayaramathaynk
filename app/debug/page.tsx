@@ -1,8 +1,9 @@
 "use client";
 
 export default function DebugPage() {
-  const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
   const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const aiProvider = process.env.AI_PROVIDER;
   
   return (
     <div className="min-h-screen bg-stone-100 p-8">
@@ -13,9 +14,16 @@ export default function DebugPage() {
         
         <div className="space-y-3">
           <div className="flex items-center gap-4">
-            <span className="font-medium min-w-48">NEXT_PUBLIC_CHATBOT_ID:</span>
-            <span className={chatbotId ? "text-green-600" : "text-red-600"}>
-              {chatbotId || "NOT SET"}
+            <span className="font-medium min-w-48">AI_PROVIDER:</span>
+            <span className={aiProvider ? "text-green-600" : "text-red-600"}>
+              {aiProvider || "NOT SET"}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <span className="font-medium min-w-48">OPENAI_API_KEY:</span>
+            <span className={openaiApiKey ? "text-green-600 truncate" : "text-red-600"}>
+              {openaiApiKey ? `${openaiApiKey.substring(0, 20)}...` : "NOT SET"}
             </span>
           </div>
           
@@ -28,32 +36,10 @@ export default function DebugPage() {
         </div>
       </div>
       
-      <div className="bg-white rounded-xl p-6 shadow-lg mb-6">
-        <h2 className="text-xl font-semibold mb-4">Test Chatbase</h2>
-        <button
-          onClick={() => {
-            if (!chatbotId) {
-              alert("Chatbot ID not set!");
-              return;
-            }
-            const script = document.createElement("script");
-            script.src = "https://www.chatbase.co/embed.min.js";
-            script.setAttribute("data-chatbot-id", chatbotId);
-            script.defer = true;
-            script.async = true;
-            document.body.appendChild(script);
-            alert("Chatbase script added! Check bottom-right corner.");
-          }}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
-        >
-          Manually Load Chatbase
-        </button>
-      </div>
-      
       <div className="bg-white rounded-xl p-6 shadow-lg">
         <h2 className="text-xl font-semibold mb-4">Browser Console</h2>
         <p className="text-stone-600">
-          Press F12 and check the Console tab for chatbase-related messages.
+          Press F12 and check the Console tab for Raya AI related messages.
         </p>
       </div>
     </div>

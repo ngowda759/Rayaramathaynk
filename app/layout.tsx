@@ -4,7 +4,7 @@ import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
-import ChatbaseWidget from "@/components/chat/ChatbaseWidget";
+import { ChatWidget } from "@/components/ai/ChatWidget";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -74,7 +74,7 @@ export default function RootLayout({
             }}
           />
         </AuthProvider>
-        <ChatbaseWidget />
+        <ChatWidget />
       </body>
     </html>
   );
