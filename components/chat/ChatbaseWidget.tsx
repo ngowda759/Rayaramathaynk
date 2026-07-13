@@ -1,24 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-// Extend Window interface for chatbase
-declare global {
-  interface Window {
-    chatbase?: (...args: unknown[]) => unknown;
-    chatbase_q?: unknown[];
-  }
-}
+import Script from "next/script";
+import { useState } from "react";
 
 export default function ChatbaseWidget() {
-  const [isClient, setIsClient] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  if (!isClient) {
+  if (!mounted) {
+    // Only render on client
+    if (typeof window !== "undefined") {
+      setMounted(true);
+    }
     return null;
   }
 
@@ -26,41 +19,30 @@ export default function ChatbaseWidget() {
     return null;
   }
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (!window.chatbase || window.chatbase("getState") !== "initialized") {
-        window.chatbase = function () {
-          if (!window.chatbase_q) {
-            window.chatbase_q = [];
-          }
-          window.chatbase_q!.push(arguments);
-        };
-        window.chatbase = new Proxy(window.chatbase, {
-          get: function (_target, prop) {
-            if (prop === "q") {
-              return window.chatbase_q;
-            }
-            return function (...args: unknown[]) {
-              window.chatbase!(prop as string, ...args);
+  return (
+    <>
+      <Script
+        id="chatbase-widget"
+        strategy="lazyOnload"
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.chatbaseConfig = {
+              chatbotId: "${chatbotId}"
             };
-          },
-        }) as typeof window.chatbase;
-      }
-      
-      const onLoad = function () {
-        const script = document.createElement("script");
-        script.src = "https://www.chatbase.co/embed.min.js";
-        script.id = chatbotId;
-        document.body.appendChild(script);
-      };
-      
-      if (document.readyState === "complete") {
-        onLoad();
-      } else {
-        window.addEventListener("load", onLoad);
-      }
-    }
-  }, [chatbotId]);
-
-  return null;
+          `
+        }}
+      />
+      <Script
+        id="chatbase-embed"
+        src="https://www.chatbase.co/embed.min.js"
+        strategy="lazyOnload"
+        onLoad={() => {
+          console.log("[Chatbase] Widget loaded successfully");
+        }}
+        onError={() => {
+          console.error("[Chatbase] Failed to load widget");
+        }}
+      />
+    </>
+  );
 }
