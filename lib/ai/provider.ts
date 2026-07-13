@@ -7,6 +7,29 @@ interface ProviderConfig {
   baseUrl?: string;
 }
 
+// List of known placeholder/invalid API key patterns
+const PLACEHOLDER_KEY_PATTERNS = [
+  "your-",
+  "your_api_key",
+  "your_openai",
+  "sk-",
+  "placeholder",
+  "dummy",
+  "test",
+  "fake",
+  "invalid",
+  "undefined",
+  "null",
+  "example",
+  "sample",
+];
+
+function isPlaceholderKey(key: string | undefined): boolean {
+  if (!key) return true;
+  const lowerKey = key.toLowerCase();
+  return PLACEHOLDER_KEY_PATTERNS.some(pattern => lowerKey.includes(pattern));
+}
+
 function getProviderConfig(): ProviderConfig {
   const provider = process.env.AI_PROVIDER || "openai";
   
@@ -291,7 +314,8 @@ export class AIChatProvider implements AIProvider {
   }
 
   isConfigured(): boolean {
-    return !!this.config.apiKey;
+    // Check if API key exists AND is not a placeholder
+    return !!this.config.apiKey && !isPlaceholderKey(this.config.apiKey);
   }
 
   getProviderName(): string {

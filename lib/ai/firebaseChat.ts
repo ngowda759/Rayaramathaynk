@@ -231,6 +231,29 @@ export async function generateFirebaseResponse(
   };
 
   // Response generators for common queries
+  if (message.includes("location") || message.includes("where") || message.includes("address") || (message.includes("temple") && message.includes("locat"))) {
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: `📍 **Temple Location**
+
+**Sri Raghavendra Swamy Matha**
+Yelahanka New Town
+Bengaluru, Karnataka, India
+
+**Contact:**
+📞 ${info.phone}
+📧 ${info.email}
+
+🙏 We are located in the peaceful Yelahanka New Town area of Bengaluru. The temple is easily accessible by road and public transportation.
+
+For directions, you can search for "Sri Raghavendra Swamy Matha Yelahanka" on Google Maps.
+
+We look forward to welcoming you!`,
+      timestamp: Date.now(),
+    };
+  }
+
   if (message.includes("timing") || message.includes("open") || message.includes("hour")) {
     return {
       id: crypto.randomUUID(),
@@ -422,6 +445,29 @@ We welcome devotees who wish to serve the temple!
 🙏 To express your interest in volunteering, please contact the temple office or speak with a priest during your visit.
 
 Your service is considered a sacred karma (duty) and will be richly blessed!`,
+      timestamp: Date.now(),
+    };
+  }
+
+  if (message.includes("testimonial") || message.includes("share experience") || message.includes("feedback") || message.includes("review")) {
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: `✨ **Share Your Temple Experience**
+
+We would love to hear about your spiritual journey and experiences at Sri Raghavendra Swamy Matha!
+
+**How to Share Your Testimonial:**
+• Visit our website's Testimonials page
+• Fill in your name, city, and your experience
+• Rate your visit (1-5 stars)
+• Optionally give permission to publish your testimonial
+
+🙏 Your testimonials inspire other devotees and help spread the divine message of Sri Guru Raghavendra Swamy.
+
+All testimonials are reviewed before being published to ensure they maintain the sacred atmosphere of our matha.
+
+Visit: [Your Website]/testimonials to share your experience!`,
       timestamp: Date.now(),
     };
   }

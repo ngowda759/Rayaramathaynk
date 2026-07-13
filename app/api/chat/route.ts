@@ -26,8 +26,23 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+// Enhanced error logging helper
+function logError(context: string, error: unknown, details?: Record<string, unknown>): void {
+  const timestamp = new Date().toISOString();
+  const errorInfo: Record<string, unknown> = {
+    timestamp,
+    context,
+    errorType: error instanceof Error ? error.name : typeof error,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+    ...details,
+  };
+  console.error(`[Chat API] Error in ${context}:`, JSON.stringify(errorInfo, null, 2));
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
+  const requestId = crypto.randomUUID();
 
   try {
     // Get client IP for rate limiting
@@ -35,8 +50,11 @@ export async function POST(request: NextRequest) {
                request.headers.get("x-real-ip") || 
                "unknown";
 
+    console.log(`[Chat API] [${requestId}] Received request from IP: ${ip}`);
+
     // Check rate limit
     if (!checkRateLimit(ip)) {
+      console.log(`[Chat API] [${requestId}] Rate limit exceeded for IP: ${ip}`);
       return NextResponse.json(
         { error: "Too many requests. Please wait a moment and try again." },
         { status: 429 }
@@ -44,11 +62,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const body: ChatRequest = await request.json();
+    let body: ChatRequest;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      logError("JSON parsing", parseError, { requestId });
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+
     const { messages, sessionId, userId } = body;
 
     // Validate messages
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.log(`[Chat API] [${requestId}] Invalid messages:`, { hasMessages: !!messages, isArray: Array.isArray(messages), length: messages?.length });
       return NextResponse.json(
         { error: "Messages are required and must be a non-empty array" },
         { status: 400 }
@@ -58,43 +87,67 @@ export async function POST(request: NextRequest) {
     // Get the last user message
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUserMessage) {
+      console.log(`[Chat API] [${requestId}] No user message found in messages`);
       return NextResponse.json(
         { error: "No user message found" },
         { status: 400 }
       );
     }
 
+    console.log(`[Chat API] [${requestId}] Processing message: "${lastUserMessage.content.substring(0, 50)}..."`);
+
     // Try AI provider first, fallback to Firebase
     const provider = getAIProvider();
     let responseMessage: AIMessage;
+    let responseSource: "ai" | "firebase" = "ai";
 
     if (provider.isConfigured()) {
       // Use AI provider with configurable system prompt
-      console.log(`[Chat API] Using AI provider: ${provider.getProviderName()}`);
+      console.log(`[Chat API] [${requestId}] Using AI provider: ${provider.getProviderName()} (model: ${provider.getModelName()})`);
 
-      const aiMessages: AIMessage[] = messages.map((msg) => ({
-        id: msg.id || crypto.randomUUID(),
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-        timestamp: msg.timestamp || Date.now(),
-      }));
+      try {
+        const aiMessages: AIMessage[] = messages.map((msg) => ({
+          id: msg.id || crypto.randomUUID(),
+          role: msg.role as "user" | "assistant",
+          content: msg.content,
+          timestamp: msg.timestamp || Date.now(),
+        }));
 
-      // Get system prompt from Firebase (or defaults)
-      const systemPrompt = await getSystemPrompt();
-      const responseContent = await provider.generateResponse(aiMessages, systemPrompt);
-      const latency = Date.now() - startTime;
+        // Get system prompt from Firebase (or defaults)
+        const systemPrompt = await getSystemPrompt();
+        console.log(`[Chat API] [${requestId}] System prompt length: ${systemPrompt.length} chars`);
 
-      responseMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: responseContent,
-        timestamp: Date.now(),
-        model: provider.getModelName(),
-        latency,
-      };
+        const responseContent = await provider.generateResponse(aiMessages, systemPrompt);
+        const latency = Date.now() - startTime;
+
+        console.log(`[Chat API] [${requestId}] AI response generated in ${latency}ms (${responseContent.length} chars)`);
+
+        responseMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: responseContent,
+          timestamp: Date.now(),
+          model: provider.getModelName(),
+          latency,
+        };
+      } catch (aiError) {
+        // AI call failed, log and fallback to Firebase
+        logError("AI provider call", aiError, { requestId, provider: provider.getProviderName() });
+        console.log(`[Chat API] [${requestId}] Falling back to Firebase due to AI error`);
+        
+        // Get temple info from Firebase
+        const templeInfo = await getTempleInfo();
+        
+        // Generate response using Firebase data
+        responseMessage = await generateFirebaseResponse(
+          lastUserMessage.content,
+          templeInfo
+        );
+        responseSource = "firebase";
+      }
     } else {
-      // Use Firebase-based response
-      console.log("[Chat API] AI not configured, using Firebase fallback");
+      // AI not configured, use Firebase-based response
+      console.log(`[Chat API] [${requestId}] AI not configured (placeholder key or missing config), using Firebase fallback`);
       
       // Get temple info from Firebase
       const templeInfo = await getTempleInfo();
@@ -104,7 +157,11 @@ export async function POST(request: NextRequest) {
         lastUserMessage.content,
         templeInfo
       );
+      responseSource = "firebase";
     }
+
+    const totalLatency = Date.now() - startTime;
+    console.log(`[Chat API] [${requestId}] Total request time: ${totalLatency}ms (source: ${responseSource})`);
 
     const response: ChatResponse = {
       message: responseMessage,
@@ -113,30 +170,42 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[Chat API] Error:", error);
+    logError("Request processing", error, { requestId, startTime });
 
-    // Handle specific error types
+    // Handle specific error types with specific messages
     if (error instanceof Error) {
-      if (error.message.includes("API key")) {
+      if (error.message.includes("API key") || error.message.includes("401") || error.message.includes("403")) {
+        console.error(`[Chat API] [${requestId}] Authentication error - check API key configuration`);
         return NextResponse.json(
-          { error: "AI service configuration error. Please contact the administrator." },
+          { error: "AI service authentication failed. Please contact the administrator." },
           { status: 500 }
         );
       }
       if (error.message.includes("rate") || error.message.includes("429")) {
+        console.error(`[Chat API] [${requestId}] Rate limit error`);
         return NextResponse.json(
           { error: "Too many requests. Please wait a moment and try again." },
           { status: 429 }
         );
       }
-      if (error.message.includes("timeout")) {
+      if (error.message.includes("timeout") || error.message.includes("ETIMEDOUT")) {
+        console.error(`[Chat API] [${requestId}] Timeout error`);
         return NextResponse.json(
           { error: "Request timed out. Please try again." },
           { status: 504 }
         );
       }
+      if (error.message.includes("fetch") || error.message.includes("network") || error.message.includes("ENOTFOUND")) {
+        console.error(`[Chat API] [${requestId}] Network error`);
+        return NextResponse.json(
+          { error: "Network error. Please check your connection and try again." },
+          { status: 503 }
+        );
+      }
     }
 
+    // Generic error
+    console.error(`[Chat API] [${requestId}] Unhandled error, returning generic response`);
     return NextResponse.json(
       { error: "An error occurred while generating the response. Please try again." },
       { status: 500 }
@@ -152,6 +221,7 @@ export async function GET() {
     status: "ok",
     provider: provider.getProviderName(),
     configured: provider.isConfigured(),
+    model: provider.getModelName(),
     timestamp: Date.now(),
   });
 }

@@ -179,28 +179,33 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to send message";
       
-      // Check if AI is not configured - show specific message without console error
-      if (errorMessage.includes("AI service is not configured")) {
-        setError("Chat feature is currently unavailable");
-        const aiUnavailableMessage: AIMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: "🙏 Namaste! The AI assistant is temporarily unavailable. For temple inquiries, please contact the matha office directly or visit during temple hours.",
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, aiUnavailableMessage]);
-        return;
+      // Determine the appropriate error message based on error type
+      let userFriendlyMessage: string;
+      
+      if (errorMessage.includes("AI service authentication failed")) {
+        userFriendlyMessage = "🙏 Namaste! The AI service is experiencing authentication issues. Our team has been notified. For immediate assistance, please contact the matha office directly.";
+        console.error("Chat: AI authentication error - admin should check API key configuration");
+      } else if (errorMessage.includes("rate") || errorMessage.includes("429")) {
+        userFriendlyMessage = "🙏 I am receiving too many requests right now. Please wait a moment and try again. 🙏";
+      } else if (errorMessage.includes("timeout")) {
+        userFriendlyMessage = "🙏 The request timed out. Please try again. 🙏";
+      } else if (errorMessage.includes("network") || errorMessage.includes("503")) {
+        userFriendlyMessage = "🙏 There seems to be a connectivity issue. Please check your internet connection and try again. 🙏";
+      } else if (errorMessage.includes("AI service is not configured")) {
+        userFriendlyMessage = "🙏 Namaste! The AI assistant is temporarily unavailable. For temple inquiries, please contact the matha office directly or visit during temple hours.";
+      } else {
+        // Log the actual error for debugging
+        console.error("Chat error:", err);
+        userFriendlyMessage = "🙏 I apologize, but I encountered an issue. Please try again or contact the temple office for assistance. 🙏";
       }
       
-      // Log other errors for debugging
-      console.error("Chat error:", err);
       setError(errorMessage);
       
-      // Add generic error message
+      // Add user-friendly error message
       const userFriendlyError: AIMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "I apologize, but I encountered an issue. Please try again or contact the temple office for assistance.",
+        content: userFriendlyMessage,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, userFriendlyError]);
