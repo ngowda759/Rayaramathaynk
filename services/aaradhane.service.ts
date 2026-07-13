@@ -15,20 +15,34 @@ import { Aaradhane, AaradhaneStats } from "@/types/aaradhane";
 
 const COLLECTION_NAME = "aaradhane";
 
+function isAaradhaneUpcoming(dates: string[]): boolean {
+  if (!dates || dates.length === 0) return false;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  
+  return dates.some(dateStr => {
+    const eventDate = new Date(dateStr);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate >= now;
+  });
+}
+
 function docToAaradhane(docSnap: any): Aaradhane {
   const data = docSnap.data();
+  const dates = data.dates || [];
+  
   return {
     id: docSnap.id,
     title: data.title || "",
     guruName: data.guruName || "",
-    dates: data.dates || [],
+    dates: dates,
     description: data.description || "",
     significance: data.significance || "",
     rituals: data.rituals || [],
     offerings: data.offerings || [],
     imageUrl: data.imageUrl || "",
     sevaDetails: data.sevaDetails || [],
-    isUpcoming: data.isUpcoming ?? false,
+    isUpcoming: isAaradhaneUpcoming(dates),
     displayOrder: data.displayOrder ?? 0,
     createdAt: data.createdAt?.toDate
       ? data.createdAt.toDate().toISOString()
