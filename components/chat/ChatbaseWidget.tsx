@@ -33,10 +33,12 @@ export default function ChatbaseWidget() {
 
     console.log("[Chatbase] Loading chatbot with ID:", chatbotId);
 
+    // Set chatbot ID as data attribute on document body for Chatbase to find
+    document.body.setAttribute("data-chatbot-id", chatbotId);
+
     // Create script element
     const script = document.createElement("script");
     script.src = "https://www.chatbase.co/embed.min.js";
-    script.setAttribute("data-chatbot-id", chatbotId);
     script.async = true;
     script.defer = true;
     
@@ -57,6 +59,7 @@ export default function ChatbaseWidget() {
     document.head.appendChild(script);
     
     console.log("[Chatbase] Script element added to head");
+    console.log("[Chatbase] Body data-chatbot-id attribute set");
   }, [chatbotId]);
 
   // Debug info in development
@@ -66,6 +69,7 @@ export default function ChatbaseWidget() {
       console.log("[Chatbase] - Chatbot ID:", chatbotId || "NOT SET");
       console.log("[Chatbase] - Script Loaded:", scriptLoaded);
       console.log("[Chatbase] - Current Domain:", typeof window !== "undefined" ? window.location.hostname : "unknown");
+      console.log("[Chatbase] - Body chatbot ID:", document.body.getAttribute("data-chatbot-id"));
       
       if (!chatbotId || chatbotId === "your-chatbot-id" || chatbotId === "") {
         console.log("[Chatbase] ⚠️ To enable the chatbot:");
