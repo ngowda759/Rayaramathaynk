@@ -10,7 +10,7 @@ import {
   Sparkles,
   Flame,
 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 
 import TempleButton from "@/components/ui/TempleButton";
 import { useHomepage } from "@/hooks/useHomepage";
@@ -18,6 +18,11 @@ import { useHomepage } from "@/hooks/useHomepage";
 export default function Hero() {
   const { homepage, loading } = useHomepage();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -318,7 +323,7 @@ export default function Hero() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
             className="relative hidden lg:flex justify-center"
-            style={{ opacity: heroOpacity }}
+            style={isMounted ? { opacity: heroOpacity } : { opacity: 1 }}
           >
 
             {/* Enhanced glow */}
@@ -326,7 +331,7 @@ export default function Hero() {
 
             {/* Parallax Image Container with ornate frame */}
             <motion.div
-              style={{ y: heroImageY }}
+              style={isMounted ? { y: heroImageY } : { y: 0 }}
               className="relative z-10 group"
             >
               {/* Ornate golden frame */}
