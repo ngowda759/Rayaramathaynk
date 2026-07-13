@@ -12,32 +12,23 @@ import SearchBox from "@/components/admin/common/SearchBox";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { TempleEvent } from "@/types/event";
 import { eventService } from "@/services/event.service";
-import { db } from "@/lib/firebase";
+
 export default function EventsPage() {
   const [events, setEvents] = useState<TempleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "disconnected">("checking");
-  const [rawData, setRawData] = useState<string>("");
   const [search, setSearch] = useState("");
   const loadEvents = useCallback(async () => {
     try {
       setLoading(true);
-      setDbStatus("checking");
-      
-      console.log("[Events] db status:", db ? "defined" : "null/undefined");
       
       // Get events
       const data = await eventService.getEvents();
-      console.log("[Events] Received data:", data);
       setEvents(data);
-      setRawData(JSON.stringify(data, null, 2));
       setError(null);
-      setDbStatus(data.length > 0 ? "connected" : "disconnected");
     } catch (error) {
       console.error("Failed to load events:", error);
       setError(error instanceof Error ? error.message : String(error));
-      setDbStatus("disconnected");
     } finally {
       setLoading(false);
     }
@@ -75,20 +66,6 @@ const filteredEvents = sortedEvents.filter((event) => {
   });
   return (
     <div className="space-y-8">
-      {/* Debug Info */}
-      <div className="rounded-lg border bg-muted p-4 text-sm">
-        <p><strong>Firebase Status:</strong> {dbStatus === "checking" ? "⏳ Checking..." : dbStatus === "connected" ? "✅ Connected" : "❌ Disconnected"}</p>
-        <p><strong>Events Loaded:</strong> {events.length}</p>
-        {rawData && (
-          <details className="mt-2">
-            <summary className="cursor-pointer font-semibold">Raw Firestore Data (click to expand)</summary>
-            <pre className="mt-2 max-h-96 overflow-auto rounded bg-background p-2 text-xs">{rawData}</pre>
-          </details>
-        )}
-        {dbStatus === "disconnected" && (
-          <p className="text-destructive mt-2">⚠️ Firebase is not configured. Please check your Vercel environment variables.</p>
-        )}
-      </div>
       {/* Header */}
       <AdminPageHeader
         title="Temple Events"
