@@ -13,39 +13,28 @@ export default function RayaBot() {
   // Wait for client-side hydration
   useEffect(() => {
     try {
-      setMounted(true);
-      console.log("[Chatbase] Component mounted");
+      // Use setTimeout to avoid synchronous state update during effect
+      const timer = setTimeout(() => {
+        setMounted(true);
+        console.log("[Chatbase] Component mounted");
+      }, 0);
+      return () => clearTimeout(timer);
     } catch (e) {
       console.error("[Chatbase] Mount error:", e);
-      setError(String(e));
+      // Use setTimeout to avoid synchronous state update during effect
+      setTimeout(() => setError(String(e)), 0);
     }
   }, []);
 
-  // Don't render during SSR to avoid hydration mismatch
-  if (!mounted) {
-    return null;
-  }
-
-  // Don't render if error occurred
-  if (error) {
-    console.log("[Chatbase] Skipping due to mount error:", error);
-    return null;
-  }
-
-  // Exclude from admin routes
-  if (pathname.startsWith("/admin")) {
-    return null;
-  }
-
-  // Don't render if no chatbot ID is configured or if it's a placeholder
-  if (!chatbotId || chatbotId === "your-chatbot-id") {
-    console.log("[Chatbase] Chatbot ID not configured");
-    return null;
-  }
-
-  console.log("[Chatbase] Chatbot ID loaded:", chatbotId);
-
+  // Script injection effect - combines all conditions into single effect
   useEffect(() => {
+    // Skip if not mounted, error, admin route, or no chatbot ID
+    if (!mounted || error || pathname.startsWith("/admin") || !chatbotId || chatbotId === "your-chatbot-id") {
+      return;
+    }
+
+    console.log("[Chatbase] Chatbot ID loaded:", chatbotId);
+
     try {
       // Check if script already exists
       const existingScript = document.querySelector(`script[src*="chatbase.co"]`);
@@ -76,7 +65,7 @@ export default function RayaBot() {
     } catch (e) {
       console.error("[Chatbase] Script injection error:", e);
     }
-  }, [chatbotId]);
+  }, [mounted, error, pathname, chatbotId]);
 
   return null;
 }

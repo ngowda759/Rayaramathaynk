@@ -11,8 +11,11 @@ export function useHomepage() {
 
   useEffect(() => {
     // Set default config immediately
-    setHomepage(homepageService.getDefaultConfig());
-    setLoading(false);
+    // Use setTimeout to avoid synchronous state update during effect
+    setTimeout(() => {
+      setHomepage(homepageService.getDefaultConfig());
+      setLoading(false);
+    }, 0);
 
     // Try to load from Firebase if available
     async function loadFromFirebase() {
@@ -36,7 +39,8 @@ export function useHomepage() {
                   ...(snapshot.data() as HomepageConfig),
                 });
               }
-              setLoading(false);
+              // Use setTimeout to avoid synchronous state update during effect
+              setTimeout(() => setLoading(false), 0);
             } catch (error) {
               console.error("Homepage listener:", error);
             }

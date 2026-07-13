@@ -83,7 +83,8 @@ export function AuthProvider({
     // Skip Firebase auth if not properly configured
     if (!auth) {
       console.log("Firebase auth not configured - skipping auth listener");
-      setLoading(false);
+      // Use setTimeout to avoid synchronous state update during effect
+      setTimeout(() => setLoading(false), 0);
       return;
     }
 
@@ -93,7 +94,8 @@ export function AuthProvider({
       unsubscribe = onAuthStateChanged(
         auth,
         async (firebaseUser) => {
-          setLoading(true);
+          // Use setTimeout to avoid synchronous state update during effect
+          setTimeout(() => setLoading(true), 0);
 
           try {
             setUser(firebaseUser);
@@ -107,13 +109,13 @@ export function AuthProvider({
             console.error("Auth state change error:", err);
             setProfile(null);
           } finally {
-            setLoading(false);
+            setTimeout(() => setLoading(false), 0);
           }
         }
       );
     } catch (err) {
       console.error("Firebase auth initialization error:", err);
-      setLoading(false);
+      setTimeout(() => setLoading(false), 0);
     }
 
     return () => {

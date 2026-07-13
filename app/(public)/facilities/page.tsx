@@ -8,7 +8,7 @@ import SectionHeading from "@/components/common/SectionHeading";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Flame, Building2, Users, UtensilsCrossed, Volume2, Sparkles } from "lucide-react";
 
 interface Facility {
   id: string;
@@ -103,13 +103,13 @@ const defaultData: FacilitiesData = {
   ],
 };
 
-const iconMap: { [key: string]: any } = {
-  Flame: require("lucide-react").Flame,
-  Building2: require("lucide-react").Building2,
-  Users: require("lucide-react").Users,
-  UtensilsCrossed: require("lucide-react").UtensilsCrossed,
-  Volume2: require("lucide-react").Volume2,
-  Sparkles: require("lucide-react").Sparkles,
+const iconMap: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  Flame,
+  Building2,
+  Users,
+  UtensilsCrossed,
+  Volume2,
+  Sparkles,
 };
 
 const colorOptions = [

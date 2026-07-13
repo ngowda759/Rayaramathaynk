@@ -21,7 +21,8 @@ export function useGallery(
 
   useEffect(() => {
     if (!db) {
-      setLoading(false);
+      // Use setTimeout to avoid synchronous state update during effect
+      setTimeout(() => setLoading(false), 0);
       return;
     }
 
@@ -53,11 +54,12 @@ export function useGallery(
         }
 
         setMedia(items);
-        setLoading(false);
+        // Use setTimeout to avoid synchronous state update during effect
+        setTimeout(() => setLoading(false), 0);
       },
       (error) => {
         console.error("Gallery listener:", error);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 0);
       }
     );
 

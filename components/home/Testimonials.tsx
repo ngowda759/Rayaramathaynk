@@ -186,7 +186,7 @@ export default function Testimonials() {
                     transition={{ delay: 0.2 }}
                     className="text-xl md:text-2xl leading-relaxed text-stone-700 italic"
                   >
-                    "{currentTestimonial.quote}"
+                    &ldquo;{currentTestimonial.quote}&rdquo;
                   </motion.p>
 
                   {/* Avatar and Info */}

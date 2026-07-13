@@ -112,10 +112,12 @@ export interface NextEventInfo {
 }
 
 // Helper to convert various date formats to Date object
-function toDate(dateValue: any): Date | null {
+function toDate(dateValue: Date | number | string | { toDate: () => Date } | null | undefined): Date | null {
   if (!dateValue) return null;
   if (dateValue instanceof Date) return dateValue;
-  if (typeof dateValue.toDate === 'function') return dateValue.toDate();
+  if (typeof dateValue === 'object' && 'toDate' in dateValue && typeof dateValue.toDate === 'function') {
+    return dateValue.toDate();
+  }
   if (typeof dateValue === 'number') return new Date(dateValue);
   if (typeof dateValue === 'string') {
     const parsed = new Date(dateValue);

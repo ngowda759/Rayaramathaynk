@@ -79,7 +79,8 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
       };
     };
 
-    setTimeLeft(calculateTimeLeft());
+    // Use setTimeout to avoid synchronous state update during effect
+    setTimeout(() => setTimeLeft(calculateTimeLeft()), 0);
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 1000);

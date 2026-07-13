@@ -63,7 +63,7 @@ export default function TestimonialsSection({
         {testimonials.length === 0 && (
           <div className="rounded-lg border-2 border-dashed border-stone-300 p-6 text-center">
             <p className="text-sm text-stone-500">
-              No testimonials added yet. Click "Add Testimonial" to add one.
+              No testimonials added yet. Click &quot;Add Testimonial&quot; to add one.
             </p>
           </div>
         )}

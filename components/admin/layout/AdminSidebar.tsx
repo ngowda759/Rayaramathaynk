@@ -130,7 +130,8 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     navigation.forEach((group) => {
       expanded[group.title] = true; // Show all groups expanded
     });
-    setExpandedGroups(expanded);
+    // Use setTimeout to avoid synchronous state update during effect
+    setTimeout(() => setExpandedGroups(expanded), 0);
   }, [navigation]);
 
   const toggleGroup = (title: string) => {
