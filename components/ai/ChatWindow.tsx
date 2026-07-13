@@ -6,7 +6,7 @@ import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { ChatInput } from "./ChatInput";
 import { SuggestedQuestions } from "./SuggestedQuestions";
-import { Trash2, Sparkles, History, X, ChevronRight } from "lucide-react";
+import { Trash2, Sparkles, History, X, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export function ChatWindow() {
@@ -25,6 +25,7 @@ export function ChatWindow() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -43,14 +44,18 @@ export function ChatWindow() {
   return (
     <div 
       ref={containerRef}
-      className="fixed bottom-20 right-6 z-50 w-[calc(100vw-3rem)] sm:w-[380px] h-[600px] max-h-[70vh]
+      className={`fixed z-50 right-6 bottom-20
+                 w-[calc(100vw-3rem)] sm:w-[420px] lg:w-[480px]
+                 transition-all duration-300 ease-in-out
+                 ${isExpanded ? 'h-[75vh] max-h-[75vh]' : 'h-[600px] max-h-[70vh]'}
                  bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden
-                 border border-stone-200 animate-in slide-in-from-bottom-4 fade-in duration-300"
+                 border border-stone-200 animate-in slide-in-from-bottom-4 fade-in duration-300`}
       role="dialog"
       aria-label="Chat with Raya AI"
       aria-modal="true"
     >
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles className="w-5 h-5" />
@@ -61,6 +66,14 @@ export function ChatWindow() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-2 rounded-lg hover:bg-white/20 transition-colors"
+            aria-label={isExpanded ? "Minimize chat" : "Maximize chat"}
+            title={isExpanded ? "Minimize" : "Maximize"}
+          >
+            {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
           {userSessions.length > 0 && (
             <button
               onClick={() => setShowHistory(!showHistory)}
@@ -84,7 +97,7 @@ export function ChatWindow() {
 
       {/* Session History Sidebar */}
       {showHistory && userSessions.length > 0 && (
-        <div className="border-b border-stone-200 bg-stone-50 p-3 max-h-40 overflow-y-auto">
+        <div className="border-b border-stone-200 bg-stone-50 p-3 max-h-40 overflow-y-auto flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-stone-500">Previous Chats</p>
             <button 
@@ -113,8 +126,9 @@ export function ChatWindow() {
         </div>
       )}
 
+      {/* Messages Area */}
       <div 
-        className="flex-1 overflow-y-auto p-4 bg-stone-50"
+        className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-stone-50 to-stone-100"
         role="log"
         aria-live="polite"
         aria-label="Chat messages"
@@ -137,11 +151,15 @@ export function ChatWindow() {
         )}
       </div>
 
+      {/* Suggested Questions - Only show when there are messages */}
       {messages.length > 0 && (
         <SuggestedQuestions onSelect={handleSuggestedQuestion} />
       )}
 
-      <ChatInput onSend={sendMessage} isLoading={isLoading} />
+      {/* Input Area */}
+      <div className="flex-shrink-0">
+        <ChatInput onSend={sendMessage} isLoading={isLoading} />
+      </div>
     </div>
   );
 }
@@ -153,41 +171,44 @@ function WelcomeScreen({ onSelectQuestion, welcomeMessage }: {
   // Default welcome message if not loaded
   const defaultWelcome = `🙏 Namaste, Dear Devotee!
 
-I am **Raya AI**, your friendly assistant from Sri Raghavendra Swamy Math, Yelahanka.
+I am **Raya AI**, your friendly assistant from Sri Raghavendra Swamy Math.
 
 How may I assist you today?`;
 
   const displayMessage = welcomeMessage || defaultWelcome;
 
+  const quickQuestions = [
+    { text: "🕐 Temple Timings", q: "What are the temple timings?" },
+    { text: "📅 Upcoming Events", q: "What events are coming up?" },
+    { text: "🙏 Sevas Available", q: "What sevas are available?" },
+    { text: "💝 How to Donate", q: "How can I donate to the temple?" },
+  ];
+
   return (
-    <div className="h-full flex flex-col items-center justify-center text-center px-4 py-8">
-      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-6">
-        <Sparkles className="w-10 h-10 text-amber-600" />
+    <div className="h-full flex flex-col items-center justify-center text-center px-6">
+      {/* Avatar */}
+      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-4 shadow-lg">
+        <Sparkles className="w-8 h-8 text-amber-600" />
       </div>
       
-      <div className="text-sm text-stone-600 mb-6 max-w-xs prose prose-sm prose-stone">
+      {/* Welcome Message */}
+      <div className="text-sm text-stone-600 mb-6 max-w-sm prose prose-sm prose-stone">
         <ReactMarkdown>{displayMessage}</ReactMarkdown>
       </div>
 
-      <div className="w-full space-y-3">
-        <p className="text-xs text-stone-400 uppercase tracking-wide">Quick questions</p>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { text: "🕐 Temple Timings", q: "What are the temple timings?" },
-            { text: "📅 Upcoming Events", q: "What events are coming up?" },
-            { text: "🙏 Sevas Available", q: "What sevas are available?" },
-            { text: "💝 How to Donate", q: "How can I donate to the temple?" },
-          ].map((item, i) => (
-            <button
-              key={i}
-              onClick={() => onSelectQuestion(item.q)}
-              className="px-3 py-2 bg-white border border-stone-200 rounded-lg text-xs text-stone-600
-                       hover:border-amber-300 hover:bg-amber-50 transition-colors text-left"
-            >
-              {item.text}
-            </button>
-          ))}
-        </div>
+      {/* Quick Questions - Horizontal Pills */}
+      <div className="flex flex-wrap gap-2 justify-center">
+        {quickQuestions.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => onSelectQuestion(item.q)}
+            className="px-4 py-2 bg-white border border-stone-200 rounded-full text-xs text-stone-600
+                     hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 
+                     transition-all duration-200 shadow-sm"
+          >
+            {item.text}
+          </button>
+        ))}
       </div>
     </div>
   );
