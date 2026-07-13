@@ -1,24 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function ChatbaseWidget() {
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   useEffect(() => {
     // Don't load if chatbot ID is not configured
-    if (!chatbotId || chatbotId === "your-chatbot-id") {
-      console.log("[Chatbase] Chatbot ID not configured");
+    if (!chatbotId || chatbotId === "your-chatbot-id" || chatbotId === "") {
+      console.log("[Chatbase] Chatbot ID not configured or is placeholder");
       return;
     }
-
-    console.log("[Chatbase] Loading chatbot with ID:", chatbotId);
 
     // Check if script already exists
     if (document.querySelector('script[src*="chatbase.co"]')) {
       console.log("[Chatbase] Script already loaded");
       return;
     }
+
+    console.log("[Chatbase] Loading chatbot with ID:", chatbotId);
 
     // Create script element
     const script = document.createElement("script");
@@ -29,10 +30,15 @@ export default function ChatbaseWidget() {
     
     script.onload = () => {
       console.log("[Chatbase] Script loaded successfully!");
+      setScriptLoaded(true);
     };
     
     script.onerror = (error) => {
       console.error("[Chatbase] Script failed to load:", error);
+      console.error("[Chatbase] This may be due to:");
+      console.error("[Chatbase] 1. Domain not allowed in Chatbase settings");
+      console.error("[Chatbase] 2. Invalid chatbot ID");
+      console.error("[Chatbase] 3. Network issues");
     };
 
     // Add to document
@@ -40,6 +46,23 @@ export default function ChatbaseWidget() {
     
     console.log("[Chatbase] Script element added to head");
   }, [chatbotId]);
+
+  // Debug info in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Chatbase] Debug Info:");
+      console.log("[Chatbase] - Chatbot ID:", chatbotId || "NOT SET");
+      console.log("[Chatbase] - Script Loaded:", scriptLoaded);
+      console.log("[Chatbase] - Current Domain:", typeof window !== "undefined" ? window.location.hostname : "unknown");
+      
+      if (!chatbotId || chatbotId === "your-chatbot-id" || chatbotId === "") {
+        console.log("[Chatbase] ⚠️ To enable the chatbot:");
+        console.log("[Chatbase] 1. Get your chatbot ID from https://www.chatbase.co");
+        console.log("[Chatbase] 2. Add your domain to allowed domains in Chatbase settings");
+        console.log("[Chatbase] 3. Set NEXT_PUBLIC_CHATBOT_ID in .env.local");
+      }
+    }
+  }, [chatbotId, scriptLoaded]);
 
   return null;
 }
