@@ -1,33 +1,50 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/hooks/useAuth";
+import { getFirebaseConfigStatus } from "@/lib/firebase";
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  fallbackRedirect?: string;
+}
+
+function LoadingSpinner() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-stone-50">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
+        <p className="text-stone-600 font-medium">Loading...</p>
+      </div>
+    </div>
+  );
 }
 
 export default function ProtectedRoute({
   children,
+  fallbackRedirect = "/",
 }: ProtectedRouteProps) {
   const router = useRouter();
 
   const { user, loading } = useAuth();
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login");
-    }
-  }, [loading, user, router]);
+    setIsClient(true);
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        Loading...
-      </div>
-    );
+  useEffect(() => {
+    if (!loading && isClient) {
+      if (!user) {
+        router.replace("/login");
+      }
+    }
+  }, [loading, user, isClient, router]);
+
+  if (loading || !isClient) {
+    return <LoadingSpinner />;
   }
 
   if (!user) {

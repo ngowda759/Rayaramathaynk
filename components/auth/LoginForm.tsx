@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
@@ -20,29 +20,53 @@ import Input from "@/components/ui/input";
 import LoginHeader from "./LoginHeader";
 
 const schema = z.object({
-  email: z.email("Please enter a valid email address"),
+  email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 type LoginFormValues = z.infer<typeof schema>;
 
-function getRedirectUrl(): string {
-  if (typeof window === "undefined") return "/admin";
-  const params = new URLSearchParams(window.location.search);
-  const redirect = params.get("redirect");
-  // Validate redirect is safe (starts with /)
-  if (redirect && redirect.startsWith("/")) {
+function getRedirectUrl(searchParams: URLSearchParams): string {
+  // Get redirect from URL params
+  const redirect = searchParams.get("redirect");
+  // Validate redirect is safe (starts with / and doesn't go to auth pages)
+  if (redirect && redirect.startsWith("/") && !redirect.includes("/login") && !redirect.includes("/register")) {
     return redirect;
   }
   return "/admin";
 }
 
+// Loading component while redirecting
+function RedirectingSpinner() {
+  return (
+    <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
+      <div className="p-12 flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
+        <p className="text-stone-600 font-medium">Redirecting...</p>
+      </div>
+    </Card>
+  );
+}
+
 export default function LoginForm() {
   const router = useRouter();
-
-  const { login } = useAuth();
-
+  const searchParams = useSearchParams();
+  const { user, loading, login } = useAuth();
+  
   const [showPassword, setShowPassword] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // If user is already logged in, redirect to admin or specified redirect URL
+  useEffect(() => {
+    if (!loading && isClient && user) {
+      const redirect = getRedirectUrl(searchParams);
+      router.replace(redirect);
+    }
+  }, [loading, user, isClient, searchParams, router]);
 
   const {
     register,
@@ -57,7 +81,7 @@ export default function LoginForm() {
       await login(data.email, data.password);
       toast.success("Welcome back!");
       // Use window.location for reliable redirect
-      const redirect = getRedirectUrl();
+      const redirect = getRedirectUrl(searchParams);
       window.location.href = redirect;
     } catch (error: any) {
       switch (error.code) {
@@ -81,6 +105,20 @@ export default function LoginForm() {
           toast.error(error.message || "Login failed.");
       }
     }
+  }
+
+  // Show loading spinner while checking auth or redirecting
+  if (loading || !isClient || (user && !isSubmitting)) {
+    return (
+      <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
+        <div className="p-12 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
+          <p className="text-stone-600 font-medium">
+            {user ? "Redirecting..." : "Loading..."}
+          </p>
+        </div>
+      </Card>
+    );
   }
 
   return (

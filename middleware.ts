@@ -14,7 +14,7 @@ const securityHeaders = {
 // Routes that require authentication
 const protectedRoutes = ["/admin"];
 
-// Routes that don't require authentication
+// Routes that are public (no auth required)
 const publicRoutes = ["/login", "/register", "/forgot-password", "/"];
 
 export function middleware(request: NextRequest) {
@@ -42,11 +42,13 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // For protected routes, we can't check auth on server side with Firebase
-  // Client-side AdminAuthGuard will handle this
-  // For now, allow access and let client-side handle auth
+  // For protected routes, redirect to login with return URL
+  // Client-side auth check will handle the actual auth verification
+  // This provides instant redirect for better UX
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirect", pathname);
   
-  return response;
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
