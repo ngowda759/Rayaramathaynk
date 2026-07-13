@@ -32,7 +32,11 @@ export default function ProtectedRoute({
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    // Use setTimeout to avoid synchronous state update during effect
+    const timer = setTimeout(() => {
+      setIsClient(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

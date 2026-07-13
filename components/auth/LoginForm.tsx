@@ -35,7 +35,11 @@ export default function LoginForm() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    // Use setTimeout to avoid synchronous state update during effect
+    const timer = setTimeout(() => {
+      setIsClient(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // If user is already logged in, redirect to home (middleware will handle admin redirect)
@@ -60,10 +64,13 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Use window.location for reliable redirect after login
-      window.location.href = "/admin";
-    } catch (error: any) {
-      switch (error.code) {
+      // Use setTimeout to defer window.location modification
+      setTimeout(() => {
+        window.location.href = "/admin";
+      }, 0);
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
+      switch (err.code) {
         case "auth/invalid-credential":
           toast.error("Invalid email or password.");
           break;
@@ -81,7 +88,7 @@ export default function LoginForm() {
           break;
 
         default:
-          toast.error(error.message || "Login failed.");
+          toast.error(err.message || "Login failed.");
       }
     }
   }
