@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+// Extend Window interface for chatbase
+declare global {
+  interface Window {
+    chatbase?: (...args: unknown[]) => unknown;
+    chatbase_q?: unknown[];
+  }
+}
+
 export default function ChatbaseWidget() {
   const [isClient, setIsClient] = useState(false);
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
@@ -20,40 +28,39 @@ export default function ChatbaseWidget() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      (function () {
-        if (!window.chatbase || window.chatbase("getState") !== "initialized") {
-          window.chatbase = function () {
-            if (!window.chatbase.q) {
-              window.chatbase.q = [];
-            }
-            window.chatbase.q.push(arguments);
-          };
-          window.chatbase = new Proxy(window.chatbase, {
-            get: function (target, prop) {
-              if (prop === "q") {
-                return target.q;
-              }
-              return function () {
-                target(prop, ...arguments);
-              };
-            },
-          });
-        }
-        var onLoad = function () {
-          var script = document.createElement("script");
-          script.src = "https://www.chatbase.co/embed.min.js";
-          script.id = chatbotId;
-          script.domain = "www.chatbase.co";
-          document.body.appendChild(script);
+      if (!window.chatbase || window.chatbase("getState") !== "initialized") {
+        window.chatbase = function () {
+          if (!window.chatbase_q) {
+            window.chatbase_q = [];
+          }
+          window.chatbase_q!.push(arguments);
         };
-        if (document.readyState === "complete") {
-          onLoad();
-        } else {
-          window.addEventListener("load", onLoad);
-        }
-      })();
+        window.chatbase = new Proxy(window.chatbase, {
+          get: function (_target, prop) {
+            if (prop === "q") {
+              return window.chatbase_q;
+            }
+            return function (...args: unknown[]) {
+              window.chatbase!(prop as string, ...args);
+            };
+          },
+        }) as typeof window.chatbase;
+      }
+      
+      const onLoad = function () {
+        const script = document.createElement("script");
+        script.src = "https://www.chatbase.co/embed.min.js";
+        script.id = chatbotId;
+        document.body.appendChild(script);
+      };
+      
+      if (document.readyState === "complete") {
+        onLoad();
+      } else {
+        window.addEventListener("load", onLoad);
+      }
     }
-  }, []);
+  }, [chatbotId]);
 
   return null;
 }
