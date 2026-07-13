@@ -1,0 +1,1235 @@
+{
+  "timestamp": "2026-07-13T07:20:32.267725",
+  "summary": {
+    "total_issues": 60,
+    "errors": 12,
+    "warnings": 48,
+    "files_with_issues": 60
+  },
+  "issues": [
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/(public)/aaradhane/page.tsx",
+      "line": "21",
+      "severity": "WARNING",
+      "message": "'Hero' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/(public)/donation/failure/page.tsx",
+      "line": "4",
+      "severity": "WARNING",
+      "message": "'Heart' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/(public)/facilities/page.tsx",
+      "line": "107",
+      "severity": "ERROR",
+      "message": "A `require()` style import is forbidden            @typescript-eslint/no-require-imports",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/aaradhane/page.tsx",
+      "line": "36",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadItems'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/announcements/page.tsx",
+      "line": "42",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadAnnouncements'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/billing/page.tsx",
+      "line": "68",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadBills'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/bookings/page.tsx",
+      "line": "43",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadBookings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/donations/page.tsx",
+      "line": "42",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadDonations'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/events/page.tsx",
+      "line": "40",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadEvents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/pooja/page.tsx",
+      "line": "29",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadPoojas'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/reports/page.tsx",
+      "line": "143",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'getDateRange'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/settings/facilities/page.tsx",
+      "line": "469",
+      "severity": "WARNING",
+      "message": "'index' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/sevas/page.tsx",
+      "line": "40",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/app/admin/timings/page.tsx",
+      "line": "40",
+      "severity": "WARNING",
+      "message": "React Hook useEffect has a missing dependency: 'loadTimings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/aaradhane/CreateAaradhane.tsx",
+      "line": "6",
+      "severity": "WARNING",
+      "message": "'Check' is defined but never used                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/aaradhane/EditAaradhane.tsx",
+      "line": "292",
+      "severity": "WARNING",
+      "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/common/AdminAssistant.tsx",
+      "line": "34",
+      "severity": "WARNING",
+      "message": "'totalPoojas' is defined but never used                                                                      @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/crud/CrudTable.tsx",
+      "line": "10",
+      "severity": "WARNING",
+      "message": "'cn' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/crud/CrudTableCell.tsx",
+      "line": "81",
+      "severity": "WARNING",
+      "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/events/EventTable.tsx",
+      "line": "24",
+      "severity": "WARNING",
+      "message": "'deletingId' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/gallery/GalleryDashboard.tsx",
+      "line": "23",
+      "severity": "WARNING",
+      "message": "'error' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/layout/AdminAuthGuard.tsx",
+      "line": "69",
+      "severity": "ERROR",
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/layout/AdminHeader.tsx",
+      "line": "8",
+      "severity": "WARNING",
+      "message": "'Bell' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/layout/AdminSidebar.tsx",
+      "line": "89",
+      "severity": "WARNING",
+      "message": "'canAccessSettings' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/layout/NotificationDropdown.tsx",
+      "line": "25",
+      "severity": "WARNING",
+      "message": "'setHasError' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/pooja/EditPooja.tsx",
+      "line": "3",
+      "severity": "WARNING",
+      "message": "'FormEvent' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/admin/settings/homepage/TestimonialsSection.tsx",
+      "line": "66",
+      "severity": "ERROR",
+      "message": "`\"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/auth/GuestOnly.tsx",
+      "line": "32",
+      "severity": "ERROR",
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/auth/LoginForm.tsx",
+      "line": "31",
+      "severity": "WARNING",
+      "message": "'searchParams' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/auth/ProtectedRoute.tsx",
+      "line": "7",
+      "severity": "WARNING",
+      "message": "'getFirebaseConfigStatus' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/auth/RegisterForm.tsx",
+      "line": "3",
+      "severity": "WARNING",
+      "message": "'useEffect' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/chat/RayaBot.tsx",
+      "line": "16",
+      "severity": "ERROR",
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/home/DonationForm.tsx",
+      "line": "12",
+      "severity": "WARNING",
+      "message": "'paymentModeOptions' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/home/EventCountdown.tsx",
+      "line": "23",
+      "severity": "WARNING",
+      "message": "'eventImage' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/home/FullGallery.tsx",
+      "line": "5",
+      "severity": "WARNING",
+      "message": "'ArrowRight' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/home/GalleryPreviewClient.tsx",
+      "line": "37",
+      "severity": "ERROR",
+      "message": "Error: This value cannot be modified",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/home/QuickServices.tsx",
+      "line": "7",
+      "severity": "WARNING",
+      "message": "'HeartHandshake' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/home/Testimonials.tsx",
+      "line": "189",
+      "severity": "ERROR",
+      "message": "`\"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/layout/Footer.tsx",
+      "line": "5",
+      "severity": "WARNING",
+      "message": "'ChevronRight' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/components/ui/GoUpButton.tsx",
+      "line": "5",
+      "severity": "WARNING",
+      "message": "'cn' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/context/AuthContext.tsx",
+      "line": "86",
+      "severity": "ERROR",
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/hooks/useCrudTable.ts",
+      "line": "19",
+      "severity": "WARNING",
+      "message": "Compilation Skipped: Use of incompatible library",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/hooks/useGallery.ts",
+      "line": "24",
+      "severity": "ERROR",
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/hooks/useHomepage.ts",
+      "line": "14",
+      "severity": "ERROR",
+      "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/lib/auth.ts",
+      "line": "18",
+      "severity": "WARNING",
+      "message": "'isFirebaseConfigured' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/lib/firebase.ts",
+      "line": "115",
+      "severity": "ERROR",
+      "message": "Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/proxy.ts",
+      "line": "14",
+      "severity": "WARNING",
+      "message": "'request' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/scripts/seed-poojas.js",
+      "line": "18",
+      "severity": "WARNING",
+      "message": "Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/scripts/seed-sevas.js",
+      "line": "18",
+      "severity": "WARNING",
+      "message": "Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/scripts/update-finance-settings.js",
+      "line": "7",
+      "severity": "WARNING",
+      "message": "Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/comprehensive_validation.spec.ts",
+      "line": "159",
+      "severity": "WARNING",
+      "message": "'bookButton' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/02_authentication.spec.ts",
+      "line": "113",
+      "severity": "WARNING",
+      "message": "'page' is defined but never used                     @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/03_admin_dashboard.spec.ts",
+      "line": "82",
+      "severity": "WARNING",
+      "message": "'count' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/06_donations.spec.ts",
+      "line": "160",
+      "severity": "WARNING",
+      "message": "'page' is defined but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/07_events_gallery_announcements.spec.ts",
+      "line": "189",
+      "severity": "WARNING",
+      "message": "'count' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/08_mobile_responsive.spec.ts",
+      "line": "207",
+      "severity": "WARNING",
+      "message": "'skipLink' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/09_performance_security.spec.ts",
+      "line": "325",
+      "severity": "ERROR",
+      "message": "Parsing error: ',' expected",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/10_database_browser.spec.ts",
+      "line": "7",
+      "severity": "WARNING",
+      "message": "'page' is defined but never used                    @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/tests/functional/comprehensive.spec.ts",
+      "line": "67",
+      "severity": "WARNING",
+      "message": "'naturalWidth' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+      "code": ""
+    },
+    {
+      "file": "/workspace/project/Rayaramathaynk/utils/event.ts",
+      "line": "1",
+      "severity": "WARNING",
+      "message": "'Timestamp' is defined but never used     @typescript-eslint/no-unused-vars",
+      "code": ""
+    }
+  ],
+  "files": {
+    "/workspace/project/Rayaramathaynk/app/(public)/aaradhane/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/(public)/aaradhane/page.tsx",
+          "line": "21",
+          "severity": "WARNING",
+          "message": "'Hero' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/(public)/donation/failure/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/(public)/donation/failure/page.tsx",
+          "line": "4",
+          "severity": "WARNING",
+          "message": "'Heart' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/(public)/facilities/page.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/(public)/facilities/page.tsx",
+          "line": "107",
+          "severity": "ERROR",
+          "message": "A `require()` style import is forbidden            @typescript-eslint/no-require-imports",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/aaradhane/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/aaradhane/page.tsx",
+          "line": "36",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadItems'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/announcements/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/announcements/page.tsx",
+          "line": "42",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadAnnouncements'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/billing/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/billing/page.tsx",
+          "line": "68",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadBills'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/bookings/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/bookings/page.tsx",
+          "line": "43",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadBookings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/donations/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/donations/page.tsx",
+          "line": "42",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadDonations'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/events/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/events/page.tsx",
+          "line": "40",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadEvents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/pooja/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/pooja/page.tsx",
+          "line": "29",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadPoojas'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/reports/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/reports/page.tsx",
+          "line": "143",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'getDateRange'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/settings/facilities/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/settings/facilities/page.tsx",
+          "line": "469",
+          "severity": "WARNING",
+          "message": "'index' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/sevas/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/sevas/page.tsx",
+          "line": "40",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/app/admin/timings/page.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/app/admin/timings/page.tsx",
+          "line": "40",
+          "severity": "WARNING",
+          "message": "React Hook useEffect has a missing dependency: 'loadTimings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/aaradhane/CreateAaradhane.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/aaradhane/CreateAaradhane.tsx",
+          "line": "6",
+          "severity": "WARNING",
+          "message": "'Check' is defined but never used                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/aaradhane/EditAaradhane.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/aaradhane/EditAaradhane.tsx",
+          "line": "292",
+          "severity": "WARNING",
+          "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/common/AdminAssistant.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/common/AdminAssistant.tsx",
+          "line": "34",
+          "severity": "WARNING",
+          "message": "'totalPoojas' is defined but never used                                                                      @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/crud/CrudTable.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/crud/CrudTable.tsx",
+          "line": "10",
+          "severity": "WARNING",
+          "message": "'cn' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/crud/CrudTableCell.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/crud/CrudTableCell.tsx",
+          "line": "81",
+          "severity": "WARNING",
+          "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/events/EventTable.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/events/EventTable.tsx",
+          "line": "24",
+          "severity": "WARNING",
+          "message": "'deletingId' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/gallery/GalleryDashboard.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/gallery/GalleryDashboard.tsx",
+          "line": "23",
+          "severity": "WARNING",
+          "message": "'error' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/layout/AdminAuthGuard.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/layout/AdminAuthGuard.tsx",
+          "line": "69",
+          "severity": "ERROR",
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/layout/AdminHeader.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/layout/AdminHeader.tsx",
+          "line": "8",
+          "severity": "WARNING",
+          "message": "'Bell' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/layout/AdminSidebar.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/layout/AdminSidebar.tsx",
+          "line": "89",
+          "severity": "WARNING",
+          "message": "'canAccessSettings' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/layout/NotificationDropdown.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/layout/NotificationDropdown.tsx",
+          "line": "25",
+          "severity": "WARNING",
+          "message": "'setHasError' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/pooja/EditPooja.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/pooja/EditPooja.tsx",
+          "line": "3",
+          "severity": "WARNING",
+          "message": "'FormEvent' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/admin/settings/homepage/TestimonialsSection.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/admin/settings/homepage/TestimonialsSection.tsx",
+          "line": "66",
+          "severity": "ERROR",
+          "message": "`\"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/auth/GuestOnly.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/auth/GuestOnly.tsx",
+          "line": "32",
+          "severity": "ERROR",
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/auth/LoginForm.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/auth/LoginForm.tsx",
+          "line": "31",
+          "severity": "WARNING",
+          "message": "'searchParams' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/auth/ProtectedRoute.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/auth/ProtectedRoute.tsx",
+          "line": "7",
+          "severity": "WARNING",
+          "message": "'getFirebaseConfigStatus' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/auth/RegisterForm.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/auth/RegisterForm.tsx",
+          "line": "3",
+          "severity": "WARNING",
+          "message": "'useEffect' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/chat/RayaBot.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/chat/RayaBot.tsx",
+          "line": "16",
+          "severity": "ERROR",
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/home/DonationForm.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/home/DonationForm.tsx",
+          "line": "12",
+          "severity": "WARNING",
+          "message": "'paymentModeOptions' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/home/EventCountdown.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/home/EventCountdown.tsx",
+          "line": "23",
+          "severity": "WARNING",
+          "message": "'eventImage' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/home/FullGallery.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/home/FullGallery.tsx",
+          "line": "5",
+          "severity": "WARNING",
+          "message": "'ArrowRight' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/home/GalleryPreviewClient.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/home/GalleryPreviewClient.tsx",
+          "line": "37",
+          "severity": "ERROR",
+          "message": "Error: This value cannot be modified",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/home/QuickServices.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/home/QuickServices.tsx",
+          "line": "7",
+          "severity": "WARNING",
+          "message": "'HeartHandshake' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/home/Testimonials.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/home/Testimonials.tsx",
+          "line": "189",
+          "severity": "ERROR",
+          "message": "`\"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/layout/Footer.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/layout/Footer.tsx",
+          "line": "5",
+          "severity": "WARNING",
+          "message": "'ChevronRight' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/components/ui/GoUpButton.tsx": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/components/ui/GoUpButton.tsx",
+          "line": "5",
+          "severity": "WARNING",
+          "message": "'cn' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/context/AuthContext.tsx": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/context/AuthContext.tsx",
+          "line": "86",
+          "severity": "ERROR",
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/hooks/useCrudTable.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/hooks/useCrudTable.ts",
+          "line": "19",
+          "severity": "WARNING",
+          "message": "Compilation Skipped: Use of incompatible library",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/hooks/useGallery.ts": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/hooks/useGallery.ts",
+          "line": "24",
+          "severity": "ERROR",
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/hooks/useHomepage.ts": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/hooks/useHomepage.ts",
+          "line": "14",
+          "severity": "ERROR",
+          "message": "Error: Calling setState synchronously within an effect can trigger cascading renders",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/lib/auth.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/lib/auth.ts",
+          "line": "18",
+          "severity": "WARNING",
+          "message": "'isFirebaseConfigured' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/lib/firebase.ts": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/lib/firebase.ts",
+          "line": "115",
+          "severity": "ERROR",
+          "message": "Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/proxy.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/proxy.ts",
+          "line": "14",
+          "severity": "WARNING",
+          "message": "'request' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/scripts/seed-poojas.js": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/scripts/seed-poojas.js",
+          "line": "18",
+          "severity": "WARNING",
+          "message": "Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/scripts/seed-sevas.js": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/scripts/seed-sevas.js",
+          "line": "18",
+          "severity": "WARNING",
+          "message": "Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/scripts/update-finance-settings.js": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/scripts/update-finance-settings.js",
+          "line": "7",
+          "severity": "WARNING",
+          "message": "Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/comprehensive_validation.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/comprehensive_validation.spec.ts",
+          "line": "159",
+          "severity": "WARNING",
+          "message": "'bookButton' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/02_authentication.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/02_authentication.spec.ts",
+          "line": "113",
+          "severity": "WARNING",
+          "message": "'page' is defined but never used                     @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/03_admin_dashboard.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/03_admin_dashboard.spec.ts",
+          "line": "82",
+          "severity": "WARNING",
+          "message": "'count' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/06_donations.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/06_donations.spec.ts",
+          "line": "160",
+          "severity": "WARNING",
+          "message": "'page' is defined but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/07_events_gallery_announcements.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/07_events_gallery_announcements.spec.ts",
+          "line": "189",
+          "severity": "WARNING",
+          "message": "'count' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/08_mobile_responsive.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/08_mobile_responsive.spec.ts",
+          "line": "207",
+          "severity": "WARNING",
+          "message": "'skipLink' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/09_performance_security.spec.ts": {
+      "errors": 1,
+      "warnings": 0,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/09_performance_security.spec.ts",
+          "line": "325",
+          "severity": "ERROR",
+          "message": "Parsing error: ',' expected",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/10_database_browser.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/10_database_browser.spec.ts",
+          "line": "7",
+          "severity": "WARNING",
+          "message": "'page' is defined but never used                    @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/tests/functional/comprehensive.spec.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/tests/functional/comprehensive.spec.ts",
+          "line": "67",
+          "severity": "WARNING",
+          "message": "'naturalWidth' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    },
+    "/workspace/project/Rayaramathaynk/utils/event.ts": {
+      "errors": 0,
+      "warnings": 1,
+      "issues": [
+        {
+          "file": "/workspace/project/Rayaramathaynk/utils/event.ts",
+          "line": "1",
+          "severity": "WARNING",
+          "message": "'Timestamp' is defined but never used     @typescript-eslint/no-unused-vars",
+          "code": ""
+        }
+      ]
+    }
+  },
+  "issue_types": {
+    "@typescript-eslint": {
+      "errors": 2,
+      "warnings": 35
+    },
+    "react-hooks": {
+      "errors": 0,
+      "warnings": 10
+    },
+    "@next/next": {
+      "errors": 0,
+      "warnings": 2
+    },
+    "other": {
+      "errors": 8,
+      "warnings": 1
+    },
+    "react": {
+      "errors": 2,
+      "warnings": 0
+    }
+  }
+}

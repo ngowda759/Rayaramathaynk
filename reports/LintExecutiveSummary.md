@@ -1,0 +1,126 @@
+
+================================================================================
+                        LINT TEST EXECUTION REPORT
+================================================================================
+
+Report Generated: 2026-07-13 07:20:32
+
+================================================================================
+                           EXECUTION SUMMARY
+================================================================================
+
+Total Issues Found:          60
+  - Errors:                  12
+  - Warnings:                48
+
+Code Quality Score:           52.0%
+Files Affected:              60
+
+================================================================================
+                        ISSUES BY CATEGORY
+================================================================================
+  other                           Errors:   8  Warnings:   1
+  @typescript-eslint              Errors:   2  Warnings:  35
+  react                           Errors:   2  Warnings:   0
+  react-hooks                     Errors:   0  Warnings:  10
+  @next/next                      Errors:   0  Warnings:   2
+
+================================================================================
+                          TOP FILES WITH ISSUES
+================================================================================
+  app/(public)/facilities/page.tsx
+    Errors: 1, Warnings: 0
+  components/admin/layout/AdminAuthGuard.tsx
+    Errors: 1, Warnings: 0
+  components/admin/settings/homepage/TestimonialsSection.tsx
+    Errors: 1, Warnings: 0
+  components/auth/GuestOnly.tsx
+    Errors: 1, Warnings: 0
+  components/chat/RayaBot.tsx
+    Errors: 1, Warnings: 0
+  components/home/GalleryPreviewClient.tsx
+    Errors: 1, Warnings: 0
+  components/home/Testimonials.tsx
+    Errors: 1, Warnings: 0
+  context/AuthContext.tsx
+    Errors: 1, Warnings: 0
+  hooks/useGallery.ts
+    Errors: 1, Warnings: 0
+  hooks/useHomepage.ts
+    Errors: 1, Warnings: 0
+
+================================================================================
+                          CRITICAL ERRORS
+================================================================================
+  📛 app/(public)/facilities/page.tsx:107
+     A `require()` style import is forbidden            @typescript-eslint/no-require
+
+  📛 components/admin/layout/AdminAuthGuard.tsx:69
+     Error: Calling setState synchronously within an effect can trigger cascading ren
+
+  📛 components/admin/settings/homepage/TestimonialsSection.tsx:66
+     `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unesca
+
+  📛 components/auth/GuestOnly.tsx:32
+     Error: Calling setState synchronously within an effect can trigger cascading ren
+
+  📛 components/chat/RayaBot.tsx:16
+     Error: Calling setState synchronously within an effect can trigger cascading ren
+
+  📛 components/home/GalleryPreviewClient.tsx:37
+     Error: This value cannot be modified
+
+  📛 components/home/Testimonials.tsx:189
+     `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unesca
+
+  📛 context/AuthContext.tsx:86
+     Error: Calling setState synchronously within an effect can trigger cascading ren
+
+  📛 hooks/useGallery.ts:24
+     Error: Calling setState synchronously within an effect can trigger cascading ren
+
+  📛 hooks/useHomepage.ts:14
+     Error: Calling setState synchronously within an effect can trigger cascading ren
+
+
+================================================================================
+                        RECOMMENDATIONS
+================================================================================
+
+IMMEDIATE ACTIONS (Before Next Deployment):
+1. Fix all 12 errors - especially react-hooks issues
+2. Address unescaped entities for accessibility compliance
+3. Convert require() imports to ES6 imports
+
+SHORT-TERM ACTIONS (This Week):
+1. Address react-hooks/exhaustive-deps warnings
+2. Add alt props to all images
+3. Remove unused imports
+
+LONG-TERM ACTIONS (This Sprint):
+1. Refactor setState in effects pattern
+2. Migrate all <img> to <Image> component
+3. Address incompatible library warnings
+
+================================================================================
+                         FINAL DECISION
+================================================================================
+
+        ⚠️ NEEDS ATTENTION
+
+        Total Issues: 60 (12 errors, 48 warnings)
+        Code Quality: 52.0%
+        Risk Level: MEDIUM
+
+================================================================================
+                              SIGN-OFF
+================================================================================
+
+Tech Lead:                      ____________________  Date: ____________
+
+Senior Developer:               ____________________  Date: ____________
+
+================================================================================
+                    Report Generated by ESLint Framework
+                           Copyright © 2026 - All Rights Reserved
+================================================================================
