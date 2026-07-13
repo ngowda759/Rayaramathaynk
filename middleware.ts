@@ -11,12 +11,6 @@ const securityHeaders = {
   "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://*.firebaseapp.com https://www.chatbase.co https://cdn.chatbase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.firebaseapp.com https://images.unsplash.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://*.google.com https://*.googleusercontent.com https://www.chatbase.co; frame-src 'self' https://www.google.com https://maps.google.com;",
 };
 
-// Routes that require authentication
-const protectedRoutes = ["/admin"];
-
-// Routes that are public (no auth required)
-const publicRoutes = ["/login", "/register", "/forgot-password", "/"];
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -28,27 +22,7 @@ export function middleware(request: NextRequest) {
     response.headers.set(key, value);
   });
 
-  // Allow public routes
-  if (publicRoutes.some(route => pathname === route || pathname.startsWith(route + "/"))) {
-    return response;
-  }
-
-  // Check if the route is protected
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
-
-  if (!isProtectedRoute) {
-    return response;
-  }
-
-  // For protected routes, redirect to login with return URL
-  // Client-side auth check will handle the actual auth verification
-  // This provides instant redirect for better UX
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("redirect", pathname);
-  
-  return NextResponse.redirect(loginUrl);
+  return response;
 }
 
 export const config = {

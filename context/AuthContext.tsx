@@ -59,7 +59,7 @@ export function AuthProvider({
   const [profile, setProfile] =
     useState<UserProfile | null>(null);
 
-  const [loading, setLoading] = useState(!auth);
+  const [loading, setLoading] = useState(true);
 
   async function loadProfile(uid: string) {
     try {

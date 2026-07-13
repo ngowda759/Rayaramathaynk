@@ -26,28 +26,6 @@ const schema = z.object({
 
 type LoginFormValues = z.infer<typeof schema>;
 
-function getRedirectUrl(searchParams: URLSearchParams): string {
-  // Get redirect from URL params
-  const redirect = searchParams.get("redirect");
-  // Validate redirect is safe (starts with / and doesn't go to auth pages)
-  if (redirect && redirect.startsWith("/") && !redirect.includes("/login") && !redirect.includes("/register")) {
-    return redirect;
-  }
-  return "/admin";
-}
-
-// Loading component while redirecting
-function RedirectingSpinner() {
-  return (
-    <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
-      <div className="p-12 flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-        <p className="text-stone-600 font-medium">Redirecting...</p>
-      </div>
-    </Card>
-  );
-}
-
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -60,13 +38,15 @@ export default function LoginForm() {
     setIsClient(true);
   }, []);
 
-  // If user is already logged in, redirect to admin or specified redirect URL
+  // If user is already logged in, redirect to home (middleware will handle admin redirect)
+  // Only redirect if Firebase is configured and user is logged in
   useEffect(() => {
     if (!loading && isClient && user) {
-      const redirect = getRedirectUrl(searchParams);
-      router.replace(redirect);
+      // User is logged in - redirect to home page
+      // The middleware will handle protecting /admin routes
+      router.replace("/");
     }
-  }, [loading, user, isClient, searchParams, router]);
+  }, [loading, user, isClient, router]);
 
   const {
     register,
@@ -80,9 +60,8 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Use window.location for reliable redirect
-      const redirect = getRedirectUrl(searchParams);
-      window.location.href = redirect;
+      // Use window.location for reliable redirect after login
+      window.location.href = "/admin";
     } catch (error: any) {
       switch (error.code) {
         case "auth/invalid-credential":
@@ -107,15 +86,25 @@ export default function LoginForm() {
     }
   }
 
-  // Show loading spinner while checking auth or redirecting
-  if (loading || !isClient || (user && !isSubmitting)) {
+  // Show loading spinner while checking auth
+  if (loading || !isClient) {
     return (
       <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
         <div className="p-12 flex flex-col items-center justify-center">
           <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-          <p className="text-stone-600 font-medium">
-            {user ? "Redirecting..." : "Loading..."}
-          </p>
+          <p className="text-stone-600 font-medium">Loading...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Don't show form if user is logged in (will redirect)
+  if (user) {
+    return (
+      <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
+        <div className="p-12 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
+          <p className="text-stone-600 font-medium">Redirecting...</p>
         </div>
       </Card>
     );
