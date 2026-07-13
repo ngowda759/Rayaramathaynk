@@ -1,19 +1,9 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useState } from "react";
 
 export default function ChatbaseWidget() {
-  const [mounted, setMounted] = useState(false);
   const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
 
   if (!chatbotId || chatbotId === "your-chatbot-id" || chatbotId === "") {
     return null;
@@ -21,16 +11,10 @@ export default function ChatbaseWidget() {
 
   return (
     <Script
-      id="chatbase-embed"
-      src="https://www.chatbase.co/embed.min.js"
+      id="chatbase-widget"
       strategy="lazyOnload"
-      data-chatbot-id={chatbotId}
-      onLoad={() => {
-        console.log("[Chatbase] Widget loaded successfully");
-      }}
-      onError={() => {
-        console.error("[Chatbase] Failed to load widget");
-      }}
-    />
+    >
+      {`(function(){if(!window.chatbase||window.chatbase("getState")!=="initialized"){window.chatbase=(...arguments)=>{if(!window.chatbase.q){window.chatbase.q=[]}window.chatbase.q.push(arguments)};window.chatbase=new Proxy(window.chatbase,{get(target,prop){if(prop==="q"){return target.q}return(...args)=>target(prop,...args)}})}const onLoad=function(){const script=document.createElement("script");script.src="https://www.chatbase.co/embed.min.js";script.id="${chatbotId}";document.body.appendChild(script)};if(document.readyState==="complete"){onLoad()}else{window.addEventListener("load",onLoad)}})();`}
+    </Script>
   );
 }
