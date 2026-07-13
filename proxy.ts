@@ -11,9 +11,7 @@ const securityHeaders = {
   "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.chatbase.co https://cdn.chatbase.co https://*.chatbase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.firebaseapp.com https://images.unsplash.com https://backend.chatbase.co; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://*.google.com https://*.googleusercontent.com https://www.chatbase.co https://backend.chatbase.co https://api.stripe.com https://*.chatbase.co; frame-src 'self' https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://www.chatbase.co https://*.chatbase.co;",
 };
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
+function proxy(request: NextRequest) {
   // Create response and add security headers
   const response = NextResponse.next();
 
@@ -24,6 +22,8 @@ export function middleware(request: NextRequest) {
 
   return response;
 }
+
+export default proxy;
 
 export const config = {
   matcher: [

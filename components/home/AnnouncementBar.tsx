@@ -1,25 +1,37 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { announcementService } from "@/services/announcement.service";
 import { AnnouncementMarquee } from "./AnnouncementMarquee";
 import { Announcement } from "@/types/announcement";
 
-// Force dynamic rendering to always get fresh data
-export const dynamic = "force-dynamic";
+export default function AnnouncementBar() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [hasError, setHasError] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-export default async function AnnouncementBar() {
-  let announcements: Announcement[] = [];
-  let hasError = false;
-
-  try {
-    console.log("Fetching active announcements...");
-    announcements = await announcementService.getActiveAnnouncements();
-    console.log("Fetched announcements:", announcements.length);
-  } catch (error: any) {
-    console.error("Failed to load announcements:", error);
-    // Check if it's an index error
-    if (error?.message?.includes("requires an index") || error?.code === "failed-precondition") {
-      console.error("Firestore index may be missing. Please create an index for isActive + createdAt.");
+  useEffect(() => {
+    async function fetchAnnouncements() {
+      try {
+        console.log("Fetching active announcements...");
+        const data = await announcementService.getActiveAnnouncements();
+        setAnnouncements(data);
+        console.log("Fetched announcements:", data.length);
+      } catch (error: any) {
+        console.error("Failed to load announcements:", error);
+        if (error?.message?.includes("requires an index") || error?.code === "failed-precondition") {
+          console.error("Firestore index may be missing.");
+        }
+        setHasError(true);
+      } finally {
+        setLoading(false);
+      }
     }
-    hasError = true;
+    fetchAnnouncements();
+  }, []);
+
+  if (loading) {
+    return null;
   }
 
   return (
