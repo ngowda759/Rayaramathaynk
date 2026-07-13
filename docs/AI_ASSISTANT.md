@@ -4,6 +4,32 @@
 
 Raya AI is the custom-built AI assistant for Sri Raghavendra Swamy Math, Yelahanka. It replaces the previous Chatbase integration with a fully owned, customizable solution.
 
+## Implementation Milestones
+
+### Milestone 1: Remove Chatbase & Build Chat UI
+- Removed all Chatbase-related code
+- Built ChatGPT-style floating chat widget
+- Implemented AI provider abstraction (OpenAI, Gemini, Claude, OpenRouter)
+- Created system prompt and knowledge base
+
+### Milestone 2: Firebase Integration & Sessions
+- Integrated Firebase Firestore for message storage
+- Added chat session management
+- Support for anonymous and authenticated users
+- Session history tracking
+
+### Milestone 3: Temple Knowledge & Actions
+- Added testimonial submission API
+- Added volunteer request API
+- Updated system prompt for special flows
+- Donation information handling
+
+### Milestone 4: Admin Dashboard & Analytics
+- Admin dashboard at /admin/ai
+- Testimonials management at /admin/ai/testimonials
+- Volunteer requests at /admin/ai/volunteers
+- Analytics at /admin/ai/analytics
+
 ## Architecture
 
 ```
