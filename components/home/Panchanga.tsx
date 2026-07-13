@@ -96,12 +96,9 @@ export default function Panchanga() {
     load();
   }, []);
 
-  function value(v?: string) {
-    if (!v) return DEFAULT_PLACEHOLDER;
-
-    if (v.trim().length === 0)
-      return DEFAULT_PLACEHOLDER;
-
+  function value(v?: string | null) {
+    if (!v || typeof v !== 'string') return DEFAULT_PLACEHOLDER;
+    if (v.trim().length === 0) return DEFAULT_PLACEHOLDER;
     return v;
   }
 
