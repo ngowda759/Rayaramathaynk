@@ -6,6 +6,8 @@ import {
   MoonStar,
   Sunrise,
   Sunset,
+  Clock,
+  Flame,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHomepage } from "@/hooks/useHomepage";
@@ -19,6 +21,9 @@ type PanchangaShape = {
   karana?: string;
   sunrise?: string;
   sunset?: string;
+  rahuKalam?: string;
+  gulikaKalam?: string;
+  masa?: string;
 };
 
 type LivePanchanga = {
@@ -28,6 +33,9 @@ type LivePanchanga = {
   karana?: string;
   sunrise?: string;
   sunset?: string;
+  rahuKalam?: string;
+  gulikaKalam?: string;
+  masa?: string;
 };
 
 export default function Panchanga() {
@@ -58,6 +66,9 @@ export default function Panchanga() {
           nakshatra: json.nakshatra?.name,
           yoga: json.yoga?.name,
           karana: json.karana?.name,
+          rahuKalam: json.rahuKalam,
+          gulikaKalam: json.gulikaKalam,
+          masa: json.masa,
 
           sunrise: json.sun?.sunrise
             ? new Date(
@@ -127,6 +138,24 @@ export default function Panchanga() {
       icon: Sunset,
       color: "from-sky-500 to-indigo-600",
     },
+    {
+      title: "Rahu Kala",
+      value: value(live?.rahuKalam ?? cms.rahuKalam),
+      icon: Clock,
+      color: "from-red-500 to-rose-600",
+    },
+    {
+      title: "Gulika Kala",
+      value: value(live?.gulikaKalam ?? cms.gulikaKalam),
+      icon: Clock,
+      color: "from-emerald-500 to-teal-600",
+    },
+    {
+      title: "Masa",
+      value: value(live?.masa ?? cms.masa),
+      icon: Flame,
+      color: "from-pink-500 to-rose-600",
+    },
   ];
 
     if (loading) {
@@ -159,30 +188,30 @@ export default function Panchanga() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {items.map((item, index) => {
             const Icon = item.icon;
 
             return (
               <motion.div
                 key={item.title}
-                initial={{ opacity: 0, y: 25 }}
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.08 }}
-                className="rounded-[30px] border border-amber-100 bg-white p-8 shadow-lg"
+                transition={{ delay: index * 0.06 }}
+                className="rounded-2xl border border-amber-100 bg-white p-5 shadow-md"
               >
                 <div
-                  className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${item.color} text-white`}
+                  className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${item.color} text-white`}
                 >
-                  <Icon size={30} />
+                  <Icon size={22} />
                 </div>
 
-                <h3 className="mt-6 text-lg font-semibold text-stone-600">
+                <h3 className="mt-4 text-sm font-medium text-stone-500">
                   {item.title}
                 </h3>
 
-                <p className="mt-2 text-3xl font-bold text-stone-900 break-words">
+                <p className="mt-1 text-xl font-bold text-stone-900 break-words leading-tight">
                   {item.value}
                 </p>
               </motion.div>
