@@ -12,7 +12,7 @@ interface TimeLeft {
 }
 
 interface EventCountdownProps {
-  eventName: string;
+  eventName?: string;
   eventDate: Date;
   eventImage?: string;
 }
@@ -22,6 +22,7 @@ export default function EventCountdown({
   eventDate,
   eventImage,
 }: EventCountdownProps) {
+  const displayEventName = eventName || "Upcoming Event";
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({
     days: 0,
     hours: 0,
@@ -81,7 +82,7 @@ export default function EventCountdown({
           </div>
           <div>
             <p className="text-sm font-medium text-amber-100">Next Major Event</p>
-            <h3 className="text-2xl font-bold">{eventName}</h3>
+            <h3 className="text-2xl font-bold">{displayEventName}</h3>
           </div>
         </div>
 
