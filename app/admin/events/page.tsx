@@ -104,7 +104,7 @@ const filteredEvents = sortedEvents.filter((event) => {
       ) : events.length === 0 ? (
         <div className="rounded-3xl border border-amber-200/50 bg-white p-12 shadow-lg text-center">
           <h3 className="text-lg font-semibold text-stone-700">No events found</h3>
-          <p className="mt-2 text-sm text-stone-500">Add your first event using the "Add Event" button above.</p>
+          <p className="mt-2 text-sm text-stone-500">Add your first event using the &quot;Add Event&quot; button above.</p>
         </div>
       ) : (
         <EventTable events={filteredEvents} onEventsChanged={loadEvents} />

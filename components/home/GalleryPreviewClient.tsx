@@ -34,7 +34,10 @@ export default function GalleryPreviewClient({ images }: GalleryPreviewClientPro
 
   const openLightbox = (index: number) => {
     setSelectedIndex(index);
-    document.body.style.overflow = "hidden";
+    // Defer style change to avoid synchronous state update warning
+    requestAnimationFrame(() => {
+      document.body.style.overflow = "hidden";
+    });
   };
 
   const closeLightbox = useCallback(() => {

@@ -49,7 +49,8 @@ export default function EventCountdown({
       };
     };
 
-    setTimeLeft(calculateTimeLeft());
+    // Use setTimeout to avoid synchronous state update during effect
+    setTimeout(() => setTimeLeft(calculateTimeLeft()), 0);
 
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
