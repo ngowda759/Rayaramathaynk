@@ -1,79 +1,88 @@
-# Test Execution Report
-## Aaradhane Temple Management System
+# Playwright Test Execution Report
+Generated: 2026-07-13 07:11:57
 
-### Executive Summary
+## Execution Summary
 
-**Test Execution Date:** 2026-07-12 09:47:34
-**Comprehensive Retest Completed:** Yes
-
----
-
-## Test Summary
-
-| Metric | Count |
+| Metric | Value |
 |--------|-------|
-| **Total Test Cases** | 340 |
-| **Comprehensive Validation Tests Executed** | 81 |
-| **Passed** | 81 |
-| **Failed** | 0 |
-| **Blocked** | 0 |
-| **Pass Rate** | 100% |
-
----
-
-## Comprehensive Test Results
-
-| Test Category | Tests | Passed | Failed |
-|--------------|-------|--------|--------|
-| Homepage Functional Tests | 5 | 5 | 0 |
-| Authentication Functional Tests | 6 | 6 | 0 |
-| Donation Page Tests | 6 | 6 | 0 |
-| Events Page Tests | 3 | 3 | 0 |
-| Gallery Page Tests | 4 | 4 | 0 |
-| Seva Booking Tests | 3 | 3 | 0 |
-| Admin Dashboard Tests | 8 | 8 | 0 |
-| API Endpoints Tests | 2 | 2 | 0 |
-| Responsive Design Tests | 18 | 18 | 0 |
-| Accessibility Tests | 4 | 4 | 0 |
-| Performance Tests | 4 | 4 | 0 |
-| Security Tests | 4 | 4 | 0 |
-| Navigation Flow Tests | 5 | 5 | 0 |
-| Additional Pages Tests | 9 | 9 | 0 |
-| **TOTAL** | **81** | **81** | **0** |
-
----
+| Total Tests | 23 |
+| Passed | 6 |
+| Failed | 17 |
+| Skipped | 0 |
+| Pass Rate | 26.1% |
+| Duration | 53.05 seconds |
+| Browser | Chromium |
+| Environment | https://work-2-yehrroerabrftaxm.prod-runtime.all-hands.dev |
 
 ## Module Coverage
 
-| Module | Test Cases | Status |
-|--------|------------|--------|
-| Homepage | 30 | Tested |
-| Authentication | 25 | Tested |
-| Admin Dashboard | 25 | Tested |
-| Devotees | 32 | Tested |
-| Seva Booking | 32 | Tested |
-| Donations | 36 | Tested |
-| Events | 15 | Tested |
-| Gallery | 9 | Tested |
-| Announcements | 6 | Tested |
-| Contact Form | 10 | Tested |
-| Mobile/Responsive | 20 | Tested |
-| Accessibility | 15 | Tested |
-| Performance | 15 | Tested |
-| Security | 20 | Tested |
-| API | 10 | Tested |
-| Database | 10 | Tested |
-| Browser Compatibility | 4 | Tested |
-| Additional Modules | 26 | Tested |
+| Module | Total | Passed | Failed |
+|--------|-------|--------|--------|
+| Homepage | 5 | 1 | 4 |
+| Authentication | 4 | 0 | 4 |
+| Seva Booking | 3 | 2 | 1 |
+| Donation | 2 | 0 | 2 |
+| Events | 1 | 0 | 1 |
+| Gallery | 1 | 0 | 1 |
+| About | 1 | 0 | 1 |
+| Mobile Responsive | 2 | 1 | 1 |
+| Accessibility | 2 | 1 | 1 |
+| Security | 2 | 1 | 1 |
 
----
+## Bugs Identified
 
-## Go/No-Go Decision
+| Bug ID | Severity | Module | Description |
+|--------|----------|--------|-------------|
+| BUG-001 | Critical | Homepage | Homepage returns 502 error - server not accessible |
+| BUG-002 | Critical | Authentication | Login page returns 502 error |
+| BUG-003 | Critical | Seva Booking | Sevas page returns 502 error |
+| BUG-004 | Critical | Donation | Donation page returns 502 error |
+| BUG-005 | Critical | Events | Events page returns 502 error |
+| BUG-006 | Critical | Gallery | Gallery page returns 502 error |
+| BUG-007 | Critical | About | About page returns 502 error |
 
-**Status: GO**
+## Detailed Test Results
 
-All comprehensive tests passed. The application is production ready.
+### Failed Tests (17)
 
----
+| Test ID | Module | Test Name | Reason |
+|---------|--------|-----------|--------|
+| TC-001 | Homepage | Homepage loads successfully | 502 Bad Gateway |
+| TC-002 | Homepage | Page has title | Page not loaded - 502 error |
+| TC-003 | Homepage | Navigation menu is visible | Page not loaded - 502 error |
+| TC-004 | Homepage | Footer is present | Page not loaded - 502 error |
+| TC-006 | Authentication | Login page loads | 502 Bad Gateway |
+| TC-007 | Authentication | Login form has email and password fields | Page not loaded - 502 error |
+| TC-008 | Authentication | Submit button is present | Page not loaded - 502 error |
+| TC-009 | Authentication | Password field has correct type | Page not loaded - 502 error |
+| TC-010 | Seva Booking | Sevas page loads | 502 Bad Gateway |
+| TC-013 | Donation | Donation page loads | 502 Bad Gateway |
+| TC-014 | Donation | Donation form is visible | Page not loaded - 502 error |
+| TC-015 | Events | Events page loads | 502 Bad Gateway |
+| TC-016 | Gallery | Gallery page loads | 502 Bad Gateway |
+| TC-017 | About | About page loads | 502 Bad Gateway |
+| TC-019 | Mobile Responsive | Login page renders on mobile viewport | Page not loaded - 502 error |
+| TC-021 | Accessibility | Page has proper heading hierarchy | Page not loaded - 502 error |
+| TC-022 | Security | Password field has correct type on login | Page not loaded - 502 error |
 
-*Report generated: 2026-07-12 09:47:34*
+### Passed Tests (6)
+
+| Test ID | Module | Test Name |
+|---------|--------|-----------|
+| TC-005 | Homepage | Page loads within acceptable time |
+| TC-011 | Seva Booking | Sevas page has content |
+| TC-012 | Seva Booking | Sevas page loads within acceptable time |
+| TC-018 | Mobile Responsive | Homepage renders on mobile viewport |
+| TC-020 | Accessibility | Images have alt attributes |
+| TC-023 | Security | No sensitive data in URL on login |
+
+## Recommendations
+
+1. **Server Availability**: The primary issue is that the application servers are returning 502 Bad Gateway errors. Please verify:
+   - The application servers are running
+   - Network connectivity is working
+   - The servers are properly configured to handle requests
+
+2. **Environment Verification**: Ensure the test environment URL is correct and accessible.
+
+3. **Re-run Tests**: Once the server issues are resolved, re-run these tests to get accurate pass/fail metrics.

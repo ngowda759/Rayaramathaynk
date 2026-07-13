@@ -1,56 +1,120 @@
-# Executive Summary
-## Aaradhane Temple Management System - Comprehensive QA Report
 
-**Date:** 2026-07-12  
-**Comprehensive Retest Status:** COMPLETED
+================================================================================
+          PLAYWRIGHT TEST EXECUTION - EXECUTIVE SUMMARY
+================================================================================
 
----
+Report Generated: 2026-07-13 07:11:57
 
-## Overview
+================================================================================
+                        TEST EXECUTION OVERVIEW
+================================================================================
 
-The Aaradhane Temple Management System was subjected to comprehensive retesting. A total of **81** comprehensive functional tests were executed covering all major modules, with **340** test cases defined.
+Total Test Cases Executed:    23
+Passed:                       6
+Failed:                       17
+Skipped:                      0
+Pass Rate:                    26.1%
+Execution Duration:           53.05 seconds
 
-## Key Findings
+================================================================================
+                           CRITICAL FINDING
+================================================================================
 
-### All Tests Passed
-- 81/81 tests passed
-- 0 failed
-- 100% pass rate
+⚠️  SERVER ACCESSIBILITY ISSUE DETECTED
 
-### Strengths
-- Core functionality works as expected
-- User interface is intuitive and user-friendly
-- Mobile responsiveness is well implemented
-- Basic security measures are in place
-- Performance is within acceptable limits
-- Accessibility standards met
+The test environment (https://work-2-yehrroerabrftaxm.prod-runtime.all-hands.dev) is returning 502 Bad Gateway 
+errors, indicating that the application servers are not accessible or not 
+properly configured.
 
-## Comprehensive Test Results
+This affects the following modules:
+  • Homepage - Not accessible
+  • Authentication - Not accessible  
+  • Seva Booking - Not accessible
+  • Donation - Not accessible
+  • Events - Not accessible
+  • Gallery - Not accessible
+  • About - Not accessible
 
-| Module | Tests | Passed |
-|--------|-------|--------|
-| Homepage | 5 | 5 |
-| Authentication | 6 | 6 |
-| Donation | 6 | 6 |
-| Events | 3 | 3 |
-| Gallery | 4 | 4 |
-| Seva Booking | 3 | 3 |
-| Admin Dashboard | 8 | 8 |
-| API Endpoints | 2 | 2 |
-| Responsive Design | 18 | 18 |
-| Accessibility | 4 | 4 |
-| Performance | 4 | 4 |
-| Security | 4 | 4 |
-| Navigation Flow | 5 | 5 |
-| Additional Pages | 9 | 9 |
-| **Total** | **81** | **81** |
+================================================================================
+                        TESTS EXECUTED BY MODULE
+================================================================================
 
-## Conclusion
+1.  Homepage Testing              5 test cases   (1 passed, 4 failed)
+2.  Authentication Testing        4 test cases   (0 passed, 4 failed)
+3.  Seva Booking Testing          3 test cases   (2 passed, 1 failed)
+4.  Donation Module               2 test cases   (0 passed, 2 failed)
+5.  Events Module                 1 test case    (0 passed, 1 failed)
+6.  Gallery Module                1 test case    (0 passed, 1 failed)
+7.  About Module                  1 test case    (0 passed, 1 failed)
+8.  Mobile Responsive Testing     2 test cases   (1 passed, 1 failed)
+9.  Accessibility Testing         2 test cases   (1 passed, 1 failed)
+10. Security Testing              2 test cases   (1 passed, 1 failed)
 
-**Final Verdict: PRODUCTION READY**
+================================================================================
+                           BUGS IDENTIFIED
+================================================================================
 
-The application is ready for production deployment.
+Total Bugs Found:               7
+  - Critical:                   7
+  - High:                       0
+  - Medium:                    0
+  - Low:                       0
 
----
+Bug Details:
+  • BUG-001: Homepage returns 502 error - server not accessible (Homepage)
+  • BUG-002: Login page returns 502 error (Authentication)
+  • BUG-003: Sevas page returns 502 error (Seva Booking)
+  • BUG-004: Donation page returns 502 error (Donation)
+  • BUG-005: Events page returns 502 error (Events)
+  • BUG-006: Gallery page returns 502 error (Gallery)
+  • BUG-007: About page returns 502 error (About)
 
-*Report generated: 2026-07-12 09:47:34*
+================================================================================
+                          ROOT CAUSE ANALYSIS
+================================================================================
+
+The 502 Bad Gateway errors indicate that:
+
+1. The web servers/load balancers are not able to reach the application servers
+2. The application servers may not be running
+3. Network/firewall issues may be blocking access
+4. The configured endpoint URL may be incorrect
+
+================================================================================
+                        RECOMMENDED ACTIONS
+================================================================================
+
+IMMEDIATE (Before Re-testing):
+1. Verify application servers are running
+2. Check network connectivity to the test environment
+3. Confirm the correct URL for the test environment
+4. Review server/load balancer configuration
+
+BEFORE PRODUCTION:
+1. Resolve all server accessibility issues
+2. Re-run Playwright tests after servers are confirmed accessible
+3. Ensure all 23 test cases pass before deployment
+
+================================================================================
+                         FINAL DECISION
+================================================================================
+
+                    ❌ TESTS CANNOT BE VALIDATED
+                    
+        Reason: Server accessibility issues (502 Bad Gateway)
+        
+        Status: Blocked by infrastructure issues
+        Action: Resolve server issues and re-run tests
+
+================================================================================
+                              SIGN-OFF
+================================================================================
+
+Test Lead:                      ____________________  Date: ____________
+
+Tech Lead:                      ____________________  Date: ____________
+
+================================================================================
+                    Report Generated by Playwright Test Framework
+                           Copyright © 2026 - All Rights Reserved
+================================================================================
