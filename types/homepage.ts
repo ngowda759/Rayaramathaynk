@@ -55,6 +55,9 @@ export interface HomepageConfig {
     nakshatra: string;
     yoga: string;
     karana: string;
+    rahuKalam: string;
+    gulikaKalam: string;
+    masa: string;
   };
 
   featuredSeva?: {

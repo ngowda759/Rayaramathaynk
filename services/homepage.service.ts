@@ -96,6 +96,17 @@ class HomepageService {
       // Festival Schedule
       festivalScheduleNote:
         "Temple timings may be extended during festivals, Raghavendra Swamygala Aaradhane, Navaratri and other special occasions. Please check announcements before visiting.",
+
+      // Panchanga
+      panchanga: {
+        tithi: "",
+        nakshatra: "",
+        yoga: "",
+        karana: "",
+        rahuKalam: "",
+        gulikaKalam: "",
+        masa: "",
+      },
     };
   }
 }

@@ -58,6 +58,9 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     nakshatra: "",
     yoga: "",
     karana: "",
+    rahuKalam: "",
+    gulikaKalam: "",
+    masa: "",
   },
 
   featuredSeva: {
