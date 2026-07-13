@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAIProvider } from "@/lib/ai/provider";
-import { SYSTEM_PROMPT } from "@/lib/ai/systemPrompt";
+import { getSystemPrompt } from "@/lib/ai/settings";
+import { generateFirebaseResponse, getTempleInfo } from "@/lib/ai/firebaseChat";
 import { AIMessage, ChatRequest, ChatResponse } from "@/types/ai";
 
 // Rate limiting (simple in-memory implementation)
@@ -54,60 +55,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate each message
-    for (const msg of messages) {
-      if (!msg.role || !msg.content) {
-        return NextResponse.json(
-          { error: "Each message must have a role and content" },
-          { status: 400 }
-        );
-      }
-      if (!["user", "assistant", "system"].includes(msg.role)) {
-        return NextResponse.json(
-          { error: "Message role must be 'user', 'assistant', or 'system'" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Get AI provider
-    const provider = getAIProvider();
-
-    // Check if provider is configured
-    if (!provider.isConfigured()) {
-      console.error("[Chat API] AI provider not configured");
+    // Get the last user message
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUserMessage) {
       return NextResponse.json(
-        { error: "AI service is not configured. Please contact the administrator." },
-        { status: 503 }
+        { error: "No user message found" },
+        { status: 400 }
       );
     }
 
-    // Prepare messages for AI (filter out system messages from user input)
-    const aiMessages: AIMessage[] = messages.map((msg) => ({
-      id: msg.id || crypto.randomUUID(),
-      role: msg.role as "user" | "assistant",
-      content: msg.content,
-      timestamp: msg.timestamp || Date.now(),
-    }));
+    // Try AI provider first, fallback to Firebase
+    const provider = getAIProvider();
+    let responseMessage: AIMessage;
 
-    // Generate response
-    console.log(`[Chat API] Generating response for session ${sessionId || "new"}, user ${userId || "anonymous"}`);
-    console.log(`[Chat API] Using provider: ${provider.getProviderName()} (${provider.getModelName()})`);
+    if (provider.isConfigured()) {
+      // Use AI provider with configurable system prompt
+      console.log(`[Chat API] Using AI provider: ${provider.getProviderName()}`);
 
-    const responseContent = await provider.generateResponse(aiMessages, SYSTEM_PROMPT);
+      const aiMessages: AIMessage[] = messages.map((msg) => ({
+        id: msg.id || crypto.randomUUID(),
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        timestamp: msg.timestamp || Date.now(),
+      }));
 
-    const latency = Date.now() - startTime;
-    console.log(`[Chat API] Response generated in ${latency}ms`);
+      // Get system prompt from Firebase (or defaults)
+      const systemPrompt = await getSystemPrompt();
+      const responseContent = await provider.generateResponse(aiMessages, systemPrompt);
+      const latency = Date.now() - startTime;
 
-    // Create response message
-    const responseMessage: AIMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: responseContent,
-      timestamp: Date.now(),
-      model: provider.getModelName(),
-      latency,
-    };
+      responseMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: responseContent,
+        timestamp: Date.now(),
+        model: provider.getModelName(),
+        latency,
+      };
+    } else {
+      // Use Firebase-based response
+      console.log("[Chat API] AI not configured, using Firebase fallback");
+      
+      // Get temple info from Firebase
+      const templeInfo = await getTempleInfo();
+      
+      // Generate response using Firebase data
+      responseMessage = await generateFirebaseResponse(
+        lastUserMessage.content,
+        templeInfo
+      );
+    }
 
     const response: ChatResponse = {
       message: responseMessage,

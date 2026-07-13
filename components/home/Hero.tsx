@@ -24,7 +24,7 @@ export default function Hero() {
   useEffect(() => {
     setIsMounted(true);
     
-    // Set up scroll tracking after mounting
+    // Set up scroll tracking after mounting to avoid hydration errors
     const updateScroll = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();

@@ -8,6 +8,7 @@ import {
   getSessionMessages,
   getUserChatSessions 
 } from "@/services/chat.service";
+import { getWelcomeMessage } from "@/lib/ai/settings";
 
 interface AIChatContextType {
   messages: AIMessage[];
@@ -22,6 +23,7 @@ interface AIChatContextType {
   regenerateResponse: () => Promise<void>;
   loadSessionHistory: (sessionId: string) => Promise<void>;
   userSessions: string[];
+  welcomeMessage: string;
 }
 
 const AIChatContext = createContext<AIChatContextType | undefined>(undefined);
@@ -46,6 +48,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastUserMessage, setLastUserMessage] = useState<AIMessage | null>(null);
   const [userSessions, setUserSessions] = useState<string[]>([]);
+  const [welcomeMessage, setWelcomeMessage] = useState<string>("");
   
   const { user } = useAuthContext();
 
@@ -60,6 +63,19 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     }
     return null;
   });
+
+  // Load AI settings (welcome message)
+  useEffect(() => {
+    async function loadWelcomeMessage() {
+      try {
+        const msg = await getWelcomeMessage();
+        setWelcomeMessage(msg);
+      } catch (err) {
+        console.error("Failed to load welcome message:", err);
+      }
+    }
+    loadWelcomeMessage();
+  }, []);
 
   // Load user's chat sessions when user logs in
   useEffect(() => {
@@ -82,8 +98,8 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     try {
       await saveMessage(currentSessionId, message);
     } catch (err) {
-      console.error("Failed to save message to Firebase:", err);
-      // Don't throw - we don't want to break the chat if saving fails
+      // Silently ignore Firebase errors - message history is optional
+      // Don't log to console as this is not critical functionality
     }
   }, []);
 
@@ -161,18 +177,34 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
       await saveToFirebase(data.message, currentSessionId);
       
     } catch (err) {
-      console.error("Chat error:", err);
-      setError(err instanceof Error ? err.message : "Failed to send message");
+      const errorMessage = err instanceof Error ? err.message : "Failed to send message";
       
-      // Add error message
-      const errorMessage: AIMessage = {
+      // Check if AI is not configured - show specific message without console error
+      if (errorMessage.includes("AI service is not configured")) {
+        setError("Chat feature is currently unavailable");
+        const aiUnavailableMessage: AIMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "🙏 Namaste! The AI assistant is temporarily unavailable. For temple inquiries, please contact the matha office directly or visit during temple hours.",
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiUnavailableMessage]);
+        return;
+      }
+      
+      // Log other errors for debugging
+      console.error("Chat error:", err);
+      setError(errorMessage);
+      
+      // Add generic error message
+      const userFriendlyError: AIMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
         content: "I apologize, but I encountered an issue. Please try again or contact the temple office for assistance.",
         timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
-      await saveToFirebase(errorMessage, currentSessionId);
+      setMessages((prev) => [...prev, userFriendlyError]);
+      await saveToFirebase(userFriendlyError, currentSessionId);
     } finally {
       setIsLoading(false);
     }
@@ -250,6 +282,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     regenerateResponse,
     loadSessionHistory,
     userSessions,
+    welcomeMessage,
   };
 
   return (

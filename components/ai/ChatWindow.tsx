@@ -7,6 +7,7 @@ import { TypingIndicator } from "./TypingIndicator";
 import { ChatInput } from "./ChatInput";
 import { SuggestedQuestions } from "./SuggestedQuestions";
 import { Trash2, Sparkles, History, X, ChevronRight } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 export function ChatWindow() {
   const { 
@@ -18,7 +19,8 @@ export function ChatWindow() {
     regenerateResponse,
     loadSessionHistory,
     userSessions,
-    sessionId 
+    sessionId,
+    welcomeMessage 
   } = useAIChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,7 +120,7 @@ export function ChatWindow() {
         aria-label="Chat messages"
       >
         {messages.length === 0 ? (
-          <WelcomeScreen onSelectQuestion={handleSuggestedQuestion} />
+          <WelcomeScreen onSelectQuestion={handleSuggestedQuestion} welcomeMessage={welcomeMessage} />
         ) : (
           <>
             {messages.map((message, index) => (
@@ -144,21 +146,28 @@ export function ChatWindow() {
   );
 }
 
-function WelcomeScreen({ onSelectQuestion }: { onSelectQuestion: (q: string) => void }) {
+function WelcomeScreen({ onSelectQuestion, welcomeMessage }: { 
+  onSelectQuestion: (q: string) => void;
+  welcomeMessage: string 
+}) {
+  // Default welcome message if not loaded
+  const defaultWelcome = `🙏 Namaste, Dear Devotee!
+
+I am **Raya AI**, your friendly assistant from Sri Raghavendra Swamy Math, Yelahanka.
+
+How may I assist you today?`;
+
+  const displayMessage = welcomeMessage || defaultWelcome;
+
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-4 py-8">
       <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-6">
         <Sparkles className="w-10 h-10 text-amber-600" />
       </div>
       
-      <h3 className="text-xl font-semibold text-stone-800 mb-2">
-        🙏 Namaste, Dear Devotee!
-      </h3>
-      
-      <p className="text-sm text-stone-500 mb-6 max-w-xs">
-        I am <span className="font-medium text-amber-600">Raya AI</span>, your friendly assistant from Sri Raghavendra Swamy Math.
-        How may I help you today?
-      </p>
+      <div className="text-sm text-stone-600 mb-6 max-w-xs prose prose-sm prose-stone">
+        <ReactMarkdown>{displayMessage}</ReactMarkdown>
+      </div>
 
       <div className="w-full space-y-3">
         <p className="text-xs text-stone-400 uppercase tracking-wide">Quick questions</p>

@@ -81,6 +81,7 @@ const allNavigation = [
       { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
       { title: "AI Assistant", href: "/admin/assistant", icon: "sparkles" },
+      { title: "AI Settings", href: "/admin/ai/settings", icon: "settings" },
     ],
   },
 ];
