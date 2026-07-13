@@ -4,7 +4,6 @@ import { createContext, useContext, useState, useCallback, ReactNode, useEffect 
 import { AIMessage } from "@/types/ai";
 import { useAuthContext } from "@/context/AuthContext";
 import { 
-  createChatSession, 
   saveMessage, 
   getSessionMessages,
   getUserChatSessions 
