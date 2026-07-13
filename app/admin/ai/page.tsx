@@ -9,7 +9,8 @@ import {
   BarChart3, 
   Settings,
   ArrowRight,
-  Clock
+  Clock,
+  Brain
 } from "lucide-react";
 import { getPendingTestimonials } from "@/services/chat.service";
 import { getVolunteerRequests } from "@/services/chat.service";
@@ -47,6 +48,14 @@ export default function AdminAIPage() {
   }, []);
 
   const menuItems = [
+    {
+      title: "Chat Training",
+      description: "Manage AI responses and training data",
+      icon: Brain,
+      href: "/admin/ai/training",
+      count: null,
+      color: "bg-indigo-500",
+    },
     {
       title: "Testimonials",
       description: "Review and approve user testimonials",
