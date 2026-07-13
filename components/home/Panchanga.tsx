@@ -96,33 +96,28 @@ export default function Panchanga() {
     load();
   }, []);
 
-  function value(v?: string | null) {
-    try {
-      if (v == null) return DEFAULT_PLACEHOLDER;
-      if (typeof v !== 'string') return DEFAULT_PLACEHOLDER;
-      if (v.trim().length === 0) return DEFAULT_PLACEHOLDER;
-      return v;
-    } catch {
-      return DEFAULT_PLACEHOLDER;
-    }
-  }
+  // Helper to safely get string value
+  const getValue = (v: unknown): string => {
+    if (!v || typeof v !== 'string') return DEFAULT_PLACEHOLDER;
+    return v;
+  };
 
   const items = [
     {
       title: "Tithi",
-      value: value(live?.tithi ?? cms.tithi),
+      value: getValue(live?.tithi ?? cms.tithi),
       icon: MoonStar,
       color: "from-violet-500 to-purple-600",
     },
     {
       title: "Nakshatra",
-      value: value(live?.nakshatra ?? cms.nakshatra),
+      value: getValue(live?.nakshatra ?? cms.nakshatra),
       icon: CalendarDays,
       color: "from-amber-500 to-orange-500",
     },
     {
       title: "Sunrise",
-      value: value(
+      value: getValue(
         live?.sunrise ??
           cms.sunrise ??
           homepage?.morningOpen
@@ -132,7 +127,7 @@ export default function Panchanga() {
     },
     {
       title: "Sunset",
-      value: value(
+      value: getValue(
         live?.sunset ??
           cms.sunset ??
           homepage?.eveningClose
@@ -142,19 +137,19 @@ export default function Panchanga() {
     },
     {
       title: "Rahu Kala",
-      value: value(live?.rahuKalam ?? cms.rahuKalam),
+      value: getValue(live?.rahuKalam ?? cms.rahuKalam),
       icon: Clock,
       color: "from-red-500 to-rose-600",
     },
     {
       title: "Gulika Kala",
-      value: value(live?.gulikaKalam ?? cms.gulikaKalam),
+      value: getValue(live?.gulikaKalam ?? cms.gulikaKalam),
       icon: Clock,
       color: "from-emerald-500 to-teal-600",
     },
     {
       title: "Masa",
-      value: value(live?.masa ?? cms.masa),
+      value: getValue(live?.masa ?? cms.masa),
       icon: Flame,
       color: "from-pink-500 to-rose-600",
     },
