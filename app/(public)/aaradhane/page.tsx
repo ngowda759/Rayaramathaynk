@@ -18,7 +18,7 @@ import {
 
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import Breadcrumb from "@/components/calendar/Breadcrumb";
+import Hero from "@/components/home/Hero";
 import { Aaradhane } from "@/types/aaradhane";
 import { aaradhaneService } from "@/services/aaradhane.service";
 
@@ -148,52 +148,44 @@ export default function AaradhanePage() {
       <Navbar />
       <main className="min-h-[calc(100vh-120px)] bg-[#fffdf8]">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-amber-600 via-orange-500 to-red-500 px-6 py-20 sm:px-8 lg:px-12">
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-600 via-orange-500 to-red-500 px-6 py-16 sm:px-8 lg:px-12">
           {/* Animated background pattern */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-white/20 blur-3xl" />
-            <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -top-16 -left-16 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-16 -right-16 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
           </div>
           
           <div className="relative z-10 mx-auto max-w-7xl">
-            <Breadcrumb 
-              current="Aaradhane" 
-              parentHref="/events" 
-              parentName="Events"
-              light
-            />
-            
             <motion.div 
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="mt-8 text-center"
+              transition={{ duration: 0.5 }}
+              className="text-center"
             >
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 text-sm font-semibold text-white backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
                 <Flame className="h-4 w-4" />
                 Sacred Devotional Services
               </div>
               
-              <h1 className="mt-6 text-4xl font-bold text-white sm:text-5xl lg:text-6xl">
+              <h1 className="mt-4 text-3xl font-bold text-white sm:text-4xl lg:text-5xl">
                 Aaradhane Services
               </h1>
               
-              <p className="mx-auto mt-6 max-w-2xl text-lg text-amber-100 sm:text-xl">
-                Experience divine worship and spiritual enlightenment through our sacred aaradhane ceremonies, 
-                conducted with devotion and traditional grandeur.
+              <p className="mx-auto mt-3 max-w-xl text-base text-amber-100 sm:text-lg">
+                Experience divine worship and spiritual enlightenment through our sacred aaradhane ceremonies.
               </p>
               
-              <div className="mt-10 flex flex-wrap justify-center gap-4">
-                <div className="flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 text-white backdrop-blur-sm">
-                  <Star className="h-5 w-5 text-amber-200" />
-                  <span className="font-medium">{aaradhanes.length} Total Events</span>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm text-white backdrop-blur-sm">
+                  <Star className="h-4 w-4 text-amber-200" />
+                  <span className="font-medium">{aaradhanes.length} Events</span>
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 text-white backdrop-blur-sm">
-                  <Sparkles className="h-5 w-5 text-amber-200" />
+                <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm text-white backdrop-blur-sm">
+                  <Sparkles className="h-4 w-4 text-amber-200" />
                   <span className="font-medium">{upcomingAaradhanes.length} Upcoming</span>
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 text-white backdrop-blur-sm">
-                  <Calendar className="h-5 w-5 text-amber-200" />
+                <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm text-white backdrop-blur-sm">
+                  <Calendar className="h-4 w-4 text-amber-200" />
                   <span className="font-medium">{pastAaradhanes.length} Past</span>
                 </div>
               </div>
