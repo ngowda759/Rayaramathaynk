@@ -3,10 +3,22 @@
 import { useEffect, useState } from "react";
 
 export default function ChatbaseWidget() {
-  const chatbotId = process.env.NEXT_PUBLIC_CHATBOT_ID;
+  const [chatbotId, setChatbotId] = useState<string | undefined>(undefined);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
   useEffect(() => {
+    // Get chatbot ID from environment variable on client side
+    const id = process.env.NEXT_PUBLIC_CHATBOT_ID;
+    console.log("[Chatbase] Client-side chatbot ID:", id);
+    setChatbotId(id);
+  }, []);
+
+  useEffect(() => {
+    // Wait for chatbot ID to be loaded
+    if (chatbotId === undefined) {
+      return;
+    }
+
     // Don't load if chatbot ID is not configured
     if (!chatbotId || chatbotId === "your-chatbot-id" || chatbotId === "") {
       console.log("[Chatbase] Chatbot ID not configured or is placeholder");
@@ -49,7 +61,7 @@ export default function ChatbaseWidget() {
 
   // Debug info in development
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
+    if (chatbotId !== undefined && process.env.NODE_ENV === "development") {
       console.log("[Chatbase] Debug Info:");
       console.log("[Chatbase] - Chatbot ID:", chatbotId || "NOT SET");
       console.log("[Chatbase] - Script Loaded:", scriptLoaded);
