@@ -44,7 +44,7 @@ export function ChatWindow() {
   return (
     <div 
       ref={containerRef}
-      className={`fixed z-50 right-6 bottom-20
+      className={`fixed z-50 left-6 bottom-20
                  w-[calc(100vw-3rem)] sm:w-[420px] lg:w-[480px]
                  transition-all duration-300 ease-in-out
                  ${isExpanded ? 'h-[75vh] max-h-[75vh]' : 'h-[600px] max-h-[70vh]'}
