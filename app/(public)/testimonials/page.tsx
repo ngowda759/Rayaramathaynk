@@ -134,6 +134,7 @@ export default function TestimonialsPage() {
                             fill
                             sizes="80px"
                             className="object-cover"
+                            unoptimized
                           />
                         </div>
                       </div>
@@ -254,6 +255,7 @@ export default function TestimonialsPage() {
                       fill
                       sizes="128px"
                       className="object-cover"
+                      unoptimized
                     />
                   </div>
                 </div>

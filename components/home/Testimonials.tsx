@@ -242,6 +242,7 @@ export default function Testimonials() {
                             fill
                             sizes="80px"
                             className="object-cover"
+                            unoptimized
                           />
                         </div>
                       ) : (
