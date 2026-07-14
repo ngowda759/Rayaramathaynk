@@ -113,30 +113,6 @@ export default function Hero() {
         <div className="absolute right-12 top-32 h-[520px] w-[520px] rounded-full bg-gradient-to-br from-amber-300 via-orange-200 to-amber-400 blur-[120px] opacity-50 animate-pulse-ring" />
 
       </div>
-      
-      {/* Floating particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-amber-400/30"
-            style={{
-              left: `${15 + i * 15}%`,
-              top: `${20 + (i % 3) * 25}%`,
-            }}
-            animate={{
-              y: [-20, 20, -20],
-              opacity: [0.3, 0.6, 0.3],
-            }}
-            transition={{
-              duration: 3 + i * 0.5,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 0.3,
-            }}
-          />
-        ))}
-      </div>
 
       <div className="relative mx-auto flex min-h-[92vh] max-w-7xl items-center px-6 lg:px-10">
 
@@ -290,10 +266,11 @@ export default function Hero() {
               </div>
             </motion.div>
 
-            {/* Deepa (Lamp) image decoration */}
+            {/* Deepa (Lamp) decorations - identical on both sides */}
+            {/* Left Lamp */}
             <motion.div
               animate={{
-                y: [-8, 12, -8],
+                y: [-6, 8, -6],
                 opacity: [0.7, 1, 0.7],
               }}
               transition={{
@@ -301,46 +278,47 @@ export default function Hero() {
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-              className="absolute -left-16 top-1/4"
+              className="absolute left-0 top-1/2 -translate-y-1/2 hidden lg:block"
             >
               <div className="relative">
-                {/* Glow effect */}
-                <div className="absolute inset-0 blur-2xl bg-amber-300/50 animate-pulse" />
-                <div className="absolute inset-0 blur-xl bg-orange-400/40" />
+                {/* Golden glow effect */}
+                <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-2xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-orange-300/20 blur-xl" />
                 {/* Deepa Lamp Image */}
                 <Image
                   src="/avatars/deepa.jpg"
                   alt="Deepa Lamp"
-                  width={80}
-                  height={96}
+                  width={72}
+                  height={87}
                   className="relative drop-shadow-lg"
                 />
               </div>
             </motion.div>
 
+            {/* Right Lamp */}
             <motion.div
               animate={{
-                y: [12, -8, 12],
-                opacity: [0.6, 0.95, 0.6],
+                y: [8, -6, 8],
+                opacity: [0.7, 1, 0.7],
               }}
               transition={{
-                duration: 3.5,
+                duration: 4,
                 repeat: Infinity,
                 ease: "easeInOut",
-                delay: 0.8,
+                delay: 0.5,
               }}
-              className="absolute -right-20 top-1/3"
+              className="absolute right-0 top-1/2 -translate-y-1/2 hidden lg:block"
             >
               <div className="relative">
-                {/* Glow effect */}
-                <div className="absolute inset-0 blur-2xl bg-amber-400/40 animate-pulse" />
-                <div className="absolute inset-0 blur-xl bg-yellow-500/30" />
+                {/* Golden glow effect */}
+                <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-2xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-orange-300/20 blur-xl" />
                 {/* Deepa Lamp Image */}
                 <Image
                   src="/avatars/deepa.jpg"
                   alt="Deepa Lamp"
-                  width={64}
-                  height={77}
+                  width={72}
+                  height={87}
                   className="relative drop-shadow-lg"
                 />
               </div>
