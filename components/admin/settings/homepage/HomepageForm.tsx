@@ -84,11 +84,7 @@ export default function HomepageForm({
           updateField={updateField}
         />
 
-        <TestimonialsSection
-          formData={formData}
-          errors={errors}
-          updateField={updateField}
-        />
+        <TestimonialsSection />
 
         <FormActions
           loading={saving}
