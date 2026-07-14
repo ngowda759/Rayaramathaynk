@@ -8,17 +8,6 @@ export interface TempleSettings {
     message: string;
   };
 
-  timings: {
-    morning: {
-      open: string;
-      close: string;
-    };
-    evening: {
-      open: string;
-      close: string;
-    };
-  };
-
   contact: {
     phone: string;
     email: string;

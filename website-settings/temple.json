@@ -7,17 +7,6 @@
     "message": ""
   },
 
-  "timings": {
-    "morning": {
-      "open": "06:00",
-      "close": "13:00"
-    },
-    "evening": {
-      "open": "16:30",
-      "close": "20:30"
-    }
-  },
-
   "address": {
     "line1": "",
     "city": "Bengaluru",

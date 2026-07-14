@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   Image,
-  Clock3,
   BookOpen,
   HandCoins,
   Bell,
@@ -50,11 +49,6 @@ const sections: MenuSection[] = [
         title: "Gallery",
         href: "/admin/gallery",
         icon: Image,
-      },
-      {
-        title: "Temple Timings",
-        href: "/admin/timings",
-        icon: Clock3,
       },
       {
         title: "Daily Pooja",

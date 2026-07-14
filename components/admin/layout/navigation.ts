@@ -36,11 +36,6 @@ export const navigation: NavigationGroup[] = [
         icon: "heart",
       },
       {
-        title: "Temple Timings",
-        href: "/admin/timings",
-        icon: "clock",
-      },
-      {
         title: "Aaradhane",
         href: "/admin/aaradhane",
         icon: "flower",
