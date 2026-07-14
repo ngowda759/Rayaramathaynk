@@ -3,14 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { 
   Star, 
-  Check, 
   X, 
   Plus,
   Upload,
   Image as ImageIcon,
   Search,
   Edit2,
-  ExternalLink
+  ExternalLink,
+  FolderOpen,
+  CheckCircle
 } from "lucide-react";
 import { 
   getAllTestimonials, 
@@ -37,6 +38,7 @@ export default function TestimonialsPage() {
     image: "",
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   const loadTestimonials = useCallback(async () => {
     setLoading(true);
@@ -72,6 +74,7 @@ export default function TestimonialsPage() {
         image: testimonial.image || "",
       });
       setImagePreview(testimonial.image || null);
+      setImageError(false);
     } else {
       setEditingTestimonial(null);
       setFormData({
@@ -82,6 +85,7 @@ export default function TestimonialsPage() {
         image: "",
       });
       setImagePreview(null);
+      setImageError(false);
     }
     setIsModalOpen(true);
   }
@@ -97,12 +101,25 @@ export default function TestimonialsPage() {
       image: "",
     });
     setImagePreview(null);
+    setImageError(false);
   }
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value;
+  function handleImageChange(value: string) {
     setFormData({ ...formData, image: value });
     setImagePreview(value || null);
+    setImageError(false);
+  }
+
+  // Convert filename to full path
+  function getImageSrc(src: string): string {
+    if (!src) return "";
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      return src;
+    }
+    if (src.startsWith("/")) {
+      return src;
+    }
+    return `/images/testimonials/${src}`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -180,6 +197,20 @@ export default function TestimonialsPage() {
         </div>
       </div>
 
+      {/* Instructions */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+        <div className="flex items-start gap-3">
+          <FolderOpen className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-800">Image Upload Instructions</p>
+            <p className="text-amber-700 mt-1">
+              Upload images to <code className="bg-amber-100 px-1 rounded">public/images/testimonials/</code> folder in your project.
+              Then enter the filename below (e.g., <code className="bg-amber-100 px-1 rounded">photo.jpg</code>) or the full path.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Search */}
       <div className="max-w-md">
         <div className="relative">
@@ -193,7 +224,7 @@ export default function TestimonialsPage() {
           />
         </div>
       </div>
-
+	
       {/* Testimonials Grid */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
@@ -221,7 +252,7 @@ export default function TestimonialsPage() {
               <div className="relative h-32 bg-gradient-to-br from-amber-100 to-orange-100">
                 {testimonial.image ? (
                   <Image
-                    src={testimonial.image}
+                    src={getImageSrc(testimonial.image)}
                     alt={testimonial.name}
                     fill
                     className="object-cover"
@@ -301,16 +332,17 @@ export default function TestimonialsPage() {
                   Profile Image
                 </label>
                 
-                <div className="flex items-start gap-6">
+                <div className="flex flex-col sm:flex-row items-start gap-6">
                   {/* Image Preview */}
                   <div className="flex-shrink-0">
                     <div className="relative w-32 h-32 rounded-xl border-2 border-dashed border-stone-300 overflow-hidden bg-stone-50">
                       {imagePreview ? (
                         <Image
-                          src={imagePreview}
+                          src={getImageSrc(imagePreview)}
                           alt="Preview"
                           fill
                           className="object-cover"
+                          onError={() => setImageError(true)}
                         />
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-stone-400">
@@ -318,26 +350,42 @@ export default function TestimonialsPage() {
                           <span className="text-xs">No image</span>
                         </div>
                       )}
+                      {imagePreview && imageError && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-stone-100 text-stone-500 text-xs text-center p-2">
+                          <span>Image not found</span>
+                          <span className="text-[10px] mt-1">Check if file exists</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Image URL Input */}
+                  {/* Image Path Input */}
                   <div className="flex-1 space-y-4">
                     <div>
                       <label className="block text-xs text-stone-500 mb-1">
-                        Image URL
+                        Image Filename or Path
                       </label>
                       <input
-                        type="url"
+                        type="text"
                         value={formData.image}
-                        onChange={handleImageChange}
-                        placeholder="https://example.com/image.jpg"
+                        onChange={(e) => handleImageChange(e.target.value)}
+                        placeholder="photo.jpg or /images/testimonials/photo.jpg"
                         className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       />
                     </div>
-                    <p className="text-xs text-stone-500">
-                      Enter an image URL from the web or upload an image to the gallery and paste the URL here.
-                    </p>
+                    
+                    <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
+                      <p className="font-medium mb-1">📁 Save images to:</p>
+                      <code className="block bg-amber-100 px-2 py-1 rounded mt-1">
+                        public/images/testimonials/
+                      </code>
+                      <p className="mt-2">Examples:</p>
+                      <ul className="list-disc list-inside mt-1 space-y-0.5">
+                        <li><code className="bg-amber-100 px-1 rounded">photo.jpg</code></li>
+                        <li><code className="bg-amber-100 px-1 rounded">/images/testimonials/devotee1.png</code></li>
+                        <li><code className="bg-amber-100 px-1 rounded">https://example.com/photo.jpg</code></li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
@@ -26,6 +26,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   bookings: ClipboardList,
   billing: FileText,
   info: Info,
+  testimonials: MessageSquareQuote,
 };
 
 // Navigation data
@@ -59,6 +60,7 @@ const allNavigation = [
     items: [
       { title: "Gallery", href: "/admin/gallery", icon: "image" },
       { title: "Announcements", href: "/admin/announcements", icon: "bell" },
+      { title: "Testimonials", href: "/admin/testimonials", icon: "testimonials" },
       { title: "About Us", href: "/admin/settings/about", icon: "info" },
       { title: "Facilities", href: "/admin/settings/facilities", icon: "info" },
       { title: "Guru Parampara", href: "/admin/settings/guru-parampara", icon: "book" },
