@@ -131,28 +131,26 @@ export default function TestimonialsPage() {
     }
 
     try {
+      // Prepare testimonial data
+      const testimonialData = {
+        name: formData.name.trim(),
+        location: formData.location.trim(),
+        quote: formData.quote.trim(),
+        years: formData.years.trim(),
+        image: formData.image.trim() || undefined,
+      };
+
       if (editingTestimonial) {
-        await updateTestimonial(editingTestimonial.id, {
-          name: formData.name,
-          location: formData.location,
-          quote: formData.quote,
-          years: formData.years,
-          image: formData.image || undefined,
-        });
+        await updateTestimonial(editingTestimonial.id, testimonialData);
         toast.success("Testimonial updated successfully!");
       } else {
-        await createTestimonial({
-          name: formData.name,
-          location: formData.location,
-          quote: formData.quote,
-          years: formData.years,
-          image: formData.image || undefined,
-        });
+        await createTestimonial(testimonialData);
         toast.success("Testimonial created successfully!");
       }
       closeModal();
       loadTestimonials();
-    } catch {
+    } catch (error) {
+      console.error("Error saving testimonial:", error);
       toast.error("Failed to save testimonial");
     }
   }

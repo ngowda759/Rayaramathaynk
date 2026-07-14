@@ -142,30 +142,39 @@ export async function getTestimonial(id: string): Promise<Testimonial | null> {
 export async function createTestimonial(
   testimonial: Omit<Testimonial, "id" | "createdAt">
 ): Promise<string> {
-  if (!useFirebase() || !db) {
-    // Use localStorage fallback
-    const testimonials = getLocalTestimonials();
-    const newTestimonial: Testimonial = {
-      ...testimonial,
-      id: generateId(),
-      createdAt: Date.now(),
+  try {
+    if (!useFirebase() || !db) {
+      // Use localStorage fallback
+      const testimonials = getLocalTestimonials();
+      const newTestimonial: Testimonial = {
+        id: generateId(),
+        name: testimonial.name,
+        location: testimonial.location,
+        quote: testimonial.quote,
+        years: testimonial.years,
+        image: testimonial.image,
+        createdAt: Date.now(),
+      };
+      testimonials.unshift(newTestimonial);
+      saveLocalTestimonials(testimonials);
+      return newTestimonial.id;
+    }
+
+    const testimonialData = {
+      name: testimonial.name,
+      location: testimonial.location,
+      quote: testimonial.quote,
+      years: testimonial.years,
+      image: testimonial.image || null,
+      createdAt: serverTimestamp(),
     };
-    testimonials.unshift(newTestimonial);
-    saveLocalTestimonials(testimonials);
-    return newTestimonial.id;
+
+    const docRef = await addDoc(collection(db, TESTIMONIALS_COLLECTION), testimonialData);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error creating testimonial:", error);
+    throw error;
   }
-
-  const testimonialData = {
-    name: testimonial.name,
-    location: testimonial.location,
-    quote: testimonial.quote,
-    years: testimonial.years,
-    image: testimonial.image || null,
-    createdAt: serverTimestamp(),
-  };
-
-  const docRef = await addDoc(collection(db, TESTIMONIALS_COLLECTION), testimonialData);
-  return docRef.id;
 }
 
 // Update testimonial
@@ -173,26 +182,31 @@ export async function updateTestimonial(
   id: string,
   data: Partial<Omit<Testimonial, "id" | "createdAt">>
 ): Promise<void> {
-  if (!useFirebase() || !db) {
-    // Use localStorage fallback
-    const testimonials = getLocalTestimonials();
-    const index = testimonials.findIndex(t => t.id === id);
-    if (index !== -1) {
-      testimonials[index] = { ...testimonials[index], ...data };
-      saveLocalTestimonials(testimonials);
+  try {
+    if (!useFirebase() || !db) {
+      // Use localStorage fallback
+      const testimonials = getLocalTestimonials();
+      const index = testimonials.findIndex(t => t.id === id);
+      if (index !== -1) {
+        testimonials[index] = { ...testimonials[index], ...data };
+        saveLocalTestimonials(testimonials);
+      }
+      return;
     }
-    return;
+
+    const updateData: Record<string, any> = {};
+    
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.location !== undefined) updateData.location = data.location;
+    if (data.quote !== undefined) updateData.quote = data.quote;
+    if (data.years !== undefined) updateData.years = data.years;
+    if (data.image !== undefined) updateData.image = data.image || null;
+
+    await updateDoc(doc(db, TESTIMONIALS_COLLECTION, id), updateData);
+  } catch (error) {
+    console.error("Error updating testimonial:", error);
+    throw error;
   }
-
-  const updateData: Record<string, any> = {};
-  
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.location !== undefined) updateData.location = data.location;
-  if (data.quote !== undefined) updateData.quote = data.quote;
-  if (data.years !== undefined) updateData.years = data.years;
-  if (data.image !== undefined) updateData.image = data.image || null;
-
-  await updateDoc(doc(db, TESTIMONIALS_COLLECTION, id), updateData);
 }
 
 // Delete testimonial
