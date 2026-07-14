@@ -13,6 +13,7 @@ import {
   Settings,
   Flame,
   ChevronRight,
+  MessageSquareQuote,
 } from "lucide-react";
 
 type MenuItem = {
@@ -79,6 +80,11 @@ const sections: MenuSection[] = [
         title: "Donations",
         href: "/admin/donations",
         icon: HandCoins,
+      },
+      {
+        title: "Testimonials",
+        href: "/admin/testimonials",
+        icon: MessageSquareQuote,
       },
     ],
   },

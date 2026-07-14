@@ -1,12 +1,13 @@
 "use client";
 
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, Image as ImageIcon, X } from "lucide-react";
 import { HomepageFormData } from "./types";
 import { HomepageValidationErrors } from "./types";
 import FormSection from "@/components/ui/form/FormSection";
 import FormTextField from "@/components/ui/form/FormTextField";
 import FormTextArea from "@/components/ui/form/FormTextArea";
 import { Testimonial } from "@/types/homepage";
+import Image from "next/image";
 
 interface TestimonialsSectionProps {
   formData: HomepageFormData;
@@ -30,6 +31,7 @@ export default function TestimonialsSection({
       location: "",
       quote: "",
       years: "",
+      image: "",
     };
     updateField("testimonials", [...testimonials, newTestimonial]);
   };
@@ -90,6 +92,61 @@ export default function TestimonialsSection({
               >
                 <Trash2 size={16} />
               </button>
+            </div>
+
+            {/* Image Preview and Upload */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-stone-700">
+                Profile Image
+              </label>
+              <div className="flex items-start gap-4">
+                {/* Image Preview */}
+                <div className="flex-shrink-0">
+                  <div className="relative h-24 w-24 overflow-hidden rounded-xl border-2 border-dashed border-stone-300 bg-white">
+                    {testimonial.image ? (
+                      <Image
+                        src={testimonial.image}
+                        alt="Preview"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-stone-400">
+                        <ImageIcon className="h-6 w-6" />
+                        <span className="mt-1 text-xs">No image</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Image URL Input */}
+                <div className="flex-1">
+                  <input
+                    type="url"
+                    value={testimonial.image || ""}
+                    onChange={(e) =>
+                      updateTestimonial(testimonial.id, "image", e.target.value)
+                    }
+                    placeholder="https://example.com/image.jpg"
+                    className="mb-2 w-full rounded-lg border border-stone-200 px-4 py-2 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                  <p className="text-xs text-stone-500">
+                    Enter an image URL or paste a URL from the gallery.
+                  </p>
+                  {testimonial.image && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateTestimonial(testimonial.id, "image", "")
+                      }
+                      className="mt-2 flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+                    >
+                      <X size={12} />
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
