@@ -100,4 +100,5 @@ export interface Testimonial {
   location: string;
   quote: string;
   years: string;
+  image?: string; // Optional profile image URL
 }

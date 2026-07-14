@@ -5,6 +5,9 @@ import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
 import { useHomepage } from "@/hooks/useHomepage";
 import { Testimonial } from "@/types/homepage";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 const DEFAULT_TESTIMONIALS: Testimonial[] = [
   {
@@ -199,9 +202,20 @@ export default function Testimonials() {
                   >
                     {/* Avatar */}
                     <div className="relative">
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-200 via-orange-200 to-amber-300 text-4xl shadow-lg">
-                        🙏
-                      </div>
+                      {currentTestimonial.image ? (
+                        <div className="relative h-20 w-20 rounded-full overflow-hidden border-4 border-amber-200 shadow-lg">
+                          <Image
+                            src={currentTestimonial.image}
+                            alt={currentTestimonial.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-amber-200 via-orange-200 to-amber-300 text-4xl shadow-lg">
+                          🙏
+                        </div>
+                      )}
                       <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md">
                         <Star size={12} className="fill-current" />
                       </div>
@@ -267,6 +281,17 @@ export default function Testimonials() {
           <p className="mt-6 text-center text-sm text-stone-400">
             Use ← → arrow keys to navigate
           </p>
+          
+          {/* View All Link */}
+          <div className="mt-6 text-center">
+            <Link
+              href="/testimonials"
+              className="inline-flex items-center gap-2 text-amber-600 hover:text-amber-700 font-medium transition-colors"
+            >
+              View All Testimonials
+              <ArrowRight size={16} />
+            </Link>
+          </div>
         </div>
       </div>
     </section>

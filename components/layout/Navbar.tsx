@@ -10,6 +10,7 @@ const menuItems = [
   { name: "Home", href: "/" },
   { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Shlokas", href: "/shlokas" },
+  { name: "Testimonials", href: "/testimonials" },
 ];
 
 const calendarDropdown = [
