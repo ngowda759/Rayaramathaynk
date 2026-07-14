@@ -172,54 +172,37 @@ export default function Hero() {
 
             <div className="mt-10 flex flex-wrap gap-4">
 
-              <TempleButton href="/aaradhane">
-
+              <TempleButton href="/aaradhane" size="lg">
                 Aaradhane
-
               </TempleButton>
 
-              <TempleButton
-                href="/calendar"
-                variant="outline"
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                Festivities
+              <TempleButton href="/guruparampara" variant="outline" size="lg">
+                <GraduationCap className="mr-2 h-5 w-5" />
+                Guru Parampara
               </TempleButton>
 
-              <TempleButton
-                href="/events"
-                variant="outline"
-              >
-                <CalendarDays className="mr-2 h-4 w-4" />
-                Events
+              <TempleButton href="/shlokas" variant="outline" size="lg">
+                <BookOpen className="mr-2 h-5 w-5" />
+                Shlokas
+              </TempleButton>
+
+              <TempleButton href="/gallery" variant="outline" size="lg">
+                <Images className="mr-2 h-5 w-5" />
+                Gallery
               </TempleButton>
 
             </div>
 
-            <div className="mt-12 grid gap-4 md:grid-cols-3">
+            <div className="mt-6 flex flex-wrap gap-4">
 
-              <TempleButton href="/guruparampara" variant="outline" className="h-auto py-4 px-6">
-                <GraduationCap className="mr-2 h-5 w-5" />
-                <div className="text-left">
-                  <span className="block font-semibold">Guru Parampara</span>
-                  <span className="text-xs opacity-75">Lineage & History</span>
-                </div>
+              <TempleButton href="/calendar" variant="outline" size="md">
+                <Calendar className="mr-2 h-4 w-4" />
+                Festivities
               </TempleButton>
 
-              <TempleButton href="/shlokas" variant="outline" className="h-auto py-4 px-6">
-                <BookOpen className="mr-2 h-5 w-5" />
-                <div className="text-left">
-                  <span className="block font-semibold">Shlokas</span>
-                  <span className="text-xs opacity-75">Sacred Hymns</span>
-                </div>
-              </TempleButton>
-
-              <TempleButton href="/gallery" variant="outline" className="h-auto py-4 px-6">
-                <Images className="mr-2 h-5 w-5" />
-                <div className="text-left">
-                  <span className="block font-semibold">Gallery</span>
-                  <span className="text-xs opacity-75">Temple Photos</span>
-                </div>
+              <TempleButton href="/events" variant="outline" size="md">
+                <CalendarDays className="mr-2 h-4 w-4" />
+                Events
               </TempleButton>
 
             </div>
