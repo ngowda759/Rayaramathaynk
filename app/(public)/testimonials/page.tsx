@@ -5,43 +5,12 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import SacredDivider from "@/components/home/SacredDivider";
-import { getApprovedTestimonials } from "@/services/testimonial.service";
+import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
-import { Star, Quote, MapPin, Calendar, ImageIcon } from "lucide-react";
-
-const DEFAULT_TESTIMONIALS: Testimonial[] = [
-  {
-    id: "1",
-    name: "Ramesh Rao",
-    location: "Bangalore",
-    quote: "The peace I feel at this Matha is indescribable. Every visit brings new spiritual strength and clarity. The daily poojas and the serene atmosphere create a divine experience.",
-    years: "25 years devotee"
-  },
-  {
-    id: "2",
-    name: "Lakshmi Devi",
-    location: "Mysore",
-    quote: "Sri Raghavendra Swamy's blessings have guided my family through the most challenging times. Forever grateful for the divine guidance received here.",
-    years: "Family tradition"
-  },
-  {
-    id: "3",
-    name: "Venkataramana",
-    location: "Chennai",
-    quote: "The daily poojas and the serene atmosphere create a divine experience. This is where my soul finds rest and peace.",
-    years: "15 years devotee"
-  },
-  {
-    id: "4",
-    name: "Shobha Krishnan",
-    location: "Hyderabad",
-    quote: "Attending the Bramhotsavam was life-changing. The devotion and rituals are performed with such purity and dedication.",
-    years: "Regular visitor"
-  },
-];
+import { Star, Quote, MapPin, Calendar } from "lucide-react";
 
 export default function TestimonialsPage() {
-  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
   const [loading, setLoading] = useState(true);
   const [selectedTestimonial, setSelectedTestimonial] = useState<Testimonial | null>(null);
 
@@ -49,9 +18,9 @@ export default function TestimonialsPage() {
     async function loadTestimonials() {
       try {
         const data = await getApprovedTestimonials();
-        setTestimonials(data.length > 0 ? data : DEFAULT_TESTIMONIALS);
-      } catch {
-        setTestimonials(DEFAULT_TESTIMONIALS);
+        setTestimonials(data);
+      } catch (error) {
+        console.error("Failed to load testimonials:", error);
       } finally {
         setLoading(false);
       }
@@ -59,10 +28,10 @@ export default function TestimonialsPage() {
     loadTestimonials();
   }, []);
 
-  const testimonialsToShow = testimonials.length > 0 ? testimonials : DEFAULT_TESTIMONIALS;
+  const testimonialsToShow = testimonials;
 
-  // Convert filename to full path
-  function getImageSrc(src: string): string {
+  // Convert filename to full path for testimonial images
+  function getImageSrc(src: string | undefined): string {
     if (!src) return "";
     if (src.startsWith("http://") || src.startsWith("https://")) {
       return src;
@@ -70,7 +39,8 @@ export default function TestimonialsPage() {
     if (src.startsWith("/")) {
       return src;
     }
-    return `/images/testimonials/${src}`;
+    // Images from GitHub are stored in /testimonials/ folder
+    return `/testimonials/${src}`;
   }
 
   return (

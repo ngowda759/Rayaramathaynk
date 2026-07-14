@@ -5,19 +5,20 @@ import {
   Star, 
   X, 
   Plus,
-  Upload,
   Image as ImageIcon,
   Search,
-  Edit2,
   ExternalLink,
   FolderOpen,
-  CheckCircle
+  CheckCircle,
+  Check,
+  XCircle
 } from "lucide-react";
 import { 
   getAllTestimonials, 
   createTestimonial, 
   updateTestimonial,
-  deleteTestimonial 
+  deleteTestimonial,
+  approveTestimonial
 } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import toast from "react-hot-toast";
@@ -119,7 +120,18 @@ export default function TestimonialsPage() {
     if (src.startsWith("/")) {
       return src;
     }
-    return `/images/testimonials/${src}`;
+    // Images from GitHub are stored in /testimonials/ folder
+    return `/testimonials/${src}`;
+  }
+
+  async function handleApprove(id: string) {
+    try {
+      await approveTestimonial(id);
+      toast.success("Testimonial approved!");
+      loadTestimonials();
+    } catch {
+      toast.error("Failed to approve testimonial");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -202,22 +214,22 @@ export default function TestimonialsPage() {
           <div className="text-sm">
             <p className="font-medium text-amber-800">Image Upload Instructions</p>
             <p className="text-amber-700 mt-1">
-              Upload images to <code className="bg-amber-100 px-1 rounded">public/images/testimonials/</code> folder in your project.
+              Upload images to <code className="bg-amber-100 px-1 rounded">public/testimonials/</code> folder in your GitHub repository.
               Then enter the filename below (e.g., <code className="bg-amber-100 px-1 rounded">photo.jpg</code>) or the full path.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Local Storage Notice */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+      {/* Firestore Notice */}
+      <div className="rounded-xl border border-green-200 bg-green-50/50 p-4">
         <div className="flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-blue-800">Data saved locally</p>
-            <p className="text-blue-700 mt-1">
-              Testimonials are saved in your browser&apos;s local storage. 
-              The image filename will be displayed in the preview once saved.
+            <p className="font-medium text-green-800">Data synced to Firestore</p>
+            <p className="text-green-700 mt-1">
+              Testimonials are saved to Firestore and will appear consistently on all devices (mobile, tablet, desktop).
+              New submissions require approval before appearing on the public page.
             </p>
           </div>
         </div>
@@ -381,20 +393,20 @@ export default function TestimonialsPage() {
                         type="text"
                         value={formData.image}
                         onChange={(e) => handleImageChange(e.target.value)}
-                        placeholder="photo.jpg or /images/testimonials/photo.jpg"
+                        placeholder="devotee-1.jpg or /testimonials/devotee-1.jpg"
                         className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       />
                     </div>
                     
                     <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
-                      <p className="font-medium mb-1">📁 Save images to:</p>
+                      <p className="font-medium mb-1">📁 Save images to GitHub:</p>
                       <code className="block bg-amber-100 px-2 py-1 rounded mt-1">
-                        public/images/testimonials/
+                        public/testimonials/
                       </code>
                       <p className="mt-2">Examples:</p>
                       <ul className="list-disc list-inside mt-1 space-y-0.5">
-                        <li><code className="bg-amber-100 px-1 rounded">photo.jpg</code></li>
-                        <li><code className="bg-amber-100 px-1 rounded">/images/testimonials/devotee1.png</code></li>
+                        <li><code className="bg-amber-100 px-1 rounded">devotee-1.jpg</code></li>
+                        <li><code className="bg-amber-100 px-1 rounded">/testimonials/devotee-1.png</code></li>
                         <li><code className="bg-amber-100 px-1 rounded">https://example.com/photo.jpg</code></li>
                       </ul>
                     </div>
