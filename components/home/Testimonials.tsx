@@ -6,7 +6,6 @@ import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
 import { useHomepage } from "@/hooks/useHomepage";
 import { getApprovedTestimonials } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -236,13 +235,10 @@ export default function Testimonials() {
                     <div className="relative">
                       {currentTestimonial.image ? (
                         <div className="relative h-20 w-20 rounded-full overflow-hidden border-4 border-amber-200 shadow-lg">
-                          <Image
+                          <img
                             src={getImageSrc(currentTestimonial.image)}
                             alt={currentTestimonial.name}
-                            fill
-                            sizes="80px"
-                            className="object-cover"
-                            unoptimized
+                            className="w-full h-full object-cover"
                           />
                         </div>
                       ) : (

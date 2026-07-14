@@ -8,7 +8,6 @@ import SacredDivider from "@/components/home/SacredDivider";
 import { getApprovedTestimonials } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import { Star, Quote, MapPin, Calendar, ImageIcon } from "lucide-react";
-import Image from "next/image";
 
 const DEFAULT_TESTIMONIALS: Testimonial[] = [
   {
@@ -128,13 +127,10 @@ export default function TestimonialsPage() {
                     {testimonial.image ? (
                       <div className="relative mb-6">
                         <div className="relative h-20 w-20 mx-auto rounded-full overflow-hidden border-4 border-amber-100 shadow-lg">
-                          <Image
+                          <img
                             src={getImageSrc(testimonial.image)}
                             alt={testimonial.name}
-                            fill
-                            sizes="80px"
-                            className="object-cover"
-                            unoptimized
+                            className="w-full h-full object-cover"
                           />
                         </div>
                       </div>
@@ -249,13 +245,10 @@ export default function TestimonialsPage() {
               {selectedTestimonial.image ? (
                 <div className="relative mb-8">
                   <div className="relative h-32 w-32 mx-auto rounded-full overflow-hidden border-4 border-amber-200 shadow-xl">
-                    <Image
+                    <img
                       src={getImageSrc(selectedTestimonial.image)}
                       alt={selectedTestimonial.name}
-                      fill
-                      sizes="128px"
-                      className="object-cover"
-                      unoptimized
+                      className="w-full h-full object-cover"
                     />
                   </div>
                 </div>
