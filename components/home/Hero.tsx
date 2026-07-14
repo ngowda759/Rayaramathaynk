@@ -113,30 +113,6 @@ export default function Hero() {
         <div className="absolute right-12 top-32 h-[520px] w-[520px] rounded-full bg-gradient-to-br from-amber-300 via-orange-200 to-amber-400 blur-[120px] opacity-50 animate-pulse-ring" />
 
       </div>
-      
-      {/* Floating particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-amber-400/30"
-            style={{
-              left: `${15 + i * 15}%`,
-              top: `${20 + (i % 3) * 25}%`,
-            }}
-            animate={{
-              y: [-20, 20, -20],
-              opacity: [0.3, 0.6, 0.3],
-            }}
-            transition={{
-              duration: 3 + i * 0.5,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 0.3,
-            }}
-          />
-        ))}
-      </div>
 
       <div className="relative mx-auto flex min-h-[92vh] max-w-7xl items-center px-6 lg:px-10">
 
@@ -267,9 +243,9 @@ export default function Hero() {
               style={isMounted ? { y: heroImageY } : { y: 0 }}
               className="relative z-10 group hidden md:block"
             >
-              {/* Ornate golden frame */}
-              <div className="absolute -inset-4 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-2xl opacity-50 blur-sm" />
-              <div className="absolute -inset-3 bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 rounded-xl" />
+              {/* Ornate golden frame - 4-5px border */}
+              <div className="absolute -inset-2 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-2xl opacity-60 shadow-lg shadow-amber-500/30" />
+              <div className="absolute -inset-1 bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 rounded-xl" />
               
               {/* Main image */}
               <div className="relative h-[500px] w-[340px] overflow-hidden rounded-xl shadow-2xl lg:h-[700px] lg:w-[480px]">
@@ -285,89 +261,68 @@ export default function Hero() {
                 {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
                 
-                {/* Glowing border overlay */}
-                <div className="absolute inset-0 rounded-xl ring-2 ring-amber-400/40" />
+                {/* Glowing border overlay - subtle golden glow */}
+                <div className="absolute inset-0 rounded-xl ring-1 ring-amber-400/50 shadow-[0_0_15px_rgba(251,191,36,0.3)]" />
               </div>
             </motion.div>
 
-            {/* Deepa (Lamp) image decoration */}
+            {/* Deepa (Lamp) decorations - identical on both sides */}
+            {/* Left Lamp */}
             <motion.div
               animate={{
-                y: [-8, 12, -8],
-                opacity: [0.7, 1, 0.7],
+                y: [-2, 3, -2],
+                opacity: [0.75, 1, 0.75],
               }}
               transition={{
-                duration: 4,
+                duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-              className="absolute -left-16 top-1/4"
+              className="absolute -left-8 top-[42%] hidden lg:block"
             >
               <div className="relative">
-                {/* Glow effect */}
-                <div className="absolute inset-0 blur-2xl bg-amber-300/50 animate-pulse" />
-                <div className="absolute inset-0 blur-xl bg-orange-400/40" />
-                {/* Deepa Lamp Image */}
+                {/* Soft golden glow effect */}
+                <div className="absolute inset-0 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-orange-300/15 blur-xl" />
+                {/* Deepa Lamp Image - reduced size by ~18% */}
                 <Image
                   src="/avatars/deepa.jpg"
                   alt="Deepa Lamp"
-                  width={80}
-                  height={96}
-                  className="relative drop-shadow-lg rounded-lg"
+                  width={60}
+                  height={72}
+                  className="relative drop-shadow-lg"
                 />
               </div>
             </motion.div>
 
+            {/* Right Lamp */}
             <motion.div
               animate={{
-                y: [12, -8, 12],
-                opacity: [0.6, 0.95, 0.6],
+                y: [3, -2, 3],
+                opacity: [0.75, 1, 0.75],
               }}
               transition={{
-                duration: 3.5,
+                duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut",
-                delay: 0.8,
+                delay: 0.4,
               }}
-              className="absolute -right-20 top-1/3"
+              className="absolute -right-8 top-[42%] hidden lg:block"
             >
               <div className="relative">
-                {/* Glow effect */}
-                <div className="absolute inset-0 blur-2xl bg-amber-400/40 animate-pulse" />
-                <div className="absolute inset-0 blur-xl bg-yellow-500/30" />
-                {/* Deepa Lamp SVG - smaller */}
-                <svg className="relative h-16 w-16 drop-shadow-lg" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  {/* Lamp base */}
-                  <ellipse cx="50" cy="110" rx="35" ry="8" fill="#CD7F32"/>
-                  <path d="M15 110 L20 95 L80 95 L85 110" fill="#B8860B"/>
-                  <path d="M20 95 L25 85 L75 85 L80 95" fill="#DAA520"/>
-                  {/* Lamp bowl */}
-                  <path d="M25 85 C25 75, 35 60, 50 60 C65 60, 75 75, 75 85 Z" fill="#CD7F32"/>
-                  <ellipse cx="50" cy="85" rx="25" ry="6" fill="#B8860B"/>
-                  {/* Oil surface */}
-                  <ellipse cx="50" cy="75" rx="18" ry="4" fill="#8B4513"/>
-                  {/* Flame */}
-                  <path d="M50 15 C45 30, 38 45, 42 55 C44 58, 46 58, 48 55 C48 50, 46 45, 50 40 C54 45, 52 50, 52 55 C54 58, 56 58, 58 55 C62 45, 55 30, 50 15" fill="url(#flameGradient3)"/>
-                  <path d="M50 25 C47 35, 44 45, 46 52 C47 54, 48 54, 49 52 C49 48, 48 45, 50 42 C52 45, 51 48, 51 52 C52 54, 53 54, 54 52 C56 45, 53 35, 50 25" fill="url(#flameGradient4)"/>
-                  <ellipse cx="50" cy="28" rx="4" ry="6" fill="#FFFACD"/>
-                  <defs>
-                    <linearGradient id="flameGradient3" x1="50" y1="55" x2="50" y2="15" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stopColor="#FF4500"/>
-                      <stop offset="50%" stopColor="#FFA500"/>
-                      <stop offset="100%" stopColor="#FFD700"/>
-                    </linearGradient>
-                    <linearGradient id="flameGradient4" x1="50" y1="52" x2="50" y2="25" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stopColor="#FFA500"/>
-                      <stop offset="100%" stopColor="#FFFFE0"/>
-                    </linearGradient>
-                  </defs>
-                </svg>
+                {/* Soft golden glow effect */}
+                <div className="absolute inset-0 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-orange-300/15 blur-xl" />
+                {/* Deepa Lamp Image - reduced size by ~18% */}
+                <Image
+                  src="/avatars/deepa.jpg"
+                  alt="Deepa Lamp"
+                  width={60}
+                  height={72}
+                  className="relative drop-shadow-lg"
+                />
               </div>
             </motion.div>
-
-            {/* Decorative corner ornaments */}
-            <div className="absolute -top-4 -right-4 text-amber-500/50 text-4xl">✦</div>
-            <div className="absolute -bottom-4 -left-4 text-amber-500/50 text-4xl">✦</div>
 
           </motion.div>
 
