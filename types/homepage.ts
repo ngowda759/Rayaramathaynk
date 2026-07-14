@@ -101,5 +101,6 @@ export interface Testimonial {
   quote: string;
   years: string;
   image?: string; // Optional profile image URL
+  approved?: boolean; // Whether the testimonial is approved for public display
   createdAt?: number | Date; // For local storage sorting
 }
