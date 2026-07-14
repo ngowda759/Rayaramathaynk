@@ -66,6 +66,9 @@ class HomepageService {
 
       templeName: "Rayara Math",
       templeLocation: "",
+      templeAddress: "",
+      contactEmail: "",
+      contactPhone: "",
 
       isTempleOpen: true,
 
