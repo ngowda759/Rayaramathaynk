@@ -3,74 +3,35 @@
 import { motion } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
-import { useHomepage } from "@/hooks/useHomepage";
-import { getApprovedTestimonials } from "@/services/testimonial.service";
+import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-const DEFAULT_TESTIMONIALS: Testimonial[] = [
-  {
-    id: "1",
-    name: "Ramesh Rao",
-    location: "Bangalore",
-    quote: "The peace I feel at this Matha is indescribable. Every visit brings new spiritual strength and clarity.",
-    years: "25 years devotee"
-  },
-  {
-    id: "2",
-    name: "Lakshmi Devi",
-    location: "Mysore",
-    quote: "Sri Raghavendra Swamy's blessings have guided my family through the most challenging times. Forever grateful.",
-    years: "Family tradition"
-  },
-  {
-    id: "3",
-    name: "Venkataramana",
-    location: "Chennai",
-    quote: "The daily poojas and the serene atmosphere create a divine experience. This is where my soul finds rest.",
-    years: "15 years devotee"
-  },
-  {
-    id: "4",
-    name: "Shobha Krishnan",
-    location: "Hyderabad",
-    quote: "Attending the Bramhotsavam was life-changing. The devotion and rituals are performed with such purity and dedication.",
-    years: "Regular visitor"
-  },
-];
-
 export default function Testimonials() {
-  const { homepage } = useHomepage();
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [localTestimonials, setLocalTestimonials] = useState<Testimonial[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch testimonials from service (localStorage)
+  // Fetch testimonials from Firestore
   useEffect(() => {
     async function fetchTestimonials() {
       try {
         const data = await getApprovedTestimonials();
-        if (data && data.length > 0) {
-          setLocalTestimonials(data);
-        }
+        setTestimonials(data);
       } catch (error) {
         console.error("Failed to fetch testimonials:", error);
+      } finally {
+        setLoading(false);
       }
     }
     fetchTestimonials();
   }, []);
 
-  // Use local testimonials if available, otherwise homepage, otherwise default
-  const testimonials = localTestimonials.length > 0
-    ? localTestimonials
-    : homepage?.testimonials?.length
-      ? homepage.testimonials
-      : DEFAULT_TESTIMONIALS;
-
-  // Convert filename to full path
-  function getImageSrc(src: string): string {
+  // Convert filename to full path for testimonial images
+  function getImageSrc(src: string | undefined): string {
     if (!src) return "";
     if (src.startsWith("http://") || src.startsWith("https://")) {
       return src;
@@ -78,7 +39,8 @@ export default function Testimonials() {
     if (src.startsWith("/")) {
       return src;
     }
-    return `/images/testimonials/${src}`;
+    // Images from GitHub are stored in /testimonials/ folder
+    return `/testimonials/${src}`;
   }
 
   const next = useCallback(() => {
