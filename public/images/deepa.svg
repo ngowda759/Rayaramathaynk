@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none">
+  <title>Deepa Lamp</title>
+  <desc>Traditional brass oil lamp (Deepa) with glowing flame</desc>
+  
+  <defs>
+    <!-- Flame gradient -->
+    <radialGradient id="flameGradient" cx="50%" cy="80%" r="60%">
+      <stop offset="0%" stop-color="#fff7e0"/>
+      <stop offset="30%" stop-color="#ffd54f"/>
+      <stop offset="60%" stop-color="#ff9800"/>
+      <stop offset="100%" stop-color="#f57c00"/>
+    </radialGradient>
+    
+    <!-- Inner flame -->
+    <radialGradient id="innerFlame" cx="50%" cy="70%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="40%" stop-color="#fff9c4"/>
+      <stop offset="100%" stop-color="#ffd54f"/>
+    </radialGradient>
+    
+    <!-- Brass gradient for lamp body -->
+    <linearGradient id="brassGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4a574"/>
+      <stop offset="25%" stop-color="#c9a066"/>
+      <stop offset="50%" stop-color="#e8c88b"/>
+      <stop offset="75%" stop-color="#c9a066"/>
+      <stop offset="100%" stop-color="#b8956a"/>
+    </linearGradient>
+    
+    <!-- Brass highlight -->
+    <linearGradient id="brassHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f5deb3"/>
+      <stop offset="50%" stop-color="#daa520"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+    
+    <!-- Glow filter for flame -->
+    <filter id="flameGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Outer glow for flame -->
+    <filter id="outerGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Lamp base/stand -->
+  <g id="lamp-base">
+    <!-- Base plate -->
+    <ellipse cx="50" cy="110" rx="28" ry="6" fill="url(#brassGradient)"/>
+    <ellipse cx="50" cy="108" rx="25" ry="5" fill="url(#brassHighlight)" opacity="0.7"/>
+    
+    <!-- Base decorative ring -->
+    <rect x="30" y="100" width="40" height="8" rx="2" fill="url(#brassGradient)"/>
+    <rect x="32" y="101" width="36" height="3" rx="1" fill="url(#brassHighlight)" opacity="0.5"/>
+    
+    <!-- Stem -->
+    <rect x="46" y="65" width="8" height="35" fill="url(#brassGradient)"/>
+    <rect x="47" y="66" width="2" height="33" fill="url(#brassHighlight)" opacity="0.6"/>
+    
+    <!-- Small decorative rings on stem -->
+    <ellipse cx="50" cy="72" rx="6" ry="2" fill="url(#brassHighlight)" opacity="0.8"/>
+    <ellipse cx="50" cy="85" rx="5" ry="1.5" fill="url(#brassHighlight)" opacity="0.7"/>
+  </g>
+  
+  <!-- Oil bowl -->
+  <g id="oil-bowl">
+    <!-- Bowl outer -->
+    <path d="M25 65 Q25 85 50 85 Q75 85 75 65 L75 55 Q75 50 70 48 L30 48 Q25 50 25 55 Z" 
+          fill="url(#brassGradient)"/>
+    
+    <!-- Bowl inner (oil container) -->
+    <path d="M30 62 Q30 78 50 78 Q70 78 70 62 L70 55 Q70 52 67 50 L33 50 Q30 52 30 55 Z" 
+          fill="#2a1f10"/>
+    
+    <!-- Oil surface with slight shine -->
+    <ellipse cx="50" cy="55" rx="18" ry="5" fill="#3d2914"/>
+    <ellipse cx="45" cy="54" rx="8" ry="2" fill="#5a3d1f" opacity="0.6"/>
+    
+    <!-- Bowl rim highlight -->
+    <path d="M28 50 Q50 45 72 50" stroke="url(#brassHighlight)" stroke-width="2" fill="none" opacity="0.7"/>
+    
+    <!-- Decorative pattern on bowl -->
+    <path d="M35 68 Q50 72 65 68" stroke="#8b6914" stroke-width="1" fill="none" opacity="0.5"/>
+    <path d="M33 73 Q50 77 67 73" stroke="#8b6914" stroke-width="1" fill="none" opacity="0.4"/>
+  </g>
+  
+  <!-- Wick -->
+  <g id="wick">
+    <rect x="48" y="35" width="4" height="20" fill="#f5f5dc"/>
+    <rect x="49" y="36" width="2" height="18" fill="#fffef0" opacity="0.8"/>
+  </g>
+  
+  <!-- Flame with glow -->
+  <g id="flame" filter="url(#outerGlow)">
+    <!-- Outer flame glow (large, subtle) -->
+    <ellipse cx="50" cy="28" rx="12" ry="18" fill="#ffa726" opacity="0.3"/>
+    
+    <!-- Main flame -->
+    <path d="M50 10 
+             Q60 20 58 30 
+             Q56 38 50 42 
+             Q44 38 42 30 
+             Q40 20 50 10" 
+          fill="url(#flameGradient)" filter="url(#flameGlow)"/>
+    
+    <!-- Inner flame core -->
+    <path d="M50 18 
+             Q55 25 54 32 
+             Q52 38 50 40 
+             Q48 38 46 32 
+             Q45 25 50 18" 
+          fill="url(#innerFlame)"/>
+    
+    <!-- Brightest point at base of flame -->
+    <ellipse cx="50" cy="40" rx="4" ry="2" fill="#fffde7" opacity="0.9"/>
+  </g>
+  
+  <!-- Decorative top piece -->
+  <g id="top-decoration">
+    <!-- Top ring/handle -->
+    <ellipse cx="50" cy="45" rx="8" ry="3" fill="none" stroke="url(#brassGradient)" stroke-width="2"/>
+    <ellipse cx="50" cy="44" rx="6" ry="2" fill="none" stroke="url(#brassHighlight)" stroke-width="1" opacity="0.6"/>
+  </g>
+</svg>
