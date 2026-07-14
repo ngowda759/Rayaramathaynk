@@ -243,9 +243,9 @@ export default function Hero() {
               style={isMounted ? { y: heroImageY } : { y: 0 }}
               className="relative z-10 group hidden md:block"
             >
-              {/* Ornate golden frame */}
-              <div className="absolute -inset-4 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-2xl opacity-50 blur-sm" />
-              <div className="absolute -inset-3 bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 rounded-xl" />
+              {/* Ornate golden frame - 4-5px border */}
+              <div className="absolute -inset-2 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-2xl opacity-60 shadow-lg shadow-amber-500/30" />
+              <div className="absolute -inset-1 bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 rounded-xl" />
               
               {/* Main image */}
               <div className="relative h-[500px] w-[340px] overflow-hidden rounded-xl shadow-2xl lg:h-[700px] lg:w-[480px]">
@@ -261,8 +261,8 @@ export default function Hero() {
                 {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
                 
-                {/* Glowing border overlay */}
-                <div className="absolute inset-0 rounded-xl ring-2 ring-amber-400/40" />
+                {/* Glowing border overlay - subtle golden glow */}
+                <div className="absolute inset-0 rounded-xl ring-1 ring-amber-400/50 shadow-[0_0_15px_rgba(251,191,36,0.3)]" />
               </div>
             </motion.div>
 
@@ -270,26 +270,26 @@ export default function Hero() {
             {/* Left Lamp */}
             <motion.div
               animate={{
-                y: [-6, 8, -6],
-                opacity: [0.7, 1, 0.7],
+                y: [-2, 3, -2],
+                opacity: [0.75, 1, 0.75],
               }}
               transition={{
-                duration: 4,
+                duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-              className="absolute left-0 top-1/2 -translate-y-1/2 hidden lg:block"
+              className="absolute -left-8 top-[42%] hidden lg:block"
             >
               <div className="relative">
-                {/* Golden glow effect */}
-                <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-2xl animate-pulse" />
-                <div className="absolute inset-0 rounded-full bg-orange-300/20 blur-xl" />
-                {/* Deepa Lamp Image */}
+                {/* Soft golden glow effect */}
+                <div className="absolute inset-0 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-orange-300/15 blur-xl" />
+                {/* Deepa Lamp Image - reduced size by ~18% */}
                 <Image
                   src="/avatars/deepa.jpg"
                   alt="Deepa Lamp"
-                  width={72}
-                  height={87}
+                  width={60}
+                  height={72}
                   className="relative drop-shadow-lg"
                 />
               </div>
@@ -298,27 +298,27 @@ export default function Hero() {
             {/* Right Lamp */}
             <motion.div
               animate={{
-                y: [8, -6, 8],
-                opacity: [0.7, 1, 0.7],
+                y: [3, -2, 3],
+                opacity: [0.75, 1, 0.75],
               }}
               transition={{
-                duration: 4,
+                duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut",
-                delay: 0.5,
+                delay: 0.4,
               }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 hidden lg:block"
+              className="absolute -right-8 top-[42%] hidden lg:block"
             >
               <div className="relative">
-                {/* Golden glow effect */}
-                <div className="absolute inset-0 rounded-full bg-amber-400/30 blur-2xl animate-pulse" />
-                <div className="absolute inset-0 rounded-full bg-orange-300/20 blur-xl" />
-                {/* Deepa Lamp Image */}
+                {/* Soft golden glow effect */}
+                <div className="absolute inset-0 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-orange-300/15 blur-xl" />
+                {/* Deepa Lamp Image - reduced size by ~18% */}
                 <Image
                   src="/avatars/deepa.jpg"
                   alt="Deepa Lamp"
-                  width={72}
-                  height={87}
+                  width={60}
+                  height={72}
                   className="relative drop-shadow-lg"
                 />
               </div>
