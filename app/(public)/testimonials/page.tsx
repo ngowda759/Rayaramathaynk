@@ -62,6 +62,18 @@ export default function TestimonialsPage() {
 
   const testimonialsToShow = testimonials.length > 0 ? testimonials : DEFAULT_TESTIMONIALS;
 
+  // Convert filename to full path
+  function getImageSrc(src: string): string {
+    if (!src) return "";
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      return src;
+    }
+    if (src.startsWith("/")) {
+      return src;
+    }
+    return `/images/testimonials/${src}`;
+  }
+
   return (
     <>
       <Navbar />
@@ -117,7 +129,7 @@ export default function TestimonialsPage() {
                       <div className="relative mb-6">
                         <div className="relative h-20 w-20 mx-auto rounded-full overflow-hidden border-4 border-amber-100 shadow-lg">
                           <Image
-                            src={testimonial.image}
+                            src={getImageSrc(testimonial.image)}
                             alt={testimonial.name}
                             fill
                             className="object-cover"
@@ -236,7 +248,7 @@ export default function TestimonialsPage() {
                 <div className="relative mb-8">
                   <div className="relative h-32 w-32 mx-auto rounded-full overflow-hidden border-4 border-amber-200 shadow-xl">
                     <Image
-                      src={selectedTestimonial.image}
+                      src={getImageSrc(selectedTestimonial.image)}
                       alt={selectedTestimonial.name}
                       fill
                       className="object-cover"

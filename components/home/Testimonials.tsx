@@ -50,6 +50,18 @@ export default function Testimonials() {
     ? homepage.testimonials
     : DEFAULT_TESTIMONIALS;
 
+  // Convert filename to full path
+  function getImageSrc(src: string): string {
+    if (!src) return "";
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      return src;
+    }
+    if (src.startsWith("/")) {
+      return src;
+    }
+    return `/images/testimonials/${src}`;
+  }
+
   const next = useCallback(() => {
     setDirection(1);
     setCurrent((prev) => (prev + 1) % testimonials.length);
@@ -205,7 +217,7 @@ export default function Testimonials() {
                       {currentTestimonial.image ? (
                         <div className="relative h-20 w-20 rounded-full overflow-hidden border-4 border-amber-200 shadow-lg">
                           <Image
-                            src={currentTestimonial.image}
+                            src={getImageSrc(currentTestimonial.image)}
                             alt={currentTestimonial.name}
                             fill
                             className="object-cover"
