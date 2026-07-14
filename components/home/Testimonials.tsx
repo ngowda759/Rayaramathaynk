@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
 import { useHomepage } from "@/hooks/useHomepage";
+import { getApprovedTestimonials } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import Image from "next/image";
 import Link from "next/link";
@@ -45,10 +46,29 @@ export default function Testimonials() {
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [localTestimonials, setLocalTestimonials] = useState<Testimonial[]>([]);
 
-  const testimonials = homepage?.testimonials?.length
-    ? homepage.testimonials
-    : DEFAULT_TESTIMONIALS;
+  // Fetch testimonials from service (localStorage)
+  useEffect(() => {
+    async function fetchTestimonials() {
+      try {
+        const data = await getApprovedTestimonials();
+        if (data && data.length > 0) {
+          setLocalTestimonials(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch testimonials:", error);
+      }
+    }
+    fetchTestimonials();
+  }, []);
+
+  // Use local testimonials if available, otherwise homepage, otherwise default
+  const testimonials = localTestimonials.length > 0
+    ? localTestimonials
+    : homepage?.testimonials?.length
+      ? homepage.testimonials
+      : DEFAULT_TESTIMONIALS;
 
   // Convert filename to full path
   function getImageSrc(src: string): string {
