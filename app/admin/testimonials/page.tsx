@@ -7,6 +7,7 @@ import {
   Plus,
   Image as ImageIcon,
   Search,
+  Edit2,
   ExternalLink,
   FolderOpen,
   CheckCircle,
