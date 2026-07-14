@@ -2,7 +2,6 @@
 
 import SacredDivider from "@/components/home/SacredDivider";
 import Testimonials from "@/components/home/Testimonials";
-import EventCountdown from "@/components/home/EventCountdown";
 import UpcomingEvents from "@/components/home/UpcomingEvents";
 import GallerySection from "@/components/home/GallerySection";
 import SocialBar from "@/components/home/SocialBar";
@@ -43,19 +42,10 @@ export default function HomeClient({ nextMajorEvent, nextEventName, galleryImage
       
       <SacredDivider variant="om" />
       
-      <CalendarCenter />
-      
-      <SacredDivider variant="diya" />
-      
-      {/* Event Countdown Section */}
-      <section className="bg-gradient-to-b from-white to-[#fff8ef] py-12">
-        <div className="mx-auto max-w-2xl px-6">
-          <EventCountdown
-            eventName={nextEventName}
-            eventDate={nextMajorEvent}
-          />
-        </div>
-      </section>
+      <CalendarCenter 
+        nextMajorEvent={nextMajorEvent}
+        nextEventName={nextEventName}
+      />
       
       <SacredDivider variant="mandala" />
       
