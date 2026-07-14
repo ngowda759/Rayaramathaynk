@@ -313,7 +313,7 @@ export default function Hero() {
                   alt="Deepa Lamp"
                   width={80}
                   height={96}
-                  className="relative drop-shadow-lg rounded-lg"
+                  className="relative drop-shadow-lg"
                 />
               </div>
             </motion.div>
@@ -335,39 +335,16 @@ export default function Hero() {
                 {/* Glow effect */}
                 <div className="absolute inset-0 blur-2xl bg-amber-400/40 animate-pulse" />
                 <div className="absolute inset-0 blur-xl bg-yellow-500/30" />
-                {/* Deepa Lamp SVG - smaller */}
-                <svg className="relative h-16 w-16 drop-shadow-lg" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  {/* Lamp base */}
-                  <ellipse cx="50" cy="110" rx="35" ry="8" fill="#CD7F32"/>
-                  <path d="M15 110 L20 95 L80 95 L85 110" fill="#B8860B"/>
-                  <path d="M20 95 L25 85 L75 85 L80 95" fill="#DAA520"/>
-                  {/* Lamp bowl */}
-                  <path d="M25 85 C25 75, 35 60, 50 60 C65 60, 75 75, 75 85 Z" fill="#CD7F32"/>
-                  <ellipse cx="50" cy="85" rx="25" ry="6" fill="#B8860B"/>
-                  {/* Oil surface */}
-                  <ellipse cx="50" cy="75" rx="18" ry="4" fill="#8B4513"/>
-                  {/* Flame */}
-                  <path d="M50 15 C45 30, 38 45, 42 55 C44 58, 46 58, 48 55 C48 50, 46 45, 50 40 C54 45, 52 50, 52 55 C54 58, 56 58, 58 55 C62 45, 55 30, 50 15" fill="url(#flameGradient3)"/>
-                  <path d="M50 25 C47 35, 44 45, 46 52 C47 54, 48 54, 49 52 C49 48, 48 45, 50 42 C52 45, 51 48, 51 52 C52 54, 53 54, 54 52 C56 45, 53 35, 50 25" fill="url(#flameGradient4)"/>
-                  <ellipse cx="50" cy="28" rx="4" ry="6" fill="#FFFACD"/>
-                  <defs>
-                    <linearGradient id="flameGradient3" x1="50" y1="55" x2="50" y2="15" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stopColor="#FF4500"/>
-                      <stop offset="50%" stopColor="#FFA500"/>
-                      <stop offset="100%" stopColor="#FFD700"/>
-                    </linearGradient>
-                    <linearGradient id="flameGradient4" x1="50" y1="52" x2="50" y2="25" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stopColor="#FFA500"/>
-                      <stop offset="100%" stopColor="#FFFFE0"/>
-                    </linearGradient>
-                  </defs>
-                </svg>
+                {/* Deepa Lamp Image */}
+                <Image
+                  src="/avatars/deepa.jpg"
+                  alt="Deepa Lamp"
+                  width={64}
+                  height={77}
+                  className="relative drop-shadow-lg"
+                />
               </div>
             </motion.div>
-
-            {/* Decorative corner ornaments */}
-            <div className="absolute -top-4 -right-4 text-amber-500/50 text-4xl">✦</div>
-            <div className="absolute -bottom-4 -left-4 text-amber-500/50 text-4xl">✦</div>
 
           </motion.div>
 
