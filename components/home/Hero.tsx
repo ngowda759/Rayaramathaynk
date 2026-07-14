@@ -6,8 +6,10 @@ import {
   ArrowRight,
   CalendarDays,
   Calendar,
-  Clock3,
-  Sparkles,
+  GraduationCap,
+  BookOpen,
+  Images,
+  Star,
 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 
@@ -150,7 +152,7 @@ export default function Hero() {
 
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700">
 
-              <Sparkles size={16} />
+              <Star size={16} className="fill-amber-500" />
 
               {announcement}
 
@@ -196,99 +198,29 @@ export default function Hero() {
 
             <div className="mt-12 grid gap-4 md:grid-cols-3">
 
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="rounded-3xl border border-amber-200/60 bg-white/80 p-5 backdrop-blur-xl shadow-lg transition-all hover:shadow-xl hover:border-amber-300/80"
-              >
-
-                <div className="mb-3 flex items-center gap-2">
-
-                  <div className="rounded-lg bg-amber-100 p-2">
-                    <Clock3 className="text-amber-600" size={18} />
-                  </div>
-
-                  <span className="font-semibold text-stone-900">
-                    Temple Timings
-                  </span>
-
+              <TempleButton href="/guruparampara" variant="outline" className="h-auto py-4 px-6">
+                <GraduationCap className="mr-2 h-5 w-5" />
+                <div className="text-left">
+                  <span className="block font-semibold">Guru Parampara</span>
+                  <span className="text-xs opacity-75">Lineage & History</span>
                 </div>
+              </TempleButton>
 
-                <div className="flex items-center gap-2">
-                  <p className={`text-2xl font-bold ${statusColor}`}>
-                    {templeStatus}
-                  </p>
-                  {isTempleOpen && (
-                    <span className="relative flex h-3 w-3">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
-                    </span>
-                  )}
+              <TempleButton href="/shlokas" variant="outline" className="h-auto py-4 px-6">
+                <BookOpen className="mr-2 h-5 w-5" />
+                <div className="text-left">
+                  <span className="block font-semibold">Shlokas</span>
+                  <span className="text-xs opacity-75">Sacred Hymns</span>
                 </div>
+              </TempleButton>
 
-                <div className="mt-3 space-y-1.5">
-                  <p className="text-sm text-stone-600">
-                    <span className="font-medium">Morning:</span> {homepage?.morningOpen ?? "06:00 AM"} - {homepage?.morningClose ?? "01:00 PM"}
-                  </p>
-                  <p className="text-sm text-stone-600">
-                    <span className="font-medium">Evening:</span> {homepage?.eveningOpen ?? "04:00 PM"} - {homepage?.eveningClose ?? "08:00 PM"}
-                  </p>
+              <TempleButton href="/gallery" variant="outline" className="h-auto py-4 px-6">
+                <Images className="mr-2 h-5 w-5" />
+                <div className="text-left">
+                  <span className="block font-semibold">Gallery</span>
+                  <span className="text-xs opacity-75">Temple Photos</span>
                 </div>
-
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="rounded-3xl border border-amber-200/60 bg-white/80 p-5 backdrop-blur-xl shadow-lg transition-all hover:shadow-xl hover:border-amber-300/80"
-              >
-
-                <div className="mb-3 flex items-center gap-2">
-
-                  <div className="rounded-lg bg-amber-100 p-2">
-                    <CalendarDays className="text-amber-600" size={18} />
-                  </div>
-
-                  <span className="font-semibold text-stone-900">
-                    Today&apos;s Seva
-                  </span>
-
-                </div>
-
-                <p className="text-lg font-semibold text-stone-900">
-                  {todaySeva}
-                </p>
-
-                <p className="mt-2 text-sm text-stone-600">
-                  {todaySevaTime}
-                </p>
-
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -4 }}
-                className="rounded-3xl border border-amber-200/60 bg-white/80 p-5 backdrop-blur-xl shadow-lg transition-all hover:shadow-xl hover:border-amber-300/80"
-              >
-
-                <div className="mb-3 flex items-center gap-2">
-
-                  <div className="rounded-lg bg-amber-100 p-2">
-                    <Sparkles className="text-amber-600" size={18} />
-                  </div>
-
-                  <span className="font-semibold text-stone-900">
-                    Festival
-                  </span>
-
-                </div>
-
-                <p className="text-lg font-semibold text-stone-900">
-                  {featuredFestival || "No Festival"}
-                </p>
-
-                <p className="mt-2 text-sm text-stone-600">
-                  {featuredFestivalDescription}
-                </p>
-
-              </motion.div>
+              </TempleButton>
 
             </div>
 
