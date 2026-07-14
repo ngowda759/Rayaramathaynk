@@ -101,4 +101,5 @@ export interface Testimonial {
   quote: string;
   years: string;
   image?: string; // Optional profile image URL
+  createdAt?: number | Date; // For local storage sorting
 }

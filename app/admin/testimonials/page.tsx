@@ -211,6 +211,20 @@ export default function TestimonialsPage() {
         </div>
       </div>
 
+      {/* Local Storage Notice */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+        <div className="flex items-start gap-3">
+          <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-blue-800">Data saved locally</p>
+            <p className="text-blue-700 mt-1">
+              Testimonials are saved in your browser&apos;s local storage. 
+              The image filename will be displayed in the preview once saved.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Search */}
       <div className="max-w-md">
         <div className="relative">
