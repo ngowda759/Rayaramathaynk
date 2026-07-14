@@ -255,7 +255,7 @@ export default function Hero() {
             initial={{ opacity: 0, x: 80 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
-            className="relative hidden lg:flex justify-center"
+            className="relative flex justify-center"
             style={isMounted ? { opacity: heroOpacity } : { opacity: 1 }}
           >
 
@@ -265,20 +265,20 @@ export default function Hero() {
             {/* Parallax Image Container with ornate frame */}
             <motion.div
               style={isMounted ? { y: heroImageY } : { y: 0 }}
-              className="relative z-10 group"
+              className="relative z-10 group hidden md:block"
             >
               {/* Ornate golden frame */}
               <div className="absolute -inset-4 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-2xl opacity-50 blur-sm" />
               <div className="absolute -inset-3 bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 rounded-xl" />
               
               {/* Main image */}
-              <div className="relative h-[700px] w-[480px] overflow-hidden rounded-xl shadow-2xl">
+              <div className="relative h-[500px] w-[340px] overflow-hidden rounded-xl shadow-2xl lg:h-[700px] lg:w-[480px]">
                 <Image
                   src={heroImage}
                   alt="Temple Hero"
                   fill
                   priority
-                  sizes="480px"
+                  sizes="(max-width: 768px) 340px, 480px"
                   className="object-cover transition-transform duration-700 group-hover:scale-105"
                 />
                 

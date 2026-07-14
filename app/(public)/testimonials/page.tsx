@@ -132,6 +132,7 @@ export default function TestimonialsPage() {
                             src={getImageSrc(testimonial.image)}
                             alt={testimonial.name}
                             fill
+                            sizes="80px"
                             className="object-cover"
                           />
                         </div>
@@ -251,6 +252,7 @@ export default function TestimonialsPage() {
                       src={getImageSrc(selectedTestimonial.image)}
                       alt={selectedTestimonial.name}
                       fill
+                      sizes="128px"
                       className="object-cover"
                     />
                   </div>

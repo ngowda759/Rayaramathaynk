@@ -240,6 +240,7 @@ export default function Testimonials() {
                             src={getImageSrc(currentTestimonial.image)}
                             alt={currentTestimonial.name}
                             fill
+                            sizes="80px"
                             className="object-cover"
                           />
                         </div>
