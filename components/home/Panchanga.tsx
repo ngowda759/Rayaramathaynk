@@ -66,23 +66,29 @@ export default function Panchanga() {
           nakshatra: json.nakshatra?.name,
           yoga: json.yoga?.name,
           karana: json.karana?.name,
-          rahuKalam: json.rahuKalam,
-          gulikaKalam: json.gulikaKalam,
-          masa: json.masa,
+          rahuKalam: json.rahu_kalam?.start
+            ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined,
+          gulikaKalam: json.gulika_kalam?.start
+            ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined,
+          masa: json.masa?.name,
 
           sunrise: json.sun?.sunrise
-            ? new Date(
-                json.sun.sunrise
-              ).toLocaleTimeString("en-IN", {
+            ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
               })
             : undefined,
 
           sunset: json.sun?.sunset
-            ? new Date(
-                json.sun.sunset
-              ).toLocaleTimeString("en-IN", {
+            ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
               })
