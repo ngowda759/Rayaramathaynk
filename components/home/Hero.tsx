@@ -49,8 +49,8 @@ export default function Hero() {
     };
   }, [scrollYProgress]);
 
-  const heroImageY = useTransform(scrollYProgress, [0, 1], [0, 150]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+  const heroImageY = useTransform(scrollYProgress, [0, 1], [0, 100]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.3]);
 
   if (loading) {
     return (
@@ -271,7 +271,7 @@ export default function Hero() {
             <motion.div
               animate={{
                 y: [-2, 3, -2],
-                opacity: [0.75, 1, 0.75],
+                opacity: [0.8, 1, 0.8],
               }}
               transition={{
                 duration: 3,
@@ -279,18 +279,24 @@ export default function Hero() {
                 ease: "easeInOut",
               }}
               className="absolute -left-8 top-[42%] hidden lg:block"
+              aria-hidden="true"
             >
               <div className="relative">
-                {/* Soft golden glow effect */}
-                <div className="absolute inset-0 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
-                <div className="absolute inset-0 rounded-full bg-orange-300/15 blur-xl" />
-                {/* Deepa Lamp Image - reduced size by ~18% */}
+                {/* Soft golden glow effect - layered for depth */}
+                <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/25 blur-2xl animate-pulse" />
+                <div className="absolute inset-0 -m-2 rounded-full bg-orange-300/20 blur-xl" />
+                {/* Deepa Lamp SVG - transparent background with soft golden glow */}
                 <Image
-                  src="/avatars/deepa.jpg"
-                  alt="Deepa Lamp"
-                  width={60}
-                  height={72}
-                  className="relative drop-shadow-lg"
+                  src="/images/deepa.svg"
+                  alt=""
+                  width={56}
+                  height={68}
+                  className="relative"
+                  style={{
+                    filter: 'drop-shadow(0 0 8px rgba(255,190,40,0.55)) drop-shadow(0 0 18px rgba(255,180,0,0.35))',
+                    mixBlendMode: 'multiply',
+                  }}
+                  unoptimized
                 />
               </div>
             </motion.div>
@@ -299,7 +305,7 @@ export default function Hero() {
             <motion.div
               animate={{
                 y: [3, -2, 3],
-                opacity: [0.75, 1, 0.75],
+                opacity: [0.8, 1, 0.8],
               }}
               transition={{
                 duration: 3,
@@ -308,18 +314,24 @@ export default function Hero() {
                 delay: 0.4,
               }}
               className="absolute -right-8 top-[42%] hidden lg:block"
+              aria-hidden="true"
             >
               <div className="relative">
-                {/* Soft golden glow effect */}
-                <div className="absolute inset-0 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
-                <div className="absolute inset-0 rounded-full bg-orange-300/15 blur-xl" />
-                {/* Deepa Lamp Image - reduced size by ~18% */}
+                {/* Soft golden glow effect - layered for depth */}
+                <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/25 blur-2xl animate-pulse" />
+                <div className="absolute inset-0 -m-2 rounded-full bg-orange-300/20 blur-xl" />
+                {/* Deepa Lamp SVG - transparent background with soft golden glow */}
                 <Image
-                  src="/avatars/deepa.jpg"
-                  alt="Deepa Lamp"
-                  width={60}
-                  height={72}
-                  className="relative drop-shadow-lg"
+                  src="/images/deepa.svg"
+                  alt=""
+                  width={56}
+                  height={68}
+                  className="relative"
+                  style={{
+                    filter: 'drop-shadow(0 0 8px rgba(255,190,40,0.55)) drop-shadow(0 0 18px rgba(255,180,0,0.35))',
+                    mixBlendMode: 'multiply',
+                  }}
+                  unoptimized
                 />
               </div>
             </motion.div>

@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none">
+  <title>Deepa Lamp</title>
+  <desc>Traditional earthen mud lamp (Deepa) with glowing flame</desc>
+  
+  <defs>
+    <!-- Flame gradient -->
+    <radialGradient id="flameGradient" cx="50%" cy="80%" r="60%">
+      <stop offset="0%" stop-color="#fff7e0"/>
+      <stop offset="30%" stop-color="#ffd54f"/>
+      <stop offset="60%" stop-color="#ff9800"/>
+      <stop offset="100%" stop-color="#f57c00"/>
+    </radialGradient>
+    
+    <!-- Inner flame -->
+    <radialGradient id="innerFlame" cx="50%" cy="70%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="40%" stop-color="#fff9c4"/>
+      <stop offset="100%" stop-color="#ffd54f"/>
+    </radialGradient>
+    
+    <!-- Mud/earthen texture gradient -->
+    <linearGradient id="mudGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B6914"/>
+      <stop offset="30%" stop-color="#6B4423"/>
+      <stop offset="60%" stop-color="#5D3A1A"/>
+      <stop offset="100%" stop-color="#4A2F15"/>
+    </linearGradient>
+    
+    <!-- Mud highlight -->
+    <linearGradient id="mudHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A67B3D"/>
+      <stop offset="50%" stop-color="#8B6914"/>
+      <stop offset="100%" stop-color="#6B4423"/>
+    </linearGradient>
+    
+    <!-- Oil in the lamp -->
+    <radialGradient id="oilGradient" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#4A3728"/>
+      <stop offset="100%" stop-color="#2A1A10"/>
+    </radialGradient>
+    
+    <!-- Glow filter for flame -->
+    <filter id="flameGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Outer glow for flame -->
+    <filter id="outerGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Flame with glow (drawn first so it appears behind the lamp front) -->
+  <g id="flame" filter="url(#outerGlow)">
+    <!-- Outer flame glow (large, subtle) -->
+    <ellipse cx="50" cy="28" rx="12" ry="18" fill="#ffa726" opacity="0.3"/>
+    
+    <!-- Main flame -->
+    <path d="M50 8 
+             Q60 20 58 30 
+             Q56 38 50 42 
+             Q44 38 42 30 
+             Q40 20 50 8" 
+          fill="url(#flameGradient)" filter="url(#flameGlow)"/>
+    
+    <!-- Inner flame core -->
+    <path d="M50 16 
+             Q55 25 54 32 
+             Q52 38 50 40 
+             Q48 38 46 32 
+             Q45 25 50 16" 
+          fill="url(#innerFlame)"/>
+    
+    <!-- Brightest point at base of flame -->
+    <ellipse cx="50" cy="40" rx="4" ry="2" fill="#fffde7" opacity="0.9"/>
+  </g>
+  
+  <!-- Wick -->
+  <g id="wick">
+    <rect x="48" y="38" width="4" height="8" rx="1" fill="#D4C4A8"/>
+    <rect x="49" y="39" width="2" height="6" fill="#F5F0E1" opacity="0.8"/>
+  </g>
+  
+  <!-- Mud Deepa (earthen lamp) - drawn after flame -->
+  <g id="mud-deepa">
+    <!-- Back rim of the lamp opening (visible behind flame) -->
+    <ellipse cx="50" cy="45" rx="22" ry="7" fill="url(#mudHighlight)" opacity="0.6"/>
+    
+    <!-- Main lamp body - traditional mud pot shape -->
+    <!-- Outer shape of the lamp -->
+    <path d="M28 45 
+             Q20 50 20 65 
+             Q20 85 50 85 
+             Q80 85 80 65 
+             Q80 50 72 45
+             Q72 48 72 50
+             L28 50 
+             Q28 48 28 45" 
+          fill="url(#mudGradient)"/>
+    
+    <!-- Inner surface of lamp (where oil is) -->
+    <ellipse cx="50" cy="48" rx="20" ry="6" fill="url(#oilGradient)"/>
+    
+    <!-- Oil surface with slight shine -->
+    <ellipse cx="50" cy="47" rx="16" ry="4" fill="#3D2A1A"/>
+    <ellipse cx="45" cy="46" rx="6" ry="2" fill="#5D4030" opacity="0.5"/>
+    
+    <!-- Lamp rim highlight -->
+    <path d="M30 45 Q50 42 70 45" stroke="url(#mudHighlight)" stroke-width="1.5" fill="none" opacity="0.7"/>
+    
+    <!-- Mud texture lines (traditional handcrafted look) -->
+    <path d="M35 55 Q50 58 65 55" stroke="#5D3A1A" stroke-width="0.5" fill="none" opacity="0.4"/>
+    <path d="M32 62 Q50 66 68 62" stroke="#5D3A1A" stroke-width="0.5" fill="none" opacity="0.3"/>
+    <path d="M28 72 Q50 78 72 72" stroke="#5D3A1A" stroke-width="0.5" fill="none" opacity="0.25"/>
+    
+    <!-- Small decorative dots (traditional mud craft) -->
+    <circle cx="40" cy="68" r="1.5" fill="#A67B3D" opacity="0.3"/>
+    <circle cx="50" cy="70" r="1.5" fill="#A67B3D" opacity="0.3"/>
+    <circle cx="60" cy="68" r="1.5" fill="#A67B3D" opacity="0.3"/>
+    
+    <!-- Front rim highlight -->
+    <path d="M30 50 Q50 53 70 50" stroke="#A67B3D" stroke-width="0.8" fill="none" opacity="0.5"/>
+  </g>
+  
+  <!-- Base of the lamp (slightly flattened for stability) -->
+  <ellipse cx="50" cy="84" rx="25" ry="4" fill="url(#mudGradient)"/>
+  <ellipse cx="50" cy="83" rx="22" ry="3" fill="#5D3A1A" opacity="0.5"/>
+</svg>
