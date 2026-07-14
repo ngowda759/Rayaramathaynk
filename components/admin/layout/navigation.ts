@@ -104,11 +104,6 @@ export const navigation: NavigationGroup[] = [
         icon: "users",
       },
       {
-        title: "General Settings",
-        href: "/admin/settings",
-        icon: "settings",
-      },
-      {
         title: "Homepage Settings",
         href: "/admin/settings/homepage",
         icon: "settings",

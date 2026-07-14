@@ -91,8 +91,8 @@ const sections: MenuSection[] = [
         icon: Users,
       },
       {
-        title: "Settings",
-        href: "/admin/settings",
+        title: "Homepage Settings",
+        href: "/admin/settings/homepage",
         icon: Settings,
       },
       {

@@ -22,6 +22,9 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
 
   templeName: "Rayara Math",
   templeLocation: "",
+  templeAddress: "",
+  contactEmail: "",
+  contactPhone: "",
 
   isTempleOpen: true,
 

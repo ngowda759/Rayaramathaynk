@@ -12,6 +12,7 @@ import HeroSection from "./HeroSection";
 import AnnouncementSection from "./AnnouncementSection";
 import TimingsSection from "./TimingsSection";
 import TestimonialsSection from "./TestimonialsSection";
+import ContactInfoSection from "./ContactInfoSection";
 
 export default function HomepageForm({
   onSaved,
@@ -60,6 +61,12 @@ export default function HomepageForm({
 
       <FormContainer onSubmit={handleSubmit}>
         <HeroSection
+          formData={formData}
+          errors={errors}
+          updateField={updateField}
+        />
+
+        <ContactInfoSection
           formData={formData}
           errors={errors}
           updateField={updateField}

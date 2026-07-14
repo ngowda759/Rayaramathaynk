@@ -22,6 +22,9 @@ export type HomepageValidationErrors = Partial<
     | "donationSubtitle"
     | "templeName"
     | "templeLocation"
+    | "templeAddress"
+    | "contactEmail"
+    | "contactPhone"
     | "heroPrimaryButton"
     | "heroSecondaryButton"
     | "footerCopyright",

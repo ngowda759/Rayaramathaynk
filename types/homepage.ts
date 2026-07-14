@@ -19,13 +19,15 @@ export interface HomepageConfig {
 
   templeName: string;
   templeLocation: string;
+  templeAddress: string;
+  contactEmail: string;
+  contactPhone: string;
+  footerCopyright: string;
 
   isTempleOpen: boolean;
 
   heroPrimaryButton: string;
   heroSecondaryButton: string;
-
-  footerCopyright: string;
 
   /**
    * Hero Quick Info Cards - Today's Seva & Festival
