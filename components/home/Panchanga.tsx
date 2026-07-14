@@ -191,7 +191,7 @@ export default function Panchanga() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {items.map((item, index) => {
             const Icon = item.icon;
 
