@@ -41,7 +41,6 @@ const allNavigation = [
     items: [
       { title: "Events", href: "/admin/events", icon: "calendar" },
       { title: "Member / Volunteer", href: "/admin/sevas", icon: "heart" },
-      { title: "Temple Timings", href: "/admin/timings", icon: "clock" },
       { title: "Aaradhane", href: "/admin/aaradhane", icon: "flower" },
     ],
   },
@@ -76,7 +75,6 @@ const allNavigation = [
     title: "Administration",
     items: [
       { title: "Users", href: "/admin/users", icon: "users" },
-      { title: "General Settings", href: "/admin/settings", icon: "settings" },
       { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
       { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
