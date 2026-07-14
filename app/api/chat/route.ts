@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { messages, sessionId, userId } = body;
+    const { messages, sessionId, userId, detectedLanguage } = body;
 
     // Validate messages
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -141,7 +141,8 @@ export async function POST(request: NextRequest) {
         // Generate response using Firebase data
         responseMessage = await generateFirebaseResponse(
           lastUserMessage.content,
-          templeInfo
+          templeInfo,
+          detectedLanguage || "en"
         );
         responseSource = "firebase";
       }
@@ -155,7 +156,8 @@ export async function POST(request: NextRequest) {
       // Generate response using Firebase data
       responseMessage = await generateFirebaseResponse(
         lastUserMessage.content,
-        templeInfo
+        templeInfo,
+        detectedLanguage || "en"
       );
       responseSource = "firebase";
     }

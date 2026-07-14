@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
-import { AIMessage } from "@/types/ai";
+import { AIMessage, DetectedLanguage } from "@/types/ai";
 import { useAuthContext } from "@/context/AuthContext";
 import { 
   saveMessage, 
@@ -9,6 +9,7 @@ import {
   getUserChatSessions 
 } from "@/services/chat.service";
 import { getWelcomeMessage } from "@/lib/ai/settings";
+import { detectLanguage } from "@/lib/ai/languageDetector";
 
 interface AIChatContextType {
   messages: AIMessage[];
@@ -17,6 +18,7 @@ interface AIChatContextType {
   sessionId: string | null;
   error: string | null;
   isLoadingHistory: boolean;
+  detectedLanguage: DetectedLanguage;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
   toggleChat: () => void;
@@ -49,6 +51,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   const [lastUserMessage, setLastUserMessage] = useState<AIMessage | null>(null);
   const [userSessions, setUserSessions] = useState<string[]>([]);
   const [welcomeMessage, setWelcomeMessage] = useState<string>("");
+  const [detectedLanguage, setDetectedLanguage] = useState<DetectedLanguage>("en");
   
   const { user } = useAuthContext();
 
@@ -126,11 +129,16 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
 
+    // Detect language from user message
+    const langDetection = detectLanguage(content);
+    setDetectedLanguage(langDetection.language);
+
     const userMessage: AIMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: content.trim(),
       timestamp: Date.now(),
+      detectedLanguage: langDetection.language,
     };
 
     // Add user message
@@ -152,6 +160,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
           messages: [...messages, userMessage],
           sessionId: currentSessionId,
           userId: user?.uid || null,
+          detectedLanguage: langDetection.language,
         }),
       });
 
@@ -281,6 +290,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     sessionId,
     error,
     isLoadingHistory,
+    detectedLanguage,
     sendMessage,
     clearMessages,
     toggleChat,

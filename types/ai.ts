@@ -1,5 +1,7 @@
 // AI Chat Types
 
+export type DetectedLanguage = "en" | "kn" | "mixed";
+
 export interface AIMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -7,6 +9,7 @@ export interface AIMessage {
   timestamp: number;
   model?: string;
   latency?: number;
+  detectedLanguage?: DetectedLanguage;
 }
 
 export interface ChatSession {
@@ -16,6 +19,7 @@ export interface ChatSession {
   updatedAt: number;
   messageCount: number;
   lastMessage?: string;
+  detectedLanguage?: DetectedLanguage;
 }
 
 export interface AIProvider {
@@ -31,6 +35,7 @@ export interface ChatRequest {
   messages: AIMessage[];
   sessionId?: string;
   userId?: string;
+  detectedLanguage?: DetectedLanguage;
 }
 
 export interface ChatResponse {

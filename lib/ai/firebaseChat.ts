@@ -1,6 +1,7 @@
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
-import { AIMessage } from "@/types/ai";
+import { AIMessage, DetectedLanguage } from "@/types/ai";
+import { containsKannada } from "./languageDetector";
 
 // Temple information stored in Firebase
 export interface TempleInfo {
@@ -191,12 +192,18 @@ function findMatchingTraining(
   return null;
 }
 
-// Generate response based on user message
+// Generate response based on user message with language support
 export async function generateFirebaseResponse(
   userMessage: string,
-  templeInfo: TempleInfo | null
+  templeInfo: TempleInfo | null,
+  detectedLanguage: DetectedLanguage = "en"
 ): Promise<AIMessage> {
   const message = userMessage.toLowerCase();
+  const hasKannada = containsKannada(userMessage);
+  
+  // Determine if we should respond in Kannada
+  const useKannada = hasKannada || detectedLanguage === "kn" || detectedLanguage === "mixed";
+  const useMixed = detectedLanguage === "mixed";
 
   // Try to find matching training data first
   const trainingData = await getTrainingData();
@@ -230,12 +237,9 @@ export async function generateFirebaseResponse(
     trustMembers: [],
   };
 
-  // Response generators for common queries
+  // Response generators for common queries - with Kannada support
   if (message.includes("location") || message.includes("where") || message.includes("address") || (message.includes("temple") && message.includes("locat"))) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `📍 **Temple Location**
+    const englishContent = `📍 **Temple Location**
 
 **Sri Raghavendra Swamy Matha**
 Yelahanka New Town
@@ -249,50 +253,71 @@ Bengaluru, Karnataka, India
 
 For directions, you can search for "Sri Raghavendra Swamy Matha Yelahanka" on Google Maps.
 
-We look forward to welcoming you!`,
+We look forward to welcoming you!`;
+
+    const kannadaContent = `📍 **ದೇವಸ್ಥಾನದ ಸ್ಥಳ**
+
+**ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ**
+ಯಲಹಂಕ ನ್ಯೂ ಟೌನ್
+ಬೆಂಗಳೂರು, ಕರ್ನಾಟಕ, ಭಾರತ
+
+**ಸಂಪರ್ಕ:**
+📞 ${info.phone}
+📧 ${info.email}
+
+🙏 ನಾವು ಬೆಂಗಳೂರಿನ ಶಾಂತಿಯುತ ಯಲಹಂಕ ನ್ಯೂ ಟೌನ್ ಪ್ರದೇಶದಲ್ಲಿದ್ದೇವೆ. ದೇವಸ್ಥಾನವು ರಸ್ತೆ ಮತ್ತು ಸಾರ್ವಜನಿಕ ಸಾರಿಗೆಯಿಂದ ಸುಲಭವಾಗಿ ತಲುಪಬಹುದಾಗಿದೆ.
+
+ದಿಕ್ಕಿಗಾಗಿ ನೀವು Google Maps ನಲ್ಲಿ "Sri Raghavendra Swamy Matha Yelahanka" ಅನ್ನು ಹುಡುಕಬಹುದು.
+
+ನಿಮ್ಮನ್ನು ಸ್ವಾಗತಿಸಲು ನಾವು ಎದುರು ನೋಡುತ್ತಿದ್ದೇವೆ!`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaContent : englishContent,
       timestamp: Date.now(),
     };
   }
 
   if (message.includes("timing") || message.includes("open") || message.includes("hour")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `🕐 **Temple Timings**
+    const englishContent = `🕐 **Temple Timings**
 
 **Morning:** ${info.timings.morning.open} - ${info.timings.morning.close}
 **Evening:** ${info.timings.evening.open} - ${info.timings.evening.close}
 
 🙏 Please note: Special timings apply during festivals and special occasions.
 
-For the most accurate information, please contact the temple office.`,
+For the most accurate information, please contact the temple office.`;
+
+    const kannadaContent = `🕐 **ದೇವಸ್ಥಾನದ ಸಮಯ**
+
+**ಬೆಳಗಿನ ಸಮಯ:** ${info.timings.morning.open} - ${info.timings.morning.close}
+**ಸಂಜೆಯ ಸಮಯ:** ${info.timings.evening.open} - ${info.timings.evening.close}
+
+🙏 ದಯವಿಟ್ಟು ಗಮನಿಸಿ: ಹಬ್ಬಗಳು ಮತ್ತು ವಿಶೇಷ ಸಂದರ್ಭಗಳಲ್ಲಿ ವಿಶೇಷ ಸಮಯಗಳು ಅನ್ವಯವಾಗುತ್ತವೆ.
+
+ಅತ್ಯಂತ ನಿಖರವಾದ ಮಾಹಿತಿಗಾಗಿ ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaContent : englishContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("event") || message.includes("festival") || message.includes("upcoming")) {
-    if (info.upcomingEvents.length > 0) {
-      const eventsList = info.upcomingEvents
-        .map((e) => `• **${e.title}** - ${e.date.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`)
-        .join("\n");
-      
-      return {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `📅 **Upcoming Events**
+  if (message.includes("event") || message.includes("festival") || message.includes("upcoming") || message.includes("ಹಬ್ಬ")) {
+    const englishEventsContent = info.upcomingEvents.length > 0
+      ? `📅 **Upcoming Events**
 
-${eventsList}
+${info.upcomingEvents
+  .map((e) => `• **${e.title}** - ${e.date.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`)
+  .join("\n")}
 
 🙏 We welcome all devotees to participate in these sacred celebrations!
 
-For more details, please visit our Events page or contact the temple office.`,
-        timestamp: Date.now(),
-      };
-    }
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `📅 **Upcoming Events**
+For more details, please visit our Events page or contact the temple office.`
+      : `📅 **Upcoming Events**
 
 Currently, there are no upcoming events scheduled on our website. However, we regularly hold:
 
@@ -301,32 +326,37 @@ Currently, there are no upcoming events scheduled on our website. However, we re
 • Sri Raghavendra Jayanthi
 • Bramhotsavam
 
-🙏 For the latest updates, please check our Events page or contact the temple office directly.`,
+🙏 For the latest updates, please check our Events page or contact the temple office directly.`;
+
+    const kannadaEventsContent = `📅 **ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು**
+
+ಪ್ರಸ್ತುತ ನಮ್ಮ ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ಯಾವುದೇ ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳಿಲ್ಲ. ಆದರೆ ನಾವು ನಿಯಮಿತವಾಗಿ ನಡೆಸುತ್ತೇವೆ:
+
+• ದೈನಿಕ ಪೂಜೆಗಳು
+• ಏಕಾದಶಿ ಉಪವಾಸ ಮತ್ತು ಆಚರಣೆಗಳು  
+• ಶ್ರೀ ರಾಘವೇಂದ್ರ ಜಯಂತಿ
+• ಬ್ರಹ್ಮೋತ್ಸವ
+
+🙏 ಇತ್ತೀಚಿನ ನವೀಕರಣಗಳಿಗಾಗಿ ದಯವಿಟ್ಟು ನಮ್ಮ ಕಾರ್ಯಕ್ರಮಗಳ ಪುಟವನ್ನು ಪರಿಶೀಲಿಸಿ ಅಥವಾ ನೇರವಾಗಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaEventsContent : englishEventsContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("seva") || message.includes("service") || message.includes("pooja")) {
-    if (info.sevas.length > 0) {
-      const sevasList = info.sevas
-        .map((s) => `• **${s.name}**${s.price ? ` - ${s.price}` : ""}\n  ${s.description}`)
-        .join("\n\n");
-      
-      return {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `🙏 **Sevas Available**
+  if (message.includes("seva") || message.includes("service") || message.includes("pooja") || message.includes("ಸೇವೆ") || message.includes("ಪೂಜೆ")) {
+    const englishSevaContent = info.sevas.length > 0
+      ? `🙏 **Sevas Available**
 
-${sevasList}
+${info.sevas
+  .map((s) => `• **${s.name}**${s.price ? ` - ${s.price}` : ""}\n  ${s.description}`)
+  .join("\n\n")}
 
-🙏 To book a seva or for more information, please visit the Sevas page or contact the temple office.`,
-        timestamp: Date.now(),
-      };
-    }
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `🙏 **Temple Sevas**
+🙏 To book a seva or for more information, please visit the Sevas page or contact the temple office.`
+      : `🙏 **Temple Sevas**
 
 We offer various sevas including:
 
@@ -336,16 +366,30 @@ We offer various sevas including:
 • **Astothram** - 108 names recitation
 • **Archana** - Personal poojas
 
-🙏 For bookings and inquiries, please visit our Sevas page or contact the temple office.`,
+🙏 For bookings and inquiries, please visit our Sevas page or contact the temple office.`;
+
+    const kannadaSevaContent = `🙏 **ಲಭ್ಯ ಸೇವೆಗಳು**
+
+ನಾವು ವಿವಿಧ ಸೇವೆಗಳನ್ನು ಒದಗಿಸುತ್ತೇವೆ:
+
+• **ದೈನಿಕ ಪೂಜೆ** - ಬೆಳಗು ಮತ್ತು ಸಂಜೆ ಸೇವೆಗಳು
+• **ಸುಪ್ತರಧನ** - ವಿಶೇಷ ಕಾಣಿಕೆಗಳು
+• **ಮಹಾ ಪೂಜೆ** - ದೊಡ್ಡ ಪೂಜಾ ವಿಧಿಗಳು
+• **ಅಷ್ಟೋತ್ರ** - 108 ಹೆಸರುಗಳ ಪಾರಾಯಣ
+• **ಅರ್ಚನೆ** - ವೈಯಕ್ತಿಕ ಪೂಜೆಗಳು
+
+🙏 ಬುಕಿಂಗ್‌ಗಳು ಮತ್ತು ವಿಚಾರಣೆಗಳಿಗಾಗಿ ದಯವಿಟ್ಟು ನಮ್ಮ ಸೇವೆಗಳ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ ಅಥವಾ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaSevaContent : englishSevaContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("donat") || message.includes("contribute")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `💝 **Donations & Contributions**
+  if (message.includes("donat") || message.includes("contribute") || message.includes("ಕೊಡು")) {
+    const englishDonateContent = `💝 **Donations & Contributions**
 
 Your generous donations help us maintain the temple and continue our services.
 
@@ -357,45 +401,58 @@ Your generous donations help us maintain the temple and continue our services.
 🙏 Every contribution, big or small, is deeply appreciated and goes towards maintaining the sacred space and services.
 
 **Bank Details:**
-For wire transfers, please contact the temple office for current bank information.`,
+For wire transfers, please contact the temple office for current bank information.`;
+
+    const kannadaDonateContent = `💝 **ದೇಣಗಳು ಮತ್ತು ಕೊಡುಗೆಗಳು**
+
+ನಿಮ್ಮ ಉದಾರ ದಾನಗಳು ದೇವಸ್ಥಾನವನ್ನು ನಿರ್ವಹಿಸಲು ಮತ್ತು ನಮ್ಮ ಸೇವೆಗಳನ್ನು ಮುಂದುವರಿಸಲು ಸಹಾಯ ಮಾಡುತ್ತವೆ.
+
+**ದಾನ ಮಾಡಲು ವಿಧಾನಗಳು:**
+• ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ನಮ್ಮ ದಾನ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ
+• ಬ್ಯಾಂಕ್ ವರ್ಗಾವಣೆ ವಿವರಗಳಿಗಾಗಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ
+• ದೇವಸ್ಥಾನದಲ್ಲಿ ವೈಯಕ್ತಿಕವಾಗಿ ದಾನ ಮಾಡಿ
+
+🙏 ಪ್ರತಿಯೊಂದು ಕೊಡುಗೆ, ದೊಡ್ಡದಾಗಲಿ ಚಿಕ್ಕದಾಗಲಿ, ಗೌರವಯುತವಾಗಿ ಮೆಚ್ಚುತ್ತೇವೆ ಮತ್ತು ಪವಿತ್ರ ಸ್ಥಳವನ್ನು ನಿರ್ವಹಿಸುವುದಕ್ಕೆ ಮತ್ತು ಸೇವೆಗಳನ್ನು ಮುಂದುವರಿಸುವುದಕ್ಕೆ ಬಳಸಲಾಗುತ್ತದೆ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaDonateContent : englishDonateContent,
       timestamp: Date.now(),
     };
   }
 
   if (message.includes("trust") || message.includes("committee") || message.includes("member")) {
-    if (info.trustMembers.length > 0) {
-      const membersList = info.trustMembers
-        .map((m) => `• **${m.name}** - ${m.role}`)
-        .join("\n");
-      
-      return {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `👥 **Trust Committee**
+    const englishTrustContent = info.trustMembers.length > 0
+      ? `👥 **Trust Committee**
 
-${membersList}
+${info.trustMembers
+  .map((m) => `• **${m.name}** - ${m.role}`)
+  .join("\n")}
 
-🙏 For any official matters, please contact the trust committee through the temple office.`,
-        timestamp: Date.now(),
-      };
-    }
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `👥 **Trust Committee**
+🙏 For any official matters, please contact the trust committee through the temple office.`
+      : `👥 **Trust Committee**
 
 Our trust committee manages the temple operations and spiritual activities. For information about current members and their roles, please contact the temple office directly.
 
-🙏 We welcome devotees to participate in temple activities and volunteer for various services.`,
+🙏 We welcome devotees to participate in temple activities and volunteer for various services.`;
+
+    const kannadaTrustContent = `👥 **ಟ್ರಸ್ಟ್ ಸಮಿತಿ**
+
+ನಮ್ಮ ಟ್ರಸ್ಟ್ ಸಮಿತಿಯು ದೇವಸ್ಥಾನದ ಕಾರ್ಯಾಚರಣೆಗಳು ಮತ್ತು ಆಧ್ಯಾತ್ಮಿಕ ಚಟುವಟಿಕೆಗಳನ್ನು ನಿರ್ವಹಿಸುತ್ತದೆ. ಪ್ರಸ್ತುತ ಸದಸ್ಯರ ಮಾಹಿತಿಗಾಗಿ ದಯವಿಟ್ಟು ನೇರವಾಗಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ.
+
+🙏 ದೇವಸ್ಥಾನದ ಚಟುವಟಿಕೆಗಳಲ್ಲಿ ಭಾಗವಹಿಸಲು ಮತ್ತು ವಿವಿಧ ಸೇವೆಗಳಿಗೆ ಸ್ಯಾಂಪಂದನಾ ಮಾಡಲು ಭಕ್ತರನ್ನು ಸ್ವಾಗತಿಸುತ್ತೇವೆ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaTrustContent : englishTrustContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("contact") || message.includes("phone") || message.includes("email") || message.includes("address")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `📞 **Contact Information**
+  if (message.includes("contact") || message.includes("phone") || message.includes("email") || message.includes("address") || message.includes("ಸಂಪರ್ಕ")) {
+    const englishContactContent = `📞 **Contact Information**
 
 **Sri Raghavendra Swamy Matha**
 ${info.address}
@@ -403,16 +460,28 @@ ${info.address}
 **Phone:** ${info.phone}
 **Email:** ${info.email}
 
-🙏 We welcome your calls and visits during temple hours. Please note that office hours may vary.`,
+🙏 We welcome your calls and visits during temple hours. Please note that office hours may vary.`;
+
+    const kannadaContactContent = `📞 **ಸಂಪರ್ಕ ಮಾಹಿತಿ**
+
+**ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ**
+${info.address}
+
+**ಫೋನ್:** ${info.phone}
+**ಇಮೇಲ್:** ${info.email}
+
+🙏 ದೇವಸ್ಥಾನದ ಸಮಯದಲ್ಲಿ ನಿಮ್ಮ ಕರೆಗಳನ್ನು ಮತ್ತು ಭೇಟಿಗಳನ್ನು ಸ್ವಾಗತಿಸುತ್ತೇವೆ. ದಯವಿಟ್ಟು ಗಮನಿಸಿ ಕಛೇರಿಯ ಸಮಯಗಳು ಬದಲಾಗಬಹುದು.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaContactContent : englishContactContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("gallery") || message.includes("photo")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `📸 **Temple Gallery**
+  if (message.includes("gallery") || message.includes("photo") || message.includes("ಗ್ಯಾಲರಿ")) {
+    const englishGalleryContent = `📸 **Temple Gallery**
 
 Visit our Gallery page to see beautiful images of:
 
@@ -422,16 +491,30 @@ Visit our Gallery page to see beautiful images of:
 • Annadanam (food donation) services
 • Utsavam (festivals)
 
-🙏 Each image captures the divine atmosphere and devotion at our matha. We invite you to visit us in person to experience the spiritual bliss!`,
+🙏 Each image captures the divine atmosphere and devotion at our matha. We invite you to visit us in person to experience the spiritual bliss!`;
+
+    const kannadaGalleryContent = `📸 **ದೇವಸ್ಥಾನದ ಗ್ಯಾಲರಿ**
+
+ನಮ್ಮ ಗ್ಯಾಲರಿ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ ಇವುಗಳ ಸುಂದರ ಚಿತ್ರಗಳನ್ನು ನೋಡಿ:
+
+• ದೇವಸ್ಥಾನದ ವಾಸ್ತುಶಿಲ್ಪ ಮತ್ತು ಮೂರ್ತಿ
+• ಹಬ್ಬದ ಆಚರಣೆಗಳು
+• ದೈನಿಕ ಪೂಜೆಗಳು
+• ಅನ್ನದಾನ ಸೇವೆಗಳು
+• ಉತ್ಸವಗಳು
+
+🙏 ಪ್ರತಿಯೊಂದು ಚಿತ್ರವು ನಮ್ಮ ಮಠದ ದೈವಿಕ ವಾತಾವರಣ ಮತ್ತು ಭಕ್ತಿಯನ್ನು ಸೆರೆಹಿಡಿಯುತ್ತದೆ. ಆಧ್ಯಾತ್ಮಿಕ ಆನಂದವನ್ನು ಅನುಭವಿಸಲು ನಾವು ನಿಮ್ಮನ್ನು ವೈಯಕ್ತಿಕವಾಗಿ ಭೇಟಿ ಮಾಡಲು ಆಹ್ವಾನಿಸುತ್ತೇವೆ!`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaGalleryContent : englishGalleryContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("volunteer") || message.includes("sevaka")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `🤝 **Volunteer Opportunities**
+  if (message.includes("volunteer") || message.includes("sevaka") || message.includes("ಸ್ಯಾಂಪಂದನಾ")) {
+    const englishVolunteerContent = `🤝 **Volunteer Opportunities**
 
 We welcome devotees who wish to serve the temple!
 
@@ -444,16 +527,33 @@ We welcome devotees who wish to serve the temple!
 
 🙏 To express your interest in volunteering, please contact the temple office or speak with a priest during your visit.
 
-Your service is considered a sacred karma (duty) and will be richly blessed!`,
+Your service is considered a sacred karma (duty) and will be richly blessed!`;
+
+    const kannadaVolunteerContent = `🤝 **ಸ್ಯಾಂಪಂದನಾ ಅವಕಾಶಗಳು**
+
+ದೇವಸ್ಥಾನಕ್ಕೆ ಸೇವೆ ಮಾಡಲು ಬಯಸುವ ಭಕ್ತರನ್ನು ನಾವು ಸ್ವಾಗತಿಸುತ್ತೇವೆ!
+
+**ಸ್ಯಾಂಪಂದನಾ ಮಾಡಲು ವಿಧಾನಗಳು:**
+• ದೈನಿಕ ಪೂಜೆಗಳ ಸಮಯದಲ್ಲಿ ಸಹಾಯ ಮಾಡಿ
+• ಹಬ್ಬದ ತಯಾರಿಗಳಲ್ಲಿ ಸಹಾಯ ಮಾಡಿ
+• ಅನ್ನದಾನ (ಆಹಾರ ಸೇವೆ)ಯಲ್ಲಿ ಭಾಗವಹಿಸಿ
+• ಭೇಟಿದಾರರನ್ನು ಮತ್ತು ಭಕ್ತರನ್ನು ಮಾರ್ಗದರ್ಶನ ಮಾಡಿ
+• ದೇವಸ್ಥಾನದ ನಿರ್ವಹಣೆಯಲ್ಲಿ ಸಹಾಯ ಮಾಡಿ
+
+🙏 ಸ್ಯಾಂಪಂದನಾ ಮಾಡಲು ನಿಮ್ಮ ಆಸಕ್ತಿಯನ್ನು ವ್ಯಕ್ತಪಡಿಸಲು, ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ ಅಥವಾ ಭೇಟಿಯ ಸಮಯದಲ್ಲಿ ಅರ್ಚಕರೊಂದಿಗೆ ಮಾತನಾಡಿ.
+
+ನಿಮ್ಮ ಸೇವೆಯು ಪವಿತ್ರ ಕರ್ಮ (ಕರ್ತವ್ಯ) ಎಂದು ಪರಿಗಣಿಸಲಾಗುತ್ತದೆ ಮತ್ತು ಶ್ರೀಮಂತವಾಗಿ ಆಶೀರ್ವದಿಸಲಾಗುತ್ತದೆ!`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaVolunteerContent : englishVolunteerContent,
       timestamp: Date.now(),
     };
   }
 
   if (message.includes("testimonial") || message.includes("share experience") || message.includes("feedback") || message.includes("review")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `✨ **Share Your Temple Experience**
+    const englishTestimonialContent = `✨ **Share Your Temple Experience**
 
 We would love to hear about your spiritual journey and experiences at Sri Raghavendra Swamy Matha!
 
@@ -467,16 +567,30 @@ We would love to hear about your spiritual journey and experiences at Sri Raghav
 
 All testimonials are reviewed before being published to ensure they maintain the sacred atmosphere of our matha.
 
-Visit: [Your Website]/testimonials to share your experience!`,
+Visit: [Your Website]/testimonials to share your experience!`;
+
+    const kannadaTestimonialContent = `✨ **ನಿಮ್ಮ ದೇವಸ್ಥಾನದ ಅನುಭವವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ**
+
+ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠದಲ್ಲಿ ನಿಮ್ಮ ಆಧ್ಯಾತ್ಮಿಕ ಪ್ರಯಾಣ ಮತ್ತು ಅನುಭವಗಳ ಬಗ್ಗೆ ಕೇಳಲು ನಾವು ಇಷ್ಟಪಡುತ್ತೇವೆ!
+
+**ನಿಮ್ಮ ಸಾಕ್ಷ್ಯವನ್ನು ಹಂಚಿಕೊಳ್ಳಲು ವಿಧಾನ:**
+• ನಮ್ಮ ವೆಬ್‌ಸೈಟ್‌ನ ಸಾಕ್ಷ್ಯಗಳ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ
+• ನಿಮ್ಮ ಹೆಸರು, ಊರು ಮತ್ತು ಅನುಭವವನ್ನು ತುಂಬಿ
+• ನಿಮ್ಮ ಭೇಟಿಯನ್ನು ರೇಟ್ ಮಾಡಿ (1-5 ಸ್ಟಾರ್)
+• ನಿಮ್ಮ ಸಾಕ್ಷ್ಯವನ್ನು ಪ್ರಕಟಿಸಲು ಐಚ್ಛಿಕವಾಗಿ ಅನುಮತಿ ನೀಡಿ
+
+🙏 ನಿಮ್ಮ ಸಾಕ್ಷ್ಯಗಳು ಇತರ ಭಕ್ತರಿಗೆ ಸ್ಫೂರ್ತಿ ನೀಡುತ್ತವೆ ಮತ್ತು ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಯ ದೈವಿಕ ಸಂದೇಶವನ್ನು ಹರಡಲು ಸಹಾಯ ಮಾಡುತ್ತವೆ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaTestimonialContent : englishTestimonialContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("aradhana") || message.includes("raghavendra") || message.includes("swamy")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `🙏 **Sri Raghavendra Swamy**
+  if (message.includes("aradhana") || message.includes("raghavendra") || message.includes("swamy") || message.includes("ರಾಘವೇಂದ್ರ")) {
+    const englishAradhanaContent = `🙏 **Sri Raghavendra Swamy**
 
 Sri Raghavendra Swamy (1595–1672) was a renowned saint and philosopher of the Dvaita tradition. He is believed to have been an incarnation of Lord Venkateswara.
 
@@ -487,16 +601,31 @@ His Aradhana Mahotsava is celebrated annually, marking his Samadhi (the day he a
 • Bhakti (devotion) as the path to salvation
 • Service to humanity as service to God
 
-🙏 To learn more about Guru Parampara (lineage), please visit our dedicated page.`,
+🙏 To learn more about Guru Parampara (lineage), please visit our dedicated page.`;
+
+    const kannadaAradhanaContent = `🙏 **ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ**
+
+ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ (1595-1672) ದ್ವೈತ ಸಂಪ್ರದಾಯದ ಪ್ರಸಿದ್ಧ ಸಂತ ಮತ್ತು ತತ್ತ್ವಜ್ಞಾನಿ. ಅವರು ಭಗವಾನ್ ವೆಂಕಟೇಶ್ವರರ ಅವತಾರರೆಂದು ನಂಬಲಾಗಿದೆ.
+
+ಅವರ ಆರಾಧನಾ ಮಹೋತ್ಸವವನ್ನು ಪ್ರತಿವರ್ಷ ಆಚರಿಸಲಾಗುತ್ತದೆ, ಇದು ಅವರು ಭಗವಂತನ ತುಳಸಿ ಪಾದಗಳನ್ನು ಪಡೆದ ದಿನವನ್ನು (ಸಮಾಧಿ) ಗುರುತಿಸುತ್ತದೆ.
+
+**ಮುಖ್ಯ ಉಪದೇಶಗಳು:**
+• ಭಗವಂತನ ತುಳಸಿ ಪಾದಗಳಿಗೆ ಶರಣಾಗತಿ
+• ಮೋಕ್ಷದ ಮಾರ್ಗವಾಗಿ ಭಕ್ತಿ (ಭಕ್ತಿ)
+• ಮಾನವೀಯತೆಗೆ ಸೇವೆಯು ದೇವರಿಗೆ ಸೇವೆ
+
+🙏 ಗುರು ಪರಂಪರೆ (ವಂಶಾವಳಿ) ಬಗ್ಗೆ ಇನ್ನಷ್ಟು ತಿಳಿಯಲು ದಯವಿಟ್ಟು ನಮ್ಮ ಮತ್ಸ್ಯ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaAradhanaContent : englishAradhanaContent,
       timestamp: Date.now(),
     };
   }
 
-  if (message.includes("about") || message.includes("matha") || message.includes("temple")) {
-    return {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: `🏛️ **About Sri Raghavendra Swamy Matha**
+  if (message.includes("about") || message.includes("matha") || message.includes("temple") || message.includes("ಮಠ")) {
+    const englishAboutContent = `🏛️ **About Sri Raghavendra Swamy Matha**
 
 Located in Yelahanka New Town, Bengaluru, our matha serves as a spiritual center for devotees of Sri Raghavendra Swamy.
 
@@ -509,16 +638,33 @@ Located in Yelahanka New Town, Bengaluru, our matha serves as a spiritual center
 
 🙏 We welcome all devotees to experience the divine atmosphere and seek the blessings of Sri Raghavendra Swamy.
 
-For more information, visit our About page.`,
+For more information, visit our About page.`;
+
+    const kannadaAboutContent = `🏛️ **ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠದ ಬಗ್ಗೆ**
+
+ಬೆಂಗಳೂರಿನ ಯಲಹಂಕ ನ್ಯೂ ಟೌನ್‌ನಲ್ಲಿರುವ ನಮ್ಮ ಮಠವು ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಯ ಭಕ್ತರಿಗೆ ಆಧ್ಯಾತ್ಮಿಕ ಕೇಂದ್ರವಾಗಿ ಸೇವೆ ಸಲ್ಲಿಸುತ್ತದೆ.
+
+**ನಮ್ಮ ಸೇವೆಗಳು:**
+• ದೈನಿಕ ಪೂಜೆಗಳು ಮತ್ತು ಅರ್ಚನೆ
+• ಹಬ್ಬದ ಆಚರಣೆಗಳು
+• ಆಧ್ಯಾತ್ಮಿಕ ಉಪದೇಶಗಳು ಮತ್ತು ಪ್ರವಚನಗಳು
+• ಸಮುದಾಯ ಕಲ್ಯಾಣ ಚಟುವಟಿಕೆಗಳು
+• ಅನ್ನದಾನ (ಉಚಿತ ಆಹಾರ ವಿತರಣೆ)
+
+🙏 ಎಲ್ಲಾ ಭಕ್ತರನ್ನು ದೈವಿಕ ವಾತಾವರಣವನ್ನು ಅನುಭವಿಸಲು ಮತ್ತು ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಯ ಆಶೀರ್ವಾದವನ್ನು ಪಡೆಯಲು ಸ್ವಾಗತಿಸುತ್ತೇವೆ.
+
+ಇನ್ನಷ್ಟು ಮಾಹಿತಿಗಾಗಿ ನಮ್ಮ ಬಗ್ಗೆ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ.`;
+
+    return {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: useKannada ? kannadaAboutContent : englishAboutContent,
       timestamp: Date.now(),
     };
   }
 
   // Default response
-  return {
-    id: crypto.randomUUID(),
-    role: "assistant",
-    content: `🙏 **Namaste, Dear Devotee!**
+  const englishDefaultContent = `🙏 **Namaste, Dear Devotee!**
 
 Thank you for your question. I'm here to help you with information about our temple.
 
@@ -538,7 +684,34 @@ For specific inquiries or official matters, please contact the temple office:
 📞 ${info.phone}
 📧 ${info.email}
 
-🙏 Sri Raghavendraya Namaha!`,
+🙏 Sri Raghavendraya Namaha!`;
+
+  const kannadaDefaultContent = `🙏 **ನಮಸ್ಕಾರ, ಆತ್ಮೀಯ ಭಕ್ತರೇ!**
+
+ನಿಮ್ಮ ಪ್ರಶ್ನೆಗೆ ಧನ್ಯವಾದಗಳು. ನಾನು ನಮ್ಮ ದೇವಸ್ಥಾನದ ಮಾಹಿತಿಯೊಂದಿಗೆ ನಿಮಗೆ ಸಹಾಯ ಮಾಡಲು ಇಲ್ಲಿದ್ದೇನೆ.
+
+ನಾನು ನಿಮಗೆ ಸಹಾಯ ಮಾಡಬಹುದು:
+
+• 🕐 ದೇವಸ್ಥಾನದ ಸಮಯ
+• 📅 ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು ಮತ್ತು ಹಬ್ಬಗಳು
+• 🙏 ಸೇವೆಗಳು ಮತ್ತು ಸೇವೆಗಳು
+• 💝 ದೇಣಗಳು
+• 👥 ಟ್ರಸ್ಟ್ ಸಮಿತಿ
+• 📸 ಗ್ಯಾಲರಿ
+• 📞 ಸಂಪರ್ಕ ಮಾಹಿತಿ
+• 🤝 ಸ್ಯಾಂಪಂದನಾ
+
+ನಿರ್ದಿಷ್ಟ ವಿಚಾರಣೆಗಳಿಗಾಗಿ ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ:
+
+📞 ${info.phone}
+📧 ${info.email}
+
+🙏 ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರಾಯ ನಮಃ!`;
+
+  return {
+    id: crypto.randomUUID(),
+    role: "assistant",
+    content: useKannada ? kannadaDefaultContent : englishDefaultContent,
     timestamp: Date.now(),
   };
 }
