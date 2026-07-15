@@ -1,3 +1,4 @@
+
 // AI Settings Repository
 // Handles Firebase operations for AI Management Center settings
 
@@ -27,12 +28,13 @@ import {
   PromptSettings,
   IntentSettings,
   UnknownQuestion,
+  DEFAULT_TEMPLE_INFORMATION,
   DEFAULT_TEMPLE_TIMINGS,
   DEFAULT_TEMPLE_CONTACT,
   DEFAULT_TEMPLE_OFFICE_HOURS,
   DEFAULT_VISITOR_INFORMATION,
   DEFAULT_TEMPLE_POLICIES,
-  DEFAULT_AI_RESPONSE_TEMPLATES,
+  DEFAULT_AI_RESPONSES,
   DEFAULT_AI_BEHAVIOR_SETTINGS,
 } from "@/types/ai-settings";
 
@@ -81,9 +83,7 @@ export class AISettingsRepository {
       },
       visitorInformation: DEFAULT_VISITOR_INFORMATION,
       templePolicies: DEFAULT_TEMPLE_POLICIES,
-      aiResponses: {
-        templates: DEFAULT_AI_RESPONSE_TEMPLATES,
-      },
+      aiResponses: DEFAULT_AI_RESPONSES,
       aiBehavior: DEFAULT_AI_BEHAVIOR_SETTINGS,
       prompt: {
         currentPromptId: "",
@@ -197,6 +197,7 @@ export class AISettingsRepository {
 
     const newVersion = {
       id: `prompt_v${newVersionNumber}_${Date.now()}`,
+      name: `Prompt v${newVersionNumber}`,
       version: newVersionNumber,
       content,
       status: "draft" as const,
@@ -289,6 +290,7 @@ export class AISettingsRepository {
     const newVersionNumber = Math.max(...versions.map((v) => v.version)) + 1;
     const rolledBackVersion = {
       id: `prompt_v${newVersionNumber}_${Date.now()}`,
+      name: `Prompt v${newVersionNumber}`,
       version: newVersionNumber,
       content: versionToRollback.content,
       status: "published" as const,

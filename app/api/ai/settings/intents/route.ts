@@ -38,24 +38,26 @@ export async function POST(request: NextRequest) {
     const userId = request.headers.get("x-user-id") || "admin";
     const body = await request.json();
 
-    if (!body.intentId || !body.name) {
+    if (!body.name) {
       return NextResponse.json(
-        { error: "Intent ID and name are required" },
+        { error: "Intent name is required" },
         { status: 400 }
       );
     }
 
     const newIntent: IntentMetadata = {
+      id: body.id || `intent_${Date.now()}`,
       intentId: body.intentId,
       name: body.name,
       description: body.description || "",
       status: body.status || "enabled",
       keywords: body.keywords || [],
       examples: body.examples || [],
-      baseConfidence: body.baseConfidence || 0.8,
+      confidence: body.confidence || body.baseConfidence || 0.8,
       knowledgeSource: body.knowledgeSource,
       route: body.route,
       usageCount: 0,
+      createdAt: new Date(),
     };
 
     await aiSettingsService.addIntent(newIntent, userId);
