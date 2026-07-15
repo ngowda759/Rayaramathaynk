@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
@@ -27,6 +27,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   billing: FileText,
   info: Info,
   testimonials: MessageSquareQuote,
+  chart: BarChart3,
 };
 
 // Navigation data
@@ -82,6 +83,7 @@ const allNavigation = [
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
       { title: "AI Assistant", href: "/admin/assistant", icon: "sparkles" },
       { title: "AI Settings", href: "/admin/ai/settings", icon: "settings" },
+      { title: "AI Analytics", href: "/admin/ai/analytics", icon: "chart" },
     ],
   },
 ];
