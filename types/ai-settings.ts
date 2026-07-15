@@ -185,7 +185,7 @@ export interface UnknownQuestion {
 
 export const DEFAULT_TEMPLE_TIMINGS: TempleTimings = {
   morningOpen: "6:00 AM",
-  morningClose: "12:30 PM",
+  morningClose: "12:00 PM",
   eveningOpen: "5:00 PM",
   eveningClose: "8:30 PM",
 };
