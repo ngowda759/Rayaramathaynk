@@ -7,6 +7,7 @@ export enum Intent {
   CONTACT_INFORMATION = "CONTACT_INFORMATION",
   LOCATION = "LOCATION",
   ADDRESS = "ADDRESS",
+  OFFICE_HOURS = "OFFICE_HOURS",
   
   // Events & Festivals
   UPCOMING_EVENTS = "UPCOMING_EVENTS",
@@ -17,6 +18,8 @@ export enum Intent {
   SPECIAL_SEVAS = "SPECIAL_SEVAS",
   DAILY_POOJA = "DAILY_POOJA",
   SEVA_BOOKING = "SEVA_BOOKING",
+  ANNADANA = "ANNADANA",
+  PRASADA = "PRASADA",
   
   // Donations & Contributions
   DONATION = "DONATION",
@@ -44,6 +47,11 @@ export enum Intent {
   VISITOR_GUIDELINES = "VISITOR_GUIDELINES",
   DRESS_CODE = "DRESS_CODE",
   PHOTOGRAPHY = "PHOTOGRAPHY",
+  PARKING = "PARKING",
+  
+  // Website Navigation
+  SHARE_EXPERIENCE = "SHARE_EXPERIENCE",
+  COMMITTEE = "COMMITTEE",
   
   // FAQ
   FAQ = "FAQ",
@@ -79,6 +87,7 @@ export enum IntentCategory {
   FAQ = "faq",
   ACTIONS = "actions",
   GENERAL = "general",
+  WEBSITE_NAVIGATION = "website_navigation",
   OUT_OF_SCOPE = "out_of_scope",
   UNKNOWN = "unknown",
 }
@@ -95,6 +104,7 @@ export enum IntentPriority {
   LOCATION = 84,
   CONTACT_INFORMATION = 75, // Lower - generic "how" can match this
   TEMPLE_TIMINGS = 70,
+  OFFICE_HOURS = 68, // Specific temple office timing
   // Events
   NEXT_AARADHANE = 67,
   UPCOMING_EVENTS = 66,
@@ -102,6 +112,8 @@ export enum IntentPriority {
   SEVA_BOOKING = 64,
   DAILY_POOJA = 63, // Higher than TEMPLE_TIMINGS - "pooja" is specific
   SPECIAL_SEVAS = 62,
+  ANNADANA = 61, // Annadana/free meal service
+  PRASADA = 60, // Prasada distribution
   // Donations
   DONATION_80G = 58,
   DONATION_PURPOSE = 57,
@@ -119,6 +131,10 @@ export enum IntentPriority {
   PHOTOGRAPHY = 35,
   DRESS_CODE = 34,
   VISITOR_GUIDELINES = 33,
+  PARKING = 32,
+  // Website Navigation
+  SHARE_EXPERIENCE = 30, // Share testimonial/experience
+  COMMITTEE = 28, // Trust committee information
   // General
   FAQ = 20,
   CONTACT_REQUEST = 15,
@@ -164,3 +180,122 @@ export interface IntentPattern {
   patterns?: RegExp[];
   requiresStructuredData: boolean;
 }
+
+/**
+ * Navigation Intent Metadata
+ * Contains route and button information for website navigation intents
+ */
+export interface NavigationIntentMetadata {
+  route: string;
+  buttonText: {
+    en: string;
+    kn?: string;
+  };
+  knowledgeCategory?: string;
+  description: {
+    en: string;
+    kn?: string;
+  };
+}
+
+/**
+ * Map of intents that require navigation action buttons
+ */
+export const NAVIGATION_INTENTS: Partial<Record<Intent, NavigationIntentMetadata>> = {
+  [Intent.SHARE_EXPERIENCE]: {
+    route: "/testimonials",
+    buttonText: {
+      en: "Share Your Experience",
+      kn: "ನಿಮ್ಮ ಅನುಭವ ಹಂಚಿಕೊಳ್ಳಿ",
+    },
+    knowledgeCategory: "testimonials",
+    description: {
+      en: "Share your spiritual experience at the temple with other devotees.",
+      kn: "ಇತರ ಭಕ್ತರೊಂದಿಗೆ ದೇವಸ್ಥಾನದಲ್ಲಿನ ನಿಮ್ಮ ಆಧ್ಯಾತ್ಮಿಕ ಅನುಭವವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ.",
+    },
+  },
+  [Intent.PARKING]: {
+    route: "/visit",
+    buttonText: {
+      en: "View Parking Info",
+      kn: "ಪಾರ್ಕಿಂಗ್ ಮಾಹಿತಿ",
+    },
+    knowledgeCategory: "parking",
+    description: {
+      en: "Find information about temple parking facilities.",
+      kn: "ದೇವಸ್ಥಾನದ ಪಾರ್ಕಿಂಗ್ ಸೌಲಭ್ಯಗಳ ಬಗ್ಗೆ ಮಾಹಿತಿ ಪಡೆಯಿರಿ.",
+    },
+  },
+  [Intent.PHOTOGRAPHY]: {
+    route: "/guidelines",
+    buttonText: {
+      en: "Photography Guidelines",
+      kn: "ಛಾಯಾಗ್ರಹಣ ಮಾರ್ಗಸೂಚನೆಗಳು",
+    },
+    knowledgeCategory: "photography",
+    description: {
+      en: "Learn about the photography and videography rules at the temple.",
+      kn: "ದೇವಸ್ಥಾನದಲ್ಲಿ ಛಾಯಾಗ್ರಹಣ ಮತ್ತು ವೀಡಿಯೊಗ್ರಫಿ ನಿಯಮಗಳ ಬಗ್ಗೆ ತಿಳಿಯಿರಿ.",
+    },
+  },
+  [Intent.DRESS_CODE]: {
+    route: "/guidelines",
+    buttonText: {
+      en: "View Dress Code",
+      kn: "ಉಡುಗೆ ನಿಯಮ ನೋಡಿ",
+    },
+    knowledgeCategory: "dress_code",
+    description: {
+      en: "Know the appropriate dress code for temple visits.",
+      kn: "ದೇವಸ್ಥಾನ ಭೇಟಿಗೆ ಸೂಕ್ತ ಉಡುಗೆ ನಿಯಮವನ್ನು ತಿಳಿಯಿರಿ.",
+    },
+  },
+  [Intent.ANNADANA]: {
+    route: "/annadana",
+    buttonText: {
+      en: "Annadana (Free Meals)",
+      kn: "ಅನ್ನದಾನ (ಉಚಿತ ಊಟ)",
+    },
+    knowledgeCategory: "annadana",
+    description: {
+      en: "Learn about the free meal service (Annadana) at the temple.",
+      kn: "ದೇವಸ್ಥಾನದಲ್ಲಿನ ಉಚಿತ ಊಟ ಸೇವೆ (ಅನ್ನದಾನ) ಬಗ್ಗೆ ತಿಳಿಯಿರಿ.",
+    },
+  },
+  [Intent.PRASADA]: {
+    route: "/prasada",
+    buttonText: {
+      en: "Prasada Information",
+      kn: "ಪ್ರಸಾದ ಮಾಹಿತಿ",
+    },
+    knowledgeCategory: "prasada",
+    description: {
+      en: "Information about prasada (sacred food) distribution.",
+      kn: "ಪ್ರಸಾದ (ಪವಿತ್ರ ಆಹಾರ) ವಿತರಣೆಯ ಬಗ್ಗೆ ಮಾಹಿತಿ.",
+    },
+  },
+  [Intent.COMMITTEE]: {
+    route: "/trust-committee",
+    buttonText: {
+      en: "Trust Committee",
+      kn: "ಟ್ರಸ್ಟ್ ಸಮಿತಿ",
+    },
+    knowledgeCategory: "committee",
+    description: {
+      en: "Meet the trust committee members and their roles.",
+      kn: "ಟ್ರಸ್ಟ್ ಸಮಿತಿ ಸದಸ್ಯರನ್ನು ಭೇಟಿಯಾಗಿ ಮತ್ತು ಅವರ ಪಾತ್ರಗಳನ್ನು ತಿಳಿಯಿರಿ.",
+    },
+  },
+  [Intent.OFFICE_HOURS]: {
+    route: "/contact",
+    buttonText: {
+      en: "Office Hours",
+      kn: "ಕಛೇರಿ ಸಮಯ",
+    },
+    knowledgeCategory: "office_hours",
+    description: {
+      en: "Temple office hours and administrative contact information.",
+      kn: "ದೇವಸ್ಥಾನ ಕಛೇರಿ ಸಮಯ ಮತ್ತು ಆಡಳಿತ ಸಂಪರ್ಕ ಮಾಹಿತಿ.",
+    },
+  },
+};
