@@ -4,10 +4,21 @@ import { getSystemPrompt } from "@/lib/ai/settings";
 import { generateFirebaseResponse, getTempleInfo } from "@/lib/ai/firebaseChat";
 import { AIMessage, ChatRequest, ChatResponse } from "@/types/ai";
 
+// Import hybrid response generator
+import {
+  generateResponse,
+  detectIntent,
+  logLowConfidenceQuestion,
+  Intent,
+} from "@/lib/ai";
+
 // Rate limiting (simple in-memory implementation)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT = 20; // requests per minute
 const RATE_WINDOW = 60 * 1000; // 1 minute in milliseconds
+
+// Feature flag for hybrid mode
+const USE_HYBRID_MODE = process.env.AI_HYBRID_MODE !== "false"; // Default to hybrid mode
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -96,44 +107,108 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Chat API] [${requestId}] Processing message: "${lastUserMessage.content.substring(0, 50)}..."`);
 
-    // Try AI provider first, fallback to Firebase
-    const provider = getAIProvider();
-    let responseMessage: AIMessage;
-    let responseSource: "ai" | "firebase" = "ai";
+    // Determine response language from message
+    const responseLanguage = detectedLanguage || 
+      (lastUserMessage.content.includes("ಕನ್ನಡ") || /[\u0C80-\u0CFF]/.test(lastUserMessage.content) ? "kn" : "en");
 
-    if (provider.isConfigured()) {
-      // Use AI provider with configurable system prompt
-      console.log(`[Chat API] [${requestId}] Using AI provider: ${provider.getProviderName()} (model: ${provider.getModelName()})`);
+    let responseMessage: AIMessage | undefined;
+    let responseSource: "hybrid" | "ai" | "firebase" = "hybrid";
+
+    // Try hybrid mode first (uses structured retrieval)
+    if (USE_HYBRID_MODE) {
+      console.log(`[Chat API] [${requestId}] Using HYBRID mode (structured retrieval + LLM fallback)`);
 
       try {
-        const aiMessages: AIMessage[] = messages.map((msg) => ({
-          id: msg.id || crypto.randomUUID(),
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-          timestamp: msg.timestamp || Date.now(),
-        }));
-
-        // Get system prompt from Firebase (or defaults)
-        const systemPrompt = await getSystemPrompt();
-        console.log(`[Chat API] [${requestId}] System prompt length: ${systemPrompt.length} chars`);
-
-        const responseContent = await provider.generateResponse(aiMessages, systemPrompt);
-        const latency = Date.now() - startTime;
-
-        console.log(`[Chat API] [${requestId}] AI response generated in ${latency}ms (${responseContent.length} chars)`);
+        const result = await generateResponse(lastUserMessage.content);
+        
+        console.log(`[Chat API] [${requestId}] Hybrid response generated:`, {
+          intent: result.intent,
+          confidence: result.confidence,
+          source: result.source,
+          usesLLM: result.usesLLM,
+        });
 
         responseMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: responseContent,
+          content: result.content,
           timestamp: Date.now(),
-          model: provider.getModelName(),
-          latency,
+          detectedLanguage: result.language,
         };
-      } catch (aiError) {
-        // AI call failed, log and fallback to Firebase
-        logError("AI provider call", aiError, { requestId, provider: provider.getProviderName() });
-        console.log(`[Chat API] [${requestId}] Falling back to Firebase due to AI error`);
+
+        // Log low confidence responses for review
+        if (result.confidence < 50) {
+          await logLowConfidenceQuestion(
+            lastUserMessage.content,
+            sessionId || crypto.randomUUID(),
+            result.intent,
+            result.confidence,
+            result.source,
+            result.language
+          );
+        }
+
+        responseSource = "hybrid";
+      } catch (hybridError) {
+        logError("Hybrid generation", hybridError, { requestId });
+        console.log(`[Chat API] [${requestId}] Hybrid failed, falling back to AI provider`);
+        
+        // Fall through to AI provider or Firebase
+        responseSource = "ai";
+      }
+    }
+
+    // If hybrid didn't work or is disabled, try AI provider
+    if (responseSource !== "hybrid") {
+      const provider = getAIProvider();
+
+      if (provider.isConfigured()) {
+        console.log(`[Chat API] [${requestId}] Using AI provider: ${provider.getProviderName()} (model: ${provider.getModelName()})`);
+
+        try {
+          const aiMessages: AIMessage[] = messages.map((msg) => ({
+            id: msg.id || crypto.randomUUID(),
+            role: msg.role as "user" | "assistant",
+            content: msg.content,
+            timestamp: msg.timestamp || Date.now(),
+          }));
+
+          // Get system prompt from Firebase (or defaults)
+          const systemPrompt = await getSystemPrompt();
+          console.log(`[Chat API] [${requestId}] System prompt length: ${systemPrompt.length} chars`);
+
+          const responseContent = await provider.generateResponse(aiMessages, systemPrompt);
+          const latency = Date.now() - startTime;
+
+          console.log(`[Chat API] [${requestId}] AI response generated in ${latency}ms (${responseContent.length} chars)`);
+
+          responseMessage = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: responseContent,
+            timestamp: Date.now(),
+            model: provider.getModelName(),
+            latency,
+          };
+        } catch (aiError) {
+          // AI call failed, log and fallback to Firebase
+          logError("AI provider call", aiError, { requestId, provider: provider.getProviderName() });
+          console.log(`[Chat API] [${requestId}] Falling back to Firebase due to AI error`);
+          
+          // Get temple info from Firebase
+          const templeInfo = await getTempleInfo();
+          
+          // Generate response using Firebase data
+          responseMessage = await generateFirebaseResponse(
+            lastUserMessage.content,
+            templeInfo,
+            responseLanguage as "en" | "kn" | "mixed"
+          );
+          responseSource = "firebase";
+        }
+      } else {
+        // AI not configured, use Firebase-based response
+        console.log(`[Chat API] [${requestId}] AI not configured (placeholder key or missing config), using Firebase fallback`);
         
         // Get temple info from Firebase
         const templeInfo = await getTempleInfo();
@@ -142,31 +217,17 @@ export async function POST(request: NextRequest) {
         responseMessage = await generateFirebaseResponse(
           lastUserMessage.content,
           templeInfo,
-          detectedLanguage || "en"
+          responseLanguage as "en" | "kn" | "mixed"
         );
         responseSource = "firebase";
       }
-    } else {
-      // AI not configured, use Firebase-based response
-      console.log(`[Chat API] [${requestId}] AI not configured (placeholder key or missing config), using Firebase fallback`);
-      
-      // Get temple info from Firebase
-      const templeInfo = await getTempleInfo();
-      
-      // Generate response using Firebase data
-      responseMessage = await generateFirebaseResponse(
-        lastUserMessage.content,
-        templeInfo,
-        detectedLanguage || "en"
-      );
-      responseSource = "firebase";
     }
 
     const totalLatency = Date.now() - startTime;
     console.log(`[Chat API] [${requestId}] Total request time: ${totalLatency}ms (source: ${responseSource})`);
 
     const response: ChatResponse = {
-      message: responseMessage,
+      message: responseMessage!,
       sessionId: sessionId || crypto.randomUUID(),
     };
 
@@ -224,6 +285,7 @@ export async function GET() {
     provider: provider.getProviderName(),
     configured: provider.isConfigured(),
     model: provider.getModelName(),
+    hybridMode: USE_HYBRID_MODE,
     timestamp: Date.now(),
   });
 }
