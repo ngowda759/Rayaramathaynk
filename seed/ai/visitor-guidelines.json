@@ -1,16 +1,14 @@
 {
-  "guidelines": "Remove footwear before entering. Maintain silence and decorum inside the temple.",
-  "dressCode": "Traditional attire preferred. Saree, Kurta, Dhoti recommended.",
-  "photographyPolicy": "Photography not allowed inside sanctum. Flash photography prohibited.",
-  "parking": "Free parking available at main and east entrances.",
-  "facilities": "Wheelchair access, drinking water, restrooms available.",
-  "wheelchairAccess": "Wheelchair access at main entrance with ramps.",
-  "drinkingWater": "RO water available near entrance and Annadanam hall.",
-  "restrooms": "Available near entrance and parking area.",
-  "prasada": "Prasada available at counter near exit after darshan.",
-  "annadanam": "Free meals (Annadanam) available at designated hall. Timings: 12:00 PM - 2:00 PM",
-  "accommodation": "Guest house available. Contact office for booking.",
-  "volunteerInfo": "Contact temple office to join volunteer program.",
-  "testimonials": "Share your spiritual experience at the temple.",
-  "contact": "Phone: +91-80-28446400, Email: info@raghavendramatha.org"
+  "slug": "visitor-guidelines",
+  "title": "Visitor Guidelines",
+  "category": "visitor-guidelines",
+  "language": "en",
+  "keywords": ["guidelines", "rules", "visit", "etiquette", "conduct", "behavior", "tips"],
+  "summary": "Guidelines and etiquette for visitors to Sri Raghavendra Swamy Matha.",
+  "content": "Sri Raghavendra Swamy Matha welcomes all devotees and visitors. To ensure a peaceful and meaningful experience for everyone, please observe the following guidelines:\n\n**General Conduct**\n- Remove footwear before entering the temple premises\n- Maintain silence and decorum inside the temple\n- Speak softly if conversation is necessary\n- Switch mobile phones to silent mode\n- Refrain from eating inside the temple\n\n**Temple Respect**\n- Bow before entering the sanctum\n- Offer prayers with devotion and sincerity\n- Do not touch the idol without permission\n- Maintain queue discipline during darshan\n- Respect the sanctity of the shrine\n\n**Queue System**\n- Follow instructions from temple staff\n- Special queues available for senior citizens and differently-abled\n- Maintain patience during peak hours\n\n**Children**\n- Supervise children at all times\n- Keep children calm during darshan\n- Explain temple etiquette to young ones\n- Festival activities may be available for children\n\n**Prasada Etiquette**\n- Accept prasada with both hands or on a plate\n- Do not touch prasada with lips or teeth\n- Prasad is sacred - handle with respect\n\n**What to Bring**\n- Traditional attire\n- Flowers or offerings (available at counter)\n- ID proof if needed for specific services\n- Camera (outside sanctum only)\n\n**Emergency**\n- First aid available - contact staff\n- Emergency exits clearly marked\n- Staff available to assist\n\nThank you for helping maintain the sacred atmosphere of the temple.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["guidelines", "rules", "visit", "etiquette", "conduct", "tips"]
 }

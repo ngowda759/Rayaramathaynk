@@ -1,43 +1,14 @@
 {
+  "slug": "temple-facilities",
   "title": "Temple Facilities",
   "category": "facilities",
-  "content": "Sri Raghavendra Swamy Matha provides various facilities for the convenience of devotees and visitors.",
-  "facilities": [
-    {
-      "name": "Wheelchair Access",
-      "description": "Wheelchair access available at the main entrance with ramps",
-      "available": true
-    },
-    {
-      "name": "Drinking Water",
-      "description": "RO purified water available near the entrance and Annadanam hall",
-      "available": true
-    },
-    {
-      "name": "Restrooms",
-      "description": "Clean restrooms available near the entrance and parking area",
-      "available": true
-    },
-    {
-      "name": "Parking",
-      "description": "Free parking available at main entrance and east entrance",
-      "available": true
-    },
-    {
-      "name": "Annadanam Hall",
-      "description": "Free meals served daily to devotees",
-      "timings": "12:00 PM - 2:00 PM"
-    },
-    {
-      "name": "Guest House",
-      "description": "Accommodation available for devotees. Contact office for booking",
-      "available": true
-    },
-    {
-      "name": "Prasada Counter",
-      "description": "Prasada available at counter near exit after darshan",
-      "available": true
-    }
-  ],
-  "published": true
+  "language": "en",
+  "keywords": ["facilities", "amenities", "services", "convenience", "wheelchair", "water", "restroom", "parking"],
+  "summary": "Facilities and amenities available at Sri Raghavendra Swamy Matha for devotees.",
+  "content": "Sri Raghavendra Swamy Matha is dedicated to providing a sacred, serene, and well-equipped environment for all devotees. The following facilities are available:\n\n**Accessibility**\n- Wheelchair accessible premises with ramps at main entrance\n- Special assistance available upon request\n\n**Basic Amenities**\n- Clean drinking water (RO purified) near entrance and Annadanam hall\n- Clean restrooms near entrance and parking area\n- First aid facility available\n\n**Dining**\n- Annadanam Hall: Free meals served to devotees (timings available at the hall)\n- Food prepared following traditional methods\n- Pure vegetarian meals maintained in madi\n\n**Spiritual Facilities**\n- Homa and Seva facilities for various rituals\n- Experienced Purohits available for guidance\n- Multiple halls for family events and ceremonies\n\n**Other Services**\n- Prasada counter near exit after darshan\n- Shoe stands near entrance\n- Lost and Found: Contact temple staff if you lose or find items\n\nFor information about specific facilities or special requirements, please contact the temple office.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["facilities", "amenities", "services", "wheelchair", "water", "restroom"]
 }

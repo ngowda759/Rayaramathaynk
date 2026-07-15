@@ -1,35 +1,14 @@
 {
+  "slug": "volunteer-program",
   "title": "Volunteer Program",
   "category": "volunteer",
-  "content": "Join the volunteer program at Sri Raghavendra Swamy Matha and serve the divine cause.",
-  "opportunities": [
-    {
-      "role": "Seva Volunteer",
-      "description": "Help in daily poojas, cleaning, and maintenance"
-    },
-    {
-      "role": "Annadanam Volunteer",
-      "description": "Assist in serving food during Annadanam"
-    },
-    {
-      "role": "Prasada Distribution",
-      "description": "Help in distributing prasada to devotees"
-    },
-    {
-      "role": "Guide Volunteer",
-      "description": "Guide devotees and explain temple history"
-    },
-    {
-      "role": "Event Volunteer",
-      "description": "Help during festivals and special occasions"
-    }
-  ],
-  "requirements": [
-    "Must be 18 years or above",
-    "Should maintain decorum and follow temple rules",
-    "Must be willing to work in shifts",
-    "Traditional attire preferred"
-  ],
-  "contact": "Contact temple office for volunteer registration",
-  "published": true
+  "language": "en",
+  "keywords": ["volunteer", "serve", "seva", "help", "contribute", "join", "support"],
+  "summary": "Volunteer opportunities at Sri Raghavendra Swamy Matha.",
+  "content": "Join the volunteer program at Sri Raghavendra Swamy Matha and serve the divine cause. Volunteers play a vital role in maintaining the temple operations and serving devotees.\n\n**Volunteer Opportunities**\n- Seva Volunteer: Help with daily poojas, temple cleaning, and maintenance\n- Annadanam Volunteer: Assist in serving food during the free meal program\n- Prasada Distribution: Help in distributing prasada to devotees\n- Guide Volunteer: Guide devotees and explain temple facilities\n- Event Volunteer: Help during festivals and special occasions\n- Administrative Support: Help with temple office tasks\n\n**Benefits of Volunteering**\n- Earn punya through service to the divine\n- Learn about temple traditions and rituals\n- Meet fellow devotees and make friends\n- Be part of a compassionate community\n- Develop new skills\n\n**Requirements**\n- Must be 18 years or above\n- Should maintain decorum and follow temple rules\n- Must be willing to work in shifts\n- Traditional attire preferred during service\n- Commitment to serve with devotion\n\n**How to Join**\nPlease contact the temple office for volunteer registration. The office staff will guide you through the process and help you find a suitable volunteer role based on your interests and availability.\n\n**Contact**\nPhone: +91-80-28446400\nEmail: info@raghavendramatha.org\n\nWe welcome all devotees who wish to serve with dedication and devotion.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["volunteer", "seva", "service", "help", "contribute"]
 }

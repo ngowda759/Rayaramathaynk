@@ -54,29 +54,31 @@ describe("Knowledge Bootstrap System", () => {
       }
     });
 
-    it("each seed file should have required fields (title, category, content)", () => {
+    it("each seed file should have required fields (slug, title, category, content)", () => {
       const files = getSeedFiles();
       expect(files.length).toBeGreaterThan(0);
       
-      // Check first file has title
+      // Check first file has required fields
       const filePath = path.join(SEED_DIR, files[0]);
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
+      expect(data).toHaveProperty("slug");
       expect(data).toHaveProperty("title");
       expect(data).toHaveProperty("category");
       expect(data).toHaveProperty("content");
+      expect(data).toHaveProperty("approved");
+      expect(data).toHaveProperty("version");
     });
 
-    it("each seed file should have published flag", () => {
+    it("each seed file should have approved flag set to true", () => {
       const files = getSeedFiles();
       expect(files.length).toBeGreaterThan(0);
       
-      // Check first file has published
+      // Check first file has approved = true
       const filePath = path.join(SEED_DIR, files[0]);
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
-      expect(data).toHaveProperty("published");
-      expect(typeof data.published).toBe("boolean");
+      expect(data.approved).toBe(true);
     });
   });
 
@@ -162,16 +164,17 @@ describe("Knowledge Bootstrap System", () => {
   });
 
   describe("Seed File Content Quality", () => {
-    it("temple-timings should have proper structure with timings", () => {
+    it("temple-timings should have content with timing info", () => {
       const filePath = path.join(SEED_DIR, "temple-timings.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.timings).toBeDefined();
-      expect(data.timings.morningOpen).toBeDefined();
-      expect(data.timings.morningClose).toBeDefined();
-      expect(data.timings.eveningOpen).toBeDefined();
-      expect(data.timings.eveningClose).toBeDefined();
+      expect(data.content).toBeDefined();
+      // Check that morning and evening timings are in content
+      expect(data.content).toContain("6:00 AM");
+      expect(data.content).toContain("12:30 PM");
+      expect(data.content).toContain("5:00 PM");
+      expect(data.content).toContain("8:30 PM");
     });
 
     it("faq should have questions array", () => {
@@ -184,103 +187,109 @@ describe("Knowledge Bootstrap System", () => {
       expect(data.questions.length).toBeGreaterThan(0);
     });
 
-    it("contact should have contact information", () => {
+    it("contact should have content with contact info", () => {
       const filePath = path.join(SEED_DIR, "contact.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.contact).toBeDefined();
-      expect(data.contact.phone).toBeDefined();
-      expect(data.contact.email).toBeDefined();
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
+      // Check that phone and email are mentioned in content
+      expect(data.content).toContain("+91-80-28446400");
+      expect(data.content).toContain("info@raghavendramatha.org");
     });
 
-    it("dress-code should have guidelines array", () => {
+    it("dress-code should have content", () => {
       const filePath = path.join(SEED_DIR, "dress-code.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.guidelines).toBeDefined();
-      expect(Array.isArray(data.guidelines)).toBe(true);
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("facilities should have facilities array", () => {
+    it("facilities should have content", () => {
       const filePath = path.join(SEED_DIR, "facilities.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.facilities).toBeDefined();
-      expect(Array.isArray(data.facilities)).toBe(true);
-      expect(data.facilities.length).toBeGreaterThan(0);
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("volunteer should have opportunities array", () => {
+    it("volunteer should have content", () => {
       const filePath = path.join(SEED_DIR, "volunteer.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.opportunities).toBeDefined();
-      expect(Array.isArray(data.opportunities)).toBe(true);
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("parking should have parking information", () => {
+    it("parking should have content", () => {
       const filePath = path.join(SEED_DIR, "parking.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.parking).toBeDefined();
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("donation should have donation options", () => {
+    it("donation should have content", () => {
       const filePath = path.join(SEED_DIR, "donation.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.donationOptions).toBeDefined();
-      expect(Array.isArray(data.donationOptions)).toBe(true);
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("photography should have photography policy", () => {
+    it("photography should have content", () => {
       const filePath = path.join(SEED_DIR, "photography.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.policy).toBeDefined();
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("accommodation should have accommodation info", () => {
+    it("accommodation should have content", () => {
       const filePath = path.join(SEED_DIR, "accommodation.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.accommodation).toBeDefined();
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("history should have timeline", () => {
+    it("history should have summary and content", () => {
       const filePath = path.join(SEED_DIR, "history.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.timeline).toBeDefined();
-      expect(Array.isArray(data.timeline)).toBe(true);
+      expect(data.summary).toBeDefined();
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
 
-    it("raghavendra-swamy should have biography", () => {
+    it("raghavendra-swamy should have keywords for SEO", () => {
       const filePath = path.join(SEED_DIR, "raghavendra-swamy.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.biography).toBeDefined();
-      expect(data.biography.birth).toBeDefined();
-      expect(data.biography.death).toBeDefined();
+      expect(data.keywords).toBeDefined();
+      expect(Array.isArray(data.keywords)).toBe(true);
+      expect(data.keywords.length).toBeGreaterThan(0);
     });
 
-    it("brindavana should have rituals array", () => {
+    it("brindavana should have summary and content", () => {
       const filePath = path.join(SEED_DIR, "brindavana.json");
       const content = fs.readFileSync(filePath, "utf-8");
       const data = JSON.parse(content);
       
-      expect(data.rituals).toBeDefined();
-      expect(Array.isArray(data.rituals)).toBe(true);
+      expect(data.summary).toBeDefined();
+      expect(data.content).toBeDefined();
+      expect(data.content.length).toBeGreaterThan(100);
     });
   });
 

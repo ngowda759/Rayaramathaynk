@@ -1,22 +1,14 @@
 {
+  "slug": "parking-information",
   "title": "Parking Information",
   "category": "parking",
-  "content": "Parking facilities are available for devotees visiting Sri Raghavendra Swamy Matha.",
-  "parking": {
-    "mainEntrance": {
-      "location": "Near Main Gate",
-      "type": "Two-wheeler and Four-wheeler",
-      "availability": "Free",
-      "capacity": "50 cars, 100 two-wheelers"
-    },
-    "eastEntrance": {
-      "location": "East Gate",
-      "type": "Two-wheeler and Four-wheeler",
-      "availability": "Free",
-      "capacity": "30 cars, 75 two-wheelers"
-    }
-  },
-  "tips": "During festivals and special occasions, parking fills up quickly. Public transport or auto-rickshaws are recommended during peak times.",
-  "publicTransport": "BMTC buses available from Yelahanka New Town bus stand",
-  "published": true
+  "language": "en",
+  "keywords": ["parking", "car", "vehicle", "transport", "drive", "park", "car entry"],
+  "summary": "Parking facilities and transportation information for visiting Sri Raghavendra Swamy Matha.",
+  "content": "Parking facilities are available for devotees visiting Sri Raghavendra Swamy Matha.\n\n**Parking Availability**\nParking is available near the temple premises. Please inquire at the entrance for current parking locations and availability.\n\n**Parking Tips**\n- During weekdays, parking is generally easier to find\n- During weekends and festivals, parking fills up quickly\n- Arrive early for special occasions and festivals\n- Follow instructions from parking attendants\n\n**Alternative Transportation**\n- Auto-rickshaws are readily available in Yelahanka area\n- Public buses (BMTC) operate from Yelahanka New Town bus stand\n- Taxi services and ride-sharing apps are available\n\n**During Festivals**\nDuring major festivals and special occasions, the temple may arrange additional parking areas. Please follow guidance from temple staff and volunteers.\n\n**General Tips**\n- Secure your vehicle\n- Do not leave valuables in parked vehicles\n- Follow traffic rules and signs\n- Be patient during peak times\n\nFor current parking information and any specific guidance, please contact the temple office.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["parking", "vehicle", "transport", "car", "travel"]
 }

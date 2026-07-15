@@ -1,32 +1,14 @@
 {
+  "slug": "accommodation-facilities",
   "title": "Accommodation Facilities",
   "category": "accommodation",
-  "content": "Guest house and accommodation facilities available for devotees at Sri Raghavendra Swamy Matha.",
-  "accommodation": {
-    "guestHouse": {
-      "available": true,
-      "rooms": "AC and Non-AC rooms available",
-      "booking": "Contact temple office or book online",
-      "rates": "Nominal rates for devotees"
-    },
-    "dormitory": {
-      "available": true,
-      "description": "Free dormitory accommodation for pilgrims",
-      "facilities": "Basic amenities provided"
-    }
-  },
-  "bookingProcess": [
-    "Contact temple office by phone or email",
-    "Provide your visit dates and number of occupants",
-    "Confirm your booking",
-    "Collect keys at the reception on arrival"
-  ],
-  "rules": [
-    "Maintain cleanliness",
-    "Follow temple timings",
-    "No smoking or alcohol",
-    "Respect other devotees"
-  ],
-  "contact": "Phone: +91-80-28446400, Email: info@raghavendramatha.org",
-  "published": true
+  "language": "en",
+  "keywords": ["accommodation", "guest house", "rooms", "stay", "lodging", "dormitory", "hostel"],
+  "summary": "Information about accommodation facilities available at Sri Raghavendra Swamy Matha for devotees visiting the temple.",
+  "content": "Sri Raghavendra Swamy Matha provides accommodation facilities for devotees visiting the temple. These facilities are designed to offer a comfortable stay while maintaining the spiritual atmosphere of the Matha.\n\n**Booking Information**\nPlease contact the temple office regarding accommodation availability, booking procedures, and current rates. The office staff will assist you with all arrangements.\n\n**General Guidelines**\n- Maintain cleanliness within the accommodation premises\n- Follow temple timings and daily schedule\n- Smoking and alcohol are strictly prohibited\n- Maintain silence and decorum\n- Respect fellow devotees and staff\n\n**What to Bring**\n- Valid ID proof\n- Comfortable traditional clothing\n- Personal toiletries\n- Any special dietary requirements\n\nFor the most current information about accommodation availability and booking, please contact the temple office during working hours.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["accommodation", "guesthouse", "facilities", "lodging"]
 }

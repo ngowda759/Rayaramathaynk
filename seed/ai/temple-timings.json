@@ -1,58 +1,14 @@
 {
+  "slug": "temple-timings",
   "title": "Temple Timings",
   "category": "temple-timings",
-  "content": "Daily temple timings and schedule for darshan at Sri Raghavendra Swamy Matha.",
-  "timings": {
-    "morningOpen": "6:00 AM",
-    "morningClose": "12:30 PM",
-    "eveningOpen": "5:00 PM",
-    "eveningClose": "8:30 PM"
-  },
-  "specialTimings": {
-    "ekadashi": "5:30 AM - 9:00 PM (Extended hours)",
-    "festivals": "5:00 AM - 10:00 PM"
-  },
-  "contact": {
-    "phone": "+91-80-28446400",
-    "email": "info@raghavendramatha.org",
-    "address": "Sri Raghavendra Swamy Matha, Yelahanka New Town, Bengaluru - 560064, Karnataka, India",
-    "googleMapsUrl": "https://maps.google.com/?q=Sri+Raghavendra+Swamy+Matha+Yelahanka"
-  },
-  "officeHours": {
-    "weekday": "9:00 AM - 5:00 PM",
-    "weekend": "10:00 AM - 4:00 PM"
-  },
-  "poojaSchedule": [
-    {
-      "name": "Suprabatha",
-      "time": "5:30 AM",
-      "description": "Morning wake-up prayer"
-    },
-    {
-      "name": "Sanga Bhashya",
-      "time": "7:00 AM",
-      "description": "Morning discourse"
-    },
-    {
-      "name": "Maharudra Abhishekam",
-      "time": "9:00 AM",
-      "description": "Sacred bath ceremony"
-    },
-    {
-      "name": "Sarvajna Puje",
-      "time": "12:00 PM",
-      "description": "Noon puja"
-    },
-    {
-      "name": "Maha Puje",
-      "time": "7:00 PM",
-      "description": "Evening puja"
-    },
-    {
-      "name": "Ekjala Seva",
-      "time": "8:00 PM",
-      "description": "Night service"
-    }
-  ],
-  "published": true
+  "language": "en",
+  "keywords": ["timings", "schedule", "hours", "darshan", "open", "close", "when to visit"],
+  "summary": "Daily temple timings and darshan schedule at Sri Raghavendra Swamy Matha.",
+  "content": "**Daily Temple Timings**\n\nMorning: 6:00 AM - 12:30 PM\nEvening: 5:00 PM - 8:30 PM\n\n**Daily Pooja Schedule**\nPlease contact the temple office for the current daily pooja schedule, including Suprabhata (morning prayer), daily discourses, noon puja, and evening puja.\n\n**Office Hours**\nMonday to Friday: 9:00 AM - 5:00 PM\nSaturday and Sunday: 10:00 AM - 4:00 PM\n\n**Special Days**\n- Ekadashi days and festivals may have extended hours\n- During major festivals, timings may be from early morning to late evening\n- Please contact the temple office for specific timings during special occasions\n\n**Best Time to Visit**\n- Weekdays are generally less crowded\n- Early morning hours (6-8 AM) offer a peaceful darshan\n- During weekends and festivals, expect larger crowds\n\n**Contact**\nFor current timings and schedules, please contact:\nPhone: +91-80-28446400\nEmail: info@raghavendramatha.org",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["timings", "schedule", "darshan", "hours", "pooja"]
 }
