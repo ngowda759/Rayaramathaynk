@@ -14,19 +14,47 @@ import {
   IntentSettings,
   IntentMetadata,
   UnknownQuestion,
+  DEFAULT_AI_BEHAVIOR_SETTINGS,
+  DEFAULT_AI_RESPONSES,
+  DEFAULT_TEMPLE_INFORMATION,
+  DEFAULT_TEMPLE_POLICIES,
+  DEFAULT_VISITOR_INFORMATION,
 } from "@/types/ai-settings";
 
 export class AISettingsService {
   // ==================== SETTINGS ====================
 
   async getAISettings(): Promise<AISettings> {
-    let settings = await aiSettingsRepository.getSettings();
+    try {
+      let settings = await aiSettingsRepository.getSettings();
 
-    if (!settings) {
-      settings = await aiSettingsRepository.createDefaultSettings("system");
+      if (!settings) {
+        settings = await aiSettingsRepository.createDefaultSettings("system");
+      }
+
+      return settings;
+    } catch (error) {
+      console.warn("Failed to get AI settings from Firebase, using defaults:", error);
+      // Return default settings when Firebase is not available
+      return {
+        id: "main",
+        templeInformation: DEFAULT_TEMPLE_INFORMATION,
+        visitorInformation: DEFAULT_VISITOR_INFORMATION,
+        templePolicies: DEFAULT_TEMPLE_POLICIES,
+        aiResponses: DEFAULT_AI_RESPONSES,
+        aiBehavior: DEFAULT_AI_BEHAVIOR_SETTINGS,
+        prompt: {
+          currentPromptId: "",
+          versions: [],
+          defaultPrompt: "",
+        },
+        intents: {
+          intents: [],
+        },
+        updatedAt: new Date(),
+        updatedBy: "system",
+      };
     }
-
-    return settings;
   }
 
   async ensureSettingsExist(userId: string): Promise<AISettings> {
