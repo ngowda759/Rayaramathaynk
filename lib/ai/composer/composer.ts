@@ -101,7 +101,7 @@ export class ResponseComposer {
       text = repositoryData;
       responseSource = "repository";
     } else if (relatedArticles.length > 0 && meetsThreshold) {
-      text = this.buildKnowledgeResponse(relatedArticles[0], language);
+      text = this.buildKnowledgeResponse(relatedArticles[0]);
       responseSource = "knowledge_base";
     } else if (meetsThreshold) {
       // Generate response from AI
@@ -225,10 +225,7 @@ export class ResponseComposer {
   /**
    * Build response from knowledge article
    */
-  private buildKnowledgeResponse(
-    article: KnowledgeArticle,
-    _language: "en" | "kn" | "mixed"
-  ): string {
+  private buildKnowledgeResponse(article: KnowledgeArticle): string {
     // Knowledge articles have a single content string
     // The language field indicates the primary language
     return article.content;
