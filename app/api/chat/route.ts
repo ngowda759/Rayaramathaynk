@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
 
     let responseMessage: AIMessage | undefined;
     let responseSource: "hybrid" | "ai" | "firebase" = "hybrid";
+    let lastResult: { intent?: string; confidence?: number; source?: string } | undefined;
 
     // Try hybrid mode first (uses structured retrieval)
     if (USE_HYBRID_MODE) {
@@ -135,6 +136,9 @@ export async function POST(request: NextRequest) {
           timestamp: Date.now(),
           detectedLanguage: result.language,
         };
+
+        // Store result for debug info
+        lastResult = result;
 
         // Log low confidence responses for review
         if (result.confidence < 50) {
@@ -235,7 +239,7 @@ export async function POST(request: NextRequest) {
     const totalLatency = Date.now() - startTime;
     console.log(`[Chat API] [${requestId}] Total request time: ${totalLatency}ms (source: ${responseSource})`);
 
-    // Include debug metadata if requested via query param
+    // Include enhanced debug metadata if requested via query param
     const url = new URL(request.url || 'http://localhost');
     const isDebug = url.searchParams.get('debug') === 'true';
     
@@ -244,8 +248,23 @@ export async function POST(request: NextRequest) {
       sessionId: sessionId || crypto.randomUUID(),
       ...(isDebug && {
         _debug: {
+          // Response metadata
           responseSource,
-          latency: totalLatency,
+          intent: lastResult?.intent,
+          confidence: lastResult?.confidence,
+          detectionSource: lastResult?.source,
+          // Timing breakdown
+          latency: {
+            total: totalLatency,
+            repository: lastResult?.source === 'repository' ? totalLatency : undefined,
+            knowledge: lastResult?.source === 'knowledge_base' ? totalLatency : undefined,
+            llm: lastResult?.source === 'llm' ? totalLatency : undefined,
+          },
+          // Source attribution
+          sources: {
+            primary: responseSource,
+            repository: responseSource === 'hybrid' || responseSource === 'repository' ? 'settings' : undefined,
+          }
         }
       })
     };
