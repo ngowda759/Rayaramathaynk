@@ -101,12 +101,20 @@ export default function AdminAIPage() {
 
   const menuItems = [
     {
-      title: "Chat Training",
-      description: "Manage AI responses and training data",
+      title: "AI Test Playground",
+      description: "Test chatbot responses with different questions",
       icon: Brain,
-      href: "/admin/ai/training",
+      href: "/admin/ai/playground",
       count: null,
       color: "bg-indigo-500",
+    },
+    {
+      title: "Chat Training",
+      description: "Manage AI responses and training data",
+      icon: MessageSquare,
+      href: "/admin/ai/training",
+      count: null,
+      color: "bg-violet-500",
     },
     {
       title: "Testimonials",
