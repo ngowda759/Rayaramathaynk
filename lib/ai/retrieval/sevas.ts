@@ -12,6 +12,84 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Seed data for sevas (used when Firebase is not configured or has no sevas)
+ */
+const SEED_SEVAS: TempleSeva[] = [
+  {
+    id: "seva-1",
+    name: "Supahara Seva",
+    description: "General offering to the deity",
+    category: "Daily",
+    amount: 51,
+    duration: 15,
+    active: true,
+  },
+  {
+    id: "seva-2",
+    name: "Sundaraarchane",
+    description: "Special puja with flowers and camphor",
+    category: "Daily",
+    amount: 101,
+    duration: 30,
+    active: true,
+  },
+  {
+    id: "seva-3",
+    name: "Mahapuja",
+    description: "Grand puja with all ritual items",
+    category: "Special",
+    amount: 501,
+    duration: 60,
+    active: true,
+  },
+  {
+    id: "seva-4",
+    name: "Sahasranamarchane",
+    description: "Recitation of 1000 names of the deity",
+    category: "Special",
+    amount: 251,
+    duration: 45,
+    active: true,
+  },
+  {
+    id: "seva-5",
+    name: "Namaparayana",
+    description: "Collective recitation of divine names",
+    category: "Daily",
+    amount: 0,
+    duration: 30,
+    active: true,
+  },
+  {
+    id: "seva-6",
+    name: "Archane",
+    description: "Individual puja with priest chanting your name",
+    category: "Daily",
+    amount: 25,
+    duration: 15,
+    active: true,
+  },
+  {
+    id: "seva-7",
+    name: "Tirthe Prasada",
+    description: "Sacred water and prasada distribution",
+    category: "Daily",
+    amount: 0,
+    duration: 5,
+    active: true,
+  },
+  {
+    id: "seva-8",
+    name: "Astothara Seva",
+    description: "108 names puja with special offerings",
+    category: "Special",
+    amount: 151,
+    duration: 45,
+    active: true,
+  },
+];
+
+/**
  * Convert Firebase doc to TempleSeva
  */
 function docToSeva(doc: DocumentData): TempleSeva | null {
@@ -38,7 +116,8 @@ function docToSeva(doc: DocumentData): TempleSeva | null {
  */
 async function fetchFromFirebase(): Promise<TempleSeva[]> {
   if (!isFirebaseConfigured() || !db) {
-    return [];
+    // Return seed data when Firebase is not configured
+    return SEED_SEVAS;
   }
 
   try {
@@ -58,10 +137,12 @@ async function fetchFromFirebase(): Promise<TempleSeva[]> {
       }
     });
     
-    return sevas;
+    // Return seed data if Firebase has no sevas
+    return sevas.length > 0 ? sevas : SEED_SEVAS;
   } catch (error) {
     console.error("[Sevas Retrieval] Error fetching sevas:", error);
-    return cachedSevas;
+    // Return seed data on error
+    return SEED_SEVAS;
   }
 }
 

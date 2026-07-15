@@ -57,17 +57,23 @@ ${article.content}
 }
 
 /**
- * Format multiple articles for AI context
+ * Format multiple articles for user response
  */
 export function formatArticlesForContext(articles: KnowledgeArticle[]): string {
   if (articles.length === 0) {
-    return "No relevant knowledge articles found.";
+    return "";
   }
 
-  let context = "**Knowledge Base Information:**\n\n";
+  let context = "";
 
   articles.forEach((article, index) => {
-    context += `${index + 1}. ${formatArticleForContext(article)}\n\n---\n\n`;
+    // Format each article in a user-friendly way
+    context += `**${article.title}**\n\n${article.content}\n\n`;
+    
+    // Add separator between articles (not after the last one)
+    if (index < articles.length - 1) {
+      context += `---\n\n`;
+    }
   });
 
   return context.trim();

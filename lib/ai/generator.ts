@@ -513,25 +513,12 @@ async function handleKnowledgeIntent(
   const { articles } = await getKnowledgeContext(query, 3);
   
   if (articles.length === 0) {
-    // Fallback to FAQ
-    const faqArticles = await getKnowledgeContext("faq question help", 3);
-    if (faqArticles.articles.length > 0) {
-      return {
-        content: formatArticlesForContext(faqArticles.articles),
-        intent: intent,
-        confidence: 50,
-        source: RetrievalType.KNOWLEDGE_BASE,
-        usesLLM: false,
-        language,
-      };
-    }
-    
     return {
       content: language === "en"
-        ? "I do not have specific information about this topic. Please contact the temple office for assistance."
+        ? "🙏 I do not have specific information about this topic. Please contact the temple office for assistance."
         : language === "kn"
-        ? "ಈ ವಿಷಯದ ಬಗ್ಗೆ ನಿರ್ದಿಷ್ಟ ಮಾಹಿತಿ ನನಗಿಲ್ಲ. ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ."
-        : "No specific info available. Please contact temple office.",
+        ? "🙏 ಈ ವಿಷಯದ ಬಗ್ಗೆ ನಿರ್ದಿಷ್ಟ ಮಾಹಿತಿ ನನಗಿಲ್ಲ. ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ."
+        : "🙏 No specific info available. Please contact temple office.",
       intent: intent,
       confidence: 0,
       source: RetrievalType.FALLBACK,
@@ -540,8 +527,15 @@ async function handleKnowledgeIntent(
     };
   }
   
+  // Format knowledge articles in a user-friendly way
+  const prefix = language === "en" 
+    ? "🙏 Here is some information:\n\n"
+    : language === "kn"
+    ? "🙏 ಇಲ್ಲಿ ಕೆಲವು ಮಾಹಿತಿ ಇದೆ:\n\n"
+    : "🙏 Here is some info / ಇಲ್ಲಿ ಮಾಹಿತಿ ಇದೆ:\n\n";
+  
   return {
-    content: formatArticlesForContext(articles),
+    content: prefix + formatArticlesForContext(articles),
     intent: intent,
     confidence: 80,
     source: RetrievalType.KNOWLEDGE_BASE,
