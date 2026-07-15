@@ -71,7 +71,114 @@ The Matha follows the traditions and teachings of Sri Raghavendra Swamy, continu
 Devotees can visit the Matha for daily poojas, special sevas, and during the annual Aaradhane Mahotsava.`
   ),
 
-  // ==================== SRI RAGHAVENDRA SWAMY ====================
+  // ==================== MADHWA PHILOSOPHY ====================
+  createArticle(
+    "Madhwa Philosophy - Dvaita Vedanta",
+    "madhwa_philosophy",
+    ["madhwa", "madhvacharya", "dvaita", "vedanta", "philosophy", "dualism", "ಮಾಧ್ವ", "ದ್ವೈತ"],
+    `Madhwa Philosophy, also known as Dvaita Vedanta, is one of the three major schools of Vedanta philosophy established by Sri Madhvacharya (1238–1317 CE).
+
+**About Madhvacharya:**
+Sri Madhvacharya (Madhava Vidyaranya) was born in 1238 CE in Uddike village in Karnataka. He was a great scholar who established the Dvaita (dualistic) school of Vedanta.
+
+**Core Teachings:**
+1. **Dualism:** God (Brahma/Vishnu), souls (Jeevatma), and matter (Jada) are eternally distinct.
+2. **God is Supreme:** Lord Vishnu is the supreme reality and ultimate goal of liberation.
+3. **Soul's Individuality:** Souls remain eternally distinct from God, even in liberation.
+4. **Devotion (Bhakti):** Liberation is achieved through surrender to God and devotion.
+5. **Works and Grace:** Both individual effort and divine grace are necessary for salvation.
+
+**Key Texts:**
+- Brahmasutras (Brahmasutra Bhashya)
+- Mahabharata Tatparya Nirnaya
+- Bhagavata Purana ( commentaries)
+- Brahma Sutra Bhashya
+
+**Difference from Other Schools:**
+- Advaita: Claims soul = God (non-dualism) - Madhva rejected this
+- Vishishtadvaita: Soul is part of God - Madhva rejected this
+- Dvaita: Soul ≠ God, eternally distinct - Madhva's view
+
+Sri Raghavendra Swamy was a follower of Madhwa philosophy and continued this tradition at Mantralaya.
+
+The temple follows Madhwa traditions including:
+- Daily Dvaita recitations
+- Madhwa festivals and celebrations
+- Propagation of Dvaita teachings
+- Services aligned with Madhwa principles`
+  ),
+
+  createArticle(
+    "Madhvacharya - Life and Teachings",
+    "madhwa_philosophy",
+    ["madhavacharya", "madhavacharya", "life", "biography", "guru", "ಮಾಧವಾಚಾರ್ಯ"],
+    `Sri Madhvacharya (1238–1317 CE) was the founder of Dvaita Vedanta philosophy and the spiritual preceptor lineage followed by Sri Raghavendra Swamy.
+
+**Birth and Early Life:**
+- Born in 1238 CE in Uddike village, near Dwaraka, Karnataka
+- His birth name was Vasudeva
+- Displayed exceptional scholarly abilities from childhood
+
+**Spiritual Journey:**
+- Became a disciple of Sri Adikesava Teertha
+- Received the title "Madhva" from his guru
+- Traveled across India debating with scholars
+
+**Major Works:**
+1. **Commentaries on Vedanta:** Brahmasutra Bhashya, Bhagavata Bhashya
+2. **Philosophical Treatises:** Anu Vyakhya, Nyaya Vivarana
+3. **Theological Works:** Vishnu Tattva Nirnaya, Mahabharata Tatparya Nirnaya
+
+**Teachings:**
+- God (Brahma) is the efficient and material cause of the universe
+- Souls are infinite in number, eternally distinct from God
+- Matter is real, not illusory
+- Liberation is release from worldly bondage and attainment of God
+- Bhakti (devotion) is the means to liberation
+
+**Legacy:**
+Madhvacharya established the Madhwa Matha at Dwaraka and left behind a lineage of guru-parampara that continues to this day. Sri Raghavendra Swamy was part of this parampara.
+
+The teachings of Madhvacharya are preserved and practiced at Sri Raghavendra Swamy Matha.`
+  ),
+
+  // ==================== BRINDAVANA ====================
+  createArticle(
+    "Brindavana - Sacred Final Resting Place",
+    "brindavana",
+    ["brindavana", "brindavan", "tomb", "samadhi", "resting place", "mantralaya", "ಬೃಂದಾವನ"],
+    `The Brindavana (Brindavan) of Sri Raghavendra Swamy is located at Mantralaya in Raichur district, Karnataka. This is the sacred final resting place where Swamiji attained Samadhi in 1672 CE.
+
+**About the Brindavana:**
+- Located at Mantralaya, Karnataka
+- The samadhi (tomb) is covered with a grand structure
+- Thousands of devotees visit daily, especially on Thursdays
+- The Brindavana is considered the most sacred spot for Raghavendra Swamy devotees
+
+**Mantralaya:**
+- Small town in Raichur district, Karnataka
+- Located on the banks of the river Krishna
+- Major pilgrimage center for Raghavendra Swamy devotees
+- Connected by road and rail
+
+**Significance:**
+- The Brindavana is believed to have miraculous powers
+- Devotees seek blessings for health, wealth, and spiritual progress
+- It is customary to visit Mantralaya at least once in a lifetime
+- The Aaradhane Mahotsava is conducted here annually
+
+**Visiting the Brindavana:**
+- Open all days, best time is early morning or evening
+- Special poojas are conducted on Fridays and Thursdays
+- Annadanam (free food) is served to all visitors
+- Accommodation is available near the temple
+
+**Brindavana at Yelahanka Matha:**
+Sri Raghavendra Swamy Matha, Yelahanka maintains the traditions and teachings of Mantralaya. The idol of Swamiji here is worshipped with same devotion as at Mantralaya.
+
+Devotees consider visiting the Brindavana at Mantralaya as highly auspicious and spiritually rewarding.`
+  ),
+
   createArticle(
     "Sri Raghavendra Swamy - Life and Teachings",
     "sri_raghavendra",
