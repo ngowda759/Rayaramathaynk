@@ -2,6 +2,8 @@ import { ReactNode, Suspense } from "react";
 import AdminShell from "@/components/admin/layout/AdminShell";
 import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 import { GoUpButton } from "@/components/ui/GoUpButton";
+import { AIChatProvider } from "@/components/ai/AIChatProvider";
+import { ChatWidget } from "@/components/ai/ChatWidget";
 
 interface Props {
   children: ReactNode;
@@ -21,14 +23,17 @@ function AdminLoading() {
 export default function AdminLayout({ children }: Props) {
   return (
     <Suspense fallback={<AdminLoading />}>
-      <AdminAuthGuard>
-        <AdminShell>
-          <main id="main-content" tabIndex={-1}>
-            {children}
-          </main>
-          <GoUpButton />
-        </AdminShell>
-      </AdminAuthGuard>
+      <AIChatProvider>
+        <AdminAuthGuard>
+          <AdminShell>
+            <main id="main-content" tabIndex={-1}>
+              {children}
+            </main>
+            <GoUpButton />
+            <ChatWidget />
+          </AdminShell>
+        </AdminAuthGuard>
+      </AIChatProvider>
     </Suspense>
   );
 }
