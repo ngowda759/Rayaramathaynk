@@ -1,5 +1,5 @@
 import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { SYSTEM_PROMPT, WELCOME_MESSAGE } from "./systemPrompt";
 
 // AI Settings stored in Firebase
@@ -7,7 +7,7 @@ export interface AISettings {
   systemPrompt: string;
   welcomeMessage: string;
   enabled: boolean;
-  updatedAt: any;
+  updatedAt: Timestamp | null;
 }
 
 // Default AI Settings

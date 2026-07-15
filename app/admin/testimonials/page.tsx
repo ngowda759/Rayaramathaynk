@@ -56,6 +56,8 @@ export default function TestimonialsPage() {
   }, []);
 
   useEffect(() => {
+    // Load testimonials on mount - this is intentional for initial data fetch
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTestimonials();
   }, [loadTestimonials]);
 
