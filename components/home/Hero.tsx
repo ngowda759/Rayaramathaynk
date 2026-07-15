@@ -11,7 +11,7 @@ import {
   Images,
   Star,
 } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 
 import TempleButton from "@/components/ui/TempleButton";
 import { useHomepage } from "@/hooks/useHomepage";
@@ -20,11 +20,11 @@ export default function Hero() {
   const { homepage, loading } = useHomepage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const scrollYProgress = useRef(new MotionValue(0)).current;
+  
+  // Create MotionValue using useMemo to avoid initialization during render
+  const scrollYProgress = useMemo(() => new MotionValue(0), []);
   
   useEffect(() => {
-    setIsMounted(true);
-    
     // Set up scroll tracking after mounting to avoid hydration errors
     const updateScroll = () => {
       if (containerRef.current) {
@@ -43,6 +43,9 @@ export default function Hero() {
     
     window.addEventListener('scroll', updateScroll, { passive: true });
     updateScroll();
+    // Mark as mounted after initial setup
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMounted(true);
     
     return () => {
       window.removeEventListener('scroll', updateScroll);

@@ -103,10 +103,6 @@ export default function ChatTrainingPage() {
   const [formPriority, setFormPriority] = useState(1);
   const [formActive, setFormActive] = useState(true);
 
-  useEffect(() => {
-    loadTrainingData();
-  }, []);
-
   async function loadTrainingData() {
     try {
       if (!db) {
@@ -151,6 +147,12 @@ export default function ChatTrainingPage() {
       console.error("Error initializing defaults:", error);
     }
   }
+
+  // Load training data on mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadTrainingData();
+  }, []);
 
   function showMessage(type: "success" | "error", text: string) {
     setMessage({ type, text });
