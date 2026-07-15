@@ -1,28 +1,14 @@
 {
+  "slug": "donation-information",
   "title": "Donation Information",
   "category": "donation",
-  "content": "Your generous donations help maintain the temple and support charitable activities.",
-  "donationOptions": [
-    {
-      "type": "Bank Transfer",
-      "details": "Account Name: Sri Raghavendra Swamy Matha, Account Number: XXXXXXXX, IFSC: XXXXXX"
-    },
-    {
-      "type": "UPI",
-      "details": "UPI ID: raghavendra@matha"
-    },
-    {
-      "type": "Cash",
-      "details": "Donations can be made at the temple counter"
-    }
-  ],
-  "taxBenefit": "Donations above Rs. 100 are eligible for 80G tax exemption. Tax certificates available at the office.",
-  "uses": [
-    "Temple maintenance and cleanliness",
-    "Annadanam (free meals) program",
-    "Charitable activities",
-    "Festival celebrations",
-    "Temple development"
-  ],
-  "published": true
+  "language": "en",
+  "keywords": ["donation", "contribute", "support", "offering", "charity", "donate", "fund"],
+  "summary": "Information about making donations to Sri Raghavendra Swamy Matha.",
+  "content": "Your generous donations help maintain the temple, support daily rituals, and enable charitable activities. All contributions are deeply appreciated by the Matha and the devotees community.\n\n**How Donations Help**\n- Temple maintenance and cleanliness\n- Daily poojas and rituals\n- Annadanam (free meals) program for devotees\n- Festival celebrations\n- Charitable activities and community service\n- Temple development and improvements\n\n**Making a Donation**\nYou can make donations through the following methods:\n- Online through the temple website\n- UPI payment\n- Bank transfer\n- Cash at the temple counter\n\n**Tax Benefits**\nFor information about 80G tax exemption benefits, please contact the temple office. Tax certificates can be issued for eligible donations.\n\n**Using Your Donation**\nWhen making a donation, you may specify a purpose such as:\n- General temple maintenance\n- Annadanam program\n- Festival celebrations\n- Special sevas\n- Specific deity/ritual sponsorship\n\nFor detailed information about donation methods, bank details, and tax certificates, please visit the donation section on our website or contact the temple office.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["donation", "contribute", "charity", "support", " offerings"]
 }

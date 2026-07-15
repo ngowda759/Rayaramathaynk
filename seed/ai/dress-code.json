@@ -1,25 +1,14 @@
 {
+  "slug": "dress-code-guidelines",
   "title": "Dress Code Guidelines",
   "category": "dress-code",
-  "content": "Traditional Indian attire is recommended for visiting Sri Raghavendra Swamy Matha. The dress code is designed to maintain the sanctity and spiritual atmosphere of the temple.",
-  "guidelines": [
-    {
-      "item": "Saree",
-      "description": "Traditional Indian saree is the most preferred attire for women"
-    },
-    {
-      "item": "Kurta-Pajama",
-      "description": "Plain or simple designed kurta-pajama is recommended for men"
-    },
-    {
-      "item": "Dhoti",
-      "description": "Traditional dhoti is also acceptable for men"
-    },
-    {
-      "item": "Avoid",
-      "description": "Shorts, mini-skirts, sleeveless tops, and revealing clothing should be avoided"
-    }
-  ],
-  "tips": "During festivals and special occasions, elaborate traditional attire is appreciated. The temple shop also offers traditional clothing if needed.",
-  "published": true
+  "language": "en",
+  "keywords": ["dress code", "clothing", "attire", "traditional", "wear", "what to wear", "dress"],
+  "summary": "Dress code guidelines for visitors to Sri Raghavendra Swamy Matha.",
+  "content": "Traditional Indian attire is recommended for visiting Sri Raghavendra Swamy Matha. The dress code helps maintain the sanctity and spiritual atmosphere of the temple.\n\n**Recommended Attire for Women**\n- Saree (traditional Indian drape)\n- Salwar kameez\n- Traditional long skirts with matching tops\n- Modest dress or gown (knee-length or longer)\n\n**Recommended Attire for Men**\n- Kurta-pajama\n- Dhoti with shirt\n- Traditional shirts with formal pants\n- Full-length trousers with collared shirts\n\n**Items to Avoid**\n- Shorts, mini-skirts, or short dresses\n- Sleeveless tops, crop tops, or revealing clothing\n- Tight-fitting clothes\n- Beach wear or casual sportswear\n- Any clothing with offensive prints\n\n**Festival and Special Occasions**\nDuring festivals and special occasions, elaborate traditional attire is particularly appreciated as it adds to the festive atmosphere.\n\n**General Tips**\n- Ensure clothing covers shoulders and knees\n- Remove footwear before entering the temple\n- Maintain a neat and modest appearance\n- Traditional attire can be purchased at shops near the temple if needed\n\nThe temple welcomes all devotees regardless of background. If you have questions about appropriate attire, please contact the temple office.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["dress code", "attire", "clothing", "traditional", "guidelines"]
 }

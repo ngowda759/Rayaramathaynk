@@ -1,37 +1,14 @@
 {
+  "slug": "temple-history",
   "title": "Temple History",
   "category": "history",
-  "content": "History of Sri Raghavendra Swamy Matha, Yelahanka.",
-  "established": "The temple was established to honor Sri Raghavendra Swamy, a 17th-century saint and philosopher of the Madhwa tradition.",
-  "significance": "Sri Raghavendra Swamy (1595–1671) was a renowned saint, scholar, and devotee of Lord Vishnu. He took Samadhi in 1671 at this location, which is considered a sacred Brindavana.",
-  "timeline": [
-    {
-      "year": "1595",
-      "event": "Birth of Sri Raghavendra Swamy in Baskarigram"
-    },
-    {
-      "year": "1652",
-      "event": "Sri Raghavendra Swamy takes Diksha from Sri Suyam Prakasha Swamy"
-    },
-    {
-      "year": "1671",
-      "event": "Sri Raghavendra Swamy enters Brindavana (Samadhi)"
-    },
-    {
-      "year": "19th Century",
-      "event": "Establishment of the Matha at Yelahanka"
-    }
-  ],
-  "architecture": "The temple features traditional Dravidian architecture with intricate carvings and a beautiful Rajagopuram (entrance tower).",
-  "festivals": [
-    {
-      "name": "Mukkoti Ekadashi",
-      "description": "Most important Ekadashi, attracts thousands of devotees"
-    },
-    {
-      "name": "Raghavendra Aradhana",
-      "description": "Annual festival commemorating the saint's Samadhi"
-    }
-  ],
-  "published": true
+  "language": "en",
+  "keywords": ["history", "about", "established", "origin", "heritage", "tradition", "background"],
+  "summary": "History and heritage of Sri Raghavendra Swamy Matha.",
+  "content": "Sri Raghavendra Swamy Matha at Yelahanka is a spiritual institution dedicated to the worship and teachings of Sri Raghavendra Swamy, a renowned saint of the Madhwa tradition.\n\n**About the Matha**\nThe Matha serves as a center for daily worship, spiritual teachings, community service, and preservation of Madhwa philosophy. It continues the legacy of service to devotees that began centuries ago.\n\n**Sri Raghavendra Swamy**\nSri Raghavendra Swamy was a great saint, scholar, and devotee of Lord Vishnu. He is revered for his profound knowledge of the Vedas, his simplicity, compassion, and his unwavering devotion to the Lord. His Brindavana (samadhi) at this location is considered sacred.\n\n**Architecture**\nThe Matha features traditional Dravidian architecture with beautiful carvings and a serene atmosphere designed for spiritual contemplation.\n\n**Activities**\n- Daily worship and rituals\n- Spiritual teachings and discourses\n- Community service and welfare\n- Cultural and religious activities\n\n**Welcome**\nThe Matha welcomes all devotees irrespective of caste, religion, or background. Everyone is invited to participate in spiritual activities and seek the blessings of Sri Guru Raghavendra Swamy.\n\nFor more details about the history and specific events, please contact the temple office.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["history", "heritage", "about", "tradition", "temple"]
 }

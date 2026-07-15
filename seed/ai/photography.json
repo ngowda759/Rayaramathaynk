@@ -1,25 +1,14 @@
 {
+  "slug": "photography-policy",
   "title": "Photography Policy",
   "category": "photography",
-  "content": "Photography guidelines for visiting Sri Raghavendra Swamy Matha.",
-  "policy": {
-    "insideSanctum": {
-      "allowed": false,
-      "reason": "To maintain the sanctity and privacy of worship"
-    },
-    "outsideTemple": {
-      "allowed": true,
-      "note": "External photography of temple architecture is permitted"
-    },
-    "flashPhotography": {
-      "allowed": false,
-      "reason": "Flash can disturb other devotees and damage ancient paintings"
-    },
-    "videoRecording": {
-      "allowed": false,
-      "reason": "Video recording inside temple premises is not allowed"
-    }
-  },
-  "tips": "For professional photography or videography, please contact the temple office for prior permission.",
-  "published": true
+  "language": "en",
+  "keywords": ["photography", "camera", "photo", "video", "recording", "mobile", "picture"],
+  "summary": "Photography and videography guidelines for visitors to Sri Raghavendra Swamy Matha.",
+  "content": "Sri Raghavendra Swamy Matha welcomes visitors to capture memories of their spiritual journey. Please follow these photography guidelines to maintain the sanctity of the temple.\n\n**Allowed Photography**\n- External photography of temple architecture and premises\n- Photography in designated areas outside the sanctum\n- Personal photos with mobile phones (where permitted)\n\n**Photography Restrictions**\n- Photography is not allowed inside the sanctum or main shrine area\n- Flash photography is prohibited throughout the temple premises\n- Video recording inside temple premises is not allowed\n- Tripods and professional camera equipment require prior permission\n\n**Why These Restrictions?**\n- To maintain the sanctity and spiritual atmosphere\n- To respect the privacy of devotees in worship\n- To prevent disturbance during rituals and ceremonies\n- To protect ancient artwork and decorations\n\n**Professional Photography**\nFor professional photography, videography, or special shoots, please contact the temple office for prior permission. Additional fees may apply.\n\n**Tips for Visitors**\n- Keep your phone on silent mode\n- Avoid using flash near the shrine\n- Be considerate of other devotees\n- Follow instructions from temple staff\n\nThank you for your cooperation in maintaining the sacred atmosphere of the temple.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["photography", "camera", "video", "policy", "rules"]
 }

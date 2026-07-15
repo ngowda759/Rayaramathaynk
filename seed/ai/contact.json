@@ -1,22 +1,14 @@
 {
+  "slug": "contact-information",
   "title": "Contact Information",
   "category": "contact",
-  "content": "Contact information for Sri Raghavendra Swamy Matha.",
-  "contact": {
-    "phone": "+91-80-28446400",
-    "whatsapp": "+91-8374022002",
-    "email": "info@raghavendramatha.org",
-    "address": "Sri Raghavendra Swamy Matha, Yelahanka New Town, Bengaluru - 560064, Karnataka, India"
-  },
-  "officeHours": {
-    "weekday": "9:00 AM - 5:00 PM",
-    "weekend": "10:00 AM - 4:00 PM"
-  },
-  "socialMedia": {
-    "website": "https://rayaramathaynk.org",
-    "facebook": "Sri Raghavendra Swamy Matha",
-    "youtube": "Sri Raghavendra Swamy Matha Official"
-  },
-  "googleMaps": "https://maps.google.com/?q=Sri+Raghavendra+Swamy+Matha+Yelahanka",
-  "published": true
+  "language": "en",
+  "keywords": ["contact", "phone", "email", "address", "location", "reach us", "office"],
+  "summary": "Contact details and office hours for Sri Raghavendra Swamy Matha.",
+  "content": "**Sri Raghavendra Swamy Matha**\nYelahanka New Town, Bengaluru\nKarnataka, India\n\n**Phone**\n+91-80-28446400\n\n**Email**\ninfo@raghavendramatha.org\n\n**Office Hours**\nMonday to Friday: 9:00 AM - 5:00 PM\nSaturday and Sunday: 10:00 AM - 4:00 PM\n\n**Location**\nThe Matha is located in Yelahanka New Town, Bengaluru. For directions and maps, please visit the temple website or contact the office.\n\n**Contact for Specific Queries**\n- Seva Bookings: Contact the temple counter or office\n- Donations: Contact the temple office\n- Accommodation: Contact the temple office\n- Volunteer Opportunities: Contact the temple office\n\nPlease contact the temple office for any specific queries not covered on this website. The staff will be happy to assist you.",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["contact", "phone", "email", "office", "location"]
 }

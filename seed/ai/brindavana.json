@@ -1,41 +1,14 @@
 {
+  "slug": "brindavana-sacred-samadhi",
   "title": "Brindavana - The Sacred Samadhi",
   "category": "brindavana",
-  "content": "The Brindavana of Sri Raghavendra Swamy is the sacred samadhi monument.",
-  "description": "The Brindavana is a beautiful silver casket containing the holy relics of Sri Raghavendra Swamy. It is the central shrine of the Matha and attracts thousands of devotees daily.",
-  "significance": "According to his prophecy, Sri Raghavendra Swamy continues to reside in this Brindavana for the next 700 years, answering the prayers of his devotees.",
-  "features": [
-    {
-      "name": "Silver Casket",
-      "description": "The Brindavana is enclosed in an ornate silver casket"
-    },
-    {
-      "name": "Padiukas (Holy Footprints)",
-      "description": "Replica of the guru's footprints is installed here"
-    },
-    {
-      "name": "Prakara",
-      "description": "The circumambulatory path around the Brindavana"
-    }
-  ],
-  "pooja": "Special pujas are performed at the Brindavana throughout the day, including Suprabhata (morning wake-up), Naivedyam, and Ekadasa Rudra Abhishekam.",
-  "darshanTimings": "Darshan of the Brindavana is available during temple hours with special darshan tickets available for closer view.",
-  "rituals": [
-    {
-      "name": "Suprabatha",
-      "time": "5:30 AM",
-      "description": "Morning prayer ceremony"
-    },
-    {
-      "name": "Sanga Bhashya",
-      "time": "7:00 AM",
-      "description": "Discourse on teachings"
-    },
-    {
-      "name": "Maharudra Abhishekam",
-      "time": "9:00 AM",
-      "description": "Sacred bath with 11 types of holy waters"
-    }
-  ],
-  "published": true
+  "language": "en",
+  "keywords": ["brindavana", "samadhi", "sacred", "pilgrimage", "holy", "sacred shrine", "tomb"],
+  "summary": "Information about the sacred Brindavana (samadhi) of Sri Raghavendra Swamy at the Matha.",
+  "content": "The Brindavana of Sri Raghavendra Swamy is the sacred samadhi monument at the heart of the Matha. This holy shrine contains the mortal remains of the great saint and serves as the central focus of devotion for thousands of pilgrims.\n\n**Spiritual Significance**\nAccording to his divine prophecy, Sri Raghavendra Swamy continues to reside in this Brindavana for the welfare of devotees. It is believed that he answers the sincere prayers of his devotees even today.\n\n**Key Features**\n- The Brindavana is enclosed in an ornate silver casket\n- The Padiukas (holy footprints) of the guru are installed here\n- A circumambulatory path surrounds the sacred shrine\n\n**Darshan Information**\nDarshan of the Brindavana is available during regular temple hours. Special darshan tickets may be available for a closer view of the sacred shrine.\n\n**Rituals Performed**\nVarious pujas and rituals are performed throughout the day at the Brindavana, including Suprabhata in the morning, daily discourses, and special abhishekams. Please contact the temple office for the current schedule of rituals and special sevas.\n\n**Pilgrimage Guidance**\n- Remove footwear before approaching the Brindavana\n- Maintain silence and reverence\n- Offer prayers with devotion\n- Follow the instructions of temple staff",
+  "approved": true,
+  "version": 1,
+  "lastReviewed": "2025-01-17",
+  "reviewedBy": "Temple Committee",
+  "tags": ["brindavana", "samadhi", "sacred", "spiritual", "pilgrimage"]
 }
