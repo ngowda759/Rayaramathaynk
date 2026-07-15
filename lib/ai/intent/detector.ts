@@ -106,6 +106,31 @@ const INTENT_EXAMPLES: Record<Intent, string[]> = {
   [Intent.PHOTOGRAPHY]: [
     "photography", "photo", "camera", "can i take pictures"
   ],
+  [Intent.PARKING]: [
+    "parking", "where to park", "car parking", "vehicle parking",
+    "is there parking", "parking facility", "bike parking",
+    "ಪಾರ್ಕಿಂಗ್", "ಕಾರು ಪಾರ್ಕ್"
+  ],
+  [Intent.SHARE_EXPERIENCE]: [
+    "share experience", "share my experience", "write testimonial",
+    "tell my experience", "submit testimonial", "my review"
+  ],
+  [Intent.COMMITTEE]: [
+    "committee", "trust committee", "who manages", "board members",
+    "trustees", "governing body", "management members"
+  ],
+  [Intent.OFFICE_HOURS]: [
+    "office hours", "office timing", "admin office", "administrative hours",
+    "when is office open", "office schedule"
+  ],
+  [Intent.ANNADANA]: [
+    "annadana", "free meals", "free food", "lunch", "dinner",
+    "food service", "ಅನ್ನದಾನ", "ಉಚಿತ ಊಟ"
+  ],
+  [Intent.PRASADA]: [
+    "prasada", "prasad", "sacred food", "blessed food", "theertha",
+    "tirtha", "holy water", "charanamrut"
+  ],
   [Intent.FAQ]: [
     "faq", "common questions", "help", "ಪ್ರಶ್ನೆ"
   ],
@@ -260,6 +285,15 @@ export class IntentDetector {
       // Madhwa
       ["madhwa", Intent.MADHWA_PHILOSOPHY],
       ["madhvacharya", Intent.MADHWA_PHILOSOPHY],
+      // Sevas - Annadana and Prasada before Volunteer
+      ["annadana", Intent.ANNADANA],
+      ["prasada", Intent.PRASADA],
+      ["prasad", Intent.PRASADA],
+      // Website Navigation - Share Experience before Testimonial
+      ["share experience", Intent.SHARE_EXPERIENCE],
+      ["share my experience", Intent.SHARE_EXPERIENCE],
+      // Committee
+      ["trust committee", Intent.COMMITTEE],
     ];
 
     // Check for domain-specific keywords first (order preserved)
@@ -448,6 +482,7 @@ export class IntentDetector {
       case Intent.VISITOR_GUIDELINES:
       case Intent.DRESS_CODE:
       case Intent.ADDRESS:
+      case Intent.OFFICE_HOURS:
         return IntentCategory.TEMPLE_INFO;
       case Intent.UPCOMING_EVENTS:
       case Intent.NEXT_AARADHANE:
@@ -455,6 +490,8 @@ export class IntentDetector {
         return IntentCategory.EVENTS;
       case Intent.SPECIAL_SEVAS:
       case Intent.DAILY_POOJA:
+      case Intent.ANNADANA:
+      case Intent.PRASADA:
         return IntentCategory.SEVAS;
       case Intent.DONATION:
       case Intent.DONATION_PURPOSE:
@@ -468,6 +505,14 @@ export class IntentDetector {
       case Intent.GURU_PARAMPARA:
       case Intent.BRINDAVANA:
         return IntentCategory.KNOWLEDGE;
+      case Intent.VISITOR_GUIDELINES:
+      case Intent.DRESS_CODE:
+      case Intent.PHOTOGRAPHY:
+      case Intent.PARKING:
+        return IntentCategory.VISITOR;
+      case Intent.SHARE_EXPERIENCE:
+      case Intent.COMMITTEE:
+        return IntentCategory.WEBSITE_NAVIGATION;
       case Intent.FAQ:
       case Intent.GENERAL_GREETING:
         return IntentCategory.GENERAL;

@@ -226,14 +226,14 @@ function generateCombinedResponse(
   if (results.events?.data && results.events.data.length > 0) {
     const eventList = results.events.data
       .slice(0, 3)
-      .map((e) => `${e.title} on ${new Date(e.startDate).toLocaleDateString()}`)
+      .map((e: { title: string; startDate: string }) => `${e.title} on ${new Date(e.startDate).toLocaleDateString()}`)
       .join("; ");
     parts.push(`Upcoming Events: ${eventList}`);
   }
   
   // Add sevas if available
   if (results.sevas?.data && results.sevas.data.length > 0) {
-    const sevaNames = results.sevas.data.slice(0, 5).map((s) => s.name).join(", ");
+    const sevaNames = results.sevas.data.slice(0, 5).map((s: { name: string }) => s.name).join(", ");
     parts.push(`Available Sevas: ${sevaNames}`);
   }
   
@@ -241,7 +241,7 @@ function generateCombinedResponse(
   if (results.announcements?.data && results.announcements.data.length > 0) {
     const announcementTitles = results.announcements.data
       .slice(0, 3)
-      .map((a) => a.title)
+      .map((a: { title: string }) => a.title)
       .join("; ");
     parts.push(`Announcements: ${announcementTitles}`);
   }

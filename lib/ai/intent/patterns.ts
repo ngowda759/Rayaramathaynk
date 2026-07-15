@@ -71,6 +71,22 @@ export const INTENT_PATTERNS: IntentPattern[] = [
     },
     requiresStructuredData: true,
   },
+  {
+    intent: Intent.OFFICE_HOURS,
+    category: IntentCategory.TEMPLE_INFO,
+    priority: IntentPriority.OFFICE_HOURS,
+    keywords: {
+      en: [
+        "office hours", "office timing", "admin", "administration",
+        "administrative", "when is office", "office open",
+        "ಕಛೇರಿ ಸಮಯ", "ಆಡಳಿತ"
+      ],
+      kn: [
+        "ಕಛೇರಿ ಸಮಯ", "ಆಡಳಿತ", "ಕಛೇರಿ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
 
   // ==================== EVENTS & FESTIVALS ====================
   {
@@ -130,12 +146,44 @@ export const INTENT_PATTERNS: IntentPattern[] = [
     keywords: {
       en: [
         "seva", "sevas", "service", "services", "special service",
-        "archana", "abhisheka", "archana", "tulasi", "annadana",
+        "archana", "abhisheka", "tulasi",
         "kanike", "vastra", "udayastamana",
         "ಸೇವೆ", "ಅರ್ಚನೆ", "ಅಭಿಷೇಕ", "ತುಲಸಿ"
       ],
       kn: [
         "ಸೇವೆ", "ಅರ್ಚನೆ", "ಅಭಿಷೇಕ", "ತುಲಸಿ", "ವಿಶೇಷ ಸೇವೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.ANNADANA,
+    category: IntentCategory.SEVAS,
+    priority: IntentPriority.ANNADANA,
+    keywords: {
+      en: [
+        "annadana", "anna dane", "free meals", "free food",
+        "lunch", "dinner", "meal", "food service",
+        "ಅನ್ನದಾನ", "ಉಚಿತ ಊಟ", "ಊಟ", "ಅನ್ನ"
+      ],
+      kn: [
+        "ಅನ್ನದಾನ", "ಉಚಿತ ಊಟ", "ಊಟ", "ಅನ್ನ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.PRASADA,
+    category: IntentCategory.SEVAS,
+    priority: IntentPriority.PRASADA,
+    keywords: {
+      en: [
+        "prasada", "prasad", "prasaad", "sacred food", "blessed food",
+        "tirtha", "theertha", "holy water", "charanamrut",
+        "ಪ್ರಸಾದ", "ತೀರ್ಥ", "ಪವಿತ್ರ ಆಹಾರ"
+      ],
+      kn: [
+        "ಪ್ರಸಾದ", "ತೀರ್ಥ", "ಪವಿತ್ರ ಆಹಾರ"
       ]
     },
     requiresStructuredData: true,
@@ -358,6 +406,73 @@ export const INTENT_PATTERNS: IntentPattern[] = [
     },
     requiresStructuredData: true,
   },
+  {
+    intent: Intent.PARKING,
+    category: IntentCategory.VISITOR,
+    priority: IntentPriority.PARKING,
+    keywords: {
+      en: [
+        "parking", "park", "car", "vehicle", "bike", "bicycle",
+        "where to park", "parking fee", "parking charges",
+        "ಪಾರ್ಕಿಂಗ್", "ಕಾರು", "ವಾಹನ"
+      ],
+      kn: [
+        "ಪಾರ್ಕಿಂಗ್", "ಕಾರು", "ವಾಹನ", "ಎಲ್ಲಿ ಪಾರ್ಕ್ ಮಾಡುವುದು"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.PHOTOGRAPHY,
+    category: IntentCategory.VISITOR,
+    priority: IntentPriority.PHOTOGRAPHY,
+    keywords: {
+      en: [
+        "photography", "photo", "picture", "camera", "video",
+        "can i take photo", "filming", "mobile photo",
+        "ಛಾಯಾಗ್ರಹಣ", "ಫೋಟೊ", "ವೀಡಿಯೊ"
+      ],
+      kn: [
+        "ಛಾಯಾಗ್ರಹಣ", "ಫೋಟೊ", "ವೀಡಿಯೊ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== WEBSITE NAVIGATION ====================
+  {
+    intent: Intent.SHARE_EXPERIENCE,
+    category: IntentCategory.WEBSITE_NAVIGATION,
+    priority: IntentPriority.SHARE_EXPERIENCE,
+    keywords: {
+      en: [
+        "share experience", "share my experience", "tell my experience",
+        "write testimonial", "submit testimonial", "post experience",
+        "how was my visit", "share visit", "my review",
+        "ಅನುಭವ ಹಂಚಿಕೊಳ್ಳಿ", "ನನ್ನ ಅನುಭವ"
+      ],
+      kn: [
+        "ಅನುಭವ ಹಂಚಿಕೊಳ್ಳಿ", "ನನ್ನ ಅನುಭವ", "ತಿಳಿಸಿಕೊಳ್ಳಿ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+  {
+    intent: Intent.COMMITTEE,
+    category: IntentCategory.WEBSITE_NAVIGATION,
+    priority: IntentPriority.COMMITTEE,
+    keywords: {
+      en: [
+        "committee", "trust committee", "board", "members",
+        "who runs", "management", "governing body", "trustees",
+        "ಸಮಿತಿ", "ಟ್ರಸ್ಟ್", "ಆಡಳಿತ ಮಂಡಳಿ"
+      ],
+      kn: [
+        "ಸಮಿತಿ", "ಟ್ರಸ್ಟ್", "ಆಡಳಿತ ಮಂಡಳಿ", "ಸದಸ್ಯರು"
+      ]
+    },
+    requiresStructuredData: true,
+  },
 
   // ==================== ACTIONS ====================
   {
@@ -478,10 +593,10 @@ export const INTENT_PATTERNS: IntentPattern[] = [
 
 // Out of scope patterns - common off-topic queries
 export const OUT_OF_SCOPE_PATTERNS = [
-  // Programming & Tech
-  /\b(python|javascript|java|c\+\+|programming|coding|code|bug|debug|software|app|website)\b/i,
+  // Programming & Tech (removed "code" - used in "dress code")
+  /\b(python|javascript|java|c\+\+|programming|coding|bug|debug|software|app|website)\b/i,
   // Stock & Finance
-  /\b(stock|share|market|trading|invest|business|profit|loss|bitcoin|crypto|cryptocurrency)\b/i,
+  /\b(stock market|share market|market trading|stock trading|trading|invest|business|profit|loss|bitcoin|crypto|cryptocurrency)\b/i,
   // Weather
   /\b(weather|rain|temperature|forecast|climate)\b/i,
   // Politics

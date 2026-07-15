@@ -14,9 +14,8 @@ import {
   Timestamp,
   serverTimestamp,
   getCountFromServer,
-  aggregate,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { Intent } from "@/lib/ai/intent/types";
 import type {
   TokenUsageRecord,
@@ -54,8 +53,11 @@ const COLLECTIONS = {
  * Get analytics settings from Firestore
  */
 export async function getAnalyticsSettings(): Promise<AIAnalyticsSettings> {
+  if (!isFirebaseConfigured() || !db) {
+    return getDefaultSettings();
+  }
+
   try {
-    const settingsRef = doc(db, COLLECTIONS.AI_SETTINGS, "analytics");
     const settingsSnap = await getDocs(
       query(collection(db, COLLECTIONS.AI_SETTINGS))
     );
@@ -95,7 +97,7 @@ export async function recordTokenUsage(
   data: Omit<TokenUsageRecord, "id" | "timestamp">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackTokenUsage) {
+  if (!settings.enabled || !settings.trackTokenUsage || !isFirebaseConfigured() || !db) {
     return "";
   }
 
@@ -121,7 +123,7 @@ export async function recordLatency(
   data: Omit<LatencyRecord, "id" | "timestamp">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackLatency) {
+  if (!settings.enabled || !settings.trackLatency || !isFirebaseConfigured() || !db) {
     return "";
   }
 
@@ -147,7 +149,7 @@ export async function recordIntentDistribution(
   data: Omit<IntentDistributionRecord, "id" | "timestamp">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackIntentDistribution) {
+  if (!settings.enabled || !settings.trackIntentDistribution || !isFirebaseConfigured() || !db) {
     return "";
   }
 
@@ -173,7 +175,7 @@ export async function recordUnknownQuestion(
   data: Omit<UnknownQuestionRecord, "id" | "timestamp" | "reviewed" | "addedToKnowledge">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackUnknownQuestions) {
+  if (!settings.enabled || !settings.trackUnknownQuestions || !isFirebaseConfigured() || !db) {
     return "";
   }
 
@@ -203,6 +205,9 @@ export async function markUnknownQuestionReviewed(
   addedToKnowledge: boolean = false,
   knowledgeArticleId?: string
 ): Promise<void> {
+  if (!isFirebaseConfigured() || !db) {
+    return;
+  }
   try {
     const questionRef = doc(db, COLLECTIONS.UNKNOWN_QUESTIONS, questionId);
     await updateDoc(questionRef, {
@@ -224,6 +229,12 @@ export async function markUnknownQuestionReviewed(
 export async function getTokenUsage(
   params: AnalyticsQueryParams = {}
 ): Promise<TokenUsageResponse> {
+  if (!isFirebaseConfigured() || !db) {
+    return {
+      summary: {} as any,
+      records: []
+    };
+  }
   try {
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
@@ -269,6 +280,9 @@ export async function getTokenUsage(
 export async function getLatencyMetrics(
   params: AnalyticsQueryParams = {}
 ): Promise<LatencyResponse> {
+  if (!isFirebaseConfigured() || !db) {
+    return { summary: {} as any, records: [] };
+  }
   try {
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
@@ -314,6 +328,9 @@ export async function getLatencyMetrics(
 export async function getIntentDistribution(
   params: AnalyticsQueryParams = {}
 ): Promise<IntentDistributionResponse> {
+  if (!isFirebaseConfigured() || !db) {
+    return { summary: {} as any, records: [] };
+  }
   try {
     const { startDate, endDate, language, limit: limitCount = 100 } = params;
     
@@ -359,6 +376,9 @@ export async function getIntentDistribution(
 export async function getUnknownQuestions(
   params: AnalyticsQueryParams = {}
 ): Promise<UnknownQuestionsResponse> {
+  if (!isFirebaseConfigured() || !db) {
+    return { summary: {} as any, records: [] };
+  }
   try {
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
@@ -403,6 +423,13 @@ export async function getUnknownQuestions(
  * Check AI health status
  */
 export async function checkAIHealth(): Promise<HealthCheckResponse> {
+  if (!isFirebaseConfigured() || !db) {
+    return {
+      status: "healthy",
+      timestamp: Date.now(),
+    } as any;
+  }
+
   const issues: AIHealthIssue[] = [];
   let status: AIHealthStatus["status"] = "healthy";
   
@@ -453,7 +480,14 @@ export async function checkAIHealth(): Promise<HealthCheckResponse> {
     }
     
     const response: HealthCheckResponse = {
-      status,
+      status: { 
+        status: status,
+        lastChecked: Date.now(),
+        apiLatency: avgLatency || 0,
+        errorRate: errorRate || 0,
+        uptime: 100,
+        issues: [],
+      },
       timestamp: Date.now(),
     };
     
@@ -461,7 +495,14 @@ export async function checkAIHealth(): Promise<HealthCheckResponse> {
   } catch (error) {
     console.error("Error checking AI health:", error);
     return {
-      status: "unhealthy",
+      status: {
+        status: "unhealthy",
+        lastChecked: Date.now(),
+        apiLatency: 0,
+        errorRate: 100,
+        uptime: 0,
+        issues: [],
+      },
       timestamp: Date.now(),
     };
   }
@@ -474,6 +515,19 @@ export async function getAnalyticsDashboard(
   startDate?: number,
   endDate?: number
 ): Promise<AnalyticsDashboardResponse> {
+  if (!isFirebaseConfigured() || !db) {
+    return {
+      dashboard: {
+        overview: { totalConversations: 0, totalMessages: 0, uniqueUsers: 0, averageResponseTime: 0, satisfactionRate: 0, period: { start: 0, end: 0 } },
+        tokenUsage: { totalTokens: 0, totalCost: 0, averageTokensPerRequest: 0 },
+        latency: { averageLatency: 0 },
+        intentDistribution: { total: 0 },
+        unknownQuestions: { total: 0 },
+      },
+      health: { status: { status: "healthy", lastChecked: Date.now(), apiLatency: 0, errorRate: 0, uptime: 100, issues: [] }, timestamp: Date.now() },
+    } as any;
+  }
+
   const end = endDate || Date.now();
   const start = startDate || (end - 7 * 24 * 60 * 60 * 1000); // Default: last 7 days
   
@@ -535,7 +589,7 @@ export async function getAnalyticsDashboard(
 
 function calculateTokenSummary(records: TokenUsageRecord[]): TokenUsageSummary {
   const byModel: TokenUsageSummary["byModel"] = {};
-  const byIntent: TokenUsageSummary["byIntent"] = {};
+  const byIntent: Record<Intent, { totalTokens: number; requestCount: number }> = {} as Record<Intent, { totalTokens: number; requestCount: number }>;
   const timeSeriesMap: Record<string, { tokens: number; cost: number }> = {};
   
   let totalInputTokens = 0;

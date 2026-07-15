@@ -37,7 +37,7 @@ function StatCard({
   trendUp,
 }: {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   subtitle?: string;
   icon: React.ElementType;
   trend?: number;
@@ -215,7 +215,7 @@ export default function AIAnalyticsDashboard({ className = "" }: AIAnalyticsDash
         <StatCard
           title="Health Status"
           value={<HealthBadge status={health.status} />}
-          subtitle={`Last checked: ${new Date(health.timestamp).toLocaleTimeString()}`}
+          subtitle={`Last checked: ${new Date(health.lastChecked).toLocaleTimeString()}`}
           icon={health.status === "healthy" ? CheckCircle : health.status === "degraded" ? AlertCircle : XCircle}
         />
       </div>

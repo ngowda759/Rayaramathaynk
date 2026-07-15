@@ -760,7 +760,7 @@ export async function getWorkflowArticles(
     return [];
   }
 
-  let q = collection(db, COLLECTIONS.ARTICLES);
+  const q = collection(db, COLLECTIONS.ARTICLES);
   const constraints: any[] = [];
 
   if (params.status && params.status.length > 0) {
@@ -777,9 +777,9 @@ export async function getWorkflowArticles(
 
   constraints.push(orderBy("updatedAt", "desc"));
 
-  q = query(q, ...constraints, limit(100));
+  const finalQuery = query(q, ...constraints, limit(100));
 
-  const snapshot = await getDocs(q);
+  const snapshot = await getDocs(finalQuery);
   let articles = snapshot.docs.map((doc) => ({
     id: doc.id,
     slug: doc.data().slug,

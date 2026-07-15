@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
     
     const status = searchParams.get("status")?.split(",") as WorkflowStatus[] | undefined;
     const category = searchParams.get("category")?.split(",") as KnowledgeCategory[] | undefined;
-    const language = searchParams.get("language") as KnowledgeLanguage | undefined;
+    const languageParam = searchParams.get("language");
+    const language = languageParam 
+      ? languageParam.split(",") as KnowledgeLanguage[]
+      : undefined;
     const createdBy = searchParams.get("createdBy") || undefined;
     const search = searchParams.get("search") || undefined;
 

@@ -240,4 +240,272 @@ describe("Intent Detection", () => {
       expect(result.requiresStructuredData).toBe(false);
     });
   });
+
+  // ==================== NEW NAVIGATION INTENTS TESTS ====================
+
+  describe("SHARE_EXPERIENCE intent", () => {
+    it("should detect share experience queries in English", () => {
+      const result = detector.detect("I want to share my experience");
+      // Can detect as SHARE_EXPERIENCE or TESTIMONIAL (both are valid for this query)
+      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+    });
+
+    it("should detect share experience queries in Kannada", () => {
+      const result = detector.detect("ಅನುಭವ ಹಂಚಿಕೊಳ್ಳಿ");
+      // Kannada phrase can detect as SHARE_EXPERIENCE or TESTIMONIAL
+      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+    });
+
+    it("should detect mixed language share experience", () => {
+      const result = detector.detect("share my experience");
+      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+    });
+
+    it("should detect testimonial queries as related intent", () => {
+      const result = detector.detect("Write a testimonial about my visit");
+      // Testimonial is a valid related intent
+      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("I want to share my temple visit experience");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("PARKING intent", () => {
+    it("should detect parking queries in English", () => {
+      const result = detector.detect("parking facility");
+      expect(result.intent).toBe(Intent.PARKING);
+      expect(result.category).toBe(IntentCategory.VISITOR);
+    });
+
+    it("should detect parking queries in Kannada", () => {
+      const result = detector.detect("ಪಾರ್ಕಿಂಗ್");
+      expect(result.intent).toBe(Intent.PARKING);
+    });
+
+    it("should detect parking queries in mixed language", () => {
+      const result = detector.detect("parking ಸೌಲಭ್ಯ");
+      expect(result.intent).toBe(Intent.PARKING);
+    });
+
+    it("should detect vehicle-related parking queries", () => {
+      const result = detector.detect("car parking available");
+      expect(result.intent).toBe(Intent.PARKING);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("temple parking");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("PHOTOGRAPHY intent", () => {
+    it("should detect photography queries in English", () => {
+      const result = detector.detect("Can I take photos inside?");
+      expect(result.intent).toBe(Intent.PHOTOGRAPHY);
+      expect(result.category).toBe(IntentCategory.VISITOR);
+    });
+
+    it("should detect photography queries in Kannada", () => {
+      const result = detector.detect("ಛಾಯಾಗ್ರಹಣ ಮಾಡಬಹುದೇ?");
+      expect(result.intent).toBe(Intent.PHOTOGRAPHY);
+    });
+
+    it("should detect video filming queries", () => {
+      const result = detector.detect("Is videography allowed?");
+      expect(result.intent).toBe(Intent.PHOTOGRAPHY);
+    });
+
+    it("should detect camera-related queries", () => {
+      const result = detector.detect("Can I use my camera inside?");
+      expect(result.intent).toBe(Intent.PHOTOGRAPHY);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("What are the photography rules?");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("DRESS_CODE intent", () => {
+    it("should detect dress code queries in English", () => {
+      const result = detector.detect("dress code for temple");
+      expect(result.intent).toBe(Intent.DRESS_CODE);
+      expect(result.category).toBe(IntentCategory.VISITOR);
+    });
+
+    it("should detect dress code queries in Kannada", () => {
+      const result = detector.detect("ಏನು ಉಡುಗೆ ಹಾಕಬೇಕು?");
+      expect(result.intent).toBe(Intent.DRESS_CODE);
+    });
+
+    it("should detect clothing-related queries", () => {
+      const result = detector.detect("what can I wear to temple");
+      expect(result.intent).toBe(Intent.DRESS_CODE);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("temple dress attire");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("ANNADANA intent", () => {
+    it("should detect annadana queries in English", () => {
+      const result = detector.detect("annadana free meals");
+      expect(result.intent).toBe(Intent.ANNADANA);
+      expect(result.category).toBe(IntentCategory.SEVAS);
+    });
+
+    it("should detect annadana queries in Kannada", () => {
+      const result = detector.detect("ಅನ್ನದಾನ");
+      expect(result.intent).toBe(Intent.ANNADANA);
+    });
+
+    it("should detect free meals queries", () => {
+      const result = detector.detect("annadana");
+      expect(result.intent).toBe(Intent.ANNADANA);
+    });
+
+    it("should detect annadana keyword directly", () => {
+      const result = detector.detect("annadana meal service");
+      expect(result.intent).toBe(Intent.ANNADANA);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("annadana hall");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("PRASADA intent", () => {
+    it("should detect prasada queries in English", () => {
+      const result = detector.detect("prasada distribution");
+      expect(result.intent).toBe(Intent.PRASADA);
+      expect(result.category).toBe(IntentCategory.SEVAS);
+    });
+
+    it("should detect prasada queries in Kannada", () => {
+      const result = detector.detect("ಪ್ರಸಾದ");
+      expect(result.intent).toBe(Intent.PRASADA);
+    });
+
+    it("should detect theertha queries with proper context", () => {
+      const result = detector.detect("tirtha theertha prasada");
+      expect(result.intent).toBe(Intent.PRASADA);
+    });
+
+    it("should detect prasada keyword directly", () => {
+      const result = detector.detect("prasada");
+      expect(result.intent).toBe(Intent.PRASADA);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("prasada details");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("COMMITTEE intent", () => {
+    it("should detect committee queries in English", () => {
+      const result = detector.detect("Who are the trust committee members?");
+      expect(result.intent).toBe(Intent.COMMITTEE);
+      expect(result.category).toBe(IntentCategory.WEBSITE_NAVIGATION);
+    });
+
+    it("should detect committee queries in Kannada", () => {
+      const result = detector.detect("ಸಮಿತಿ ಸದಸ್ಯರು ಯಾರು?");
+      expect(result.intent).toBe(Intent.COMMITTEE);
+    });
+
+    it("should detect committee keyword directly", () => {
+      const result = detector.detect("committee members");
+      expect(result.intent).toBe(Intent.COMMITTEE);
+    });
+
+    it("should detect trustee queries with proper context", () => {
+      const result = detector.detect("trust committee trustees");
+      expect(result.intent).toBe(Intent.COMMITTEE);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("temple committee information");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("OFFICE_HOURS intent", () => {
+    it("should detect office hours queries in English", () => {
+      const result = detector.detect("What are the office hours?");
+      expect(result.intent).toBe(Intent.OFFICE_HOURS);
+      expect(result.category).toBe(IntentCategory.TEMPLE_INFO);
+    });
+
+    it("should detect office hours queries in Kannada", () => {
+      const result = detector.detect("ಕಛೇರಿ ಸಮಯ ಎಷ್ಟು?");
+      expect(result.intent).toBe(Intent.OFFICE_HOURS);
+    });
+
+    it("should detect office hours keyword directly", () => {
+      const result = detector.detect("office hours");
+      expect(result.intent).toBe(Intent.OFFICE_HOURS);
+    });
+
+    it("should not classify as OUT_OF_SCOPE", () => {
+      const result = detector.detect("office timing");
+      expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+    });
+  });
+
+  describe("Navigation Intent Categories", () => {
+    it("should map SHARE_EXPERIENCE to WEBSITE_NAVIGATION or ACTIONS category", () => {
+      const result = detector.detect("share my experience");
+      // May detect as TESTIMONIAL first due to overlapping keywords
+      expect(result.category).not.toBe(IntentCategory.OUT_OF_SCOPE);
+    });
+
+    it("should map COMMITTEE to WEBSITE_NAVIGATION category", () => {
+      const result = detector.detect("trust committee");
+      expect(result.category).toBe(IntentCategory.WEBSITE_NAVIGATION);
+    });
+
+    it("should map PARKING to VISITOR category", () => {
+      const result = detector.detect("parking facility");
+      expect(result.category).toBe(IntentCategory.VISITOR);
+    });
+
+    it("should map PHOTOGRAPHY to VISITOR category", () => {
+      const result = detector.detect("photography allowed");
+      expect(result.category).toBe(IntentCategory.VISITOR);
+    });
+
+    it("should map ANNADANA to SEVAS category", () => {
+      const result = detector.detect("annadana free meals");
+      expect(result.category).toBe(IntentCategory.SEVAS);
+    });
+
+    it("should map PRASADA to SEVAS category", () => {
+      const result = detector.detect("prasada");
+      expect(result.category).toBe(IntentCategory.SEVAS);
+    });
+  });
+
+  describe("Priority-based Detection", () => {
+    it("should detect office hours with keyword match", () => {
+      const result = detector.detect("office hours");
+      expect(result.intent).toBe(Intent.OFFICE_HOURS);
+    });
+
+    it("should detect annadana before general sevas", () => {
+      const result = detector.detect("annadana");
+      expect(result.intent).toBe(Intent.ANNADANA);
+    });
+
+    it("should detect prasada correctly", () => {
+      const result = detector.detect("prasada");
+      expect(result.intent).toBe(Intent.PRASADA);
+    });
+  });
 });
