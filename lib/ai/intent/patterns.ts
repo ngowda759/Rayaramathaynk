@@ -1,0 +1,521 @@
+// Intent Patterns - Keywords and patterns for intent detection
+import { Intent, IntentCategory, IntentPriority, IntentPattern } from "./types";
+
+// Kannada Unicode range: U+0C80 to U+0CFF
+const KANNADA_PATTERN = /[\u0C80-\u0CFF]/;
+
+export const INTENT_PATTERNS: IntentPattern[] = [
+  // ==================== TEMPLE INFORMATION ====================
+  {
+    intent: Intent.TEMPLE_TIMINGS,
+    category: IntentCategory.TEMPLE_INFO,
+    priority: IntentPriority.TEMPLE_TIMINGS,
+    keywords: {
+      en: [
+        "timing", "timings", "time", "schedule", "open", "close", "closed",
+        "morning", "evening", "afternoon", "when open", "when close",
+        "working hours", "visiting hours", "hours of operation",
+        "ಸಮಯ", "ತೆರೆಯಲು", "ಮುಚ್ಚಲು", "ಎಷ್ಟು ಹೊತ್ತು"
+      ],
+      kn: [
+        "ಸಮಯ", "ತೆರೆಯಲು", "ಮುಚ್ಚಲು", "ಎಷ್ಟು ಹೊತ್ತು", "ಬೆಳಗು", "ಸಂಜೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.CONTACT_INFORMATION,
+    category: IntentCategory.TEMPLE_INFO,
+    priority: IntentPriority.CONTACT_INFORMATION,
+    keywords: {
+      en: [
+        "contact", "phone", "email", "call", "reach", "number",
+        "mobile", "telephone", "reach", "connect",
+        "ಸಂಪರ್ಕ", "ಫೋನ್", "ಇಮೇಲ್"
+      ],
+      kn: [
+        "ಸಂಪರ್ಕ", "ಫೋನ್", "ಇಮೇಲ್", "ಕರೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.LOCATION,
+    category: IntentCategory.TEMPLE_INFO,
+    priority: IntentPriority.LOCATION,
+    keywords: {
+      en: [
+        "location", "where", "located", "how to reach", "directions",
+        "map", "google maps", "navigate", "find",
+        "ಎಲ್ಲಿ", "ಸ್ಥಳ", "ಹೇಗೆ ಹೋಗುವುದು"
+      ],
+      kn: [
+        "ಎಲ್ಲಿ", "ಸ್ಥಳ", "ಹೇಗೆ ಹೋಗುವುದು", "ದಾರಿ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.ADDRESS,
+    category: IntentCategory.TEMPLE_INFO,
+    priority: IntentPriority.ADDRESS,
+    keywords: {
+      en: [
+        "address", "street", "area", "neighbourhood", "road",
+        "yelahanka", "bengaluru", "bangalore", "karnataka",
+        "ವಿಳಾಸ", "ಠಾಣೆ", "ಊರು"
+      ],
+      kn: [
+        "ವಿಳಾಸ", "ಠಾಣೆ", "ಊರು", "ಯಲಹಂಕ", "ಬೆಂಗಳೂರು"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== EVENTS & FESTIVALS ====================
+  {
+    intent: Intent.UPCOMING_EVENTS,
+    category: IntentCategory.EVENTS,
+    priority: IntentPriority.UPCOMING_EVENTS,
+    keywords: {
+      en: [
+        "event", "events", "upcoming", "next", "schedule",
+        "program", "programme", "celebration", "happening",
+        "ಕಾರ್ಯಕ್ರಮ", "ಹಬ್ಬ", "ಉತ್ಸವ", "ಬರುತ್ತಿರುವ"
+      ],
+      kn: [
+        "ಕಾರ್ಯಕ್ರಮ", "ಹಬ್ಬ", "ಉತ್ಸವ", "ಬರುತ್ತಿರುವ", "ಕಾರ್ಯಕ್ರಮಗಳು"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.NEXT_AARADHANE,
+    category: IntentCategory.EVENTS,
+    priority: IntentPriority.NEXT_AARADHANE,
+    keywords: {
+      en: [
+        "aaradhane", "aradhana", "aradhana mahotsava",
+        "annual", "anniversary", "when is aaradhane",
+        "ಆರಾಧನೆ", "ಮಹೋತ್ಸವ"
+      ],
+      kn: [
+        "ಆರಾಧನೆ", "ಮಹೋತ್ಸವ", "ಆರಾಧನಾ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.FESTIVAL_INFO,
+    category: IntentCategory.EVENTS,
+    priority: IntentPriority.UPCOMING_EVENTS,
+    keywords: {
+      en: [
+        "festival", "festivals", "utsavam", "utsava",
+        "celebration", "special day", "holiday",
+        "ಉತ್ಸವ", "ಹಬ್ಬ", "ವಿಶೇಷ ದಿನ"
+      ],
+      kn: [
+        "ಉತ್ಸವ", "ಹಬ್ಬ", "ವಿಶೇಷ ದಿನ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== SEVAS & WORSHIP ====================
+  {
+    intent: Intent.SPECIAL_SEVAS,
+    category: IntentCategory.SEVAS,
+    priority: IntentPriority.SPECIAL_SEVAS,
+    keywords: {
+      en: [
+        "seva", "sevas", "service", "services", "special service",
+        "archana", "abhisheka", "archana", "tulasi", "annadana",
+        "kanike", "vastra", "udayastamana",
+        "ಸೇವೆ", "ಅರ್ಚನೆ", "ಅಭಿಷೇಕ", "ತುಲಸಿ"
+      ],
+      kn: [
+        "ಸೇವೆ", "ಅರ್ಚನೆ", "ಅಭಿಷೇಕ", "ತುಲಸಿ", "ವಿಶೇಷ ಸೇವೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.DAILY_POOJA,
+    category: IntentCategory.SEVAS,
+    priority: IntentPriority.DAILY_POOJA,
+    keywords: {
+      en: [
+        "pooja", "puja", "prayer", "worship", "daily pooja",
+        "suprabhata", "mangalarati", "teertha", "archana",
+        "ಪೂಜೆ", "ಪ್ರಾರ್ಥನೆ", "ಆರಾಧನೆ"
+      ],
+      kn: [
+        "ಪೂಜೆ", "ಪ್ರಾರ್ಥನೆ", "ಆರಾಧನೆ", "ದೈನಿಕ ಪೂಜೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.SEVA_BOOKING,
+    category: IntentCategory.SEVAS,
+    priority: IntentPriority.SEVA_BOOKING,
+    keywords: {
+      en: [
+        "book", "booking", "schedule", "register", "request",
+        "schedule a", "book a", "book for",
+        "ಬುಕ್", "ಕಾಯ್ದಿರಿಸು", "ನೋಂದಾಯಿಸು"
+      ],
+      kn: [
+        "ಬುಕ್", "ಕಾಯ್ದಿರಿಸು", "ನೋಂದಾಯಿಸು"
+      ]
+    },
+    requiresStructuredData: false, // Goes to booking flow
+  },
+
+  // ==================== DONATIONS ====================
+  {
+    intent: Intent.DONATION,
+    category: IntentCategory.DONATIONS,
+    priority: IntentPriority.DONATION,
+    keywords: {
+      en: [
+        "donate", "donation", "donations", "contribute", "contribution",
+        "support", "offering", "give", "giving",
+        "ದೇಣ", "ಕೊಡು", "ಕೊಡುಗೆ", "ದಾನ"
+      ],
+      kn: [
+        "ದೇಣ", "ಕೊಡು", "ಕೊಡುಗೆ", "ದಾನ", "ಧಾರೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.DONATION_PURPOSE,
+    category: IntentCategory.DONATIONS,
+    priority: IntentPriority.DONATION,
+    keywords: {
+      en: [
+        "where goes", "where does", "how used", "fund utilization",
+        "purpose", "cause", "what for",
+        "ಎಲ್ಲಿ ಹೋಗುತ್ತದೆ", "ಏನಿಗೆ", "ಉದ್ದೇಶ"
+      ],
+      kn: [
+        "ಎಲ್ಲಿ ಹೋಗುತ್ತದೆ", "ಏನಿಗೆ", "ಉದ್ದೇಶ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.DONATION_80G,
+    category: IntentCategory.DONATIONS,
+    priority: IntentPriority.DONATION,
+    keywords: {
+      en: [
+        "80g", "80g certificate", "tax", "tax deductible", "tax benefit",
+        "receipt", "donation receipt", "tax exemption",
+        "ತೆರಿಗೆ", "80ಜಿ", "ರಸೀದಿ"
+      ],
+      kn: [
+        "ತೆರಿಗೆ", "ರಸೀದಿ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== ANNOUNCEMENTS ====================
+  {
+    intent: Intent.ANNOUNCEMENTS,
+    category: IntentCategory.ANNOUNCEMENTS,
+    priority: IntentPriority.ANNOUNCEMENTS,
+    keywords: {
+      en: [
+        "announcement", "announcements", "notice", "update",
+        "news", "notice board", "important",
+        "ಘೋಷಣೆ", "ಸುದ್ದಿ", "ಮಾಹಿತಿ"
+      ],
+      kn: [
+        "ಘೋಷಣೆ", "ಸುದ್ದಿ", "ಮಾಹಿತಿ", "ಅಧಿಸೂಚನೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== PANCHANGA ====================
+  {
+    intent: Intent.PANCHANGA,
+    category: IntentCategory.PANCHANGA,
+    priority: IntentPriority.PANCHANGA,
+    keywords: {
+      en: [
+        "panchanga", "panchang", "tithi", "nakshatra", "yoga",
+        "karana", "rahu kalam", "gulikai", "sunrise", "sunset",
+        "ಪಂಚಾಂಗ", "ತಿಥಿ", "ನಕ್ಷತ್ರ", "ಯೋಗ"
+      ],
+      kn: [
+        "ಪಂಚಾಂಗ", "ತಿಥಿ", "ನಕ್ಷತ್ರ", "ಯೋಗ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== KNOWLEDGE & HISTORY ====================
+  {
+    intent: Intent.TEMPLE_HISTORY,
+    category: IntentCategory.KNOWLEDGE,
+    priority: IntentPriority.TEMPLE_HISTORY,
+    keywords: {
+      en: [
+        "history", "about", "established", "founded", "origin",
+        "background", "story", "how it started",
+        "ಇತಿಹಾಸ", "ಹಿನ್ನೆಲೆ", "ಸ್ಥಾಪನೆ"
+      ],
+      kn: [
+        "ಇತಿಹಾಸ", "ಹಿನ್ನೆಲೆ", "ಸ್ಥಾಪನೆ", "ಬಗ್ಗೆ"
+      ]
+    },
+    requiresStructuredData: false, // From knowledge base
+  },
+  {
+    intent: Intent.SRI_RAGHAVENDRA,
+    category: IntentCategory.KNOWLEDGE,
+    priority: IntentPriority.SRI_RAGHAVENDRA,
+    keywords: {
+      en: [
+        "raghavendra", "swamy", "guru", "sri guru",
+        "madduramma", "vishu", "math", "matha",
+        "ರಾಘವೇಂದ್ರ", "ಸ್ವಾಮಿ", "ಗುರು"
+      ],
+      kn: [
+        "ರಾಘವೇಂದ್ರ", "ಸ್ವಾಮಿ", "ಗುರು", "ಮಠ"
+      ]
+    },
+    requiresStructuredData: false, // From knowledge base
+  },
+  {
+    intent: Intent.MADHWA_PHILOSOPHY,
+    category: IntentCategory.KNOWLEDGE,
+    priority: IntentPriority.TEMPLE_HISTORY,
+    keywords: {
+      en: [
+        "madhva", "madhvacharya", "dvaita", "philosophy",
+        "dualism", "tattva", "tatva",
+        "ಮಾಧ್ವ", "ದ್ವೈತ", "ತತ್ವ"
+      ],
+      kn: [
+        "ಮಾಧ್ವ", "ದ್ವೈತ", "ತತ್ವ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+  {
+    intent: Intent.GURU_PARAMPARA,
+    category: IntentCategory.KNOWLEDGE,
+    priority: IntentPriority.TEMPLE_HISTORY,
+    keywords: {
+      en: [
+        "parampara", "lineage", "guru", "tradition",
+        "succession", "chain",
+        "ಪರಂಪರೆ", "ವಂಶಾವಳಿ", "ಗುರು"
+      ],
+      kn: [
+        "ಪರಂಪರೆ", "ವಂಶಾವಳಿ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+
+  // ==================== VISITOR INFORMATION ====================
+  {
+    intent: Intent.VISITOR_GUIDELINES,
+    category: IntentCategory.VISITOR,
+    priority: IntentPriority.TEMPLE_TIMINGS,
+    keywords: {
+      en: [
+        "rules", "guidelines", "guidance", "information",
+        "do and dont", "instructions", "things to know",
+        "ನಿಯಮಗಳು", "ಮಾರ್ಗದರ್ಶನ"
+      ],
+      kn: [
+        "ನಿಯಮಗಳು", "ಮಾರ್ಗದರ್ಶನ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+  {
+    intent: Intent.DRESS_CODE,
+    category: IntentCategory.VISITOR,
+    priority: IntentPriority.TEMPLE_TIMINGS,
+    keywords: {
+      en: [
+        "dress", "dress code", "wear", "clothing", "attire",
+        "what to wear", "appropriate",
+        "ಉಡುಗೆ", "ತೊಡುಗೆ", "ಬಟ್ಟೆ"
+      ],
+      kn: [
+        "ಉಡುಗೆ", "ತೊಡುಗೆ", "ಬಟ್ಟೆ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== ACTIONS ====================
+  {
+    intent: Intent.TESTIMONIAL,
+    category: IntentCategory.ACTIONS,
+    priority: IntentPriority.THANKS,
+    keywords: {
+      en: [
+        "testimonial", "share", "experience", "review",
+        "feedback", "my experience", "tell you",
+        "ಅನುಭವ", "ಸಾಕ್ಷಿ"
+      ],
+      kn: [
+        "ಅನುಭವ", "ಸಾಕ್ಷಿ", "ಹಂಚಿಕೊಳ್ಳಿ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+  {
+    intent: Intent.VOLUNTEER,
+    category: IntentCategory.ACTIONS,
+    priority: IntentPriority.THANKS,
+    keywords: {
+      en: [
+        "volunteer", "volunteering", "serve", "service",
+        "help", "participate", "join",
+        "ಸ್ಯಾಂಪಂದನಾ", "ಸೇವೆ"
+      ],
+      kn: [
+        "ಸ್ಯಾಂಪಂದನಾ", "ಸೇವೆ", "ಸ್ವಯಂಸೇವಕ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+  {
+    intent: Intent.CONTACT_REQUEST,
+    category: IntentCategory.ACTIONS,
+    priority: IntentPriority.THANKS,
+    keywords: {
+      en: [
+        "contact temple", "talk to", "speak to", "reach temple",
+        "need help", "want to ask",
+        "ದೇವಸ್ಥಾನ ಸಂಪರ್ಕ"
+      ],
+      kn: [
+        "ಸಂಪರ್ಕಿಸಬೇಕು", "ಮಾತನಾಡಬೇಕು"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
+  // ==================== FAQ ====================
+  {
+    intent: Intent.FAQ,
+    category: IntentCategory.FAQ,
+    priority: IntentPriority.FAQ,
+    keywords: {
+      en: [
+        "faq", "question", "answer", "help",
+        "can i", "is it possible", "tell me",
+        "ಪ್ರಶ್ನೆ", "ಉತ್ತರ"
+      ],
+      kn: [
+        "ಪ್ರಶ್ನೆ", "ಉತ್ತರ", "ಏನು"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+
+  // ==================== GENERAL ====================
+  {
+    intent: Intent.GENERAL_GREETING,
+    category: IntentCategory.GENERAL,
+    priority: IntentPriority.GREETING,
+    keywords: {
+      en: [
+        "hello", "hi", "hey", "namaste", "namaskar", "good morning",
+        "good evening", "good afternoon", "greetings",
+        "ನಮಸ್ಕಾರ", "ಹಲೋ", "ವಂದನೆ"
+      ],
+      kn: [
+        "ನಮಸ್ಕಾರ", "ಹಲೋ", "ವಂದನೆ", "ಸ್ವಾಗತ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+  {
+    intent: Intent.THANKS,
+    category: IntentCategory.GENERAL,
+    priority: IntentPriority.THANKS,
+    keywords: {
+      en: [
+        "thank", "thanks", "thankyou", "appreciate", "grateful",
+        "ಧನ್ಯವಾದ", "ಕೃತಜ್ಞತೆ"
+      ],
+      kn: [
+        "ಧನ್ಯವಾದ", "ಕೃತಜ್ಞತೆ"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+  {
+    intent: Intent.GOODBYE,
+    category: IntentCategory.GENERAL,
+    priority: IntentPriority.GOODBYE,
+    keywords: {
+      en: [
+        "bye", "goodbye", "see you", "take care", "tata",
+        "ಬಾಯ್", "ಜನಾಂದೋಗ"
+      ],
+      kn: [
+        "ಜನಾಂದೋಗ", "ಬಾಯ್"
+      ]
+    },
+    requiresStructuredData: false,
+  },
+];
+
+// Out of scope patterns - common off-topic queries
+export const OUT_OF_SCOPE_PATTERNS = [
+  // Programming & Tech
+  /\b(python|javascript|java|c\+\+|programming|coding|code|bug|debug|software|app|website)\b/i,
+  // Stock & Finance
+  /\b(stock|share|market|trading|invest|business|profit|loss|bitcoin|crypto|cryptocurrency)\b/i,
+  // Weather
+  /\b(weather|rain|temperature|forecast|climate)\b/i,
+  // Politics
+  /\b(politics|election|government|minister|cm|mp|mla|vote|polling)\b/i,
+  // Entertainment
+  /\b(movie|film|series|netflix|amazon prime|disney|hotstar|song|music)\b/i,
+  // Sports
+  /\b(cricket|football|ipl| match|score|team|player|coach)\b/i,
+  // General off-topic
+  /\b(repair|fix|buy|sell|price|recipe|food|restaurant)\b/i,
+];
+
+// Out of scope keywords
+export const OUT_OF_SCOPE_KEYWORDS = {
+  en: [
+    "politics", "weather", "stock market", "bitcoin", "cryptocurrency",
+    "repair", "fix my", "buy a", "sell my", "python code",
+    "write code", "movie", "recipe"
+  ],
+  kn: [
+    "ರಾಜಕಾರಣ", "ಹವಾಮಾನ", "ಸ್ಟಾಕ್", "ಬಿಟ್‌ಕಾಯಿನ್"
+  ]
+};
+
+/**
+ * Check if text contains Kannada characters
+ */
+export function containsKannada(text: string): boolean {
+  return KANNADA_PATTERN.test(text);
+}
+
+/**
+ * Normalize text for matching (lowercase, trim)
+ */
+export function normalizeText(text: string): string {
+  return text.toLowerCase().trim();
+}
