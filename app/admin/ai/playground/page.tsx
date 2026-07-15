@@ -8,7 +8,6 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  RefreshCw,
   Copy,
   Trash2,
   ChevronDown,
@@ -246,7 +245,7 @@ export default function AIPlaygroundPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <p className="font-medium text-stone-900 mb-2">
-                        "{result.question}"
+                        &ldquo;{result.question}&rdquo;
                       </p>
                       <div className="flex flex-wrap items-center gap-3 text-sm">
                         <span className={`px-2 py-0.5 rounded-full font-medium ${getConfidenceColor(result.confidence)}`}>
@@ -332,7 +331,7 @@ export default function AIPlaygroundPage() {
             No tests yet
           </h3>
           <p className="text-stone-500">
-            Enter a question above and click "Run Test" to see the AI response
+            Enter a question above and click &ldquo;Run Test&rdquo; to see the AI response
           </p>
         </div>
       )}
