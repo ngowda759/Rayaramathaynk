@@ -1,0 +1,22 @@
+{
+  "title": "Parking Information",
+  "category": "parking",
+  "content": "Parking facilities are available for devotees visiting Sri Raghavendra Swamy Matha.",
+  "parking": {
+    "mainEntrance": {
+      "location": "Near Main Gate",
+      "type": "Two-wheeler and Four-wheeler",
+      "availability": "Free",
+      "capacity": "50 cars, 100 two-wheelers"
+    },
+    "eastEntrance": {
+      "location": "East Gate",
+      "type": "Two-wheeler and Four-wheeler",
+      "availability": "Free",
+      "capacity": "30 cars, 75 two-wheelers"
+    }
+  },
+  "tips": "During festivals and special occasions, parking fills up quickly. Public transport or auto-rickshaws are recommended during peak times.",
+  "publicTransport": "BMTC buses available from Yelahanka New Town bus stand",
+  "published": true
+}

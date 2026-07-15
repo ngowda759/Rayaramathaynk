@@ -1,0 +1,32 @@
+{
+  "title": "Accommodation Facilities",
+  "category": "accommodation",
+  "content": "Guest house and accommodation facilities available for devotees at Sri Raghavendra Swamy Matha.",
+  "accommodation": {
+    "guestHouse": {
+      "available": true,
+      "rooms": "AC and Non-AC rooms available",
+      "booking": "Contact temple office or book online",
+      "rates": "Nominal rates for devotees"
+    },
+    "dormitory": {
+      "available": true,
+      "description": "Free dormitory accommodation for pilgrims",
+      "facilities": "Basic amenities provided"
+    }
+  },
+  "bookingProcess": [
+    "Contact temple office by phone or email",
+    "Provide your visit dates and number of occupants",
+    "Confirm your booking",
+    "Collect keys at the reception on arrival"
+  ],
+  "rules": [
+    "Maintain cleanliness",
+    "Follow temple timings",
+    "No smoking or alcohol",
+    "Respect other devotees"
+  ],
+  "contact": "Phone: +91-80-28446400, Email: info@raghavendramatha.org",
+  "published": true
+}

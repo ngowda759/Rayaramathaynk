@@ -44,14 +44,15 @@ export default function PromptManagerPage() {
       setLoading(true);
       const response = await fetch("/api/ai/settings/prompts");
       const data = await response.json();
-      setPrompts(data.data || []);
+      const versions = data.versions || [];
+      setPrompts(versions);
       
       // Auto-select published prompt
-      const published = (data.data || []).find((p: PromptVersion) => p.status === "published");
+      const published = versions.find((p: PromptVersion) => p.status === "published");
       if (published) {
         setSelectedPrompt(published);
-      } else if (data.data?.length > 0) {
-        setSelectedPrompt(data.data[0]);
+      } else if (versions.length > 0) {
+        setSelectedPrompt(versions[0]);
       }
     } catch (error) {
       console.error("Error loading prompts:", error);

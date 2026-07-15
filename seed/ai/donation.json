@@ -1,0 +1,28 @@
+{
+  "title": "Donation Information",
+  "category": "donation",
+  "content": "Your generous donations help maintain the temple and support charitable activities.",
+  "donationOptions": [
+    {
+      "type": "Bank Transfer",
+      "details": "Account Name: Sri Raghavendra Swamy Matha, Account Number: XXXXXXXX, IFSC: XXXXXX"
+    },
+    {
+      "type": "UPI",
+      "details": "UPI ID: raghavendra@matha"
+    },
+    {
+      "type": "Cash",
+      "details": "Donations can be made at the temple counter"
+    }
+  ],
+  "taxBenefit": "Donations above Rs. 100 are eligible for 80G tax exemption. Tax certificates available at the office.",
+  "uses": [
+    "Temple maintenance and cleanliness",
+    "Annadanam (free meals) program",
+    "Charitable activities",
+    "Festival celebrations",
+    "Temple development"
+  ],
+  "published": true
+}

@@ -1,0 +1,40 @@
+{
+  "title": "Frequently Asked Questions",
+  "category": "faq",
+  "content": "Common questions and answers about visiting Sri Raghavendra Swamy Matha.",
+  "questions": [
+    {
+      "q": "What are the temple timings?",
+      "a": "Morning: 6:00 AM - 12:30 PM, Evening: 5:00 PM - 8:30 PM"
+    },
+    {
+      "q": "Is there a dress code?",
+      "a": "Traditional Indian attire is recommended. Saree for women, Kurta-Pajama or Dhoti for men."
+    },
+    {
+      "q": "Is photography allowed?",
+      "a": "Photography is not allowed inside the sanctum. External photography is permitted."
+    },
+    {
+      "q": "Is there free parking?",
+      "a": "Yes, free parking is available at the main entrance and east entrance."
+    },
+    {
+      "q": "What is Annadanam?",
+      "a": "Annadanam is the free meal program offered to devotees. Timings: 12:00 PM - 2:00 PM daily."
+    },
+    {
+      "q": "How can I book sevas?",
+      "a": "Sevas can be booked online through our website or at the temple counter."
+    },
+    {
+      "q": "Is wheelchair access available?",
+      "a": "Yes, wheelchair access with ramps is available at the main entrance."
+    },
+    {
+      "q": "What is the best time to visit?",
+      "a": "Weekdays are less crowded. Morning hours (6-8 AM) offer a peaceful darshan."
+    }
+  ],
+  "published": true
+}

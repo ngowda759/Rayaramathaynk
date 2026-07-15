@@ -1,0 +1,25 @@
+{
+  "title": "Dress Code Guidelines",
+  "category": "dress-code",
+  "content": "Traditional Indian attire is recommended for visiting Sri Raghavendra Swamy Matha. The dress code is designed to maintain the sanctity and spiritual atmosphere of the temple.",
+  "guidelines": [
+    {
+      "item": "Saree",
+      "description": "Traditional Indian saree is the most preferred attire for women"
+    },
+    {
+      "item": "Kurta-Pajama",
+      "description": "Plain or simple designed kurta-pajama is recommended for men"
+    },
+    {
+      "item": "Dhoti",
+      "description": "Traditional dhoti is also acceptable for men"
+    },
+    {
+      "item": "Avoid",
+      "description": "Shorts, mini-skirts, sleeveless tops, and revealing clothing should be avoided"
+    }
+  ],
+  "tips": "During festivals and special occasions, elaborate traditional attire is appreciated. The temple shop also offers traditional clothing if needed.",
+  "published": true
+}

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "seed:ai": "npx ts-node --project tsconfig.scripts.json scripts/seed-ai-knowledge.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

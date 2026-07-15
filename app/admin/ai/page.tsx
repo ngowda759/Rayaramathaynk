@@ -10,7 +10,8 @@ import {
   Settings,
   ArrowRight,
   Clock,
-  Brain
+  Brain,
+  BookOpen
 } from "lucide-react";
 import { getPendingTestimonials } from "@/services/chat.service";
 import { getVolunteerRequests } from "@/services/chat.service";
@@ -71,6 +72,14 @@ export default function AdminAIPage() {
       href: "/admin/ai/volunteers",
       count: stats.pendingVolunteers,
       color: "bg-green-500",
+    },
+    {
+      title: "Knowledge Coverage",
+      description: "Manage AI knowledge base",
+      icon: BookOpen,
+      href: "/admin/ai/knowledge",
+      count: null,
+      color: "bg-teal-500",
     },
     {
       title: "Analytics",

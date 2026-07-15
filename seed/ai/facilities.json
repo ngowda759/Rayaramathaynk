@@ -1,0 +1,43 @@
+{
+  "title": "Temple Facilities",
+  "category": "facilities",
+  "content": "Sri Raghavendra Swamy Matha provides various facilities for the convenience of devotees and visitors.",
+  "facilities": [
+    {
+      "name": "Wheelchair Access",
+      "description": "Wheelchair access available at the main entrance with ramps",
+      "available": true
+    },
+    {
+      "name": "Drinking Water",
+      "description": "RO purified water available near the entrance and Annadanam hall",
+      "available": true
+    },
+    {
+      "name": "Restrooms",
+      "description": "Clean restrooms available near the entrance and parking area",
+      "available": true
+    },
+    {
+      "name": "Parking",
+      "description": "Free parking available at main entrance and east entrance",
+      "available": true
+    },
+    {
+      "name": "Annadanam Hall",
+      "description": "Free meals served daily to devotees",
+      "timings": "12:00 PM - 2:00 PM"
+    },
+    {
+      "name": "Guest House",
+      "description": "Accommodation available for devotees. Contact office for booking",
+      "available": true
+    },
+    {
+      "name": "Prasada Counter",
+      "description": "Prasada available at counter near exit after darshan",
+      "available": true
+    }
+  ],
+  "published": true
+}
