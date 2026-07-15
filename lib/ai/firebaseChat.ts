@@ -45,20 +45,25 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Get temple info from Firebase
+// NOTE: This function is deprecated. Use retrieval modules instead.
+// It only exists for backward compatibility with legacy fallback paths.
 export async function getTempleInfo(): Promise<TempleInfo | null> {
   if (!isFirebaseConfigured() || !db) {
+    // Return null - do NOT use hardcoded values
+    // Use the structured retrieval modules instead
     return null;
   }
 
   try {
+    // Start with empty info - all data comes from Firebase or retrieval
     const info: TempleInfo = {
-      name: "Sri Raghavendra Swamy Matha",
-      address: "Yelahanka New Town, Bengaluru, Karnataka",
-      phone: "+91 80 2332 3456",
-      email: "ngowda759@gmail.com",
+      name: "",
+      address: "",
+      phone: "",
+      email: "",
       timings: {
-        morning: { open: "06:00 AM", close: "12:00 PM" },
-        evening: { open: "05:00 PM", close: "08:30 PM" },
+        morning: { open: "", close: "" },
+        evening: { open: "", close: "" },
       },
       upcomingEvents: [],
       sevas: [],

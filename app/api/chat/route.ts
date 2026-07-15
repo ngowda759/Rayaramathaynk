@@ -160,6 +160,25 @@ export async function POST(request: NextRequest) {
 
     // If hybrid didn't work or is disabled, try AI provider
     if (responseSource !== "hybrid") {
+      // HYBRID MODE SAFETY: If structured retrieval fails, return a safe error message
+      // Do NOT fall back to LLM-only mode as it may hallucinate temple facts
+      
+      console.log(`[Chat API] [${requestId}] WARNING: Hybrid mode failed. Returning safe error response.`);
+      console.log(`[Chat API] [${requestId}] The LLM fallback is disabled to prevent hallucinated temple facts.`);
+      
+      // Return a safe, structured error response
+      responseMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "🙏 Namaskara! I apologize, but I'm experiencing technical difficulties at the moment.\n\nFor temple information, please:\n• Visit our website\n• Contact the temple office directly\n• Check the official announcements\n\n🙏 Sri Guru Raghavendraya Namaha.",
+        timestamp: Date.now(),
+      };
+      responseSource = "hybrid"; // Mark as hybrid to indicate this is our safe response
+      
+      /*
+      // OLD FALLBACK CODE - DISABLED FOR SAFETY
+      // Keeping commented for reference during transition period
+      
       const provider = getAIProvider();
 
       if (provider.isConfigured()) {
@@ -191,36 +210,26 @@ export async function POST(request: NextRequest) {
             latency,
           };
         } catch (aiError) {
-          // AI call failed, log and fallback to Firebase
+          // AI call failed, log and return safe error
           logError("AI provider call", aiError, { requestId, provider: provider.getProviderName() });
-          console.log(`[Chat API] [${requestId}] Falling back to Firebase due to AI error`);
           
-          // Get temple info from Firebase
-          const templeInfo = await getTempleInfo();
-          
-          // Generate response using Firebase data
-          responseMessage = await generateFirebaseResponse(
-            lastUserMessage.content,
-            templeInfo,
-            responseLanguage as "en" | "kn" | "mixed"
-          );
-          responseSource = "firebase";
+          responseMessage = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: "🙏 I apologize for the inconvenience. Please try again or contact the temple office directly.",
+            timestamp: Date.now(),
+          };
         }
       } else {
-        // AI not configured, use Firebase-based response
-        console.log(`[Chat API] [${requestId}] AI not configured (placeholder key or missing config), using Firebase fallback`);
-        
-        // Get temple info from Firebase
-        const templeInfo = await getTempleInfo();
-        
-        // Generate response using Firebase data
-        responseMessage = await generateFirebaseResponse(
-          lastUserMessage.content,
-          templeInfo,
-          responseLanguage as "en" | "kn" | "mixed"
-        );
-        responseSource = "firebase";
+        // AI not configured
+        responseMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "🙏 AI service is not configured. Please contact the temple office for assistance.",
+          timestamp: Date.now(),
+        };
       }
+      */
     }
 
     const totalLatency = Date.now() - startTime;
