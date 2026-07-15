@@ -8,47 +8,39 @@
   "questions": [
     {
       "q": "What are the temple timings?",
-      "a": "Morning: 6:00 AM - 12:30 PM, Evening: 5:00 PM - 8:30 PM. Timings may extend during festivals and special occasions. Please contact the temple office for current timings."
+      "a": "The temple is typically open from 6:00 AM to 12:00 PM in the morning and 5:00 PM to 8:30 PM in the evening. Festival timings may vary."
     },
     {
       "q": "Is there a dress code?",
-      "a": "Traditional Indian attire is recommended. Saree or salwar kameez for women, kurta-pajama or dhoti for men. Please ensure shoulders and knees are covered."
+      "a": "Yes, modest and conservative dress is recommended. Traditional Indian attire is preferred."
+    },
+    {
+      "q": "How can I book a Seva?",
+      "a": "Sevas can be booked online through our website or by visiting the temple office."
     },
     {
       "q": "Is photography allowed?",
-      "a": "Photography is not allowed inside the sanctum or main shrine area. External photography of the temple architecture is permitted. Flash photography is prohibited throughout."
+      "a": "Photography is generally not allowed inside the sanctum. Please check with temple authorities for other areas."
     },
     {
-      "q": "Is there parking available?",
-      "a": "Yes, parking facilities are available. Please contact the temple office for current parking information and any specific guidance during festivals."
-    },
-    {
-      "q": "What is Annadanam?",
-      "a": "Annadanam is the free meal program offered to devotees. Please contact the temple or check on arrival for current timings and availability."
-    },
-    {
-      "q": "How can I book sevas?",
-      "a": "Sevas can be booked online through our website or at the temple counter. Please visit the sevas section for more information."
-    },
-    {
-      "q": "Is wheelchair access available?",
-      "a": "Yes, wheelchair access with ramps is available at the main entrance. Special assistance can be requested from temple staff."
-    },
-    {
-      "q": "What is the best time to visit?",
-      "a": "Weekdays are generally less crowded. Early morning hours (6-8 AM) offer a peaceful darshan experience. During weekends and festivals, expect larger crowds."
-    },
-    {
-      "q": "Is accommodation available?",
-      "a": "Please contact the temple office regarding accommodation availability, booking procedures, and current rates."
+      "q": "Can I volunteer at the temple?",
+      "a": "Yes, we welcome volunteers. Please contact the temple office or speak with a priest during your visit."
     },
     {
       "q": "How can I make a donation?",
-      "a": "Donations can be made online through our website, via UPI, bank transfer, or at the temple counter. Please visit the donation section for details."
+      "a": "Donations can be made online through our website or at the temple office. Tax receipts (80G) are available for eligible donations."
+    },
+    {
+      "q": "Is there accommodation available?",
+      "a": "Basic accommodation may be available for visiting devotees. Please contact the temple office in advance."
+    },
+    {
+      "q": "What is the nearest railway station?",
+      "a": "Yelahanka Junction is the nearest railway station. The temple is about 5 km from the station."
     }
   ],
   "approved": true,
-  "version": 1,
+  "version": 2,
   "lastReviewed": "2025-01-17",
   "reviewedBy": "Temple Committee",
   "tags": ["faq", "questions", "answers", "help", "information"]

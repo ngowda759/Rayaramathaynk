@@ -172,7 +172,7 @@ describe("Knowledge Bootstrap System", () => {
       expect(data.content).toBeDefined();
       // Check that morning and evening timings are in content
       expect(data.content).toContain("6:00 AM");
-      expect(data.content).toContain("12:30 PM");
+      expect(data.content).toContain("12:00 PM");
       expect(data.content).toContain("5:00 PM");
       expect(data.content).toContain("8:30 PM");
     });
