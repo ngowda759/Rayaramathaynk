@@ -111,7 +111,7 @@ The temple follows Madhwa traditions including:
   createArticle(
     "Madhvacharya - Life and Teachings",
     "madhwa_philosophy",
-    ["madhavacharya", "madhavacharya", "life", "biography", "guru", "ಮಾಧವಾಚಾರ್ಯ"],
+    ["madhavacharya", "life", "biography", "guru", "ಮಾಧವಾಚಾರ್ಯ"],
     `Sri Madhvacharya (1238–1317 CE) was the founder of Dvaita Vedanta philosophy and the spiritual preceptor lineage followed by Sri Raghavendra Swamy.
 
 **Birth and Early Life:**

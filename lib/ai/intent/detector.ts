@@ -234,7 +234,13 @@ export class IntentDetector {
       ["daily pooja", Intent.DAILY_POOJA],
       ["pooja", Intent.DAILY_POOJA],
       ["puja", Intent.DAILY_POOJA],
-      // Donation
+      // Donation (more specific first)
+      ["80g", Intent.DONATION_80G],
+      ["80 g", Intent.DONATION_80G],
+      ["tax deductible", Intent.DONATION_80G],
+      ["tax benefit", Intent.DONATION_80G],
+      ["tax exemption", Intent.DONATION_80G],
+      ["donation receipt", Intent.DONATION_80G],
       ["donate", Intent.DONATION],
       ["donation", Intent.DONATION],
       ["contributions", Intent.DONATION],
@@ -259,13 +265,15 @@ export class IntentDetector {
     // Check for domain-specific keywords first (order preserved)
     for (const [keyword, intent] of domainKeywords) {
       if (lowerMessage.includes(keyword)) {
+        // Look up requiresStructuredData from INTENT_PATTERNS
+        const pattern = INTENT_PATTERNS.find(p => p.intent === intent);
         return {
           intent,
           category: this.getCategoryForIntent(intent),
           confidence: 100, // Direct match gets highest confidence
           source: RetrievalType.SEMANTIC_MATCH,
           matchedKeywords: [keyword],
-          requiresStructuredData: true,
+          requiresStructuredData: pattern?.requiresStructuredData ?? true,
         };
       }
     }
@@ -343,6 +351,29 @@ export class IntentDetector {
     keywordResult: IntentDetectionResult,
     semanticResult: IntentDetectionResult
   ): IntentDetectionResult {
+    // If semantic detection found a direct domain keyword match (100% confidence),
+    // it should override keyword detection to ensure specific terms win
+    if (semanticResult.confidence === 100 && semanticResult.source === RetrievalType.SEMANTIC_MATCH) {
+      return semanticResult;
+    }
+
+    // If keyword detection has matched keywords, prioritize it
+    // This prevents generic words like "about", "tell" from overriding domain matches
+    if (keywordResult.matchedKeywords.length > 0) {
+      // If keyword match is reasonable, use it
+      if (keywordResult.confidence >= 25) {
+        // Boost if semantic agrees
+        if (keywordResult.intent === semanticResult.intent) {
+          return {
+            ...keywordResult,
+            confidence: Math.min(keywordResult.confidence + 10, 100),
+            source: RetrievalType.HYBRID_MATCH,
+          };
+        }
+        return keywordResult;
+      }
+    }
+
     // If both agree, boost confidence
     if (keywordResult.intent === semanticResult.intent) {
       return {
@@ -387,11 +418,12 @@ export class IntentDetector {
 
     if (matchedKeywords.length === 0) return null;
 
-    // Calculate confidence
+    // Calculate confidence - factor in priority (0-100 scaled to 0-30)
     const effectiveMatches = Math.min(matchedKeywords.length, this.maxKeywords);
     const keywordScore = Math.min((effectiveMatches / this.maxKeywords) * 60, 60);
-    const contextScore = Math.min(normalizedMessage.length / 100 * 10, 20);
-    const confidence = Math.min(Math.round(20 + keywordScore + contextScore), 95);
+    // Normalize priority (0-100 range) to a 0-30 bonus
+    const priorityBonus = Math.min((pattern.priority / 100) * 30, 30);
+    const confidence = Math.min(Math.round(20 + keywordScore + priorityBonus), 95);
 
     return {
       intent: pattern.intent,
