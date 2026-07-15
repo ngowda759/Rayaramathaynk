@@ -255,6 +255,11 @@ export class IntentDetector {
     // Domain-specific keywords that should have higher weight
     // Order matters: more specific first (using array to preserve order)
     const domainKeywords: [string, Intent][] = [
+      // Temple Timings (high priority)
+      ["temple timings", Intent.TEMPLE_TIMINGS],
+      ["temple timing", Intent.TEMPLE_TIMINGS],
+      ["matha timings", Intent.TEMPLE_TIMINGS],
+      ["math timings", Intent.TEMPLE_TIMINGS],
       // Pooja-related (daily first)
       ["daily pooja", Intent.DAILY_POOJA],
       ["pooja", Intent.DAILY_POOJA],

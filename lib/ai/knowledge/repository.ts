@@ -218,7 +218,7 @@ export async function searchArticles(
         matchedKeywords,
       };
     })
-    .filter((r) => r.relevanceScore > 0)
+    .filter((r) => r.relevanceScore >= 10) // Minimum relevance threshold
     .sort((a, b) => b.relevanceScore - a.relevanceScore)
     .slice(0, maxResults);
 
