@@ -437,14 +437,11 @@ export class AISettingsRepository {
   ): Promise<UnknownQuestion[]> {
     const q = collection(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION);
 
-    // Apply filters
-    const constraints = [orderBy("timestamp", "desc")] as const;
-
-    if (filters?.limit) {
-      constraints.push(limit(filters.limit));
-    }
-
-    const snapshot = await getDocs(query(q, ...constraints));
+    // Apply filters - build constraints array
+    const orderConstraint = orderBy("timestamp", "desc");
+    const snapshot = filters?.limit
+      ? await getDocs(query(q, orderConstraint, limit(filters.limit)))
+      : await getDocs(query(q, orderConstraint));
 
     let questions = snapshot.docs.map((doc) => ({
       id: doc.id,
