@@ -515,21 +515,50 @@ export async function getAnalyticsDashboard(
   startDate?: number,
   endDate?: number
 ): Promise<AnalyticsDashboardResponse> {
+  const end = endDate || Date.now();
+  const start = startDate || (end - 7 * 24 * 60 * 60 * 1000); // Default: last 7 days
+  
   if (!isFirebaseConfigured() || !db) {
     return {
       dashboard: {
-        overview: { totalConversations: 0, totalMessages: 0, uniqueUsers: 0, averageResponseTime: 0, satisfactionRate: 0, period: { start: 0, end: 0 } },
-        tokenUsage: { totalTokens: 0, totalCost: 0, averageTokensPerRequest: 0 },
-        latency: { averageLatency: 0 },
-        intentDistribution: { total: 0 },
-        unknownQuestions: { total: 0 },
+        overview: { totalConversations: 0, totalMessages: 0, uniqueUsers: 0, averageResponseTime: 0, satisfactionRate: 0, period: { start, end } },
+        tokenUsage: { totalInputTokens: 0, totalOutputTokens: 0, totalTokens: 0, totalCost: 0, averageTokensPerRequest: 0, byModel: {}, byIntent: {} as any, timeSeries: [] },
+        latency: { 
+          averageTotalLatency: 0, 
+          averageIntentDetectionTime: 0, 
+          averageRetrievalTime: 0, 
+          averageGenerationTime: 0, 
+          p50Latency: 0, 
+          p95Latency: 0, 
+          p99Latency: 0, 
+          timeoutCount: 0, 
+          errorCount: 0, 
+          successRate: 100, 
+          timeSeries: [],
+          byIntent: {} as any
+        },
+        intentDistribution: { 
+          totalMessages: 0, 
+          byIntent: [], 
+          byCategory: [], 
+          byLanguage: [], 
+          timeSeries: [],
+          topQuestions: []
+        },
+        unknownQuestions: { 
+          total: 0, 
+          unreviewed: 0, 
+          reviewed: 0, 
+          addedToKnowledge: 0, 
+          byIntent: {} as any, 
+          recentQuestions: [], 
+          feedbackDistribution: { helpful: 0, not_helpful: 0 },
+          timeSeries: []
+        },
+        health: { status: "healthy", lastChecked: Date.now(), apiLatency: 0, errorRate: 0, uptime: 100, issues: [] },
       },
-      health: { status: { status: "healthy", lastChecked: Date.now(), apiLatency: 0, errorRate: 0, uptime: 100, issues: [] }, timestamp: Date.now() },
-    } as any;
+    } as AnalyticsDashboardResponse;
   }
-
-  const end = endDate || Date.now();
-  const start = startDate || (end - 7 * 24 * 60 * 60 * 1000); // Default: last 7 days
   
   try {
     // Fetch all metrics in parallel
