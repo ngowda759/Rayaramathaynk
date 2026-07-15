@@ -437,29 +437,35 @@ export class AISettingsRepository {
       limit?: number;
     }
   ): Promise<UnknownQuestion[]> {
-    const q = collection(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION);
+    try {
+      const q = collection(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION);
 
-    // Apply filters - build constraints array
-    const orderConstraint = orderBy("timestamp", "desc");
-    const snapshot = filters?.limit
-      ? await getDocs(query(q, orderConstraint, limit(filters.limit)))
-      : await getDocs(query(q, orderConstraint));
+      // Apply filters - build constraints array
+      const orderConstraint = orderBy("timestamp", "desc");
+      const snapshot = filters?.limit
+        ? await getDocs(query(q, orderConstraint, limit(filters.limit)))
+        : await getDocs(query(q, orderConstraint));
 
-    let questions = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate() || new Date(),
-    })) as UnknownQuestion[];
+      let questions = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate() || new Date(),
+      })) as UnknownQuestion[];
 
-    // Apply additional filters in memory
-    if (filters?.status) {
-      questions = questions.filter((q) => q.status === filters.status);
+      // Apply additional filters in memory
+      if (filters?.status) {
+        questions = questions.filter((q) => q.status === filters.status);
+      }
+      if (filters?.assignedTo) {
+        questions = questions.filter((q) => q.assignedTo === filters.assignedTo);
+      }
+
+      return questions;
+    } catch (error) {
+      // Return empty array when Firebase is not configured
+      console.warn("Firebase not configured, returning empty unknown questions list");
+      return [];
     }
-    if (filters?.assignedTo) {
-      questions = questions.filter((q) => q.assignedTo === filters.assignedTo);
-    }
-
-    return questions;
   }
 
   async updateUnknownQuestion(
