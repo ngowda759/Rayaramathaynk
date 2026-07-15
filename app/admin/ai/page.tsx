@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { 
   MessageSquare, 
@@ -11,10 +11,22 @@ import {
   ArrowRight,
   Clock,
   Brain,
-  BookOpen
+  BookOpen,
+  Download,
+  Loader2,
+  AlertCircle,
+  CheckCircle
 } from "lucide-react";
 import { getPendingTestimonials } from "@/services/chat.service";
 import { getVolunteerRequests } from "@/services/chat.service";
+import toast from "react-hot-toast";
+
+interface CoverageSummary {
+  total: number;
+  present: number;
+  missing: number;
+  percentage: number;
+}
 
 export default function AdminAIPage() {
   const [stats, setStats] = useState({
@@ -23,7 +35,45 @@ export default function AdminAIPage() {
     totalConversations: 0,
     recentMessages: 0,
   });
+  const [coverage, setCoverage] = useState<CoverageSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+
+  const loadCoverage = useCallback(async () => {
+    try {
+      const response = await fetch("/api/ai/knowledge/coverage");
+      const data = await response.json();
+      if (data.success) {
+        setCoverage(data.data.summary);
+      }
+    } catch (error) {
+      console.error("Failed to load coverage:", error);
+    }
+  }, []);
+
+  const handleImportKnowledge = async () => {
+    setImporting(true);
+    try {
+      const response = await fetch("/api/ai/knowledge/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overwrite: false }),
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(`Imported ${data.data.imported} knowledge articles`);
+        loadCoverage(); // Refresh coverage
+      } else {
+        toast.error(data.error || "Import failed");
+      }
+    } catch (error) {
+      console.error("Import failed:", error);
+      toast.error("Failed to import knowledge");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     async function loadStats() {
@@ -46,7 +96,8 @@ export default function AdminAIPage() {
       }
     }
     loadStats();
-  }, []);
+    loadCoverage();
+  }, [loadCoverage]);
 
   const menuItems = [
     {
@@ -147,6 +198,62 @@ export default function AdminAIPage() {
           bgColor="bg-purple-50"
         />
       </div>
+
+      {/* Knowledge Status Banner */}
+      {coverage !== null && (
+        <div className={`rounded-xl p-4 border ${
+          coverage.percentage === 100 
+            ? "bg-green-50 border-green-200" 
+            : "bg-amber-50 border-amber-200"
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {coverage.percentage === 100 ? (
+                <div className="p-2 bg-green-100 rounded-full">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </div>
+              ) : (
+                <div className="p-2 bg-amber-100 rounded-full">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                </div>
+              )}
+              <div>
+                <p className={`font-medium ${
+                  coverage.percentage === 100 ? "text-green-800" : "text-amber-800"
+                }`}>
+                  Knowledge Base: {coverage.percentage}% Complete
+                </p>
+                <p className="text-sm text-stone-600">
+                  {coverage.present} of {coverage.total} categories configured
+                  {coverage.missing > 0 && ` (${coverage.missing} missing)`}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {coverage.missing > 0 && (
+                <button
+                  onClick={handleImportKnowledge}
+                  disabled={importing}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50 text-sm font-medium"
+                >
+                  {importing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Import Default Knowledge
+                </button>
+              )}
+              <Link
+                href="/admin/ai/knowledge"
+                className="px-4 py-2 bg-stone-600 hover:bg-stone-700 text-white rounded-lg transition-colors text-sm font-medium"
+              >
+                View Details
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Menu Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

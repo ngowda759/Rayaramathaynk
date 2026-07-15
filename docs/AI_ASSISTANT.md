@@ -30,6 +30,14 @@ Raya AI is the custom-built AI assistant for Sri Raghavendra Swamy Math, Yelahan
 - Volunteer requests at /admin/ai/volunteers
 - Analytics at /admin/ai/analytics
 
+### Milestone 5: Knowledge Bootstrap System
+- Knowledge Coverage dashboard at /admin/ai/knowledge
+- "Import Default Knowledge" button on AI Management page
+- Empty state page when no knowledge exists
+- Support for 14 knowledge categories including Temple Timings, Visitor Guidelines, Dress Code, Facilities, Parking, Volunteer, FAQ, Contact, Donation, Photography, Accommodation, Temple History, Sri Raghavendra Swamy, and Brindavana
+- Safe import with no overwriting of existing published content
+- "Initialize Missing Knowledge" action to fill gaps
+
 ## Architecture
 
 ```
@@ -250,6 +258,139 @@ components/ai/
 - [x] Anonymous user sessions
 - [x] Firebase integration
 - [x] Multiple AI provider support
+- [x] Knowledge Bootstrap System (first-run experience)
+- [x] Knowledge Coverage Dashboard
+- [x] Empty State for missing knowledge
+- [x] "Import Default Knowledge" functionality
+
+## Knowledge Bootstrap System
+
+### Overview
+
+The Knowledge Bootstrap System provides a first-run experience for AI Management, allowing administrators to quickly populate the knowledge base with default content covering 14 essential categories.
+
+### Knowledge Categories
+
+The system supports the following knowledge categories:
+
+| Category ID | Name | Description |
+|------------|------|-------------|
+| temple-timings | Temple Timings | Daily darshan timings and office hours |
+| visitor-guidelines | Visitor Guidelines | Temple rules and etiquette |
+| dress-code | Dress Code | Appropriate attire for visiting |
+| facilities | Facilities | Available amenities and services |
+| parking | Parking | Parking information and availability |
+| volunteer | Volunteer | Volunteer program and opportunities |
+| faq | FAQ | Frequently asked questions |
+| contact | Contact | Contact information and office hours |
+| donation | Donation | How to donate and tax benefits |
+| photography | Photography | Photography policy and guidelines |
+| accommodation | Accommodation | Guest house and lodging facilities |
+| history | Temple History | History of the temple |
+| raghavendra-swamy | Sri Raghavendra Swamy | Biography and teachings |
+| brindavana | Brindavana | The sacred samadhi information |
+
+### Seed Files
+
+Default knowledge is stored in `seed/ai/` directory as JSON files. Each file must have:
+
+```json
+{
+  "title": "Article Title",
+  "category": "category-id",
+  "content": "Main content...",
+  "published": true
+}
+```
+
+### API Endpoints
+
+#### GET /api/ai/knowledge/coverage
+
+Check knowledge base coverage status.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "coverage": [...],
+    "summary": {
+      "total": 14,
+      "present": 10,
+      "missing": 4,
+      "percentage": 71
+    },
+    "lastChecked": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### POST /api/ai/knowledge/import
+
+Import default knowledge into the database.
+
+**Request:**
+```json
+{
+  "overwrite": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "imported": 4,
+    "skipped": 10,
+    "errors": 0,
+    "results": [...],
+    "summary": {
+      "total": 14,
+      "coverage": 100
+    }
+  }
+}
+```
+
+### Admin Interface
+
+#### AI Management Page (/admin/ai)
+
+- Knowledge status banner showing coverage percentage
+- "Import Default Knowledge" button when categories are missing
+- Quick link to Knowledge Coverage dashboard
+
+#### Knowledge Coverage Page (/admin/ai/knowledge)
+
+- Summary cards showing total, present, missing categories
+- Progress bar for coverage visualization
+- "Initialize Missing" action button
+- "Re-import All" option with overwrite confirmation
+- Empty state when no knowledge exists
+
+### Usage
+
+1. Navigate to Admin → AI Management
+2. Click "Import Default Knowledge" if prompted
+3. View coverage status on the Knowledge Coverage dashboard
+4. Use "Initialize Missing" to add missing categories
+5. Use "Re-import All" to refresh all knowledge (with overwrite)
+
+### CLI Script
+
+Alternatively, use the CLI script:
+
+```bash
+npm run seed:ai
+```
+
+For overwriting existing content:
+
+```bash
+npm run seed:ai -- --overwrite
+```
 
 ## Future Improvements
 
