@@ -581,7 +581,7 @@ function BehaviorSection({ data, onChange }: { data: AIBehaviorSettings; onChang
             type="number"
             min="0"
             max="100"
-            value={(data.confidenceThreshold ?? 85) * 100}
+            value={typeof data.confidenceThreshold === 'number' ? data.confidenceThreshold * 100 : 85}
             onChange={(e) => onChange("confidenceThreshold", parseInt(e.target.value) / 100)}
             className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500"
           />
@@ -596,7 +596,7 @@ function BehaviorSection({ data, onChange }: { data: AIBehaviorSettings; onChang
             type="number"
             min="0"
             max="100"
-            value={(data.semanticThreshold ?? 0.7) * 100}
+            value={typeof data.semanticThreshold === 'number' ? data.semanticThreshold * 100 : 70}
             onChange={(e) => onChange("semanticThreshold", parseInt(e.target.value) / 100)}
             className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500"
           />
@@ -611,7 +611,7 @@ function BehaviorSection({ data, onChange }: { data: AIBehaviorSettings; onChang
             type="number"
             min="1"
             max="10"
-            value={data.maxRelatedArticles ?? 3}
+            value={typeof data.maxRelatedArticles === 'number' ? data.maxRelatedArticles : 3}
             onChange={(e) => onChange("maxRelatedArticles", parseInt(e.target.value))}
             className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500"
           />
@@ -626,7 +626,7 @@ function BehaviorSection({ data, onChange }: { data: AIBehaviorSettings; onChang
             type="number"
             min="1"
             max="120"
-            value={data.conversationTimeout ?? 30}
+            value={typeof data.conversationTimeout === 'number' ? data.conversationTimeout : 30}
             onChange={(e) => onChange("conversationTimeout", parseInt(e.target.value))}
             className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500"
           />

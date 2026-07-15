@@ -1,15 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
+import {
   CheckCircle,
   XCircle,
   AlertTriangle,
   RefreshCw,
   Database,
   MessageSquare,
-  Brain,
-  Clock,
   Activity,
   Zap,
   Shield,
@@ -74,7 +72,7 @@ export default function AIHealthPage() {
       "/api/ai/settings/unknown-questions",
     ];
 
-          const apiResults = await Promise.all(
+    const apiResults = await Promise.all(
       apiEndpoints.map(async (endpoint) => {
         const start = Date.now();
         try {
@@ -109,16 +107,24 @@ export default function AIHealthPage() {
 
     // Check Data Integrity
     try {
-      const [temple, visitor, policies, responses, behavior] = await Promise.all([
-        fetch("/api/ai/settings/temple-information").then(r => r.json()),
-        fetch("/api/ai/settings/visitor-information").then(r => r.json()),
-        fetch("/api/ai/settings/policies").then(r => r.json()),
-        fetch("/api/ai/settings/ai-responses").then(r => r.json()),
-        fetch("/api/ai/settings/ai-behavior").then(r => r.json()),
+      const [templeRes, visitorRes, policiesRes, responsesRes, behaviorRes] = await Promise.all([
+        fetch("/api/ai/settings/temple-information"),
+        fetch("/api/ai/settings/visitor-information"),
+        fetch("/api/ai/settings/policies"),
+        fetch("/api/ai/settings/ai-responses"),
+        fetch("/api/ai/settings/ai-behavior"),
       ]);
 
-      const hasData = temple.data && visitor.data && policies.data && responses.data && behavior.data;
-      
+      const [temple, visitor, policies, responses, behavior] = await Promise.all([
+        templeRes.ok ? templeRes.json() : null,
+        visitorRes.ok ? visitorRes.json() : null,
+        policiesRes.ok ? policiesRes.json() : null,
+        responsesRes.ok ? responsesRes.json() : null,
+        behaviorRes.ok ? behaviorRes.json() : null,
+      ]);
+
+      const hasData = temple?.data && visitor?.data && policies?.data && responses?.data && behavior?.data;
+
       checks.push({
         name: "Data Integrity",
         status: hasData ? "healthy" : "warning",
@@ -129,9 +135,9 @@ export default function AIHealthPage() {
 
       // Check for empty required fields
       const emptyFields: string[] = [];
-      if (!temple.data?.address) emptyFields.push("Temple Address");
-      if (!visitor.data?.guidelines) emptyFields.push("Visitor Guidelines");
-      if (!responses.data?.templates) emptyFields.push("AI Response Templates");
+      if (!temple?.data?.timings && !temple?.data?.contact) emptyFields.push("Temple Information");
+      if (!visitor?.data?.guidelines) emptyFields.push("Visitor Guidelines");
+      if (!responses?.data?.greeting) emptyFields.push("AI Response Templates");
 
       checks.push({
         name: "Required Fields",
@@ -140,37 +146,31 @@ export default function AIHealthPage() {
         details: emptyFields.length > 0 ? emptyFields.join(", ") : undefined,
         lastChecked: new Date(),
       });
+
+      // AI Behavior Check
+      if (behavior?.data) {
+        const confidence = behavior.data?.confidenceThreshold;
+        const semantic = behavior.data?.semanticThreshold;
+        const maxRelated = behavior.data?.maxRelatedArticles;
+
+        const confidenceOk = typeof confidence === 'number' && confidence >= 0.7 && confidence <= 0.95;
+        const semanticOk = typeof semantic === 'number' && semantic >= 0.5 && semantic <= 0.9;
+        const maxRelatedOk = typeof maxRelated === 'number' && maxRelated >= 1 && maxRelated <= 5;
+
+        checks.push({
+          name: "AI Behavior Settings",
+          status: confidenceOk && semanticOk && maxRelatedOk ? "healthy" : "warning",
+          message: "Configuration within recommended ranges",
+          details: `Confidence: ${confidenceOk ? `${(confidence * 100).toFixed(0)}%` : 'N/A'}, Semantic: ${semanticOk ? `${(semantic * 100).toFixed(0)}%` : 'N/A'}, Max Related: ${maxRelatedOk ? maxRelated : 'N/A'}`,
+          lastChecked: new Date(),
+        });
+      }
     } catch (error) {
       checks.push({
         name: "Data Integrity",
         status: "error",
         message: "Failed to check data",
         details: error instanceof Error ? error.message : "Unknown error",
-        lastChecked: new Date(),
-      });
-    }
-
-    // AI Behavior Check
-    try {
-      const behaviorRes = await fetch("/api/ai/settings/ai-behavior");
-      const behavior = await behaviorRes.json();
-      
-      const confidenceOk = behavior.data?.confidenceThreshold >= 0.7 && behavior.data?.confidenceThreshold <= 0.95;
-      const semanticOk = behavior.data?.semanticThreshold >= 0.5 && behavior.data?.semanticThreshold <= 0.9;
-      const maxRelatedOk = behavior.data?.maxRelatedArticles >= 1 && behavior.data?.maxRelatedArticles <= 5;
-
-      checks.push({
-        name: "AI Behavior Settings",
-        status: confidenceOk && semanticOk && maxRelatedOk ? "healthy" : "warning",
-        message: "Configuration within recommended ranges",
-        details: `Confidence: ${(behavior.data?.confidenceThreshold * 100).toFixed(0)}%, Semantic: ${(behavior.data?.semanticThreshold * 100).toFixed(0)}%, Max Related: ${behavior.data?.maxRelatedArticles}`,
-        lastChecked: new Date(),
-      });
-    } catch (error) {
-      checks.push({
-        name: "AI Behavior Settings",
-        status: "error",
-        message: "Failed to check settings",
         lastChecked: new Date(),
       });
     }
