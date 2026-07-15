@@ -17,6 +17,11 @@ on:
       - 'AI_UAT.md'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
 env:
   E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || 'https://work-2-lsyqjcumilhubnrb.prod-runtime.all-hands.dev' }}
 
