@@ -160,11 +160,20 @@ export default function AdminAIPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-stone-900">Raya AI Assistant</h1>
-        <p className="text-stone-500 mt-1">
-          Manage your AI assistant, testimonials, and volunteer requests
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-stone-900">Raya AI Assistant</h1>
+          <p className="text-stone-500 mt-1">
+            Manage your AI assistant, testimonials, and volunteer requests
+          </p>
+        </div>
+        <Link
+          href="/admin/ai/playground"
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-md"
+        >
+          <Brain className="w-5 h-5" />
+          AI Test Playground
+        </Link>
       </div>
 
       {/* Stats Cards */}
