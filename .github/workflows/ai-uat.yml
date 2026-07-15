@@ -112,27 +112,12 @@ jobs:
         run: |
           echo "## AI UAT Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "✅ Unit Tests Completed"
+          echo "Unit Tests Completed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Check for Jest results
-          if [ -f "reports/tests" ] || [ -d "reports/tests" ]; then
-            echo "Test results generated successfully"
-          fi
-          
-          # Check for coverage
-          if [ -d "coverage" ]; then
-            echo "Coverage reports available"
-          fi
-          
+          echo "Files Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "- Test reports: reports/" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage: coverage/" >> $GITHUB_STEP_SUMMARY
+          echo "- Playwright reports: reports/html/" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Files Generated" >> $GITHUB_STEP_SUMMARY
-          echo "- Test reports: \`reports/\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Coverage: \`coverage/\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Playwright reports: \`reports/html/\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Running Tests Locally" >> $GITHUB_STEP_SUMMARY
-          echo '\`\`\`bash'" >> $GITHUB_STEP_SUMMARY
+          echo "Running Tests Locally:" >> $GITHUB_STEP_SUMMARY
           echo "npm run test:ai-uat:jest" >> $GITHUB_STEP_SUMMARY
-          echo '\`\`\`' >> $GITHUB_STEP_SUMMARY
