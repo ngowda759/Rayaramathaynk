@@ -46,11 +46,14 @@ const INTENT_EXAMPLES: Record<Intent, string[]> = {
     "festival", "festivals", "celebration", "ಉತ್ಸವ"
   ],
   [Intent.SPECIAL_SEVAS]: [
-    "sevas available", "special poojas", "how to book seva", "seva charges",
-    "ಸೇವೆ ಮಾಡಬಹುದೇ", "ವಿಶೇಷ ಪೂಜೆ"
+    "what sevas are available", "special sevas", "how to book a seva",
+    "seva charges", "seva prices", "different sevas",
+    "ಸೇವೆಗಳು", "ವಿಶೇಷ ಸೇವೆಗಳು", "ಸೇವೆ ಬೆಲೆ"
   ],
   [Intent.DAILY_POOJA]: [
-    "daily poojas", "morning puja", "evening aarti", "ದೈನಿಕ ಪೂಜೆ"
+    "daily poojas", "morning pooja", "evening aarti", "pooja time",
+    "daily puja", "morning puja", "when is pooja", "pooja schedule",
+    "ದೈನಿಕ ಪೂಜೆ", "ಪೂಜೆ ಸಮಯ", "ಬೆಳಗಿನ ಪೂಜೆ"
   ],
   [Intent.SEVA_BOOKING]: [
     "book seva", "booking", "reserve", "schedule", "ಸೇವೆ ಬುಕಿಂಗ್"
@@ -146,8 +149,12 @@ export class IntentDetector {
     const normalizedMessage = normalizeText(message);
     const hasKannada = containsKannada(message);
 
+    // Debug logging
+    console.log(`[IntentDetector] Detecting: "${message}" (normalized: "${normalizedMessage}")`);
+
     // Check out-of-scope first
     if (this.isOutOfScope(normalizedMessage, hasKannada)) {
+      console.log(`[IntentDetector] OUT_OF_SCOPE`);
       return {
         intent: Intent.OUT_OF_SCOPE,
         category: IntentCategory.OUT_OF_SCOPE,
@@ -160,15 +167,19 @@ export class IntentDetector {
 
     // Step 1: Keyword matching (exact matches)
     const keywordResult = this.detectByKeywords(normalizedMessage, hasKannada);
+    console.log(`[IntentDetector] Keyword: ${keywordResult.intent} (${keywordResult.confidence}%)`);
 
     // Step 2: Semantic matching (handles paraphrases)
     const semanticResult = this.detectBySemantic(normalizedMessage);
+    console.log(`[IntentDetector] Semantic: ${semanticResult.intent} (${semanticResult.confidence}%)`);
 
     // Step 3: Combine results
     const bestResult = this.combineResults(keywordResult, semanticResult);
+    console.log(`[IntentDetector] Combined: ${bestResult.intent} (${bestResult.confidence}%)`);
 
     // Fallback to FAQ if low confidence
     if (bestResult.confidence < this.minConfidence) {
+      console.log(`[IntentDetector] Low confidence, falling back to FAQ`);
       return {
         ...bestResult,
         intent: Intent.FAQ,
@@ -208,12 +219,56 @@ export class IntentDetector {
 
   /**
    * Detect intent using semantic similarity (handles paraphrases)
+   * Gives higher weight to specific domain keywords
    */
   private detectBySemantic(message: string): IntentDetectionResult {
     const lowerMessage = message.toLowerCase();
     const messageWords = new Set(
       lowerMessage.split(/\s+/).filter(w => w.length > 2)
     );
+
+    // Domain-specific keywords that should have higher weight
+    // Order matters: more specific first (using array to preserve order)
+    const domainKeywords: [string, Intent][] = [
+      // Pooja-related (daily first)
+      ["daily pooja", Intent.DAILY_POOJA],
+      ["pooja", Intent.DAILY_POOJA],
+      ["puja", Intent.DAILY_POOJA],
+      // Donation
+      ["donate", Intent.DONATION],
+      ["donation", Intent.DONATION],
+      ["contributions", Intent.DONATION],
+      // Sevas
+      ["sevas", Intent.SPECIAL_SEVAS],
+      ["seva", Intent.SPECIAL_SEVAS],
+      // Events
+      ["aaradhane", Intent.NEXT_AARADHANE],
+      ["aradhana", Intent.NEXT_AARADHANE],
+      // Panchanga
+      ["panchanga", Intent.PANCHANGA],
+      ["tithi", Intent.PANCHANGA],
+      ["nakshatra", Intent.PANCHANGA],
+      // Sri Raghavendra
+      ["raghavendra", Intent.SRI_RAGHAVENDRA],
+      ["swamiji", Intent.SRI_RAGHAVENDRA],
+      // Madhwa
+      ["madhwa", Intent.MADHWA_PHILOSOPHY],
+      ["madhvacharya", Intent.MADHWA_PHILOSOPHY],
+    ];
+
+    // Check for domain-specific keywords first (order preserved)
+    for (const [keyword, intent] of domainKeywords) {
+      if (lowerMessage.includes(keyword)) {
+        return {
+          intent,
+          category: this.getCategoryForIntent(intent),
+          confidence: 100, // Direct match gets highest confidence
+          source: RetrievalType.SEMANTIC_MATCH,
+          matchedKeywords: [keyword],
+          requiresStructuredData: true,
+        };
+      }
+    }
 
     let bestIntent = Intent.UNKNOWN;
     let highestSimilarity = 0;
@@ -235,12 +290,12 @@ export class IntentDetector {
         const union = new Set([...messageWords, ...exampleWords]);
         const jaccard = union.size > 0 ? intersection.length / union.size : 0;
 
-        // Bonus for substring matches
+        // Bonus for substring matches (reduced weight)
         let substringBonus = 0;
         for (const msgWord of messageWords) {
           for (const exWord of exampleWords) {
             if (msgWord.includes(exWord) || exWord.includes(msgWord)) {
-              substringBonus += 0.15;
+              substringBonus += 0.1;
             }
           }
         }
@@ -254,8 +309,8 @@ export class IntentDetector {
       }
     }
 
-    // Convert similarity to confidence (0-1 -> 20-85)
-    const confidence = Math.min(20 + highestSimilarity * 65, 85);
+    // Convert similarity to confidence (0-1 -> 20-75, lower cap for semantic)
+    const confidence = Math.min(20 + highestSimilarity * 55, 75);
 
     return {
       intent: bestIntent,

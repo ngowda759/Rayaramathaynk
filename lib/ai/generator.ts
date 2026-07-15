@@ -283,7 +283,8 @@ async function handleEvents(
  * Generate response for sevas intent
  */
 async function handleSevas(
-  language: "en" | "kn" | "mixed"
+  language: "en" | "kn" | "mixed",
+  originalIntent: Intent = Intent.SPECIAL_SEVAS
 ): Promise<AIResponseResult> {
   const sevas = await getActiveSevas();
   
@@ -294,7 +295,7 @@ async function handleSevas(
         : language === "kn"
         ? "🙏 ಪ್ರಸ್ತುತ ಸೇವೆಗಳ ಪಟ್ಟಿಯನ್ನು ಪಡೆಯಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ."
         : "🙏 ಸೇವೆಗಳ ಬಗ್ಗೆ ಮಾಹಿತಿ ಲಭ್ಯವಿಲ್ಲ.",
-      intent: Intent.SPECIAL_SEVAS,
+      intent: originalIntent,
       confidence: sevas.confidence,
       source: sevas.source,
       usesLLM: false,
@@ -312,7 +313,7 @@ async function handleSevas(
 
   return {
     content: formattedSevas + suffix,
-    intent: Intent.SPECIAL_SEVAS,
+    intent: originalIntent,
     confidence: sevas.confidence,
     source: sevas.source,
     usesLLM: false,
@@ -576,7 +577,7 @@ export async function generateResponse(
       
     case Intent.SPECIAL_SEVAS:
     case Intent.DAILY_POOJA:
-      return handleSevas(language);
+      return handleSevas(language, intentResult.intent);
       
     case Intent.ANNOUNCEMENTS:
       return handleAnnouncements(language);

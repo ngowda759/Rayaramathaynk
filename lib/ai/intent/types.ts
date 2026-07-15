@@ -84,26 +84,48 @@ export enum IntentCategory {
 }
 
 // Intent priority (higher = checked first)
+// More specific intents should have higher priority
 export enum IntentPriority {
   GREETING = 100,
   THANKS = 95,
   GOODBYE = 90,
   OUT_OF_SCOPE = 80,
-  TEMPLE_TIMINGS = 71,
-  CONTACT_INFORMATION = 72,
-  LOCATION = 73,
-  ADDRESS = 74,
-  UPCOMING_EVENTS = 65,
-  NEXT_AARADHANE = 66,
-  SPECIAL_SEVAS = 61,
-  DAILY_POOJA = 62,
-  SEVA_BOOKING = 63,
-  DONATION = 55,
-  ANNOUNCEMENTS = 51,
-  PANCHANGA = 52,
-  FAQ = 45,
-  TEMPLE_HISTORY = 41,
-  SRI_RAGHAVENDRA = 42,
+  // Temple Info
+  ADDRESS = 85,
+  LOCATION = 84,
+  CONTACT_INFORMATION = 75, // Lower - generic "how" can match this
+  TEMPLE_TIMINGS = 70,
+  // Events
+  NEXT_AARADHANE = 67,
+  UPCOMING_EVENTS = 66,
+  // Sevas
+  SEVA_BOOKING = 64,
+  DAILY_POOJA = 63, // Higher than TEMPLE_TIMINGS - "pooja" is specific
+  SPECIAL_SEVAS = 62,
+  // Donations
+  DONATION_80G = 58,
+  DONATION_PURPOSE = 57,
+  DONATION = 56, // Higher than CONTACT - "donate" is specific
+  // Knowledge
+  PANCHANGA = 50,
+  ANNOUNCEMENTS = 49,
+  TEMPLE_HISTORY = 45,
+  SRI_RAGHAVENDRA = 44,
+  MADHWA_PHILOSOPHY = 43,
+  GURU_PARAMPARA = 42,
+  BRINDAVANA = 41,
+  MANTRALAYA = 40,
+  // Visitor
+  PHOTOGRAPHY = 35,
+  DRESS_CODE = 34,
+  VISITOR_GUIDELINES = 33,
+  // General
+  FAQ = 20,
+  CONTACT_REQUEST = 15,
+  VOLUNTEER = 14,
+  TESTIMONIAL = 13,
+  FESTIVAL_INFO = 12,
+  BOOKING = 11,
   UNKNOWN = 10,
 }
 
