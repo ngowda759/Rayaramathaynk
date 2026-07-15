@@ -101,18 +101,18 @@ export class AISettingsService {
   }
 
   async updateVisitorGuidelines(
-    visitorGuidelines: VisitorInformation["visitorGuidelines"],
+    guidelines: string,
     userId: string
   ): Promise<void> {
     const current = await this.getVisitorInformation();
     await this.updateVisitorInformation(
-      { ...current, visitorGuidelines },
+      { ...current, guidelines },
       userId
     );
   }
 
   async updateDressCode(
-    dressCode: VisitorInformation["dressCode"],
+    dressCode: string,
     userId: string
   ): Promise<void> {
     const current = await this.getVisitorInformation();
@@ -123,7 +123,7 @@ export class AISettingsService {
   }
 
   async updatePhotographyPolicy(
-    photographyPolicy: VisitorInformation["photographyPolicy"],
+    photographyPolicy: string,
     userId: string
   ): Promise<void> {
     const current = await this.getVisitorInformation();
@@ -247,39 +247,36 @@ export class AISettingsService {
   }
 
   async getResponseTemplate(
-    templateKey: keyof AIResponses["templates"]
-  ): Promise<AIResponses["templates"][typeof templateKey] | null> {
+    templateKey: keyof AIResponses
+  ): Promise<string | null> {
     const aiResponses = await this.getAIResponses();
-    return aiResponses.templates[templateKey] || null;
+    return (aiResponses as unknown as Record<string, unknown>)[templateKey] as string || null;
   }
 
   async updateResponseTemplate(
-    templateKey: keyof AIResponses["templates"],
-    template: AIResponses["templates"][typeof templateKey],
+    templateKey: keyof AIResponses,
+    template: string,
     userId: string
   ): Promise<void> {
     const current = await this.getAIResponses();
     await this.updateAIResponses(
       {
         ...current,
-        templates: {
-          ...current.templates,
-          [templateKey]: template,
-        },
-      },
+        [templateKey]: template,
+      } as AIResponses,
       userId
     );
   }
 
   async getLocalizedResponse(
-    templateKey: keyof AIResponses["templates"],
+    templateKey: keyof AIResponses,
     language: "en" | "kn" | "mixed"
   ): Promise<string> {
     const template = await this.getResponseTemplate(templateKey);
-    if (!template || !template.enabled) {
+    if (!template) {
       return "";
     }
-    return template[language] || template.en || "";
+    return template;
   }
 
   // ==================== AI BEHAVIOR ====================
@@ -295,7 +292,7 @@ export class AISettingsService {
 
   async getConfidenceThreshold(): Promise<number> {
     const behavior = await this.getAIBehavior();
-    return behavior.confidenceThreshold.value;
+    return behavior.confidenceThreshold;
   }
 
   async setConfidenceThreshold(value: number, userId: string): Promise<void> {
@@ -303,13 +300,7 @@ export class AISettingsService {
     await this.updateAIBehavior(
       {
         ...current,
-        confidenceThreshold: {
-          ...current.confidenceThreshold,
-          value: Math.max(
-            current.confidenceThreshold.min,
-            Math.min(current.confidenceThreshold.max, value)
-          ),
-        },
+        confidenceThreshold: Math.max(0, Math.min(1, value)),
       },
       userId
     );
@@ -317,7 +308,7 @@ export class AISettingsService {
 
   async getMaxRelatedArticles(): Promise<number> {
     const behavior = await this.getAIBehavior();
-    return behavior.maxRelatedArticles.value;
+    return behavior.maxRelatedArticles;
   }
 
   async setDebugMode(enabled: boolean, userId: string): Promise<void> {
@@ -325,10 +316,7 @@ export class AISettingsService {
     await this.updateAIBehavior(
       {
         ...current,
-        debugMode: {
-          ...current.debugMode,
-          enabled,
-        },
+        debugMode: enabled,
       },
       userId
     );
@@ -339,10 +327,7 @@ export class AISettingsService {
     await this.updateAIBehavior(
       {
         ...current,
-        streamingResponses: {
-          ...current.streamingResponses,
-          enabled,
-        },
+        streaming: enabled,
       },
       userId
     );

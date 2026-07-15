@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3 } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
@@ -28,6 +28,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   info: Info,
   testimonials: MessageSquareQuote,
   chart: BarChart3,
+  help: HelpCircle,
 };
 
 // Navigation data
@@ -81,9 +82,18 @@ const allNavigation = [
       { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
       { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
-      { title: "AI Assistant", href: "/admin/assistant", icon: "sparkles" },
+    ],
+  },
+  {
+    title: "AI Management",
+    items: [
+      { title: "AI Management", href: "/admin/ai", icon: "sparkles" },
       { title: "AI Settings", href: "/admin/ai/settings", icon: "settings" },
+      { title: "Prompt Manager", href: "/admin/ai/prompts", icon: "book" },
+      { title: "Intent Mapping", href: "/admin/ai/intents", icon: "sparkles" },
+      { title: "Unknown Questions", href: "/admin/ai/unknown-questions", icon: "help" },
       { title: "AI Analytics", href: "/admin/ai/analytics", icon: "chart" },
+      { title: "AI Health", href: "/admin/ai/health", icon: "heart" },
     ],
   },
 ];

@@ -60,10 +60,10 @@ export class ResponseComposer {
     try {
       const behaviorSettings = await aiSettingsService.getAIBehavior();
       this.config = {
-        confidenceThreshold: behaviorSettings.confidenceThreshold.value,
-        maxRelatedArticles: behaviorSettings.maxRelatedArticles.value,
-        enableDebugMode: behaviorSettings.debugMode.enabled,
-        enableStreaming: behaviorSettings.streamingResponses.enabled,
+        confidenceThreshold: behaviorSettings.confidenceThreshold,
+        maxRelatedArticles: behaviorSettings.maxRelatedArticles,
+        enableDebugMode: behaviorSettings.debugMode,
+        enableStreaming: behaviorSettings.streaming,
       };
     } catch (error) {
       console.warn("Failed to load config from settings, using defaults:", error);
@@ -240,7 +240,7 @@ export class ResponseComposer {
   ): Promise<string> {
     // Get AI response template if available
     try {
-      const template = await aiSettingsService.getLocalizedResponse("fallbackMessage", language);
+      const template = await aiSettingsService.getLocalizedResponse("fallback", language);
       if (template) {
         return template;
       }
@@ -276,7 +276,7 @@ export class ResponseComposer {
   private async getFallbackMessage(language: "en" | "kn" | "mixed"): Promise<string> {
     try {
       const template = await aiSettingsService.getLocalizedResponse(
-        "unknownQuestionResponse",
+        "unknownQuestion",
         language
       );
       if (template) {
@@ -409,17 +409,13 @@ ${contact.googleMapsUrl ? `Google Maps: ${contact.googleMapsUrl}` : ""}`;
 
     if (language === "kn") {
       return `ಕಛೇರಿ ಸಮಯ:
-ಕೆಲಸದ ದಿನಗಳು: ${officeHours.weekday.open} - ${officeHours.weekday.close}
-ಶನಿವಾರ: ${officeHours.saturday.open} - ${officeHours.saturday.close}
-ಭಾನುವಾರ: ${officeHours.sunday.open} - ${officeHours.sunday.close}
-${officeHours.notes ? `ಸೂಚನೆ: ${officeHours.notes}` : ""}`;
+ಕೆಲಸದ ದಿನಗಳು: ${officeHours.weekday}
+ವಾರಾಂತ್ಯ: ${officeHours.weekend}`;
     }
 
     return `Office Hours:
-Weekdays: ${officeHours.weekday.open} - ${officeHours.weekday.close}
-Saturday: ${officeHours.saturday.open} - ${officeHours.saturday.close}
-Sunday: ${officeHours.sunday.open} - ${officeHours.sunday.close}
-${officeHours.notes ? `\nNote: ${officeHours.notes}` : ""}`;
+Weekdays: ${officeHours.weekday}
+Weekend: ${officeHours.weekend}`;
   }
 
   private async formatParking(language: "en" | "kn" | "mixed"): Promise<string> {
@@ -427,73 +423,43 @@ ${officeHours.notes ? `\nNote: ${officeHours.notes}` : ""}`;
     const { parking } = visitorInfo;
 
     if (language === "kn") {
-      return `ಪಾರ್ಕಿಂಗ್ ಸೌಲಭ್ಯ:
-${parking.description}
-ಉಚಿತ: ${parking.isFree ? "ಹೌದು" : "ಇಲ್ಲ"}
-${parking.twoWheelerParking ? `ದ್ವಿಚಕ್ರ ವಾಹನ: ${parking.twoWheelerParking}` : ""}
-${parking.fourWheelerParking ? `ನಾಲ್ಕು ಚಕ್ರ ವಾಹನ: ${parking.fourWheelerParking}` : ""}`;
+      return `ಪಾರ್ಕಿಂಗ್ ಸೌಲಭ್ಯ: ${parking}`;
     }
 
-    return `Parking Facilities:
-${parking.description}
-Free: ${parking.isFree ? "Yes" : "No"}
-${parking.twoWheelerParking ? `Two-Wheeler: ${parking.twoWheelerParking}` : ""}
-${parking.fourWheelerParking ? `Four-Wheeler: ${parking.fourWheelerParking}` : ""}`;
+    return `Parking Facilities: ${parking}`;
   }
 
   private async formatDressCode(language: "en" | "kn" | "mixed"): Promise<string> {
     const visitorInfo = await aiSettingsService.getVisitorInformation();
     const { dressCode } = visitorInfo;
 
-    const allowedList = dressCode.allowedAttire?.join("\n") || "";
-    const notAllowedList = dressCode.notAllowedAttire?.join("\n") || "";
-
     if (language === "kn") {
-      return `ಉಡುಗೆ ನಿಯಮ:
-${dressCode.description}
-${allowedList ? `ಅನುಮತಿಸಲಾದ ಉಡುಗೆ:\n${allowedList}` : ""}
-${notAllowedList ? `ಅನುಮತಿಸದ ಉಡುಗೆ:\n${notAllowedList}` : ""}`;
+      return `ಉಡುಗೆ ನಿಯಮ: ${dressCode}`;
     }
 
-    return `Dress Code:
-${dressCode.description}
-${allowedList ? `Allowed Attire:\n${allowedList}` : ""}
-${notAllowedList ? `Not Allowed:\n${notAllowedList}` : ""}`;
+    return `Dress Code: ${dressCode}`;
   }
 
   private async formatPhotographyPolicy(language: "en" | "kn" | "mixed"): Promise<string> {
     const visitorInfo = await aiSettingsService.getVisitorInformation();
     const { photographyPolicy } = visitorInfo;
 
-    const restrictions = photographyPolicy.restrictions?.join("\n") || "";
-
     if (language === "kn") {
-      return `ಛಾಯಾಗ್ರಹಣ ನಿಯಮ:
-${photographyPolicy.content}
-ಅನುಮತಿ: ${photographyPolicy.isAllowed ? "ಹೌದು" : "ಇಲ್ಲ"}
-${restrictions ? `ನಿರ್ಬಂಧಗಳು:\n${restrictions}` : ""}`;
+      return `ಛಾಯಾಗ್ರಹಣ ನಿಯಮ: ${photographyPolicy}`;
     }
 
-    return `Photography Policy:
-${photographyPolicy.content}
-Allowed: ${photographyPolicy.isAllowed ? "Yes" : "No"}
-${restrictions ? `Restrictions:\n${restrictions}` : ""}`;
+    return `Photography Policy: ${photographyPolicy}`;
   }
 
   private async formatVisitorGuidelines(language: "en" | "kn" | "mixed"): Promise<string> {
     const visitorInfo = await aiSettingsService.getVisitorInformation();
-    const { visitorGuidelines } = visitorInfo;
-
-    const guidelines = visitorGuidelines
-      .sort((a: { order: number }, b: { order: number }) => a.order - b.order)
-      .map((g: { title: string; content: string }) => `• ${g.title}: ${g.content}`)
-      .join("\n");
+    const { guidelines } = visitorInfo;
 
     if (language === "kn") {
-      return `ಭೇಟಿದಾರರ ಮಾರ್ಗದರ್ಶನ:\n${guidelines}`;
+      return `ಭೇಟಿದಾರರ ಮಾರ್ಗದರ್ಶನ: ${guidelines}`;
     }
 
-    return `Visitor Guidelines:\n${guidelines}`;
+    return `Visitor Guidelines: ${guidelines}`;
   }
 
   private async formatDonationInfo(language: "en" | "kn" | "mixed"): Promise<string> {
@@ -501,22 +467,16 @@ ${restrictions ? `Restrictions:\n${restrictions}` : ""}`;
     const { donations, information80G } = policies;
 
     if (language === "kn") {
-      let info = `ದೇಣ:\n${donations.description}`;
-      if (donations.upiId) {
-        info += `\nUPI ID: ${donations.upiId}`;
-      }
-      if (information80G.has80G) {
-        info += `\n\n80G ತೆರಿಗೆ ರಿಯಾಯಿತಿ: ಲಭ್ಯ`;
+      let info = `ದೇಣ: ${donations}`;
+      if (information80G) {
+        info += `\n80G ತೆರಿಗೆ ರಿಯಾಯಿತಿ ಮಾಹಿತಿ: ${information80G}`;
       }
       return info;
     }
 
-    let info = `Donations:\n${donations.description}`;
-    if (donations.upiId) {
-      info += `\n\nUPI ID: ${donations.upiId}`;
-    }
-    if (information80G.has80G) {
-      info += `\n\n80G Tax Benefit: Available`;
+    let info = `Donations: ${donations}`;
+    if (information80G) {
+      info += `\n80G Tax Benefit Info: ${information80G}`;
     }
     return info;
   }
@@ -526,18 +486,10 @@ ${restrictions ? `Restrictions:\n${restrictions}` : ""}`;
     const { annadanam } = visitorInfo;
 
     if (language === "kn") {
-      return `ಅನ್ನದಾನ:
-${annadanam.description}
-${annadanam.isAvailable ? "ಲಭ್ಯ" : "ಲಭ್ಯವಿಲ್ಲ"}
-${annadanam.timings ? `ಸಮಯ: ${annadanam.timings}` : ""}
-${annadanam.location ? `ಸ್ಥಳ: ${annadanam.location}` : ""}`;
+      return `ಅನ್ನದಾನ: ${annadanam}`;
     }
 
-    return `Annadanam (Free Meals):
-${annadanam.description}
-${annadanam.isAvailable ? "Available" : "Not Available"}
-${annadanam.timings ? `Timings: ${annadanam.timings}` : ""}
-${annadanam.location ? `Location: ${annadanam.location}` : ""}`;
+    return `Annadanam (Free Meals): ${annadanam}`;
   }
 
   private async formatPrasada(language: "en" | "kn" | "mixed"): Promise<string> {
@@ -545,16 +497,10 @@ ${annadanam.location ? `Location: ${annadanam.location}` : ""}`;
     const { prasada } = visitorInfo;
 
     if (language === "kn") {
-      return `ಪ್ರಸಾದ:
-${prasada.description}
-${prasada.timings ? `ಸಮಯ: ${prasada.timings}` : ""}
-${prasada.location ? `ಸ್ಥಳ: ${prasada.location}` : ""}`;
+      return `ಪ್ರಸಾದ: ${prasada}`;
     }
 
-    return `Prasada (Sacred Food):
-${prasada.description}
-${prasada.timings ? `Timings: ${prasada.timings}` : ""}
-${prasada.location ? `Location: ${prasada.location}` : ""}`;
+    return `Prasada (Sacred Food): ${prasada}`;
   }
 
   private async formatSevaBooking(language: "en" | "kn" | "mixed"): Promise<string> {
@@ -562,18 +508,10 @@ ${prasada.location ? `Location: ${prasada.location}` : ""}`;
     const { sevaBooking } = policies;
 
     if (language === "kn") {
-      return `ಸೇವೆ ಕಾಯ್ದಿರಿಸುವಿಕೆ:
-${sevaBooking.description}
-${sevaBooking.advanceBookingDays ? `ಮುಂಗಡ ಕಾಯ್ದಿರಿಸುವಿಕೆ: ${sevaBooking.advanceBookingDays} ದಿನಗಳು` : ""}
-${sevaBooking.cancellationPolicy ? `ರದ್ದಿಕರಣ ನೀತಿ: ${sevaBooking.cancellationPolicy}` : ""}
-${sevaBooking.bookingUrl ? `Online Booking: ${sevaBooking.bookingUrl}` : ""}`;
+      return `ಸೇವೆ ಕಾಯ್ದಿರಿಸುವಿಕೆ: ${sevaBooking}`;
     }
 
-    return `Seva Booking:
-${sevaBooking.description}
-${sevaBooking.advanceBookingDays ? `Advance Booking: ${sevaBooking.advanceBookingDays} days` : ""}
-${sevaBooking.cancellationPolicy ? `Cancellation Policy: ${sevaBooking.cancellationPolicy}` : ""}
-${sevaBooking.bookingUrl ? `Online Booking: ${sevaBooking.bookingUrl}` : ""}`;
+    return `Seva Booking: ${sevaBooking}`;
   }
 }
 
