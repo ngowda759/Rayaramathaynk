@@ -235,9 +235,19 @@ export async function POST(request: NextRequest) {
     const totalLatency = Date.now() - startTime;
     console.log(`[Chat API] [${requestId}] Total request time: ${totalLatency}ms (source: ${responseSource})`);
 
+    // Include debug metadata if requested via query param
+    const url = new URL(request.url || 'http://localhost');
+    const isDebug = url.searchParams.get('debug') === 'true';
+    
     const response: ChatResponse = {
       message: responseMessage!,
       sessionId: sessionId || crypto.randomUUID(),
+      ...(isDebug && {
+        _debug: {
+          responseSource,
+          latency: totalLatency,
+        }
+      })
     };
 
     return NextResponse.json(response);

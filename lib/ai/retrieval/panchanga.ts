@@ -4,6 +4,8 @@
 import { PanchangaData, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 import { getCachedPanchanga, PanchangaData as CachedPanchanga } from "@/lib/panchanga-cache";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Cache for panchanga
 let cachedPanchanga: PanchangaData | null = null;
@@ -34,26 +36,39 @@ function convertPanchanga(cached: CachedPanchanga): PanchangaData {
 /**
  * Try to load panchanga from JSON file
  */
-async function loadFromJsonFile(date: string): Promise<PanchangaData | null> {
+function loadFromJsonFile(date: string): PanchangaData | null {
   try {
-    // Expected path: public/data/panchanga/{year}/{year}-{month}-{day}.json
-    const [year, month, day] = date.split("-");
-    const response = await fetch(`/data/panchanga/${year}/${date}.json`);
+    // Try current.json first (contains today's panchanga)
+    const currentPath = path.join(process.cwd(), 'public', 'data', 'panchanga', 'current.json');
     
-    if (!response.ok) {
-      return null;
+    if (fs.existsSync(currentPath)) {
+      const content = fs.readFileSync(currentPath, 'utf-8');
+      const data = JSON.parse(content);
+      
+      // Extract and format times from ISO strings (with India timezone)
+      const formatTime = (isoString: string | undefined) => {
+        if (!isoString) return "—";
+        const d = new Date(isoString);
+        return d.toLocaleTimeString('en-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: true,
+          timeZone: 'Asia/Kolkata'
+        });
+      };
+      
+      return {
+        date: data.date || date,
+        tithi: data.tithi?.name ? `${data.tithi.paksha} ${data.tithi.name}` : "—",
+        nakshatra: data.nakshatra?.name ? `${data.nakshatra.name} (Pada ${data.nakshatra.pada})` : "—",
+        yoga: data.yoga?.name || "—",
+        karana: data.karana?.name || "—",
+        sunrise: formatTime(data.sun?.sunrise),
+        sunset: formatTime(data.sun?.sunset),
+      };
     }
     
-    const data = await response.json();
-    return {
-      date,
-      tithi: data.tithi || "—",
-      nakshatra: data.nakshatra || "—",
-      yoga: data.yoga || "—",
-      karana: data.karana || "—",
-      sunrise: data.sunrise || "—",
-      sunset: data.sunset || "—",
-    };
+    return null;
   } catch (error) {
     console.error("[Panchanga Retrieval] Error loading from JSON:", error);
     return null;
@@ -80,7 +95,7 @@ export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>>
 
   try {
     // Try to load from JSON file
-    let panchanga = await loadFromJsonFile(today);
+    let panchanga = loadFromJsonFile(today);
     
     if (!panchanga) {
       // Use cached/fallback if JSON not available
@@ -135,7 +150,7 @@ export async function getPanchangaForDate(
   }
 
   try {
-    let panchanga = await loadFromJsonFile(dateStr);
+    let panchanga = loadFromJsonFile(dateStr);
     
     if (!panchanga) {
       const cached = getCachedPanchanga(dateStr);
