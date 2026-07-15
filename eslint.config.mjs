@@ -25,6 +25,8 @@ const eslintConfig = defineConfig([
       "app/**/*.tsx",
       "components/**/*.ts",
       "components/**/*.tsx",
+      "lib/**/*.ts",
+      "lib/**/*.tsx",
     ],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
