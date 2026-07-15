@@ -1,96 +1,276 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  BarChart3, 
-  MessageSquare, 
-  Clock, 
+import {
+  BarChart3,
+  MessageSquare,
+  Clock,
   ThumbsUp,
-  ThumbsDown,
   TrendingUp,
-  Calendar,
-  Download
+  Download,
+  Users,
+  Zap,
+  Target,
+  Database,
+  HelpCircle,
+  Globe,
+  Activity,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  FileText,
+  BookOpen,
+  Send,
+  X,
+  RefreshCw,
 } from "lucide-react";
-import { getFeedbackStats } from "@/services/chat.service";
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  bgColor: string;
+  trend?: string;
+  trendUp?: boolean;
+}
+
+function StatCard({ title, value, icon, color, bgColor, trend, trendUp }: StatCardProps) {
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-stone-500">{title}</p>
+          <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
+          {trend && (
+            <p className={`text-xs mt-1 ${trendUp ? "text-green-600" : "text-red-600"}`}>
+              {trend}
+            </p>
+          )}
+        </div>
+        <div className={`p-3 rounded-lg ${bgColor}`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PieChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let currentAngle = 0;
+
+  const paths = data.map((item) => {
+    const percentage = total > 0 ? (item.value / total) * 100 : 0;
+    const angle = (percentage / 100) * 360;
+    const startAngle = currentAngle;
+    currentAngle += angle;
+
+    const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+    const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+    const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
+    const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
+
+    const largeArc = angle > 180 ? 1 : 0;
+
+    const d = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+    return (
+      <path
+        key={item.label}
+        d={d}
+        fill={item.color}
+        className="hover:opacity-80 transition-opacity cursor-pointer"
+        stroke="white"
+        strokeWidth="2"
+      />
+    );
+  });
+
+  return (
+    <div className="flex items-center gap-6">
+      <svg viewBox="0 0 100 100" className="w-32 h-32">
+        {paths}
+      </svg>
+      <div className="flex-1 space-y-2">
+        {data.map((item) => (
+          <div key={item.label} className="flex items-center gap-2">
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-sm text-stone-600 flex-1">{item.label}</span>
+            <span className="text-sm font-medium text-stone-800">
+              {total > 0 ? Math.round((item.value / total) * 100) : 0}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LineChart({ data }: { data: { label: string; value: number }[] }) {
+  const maxValue = Math.max(...data.map((d) => d.value), 1);
+  const points = data.map((d, i) => ({
+    x: (i / (data.length - 1)) * 100,
+    y: 100 - (d.value / maxValue) * 80,
+  }));
+
+  const pathD = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+    .join(" ");
+
+  return (
+    <div className="relative">
+      <svg viewBox="0 0 100 100" className="w-full h-48" preserveAspectRatio="none">
+        {/* Grid lines */}
+        {[0, 25, 50, 75, 100].map((y) => (
+          <line
+            key={y}
+            x1="0"
+            y1={y}
+            x2="100"
+            y2={y}
+            stroke="#e5e7eb"
+            strokeWidth="0.5"
+          />
+        ))}
+        {/* Area fill */}
+        <path
+          d={`${pathD} L 100 100 L 0 100 Z`}
+          fill="url(#gradient)"
+          opacity="0.3"
+        />
+        {/* Line */}
+        <path
+          d={pathD}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Points */}
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r="3"
+            fill="#f59e0b"
+            className="hover:r-4 transition-all"
+          />
+        ))}
+        <defs>
+          <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="flex justify-between mt-2">
+        {data.map((d, i) => (
+          <span key={i} className="text-xs text-stone-500">
+            {d.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HealthIndicator({ name, status }: { name: string; status: "healthy" | "degraded" | "unhealthy" }) {
+  const statusConfig = {
+    healthy: { icon: CheckCircle, color: "text-green-600", bg: "bg-green-50", label: "Healthy" },
+    degraded: { icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", label: "Degraded" },
+    unhealthy: { icon: XCircle, color: "text-red-600", bg: "bg-red-50", label: "Unhealthy" },
+  };
+
+  const config = statusConfig[status];
+  const Icon = config.icon;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`p-1.5 rounded-lg ${config.bg}`}>
+        <Icon className={`w-4 h-4 ${config.color}`} />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-stone-800">{name}</p>
+        <p className={`text-xs ${config.color}`}>{config.label}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState({ helpful: 0, notHelpful: 0, total: 0 });
+
+  // Mock data - in production, fetch from API
+  const stats = {
+    todayConversations: 147,
+    avgConfidence: "94.2%",
+    avgResponseTime: "1.2s",
+    tokenUsage: "12.4K",
+    repositoryHitRate: "87%",
+    unknownQuestions: 23,
+    englishKannadaRatio: "65/35",
+    activeSessions: 12,
+  };
+
+  const intentDistribution = [
+    { label: "Temple Timings", value: 35, color: "#f59e0b" },
+    { label: "Events", value: 22, color: "#3b82f6" },
+    { label: "Donations", value: 15, color: "#10b981" },
+    { label: "Volunteer", value: 12, color: "#8b5cf6" },
+    { label: "FAQ", value: 10, color: "#ec4899" },
+    { label: "Out of Scope", value: 6, color: "#6b7280" },
+  ];
+
+  const dailyConversations = [
+    { label: "Mon", value: 45 },
+    { label: "Tue", value: 52 },
+    { label: "Wed", value: 48 },
+    { label: "Thu", value: 61 },
+    { label: "Fri", value: 58 },
+  ];
+
+  const unknownQuestions = [
+    { question: "What is the parking fee?", confidence: "45%", intent: "PARKING", date: "Jul 14", status: "Pending" },
+    { question: "Can I volunteer for annadana?", confidence: "52%", intent: "VOLUNTEER", date: "Jul 14", status: "Reviewed" },
+    { question: "How to reach Mantralaya?", confidence: "38%", intent: "DIRECTIONS", date: "Jul 13", status: "Pending" },
+    { question: "Is there accommodation nearby?", confidence: "41%", intent: "ACCOMMODATION", date: "Jul 13", status: "Added" },
+  ];
+
+  const aiHealth = [
+    { name: "Firebase", status: "healthy" as const },
+    { name: "Knowledge Base", status: "healthy" as const },
+    { name: "Panchanga", status: "healthy" as const },
+    { name: "OpenAI", status: "healthy" as const },
+    { name: "Conversation Memory", status: "healthy" as const },
+    { name: "Intent Engine", status: "healthy" as const },
+  ];
+
+  const knowledgeStats = {
+    published: 156,
+    draft: 12,
+    pendingReview: 8,
+    approved: 23,
+    rejected: 5,
+  };
+
+  const latency = {
+    intentDetection: "45ms",
+    repository: "120ms",
+    knowledgeSearch: "180ms",
+    llm: "850ms",
+    totalResponseTime: "1.2s",
+  };
 
   useEffect(() => {
-    async function loadAnalytics() {
-      try {
-        const stats = await getFeedbackStats();
-        setFeedback(stats);
-      } catch (error) {
-        console.error("Failed to load analytics:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadAnalytics();
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
   }, []);
-
-  const satisfactionRate = feedback.total > 0 
-    ? Math.round((feedback.helpful / feedback.total) * 100) 
-    : 0;
-
-  const analyticsCards = [
-    {
-      title: "Total Conversations",
-      value: "0",
-      change: "+0%",
-      trend: "up",
-      icon: MessageSquare,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-    {
-      title: "Messages Today",
-      value: "0",
-      change: "+0%",
-      trend: "up",
-      icon: Clock,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
-    },
-    {
-      title: "Avg Response Time",
-      value: "0ms",
-      change: "-0%",
-      trend: "down",
-      icon: TrendingUp,
-      color: "text-amber-600",
-      bgColor: "bg-amber-50",
-    },
-    {
-      title: "User Satisfaction",
-      value: `${satisfactionRate}%`,
-      change: "+0%",
-      trend: satisfactionRate >= 80 ? "up" : "neutral",
-      icon: ThumbsUp,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-  ];
-
-  const topQuestions = [
-    { question: "What are the temple timings?", count: 156 },
-    { question: "How can I donate?", count: 98 },
-    { question: "Upcoming events?", count: 87 },
-    { question: "Sevas available?", count: 76 },
-    { question: "Contact information?", count: 65 },
-  ];
-
-  const dailyStats = [
-    { day: "Mon", conversations: 45 },
-    { day: "Tue", conversations: 52 },
-    { day: "Wed", conversations: 48 },
-    { day: "Thu", conversations: 61 },
-    { day: "Fri", conversations: 58 },
-    { day: "Sat", conversations: 78 },
-    { day: "Sun", conversations: 92 },
-  ];
 
   if (loading) {
     return (
@@ -102,139 +282,265 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-stone-900">Analytics</h1>
+          <h1 className="text-3xl font-bold text-stone-900">AI Analytics</h1>
           <p className="text-stone-500 mt-1">
-            View chat analytics and insights
+            Monitor AI performance and usage metrics
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-sm font-medium transition-colors">
+        <button className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">
           <Download className="w-4 h-4" />
           Export Report
         </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {analyticsCards.map((card) => (
-          <div key={card.title} className="bg-white rounded-xl border border-stone-200 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-stone-500">{card.title}</p>
-                <p className={`text-2xl font-bold mt-1 ${card.color}`}>{card.value}</p>
-                <p className={`text-xs mt-1 ${
-                  card.trend === "up" ? "text-green-600" : 
-                  card.trend === "down" ? "text-red-600" : 
-                  "text-stone-500"
-                }`}>
-                  {card.change} from last week
-                </p>
-              </div>
-              <div className={`p-3 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`w-6 h-6 ${card.color}`} />
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <StatCard
+          title="Today's Conversations"
+          value={stats.todayConversations}
+          icon={<MessageSquare className="w-5 h-5 text-blue-600" />}
+          color="text-blue-600"
+          bgColor="bg-blue-50"
+          trend="+12%"
+          trendUp
+        />
+        <StatCard
+          title="Avg Confidence"
+          value={stats.avgConfidence}
+          icon={<Target className="w-5 h-5 text-green-600" />}
+          color="text-green-600"
+          bgColor="bg-green-50"
+          trend="+2.1%"
+          trendUp
+        />
+        <StatCard
+          title="Avg Response Time"
+          value={stats.avgResponseTime}
+          icon={<Clock className="w-5 h-5 text-amber-600" />}
+          color="text-amber-600"
+          bgColor="bg-amber-50"
+          trend="-0.3s"
+          trendUp
+        />
+        <StatCard
+          title="Token Usage"
+          value={stats.tokenUsage}
+          icon={<Zap className="w-5 h-5 text-purple-600" />}
+          color="text-purple-600"
+          bgColor="bg-purple-50"
+        />
+        <StatCard
+          title="Repo Hit Rate"
+          value={stats.repositoryHitRate}
+          icon={<Database className="w-5 h-5 text-cyan-600" />}
+          color="text-cyan-600"
+          bgColor="bg-cyan-50"
+          trend="+5%"
+          trendUp
+        />
+        <StatCard
+          title="Unknown Questions"
+          value={stats.unknownQuestions}
+          icon={<HelpCircle className="w-5 h-5 text-red-600" />}
+          color="text-red-600"
+          bgColor="bg-red-50"
+        />
+        <StatCard
+          title="EN/KN Ratio"
+          value={stats.englishKannadaRatio}
+          icon={<Globe className="w-5 h-5 text-indigo-600" />}
+          color="text-indigo-600"
+          bgColor="bg-indigo-50"
+        />
+        <StatCard
+          title="Active Sessions"
+          value={stats.activeSessions}
+          icon={<Users className="w-5 h-5 text-pink-600" />}
+          color="text-pink-600"
+          bgColor="bg-pink-50"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Conversations Chart */}
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <h3 className="font-semibold text-lg text-stone-900 mb-4">
-            Weekly Conversations
-          </h3>
-          <div className="h-48 flex items-end justify-between gap-2">
-            {dailyStats.map((stat) => (
-              <div key={stat.day} className="flex-1 flex flex-col items-center">
-                <div 
-                  className="w-full bg-gradient-to-t from-amber-500 to-orange-500 rounded-t-lg transition-all hover:from-amber-600 hover:to-orange-600"
-                  style={{ height: `${(stat.conversations / 100) * 100}%` }}
-                />
-                <p className="text-xs text-stone-500 mt-2">{stat.day}</p>
-                <p className="text-xs font-medium text-stone-700">{stat.conversations}</p>
-              </div>
-            ))}
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Intent Distribution - Full width on first row */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-amber-500" />
+              Intent Distribution
+            </h3>
           </div>
+          <PieChart data={intentDistribution} />
         </div>
 
-        {/* Top Questions */}
+        {/* AI Health Status */}
         <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <h3 className="font-semibold text-lg text-stone-900 mb-4">
-            Most Asked Questions
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
+            <Activity className="w-5 h-5 text-green-500" />
+            AI Health
           </h3>
           <div className="space-y-3">
-            {topQuestions.map((q, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-xs font-medium text-stone-600">
-                    {i + 1}
-                  </span>
-                  <p className="text-sm text-stone-700">{q.question}</p>
-                </div>
-                <span className="text-sm font-medium text-amber-600">{q.count}</span>
-              </div>
+            {aiHealth.map((item) => (
+              <HealthIndicator key={item.name} name={item.name} status={item.status} />
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Feedback Summary */}
-      <div className="bg-white rounded-xl border border-stone-200 p-6">
-        <h3 className="font-semibold text-lg text-stone-900 mb-4">
-          Feedback Summary
-        </h3>
-        <div className="grid grid-cols-3 gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-green-50">
-              <ThumbsUp className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-stone-900">{feedback.helpful}</p>
-              <p className="text-sm text-stone-500">Helpful</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-red-50">
-              <ThumbsDown className="w-6 h-6 text-red-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-stone-900">{feedback.notHelpful}</p>
-              <p className="text-sm text-stone-500">Not Helpful</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-amber-50">
-              <BarChart3 className="w-6 h-6 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-stone-900">{satisfactionRate}%</p>
-              <p className="text-sm text-stone-500">Satisfaction Rate</p>
+          <div className="mt-4 pt-4 border-t border-stone-100">
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-sm font-medium">All Systems Operational</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* AI Provider Info */}
-      <div className="bg-gradient-to-r from-stone-800 to-stone-900 rounded-xl p-6 text-white">
-        <h3 className="font-semibold text-lg mb-4">AI Configuration</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-stone-400 text-sm">Provider</p>
-            <p className="font-medium">OpenAI</p>
+      {/* Second Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Daily Conversations */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-6">
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-amber-500" />
+            Daily Conversations
+          </h3>
+          <LineChart data={dailyConversations} />
+        </div>
+
+        {/* Knowledge Statistics */}
+        <div className="bg-white rounded-xl border border-stone-200 p-6">
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
+            <BookOpen className="w-5 h-5 text-blue-500" />
+            Knowledge Statistics
+          </h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-sm text-stone-600">Published</span>
+              </div>
+              <span className="text-sm font-bold text-stone-800">{knowledgeStats.published}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-500" />
+                <span className="text-sm text-stone-600">Draft</span>
+              </div>
+              <span className="text-sm font-bold text-stone-800">{knowledgeStats.draft}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span className="text-sm text-stone-600">Pending Review</span>
+              </div>
+              <span className="text-sm font-bold text-stone-800">{knowledgeStats.pendingReview}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-purple-500" />
+                <span className="text-sm text-stone-600">Approved</span>
+              </div>
+              <span className="text-sm font-bold text-stone-800">{knowledgeStats.approved}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <span className="text-sm text-stone-600">Rejected</span>
+              </div>
+              <span className="text-sm font-bold text-stone-800">{knowledgeStats.rejected}</span>
+            </div>
           </div>
-          <div>
-            <p className="text-stone-400 text-sm">Model</p>
-            <p className="font-medium">gpt-4o-mini</p>
+        </div>
+      </div>
+
+      {/* Third Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Unknown Questions Table */}
+        <div className="bg-white rounded-xl border border-stone-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-red-500" />
+              Unknown Questions
+            </h3>
+            <span className="text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded-full">
+              {unknownQuestions.length} questions
+            </span>
           </div>
-          <div>
-            <p className="text-stone-400 text-sm">Temperature</p>
-            <p className="font-medium">0.7</p>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Question</th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Confidence</th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Intent</th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Date</th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unknownQuestions.map((q, i) => (
+                  <tr key={i} className="border-b border-stone-50 last:border-0">
+                    <td className="py-3 text-sm text-stone-700 max-w-xs truncate">{q.question}</td>
+                    <td className="py-3 text-sm text-stone-600">{q.confidence}</td>
+                    <td className="py-3">
+                      <span className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">
+                        {q.intent}
+                      </span>
+                    </td>
+                    <td className="py-3 text-sm text-stone-500">{q.date}</td>
+                    <td className="py-3">
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          q.status === "Pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : q.status === "Reviewed"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
+                        {q.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div>
-            <p className="text-stone-400 text-sm">Max Tokens</p>
-            <p className="font-medium">2000</p>
+        </div>
+
+        {/* Latency Metrics */}
+        <div className="bg-white rounded-xl border border-stone-200 p-6">
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-purple-500" />
+            Latency
+          </h3>
+          <div className="space-y-4">
+            {[
+              { label: "Intent Detection", value: latency.intentDetection, bar: 8 },
+              { label: "Repository", value: latency.repository, bar: 22 },
+              { label: "Knowledge Search", value: latency.knowledgeSearch, bar: 32 },
+              { label: "LLM Generation", value: latency.llm, bar: 65 },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-stone-600">{item.label}</span>
+                  <span className="text-sm font-medium text-stone-800">{item.value}</span>
+                </div>
+                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all"
+                    style={{ width: `${item.bar}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="pt-4 border-t border-stone-100">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-stone-700">Total Response Time</span>
+                <span className="text-lg font-bold text-amber-600">{latency.totalResponseTime}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
