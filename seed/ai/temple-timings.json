@@ -1,9 +1,16 @@
 {
+  "title": "Temple Timings",
+  "category": "temple-timings",
+  "content": "Daily temple timings and schedule for darshan at Sri Raghavendra Swamy Matha.",
   "timings": {
     "morningOpen": "6:00 AM",
     "morningClose": "12:30 PM",
     "eveningOpen": "5:00 PM",
     "eveningClose": "8:30 PM"
+  },
+  "specialTimings": {
+    "ekadashi": "5:30 AM - 9:00 PM (Extended hours)",
+    "festivals": "5:00 AM - 10:00 PM"
   },
   "contact": {
     "phone": "+91-80-28446400",
@@ -14,5 +21,38 @@
   "officeHours": {
     "weekday": "9:00 AM - 5:00 PM",
     "weekend": "10:00 AM - 4:00 PM"
-  }
+  },
+  "poojaSchedule": [
+    {
+      "name": "Suprabatha",
+      "time": "5:30 AM",
+      "description": "Morning wake-up prayer"
+    },
+    {
+      "name": "Sanga Bhashya",
+      "time": "7:00 AM",
+      "description": "Morning discourse"
+    },
+    {
+      "name": "Maharudra Abhishekam",
+      "time": "9:00 AM",
+      "description": "Sacred bath ceremony"
+    },
+    {
+      "name": "Sarvajna Puje",
+      "time": "12:00 PM",
+      "description": "Noon puja"
+    },
+    {
+      "name": "Maha Puje",
+      "time": "7:00 PM",
+      "description": "Evening puja"
+    },
+    {
+      "name": "Ekjala Seva",
+      "time": "8:00 PM",
+      "description": "Night service"
+    }
+  ],
+  "published": true
 }

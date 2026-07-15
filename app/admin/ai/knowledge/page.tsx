@@ -10,8 +10,10 @@ import {
   Loader2,
   BookOpen,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import { AIKnowledgeEmptyState } from "@/components/admin/common/EmptyState";
 import toast from "react-hot-toast";
 
 interface CoverageItem {
@@ -86,6 +88,40 @@ export default function KnowledgeCoveragePage() {
 
   const missingCategories = coverage?.coverage.filter((c) => c.status === "missing") || [];
   const presentCategories = coverage?.coverage.filter((c) => c.status === "present") || [];
+
+  // Check if knowledge base is completely empty
+  const isEmpty = coverage !== null && coverage.summary.present === 0 && coverage.summary.total > 0;
+
+  if (loading) {
+    return (
+      <div>
+        <AdminPageHeader
+          title="Knowledge Coverage"
+          description="Manage AI knowledge base for complete coverage"
+        />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state when no knowledge articles exist
+  if (isEmpty) {
+    return (
+      <div>
+        <AdminPageHeader
+          title="Knowledge Coverage"
+          description="Manage AI knowledge base for complete coverage"
+        />
+        <div className="bg-white rounded-xl shadow">
+          <AIKnowledgeEmptyState
+            onInitialize={() => handleImport(false)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -172,11 +208,17 @@ export default function KnowledgeCoveragePage() {
               style={{ width: `${coverage.summary.percentage}%` }}
             />
           </div>
+          {coverage.summary.percentage === 100 && (
+            <div className="flex items-center gap-2 mt-3">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <p className="text-sm text-green-600 font-medium">
+                Knowledge base is fully configured! All categories are covered.
+              </p>
+            </div>
+          )}
           {coverage.summary.percentage < 100 && (
             <p className="text-sm text-stone-500 mt-2">
-              {coverage.summary.percentage === 0
-                ? "No knowledge base initialized. Import default knowledge to get started."
-                : `Missing ${coverage.summary.missing} categories. Click "Initialize Missing" to add them.`}
+              Missing {coverage.summary.missing} categories. Click "Initialize Missing" to add them.
             </p>
           )}
         </div>
@@ -184,35 +226,47 @@ export default function KnowledgeCoveragePage() {
 
       {/* Action Buttons */}
       {coverage && coverage.summary.missing > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold text-stone-900 mb-4">
-            Quick Actions
-          </h3>
-          <div className="flex flex-wrap gap-4">
-            <button
-              onClick={() => handleImport(false)}
-              disabled={importing}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              {importing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Initialize Missing ({missingCategories.length})
-            </button>
-            <button
-              onClick={() => handleImport(true)}
-              disabled={importing}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              {importing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              Re-import All (Overwrite)
-            </button>
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200 p-6 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 rounded-full">
+                <Sparkles className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-stone-900">
+                  Initialize Missing Knowledge
+                </h3>
+                <p className="text-sm text-stone-600">
+                  Import default knowledge articles to fill {coverage.summary.missing} missing categories
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleImport(false)}
+                disabled={importing}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+              >
+                {importing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                Initialize Missing ({missingCategories.length})
+              </button>
+              <button
+                onClick={() => handleImport(true)}
+                disabled={importing}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
+              >
+                {importing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Re-import All
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -270,12 +324,6 @@ export default function KnowledgeCoveragePage() {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
         </div>
       )}
     </div>
