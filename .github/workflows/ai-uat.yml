@@ -1,0 +1,213 @@
+name: AI UAT Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'lib/ai/**'
+      - 'components/ai/**'
+      - 'tests/ai-uat/**'
+      - 'AI_UAT.md'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'lib/ai/**'
+      - 'components/ai/**'
+      - 'tests/ai-uat/**'
+      - 'AI_UAT.md'
+  workflow_dispatch:
+
+env:
+  E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || 'https://work-2-lsyqjcumilhubnrb.prod-runtime.all-hands.dev' }}
+
+jobs:
+  unit-tests:
+    name: Unit Tests (Intent Detection)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Intent Detection UAT Tests
+        run: npm run test:ai-uat:jest
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uat-test-results
+          path: |
+            reports/ai-uat/*.json
+            reports/ai-uat/*.html
+            reports/ai-uat/*.md
+          retention-days: 30
+
+  playwright-tests:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright UAT Tests
+        run: npm run test:ai-uat:playwright
+        continue-on-error: true
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            reports/html/
+            reports/playwright-test-results.json
+          retention-days: 30
+
+  generate-report:
+    name: Generate Reports
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: always()
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: uat-test-results
+          path: reports/ai-uat
+
+      - name: Generate Report
+        run: npm run report:ai-uat
+
+      - name: Upload final report
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-uat-report
+          path: reports/ai-uat/
+          retention-days: 90
+
+  regression-check:
+    name: Regression Check
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: uat-test-results
+          path: reports/ai-uat
+
+      - name: Check for regressions
+        run: |
+          echo "Checking for regressions..."
+          
+          # Get the latest report
+          REPORT=$(ls -t reports/ai-uat/*.json | head -1)
+          
+          if [ -f "$REPORT" ]; then
+            FAILED=$(cat "$REPORT" | jq '.failed // 0')
+            REGRESSIONS=$(cat "$REPORT" | jq '.regressions | length')
+            
+            echo "Failed tests: $FAILED"
+            echo "Regressions: $REGRESSIONS"
+            
+            if [ "$FAILED" -gt 0 ] || [ "$REGRESSIONS" -gt 0 ]; then
+              echo "❌ REGRESSION DETECTED"
+              echo ""
+              echo "The following tests are failing:"
+              cat "$REPORT" | jq -r '.regressions[]' | while read id; do
+                echo "  - $id"
+              done
+              exit 1
+            else
+              echo "✅ No regressions detected"
+            fi
+          else
+            echo "No report found"
+            exit 1
+          fi
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, generate-report, regression-check]
+    if: always()
+    
+    steps:
+      - name: Download reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports/ai-uat
+
+      - name: Display summary
+        run: |
+          echo "## AI UAT Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          REPORT=$(ls -t reports/ai-uat/*.json 2>/dev/null | head -1)
+          
+          if [ -f "$REPORT" ]; then
+            TOTAL=$(cat "$REPORT" | jq '.total')
+            PASSED=$(cat "$REPORT" | jq '.passed')
+            FAILED=$(cat "$REPORT" | jq '.failed')
+            PASS_RATE=$(cat "$REPORT" | jq '.passRate')
+            
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+            echo "| Pass Rate | $PASS_RATE% |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No test results available" >> $GITHUB_STEP_SUMMARY
+          fi
