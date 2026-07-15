@@ -1,5 +1,5 @@
 // Intent Detection Engine for Raya AI
-// Classifies user queries into intents before LLM processing
+// Classifies user queries into intents using keyword + semantic matching
 
 import {
   Intent,
@@ -15,6 +15,121 @@ import {
   normalizeText,
 } from "./patterns";
 
+// Intent examples for semantic matching (paraphrases)
+const INTENT_EXAMPLES: Record<Intent, string[]> = {
+  [Intent.TEMPLE_TIMINGS]: [
+    "when does temple open", "when does temple close", "temple timings",
+    "what time is the temple open", "morning timings", "evening schedule",
+    "i want to visit tomorrow", "is the matha open now", "when can i have darshana",
+    "ಮಠ ಯಾವಾಗ ತೆರೆಯಲು", "ಸಮಯ ಏನು", "ಬೆಳಗಿನ ಸಮಯ", "ಸಂಜೆ ಮುಚ್ಚುವ ಸಮಯ"
+  ],
+  [Intent.CONTACT_INFORMATION]: [
+    "phone number", "contact details", "how to reach", "email address",
+    "call temple", "ಫೋನ್ ನಂಬರ", "ಸಂಪರ್ಕ ಏರಿಸಿ"
+  ],
+  [Intent.LOCATION]: [
+    "where is temple", "temple address", "how to get there", "directions",
+    "nearest station", "ಠಾಣೆ ಎಲ್ಲಿದೆ", "ವಿಳಾಸ"
+  ],
+  [Intent.ADDRESS]: [
+    "address", "full address", "temple address", "ವಿಳಾಸ"
+  ],
+  [Intent.UPCOMING_EVENTS]: [
+    "any events", "festivals", "what events are coming", "special occasions",
+    "ಉತ್ಸವ ಯಾವಾಗ", "ಕಾರ್ಯಕ್ರಮ"
+  ],
+  [Intent.NEXT_AARADHANE]: [
+    "aaradhane", "aradhana", "annual festival", "swamy festival",
+    "ಆರಾಧನಾ", "ಮಹೋತ್ಸವ"
+  ],
+  [Intent.FESTIVAL_INFO]: [
+    "festival", "festivals", "celebration", "ಉತ್ಸವ"
+  ],
+  [Intent.SPECIAL_SEVAS]: [
+    "sevas available", "special poojas", "how to book seva", "seva charges",
+    "ಸೇವೆ ಮಾಡಬಹುದೇ", "ವಿಶೇಷ ಪೂಜೆ"
+  ],
+  [Intent.DAILY_POOJA]: [
+    "daily poojas", "morning puja", "evening aarti", "ದೈನಿಕ ಪೂಜೆ"
+  ],
+  [Intent.SEVA_BOOKING]: [
+    "book seva", "booking", "reserve", "schedule", "ಸೇವೆ ಬುಕಿಂಗ್"
+  ],
+  [Intent.DONATION]: [
+    "donate", "donation", "contribute", "support temple", "ದೇಣ ಮಾಡಬೇಕು"
+  ],
+  [Intent.DONATION_PURPOSE]: [
+    "donation purpose", "where does money go", "donation uses"
+  ],
+  [Intent.DONATION_80G]: [
+    "80g", "tax benefit", "tax deduction", "tax receipt"
+  ],
+  [Intent.BOOKING]: [
+    "book", "booking", "reserve", "appointment"
+  ],
+  [Intent.ANNOUNCEMENTS]: [
+    "announcement", "notice", "important update", "ಘೋಷಣೆ"
+  ],
+  [Intent.PANCHANGA]: [
+    "panchanga", "today's tithi", "nakshatra", "rahu kalam",
+    "ಇಂದು ಯಾವ ತಿಥಿ", "ನಕ್ಷತ್ರ"
+  ],
+  [Intent.TEMPLE_HISTORY]: [
+    "history of temple", "when was temple built", "about matha",
+    "ಮಠದ ಇತಿಹಾಸ"
+  ],
+  [Intent.SRI_RAGHAVENDRA]: [
+    "raghavendra swamiji", "about swamiji", "swamy life",
+    "ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ"
+  ],
+  [Intent.MADHWA_PHILOSOPHY]: [
+    "madhwa philosophy", "dvaita vedanta", "madhvacharya", "ಮಾಧ್ವ ತತ್ವ"
+  ],
+  [Intent.GURU_PARAMPARA]: [
+    "guru parampara", "guru lineage", "spiritual lineage", "ಗುರು ಪರಂಪರೆ"
+  ],
+  [Intent.BRINDAVANA]: [
+    "brindavana", "brindavan", "samadhi", "ಬೃಂದಾವನ"
+  ],
+  [Intent.MANTRALAYA]: [
+    "mantralaya", "mantralaya location", "where is mantralaya"
+  ],
+  [Intent.VISITOR_GUIDELINES]: [
+    "rules", "guidelines", "what to wear", "dress code", "ಉಡುಗೆ ಏನು"
+  ],
+  [Intent.DRESS_CODE]: [
+    "dress code", "what to wear", "wear", "clothing", "dress"
+  ],
+  [Intent.PHOTOGRAPHY]: [
+    "photography", "photo", "camera", "can i take pictures"
+  ],
+  [Intent.FAQ]: [
+    "faq", "common questions", "help", "ಪ್ರಶ್ನೆ"
+  ],
+  [Intent.TESTIMONIAL]: [
+    "testimonial", "share experience", "feedback", "review"
+  ],
+  [Intent.VOLUNTEER]: [
+    "volunteer", "volunteering", "help", "join", "ಸ್ಚಛಂದನ"
+  ],
+  [Intent.CONTACT_REQUEST]: [
+    "contact", "reach", "talk to someone", "talk to priest"
+  ],
+  [Intent.GENERAL_GREETING]: [
+    "hello", "namaste", "namaskara", "hi", "ನಮಸ್ಕಾರ"
+  ],
+  [Intent.THANKS]: [
+    "thank you", "thanks", "grateful", "appreciate"
+  ],
+  [Intent.GOODBYE]: [
+    "bye", "goodbye", "see you", "take care"
+  ],
+  [Intent.OUT_OF_SCOPE]: [
+    "weather", "stock market", "politics", "movies", "sports"
+  ],
+  [Intent.UNKNOWN]: []
+};
+
 export class IntentDetector {
   private minConfidence: number;
   private maxKeywords: number;
@@ -25,31 +140,13 @@ export class IntentDetector {
   }
 
   /**
-   * Detect intent from user message
+   * Detect intent using hybrid approach (keyword + semantic)
    */
   detect(message: string): IntentDetectionResult {
     const normalizedMessage = normalizeText(message);
     const hasKannada = containsKannada(message);
-    
-    // Sort patterns by priority (higher first)
-    const sortedPatterns = [...INTENT_PATTERNS].sort(
-      (a, b) => b.priority - a.priority
-    );
 
-    // Try to match patterns
-    let bestMatch: IntentDetectionResult | null = null;
-    let highestScore = 0;
-
-    for (const pattern of sortedPatterns) {
-      const result = this.matchPattern(pattern, normalizedMessage, hasKannada);
-      
-      if (result && result.confidence > highestScore) {
-        highestScore = result.confidence;
-        bestMatch = result;
-      }
-    }
-
-    // Check for out-of-scope first
+    // Check out-of-scope first
     if (this.isOutOfScope(normalizedMessage, hasKannada)) {
       return {
         intent: Intent.OUT_OF_SCOPE,
@@ -61,21 +158,149 @@ export class IntentDetector {
       };
     }
 
-    // Return best match if confidence is sufficient
-    if (bestMatch && bestMatch.confidence >= this.minConfidence) {
-      return bestMatch;
+    // Step 1: Keyword matching (exact matches)
+    const keywordResult = this.detectByKeywords(normalizedMessage, hasKannada);
+
+    // Step 2: Semantic matching (handles paraphrases)
+    const semanticResult = this.detectBySemantic(normalizedMessage);
+
+    // Step 3: Combine results
+    const bestResult = this.combineResults(keywordResult, semanticResult);
+
+    // Fallback to FAQ if low confidence
+    if (bestResult.confidence < this.minConfidence) {
+      return {
+        ...bestResult,
+        intent: Intent.FAQ,
+        fallbackIntent: Intent.FAQ,
+      };
     }
 
-    // Low confidence or no match - mark as unknown
-    return {
+    return bestResult;
+  }
+
+  /**
+   * Detect intent using keyword matching
+   */
+  private detectByKeywords(message: string, hasKannada: boolean): IntentDetectionResult {
+    const sortedPatterns = [...INTENT_PATTERNS].sort((a, b) => b.priority - a.priority);
+
+    let bestMatch: IntentDetectionResult | null = null;
+    let highestScore = 0;
+
+    for (const pattern of sortedPatterns) {
+      const result = this.matchPattern(pattern, message, hasKannada);
+      if (result && result.confidence > highestScore) {
+        highestScore = result.confidence;
+        bestMatch = result;
+      }
+    }
+
+    return bestMatch || {
       intent: Intent.UNKNOWN,
       category: IntentCategory.UNKNOWN,
-      confidence: bestMatch?.confidence ?? 0,
-      source: RetrievalType.LLM,
-      matchedKeywords: bestMatch?.matchedKeywords ?? [],
+      confidence: 0,
+      source: RetrievalType.KEYWORD_MATCH,
+      matchedKeywords: [],
       requiresStructuredData: false,
-      fallbackIntent: Intent.FAQ,
     };
+  }
+
+  /**
+   * Detect intent using semantic similarity (handles paraphrases)
+   */
+  private detectBySemantic(message: string): IntentDetectionResult {
+    const lowerMessage = message.toLowerCase();
+    const messageWords = new Set(
+      lowerMessage.split(/\s+/).filter(w => w.length > 2)
+    );
+
+    let bestIntent = Intent.UNKNOWN;
+    let highestSimilarity = 0;
+
+    for (const [intent, examples] of Object.entries(INTENT_EXAMPLES)) {
+      if (intent === Intent.UNKNOWN || intent === Intent.OUT_OF_SCOPE) continue;
+
+      let maxExampleScore = 0;
+
+      for (const example of examples) {
+        const exampleWords = new Set(
+          example.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+        );
+
+        // Jaccard similarity
+        const intersection = [...messageWords].filter(
+          w => exampleWords.has(w) || this.fuzzyMatch(w, exampleWords)
+        );
+        const union = new Set([...messageWords, ...exampleWords]);
+        const jaccard = union.size > 0 ? intersection.length / union.size : 0;
+
+        // Bonus for substring matches
+        let substringBonus = 0;
+        for (const msgWord of messageWords) {
+          for (const exWord of exampleWords) {
+            if (msgWord.includes(exWord) || exWord.includes(msgWord)) {
+              substringBonus += 0.15;
+            }
+          }
+        }
+
+        maxExampleScore = Math.max(maxExampleScore, jaccard + substringBonus);
+      }
+
+      if (maxExampleScore > highestSimilarity) {
+        highestSimilarity = maxExampleScore;
+        bestIntent = intent as Intent;
+      }
+    }
+
+    // Convert similarity to confidence (0-1 -> 20-85)
+    const confidence = Math.min(20 + highestSimilarity * 65, 85);
+
+    return {
+      intent: bestIntent,
+      category: this.getCategoryForIntent(bestIntent),
+      confidence: Math.round(confidence),
+      source: RetrievalType.SEMANTIC_MATCH,
+      matchedKeywords: [],
+      requiresStructuredData: true,
+    };
+  }
+
+  /**
+   * Simple fuzzy matching for word variations
+   */
+  private fuzzyMatch(word: string, wordSet: Set<string>): boolean {
+    for (const target of wordSet) {
+      if (word.length < 3 || target.length < 3) continue;
+      // Same prefix check
+      if (word.slice(0, 3) === target.slice(0, 3)) return true;
+      // Same suffix check
+      if (word.slice(-3) === target.slice(-3)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Combine keyword and semantic results
+   */
+  private combineResults(
+    keywordResult: IntentDetectionResult,
+    semanticResult: IntentDetectionResult
+  ): IntentDetectionResult {
+    // If both agree, boost confidence
+    if (keywordResult.intent === semanticResult.intent) {
+      return {
+        ...keywordResult,
+        confidence: Math.min(keywordResult.confidence + 10, 100),
+        source: RetrievalType.HYBRID_MATCH,
+      };
+    }
+
+    // Take higher confidence
+    return keywordResult.confidence >= semanticResult.confidence
+      ? keywordResult
+      : semanticResult;
   }
 
   /**
@@ -87,54 +312,38 @@ export class IntentDetector {
     hasKannada: boolean
   ): IntentDetectionResult | null {
     const matchedKeywords: string[] = [];
-    let score = 0;
 
     // Check English keywords
     for (const keyword of pattern.keywords.en) {
       const normalizedKeyword = normalizeText(keyword);
       if (normalizedMessage.includes(normalizedKeyword)) {
         matchedKeywords.push(keyword);
-        score += 20; // Base score per match
       }
     }
 
-    // Check Kannada keywords if message contains Kannada
+    // Check Kannada keywords
     if (hasKannada && pattern.keywords.kn) {
       for (const keyword of pattern.keywords.kn) {
-        if (normalizedMessage.includes(keyword)) {
-          // Avoid duplicates
-          if (!matchedKeywords.includes(keyword)) {
-            matchedKeywords.push(keyword);
-            score += 25; // Slightly higher for Kannada match
-          }
+        if (normalizedMessage.includes(keyword) && !matchedKeywords.includes(keyword)) {
+          matchedKeywords.push(keyword);
         }
       }
     }
 
-    // No matches
-    if (matchedKeywords.length === 0) {
-      return null;
-    }
+    if (matchedKeywords.length === 0) return null;
 
-    // Calculate confidence based on:
-    // - Number of keyword matches (up to maxKeywords)
-    // - Message length (longer messages = more specific)
+    // Calculate confidence
     const effectiveMatches = Math.min(matchedKeywords.length, this.maxKeywords);
     const keywordScore = Math.min((effectiveMatches / this.maxKeywords) * 60, 60);
     const contextScore = Math.min(normalizedMessage.length / 100 * 10, 20);
-    const baseScore = 20;
-
-    const confidence = Math.min(
-      Math.round(baseScore + keywordScore + contextScore),
-      95 // Cap at 95 to leave room for uncertainty
-    );
+    const confidence = Math.min(Math.round(20 + keywordScore + contextScore), 95);
 
     return {
       intent: pattern.intent,
       category: pattern.category,
       confidence,
-      source: pattern.requiresStructuredData 
-        ? RetrievalType.REPOSITORY 
+      source: pattern.requiresStructuredData
+        ? RetrievalType.REPOSITORY
         : RetrievalType.KNOWLEDGE_BASE,
       matchedKeywords: matchedKeywords.slice(0, this.maxKeywords),
       requiresStructuredData: pattern.requiresStructuredData,
@@ -142,29 +351,63 @@ export class IntentDetector {
   }
 
   /**
+   * Get category for intent
+   */
+  private getCategoryForIntent(intent: Intent): IntentCategory {
+    switch (intent) {
+      case Intent.TEMPLE_TIMINGS:
+      case Intent.CONTACT_INFORMATION:
+      case Intent.LOCATION:
+      case Intent.VISITOR_GUIDELINES:
+      case Intent.DRESS_CODE:
+      case Intent.ADDRESS:
+        return IntentCategory.TEMPLE_INFO;
+      case Intent.UPCOMING_EVENTS:
+      case Intent.NEXT_AARADHANE:
+      case Intent.FESTIVAL_INFO:
+        return IntentCategory.EVENTS;
+      case Intent.SPECIAL_SEVAS:
+      case Intent.DAILY_POOJA:
+        return IntentCategory.SEVAS;
+      case Intent.DONATION:
+      case Intent.DONATION_PURPOSE:
+      case Intent.DONATION_80G:
+        return IntentCategory.DONATIONS;
+      case Intent.PANCHANGA:
+        return IntentCategory.PANCHANGA;
+      case Intent.TEMPLE_HISTORY:
+      case Intent.SRI_RAGHAVENDRA:
+      case Intent.MADHWA_PHILOSOPHY:
+      case Intent.GURU_PARAMPARA:
+      case Intent.BRINDAVANA:
+        return IntentCategory.KNOWLEDGE;
+      case Intent.FAQ:
+      case Intent.GENERAL_GREETING:
+        return IntentCategory.GENERAL;
+      case Intent.ANNOUNCEMENTS:
+        return IntentCategory.ANNOUNCEMENTS;
+      case Intent.OUT_OF_SCOPE:
+        return IntentCategory.OUT_OF_SCOPE;
+      default:
+        return IntentCategory.UNKNOWN;
+    }
+  }
+
+  /**
    * Check if message is out of scope
    */
   private isOutOfScope(normalizedMessage: string, hasKannada: boolean): boolean {
-    // Check regex patterns
     for (const pattern of OUT_OF_SCOPE_PATTERNS) {
-      if (pattern.test(normalizedMessage)) {
-        return true;
-      }
+      if (pattern.test(normalizedMessage)) return true;
     }
 
-    // Check out-of-scope keywords
     for (const keyword of OUT_OF_SCOPE_KEYWORDS.en) {
-      if (normalizedMessage.includes(keyword.toLowerCase())) {
-        return true;
-      }
+      if (normalizedMessage.includes(keyword.toLowerCase())) return true;
     }
 
-    // Check Kannada out-of-scope keywords
     if (hasKannada && OUT_OF_SCOPE_KEYWORDS.kn) {
       for (const keyword of OUT_OF_SCOPE_KEYWORDS.kn) {
-        if (normalizedMessage.includes(keyword)) {
-          return true;
-        }
+        if (normalizedMessage.includes(keyword)) return true;
       }
     }
 
@@ -172,10 +415,10 @@ export class IntentDetector {
   }
 
   /**
-   * Batch detect intents for multiple messages
+   * Batch detect intents
    */
   detectBatch(messages: string[]): IntentDetectionResult[] {
-    return messages.map((msg) => this.detect(msg));
+    return messages.map(msg => this.detect(msg));
   }
 
   /**
@@ -190,12 +433,12 @@ export class IntentDetector {
    */
   getIntentsByCategory(category: IntentCategory): Intent[] {
     return INTENT_PATTERNS
-      .filter((p) => p.category === category)
-      .map((p) => p.intent);
+      .filter(p => p.category === category)
+      .map(p => p.intent);
   }
 }
 
-// Singleton instance for easy use
+// Singleton instance
 let detectorInstance: IntentDetector | null = null;
 
 export function getIntentDetector(): IntentDetector {
