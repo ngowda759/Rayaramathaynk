@@ -1,6 +1,6 @@
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { SYSTEM_PROMPT, WELCOME_MESSAGE } from "./systemPrompt";
+import { SYSTEM_PROMPT_V2, WELCOME_MESSAGE_V2 } from "./prompt-refactored";
 
 // AI Settings stored in Firebase
 export interface AISettings {
@@ -10,10 +10,10 @@ export interface AISettings {
   updatedAt: Timestamp | null;
 }
 
-// Default AI Settings
+// Default AI Settings - Use V2 prompt with NO hardcoded facts
 export const DEFAULT_AI_SETTINGS: AISettings = {
-  systemPrompt: SYSTEM_PROMPT,
-  welcomeMessage: WELCOME_MESSAGE,
+  systemPrompt: SYSTEM_PROMPT_V2,
+  welcomeMessage: WELCOME_MESSAGE_V2.en,
   enabled: true,
   updatedAt: null,
 };
