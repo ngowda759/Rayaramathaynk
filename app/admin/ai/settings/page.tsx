@@ -74,11 +74,11 @@ export default function AISettingsPage() {
       ]);
       
       const data: AISettingsFormData = {
-        temple: temple.data,
-        visitor: visitor.data,
-        policies: policies.data,
-        responses: responses.data,
-        behavior: behavior.data,
+        temple: temple,
+        visitor: visitor,
+        policies: policies,
+        responses: responses,
+        behavior: behavior,
       };
       
       setSettings(data);

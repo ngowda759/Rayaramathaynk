@@ -1,0 +1,35 @@
+{
+  "title": "Volunteer Program",
+  "category": "volunteer",
+  "content": "Join the volunteer program at Sri Raghavendra Swamy Matha and serve the divine cause.",
+  "opportunities": [
+    {
+      "role": "Seva Volunteer",
+      "description": "Help in daily poojas, cleaning, and maintenance"
+    },
+    {
+      "role": "Annadanam Volunteer",
+      "description": "Assist in serving food during Annadanam"
+    },
+    {
+      "role": "Prasada Distribution",
+      "description": "Help in distributing prasada to devotees"
+    },
+    {
+      "role": "Guide Volunteer",
+      "description": "Guide devotees and explain temple history"
+    },
+    {
+      "role": "Event Volunteer",
+      "description": "Help during festivals and special occasions"
+    }
+  ],
+  "requirements": [
+    "Must be 18 years or above",
+    "Should maintain decorum and follow temple rules",
+    "Must be willing to work in shifts",
+    "Traditional attire preferred"
+  ],
+  "contact": "Contact temple office for volunteer registration",
+  "published": true
+}

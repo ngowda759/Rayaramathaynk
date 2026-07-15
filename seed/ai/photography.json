@@ -1,0 +1,25 @@
+{
+  "title": "Photography Policy",
+  "category": "photography",
+  "content": "Photography guidelines for visiting Sri Raghavendra Swamy Matha.",
+  "policy": {
+    "insideSanctum": {
+      "allowed": false,
+      "reason": "To maintain the sanctity and privacy of worship"
+    },
+    "outsideTemple": {
+      "allowed": true,
+      "note": "External photography of temple architecture is permitted"
+    },
+    "flashPhotography": {
+      "allowed": false,
+      "reason": "Flash can disturb other devotees and damage ancient paintings"
+    },
+    "videoRecording": {
+      "allowed": false,
+      "reason": "Video recording inside temple premises is not allowed"
+    }
+  },
+  "tips": "For professional photography or videography, please contact the temple office for prior permission.",
+  "published": true
+}

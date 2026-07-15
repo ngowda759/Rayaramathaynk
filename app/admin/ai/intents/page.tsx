@@ -49,7 +49,7 @@ export default function IntentManagerPage() {
       setLoading(true);
       const response = await fetch("/api/ai/settings/intents");
       const data = await response.json();
-      setIntents(data.data || []);
+      setIntents(data.intents || []);
     } catch (error) {
       console.error("Error loading intents:", error);
       showMsg("error", "Failed to load intents");

@@ -1,0 +1,41 @@
+{
+  "title": "Brindavana - The Sacred Samadhi",
+  "category": "brindavana",
+  "content": "The Brindavana of Sri Raghavendra Swamy is the sacred samadhi monument.",
+  "description": "The Brindavana is a beautiful silver casket containing the holy relics of Sri Raghavendra Swamy. It is the central shrine of the Matha and attracts thousands of devotees daily.",
+  "significance": "According to his prophecy, Sri Raghavendra Swamy continues to reside in this Brindavana for the next 700 years, answering the prayers of his devotees.",
+  "features": [
+    {
+      "name": "Silver Casket",
+      "description": "The Brindavana is enclosed in an ornate silver casket"
+    },
+    {
+      "name": "Padiukas (Holy Footprints)",
+      "description": "Replica of the guru's footprints is installed here"
+    },
+    {
+      "name": "Prakara",
+      "description": "The circumambulatory path around the Brindavana"
+    }
+  ],
+  "pooja": "Special pujas are performed at the Brindavana throughout the day, including Suprabhata (morning wake-up), Naivedyam, and Ekadasa Rudra Abhishekam.",
+  "darshanTimings": "Darshan of the Brindavana is available during temple hours with special darshan tickets available for closer view.",
+  "rituals": [
+    {
+      "name": "Suprabatha",
+      "time": "5:30 AM",
+      "description": "Morning prayer ceremony"
+    },
+    {
+      "name": "Sanga Bhashya",
+      "time": "7:00 AM",
+      "description": "Discourse on teachings"
+    },
+    {
+      "name": "Maharudra Abhishekam",
+      "time": "9:00 AM",
+      "description": "Sacred bath with 11 types of holy waters"
+    }
+  ],
+  "published": true
+}

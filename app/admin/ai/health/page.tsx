@@ -123,7 +123,7 @@ export default function AIHealthPage() {
         behaviorRes.ok ? behaviorRes.json() : null,
       ]);
 
-      const hasData = temple?.data && visitor?.data && policies?.data && responses?.data && behavior?.data;
+      const hasData = temple && visitor && policies && responses && behavior;
 
       checks.push({
         name: "Data Integrity",
@@ -135,9 +135,9 @@ export default function AIHealthPage() {
 
       // Check for empty required fields
       const emptyFields: string[] = [];
-      if (!temple?.data?.timings && !temple?.data?.contact) emptyFields.push("Temple Information");
-      if (!visitor?.data?.guidelines) emptyFields.push("Visitor Guidelines");
-      if (!responses?.data?.greeting) emptyFields.push("AI Response Templates");
+      if (!temple?.timings && !temple?.contact) emptyFields.push("Temple Information");
+      if (!visitor?.guidelines) emptyFields.push("Visitor Guidelines");
+      if (!responses?.greeting) emptyFields.push("AI Response Templates");
 
       checks.push({
         name: "Required Fields",
@@ -148,10 +148,10 @@ export default function AIHealthPage() {
       });
 
       // AI Behavior Check
-      if (behavior?.data) {
-        const confidence = behavior.data?.confidenceThreshold;
-        const semantic = behavior.data?.semanticThreshold;
-        const maxRelated = behavior.data?.maxRelatedArticles;
+      if (behavior) {
+        const confidence = behavior.confidenceThreshold;
+        const semantic = behavior.semanticThreshold;
+        const maxRelated = behavior.maxRelatedArticles;
 
         const confidenceOk = typeof confidence === 'number' && confidence >= 0.7 && confidence <= 0.95;
         const semanticOk = typeof semantic === 'number' && semantic >= 0.5 && semantic <= 0.9;

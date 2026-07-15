@@ -1,0 +1,18 @@
+{
+  "timings": {
+    "morningOpen": "6:00 AM",
+    "morningClose": "12:30 PM",
+    "eveningOpen": "5:00 PM",
+    "eveningClose": "8:30 PM"
+  },
+  "contact": {
+    "phone": "+91-80-28446400",
+    "email": "info@raghavendramatha.org",
+    "address": "Sri Raghavendra Swamy Matha, Yelahanka New Town, Bengaluru - 560064, Karnataka, India",
+    "googleMapsUrl": "https://maps.google.com/?q=Sri+Raghavendra+Swamy+Matha+Yelahanka"
+  },
+  "officeHours": {
+    "weekday": "9:00 AM - 5:00 PM",
+    "weekend": "10:00 AM - 4:00 PM"
+  }
+}

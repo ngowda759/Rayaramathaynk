@@ -51,7 +51,7 @@ export default function UnknownQuestionsPage() {
       setLoading(true);
       const response = await fetch("/api/ai/settings/unknown-questions");
       const data = await response.json();
-      setQuestions(data.data || []);
+      setQuestions(data.questions || data || []);
     } catch (error) {
       console.error("Error loading questions:", error);
       showMsg("error", "Failed to load unknown questions");
