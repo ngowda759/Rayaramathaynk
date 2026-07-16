@@ -99,10 +99,12 @@ export enum IntentPriority {
   THANKS = 95,
   GOODBYE = 90,
   OUT_OF_SCOPE = 80,
+  // General (generic questions - high priority to catch ambiguous queries)
+  FAQ = 75, // Catch generic "what", "why", "how" questions
   // Temple Info
   ADDRESS = 85,
   LOCATION = 84,
-  CONTACT_INFORMATION = 75, // Lower - generic "how" can match this
+  CONTACT_INFORMATION = 65, // Lower - generic words can match this
   TEMPLE_TIMINGS = 70,
   OFFICE_HOURS = 68, // Specific temple office timing
   // Events
@@ -135,8 +137,7 @@ export enum IntentPriority {
   // Website Navigation
   SHARE_EXPERIENCE = 30, // Share testimonial/experience
   COMMITTEE = 28, // Trust committee information
-  // General
-  FAQ = 20,
+  // General (continued)
   CONTACT_REQUEST = 15,
   VOLUNTEER = 14,
   TESTIMONIAL = 13,
