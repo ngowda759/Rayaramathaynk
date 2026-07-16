@@ -5,7 +5,6 @@ import { useAIChat } from "./AIChatProvider";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { ChatInput } from "./ChatInput";
-import { SuggestedQuestions } from "./SuggestedQuestions";
 import { Trash2, Sparkles, History, X, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -32,10 +31,6 @@ export function ChatWindow() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isLoading]);
-
-  const handleSuggestedQuestion = (question: string) => {
-    sendMessage(question);
-  };
 
   const canRegenerate = messages.length > 0 && !isLoading;
 
@@ -134,7 +129,7 @@ export function ChatWindow() {
         aria-label="Chat messages"
       >
         {messages.length === 0 ? (
-          <WelcomeScreen onSelectQuestion={handleSuggestedQuestion} welcomeMessage={welcomeMessage} />
+          <WelcomeScreen welcomeMessage={welcomeMessage} />
         ) : (
           <>
             {messages.map((message, index) => (
@@ -151,11 +146,6 @@ export function ChatWindow() {
         )}
       </div>
 
-      {/* Suggested Questions - Only show when there are messages */}
-      {messages.length > 0 && (
-        <SuggestedQuestions onSelect={handleSuggestedQuestion} />
-      )}
-
       {/* Input Area */}
       <div className="flex-shrink-0">
         <ChatInput onSend={sendMessage} isLoading={isLoading} />
@@ -164,11 +154,9 @@ export function ChatWindow() {
   );
 }
 
-function WelcomeScreen({ onSelectQuestion, welcomeMessage }: { 
-  onSelectQuestion: (q: string) => void;
+function WelcomeScreen({ welcomeMessage }: { 
   welcomeMessage: string 
 }) {
-  // Default welcome message if not loaded
   const defaultWelcome = `🙏 Namaste, Dear Devotee!
 
 I am **Raya AI**, your friendly assistant from Sri Raghavendra Swamy Math.
@@ -177,39 +165,16 @@ How may I assist you today?`;
 
   const displayMessage = welcomeMessage || defaultWelcome;
 
-  const quickQuestions = [
-    { icon: "🕐", text: "Temple Timings", q: "What are the temple timings?" },
-    { icon: "📅", text: "Upcoming Events", q: "What events are coming up?" },
-    { icon: "🙏", text: "Sevas Available", q: "What sevas are available?" },
-    { icon: "💝", text: "How to Donate", q: "How can I donate to the temple?" },
-  ];
-
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6">
       {/* Avatar */}
-      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-3 shadow-lg">
-        <Sparkles className="w-6 h-6 text-amber-600" />
+      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-4 shadow-lg">
+        <Sparkles className="w-8 h-8 text-amber-600" />
       </div>
       
       {/* Welcome Message */}
-      <div className="text-sm text-stone-600 mb-4 max-w-sm prose prose-sm prose-stone">
+      <div className="text-sm text-stone-600 max-w-sm prose prose-sm prose-stone">
         <ReactMarkdown>{displayMessage}</ReactMarkdown>
-      </div>
-
-      {/* Quick Questions - Horizontal Pills */}
-      <div className="flex flex-wrap gap-1.5 justify-center">
-        {quickQuestions.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => onSelectQuestion(item.q)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-stone-200 rounded-full text-xs text-stone-600
-                     hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 
-                     transition-all duration-200"
-          >
-            <span>{item.icon}</span>
-            <span>{item.text}</span>
-          </button>
-        ))}
       </div>
     </div>
   );
