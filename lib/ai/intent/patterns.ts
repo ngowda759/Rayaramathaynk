@@ -533,10 +533,13 @@ export const INTENT_PATTERNS: IntentPattern[] = [
       en: [
         "faq", "question", "answer", "help",
         "can i", "is it possible", "tell me",
-        "ಪ್ರಶ್ನೆ", "ಉತ್ತರ"
+        "what do you", "what are you", "who are you", "what is this",
+        "what", "why", "how", "which", "where", "when",
+        "meaning", "purpose", "reason", "explain",
+        "ಪ್ರಶ್ನೆ", "ಉತ್ತರ", "ಏನು", "ಹೇಗೆ", "ಯಾವ", "ಯಾರು"
       ],
       kn: [
-        "ಪ್ರಶ್ನೆ", "ಉತ್ತರ", "ಏನು"
+        "ಪ್ರಶ್ನೆ", "ಉತ್ತರ", "ಏನು", "ಹೇಗೆ", "ಯಾವ", "ಯಾರು"
       ]
     },
     requiresStructuredData: false,

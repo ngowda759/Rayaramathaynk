@@ -504,6 +504,64 @@ function handleOutOfScope(language: "en" | "kn" | "mixed"): AIResponseResult {
 }
 
 /**
+ * Handle FAQ intent for generic/unclear questions
+ */
+function handleFAQIntent(message: string, language: "en" | "kn" | "mixed"): AIResponseResult {
+  const responses = {
+    en: `🙏 Namaskara! I can help you with various temple-related queries.
+
+I specialize in:
+• 🕐 Temple timings and schedules
+• 📅 Events and festivals
+• 🙏 Sevas and booking
+• 💝 Donations (including 80G)
+• 📿 Panchanga information
+• 📖 Temple history and philosophy
+• 📍 Location and directions
+
+Could you please rephrase your question? For example:
+• "What are the temple timings?"
+• "When is the next Aaradhane?"
+• "How can I donate?"
+
+🙏 Sri Guru Raghavendraya Namaha.`,
+
+    kn: `🙏 ನಮಸ್ಕಾರ! ನಾನು ವಿವಿಧ ದೇವಸ್ಥಾನದ ಮಾಹಿತಿಯನ್ನು ನೀಡಬಹುದು.
+
+ನಾನು ಸಹಾಯ ಮಾಡಬಹುದು:
+• 🕐 ದೇವಸ್ಥಾನದ ಸಮಯ
+• 📅 ಕಾರ್ಯಕ್ರಮಗಳು ಮತ್ತು ಹಬ್ಬಗಳು
+• 🙏 ಸೇವೆಗಳು
+• 💝 ದೇಣಗಳು
+• 📿 ಪಂಚಾಂಗ ಮಾಹಿತಿ
+• 📍 ಸ್ಥಳ
+
+ದಯವಿಟ್ಟು ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಮರುಹೇಳಿ. ಉದಾಹರಣೆಗೆ:
+• "ದೇವಸ್ಥಾನದ ಸಮಯ ಏನು?"
+• "ಆರಾಧನೆ ಯಾವಾಗ?"
+
+🙏 ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ನಮಃ`,
+
+    mixed: `🙏 Namaskara! ನಾನು ನಿಮಗೆ ಸಹಾಯ ಮಾಡಬಹುದು.
+
+I can help with temple timings, events, sevas, donations, panchanga & more.
+
+Please rephrase your question / ದಯವಿಟ್ಟು ಪ್ರಶ್ನೆಯನ್ನು ಹೇಳಿ.
+
+🙏 Sri Guru Raghavendraya Namaha.`
+  };
+
+  return {
+    content: responses[language],
+    intent: Intent.FAQ,
+    confidence: 80,
+    source: RetrievalType.FALLBACK,
+    usesLLM: false,
+    language,
+  };
+}
+
+/**
  * Handle knowledge-based intent using knowledge base
  */
 async function handleKnowledgeIntent(
@@ -620,10 +678,12 @@ export async function generateResponse(
     case Intent.GURU_PARAMPARA:
     case Intent.BRINDAVANA:
     case Intent.MANTRALAYA:
-    case Intent.FAQ:
     case Intent.VOLUNTEER:
     case Intent.TESTIMONIAL:
       return handleKnowledgeIntent(intentResult.intent, message, language);
+      
+    case Intent.FAQ:
+      return handleFAQIntent(message, language);
       
     default:
       // Unknown or unhandled intent - use knowledge base
