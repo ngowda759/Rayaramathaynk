@@ -18,7 +18,7 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 |---|-------------|-------------|--------|-----|
 | 1 | Confidence-based Fallback | When intent confidence < 60%, show FAQ instead of wrong answer | ✅ Done | #76 |
 | 2 | Response Length Limits | Cap responses at 500 chars to prevent hallucinations | ✅ Done | #76 |
-| 3 | Unknown Question Logging | Auto-log questions with low confidence to Firestore | 🔄 In Progress | - |
+| 3 | Unknown Question Logging | Auto-log questions with low confidence to Firestore | ✅ Done | #79 |
 | 4 | Kannada Transliteration | Support typing "samaya" for "ಸಮಯ" | 📋 Todo | - |
 
 ---
@@ -89,11 +89,12 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 - **Logic:** Cap responses at 500 characters
 - **File:** `lib/ai/generator.ts`
 
-#### 3. Unknown Question Logging 🔄
-- **Status:** In Progress
-- **Logic:** Log all questions with confidence < 50% to Firestore
+#### 3. Unknown Question Logging ✅
+- **Status:** Implemented in PR #79
+- **Logic:** Log all questions with confidence < 60% to Firestore
 - **Collections:** `unknown_questions` in Firestore
 - **Fields:** question, intent, confidence, language, timestamp, sessionId
+- **File:** `services/analytics.service.ts`
 
 #### 4. Kannada Transliteration
 - **Status:** Pending
