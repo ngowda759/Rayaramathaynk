@@ -73,9 +73,9 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 19 | Knowledge Article Tags | Auto-tag articles by category | 📋 Todo | - |
-| 20 | Content Freshness | Show "Updated X days ago" | 📋 Todo | - |
-| 21 | Related Questions | Link similar questions to same answer | 📋 Todo | - |
+| 19 | Knowledge Article Tags | Auto-tag articles by category | ✅ Done | #79 |
+| 20 | Content Freshness | Show "Updated X days ago" | ✅ Done | #79 |
+| 21 | Related Questions | Link similar questions to same answer | ✅ Done | #79 |
 
 ---
 
@@ -168,6 +168,36 @@ GET /api/chat?ux=true  → Includes quick actions & suggestions
       { "id": "timings", "label": "Temple Timings", "labelKn": "ದೇವಸ್ಥಾನ ಸಮಯ", "action": "What are the temple timings?" }
     ],
     "suggestedQuestions": [...]
+  }
+}
+```
+
+### Phase 6: Content Management
+
+#### 19-21. Content Management Features ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/content.service.ts` - Content management service
+  - `app/api/admin/content/route.ts` - Admin API endpoint
+- **Features:**
+  - Auto-tagging based on content analysis
+  - Content freshness tracking (fresh/stale/outdated)
+  - Related questions mapping
+  - Batch freshness check for articles
+
+**API Endpoints:**
+- `GET /api/admin/content?action=related&intent=TEMPLE_TIMINGS` - Get related questions
+- `POST /api/admin/content` - Auto-tag or freshness check
+
+**Auto-tag Example:**
+```json
+{
+  "action": "autotag",
+  "result": {
+    "suggestedCategory": "donation_info",
+    "confidence": 85,
+    "alternativeCategories": [...],
+    "suggestedKeywords": ["donate", "bank", "account"]
   }
 }
 ```
