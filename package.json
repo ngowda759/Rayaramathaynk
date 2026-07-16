@@ -20,7 +20,8 @@
     "test:ai-uat:playwright": "playwright test tests/ai-uat/ai-uat.spec.ts",
     "report:ai-uat": "npx ts-node --project tsconfig.scripts.json tests/ai-uat/generate-report.ts",
     "generate:aaradhane": "npx tsx scripts/generate-aaradhane.ts",
-    "seed:guru-parampara": "npx tsx scripts/seed-guru-parampara.ts"
+    "seed:guru-parampara": "npx tsx scripts/seed-guru-parampara.ts",
+    "generate:proof-report": "npx ts-node --project tsconfig.scripts.json scripts/generate-proof-report.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
