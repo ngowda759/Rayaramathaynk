@@ -37,8 +37,14 @@ import {
 } from "./knowledge";
 
 import { containsKannada } from "./intent/patterns";
+import { logUnknownQuestion } from "@/services/analytics.service";
 
 export { detectIntent } from "./intent";
+
+// Confidence threshold for triggering FAQ fallback
+const LOW_CONFIDENCE_THRESHOLD = 60;
+
+export { LOW_CONFIDENCE_THRESHOLD };
 
 /**
  * Response generation result with metadata
@@ -608,12 +614,33 @@ async function handleKnowledgeIntent(
  * Uses structured retrieval when possible, falls back to knowledge base or LLM
  */
 export async function generateResponse(
-  message: string
+  message: string,
+  sessionId?: string
 ): Promise<AIResponseResult> {
   const language = detectLanguage(message);
   const intentResult = detectIntent(message);
   
   console.log(`[AI Generator] Detected intent: ${intentResult.intent} (${intentResult.confidence}%)`);
+
+  // Low confidence fallback - redirect to FAQ for better UX
+  if (intentResult.confidence < LOW_CONFIDENCE_THRESHOLD && 
+      intentResult.intent !== Intent.OUT_OF_SCOPE &&
+      intentResult.intent !== Intent.GENERAL_GREETING &&
+      intentResult.intent !== Intent.THANKS &&
+      intentResult.intent !== Intent.GOODBYE) {
+    console.log(`[AI Generator] Low confidence (${intentResult.confidence}%), redirecting to FAQ`);
+    
+    // Log unknown question for analytics
+    await logUnknownQuestion({
+      question: message,
+      detectedIntent: intentResult.intent,
+      confidence: intentResult.confidence,
+      language,
+      sessionId,
+    });
+    
+    return handleFAQIntent(message, language);
+  }
 
   // Handle intents that use structured data
   switch (intentResult.intent) {
@@ -686,7 +713,14 @@ export async function generateResponse(
       return handleFAQIntent(message, language);
       
     default:
-      // Unknown or unhandled intent - use knowledge base
+      // Unknown or unhandled intent - log and use knowledge base
+      await logUnknownQuestion({
+        question: message,
+        detectedIntent: intentResult.intent,
+        confidence: intentResult.confidence,
+        language,
+        sessionId,
+      });
       return handleKnowledgeIntent(Intent.UNKNOWN, message, language);
   }
 }
