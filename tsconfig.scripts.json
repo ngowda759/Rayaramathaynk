@@ -9,11 +9,12 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "outDir": "./dist",
-    "rootDir": "./scripts",
+    "rootDir": ".",
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }
   },
-  "include": ["scripts/**/*"],
+  "include": ["scripts/**/*", "lib/**/*", "types/**/*"],
   "exclude": ["node_modules", ".next", "dist"]
 }

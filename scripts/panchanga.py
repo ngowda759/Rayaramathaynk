@@ -5,7 +5,9 @@ Panchanga CLI using panchang library
 
 import argparse
 import json
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from panchang import Location
 from panchang.panchang import compute
@@ -17,9 +19,6 @@ from panchang.panchang import compute
 LAT = 13.1005
 LON = 77.5963
 TZ = "Asia/Kolkata"
-
-# Use current date automatically
-DATE = datetime.now().strftime("%Y-%m-%d")
 
 
 def time_window(window):
@@ -34,36 +33,18 @@ def time_window(window):
     }
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Panchanga CLI")
-    parser.add_argument(
-        "--pretty",
-        action="store_true",
-        help="Pretty print JSON"
-    )
-
-    args = parser.parse_args()
-
-    # Use DATE from config (current date)
-    target_date = datetime.strptime(DATE, "%Y-%m-%d").date()
-
-    location = Location(
-        lat=LAT,
-        lng=LON,
-        tz=TZ,
-    )
-
+def compute_panchanga(target_date, location):
     p = compute(target_date, location)
-
-    result = {
+    
+    return {
         "metadata": {
             "generator": "Rayara Panchanga Engine",
             "version": "1.0.0",
             "generated_at": datetime.now().isoformat(),
-            "valid_for": DATE,
+            "valid_for": str(target_date),
             "timezone": TZ
         },
-        "date": p.date,
+        "date": str(target_date),
         "location": {
             "latitude": LAT,
             "longitude": LON,
@@ -126,10 +107,77 @@ def main():
         "amrita_kalam": []
     }
 
-    if args.pretty:
-        print(json.dumps(result, indent=4, ensure_ascii=False))
+
+def main():
+    parser = argparse.ArgumentParser(description="Panchanga CLI")
+    parser.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty print JSON"
+    )
+    parser.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        help="Generate data for entire year"
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output directory for year data"
+    )
+
+    args = parser.parse_args()
+
+    location = Location(
+        lat=LAT,
+        lng=LON,
+        tz=TZ,
+    )
+
+    if args.year:
+        # Generate data for entire year
+        output_dir = Path(args.output) if args.output else Path("data/panchanga") / str(args.year)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate for all 365/366 days
+        year = args.year
+        if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+            days_in_year = 366
+        else:
+            days_in_year = 365
+        
+        start_date = datetime(year, 1, 1).date()
+        
+        print(f"Generating Panchanga data for {year} ({days_in_year} days)")
+        
+        for i in range(days_in_year):
+            target_date = start_date + timedelta(days=i)
+            result = compute_panchanga(target_date, location)
+            
+            # Save to file
+            output_file = output_dir / f"{target_date}.json"
+            with open(output_file, "w", encoding="utf-8") as f:
+                if args.pretty:
+                    json.dump(result, f, indent=2, ensure_ascii=False)
+                else:
+                    json.dump(result, f, separators=(",", ":"), ensure_ascii=False)
+            
+            if (i + 1) % 50 == 0:
+                print(f"  Generated {i + 1}/{days_in_year} days...")
+        
+        print(f"Done! Generated {days_in_year} files in {output_dir}")
+        
     else:
-        print(json.dumps(result, separators=(",", ":"), ensure_ascii=False))
+        # Generate for today only
+        target_date = datetime.now().date()
+        result = compute_panchanga(target_date, location)
+
+        if args.pretty:
+            print(json.dumps(result, indent=4, ensure_ascii=False))
+        else:
+            print(json.dumps(result, separators=(",", ":"), ensure_ascii=False))
 
 
 if __name__ == "__main__":
