@@ -37,8 +37,14 @@ import {
 } from "./knowledge";
 
 import { containsKannada } from "./intent/patterns";
+import { logUnknownQuestion } from "@/services/analytics.service";
 
 export { detectIntent } from "./intent";
+
+// Confidence threshold for triggering FAQ fallback
+const LOW_CONFIDENCE_THRESHOLD = 60;
+
+export { LOW_CONFIDENCE_THRESHOLD };
 
 /**
  * Response generation result with metadata
@@ -562,6 +568,121 @@ Please rephrase your question / ದಯವಿಟ್ಟು ಪ್ರಶ್ನೆ�
 }
 
 /**
+ * Handle volunteer intent
+ */
+function handleVolunteer(language: "en" | "kn" | "mixed"): AIResponseResult {
+  const responses = {
+    en: `🙏 **Volunteer Opportunities**
+
+We welcome devotees to join our volunteer (sevadhar) program!
+
+**How to Join:**
+- Contact the temple office during working hours
+- Phone: +91-80-28446400
+- Email: info@raghavendramatha.org
+
+**Volunteer Services:**
+- Pooja assistance
+- Annadanam (free meals) service
+- Crowd management during festivals
+- Temple maintenance
+- Event coordination
+
+Training is provided for all volunteers. Your service (seva) is considered a sacred offering.
+
+🙏 Sri Guru Raghavendraya Namaha.`,
+
+    kn: `🙏 **ಸ್ವಯಂಸೇವಕರ ಅವಕಾಶಗಳು**
+
+ನಮ್ಮ ಸೇವಾಧಾರ ಕಾರ್ಯಕ್ರಮಕ್ಕೆ ಭಕ್ತರನ್ನು ಸ್ವಾಗತಿಸುತ್ತೇವೆ!
+
+**ಹೇಗೆ ಸೇರಬೇಕು:**
+- ಕಛೇರಿ ಸಮಯದಲ್ಲಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ
+- ಫೋನ್: +91-80-28446400
+
+**ಸೇವೆಗಳು:**
+- ಪೂಜೆ ಸಹಾಯ
+- ಅನ್ನದಾನಂ ಸೇವೆ
+- ಹಬ್ಬದ ಸಮಯದಲ್ಲಿ ಜನಸಂಪರ್ಕ
+
+🙏 ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ನಮಃ`,
+
+    mixed: `🙏 **Volunteer / ಸ್ವಯಂಸೇವೆ**
+
+Join our volunteer program!
+Contact: +91-80-28446400
+
+Your service is a sacred offering.
+
+🙏 Sri Guru Raghavendraya Namaha.`
+  };
+
+  return {
+    content: responses[language],
+    intent: Intent.VOLUNTEER,
+    confidence: 100,
+    source: RetrievalType.FALLBACK,
+    usesLLM: false,
+    language,
+  };
+}
+
+/**
+ * Handle share experience / testimonial intent
+ */
+function handleShareExperience(language: "en" | "kn" | "mixed"): AIResponseResult {
+  const responses = {
+    en: `🙏 **Share Your Spiritual Experience**
+
+We invite devotees to share their spiritual experiences and testimonials at Sri Raghavendra Swamy Matha.
+
+**How to Share:**
+1. **Write to us:** Submit your testimonial via the temple website
+2. **Suggestion Box:** Drop your written testimonial at the temple suggestion box
+3. **Email:** info@raghavendramatha.org
+
+Your experiences inspire and guide fellow devotees on their spiritual journey.
+
+**What to Share:**
+- Your experience during darshan
+- blessings received
+- Stories of Sri Guru's grace
+- How the temple has helped you
+
+🙏 Thank you for being part of our spiritual family!`,
+
+    kn: `🙏 **ನಿಮ್ಮ ಆತ್ಮೀಯ ಅನುಭವವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ**
+
+ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠದಲ್ಲಿ ನಿಮ್ಮ ಆತ್ಮೀಯ ಅನುಭವಗಳನ್ನು ಹಂಚಿಕೊಳ್ಳಲು ನಾವು ಭಕ್ತರನ್ನು ಆಹ್ವಾನಿಸುತ್ತೇವೆ.
+
+**ಹೇಗೆ ಹಂಚಿಕೊಳ್ಳುವುದು:**
+- ವೆಬ್‌ಸೈಟ್‌ನ ಮೂಲಕ ಬರೆಯಿರಿ
+- ದೇವಸ್ಥಾನದ ಸೂಚನಾ ಪೆಟ್ಟಿಗೆಯಲ್ಲಿ ಬಿಡಿ
+- ಇಮೇಲ್: info@raghavendramatha.org
+
+🙏 ಧನ್ಯವಾದಗಳು!`,
+
+    mixed: `🙏 **Share Experience / ಅನುಭವ**
+
+Share your spiritual journey!
+- Website testimonial form
+- Suggestion box at temple
+- Email: info@raghavendramatha.org
+
+🙏 Sri Guru Raghavendraya Namaha.`
+  };
+
+  return {
+    content: responses[language],
+    intent: Intent.SHARE_EXPERIENCE,
+    confidence: 100,
+    source: RetrievalType.FALLBACK,
+    usesLLM: false,
+    language,
+  };
+}
+
+/**
  * Handle knowledge-based intent using knowledge base
  */
 async function handleKnowledgeIntent(
@@ -608,12 +729,33 @@ async function handleKnowledgeIntent(
  * Uses structured retrieval when possible, falls back to knowledge base or LLM
  */
 export async function generateResponse(
-  message: string
+  message: string,
+  sessionId?: string
 ): Promise<AIResponseResult> {
   const language = detectLanguage(message);
   const intentResult = detectIntent(message);
   
   console.log(`[AI Generator] Detected intent: ${intentResult.intent} (${intentResult.confidence}%)`);
+
+  // Low confidence fallback - redirect to FAQ for better UX
+  if (intentResult.confidence < LOW_CONFIDENCE_THRESHOLD && 
+      intentResult.intent !== Intent.OUT_OF_SCOPE &&
+      intentResult.intent !== Intent.GENERAL_GREETING &&
+      intentResult.intent !== Intent.THANKS &&
+      intentResult.intent !== Intent.GOODBYE) {
+    console.log(`[AI Generator] Low confidence (${intentResult.confidence}%), redirecting to FAQ`);
+    
+    // Log unknown question for analytics
+    await logUnknownQuestion({
+      question: message,
+      detectedIntent: intentResult.intent,
+      confidence: intentResult.confidence,
+      language,
+      sessionId,
+    });
+    
+    return handleFAQIntent(message, language);
+  }
 
   // Handle intents that use structured data
   switch (intentResult.intent) {
@@ -678,15 +820,27 @@ export async function generateResponse(
     case Intent.GURU_PARAMPARA:
     case Intent.BRINDAVANA:
     case Intent.MANTRALAYA:
-    case Intent.VOLUNTEER:
     case Intent.TESTIMONIAL:
       return handleKnowledgeIntent(intentResult.intent, message, language);
+    
+    case Intent.VOLUNTEER:
+      return handleVolunteer(language);
+    
+    case Intent.SHARE_EXPERIENCE:
+      return handleShareExperience(language);
       
     case Intent.FAQ:
       return handleFAQIntent(message, language);
       
     default:
-      // Unknown or unhandled intent - use knowledge base
+      // Unknown or unhandled intent - log and use knowledge base
+      await logUnknownQuestion({
+        question: message,
+        detectedIntent: intentResult.intent,
+        confidence: intentResult.confidence,
+        language,
+        sessionId,
+      });
       return handleKnowledgeIntent(Intent.UNKNOWN, message, language);
   }
 }
