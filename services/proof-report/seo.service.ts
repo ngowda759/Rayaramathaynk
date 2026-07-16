@@ -104,17 +104,23 @@ export class SEOService {
       // Check for large images
       const images = await page.locator('img').all();
       for (const img of images) {
-        const naturalWidth = await img.evaluate((el) => (el as HTMLImageElement).naturalWidth);
-        const naturalHeight = await img.evaluate((el) => (el as HTMLImageElement).naturalHeight);
+        const dimensions = await img.evaluate((el) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const imgEl = el as any;
+          return {
+            naturalWidth: imgEl.naturalWidth || 0,
+            naturalHeight: imgEl.naturalHeight || 0
+          };
+        });
         
         // Flag images larger than 2000px in either dimension
-        if (naturalWidth > 2000 || naturalHeight > 2000) {
+        if (dimensions.naturalWidth > 2000 || dimensions.naturalHeight > 2000) {
           const src = await img.getAttribute('src') || '';
           issues.push({
             type: 'large-image',
             pageUrl: pageInfo.url,
             severity: 'warning',
-            message: `Large image (${naturalWidth}x${naturalHeight}): ${src}`,
+            message: `Large image (${dimensions.naturalWidth}x${dimensions.naturalHeight}): ${src}`,
           });
         }
       }
