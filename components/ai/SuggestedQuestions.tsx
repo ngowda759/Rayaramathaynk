@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SuggestedQuestion } from "@/types/ai";
 import { SUGGESTED_QUESTIONS } from "@/lib/ai/systemPrompt";
-import { MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface SuggestedQuestionsProps {
   onSelect: (question: string) => void;
@@ -16,34 +16,30 @@ export function SuggestedQuestions({ onSelect }: SuggestedQuestionsProps) {
   const visibleQuestions = isExpanded ? SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS.slice(0, 4);
 
   return (
-    <div className="px-3 py-2 border-t border-stone-200 bg-gradient-to-r from-amber-50/50 to-orange-50/30">
+    <div className="px-3 py-1.5 border-t border-stone-100 bg-stone-50/50">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between text-xs text-stone-500 hover:text-stone-700 transition-colors py-1"
+        className="w-full flex items-center justify-center gap-1 text-[10px] text-stone-400 hover:text-stone-600 transition-colors py-0.5"
       >
-        <span className="flex items-center gap-1.5">
-          <MessageSquare className="w-3.5 h-3.5" />
-          Quick questions
-        </span>
+        <span>Try asking</span>
         {isExpanded ? (
-          <ChevronUp className="w-4 h-4" />
+          <ChevronUp className="w-3 h-3" />
         ) : (
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-3 h-3" />
         )}
       </button>
-      <div className="flex flex-wrap gap-1.5 mt-2">
+      <div className="flex flex-wrap gap-1 justify-center">
         {visibleQuestions.map((q: SuggestedQuestion) => (
           <button
             key={q.id}
             onClick={() => onSelect(q.text)}
-            className="inline-flex items-center gap-1 px-2 py-1 
-                     bg-white/80 border border-stone-200 rounded-md
-                     text-xs text-stone-600 hover:text-stone-800
+            className="inline-flex items-center gap-0.5 px-2 py-1 
+                     bg-white border border-stone-200 rounded-full
+                     text-[11px] text-stone-500 hover:text-stone-700
                      hover:border-amber-300 hover:bg-amber-50
-                     transition-all duration-200
-                     focus:outline-none focus:ring-2 focus:ring-amber-300"
+                     transition-all duration-200"
           >
-            {q.icon && <span>{q.icon}</span>}
+            {q.icon && <span className="text-[10px]">{q.icon}</span>}
             <span>{q.text}</span>
           </button>
         ))}

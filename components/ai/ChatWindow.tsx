@@ -178,31 +178,31 @@ How may I assist you today?`;
   const displayMessage = welcomeMessage || defaultWelcome;
 
   const quickQuestions = [
-    { text: "🕐 Temple Timings", q: "What are the temple timings?" },
-    { text: "📅 Upcoming Events", q: "What events are coming up?" },
-    { text: "🙏 Sevas Available", q: "What sevas are available?" },
-    { text: "💝 How to Donate", q: "How can I donate to the temple?" },
+    { text: "🕐 Timings", q: "What are the temple timings?" },
+    { text: "📅 Events", q: "What events are coming up?" },
+    { text: "🙏 Sevas", q: "What sevas are available?" },
+    { text: "💝 Donate", q: "How can I donate to the temple?" },
   ];
 
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6">
       {/* Avatar */}
-      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-4 shadow-lg">
-        <Sparkles className="w-8 h-8 text-amber-600" />
+      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-3 shadow-lg">
+        <Sparkles className="w-7 h-7 text-amber-600" />
       </div>
       
       {/* Welcome Message */}
-      <div className="text-sm text-stone-600 mb-6 max-w-sm prose prose-sm prose-stone">
+      <div className="text-sm text-stone-600 mb-4 max-w-sm prose prose-sm prose-stone">
         <ReactMarkdown>{displayMessage}</ReactMarkdown>
       </div>
 
       {/* Quick Questions - Horizontal Pills */}
-      <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-wrap gap-1.5 justify-center">
         {quickQuestions.map((item, i) => (
           <button
             key={i}
             onClick={() => onSelectQuestion(item.q)}
-            className="px-4 py-2 bg-white border border-stone-200 rounded-full text-xs text-stone-600
+            className="px-3 py-1.5 bg-white border border-stone-200 rounded-full text-xs text-stone-600
                      hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 
                      transition-all duration-200 shadow-sm"
           >
