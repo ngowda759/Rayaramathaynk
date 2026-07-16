@@ -142,6 +142,33 @@ npm run lint
 
 Runs ESLint.
 
+```bash
+npm run generate:proof-report
+```
+
+Generates a comprehensive content proof report for the website. This report allows temple administrators and proofreaders to manually verify every piece of content before publishing.
+
+**Output:**
+- `reports/proof-report.pdf` - A4 printable PDF report
+- `reports/proof-report.html` - HTML report for browser viewing
+- `reports/screenshots/` - Full-page screenshots for each page
+
+**The report includes:**
+- Summary dashboard with statistics
+- Page-by-page analysis with screenshots
+- Accessibility validation (alt text, headings, etc.)
+- SEO validation (titles, meta descriptions, etc.)
+- Link and image validation
+- Content quality checks
+- Temple-specific validation (timings, sevas, contact info)
+- Firestore database content export
+- AI knowledge base (seed files) verification
+- Review checklists for manual verification
+
+**Environment Variables:**
+- `PROOF_REPORT_BASE_URL` - Base URL of the website (default: configured in script)
+- `PROOF_REPORT_OUTPUT_DIR` - Output directory (default: `./reports`)
+
 ---
 
 ## Development Guidelines
