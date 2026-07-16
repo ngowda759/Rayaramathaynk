@@ -14,6 +14,11 @@ import {
   containsKannada,
   normalizeText,
 } from "./patterns";
+import { 
+  transliterateToKannada, 
+  enhanceWithTransliteration,
+  ROMANIZED_KANNADA_PHRASES 
+} from "./transliteration";
 
 // Intent examples for semantic matching (paraphrases)
 const INTENT_EXAMPLES: Record<Intent, string[]> = {
@@ -171,11 +176,15 @@ export class IntentDetector {
    * Detect intent using hybrid approach (keyword + semantic)
    */
   detect(message: string): IntentDetectionResult {
-    const normalizedMessage = normalizeText(message);
-    const hasKannada = containsKannada(message);
+    // Enhance message with transliteration if Romanized Kannada detected
+    const { original, transliterated, isTransliterated } = enhanceWithTransliteration(message);
+    const enhancedMessage = isTransliterated ? `${original} ${transliterated}` : original;
+    
+    const normalizedMessage = normalizeText(enhancedMessage);
+    const hasKannada = containsKannada(enhancedMessage);
 
     // Debug logging
-    console.log(`[IntentDetector] Detecting: "${message}" (normalized: "${normalizedMessage}")`);
+    console.log(`[IntentDetector] Detecting: "${message}" (transliterated: ${isTransliterated})`);
 
     // Check out-of-scope first
     if (this.isOutOfScope(normalizedMessage, hasKannada)) {
@@ -193,7 +202,7 @@ export class IntentDetector {
     // Step 1: Keyword matching (exact matches)
     const keywordResult = this.detectByKeywords(normalizedMessage, hasKannada);
     console.log(`[IntentDetector] Keyword: ${keywordResult.intent} (${keywordResult.confidence}%)`);
-
+    
     // Step 2: Semantic matching (handles paraphrases)
     const semanticResult = this.detectBySemantic(normalizedMessage);
     console.log(`[IntentDetector] Semantic: ${semanticResult.intent} (${semanticResult.confidence}%)`);
