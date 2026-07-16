@@ -1,12 +1,19 @@
 /**
  * API Route to Seed AI Settings to Firestore
  * POST /api/seed-ai-settings
+ * 
+ * Uses ADMIN_SECRET header for authentication
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { checkAdminAuth } from "@/lib/auth/admin";
+
+// Simple auth check using secret header
+function isAuthenticated(request: NextRequest): boolean {
+  const secret = request.headers.get("x-admin-secret");
+  return secret === process.env.ADMIN_SECRET;
+}
 
 // Default Temple Information
 const templeInformation = {
@@ -67,8 +74,8 @@ const aiBehavior = {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await checkAdminAuth(request);
-    if (!admin) {
+    // Check authentication
+    if (!isAuthenticated(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
