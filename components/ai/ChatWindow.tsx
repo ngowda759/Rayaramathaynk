@@ -178,10 +178,10 @@ How may I assist you today?`;
   const displayMessage = welcomeMessage || defaultWelcome;
 
   const quickQuestions = [
-    { text: "Temple Timings", q: "What are the temple timings?" },
-    { text: "Upcoming Events", q: "What events are coming up?" },
-    { text: "Sevas Available", q: "What sevas are available?" },
-    { text: "How to Donate", q: "How can I donate to the temple?" },
+    { icon: "🕐", text: "Temple Timings", q: "What are the temple timings?" },
+    { icon: "📅", text: "Upcoming Events", q: "What events are coming up?" },
+    { icon: "🙏", text: "Sevas Available", q: "What sevas are available?" },
+    { icon: "💝", text: "How to Donate", q: "How can I donate to the temple?" },
   ];
 
   return (
@@ -197,16 +197,17 @@ How may I assist you today?`;
       </div>
 
       {/* Quick Questions - Horizontal Pills */}
-      <div className="flex flex-wrap gap-1 justify-center">
+      <div className="flex flex-wrap gap-1.5 justify-center">
         {quickQuestions.map((item, i) => (
           <button
             key={i}
             onClick={() => onSelectQuestion(item.q)}
-            className="px-3 py-1 bg-white border border-stone-200 rounded-full text-xs text-stone-600
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-stone-200 rounded-full text-xs text-stone-600
                      hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 
                      transition-all duration-200"
           >
-            {item.text}
+            <span>{item.icon}</span>
+            <span>{item.text}</span>
           </button>
         ))}
       </div>

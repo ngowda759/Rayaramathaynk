@@ -33,13 +33,14 @@ export function SuggestedQuestions({ onSelect }: SuggestedQuestionsProps) {
           <button
             key={q.id}
             onClick={() => onSelect(q.text)}
-            className="px-2.5 py-1 
+            className="inline-flex items-center gap-1 px-2 py-0.5 
                      bg-white border border-stone-200 rounded-full
                      text-[11px] text-stone-500 hover:text-stone-700
                      hover:border-amber-300 hover:bg-amber-50
                      transition-all duration-200"
           >
-            {q.text}
+            {q.icon && <span>{q.icon}</span>}
+            <span>{q.text}</span>
           </button>
         ))}
       </div>
