@@ -19,7 +19,7 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 | 1 | Confidence-based Fallback | When intent confidence < 60%, show FAQ instead of wrong answer | ✅ Done | #76 |
 | 2 | Response Length Limits | Cap responses at 500 chars to prevent hallucinations | ✅ Done | #76 |
 | 3 | Unknown Question Logging | Auto-log questions with low confidence to Firestore | ✅ Done | #79 |
-| 4 | Kannada Transliteration | Support typing "samaya" for "ಸಮಯ" | 📋 Todo | - |
+| 4 | Kannada Transliteration | Support typing "samaya" for "ಸಮಯ" | ✅ Done | #79 |
 
 ---
 
@@ -96,10 +96,14 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 - **Fields:** question, intent, confidence, language, timestamp, sessionId
 - **File:** `services/analytics.service.ts`
 
-#### 4. Kannada Transliteration
-- **Status:** Pending
+#### 4. Kannada Transliteration ✅
+- **Status:** Implemented
 - **Logic:** Support Romanized Kannada (e.g., "samaya" → "ಸಮಯ")
-- **File:** `lib/ai/intent/patterns.ts`
+- **File:** `lib/ai/intent/transliteration.ts`
+- **Features:**
+  - Common word mappings (namaskara, darshan, seva, etc.)
+  - Vowel combinations (aa, ii, ee, oo, ai, au)
+  - Consonant combinations (sh, ch, th, ng, ny, tt, dd, etc.)
 
 ---
 
