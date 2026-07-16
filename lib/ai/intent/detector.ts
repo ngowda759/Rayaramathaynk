@@ -20,11 +20,21 @@ import {
   ROMANIZED_KANNADA_PHRASES 
 } from "./transliteration";
 
+// Import ML service for semantic matching and fuzzy correction
+import {
+  calculateIntentSimilarity,
+  autoCorrectMessage,
+  getCorrectedIntent,
+  getBestSemanticMatch,
+  type SemanticMatch
+} from "@/services/ml.service";
+
 // Intent examples for semantic matching (paraphrases)
 const INTENT_EXAMPLES: Record<Intent, string[]> = {
   [Intent.TEMPLE_TIMINGS]: [
     "when does temple open", "when does temple close", "temple timings",
-    "what time is the temple open", "morning timings", "evening schedule",
+    "what time is the temple open", "morning schedule", "evening schedule",
+    "what are the temple timings", "opening hours", "closing time", "temple open",
     "i want to visit tomorrow", "is the matha open now", "when can i have darshana",
     "ಮಠ ಯಾವಾಗ ತೆರೆಯಲು", "ಸಮಯ ಏನು", "ಬೆಳಗಿನ ಸಮಯ", "ಸಂಜೆ ಮುಚ್ಚುವ ಸಮಯ"
   ],
@@ -254,11 +264,38 @@ export class IntentDetector {
   /**
    * Detect intent using semantic similarity (handles paraphrases)
    * Gives higher weight to specific domain keywords
+   * Now also uses ML service for enhanced matching
    */
   private detectBySemantic(message: string): IntentDetectionResult {
     const lowerMessage = message.toLowerCase();
+    
+    // Step 1: Check for learned corrections first
+    const correctedIntent = getCorrectedIntent(message);
+    if (correctedIntent) {
+      console.log(`[IntentDetector] Using learned correction: ${correctedIntent}`);
+      return {
+        intent: correctedIntent,
+        category: this.getCategoryForIntent(correctedIntent),
+        confidence: 95,
+        source: RetrievalType.LEARNED,
+        matchedKeywords: [],
+        requiresStructuredData: false,
+      };
+    }
+    
+    // Step 2: Auto-correct typos
+    const { corrected: correctedMessage, corrections } = autoCorrectMessage(message);
+    if (corrections.some(c => c.confidence < 100)) {
+      console.log(`[IntentDetector] Auto-corrected typos:`, corrections.filter(c => c.confidence < 100));
+    }
+    
+    // Use corrected message for matching if corrections were made
+    const matchingMessage = corrections.some(c => c.confidence < 100) 
+      ? correctedMessage.toLowerCase() 
+      : lowerMessage;
+    
     const messageWords = new Set(
-      lowerMessage.split(/\s+/).filter(w => w.length > 2)
+      matchingMessage.split(/\s+/).filter(w => w.length > 2)
     );
 
     // Domain-specific keywords that should have higher weight
@@ -269,6 +306,8 @@ export class IntentDetector {
       ["temple timing", Intent.TEMPLE_TIMINGS],
       ["matha timings", Intent.TEMPLE_TIMINGS],
       ["math timings", Intent.TEMPLE_TIMINGS],
+      ["what are the timings", Intent.TEMPLE_TIMINGS],
+      ["timmings", Intent.TEMPLE_TIMINGS],
       // Pooja-related (daily first)
       ["daily pooja", Intent.DAILY_POOJA],
       ["pooja", Intent.DAILY_POOJA],
@@ -310,9 +349,9 @@ export class IntentDetector {
       ["trust committee", Intent.COMMITTEE],
     ];
 
-    // Check for domain-specific keywords first (order preserved)
+    // Check for domain-specific keywords first (order preserved, using corrected message)
     for (const [keyword, intent] of domainKeywords) {
-      if (lowerMessage.includes(keyword)) {
+      if (matchingMessage.includes(keyword)) {
         // Look up requiresStructuredData from INTENT_PATTERNS
         const pattern = INTENT_PATTERNS.find(p => p.intent === intent);
         return {
@@ -368,11 +407,34 @@ export class IntentDetector {
     // Convert similarity to confidence (0-1 -> 20-75, lower cap for semantic)
     const confidence = Math.min(20 + highestSimilarity * 55, 75);
 
+    // Step 3: Use ML semantic matching for additional confidence boost
+    // This uses weighted keyword matching for better paraphrase handling
+    // Use corrected message if there were corrections
+    const mlInputMessage = corrections.some(c => c.confidence < 100) 
+      ? correctedMessage 
+      : message;
+    const mlMatches = calculateIntentSimilarity(mlInputMessage);
+    
+    let finalIntent = bestIntent;
+    let finalConfidence = confidence;
+    let mlBoost = false;
+    
+    if (mlMatches.length > 0) {
+      const bestMlMatch = mlMatches[0];
+      
+      // If ML finds a better match with higher confidence
+      if (bestMlMatch.similarity > confidence && bestIntent !== bestMlMatch.intent) {
+        finalIntent = bestMlMatch.intent;
+        finalConfidence = Math.min(bestMlMatch.similarity, 80);
+        mlBoost = true;
+      }
+    }
+
     return {
-      intent: bestIntent,
-      category: this.getCategoryForIntent(bestIntent),
-      confidence: Math.round(confidence),
-      source: RetrievalType.SEMANTIC_MATCH,
+      intent: finalIntent,
+      category: this.getCategoryForIntent(finalIntent),
+      confidence: Math.round(finalConfidence),
+      source: mlBoost ? RetrievalType.LEARNED : RetrievalType.SEMANTIC_MATCH,
       matchedKeywords: [],
       requiresStructuredData: true,
     };
@@ -405,23 +467,6 @@ export class IntentDetector {
       return semanticResult;
     }
 
-    // If keyword detection has matched keywords, prioritize it
-    // This prevents generic words like "about", "tell" from overriding domain matches
-    if (keywordResult.matchedKeywords.length > 0) {
-      // If keyword match is reasonable, use it
-      if (keywordResult.confidence >= 25) {
-        // Boost if semantic agrees
-        if (keywordResult.intent === semanticResult.intent) {
-          return {
-            ...keywordResult,
-            confidence: Math.min(keywordResult.confidence + 10, 100),
-            source: RetrievalType.HYBRID_MATCH,
-          };
-        }
-        return keywordResult;
-      }
-    }
-
     // If both agree, boost confidence
     if (keywordResult.intent === semanticResult.intent) {
       return {
@@ -429,6 +474,20 @@ export class IntentDetector {
         confidence: Math.min(keywordResult.confidence + 10, 100),
         source: RetrievalType.HYBRID_MATCH,
       };
+    }
+
+    // If semantic has higher confidence, prefer it
+    // This handles cases like typo corrections where semantic does better
+    if (semanticResult.confidence > keywordResult.confidence) {
+      return semanticResult;
+    }
+
+    // If keyword detection has matched keywords, prioritize it
+    // This prevents generic words like "about", "tell" from overriding domain matches
+    if (keywordResult.matchedKeywords.length > 0) {
+      if (keywordResult.confidence >= 25) {
+        return keywordResult;
+      }
     }
 
     // Take higher confidence

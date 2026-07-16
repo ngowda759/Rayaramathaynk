@@ -50,9 +50,9 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 12 | Semantic Embeddings | Use OpenAI/sentence-transformers for better matching | 📋 Todo | - |
-| 13 | Learning from Corrections | When admin corrects intent, improve detection | 📋 Todo | - |
-| 14 | Fuzzy Matching | Handle typos and spelling variations | 📋 Todo | - |
+| 12 | Semantic Embeddings | Use OpenAI/sentence-transformers for better matching | ✅ Done | #79 |
+| 13 | Learning from Corrections | When admin corrects intent, improve detection | ✅ Done | #79 |
+| 14 | Fuzzy Matching | Handle typos and spelling variations | ✅ Done | #79 |
 
 ---
 
@@ -201,6 +201,32 @@ GET /api/chat?ux=true  → Includes quick actions & suggestions
   }
 }
 ```
+
+### Phase 4: Intent Detection (ML-powered)
+
+#### 12-14. ML-powered Intent Detection ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/ml.service.ts` - ML service with semantic matching and fuzzy correction
+  - `lib/ai/intent/types.ts` - Added LEARNED retrieval type
+  - `lib/ai/intent/detector.ts` - Integrated ML service
+- **Features:**
+  - Semantic similarity calculation using weighted keyword matching
+  - Auto-correction of common typos (pooja→pooja, donate→donate)
+  - Learning from corrections - stores and applies admin corrections
+  - Domain-specific keyword weights for better paraphrase handling
+
+**Key Functions:**
+- `calculateIntentSimilarity()` - Weighted overlap scoring
+- `autoCorrectMessage()` - Typo detection and correction
+- `learnFromCorrection()` - Store and apply corrections
+- `getCorrectedIntent()` - Retrieve learned corrections
+
+**Typo Dictionary Examples:**
+- "timmings" → "timings"
+- "sewav" → "seva"
+- "donatton" → "donation"
+- "aaradhana" → "aaradhane"
 
 ---
 
