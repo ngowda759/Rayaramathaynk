@@ -599,14 +599,18 @@ export const OUT_OF_SCOPE_PATTERNS = [
   /\b(stock market|share market|market trading|stock trading|trading|invest|business|profit|loss|bitcoin|crypto|cryptocurrency)\b/i,
   // Weather
   /\b(weather|rain|temperature|forecast|climate)\b/i,
-  // Politics
-  /\b(politics|election|government|minister|cm|mp|mla|vote|polling)\b/i,
+  // Politics & Government
+  /\b(politics|election|government|minister|cm|mp|mla|vote|polling|prime minister|pm\b|president|governor|chief minister|cm\b|political)\b/i,
   // Entertainment
   /\b(movie|film|series|netflix|amazon prime|disney|hotstar|song|music)\b/i,
   // Sports
-  /\b(cricket|football|ipl| match|score|team|player|coach)\b/i,
+  /\b(cricket|football|ipl| match|score|team|player|coach|rcb|india match|karnataka team)\b/i,
   // General off-topic
-  /\b(repair|fix|buy|sell|price|recipe|food|restaurant)\b/i,
+  /\b(repair|fix|buy|sell|price|recipe|food|restaurant|hotel booking|flight|train booking)\b/i,
+  // Technology
+  /\b(wifi|internet|charging station|ev charging|electric vehicle)\b/i,
+  // Education
+  /\b(school|college|university|admission|exam|results)\b/i,
 ];
 
 // Out of scope keywords
@@ -614,7 +618,8 @@ export const OUT_OF_SCOPE_KEYWORDS = {
   en: [
     "politics", "weather", "stock market", "bitcoin", "cryptocurrency",
     "repair", "fix my", "buy a", "sell my", "python code",
-    "write code", "movie", "recipe"
+    "write code", "movie", "recipe", "prime minister", "pm", "president",
+    "wifi password", "ev charging", "electric vehicle charging"
   ],
   kn: [
     "ರಾಜಕಾರಣ", "ಹವಾಮಾನ", "ಸ್ಟಾಕ್", "ಬಿಟ್‌ಕಾಯಿನ್"
