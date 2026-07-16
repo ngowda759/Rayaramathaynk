@@ -67,6 +67,10 @@ const aiBehavior = {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!db) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 });
+    }
+
     const admin = await checkAdminAuth(request);
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -119,6 +123,10 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!db) {
+    return NextResponse.json({ error: "Database not configured" }, { status: 500 });
   }
 
   try {
