@@ -116,6 +116,68 @@ export async function generateAaradhanaeEvents(
 }
 
 /**
+ * Generate events from a list of Guru records (without Firestore dependency)
+ * This is useful for local development and testing
+ */
+export function generateEventsFromGurus(
+  guruRecords: GuruParamparaRecord[],
+  yearlyPanchanga: YearlyPanchanga,
+  year: number,
+  config?: Partial<GeneratorConfig>
+): GenerateResult {
+  const finalConfig: GeneratorConfig = {
+    year,
+    updateExisting: config?.updateExisting ?? DEFAULT_CONFIG.updateExisting!,
+    autoPublish: config?.autoPublish ?? DEFAULT_CONFIG.autoPublish!,
+    autoFeature: config?.autoFeature ?? DEFAULT_CONFIG.autoFeature!,
+    location: config?.location ?? DEFAULT_CONFIG.location!,
+  };
+  
+  // Filter enabled Gurus
+  const enabledGurus = guruRecords.filter(g => g.enabled);
+  
+  if (enabledGurus.length === 0) {
+    throw new Error(
+      "No enabled Guru records found. " +
+      "Please check the input data."
+    );
+  }
+  
+  // Generate events for each Guru
+  const events: GeneratedAaradhaneEvent[] = [];
+  let raghavendraCount = 0;
+  let majorCount = 0;
+  let minorCount = 0;
+  
+  for (const guru of enabledGurus) {
+    const generatedEvent = generateSingleEvent(guru, yearlyPanchanga, year, finalConfig);
+    
+    if (generatedEvent) {
+      events.push(generatedEvent);
+      
+      if (guru.guruName === "Sri Raghavendra Swamy") {
+        raghavendraCount++;
+      }
+      if (guru.importance === "major") {
+        majorCount++;
+      } else {
+        minorCount++;
+      }
+    }
+  }
+  
+  return {
+    events,
+    summary: {
+      total: events.length,
+      raghavendraCount,
+      majorCount,
+      minorCount,
+    },
+  };
+}
+
+/**
  * Generate a single Aaradhane event
  */
 function generateSingleEvent(

@@ -141,8 +141,20 @@ export function findDatesForLunarDate(
       continue;
     }
     
-    // Check if tithi number matches
-    if (dailyData.tithi.number === tithiNumber) {
+    // Tithi matching with paksha consideration
+    // The tithi.number in Panchanga data uses continuous numbering:
+    // - Shukla: 1-15 (Pratipada to Purnima)
+    // - Krishna: 16-30 (Pratipada to Amavasya)
+    // 
+    // The guru data uses simplified tithi numbers (1-15) regardless of paksha
+    // We need to convert for Krishna paksha
+    let expectedTithiNumber = tithiNumber;
+    if (paksha === "Krishna") {
+      // For Krishna paksha, add 15 to get the actual tithi number
+      expectedTithiNumber = 15 + tithiNumber;
+    }
+    
+    if (dailyData.tithi.number === expectedTithiNumber) {
       matchingDates.push(dailyData.date);
     }
   }

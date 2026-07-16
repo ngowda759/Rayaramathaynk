@@ -16,6 +16,7 @@
  *   --dry-run         Don't update Firestore, just show what would be created
  *   --check           Only check if data exists, don't generate
  *   --seed            Seed Guru Parampara data to Firestore first
+ *   --local           Use local data file instead of Firestore
  */
 
 import * as fs from "fs";
@@ -37,6 +38,7 @@ async function main() {
       "dry-run": { type: "boolean", default: false },
       check: { type: "boolean", default: false },
       seed: { type: "boolean", default: false },
+      firestore: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
@@ -119,19 +121,55 @@ async function main() {
     process.exit(0);
   }
   
-  // Load generator modules
-  const { generateAaradhanaeEvents, printGenerateSummary, validateGeneratedEvents } = 
-    await import("../lib/aaradhane/generator");
-  const { updateFirestoreEvents, printUpdateSummary } = 
-    await import("../lib/aaradhane/firestore");
+  // Load generator modules (only when needed)
+  const { loadYearlyPanchanga } = await import("../lib/aaradhane/panchanga");
+  const { GURU_AARADHANES } = await import("../data/aaradhane/gurus");
+  const { generateEventsFromGurus, printGenerateSummary, validateGeneratedEvents } = 
+    await import("../lib/aaradhane/local-generator");
   
-  // Generate events
-  console.log("\n" + "-".repeat(60));
-  console.log("STEP 1: Reading Guru Parampara from Firestore");
-  console.log("-".repeat(60));
+  let generateResult: any = null;
   
   try {
-    const generateResult = await generateAaradhanaeEvents(targetYear);
+    // Generate events
+    console.log("\n" + "-".repeat(60));
+    
+    if (values.firestore) {
+      // Use Firestore data
+      const { generateAaradhanaeEvents } = await import("../lib/aaradhane/generator");
+      
+      console.log("STEP 1: Reading Guru Parampara from Firestore");
+      console.log("-".repeat(60));
+      
+      generateResult = await generateAaradhanaeEvents(targetYear);
+    } else {
+      // Use local data file (default)
+      console.log("STEP 1: Loading Guru Parampara from LOCAL DATA FILE");
+      console.log("-".repeat(60));
+      
+      console.log(`Loaded ${GURU_AARADHANES.length} Guru records from local file`);
+      
+      const yearlyPanchanga = loadYearlyPanchanga(targetYear);
+      console.log(`Loaded Panchanga data for ${targetYear}: ${yearlyPanchanga.size} days`);
+      
+      // Transform local data to match GuruParamparaRecord format
+      const transformedGurus = GURU_AARADHANES.map(g => ({
+        id: g.id,
+        guruName: g.guruName,
+        aaradhaneTitle: g.title,
+        paramparaNumber: g.paramparaNumber,
+        lunarMonth: g.lunarMonth,
+        paksha: g.paksha,
+        tithiNumber: g.tithiNumber,
+        tithi: g.tithi,
+        durationDays: g.durationDays,
+        raghavendraPhase: g.raghavendraPhase,
+        importance: g.importance,
+        enabled: true,
+        description: g.description,
+      }));
+      
+      generateResult = generateEventsFromGurus(transformedGurus, yearlyPanchanga, targetYear);
+    }
     
     // Print generation summary
     printGenerateSummary(generateResult, targetYear);
@@ -157,6 +195,8 @@ async function main() {
       console.log("DRY RUN MODE - No changes made to Firestore");
       console.log("=".repeat(60));
       console.log("\nTo apply changes, run without --dry-run flag");
+      console.log("\nUse --firestore to update events in Firestore:");
+      console.log("  npm run generate:aaradhane -- --firestore --year 2026");
       process.exit(0);
     }
     
@@ -166,6 +206,7 @@ async function main() {
     console.log("-".repeat(60));
     
     try {
+      const { updateFirestoreEvents, printUpdateSummary } = await import("../lib/aaradhane/firestore");
       const updateResult = await updateFirestoreEvents(
         generateResult.events,
         targetYear,
@@ -194,7 +235,8 @@ async function main() {
     } catch (firestoreError) {
       console.error("\n❌ Firestore update failed:", firestoreError);
       console.error("\nNote: Make sure you have Firebase Admin SDK configured.");
-      console.error("For local development, you may need to set up service account credentials.");
+      console.error("For local development, use --dry-run to preview events:");
+      console.error("  npm run generate:aaradhane -- --dry-run --year 2026");
       process.exit(1);
     }
     
@@ -206,12 +248,14 @@ async function main() {
     
     if (errorMsg.includes("Firebase not configured")) {
       console.error("\nFirebase is not configured. Please set up Firebase.");
-      console.error("\nRun with --seed first to seed Guru Parampara data:");
-      console.error("  npm run generate:aaradhane -- --seed --year 2027");
+      console.error("\nOr use local data file (default):");
+      console.error("  npm run generate:aaradhane -- --dry-run --year 2026");
     } else if (errorMsg.includes("Guru Parampara")) {
       console.error("\nGuru Parampara data not found in Firestore.");
       console.error("\nRun with --seed to initialize the data:");
-      console.error("  npm run generate:aaradhane -- --seed");
+      console.error("  npm run seed:guru-parampara");
+      console.error("\nOr use local data file (default):");
+      console.error("  npm run generate:aaradhane -- --dry-run --year 2026");
     } else if (errorMsg.includes("Panchanga")) {
       console.error("\nPanchanga data not found.");
       console.error("\nGenerate Panchanga data first:");
@@ -227,7 +271,7 @@ function showHelp() {
 AARADHANE EVENT GENERATOR
 
 Generates Guru Aaradhane events for a given year based on Hindu Panchanga.
-Reads lunar calendar configuration from Firestore.
+Uses local data file by default. Use --firestore for production.
 
 USAGE:
   npx ts-node scripts/generate-aaradhane.ts [OPTIONS]
@@ -238,31 +282,30 @@ OPTIONS:
   --dry-run        Show what would be created without updating Firestore
   --check          Check data availability (Firestore + Panchanga)
   --seed           Seed Guru Parampara data to Firestore first
+  --firestore      Use Firestore data instead of local file
   --help, -h       Show this help message
 
 WORKFLOW:
-  1. First time: Run with --seed to initialize Guru Parampara data
-  2. Generate events for a year
-  3. Events automatically appear in Admin → Events
+  1. Generate events for a year (uses local data by default)
+  2. Preview with --dry-run
+  3. Run without flags to update Firestore
 
 EXAMPLES:
-  # First time setup - seed Guru Parampara data
-  npm run generate:aaradhane -- --seed
+  # Generate events for 2026 (uses local data)
+  npm run generate:aaradhane -- --year 2026
 
-  # Generate events for next year
-  npm run generate:aaradhane
+  # Dry run to preview events
+  npm run generate:aaradhane -- --dry-run --year 2026
 
-  # Generate events for a specific year
-  npm run generate:aaradhane -- --year 2027
+  # Use Firestore data (production)
+  npm run generate:aaradhane -- --firestore --year 2026
 
-  # Check data availability
-  npm run generate:aaradhane -- --check
-
-  # Dry run to see what would be created
-  npm run generate:aaradhane -- --dry-run --year 2027
+  # First time setup - seed Firestore data
+  npm run seed:guru-parampara
 
 DATA SOURCE:
-  - Guru Parampara lunar calendar data: Firestore (guruParampara collection)
+  - Local data file: data/aaradhane/gurus.ts (default)
+  - Firestore: guruParampara collection (with --firestore flag)
   - Panchanga data: data/panchanga/{year}/ directory
 
 MAINTENANCE:
