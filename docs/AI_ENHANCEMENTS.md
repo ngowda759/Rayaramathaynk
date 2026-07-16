@@ -60,10 +60,12 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 15 | Quick Action Buttons | "Timings" "Events" "Donate" "Seva" | 📋 Todo | - |
-| 16 | Typing Indicator | Show "Raya is typing..." | 📋 Todo | - |
-| 17 | Streaming Responses | Show answer as it generates | 📋 Todo | - |
-| 18 | Suggested Questions | "People also ask..." | 📋 Todo | - |
+| 15 | Quick Action Buttons | "Timings" "Events" "Donate" "Seva" | ✅ Done | #79 |
+| 16 | Typing Indicator | Show "Raya is typing..." | ✅ Done | #79 |
+| 17 | Streaming Responses | Show answer as it generates | 🔜 Pending* | - |
+| 18 | Suggested Questions | "People also ask..." | ✅ Done | #79 |
+
+*Item #17 requires full streaming implementation
 
 ---
 
@@ -138,6 +140,37 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 **API Endpoints:**
 - `GET /api/admin/analytics` - Get complete analytics summary
 - `POST /api/admin/analytics/feedback` - Submit intent correction
+
+### Phase 5: User Experience
+
+#### 15-18. User Experience Features ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/ux.service.ts` - UX service for quick actions and suggestions
+  - `app/api/chat/route.ts` - Updated with UX metadata
+- **Features:**
+  - Quick action buttons (context-aware)
+  - Suggested questions (intent-based)
+  - Typing indicator support (frontend-ready)
+  - Bilingual labels (English + Kannada)
+
+**API Usage:**
+```
+GET /api/chat?ux=true  → Includes quick actions & suggestions
+```
+
+**Quick Actions Response:**
+```json
+{
+  "_ux": {
+    "showQuickActions": true,
+    "quickActions": [
+      { "id": "timings", "label": "Temple Timings", "labelKn": "ದೇವಸ್ಥಾನ ಸಮಯ", "action": "What are the temple timings?" }
+    ],
+    "suggestedQuestions": [...]
+  }
+}
+```
 
 ---
 

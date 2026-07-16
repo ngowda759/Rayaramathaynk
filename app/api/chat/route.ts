@@ -22,6 +22,9 @@ import {
   clearSession,
 } from "@/services/conversation.service";
 
+// Import UX service
+import { getResponseMetadata, getQuickActions, getSuggestedQuestions } from "@/services/ux.service";
+
 // Rate limiting (simple in-memory implementation)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT = 20; // requests per minute
@@ -287,6 +290,14 @@ export async function POST(request: NextRequest) {
     // Include enhanced debug metadata if requested via query param
     const url = new URL(request.url || 'http://localhost');
     const isDebug = url.searchParams.get('debug') === 'true';
+    const includeUX = url.searchParams.get('ux') === 'true';
+    
+    // Get the detected intent for UX features
+    const detectedIntent = lastResult?.intent as Intent | undefined;
+    const messageLanguage = responseMessage?.detectedLanguage as "en" | "kn" | "mixed" || responseLanguage;
+    
+    // Get UX metadata (quick actions, suggested questions)
+    const uxMetadata = includeUX ? getResponseMetadata(detectedIntent, messageLanguage) : undefined;
     
     const response: ChatResponse = {
       message: responseMessage!,
@@ -310,6 +321,15 @@ export async function POST(request: NextRequest) {
             primary: responseSource,
             repository: responseSource === 'hybrid' || responseSource === 'repository' ? 'settings' : undefined,
           }
+        }
+      }),
+      // UX metadata for frontend
+      ...(uxMetadata && {
+        _ux: {
+          showTypingIndicator: uxMetadata.showTypingIndicator,
+          showQuickActions: uxMetadata.showQuickActions,
+          quickActions: uxMetadata.quickActions,
+          suggestedQuestions: uxMetadata.suggestedQuestions,
         }
       })
     };
