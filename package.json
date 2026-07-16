@@ -18,7 +18,8 @@
     "test:ai-uat": "npx ts-node --project tsconfig.scripts.json tests/ai-uat/run-uat-tests.ts",
     "test:ai-uat:jest": "jest tests/ai-uat/ai-uat.test.ts",
     "test:ai-uat:playwright": "playwright test tests/ai-uat/ai-uat.spec.ts",
-    "report:ai-uat": "npx ts-node --project tsconfig.scripts.json tests/ai-uat/generate-report.ts"
+    "report:ai-uat": "npx ts-node --project tsconfig.scripts.json tests/ai-uat/generate-report.ts",
+    "seed:ai-settings": "npx ts-node --project tsconfig.scripts.json scripts/seed-ai-settings.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
