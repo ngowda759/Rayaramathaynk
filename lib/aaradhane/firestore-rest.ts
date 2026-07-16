@@ -3,17 +3,8 @@
  * Uses Firebase REST API to interact with Firestore without Admin SDK
  */
 
-import { GURU_AARADHANE_DATA } from "./seed-data";
-
 const PROJECT_ID = "sri-raghavendra-mutt";
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-
-// Get ID token for authentication
-async function getIdToken(): Promise<string | null> {
-  // For server-side operations, we need a different approach
-  // We'll use the Firestore REST API with Application Default Credentials
-  return null;
-}
 
 export interface FirestoreDocument {
   name?: string;
@@ -34,7 +25,7 @@ export class FirestoreRestClient {
   /**
    * Create or update a document
    */
-  async setDocument(collection: string, documentId: string, data: Record<string, any>): Promise<FirestoreDocument | null> {
+  async setDocument(collection: string, documentId: string, data: Record<string, unknown>): Promise<FirestoreDocument | null> {
     const url = `${BASE_URL}/${collection}/${documentId}?key=${this.apiKey}`;
     
     try {
@@ -86,8 +77,9 @@ export class FirestoreRestClient {
   /**
    * Convert JavaScript object to Firestore field format
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertToFirestoreFields(data: Record<string, any>): Record<string, any> {
-    const fields: Record<string, any> = {};
+    const fields: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(data)) {
       if (value === null || value === undefined) {
@@ -111,7 +103,7 @@ export class FirestoreRestClient {
       } else if (typeof value === "object") {
         fields[key] = {
           mapValue: {
-            fields: this.convertToFirestoreFields(value),
+            fields: this.convertToFirestoreFields(value as Record<string, unknown>),
           },
         };
       }
