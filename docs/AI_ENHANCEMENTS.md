@@ -37,10 +37,12 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 8 | Intent Accuracy Tracking | Track correct/incorrect intent detection | 📋 Todo | - |
-| 9 | Unknown Questions Report | Weekly digest of unanswered questions | 📋 Todo | - |
-| 10 | User Satisfaction | Thumbs up/down buttons | 📋 Todo | - |
-| 11 | Fallback Rate Metric | Monitor how often bot says "I don't know" | 📋 Todo | - |
+| 8 | Intent Accuracy Tracking | Track correct/incorrect intent detection | ✅ Done | #79 |
+| 9 | Unknown Questions Report | Weekly digest of unanswered questions | ✅ Done | #79 |
+| 10 | User Satisfaction | Thumbs up/down buttons | 🔜 Pending* | - |
+| 11 | Fallback Rate Metric | Monitor how often bot says "I don't know" | ✅ Done | #79 |
+
+*Note: Item #10 requires frontend UI implementation
 
 ---
 
@@ -118,6 +120,24 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
   - Language preference memory (remembers EN/KN choice)
   - Conversation history storage (last 20 messages)
   - Auto-create new session if none provided
+
+### Phase 3: Analytics Dashboard
+
+#### 8-11. Analytics Dashboard APIs ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/analytics.service.ts` - Extended with new functions
+  - `app/api/admin/analytics/route.ts` - Admin API endpoint
+- **Features:**
+  - Intent feedback logging (correct/incorrect detection)
+  - Intent accuracy statistics
+  - Fallback rate metrics (daily breakdown)
+  - Complete analytics summary API
+  - Top corrections tracking
+
+**API Endpoints:**
+- `GET /api/admin/analytics` - Get complete analytics summary
+- `POST /api/admin/analytics/feedback` - Submit intent correction
 
 ---
 
