@@ -27,9 +27,9 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 5 | Session Context | Remember last topic for follow-ups ("timings" → "evening timings?") | 📋 Todo | - |
-| 6 | User Preferences | Remember language choice (EN/KN) per session | 📋 Todo | - |
-| 7 | Conversation History | Store last 5 messages for context | 📋 Todo | - |
+| 5 | Session Context | Remember last topic for follow-ups ("timings" → "evening timings?") | ✅ Done | #79 |
+| 6 | User Preferences | Remember language choice (EN/KN) per session | ✅ Done | #79 |
+| 7 | Conversation History | Store last 20 messages for context | ✅ Done | #79 |
 
 ---
 
@@ -104,6 +104,20 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
   - Common word mappings (namaskara, darshan, seva, etc.)
   - Vowel combinations (aa, ii, ee, oo, ai, au)
   - Consonant combinations (sh, ch, th, ng, ny, tt, dd, etc.)
+
+### Phase 2: Conversation Memory
+
+#### 5-7. Session & Conversation Memory ✅
+- **Status:** Implemented
+- **Files:** 
+  - `services/conversation.service.ts` - Session management
+  - `app/api/chat/route.ts` - Session integration
+- **Features:**
+  - Session context tracking (last topic/intent)
+  - Follow-up detection ("timings" → uses previous context)
+  - Language preference memory (remembers EN/KN choice)
+  - Conversation history storage (last 20 messages)
+  - Auto-create new session if none provided
 
 ---
 
