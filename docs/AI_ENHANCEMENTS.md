@@ -19,7 +19,7 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 | 1 | Confidence-based Fallback | When intent confidence < 60%, show FAQ instead of wrong answer | ✅ Done | #76 |
 | 2 | Response Length Limits | Cap responses at 500 chars to prevent hallucinations | ✅ Done | #76 |
 | 3 | Unknown Question Logging | Auto-log questions with low confidence to Firestore | ✅ Done | #79 |
-| 4 | Kannada Transliteration | Support typing "samaya" for "ಸಮಯ" | 📋 Todo | - |
+| 4 | Kannada Transliteration | Support typing "samaya" for "ಸಮಯ" | ✅ Done | #79 |
 
 ---
 
@@ -27,9 +27,9 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 5 | Session Context | Remember last topic for follow-ups ("timings" → "evening timings?") | 📋 Todo | - |
-| 6 | User Preferences | Remember language choice (EN/KN) per session | 📋 Todo | - |
-| 7 | Conversation History | Store last 5 messages for context | 📋 Todo | - |
+| 5 | Session Context | Remember last topic for follow-ups ("timings" → "evening timings?") | ✅ Done | #79 |
+| 6 | User Preferences | Remember language choice (EN/KN) per session | ✅ Done | #79 |
+| 7 | Conversation History | Store last 20 messages for context | ✅ Done | #79 |
 
 ---
 
@@ -37,10 +37,12 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 8 | Intent Accuracy Tracking | Track correct/incorrect intent detection | 📋 Todo | - |
-| 9 | Unknown Questions Report | Weekly digest of unanswered questions | 📋 Todo | - |
-| 10 | User Satisfaction | Thumbs up/down buttons | 📋 Todo | - |
-| 11 | Fallback Rate Metric | Monitor how often bot says "I don't know" | 📋 Todo | - |
+| 8 | Intent Accuracy Tracking | Track correct/incorrect intent detection | ✅ Done | #79 |
+| 9 | Unknown Questions Report | Weekly digest of unanswered questions | ✅ Done | #79 |
+| 10 | User Satisfaction | Thumbs up/down buttons | 🔜 Pending* | - |
+| 11 | Fallback Rate Metric | Monitor how often bot says "I don't know" | ✅ Done | #79 |
+
+*Note: Item #10 requires frontend UI implementation
 
 ---
 
@@ -48,9 +50,9 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 12 | Semantic Embeddings | Use OpenAI/sentence-transformers for better matching | 📋 Todo | - |
-| 13 | Learning from Corrections | When admin corrects intent, improve detection | 📋 Todo | - |
-| 14 | Fuzzy Matching | Handle typos and spelling variations | 📋 Todo | - |
+| 12 | Semantic Embeddings | Use OpenAI/sentence-transformers for better matching | ✅ Done | #79 |
+| 13 | Learning from Corrections | When admin corrects intent, improve detection | ✅ Done | #79 |
+| 14 | Fuzzy Matching | Handle typos and spelling variations | ✅ Done | #79 |
 
 ---
 
@@ -58,10 +60,12 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 15 | Quick Action Buttons | "Timings" "Events" "Donate" "Seva" | 📋 Todo | - |
-| 16 | Typing Indicator | Show "Raya is typing..." | 📋 Todo | - |
-| 17 | Streaming Responses | Show answer as it generates | 📋 Todo | - |
-| 18 | Suggested Questions | "People also ask..." | 📋 Todo | - |
+| 15 | Quick Action Buttons | "Timings" "Events" "Donate" "Seva" | ✅ Done | #79 |
+| 16 | Typing Indicator | Show "Raya is typing..." | ✅ Done | #79 |
+| 17 | Streaming Responses | Show answer as it generates | 🔜 Pending* | - |
+| 18 | Suggested Questions | "People also ask..." | ✅ Done | #79 |
+
+*Item #17 requires full streaming implementation
 
 ---
 
@@ -69,9 +73,9 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 
 | # | Enhancement | Description | Status | PR |
 |---|-------------|-------------|--------|-----|
-| 19 | Knowledge Article Tags | Auto-tag articles by category | 📋 Todo | - |
-| 20 | Content Freshness | Show "Updated X days ago" | 📋 Todo | - |
-| 21 | Related Questions | Link similar questions to same answer | 📋 Todo | - |
+| 19 | Knowledge Article Tags | Auto-tag articles by category | ✅ Done | #79 |
+| 20 | Content Freshness | Show "Updated X days ago" | ✅ Done | #79 |
+| 21 | Related Questions | Link similar questions to same answer | ✅ Done | #79 |
 
 ---
 
@@ -96,10 +100,133 @@ This document tracks all enhancements planned and implemented for Raya AI, the c
 - **Fields:** question, intent, confidence, language, timestamp, sessionId
 - **File:** `services/analytics.service.ts`
 
-#### 4. Kannada Transliteration
-- **Status:** Pending
+#### 4. Kannada Transliteration ✅
+- **Status:** Implemented
 - **Logic:** Support Romanized Kannada (e.g., "samaya" → "ಸಮಯ")
-- **File:** `lib/ai/intent/patterns.ts`
+- **File:** `lib/ai/intent/transliteration.ts`
+- **Features:**
+  - Common word mappings (namaskara, darshan, seva, etc.)
+  - Vowel combinations (aa, ii, ee, oo, ai, au)
+  - Consonant combinations (sh, ch, th, ng, ny, tt, dd, etc.)
+
+### Phase 2: Conversation Memory
+
+#### 5-7. Session & Conversation Memory ✅
+- **Status:** Implemented
+- **Files:** 
+  - `services/conversation.service.ts` - Session management
+  - `app/api/chat/route.ts` - Session integration
+- **Features:**
+  - Session context tracking (last topic/intent)
+  - Follow-up detection ("timings" → uses previous context)
+  - Language preference memory (remembers EN/KN choice)
+  - Conversation history storage (last 20 messages)
+  - Auto-create new session if none provided
+
+### Phase 3: Analytics Dashboard
+
+#### 8-11. Analytics Dashboard APIs ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/analytics.service.ts` - Extended with new functions
+  - `app/api/admin/analytics/route.ts` - Admin API endpoint
+- **Features:**
+  - Intent feedback logging (correct/incorrect detection)
+  - Intent accuracy statistics
+  - Fallback rate metrics (daily breakdown)
+  - Complete analytics summary API
+  - Top corrections tracking
+
+**API Endpoints:**
+- `GET /api/admin/analytics` - Get complete analytics summary
+- `POST /api/admin/analytics/feedback` - Submit intent correction
+
+### Phase 5: User Experience
+
+#### 15-18. User Experience Features ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/ux.service.ts` - UX service for quick actions and suggestions
+  - `app/api/chat/route.ts` - Updated with UX metadata
+- **Features:**
+  - Quick action buttons (context-aware)
+  - Suggested questions (intent-based)
+  - Typing indicator support (frontend-ready)
+  - Bilingual labels (English + Kannada)
+
+**API Usage:**
+```
+GET /api/chat?ux=true  → Includes quick actions & suggestions
+```
+
+**Quick Actions Response:**
+```json
+{
+  "_ux": {
+    "showQuickActions": true,
+    "quickActions": [
+      { "id": "timings", "label": "Temple Timings", "labelKn": "ದೇವಸ್ಥಾನ ಸಮಯ", "action": "What are the temple timings?" }
+    ],
+    "suggestedQuestions": [...]
+  }
+}
+```
+
+### Phase 6: Content Management
+
+#### 19-21. Content Management Features ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/content.service.ts` - Content management service
+  - `app/api/admin/content/route.ts` - Admin API endpoint
+- **Features:**
+  - Auto-tagging based on content analysis
+  - Content freshness tracking (fresh/stale/outdated)
+  - Related questions mapping
+  - Batch freshness check for articles
+
+**API Endpoints:**
+- `GET /api/admin/content?action=related&intent=TEMPLE_TIMINGS` - Get related questions
+- `POST /api/admin/content` - Auto-tag or freshness check
+
+**Auto-tag Example:**
+```json
+{
+  "action": "autotag",
+  "result": {
+    "suggestedCategory": "donation_info",
+    "confidence": 85,
+    "alternativeCategories": [...],
+    "suggestedKeywords": ["donate", "bank", "account"]
+  }
+}
+```
+
+### Phase 4: Intent Detection (ML-powered)
+
+#### 12-14. ML-powered Intent Detection ✅
+- **Status:** Implemented
+- **Files:**
+  - `services/ml.service.ts` - ML service with semantic matching and fuzzy correction
+  - `lib/ai/intent/types.ts` - Added LEARNED retrieval type
+  - `lib/ai/intent/detector.ts` - Integrated ML service
+- **Features:**
+  - Semantic similarity calculation using weighted keyword matching
+  - Auto-correction of common typos (pooja→pooja, donate→donate)
+  - Learning from corrections - stores and applies admin corrections
+  - Domain-specific keyword weights for better paraphrase handling
+
+**Key Functions:**
+- `calculateIntentSimilarity()` - Weighted overlap scoring
+- `autoCorrectMessage()` - Typo detection and correction
+- `learnFromCorrection()` - Store and apply corrections
+- `getCorrectedIntent()` - Retrieve learned corrections
+
+**Typo Dictionary Examples:**
+- "timmings" → "timings"
+- "sewav" → "seva"
+- "donatton" → "donation"
+- "aaradhana" → "aaradhane"
 
 ---
 

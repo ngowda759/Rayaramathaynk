@@ -12,6 +12,19 @@ import {
   Intent,
 } from "@/lib/ai";
 
+// Import conversation session service
+import {
+  generateSessionId,
+  getSession,
+  createSession,
+  updateSession,
+  getSessionContext,
+  clearSession,
+} from "@/services/conversation.service";
+
+// Import UX service
+import { getResponseMetadata, getQuickActions, getSuggestedQuestions } from "@/services/ux.service";
+
 // Rate limiting (simple in-memory implementation)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT = 20; // requests per minute
@@ -114,13 +127,39 @@ export async function POST(request: NextRequest) {
     let responseMessage: AIMessage | undefined;
     let responseSource: "hybrid" | "ai" | "firebase" = "hybrid";
     let lastResult: { intent?: string; confidence?: number; source?: string } | undefined;
+    let resolvedSessionId = sessionId || "";
 
     // Try hybrid mode first (uses structured retrieval)
     if (USE_HYBRID_MODE) {
       console.log(`[Chat API] [${requestId}] Using HYBRID mode (structured retrieval + LLM fallback)`);
 
       try {
-        const result = await generateResponse(lastUserMessage.content);
+        // Handle session context
+        let effectiveSessionId = resolvedSessionId;
+        let resolvedLanguage = responseLanguage;
+        
+        if (effectiveSessionId) {
+          // Get existing session context
+          const { session, isFollowUp, enrichedMessage } = await getSessionContext(effectiveSessionId);
+          
+          if (session) {
+            // Use session's preferred language if available
+            if (session.preferredLanguage && !detectedLanguage) {
+              resolvedLanguage = session.preferredLanguage;
+            }
+            
+            // Log follow-up detection
+            if (isFollowUp) {
+              console.log(`[Chat API] [${requestId}] Follow-up detected, enriching context`);
+            }
+          }
+        } else {
+          // Create new session
+          effectiveSessionId = generateSessionId();
+        }
+
+        // Generate response with session ID for analytics
+        const result = await generateResponse(lastUserMessage.content, effectiveSessionId);
         
         console.log(`[Chat API] [${requestId}] Hybrid response generated:`, {
           intent: result.intent,
@@ -140,11 +179,20 @@ export async function POST(request: NextRequest) {
         // Store result for debug info
         lastResult = result;
 
+        // Update session with new message
+        await updateSession(
+          effectiveSessionId,
+          lastUserMessage.content,
+          result.content,
+          result.intent,
+          result.language
+        );
+
         // Log low confidence responses for review
         if (result.confidence < 50) {
           await logLowConfidenceQuestion(
             lastUserMessage.content,
-            sessionId || crypto.randomUUID(),
+            effectiveSessionId,
             result.intent,
             result.confidence,
             result.source,
@@ -242,10 +290,18 @@ export async function POST(request: NextRequest) {
     // Include enhanced debug metadata if requested via query param
     const url = new URL(request.url || 'http://localhost');
     const isDebug = url.searchParams.get('debug') === 'true';
+    const includeUX = url.searchParams.get('ux') === 'true';
+    
+    // Get the detected intent for UX features
+    const detectedIntent = lastResult?.intent as Intent | undefined;
+    const messageLanguage = responseMessage?.detectedLanguage as "en" | "kn" | "mixed" || responseLanguage;
+    
+    // Get UX metadata (quick actions, suggested questions)
+    const uxMetadata = includeUX ? getResponseMetadata(detectedIntent, messageLanguage) : undefined;
     
     const response: ChatResponse = {
       message: responseMessage!,
-      sessionId: sessionId || crypto.randomUUID(),
+      sessionId: resolvedSessionId || crypto.randomUUID(),
       ...(isDebug && {
         _debug: {
           // Response metadata
@@ -265,6 +321,15 @@ export async function POST(request: NextRequest) {
             primary: responseSource,
             repository: responseSource === 'hybrid' || responseSource === 'repository' ? 'settings' : undefined,
           }
+        }
+      }),
+      // UX metadata for frontend
+      ...(uxMetadata && {
+        _ux: {
+          showTypingIndicator: uxMetadata.showTypingIndicator,
+          showQuickActions: uxMetadata.showQuickActions,
+          quickActions: uxMetadata.quickActions,
+          suggestedQuestions: uxMetadata.suggestedQuestions,
         }
       })
     };

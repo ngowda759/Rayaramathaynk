@@ -162,10 +162,7 @@ export async function logIntentUsage(
 
   try {
     const today = new Date().toISOString().split("T")[0];
-    const docId = `${intent}_${today}`;
 
-    // Simple increment using addDoc with timestamp
-    // In production, use a transaction for atomic updates
     await addDoc(collection(db, INTENT_METRICS_COLLECTION), {
       intent,
       confidence,
@@ -176,4 +173,210 @@ export async function logIntentUsage(
   } catch (error) {
     console.error("[Analytics] Failed to log intent usage:", error);
   }
+}
+
+// ============ Phase 3: Analytics Dashboard Features ============
+
+const INTENT_FEEDBACK_COLLECTION = "intent_feedback";
+
+export interface IntentFeedback {
+  id?: string;
+  question: string;
+  detectedIntent: string;
+  correctIntent: string;
+  isCorrect: boolean;
+  sessionId?: string;
+  timestamp?: Date;
+  adminId?: string;
+  notes?: string;
+}
+
+/**
+ * Log intent feedback (admin correction)
+ */
+export async function logIntentFeedback(feedback: IntentFeedback): Promise<string | null> {
+  if (!db) {
+    console.warn("[Analytics] Firestore not initialized, skipping feedback");
+    return null;
+  }
+
+  try {
+    const docRef = await addDoc(collection(db, INTENT_FEEDBACK_COLLECTION), {
+      question: feedback.question,
+      detectedIntent: feedback.detectedIntent,
+      correctIntent: feedback.correctIntent,
+      isCorrect: feedback.isCorrect,
+      sessionId: feedback.sessionId,
+      timestamp: serverTimestamp(),
+      adminId: feedback.adminId || "system",
+      notes: feedback.notes || "",
+    });
+
+    console.log(`[Analytics] Logged intent feedback: ${feedback.isCorrect ? "correct" : "incorrect"}`);
+    return docRef.id;
+  } catch (error) {
+    console.error("[Analytics] Failed to log intent feedback:", error);
+    return null;
+  }
+}
+
+/**
+ * Get intent feedback statistics
+ */
+export async function getIntentFeedbackStats(): Promise<{
+  totalFeedback: number;
+  correctCount: number;
+  incorrectCount: number;
+  accuracy: number;
+  topCorrections: Array<{ detectedIntent: string; correctIntent: string; count: number }>;
+}> {
+  if (!db) {
+    return { totalFeedback: 0, correctCount: 0, incorrectCount: 0, accuracy: 0, topCorrections: [] };
+  }
+
+  try {
+    const q = query(
+      collection(db, INTENT_FEEDBACK_COLLECTION),
+      orderBy("timestamp", "desc"),
+      limit(500)
+    );
+    const snapshot = await getDocs(q);
+    const docs = snapshot.docs.map((doc) => doc.data());
+
+    const totalFeedback = docs.length;
+    const correctCount = docs.filter((d) => d.isCorrect).length;
+    const incorrectCount = docs.filter((d) => !d.isCorrect).length;
+    const accuracy = totalFeedback > 0 ? (correctCount / totalFeedback) * 100 : 0;
+
+    // Count top corrections (incorrect detections)
+    const correctionCounts: Record<string, { detectedIntent: string; correctIntent: string; count: number }> = {};
+    docs.filter((d) => !d.isCorrect).forEach((d) => {
+      const key = `${d.detectedIntent}->${d.correctIntent}`;
+      if (!correctionCounts[key]) {
+        correctionCounts[key] = {
+          detectedIntent: d.detectedIntent,
+          correctIntent: d.correctIntent,
+          count: 0,
+        };
+      }
+      correctionCounts[key].count++;
+    });
+
+    const topCorrections = Object.values(correctionCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return { totalFeedback, correctCount, incorrectCount, accuracy, topCorrections };
+  } catch (error) {
+    console.error("[Analytics] Failed to get feedback stats:", error);
+    return { totalFeedback: 0, correctCount: 0, incorrectCount: 0, accuracy: 0, topCorrections: [] };
+  }
+}
+
+/**
+ * Get fallback rate metrics
+ */
+export async function getFallbackRateMetrics(): Promise<{
+  totalResponses: number;
+  fallbackResponses: number;
+  fallbackRate: number;
+  byDay: Array<{ date: string; total: number; fallback: number; rate: number }>;
+}> {
+  if (!db) {
+    return { totalResponses: 0, fallbackResponses: 0, fallbackRate: 0, byDay: [] };
+  }
+
+  try {
+    const q = query(
+      collection(db, INTENT_METRICS_COLLECTION),
+      orderBy("timestamp", "desc"),
+      limit(1000)
+    );
+    const snapshot = await getDocs(q);
+    const docs = snapshot.docs.map((doc) => ({
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate() || new Date(),
+    })) as Array<{ date: string; usedFallback: boolean; timestamp?: Date }>;
+
+    const totalResponses = docs.length;
+    const fallbackResponses = docs.filter((d) => d.usedFallback).length;
+    const fallbackRate = totalResponses > 0 ? (fallbackResponses / totalResponses) * 100 : 0;
+
+    // Group by day
+    const byDayMap: Record<string, { total: number; fallback: number }> = {};
+    docs.forEach((d) => {
+      const date = d.date;
+      if (!byDayMap[date]) {
+        byDayMap[date] = { total: 0, fallback: 0 };
+      }
+      byDayMap[date].total++;
+      if (d.usedFallback) {
+        byDayMap[date].fallback++;
+      }
+    });
+
+    const byDay = Object.entries(byDayMap)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 14)
+      .map(([date, data]) => ({
+        date,
+        total: data.total,
+        fallback: data.fallback,
+        rate: data.total > 0 ? (data.fallback / data.total) * 100 : 0,
+      }));
+
+    return { totalResponses, fallbackResponses, fallbackRate, byDay };
+  } catch (error) {
+    console.error("[Analytics] Failed to get fallback metrics:", error);
+    return { totalResponses: 0, fallbackResponses: 0, fallbackRate: 0, byDay: [] };
+  }
+}
+
+/**
+ * Get complete analytics summary for admin dashboard
+ */
+export async function getAnalyticsSummary(): Promise<{
+  unknownQuestions: {
+    total: number;
+    today: number;
+    thisWeek: number;
+  };
+  intentAccuracy: {
+    total: number;
+    correct: number;
+    accuracy: number;
+  };
+  fallbackRate: {
+    total: number;
+    fallback: number;
+    rate: number;
+  };
+  topIntents: Array<{ intent: string; count: number }>;
+  topCorrections: Array<{ detectedIntent: string; correctIntent: string; count: number }>;
+}> {
+  const [unknownStats, feedbackStats, fallbackStats] = await Promise.all([
+    getUnknownQuestionStats(),
+    getIntentFeedbackStats(),
+    getFallbackRateMetrics(),
+  ]);
+
+  return {
+    unknownQuestions: {
+      total: unknownStats.total,
+      today: unknownStats.today,
+      thisWeek: unknownStats.thisWeek,
+    },
+    intentAccuracy: {
+      total: feedbackStats.totalFeedback,
+      correct: feedbackStats.correctCount,
+      accuracy: feedbackStats.accuracy,
+    },
+    fallbackRate: {
+      total: fallbackStats.totalResponses,
+      fallback: fallbackStats.fallbackResponses,
+      rate: fallbackStats.fallbackRate,
+    },
+    topIntents: unknownStats.topIntents,
+    topCorrections: feedbackStats.topCorrections,
+  };
 }
