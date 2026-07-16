@@ -15,6 +15,14 @@ function isAuthenticated(request: NextRequest): boolean {
   return secret === process.env.ADMIN_SECRET;
 }
 
+// Check if Firestore is initialized
+function checkFirestore() {
+  if (!db) {
+    throw new Error("Firestore is not initialized. Check environment variables.");
+  }
+  return db;
+}
+
 // Default Temple Information
 const templeInformation = {
   timings: {
@@ -79,27 +87,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await setDoc(doc(db, "ai_settings", " RayaAI"), {
+    const firestore = checkFirestore();
+
+    await setDoc(doc(firestore, "ai_settings", " RayaAI"), {
       templeInformation,
       visitorInformation,
       aiResponses,
       aiBehavior,
       updatedAt: serverTimestamp(),
-      updatedBy: admin.uid
+      updatedBy: "admin"
     });
 
-    await setDoc(doc(db, "ai_settings", "welcome"), {
+    await setDoc(doc(firestore, "ai_settings", "welcome"), {
       message: aiResponses.welcome,
       language: "en",
       updatedAt: serverTimestamp()
     });
 
-    await setDoc(doc(db, "settings", "temple"), {
+    await setDoc(doc(firestore, "settings", "temple"), {
       ...templeInformation,
       updatedAt: serverTimestamp()
     });
 
-    await setDoc(doc(db, "settings", "contact"), {
+    await setDoc(doc(firestore, "settings", "contact"), {
       phone: templeInformation.contact.phone,
       email: templeInformation.contact.email,
       address: templeInformation.contact.address,
@@ -107,7 +117,7 @@ export async function POST(request: NextRequest) {
       updatedAt: serverTimestamp()
     });
 
-    await setDoc(doc(db, "settings", "visitor"), {
+    await setDoc(doc(firestore, "settings", "visitor"), {
       ...visitorInformation,
       updatedAt: serverTimestamp()
     });
@@ -129,7 +139,9 @@ export async function GET() {
   }
 
   try {
-    await setDoc(doc(db, "ai_settings", " RayaAI"), {
+    const firestore = checkFirestore();
+
+    await setDoc(doc(firestore, "ai_settings", " RayaAI"), {
       templeInformation,
       visitorInformation,
       aiResponses,
@@ -138,18 +150,18 @@ export async function GET() {
       updatedBy: "dev-seed"
     });
 
-    await setDoc(doc(db, "ai_settings", "welcome"), {
+    await setDoc(doc(firestore, "ai_settings", "welcome"), {
       message: aiResponses.welcome,
       language: "en",
       updatedAt: serverTimestamp()
     });
 
-    await setDoc(doc(db, "settings", "temple"), {
+    await setDoc(doc(firestore, "settings", "temple"), {
       ...templeInformation,
       updatedAt: serverTimestamp()
     });
 
-    await setDoc(doc(db, "settings", "contact"), {
+    await setDoc(doc(firestore, "settings", "contact"), {
       phone: templeInformation.contact.phone,
       email: templeInformation.contact.email,
       address: templeInformation.contact.address,
@@ -157,7 +169,7 @@ export async function GET() {
       updatedAt: serverTimestamp()
     });
 
-    await setDoc(doc(db, "settings", "visitor"), {
+    await setDoc(doc(firestore, "settings", "visitor"), {
       ...visitorInformation,
       updatedAt: serverTimestamp()
     });
