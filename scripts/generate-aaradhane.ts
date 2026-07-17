@@ -26,6 +26,26 @@ import { parseArgs } from "util";
 // Set timezone for consistent date handling
 process.env.TZ = "Asia/Kolkata";
 
+interface UpdateResult {
+  summary: {
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  };
+}
+
+function printUpdateSummary(result: UpdateResult): void {
+  const { summary } = result;
+  console.log("\n" + "-".repeat(40));
+  console.log("Update Summary:");
+  console.log("-".repeat(40));
+  console.log(`  Created: ${summary.created}`);
+  console.log(`  Updated: ${summary.updated}`);
+  console.log(`  Skipped: ${summary.skipped}`);
+  console.log(`  Errors:  ${summary.errors}`);
+}
+
 async function main() {
   console.log("\n" + "=".repeat(60));
   console.log("GURU AARADHANE EVENT GENERATOR");
@@ -206,8 +226,9 @@ async function main() {
     console.log("-".repeat(60));
     
     try {
-      const { updateFirestoreEvents, printUpdateSummary } = await import("../lib/aaradhane/firestore");
-      const updateResult = await updateFirestoreEvents(
+      // Use Admin SDK for server-side Firestore operations
+      const { updateFirestoreWithAdmin } = await import("../lib/aaradhane/firestore-admin");
+      const updateResult = await updateFirestoreWithAdmin(
         generateResult.events,
         targetYear,
         true
