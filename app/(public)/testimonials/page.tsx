@@ -40,13 +40,13 @@ export default function TestimonialsPage() {
       return src; // Base64 data URL
     }
     if (src.startsWith("http://") || src.startsWith("https://")) {
-      return src;
+      return src; // External URL (Vercel Blob URLs)
     }
-    if (src.startsWith("/")) {
-      return src;
+    // Local paths - ensure they start with /
+    if (!src.startsWith("/")) {
+      src = "/" + src;
     }
-    // Images stored in public/images/testimonials/ folder
-    return `/images/testimonials/${src}`;
+    return src;
   }
 
   const handleFormSuccess = () => {
