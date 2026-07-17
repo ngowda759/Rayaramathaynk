@@ -206,8 +206,9 @@ async function main() {
     console.log("-".repeat(60));
     
     try {
-      const { updateFirestoreEvents, printUpdateSummary } = await import("../lib/aaradhane/firestore");
-      const updateResult = await updateFirestoreEvents(
+      // Use Admin SDK for server-side Firestore operations
+      const { updateFirestoreWithAdmin } = await import("../lib/aaradhane/firestore-admin");
+      const updateResult = await updateFirestoreWithAdmin(
         generateResult.events,
         targetYear,
         true
