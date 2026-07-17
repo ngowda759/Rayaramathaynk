@@ -15,11 +15,14 @@ interface UploadResult {
 class StorageService {
   /**
    * Upload a base64 image to Vercel Blob Storage
+   * @param base64Data - Base64 encoded image data
+   * @param pathname - Full pathname including folder (e.g., 'images/testimonials/filename.jpg')
+   * @param folder - Optional folder for backward compatibility (ignored if pathname is full path)
    */
   async uploadBase64Image(
     base64Data: string,
-    filename: string,
-    folder: UploadFolder = 'testimonials'
+    pathnameOrFilename: string,
+    folder?: UploadFolder
   ): Promise<UploadResult> {
     // Extract base64 content - handle both raw base64 and data URL format
     let base64Content = base64Data;
@@ -45,7 +48,10 @@ class StorageService {
     }
     const blob = new Blob([bytes], { type: mimeType });
 
-    const pathname = `${folder}/${filename}`;
+    // Determine pathname - use full path if it contains '/', otherwise prepend folder
+    const pathname = pathnameOrFilename.includes('/') 
+      ? pathnameOrFilename 
+      : `${folder || 'testimonials'}/${pathnameOrFilename}`;
     
     console.log(`[Storage] Uploading ${blob.size} bytes (${mimeType}) to ${pathname}`);
     
