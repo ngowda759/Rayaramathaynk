@@ -310,7 +310,8 @@ export async function submitTestimonial(
       
       console.log("[Testimonials] Uploading with filename:", filename);
       
-      const result = await storageService.uploadBase64Image(submission.image, filename, 'testimonials');
+      // Upload to images/testimonials/ folder in Vercel Blob
+      const result = await storageService.uploadBase64Image(submission.image, `images/testimonials/${filename}`);
       imageUrl = result.url;
       
       console.log("[Testimonials] Upload successful, URL:", imageUrl);
