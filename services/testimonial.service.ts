@@ -120,6 +120,12 @@ export async function getAllTestimonials(): Promise<Testimonial[]> {
     );
 
     const querySnapshot = await getDocs(q);
+    
+    // If no documents, return defaults
+    if (querySnapshot.empty) {
+      return DEFAULT_TESTIMONIALS;
+    }
+    
     return querySnapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
