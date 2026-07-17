@@ -12,6 +12,7 @@ import CalendarCenter from "@/components/calendar/CalendarCenter";
 import AnnouncementBar from "@/components/home/AnnouncementBar";
 import Hero from "@/components/home/Hero";
 import Navbar from "@/components/layout/Navbar";
+import { PageTransition } from "@/components/ui/PageTransition";
 
 interface GalleryImage {
   src: string;
@@ -27,7 +28,7 @@ interface HomeClientProps {
 
 export default function HomeClient({ nextMajorEvent, nextEventName, galleryImages }: HomeClientProps) {
   return (
-    <>
+    <PageTransition>
       <Navbar />
       <AnnouncementBar />
       <Hero />
@@ -64,6 +65,6 @@ export default function HomeClient({ nextMajorEvent, nextEventName, galleryImage
       <SocialBar />
       
       <Footer />
-    </>
+    </PageTransition>
   );
 }

@@ -24,6 +24,13 @@ export const metadata: Metadata = {
   },
   description:
     "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    apple: "/images/logos/ynk_matha_logo.png",
+  },
 };
 
 export default function RootLayout({

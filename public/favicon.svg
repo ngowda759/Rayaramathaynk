@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="15" fill="#d97706"/>
+  <circle cx="16" cy="16" r="13" fill="#fbbf24"/>
+  
+  <!-- Om symbol simplified -->
+  <text x="16" y="22" font-family="serif" font-size="18" font-weight="bold" fill="#92400e" text-anchor="middle">ॐ</text>
+  
+  <!-- Decorative dots -->
+  <circle cx="8" cy="8" r="1.5" fill="#fef3c7"/>
+  <circle cx="24" cy="8" r="1.5" fill="#fef3c7"/>
+  <circle cx="8" cy="24" r="1.5" fill="#fef3c7"/>
+  <circle cx="24" cy="24" r="1.5" fill="#fef3c7"/>
+</svg>
