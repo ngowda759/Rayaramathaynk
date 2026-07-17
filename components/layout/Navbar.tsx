@@ -28,6 +28,7 @@ const aboutDropdown = [
   { name: "Facilities", href: "/facilities" },
   { name: "Trust Committee", href: "/trust" },
   { name: "Future Plans", href: "/future-plans" },
+  { name: "AI Analytics", href: "/ai/analytics" },
 ];
 
 const onlineServicesDropdown = [
@@ -109,7 +110,7 @@ export default function Navbar() {
   }, []);
 
   const isEventsActive = pathname === "/events" || pathname === "/aaradhane";
-  const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans";
+  const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans" || pathname === "/ai/analytics";
   const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation";
   const isCalendarActive = pathname.startsWith("/calendar");
 
