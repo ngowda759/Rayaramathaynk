@@ -153,13 +153,13 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
     setIsSubmitting(true);
 
     try {
-      // Submit with base64 image - the service will upload to Firebase Storage
+      // Submit with base64 image - the service will upload to Vercel Blob Storage
       await submitTestimonial({
         name: formData.name.trim(),
         location: formData.location.trim(),
         quote: formData.quote.trim(),
         phone: formData.phone.trim() || undefined,
-        image: image || undefined, // Base64 data URL - will be uploaded to Firebase Storage
+        image: image || undefined, // Base64 data URL - will be uploaded to Vercel Blob
       });
 
       setIsSubmitted(true);

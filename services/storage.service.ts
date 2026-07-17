@@ -1,30 +1,115 @@
 /**
- * Storage Service for local file management
- * Since Vercel doesn't allow runtime file writes, this generates URLs for files
- * stored in public/images/ folder. Files must be committed to GitHub repo.
+ * Vercel Blob Storage Service
+ * Handles all file uploads to Vercel Blob Storage
  */
+
+import { put, del, list } from '@vercel/blob';
+
+export type UploadFolder = 'testimonials' | 'gallery' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas';
+
+interface UploadResult {
+  url: string;
+  pathname: string;
+}
 
 class StorageService {
   /**
-   * Generate a URL for a local image file
-   * The file should be placed in public/images/{folder}/{filename}
-   * and committed to the GitHub repository
+   * Upload a base64 image to Vercel Blob Storage
    */
-  getImageUrl(filename: string, folder: string = "aaradhane"): string {
-    return `/images/${folder}/${filename}`;
+  async uploadBase64Image(
+    base64Data: string,
+    filename: string,
+    folder: UploadFolder = 'testimonials'
+  ): Promise<UploadResult> {
+    // Convert base64 to Blob
+    const response = await fetch(base64Data);
+    if (!response.ok) {
+      throw new Error('Failed to fetch base64 image data');
+    }
+    const blob = await response.blob();
+
+    const pathname = `${folder}/${filename}`;
+    
+    const uploadedBlob = await put(pathname, blob, {
+      access: 'public',
+      contentType: blob.type || 'image/jpeg',
+    });
+
+    console.log(`[Storage] Uploaded to: ${uploadedBlob.url}`);
+    
+    return {
+      url: uploadedBlob.url,
+      pathname: uploadedBlob.pathname,
+    };
   }
-  
+
   /**
-   * List of uploaded images (tracked via Firestore or you can add files manually)
-   * This is a placeholder - in production, you might want to:
-   * 1. Add images to public/images/aaradhane/ folder
-   * 2. Commit to GitHub
-   * 3. Images will be available at /images/aaradhane/{filename}
+   * Upload a File/Blob directly
    */
-  getUploadedImages(): string[] {
-    // Images are stored in public/images/aaradhane/
-    // Add files there and commit to GitHub
-    return [];
+  async uploadFile(
+    file: File | Blob,
+    filename: string,
+    folder: UploadFolder = 'gallery'
+  ): Promise<UploadResult> {
+    const pathname = `${folder}/${filename}`;
+    
+    const uploadedBlob = await put(pathname, file, {
+      access: 'public',
+      contentType: file.type,
+    });
+
+    console.log(`[Storage] Uploaded to: ${uploadedBlob.url}`);
+    
+    return {
+      url: uploadedBlob.url,
+      pathname: uploadedBlob.pathname,
+    };
+  }
+
+  /**
+   * Delete a file from Vercel Blob
+   */
+  async deleteFile(url: string): Promise<void> {
+    await del(url);
+    console.log(`[Storage] Deleted: ${url}`);
+  }
+
+  /**
+   * List files in a folder
+   */
+  async listFiles(folder: UploadFolder): Promise<{ url: string; pathname: string }[]> {
+    const { blobs } = await list({
+      prefix: `${folder}/`,
+    });
+    
+    return blobs.map(blob => ({
+      url: blob.url,
+      pathname: blob.pathname,
+    }));
+  }
+
+  /**
+   * Generate a unique filename
+   */
+  generateFilename(originalName: string, prefix?: string): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const ext = originalName.split('.').pop() || 'jpg';
+    const cleanName = prefix 
+      ? `${prefix}_${timestamp}_${random}`
+      : `${timestamp}_${random}`;
+    return `${cleanName}.${ext}`;
+  }
+
+  /**
+   * Sanitize filename for storage
+   */
+  sanitizeFilename(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s.-]/g, '')
+      .replace(/\s+/g, '_')
+      .substring(0, 100);
   }
 }
 

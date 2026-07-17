@@ -35,13 +35,15 @@ export default function Testimonials() {
   // Convert filename to full path for testimonial images
   function getImageSrc(src: string | undefined): string {
     if (!src) return "";
+    // Vercel Blob URLs are already full URLs
     if (src.startsWith("http://") || src.startsWith("https://")) {
       return src;
     }
+    // Local paths
     if (src.startsWith("/")) {
       return src;
     }
-    // Images stored in public/images/testimonials/ folder
+    // Legacy: Images stored in public/images/testimonials/ folder
     return `/images/testimonials/${src}`;
   }
 

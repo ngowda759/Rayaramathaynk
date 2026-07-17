@@ -293,7 +293,15 @@ export async function submitTestimonial(
   // If image is a base64 data URL, upload to Vercel Blob Storage
   if (submission.image && submission.image.startsWith("data:")) {
     try {
-      imageUrl = await uploadTestimonialImage(submission.image, submission.name, submission.phone);
+      const { storageService } = await import("@/services/storage.service");
+      const sanitizedName = storageService.sanitizeFilename(submission.name);
+      const cleanPhone = submission.phone ? submission.phone.replace(/[^0-9+]/g, '') : '';
+      const filename = cleanPhone 
+        ? `${sanitizedName}_${cleanPhone}.jpg`
+        : `${sanitizedName}_${Date.now()}.jpg`;
+      
+      const result = await storageService.uploadBase64Image(submission.image, filename, 'testimonials');
+      imageUrl = result.url;
     } catch (error) {
       console.error("[Testimonials] Failed to upload image, saving without image:", error);
       imageUrl = undefined; // Save testimonial without image if upload fails
@@ -311,69 +319,6 @@ export async function submitTestimonial(
     approved: false,
     rejected: false,
   });
-}
-
-// Upload testimonial image to Vercel Blob Storage
-async function uploadTestimonialImage(
-  base64Data: string,
-  name: string,
-  phone?: string
-): Promise<string> {
-  console.log("[Testimonials] Starting Vercel Blob upload for:", name);
-  
-  // Generate unique filename
-  const sanitizedName = name.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .trim()
-    .replace(/\s+/g, '_');
-  const cleanPhone = phone ? phone.replace(/[^0-9+]/g, '') : '';
-  const filename = cleanPhone 
-    ? `${sanitizedName}_${cleanPhone}.jpg`
-    : `${sanitizedName}_${Date.now()}.jpg`;
-  
-  console.log("[Testimonials] Filename:", filename);
-  
-  // Convert base64 to Blob
-  const response = await fetch(base64Data);
-  if (!response.ok) {
-    throw new Error("Failed to fetch base64 image data");
-  }
-  const blob = await response.blob();
-  console.log("[Testimonials] Image blob size:", blob.size, "bytes");
-  
-  // Upload to Vercel Blob using the PUT API
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-  const storeId = process.env.BLOB_STORE_ID;
-  
-  if (!blobToken || !storeId) {
-    throw new Error("Vercel Blob credentials not configured");
-  }
-  
-  // Use Vercel Blob API
-  const uploadResponse = await fetch(
-    `https://blob.vercel-storage.com/${filename}`,
-    {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${blobToken}`,
-        'x-nft-store-id': storeId,
-        'Content-Type': 'image/jpeg',
-      },
-      body: blob,
-    }
-  );
-
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    console.error("[Testimonials] Vercel Blob upload failed:", errorText);
-    throw new Error(`Upload failed: ${uploadResponse.status}`);
-  }
-
-  // Get the URL from response headers or construct it
-  const downloadURL = `https://${storeId}.public.vercel-storage.com/${filename}`;
-  console.log("[Testimonials] Image uploaded successfully, URL:", downloadURL);
-  
-  return downloadURL;
 }
 
 // Update testimonial
