@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, Quote, Star, MessageSquare } from "lucide-react";
 import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
@@ -205,13 +206,14 @@ export default function Testimonials() {
                     <div className="relative">
                       {currentTestimonial.image ? (
                         <div className="relative h-20 w-20 rounded-full overflow-hidden border-4 border-amber-200 shadow-lg">
-                          <img
+                          <Image
                             src={getImageSrc(currentTestimonial.image)}
                             alt={currentTestimonial.name}
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
+                            unoptimized={true}
                             onError={(e) => {
                               console.error("[Testimonials] Image failed to load:", currentTestimonial.image);
-                              (e.target as HTMLImageElement).style.display = 'none';
                             }}
                           />
                         </div>

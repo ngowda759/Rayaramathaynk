@@ -30,7 +30,7 @@ class StorageService {
 
     const pathname = `${folder}/${filename}`;
     
-    // Upload to Vercel Blob with public access (store must be set to Public in Vercel Dashboard)
+    // Upload to Vercel Blob (private store works with Next.js Image on Vercel)
     const uploadedBlob = await put(pathname, blob, {
       access: 'public',
       contentType: blob.type || 'image/jpeg',
