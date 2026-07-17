@@ -324,7 +324,7 @@ export async function submitTestimonial(
 
   console.log("[Testimonials] Creating testimonial with image:", imageUrl ? "YES" : "NO", imageUrl);
   
-  return createTestimonial({
+  const testimonialId = await createTestimonial({
     name: submission.name,
     location: submission.location,
     quote: submission.quote,
@@ -332,9 +332,47 @@ export async function submitTestimonial(
     image: imageUrl,
     phone: submission.phone,
     submittedBy: "public",
-    approved: true, // Auto-approve for testing - set to false after verification
+    approved: false, // Requires admin approval before public display
     rejected: false,
   });
+
+  // Create notification for admin
+  await createTestimonialNotification(testimonialId, submission.name, submission.location);
+
+  return testimonialId;
+}
+
+// Create notification for new testimonial submission
+async function createTestimonialNotification(
+  testimonialId: string,
+  name: string,
+  location: string
+): Promise<void> {
+  const firebaseDb = await getFirebaseDb();
+  
+  if (!firebaseDb) {
+    console.warn("[Testimonials] Cannot create notification: Firebase not available");
+    return;
+  }
+
+  try {
+    const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
+    
+    await addDoc(collection(firebaseDb, "notifications"), {
+      type: "testimonial_pending",
+      title: "New Testimonial Pending",
+      message: `New testimonial from ${name} (${location}) awaiting approval`,
+      relatedId: testimonialId,
+      relatedType: "testimonial",
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+    
+    console.log("[Testimonials] Created notification for testimonial:", testimonialId);
+  } catch (error) {
+    console.error("[Testimonials] Failed to create notification:", error);
+    // Don't throw - notification failure shouldn't fail the submission
+  }
 }
 
 // Update testimonial
@@ -371,7 +409,41 @@ export async function updateTestimonial(
 
 // Approve testimonial (admin function)
 export async function approveTestimonial(id: string): Promise<void> {
-  return updateTestimonial(id, { approved: true });
+  await updateTestimonial(id, { approved: true });
+  
+  // Mark the notification as read when testimonial is approved
+  await markNotificationAsRead(id);
+}
+
+// Mark notification as read
+async function markNotificationAsRead(testimonialId: string): Promise<void> {
+  const firebaseDb = await getFirebaseDb();
+  
+  if (!firebaseDb) return;
+
+  try {
+    const { collection, query, where, getDocs, updateDoc, doc } = await import("firebase/firestore");
+    
+    const q = query(
+      collection(firebaseDb, "notifications"),
+      where("relatedId", "==", testimonialId),
+      where("relatedType", "==", "testimonial"),
+      where("read", "==", false)
+    );
+
+    const snapshot = await getDocs(q);
+    
+    for (const notificationDoc of snapshot.docs) {
+      await updateDoc(doc(firebaseDb, "notifications", notificationDoc.id), {
+        read: true,
+        readAt: new Date(),
+      });
+    }
+    
+    console.log("[Testimonials] Marked notification as read for testimonial:", testimonialId);
+  } catch (error) {
+    console.error("[Testimonials] Failed to mark notification as read:", error);
+  }
 }
 
 // Delete testimonial
