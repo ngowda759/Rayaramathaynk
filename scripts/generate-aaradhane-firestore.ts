@@ -48,7 +48,7 @@ const COLLECTION_NAME = "events";
 const TARGET_YEAR = 2027;
 
 // Initialize Firebase Admin SDK
-function initializeFirebase(): admin.app.App {
+function initializeFirebase(): any {
   // Check if already initialized
   const existingApps = admin.getApps();
   if (existingApps.length > 0) {
