@@ -8,7 +8,6 @@ import {
   deleteDoc,
   query,
   orderBy,
-  where,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
