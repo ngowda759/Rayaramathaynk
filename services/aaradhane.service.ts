@@ -134,16 +134,30 @@ export const aaradhaneService = {
     // Try to get events from "events" collection (auto-generated)
     let events: Aaradhane[] = [];
     try {
-      // Query without requiring composite index - get all events and filter in memory
+      // First try with category filter
       const eventsQ = query(
         collection(db, EVENTS_COLLECTION),
         where("category", "==", "Aaradhane")
       );
       const eventsSnapshot = await getDocs(eventsQ);
       events = eventsSnapshot.docs.map(eventDocToAaradhane);
-      console.log(`[Aaradhane] Found ${events.length} events from events collection`);
+      console.log(`[Aaradhane] Found ${events.length} events with category filter`);
     } catch (error) {
-      console.warn("[Aaradhane] Could not read from events collection:", error);
+      console.warn("[Aaradhane] Could not read with category filter:", error);
+      
+      // Fallback: query all events and filter in memory
+      try {
+        const allEventsQ = query(collection(db, EVENTS_COLLECTION));
+        const allEventsSnapshot = await getDocs(allEventsQ);
+        console.log(`[Aaradhane] Total events in collection: ${allEventsSnapshot.size}`);
+        
+        events = allEventsSnapshot.docs
+          .map(eventDocToAaradhane)
+          .filter(e => e.title || e.guruName); // Filter valid entries
+        console.log(`[Aaradhane] Found ${events.length} events after filtering`);
+      } catch (fallbackError) {
+        console.warn("[Aaradhane] Could not read events collection:", fallbackError);
+      }
     }
     
     // Also try to get from "aaradhane" collection (manually created)
@@ -171,6 +185,7 @@ export const aaradhaneService = {
     // Sort by displayOrder
     merged.sort((a, b) => a.displayOrder - b.displayOrder);
     
+    console.log(`[Aaradhane] Total merged: ${merged.length}`);
     return merged;
   },
 
