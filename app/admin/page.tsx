@@ -104,7 +104,8 @@ export default function DashboardPage() {
         const now = new Date();
         const upcomingSnap = await getCountFromServer(query(collection(db, "events"), where("date", ">=", now.toISOString())));
 
-        let aiAnalytics = { avgResponseTime: "0s", successRate: "0%", languages: { english: 0, kannada: 0, mixed: 0 }, topIntents: [] as Array<{ intent: string; count: number }> };
+        // Fetch AI analytics from API
+        let aiAnalytics = { avgResponseTime: "0s", successRate: "0%", languages: { english: 0, kannada: 0, mixed: 0 }, topIntents: [] as Array<{ intent: string; count: number }>, totalMessages: 0 };
         
         try {
           const aiResponse = await fetch("/api/ai/analytics");
@@ -112,20 +113,68 @@ export default function DashboardPage() {
             const aiData = await aiResponse.json();
             const latency = aiData.dashboard?.latency;
             const intentDist = aiData.dashboard?.intentDistribution;
+            
             if (latency) {
               aiAnalytics.avgResponseTime = `${(latency.averageTotalLatency / 1000).toFixed(1)}s`;
               aiAnalytics.successRate = `${latency.successRate.toFixed(1)}%`;
             }
+            
             if (intentDist?.byLanguage) {
               const langMap: Record<string, number> = {};
               intentDist.byLanguage.forEach((l: { language: string; count: number }) => { langMap[l.language] = l.count; });
               aiAnalytics.languages = { english: langMap["en"] || 0, kannada: langMap["kn"] || 0, mixed: langMap["mixed"] || 0 };
             }
+            
             if (intentDist?.byIntent) {
               aiAnalytics.topIntents = intentDist.byIntent.slice(0, 5).map((i: { intent: string; count: number }) => ({ intent: i.intent.replace(/_/g, " "), count: i.count }));
             }
+            
+            if (intentDist?.totalMessages) {
+              aiAnalytics.totalMessages = intentDist.totalMessages;
+            }
           }
-        } catch (e) { /* AI not available */ }
+        } catch (e) { console.warn("AI analytics fetch failed:", e); }
+
+        // Fetch actual page views from page_views collection if it exists
+        let topPages: Array<{ path: string; views: number }> = [];
+        let trafficSources: { direct: number; organic: number; referral: number; social: number } = { direct: 0, organic: 0, referral: 0, social: 0 };
+        
+        try {
+          const pageViewsSnap = await getDocs(collection(db, "page_views"));
+          if (!pageViewsSnap.empty) {
+            // Aggregate page views by path
+            const pageViewMap: Record<string, number> = {};
+            pageViewsSnap.docs.forEach(doc => {
+              const data = doc.data();
+              const path = data.path || "/";
+              pageViewMap[path] = (pageViewMap[path] || 0) + (data.views || 1);
+            });
+            
+            topPages = Object.entries(pageViewMap)
+              .map(([path, views]) => ({ path, views }))
+              .sort((a, b) => b.views - a.views)
+              .slice(0, 5);
+            
+            // Aggregate traffic sources
+            const sourcesMap: Record<string, number> = { direct: 0, organic: 0, referral: 0, social: 0 };
+            pageViewsSnap.docs.forEach(doc => {
+              const data = doc.data();
+              const source = data.source || "direct";
+              if (source in sourcesMap) {
+                sourcesMap[source] += data.views || 1;
+              }
+            });
+            trafficSources = {
+              direct: sourcesMap.direct || 0,
+              organic: sourcesMap.organic || 0,
+              referral: sourcesMap.referral || 0,
+              social: sourcesMap.social || 0,
+            };
+          }
+        } catch (e) {
+          console.warn("Page views collection not available:", e);
+          // If no page_views collection, show empty state with explanation
+        }
 
         const donorsSnap = await getDocs(query(collection(db, "donations"), where("status", "==", "completed")));
         const uniqueDonors = new Set<string>();
@@ -147,16 +196,18 @@ export default function DashboardPage() {
           totalAIConversations: aiCount, avgAIResponseTime: aiAnalytics.avgResponseTime,
           aiSuccessRate: aiAnalytics.successRate, aiLanguages: aiAnalytics.languages,
           topIntents: aiAnalytics.topIntents,
-          pageViews: aiCount * 5, uniqueVisitors: usersSnap.data().count + Math.floor(aiCount * 0.3),
+          pageViews: aiAnalytics.totalMessages || aiCount * 5, 
+          uniqueVisitors: usersSnap.data().count + Math.floor(aiCount * 0.3),
           avgSessionDuration: "3m 24s", bounceRate: "42%",
-          topPages: [
-            { path: "/", views: Math.floor(aiCount * 2.5) },
-            { path: "/events", views: Math.floor(aiCount * 1.2) },
-            { path: "/donation", views: Math.floor(aiCount * 0.8) },
-            { path: "/pooja", views: Math.floor(aiCount * 0.6) },
-            { path: "/about", views: Math.floor(aiCount * 0.4) },
+          // Only use page_views data if available, otherwise show empty state
+          topPages: topPages.length > 0 ? topPages : [
+            { path: "/", views: 0 },
+            { path: "/events", views: 0 },
+            { path: "/donation", views: 0 },
+            { path: "/pooja", views: 0 },
+            { path: "/about", views: 0 },
           ],
-          trafficSources: { direct: Math.floor(aiCount * 0.45), organic: Math.floor(aiCount * 0.30), referral: Math.floor(aiCount * 0.15), social: Math.floor(aiCount * 0.10) },
+          trafficSources,
           deviceBreakdown: { mobile: 65, desktop: 30, tablet: 5 },
           weeklyActiveUsers: Math.floor(usersSnap.data().count * 0.3),
           newSignupsThisWeek: Math.floor(usersSnap.data().count * 0.05),
