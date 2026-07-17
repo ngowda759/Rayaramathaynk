@@ -1,23 +1,25 @@
 /**
  * Seed AI Settings to Firestore
  * Seeds prompts, intents, and default settings for Raya AI
+ * 
+ * Run with: node scripts/seed-ai-settings.js
+ * Or: npx tsx scripts/seed-ai-settings.ts
  */
 
-const { initializeApp, getApps, cert } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const admin = require("firebase-admin");
 const fs = require("fs");
 
 // Initialize Firebase Admin
 function initFirebase() {
-  if (!getApps() || !getApps().length) {
+  if (!admin.apps || !admin.apps.length) {
     const serviceAccount = JSON.parse(
       fs.readFileSync("firebase-admin.json", "utf8")
     );
-    initializeApp({
-      credential: cert(serviceAccount),
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
     });
   }
-  return getFirestore();
+  return admin.firestore();
 }
 
 // Default prompt
@@ -495,7 +497,7 @@ async function seedAISettings() {
       debugMode: false,
       unknownLogging: true,
     },
-    updatedAt: FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedBy: "system",
   };
 
