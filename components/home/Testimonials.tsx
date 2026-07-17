@@ -34,9 +34,13 @@ export default function Testimonials() {
 
   // Convert filename to full path for testimonial images
   function getImageSrc(src: string | undefined): string {
-    if (!src) return "";
+    if (!src) {
+      console.log("[Testimonials] No image source provided");
+      return "";
+    }
     // Vercel Blob URLs are already full URLs
     if (src.startsWith("http://") || src.startsWith("https://")) {
+      console.log("[Testimonials] Using blob URL:", src);
       return src;
     }
     // Local paths
@@ -205,6 +209,10 @@ export default function Testimonials() {
                             src={getImageSrc(currentTestimonial.image)}
                             alt={currentTestimonial.name}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              console.error("[Testimonials] Image failed to load:", currentTestimonial.image);
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
                           />
                         </div>
                       ) : (

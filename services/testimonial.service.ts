@@ -288,10 +288,13 @@ export async function submitTestimonial(
     image?: string; // Base64 data URL or file path
   }
 ): Promise<string> {
-  let imageUrl = submission.image;
+  let imageUrl: string | undefined = submission.image;
 
   // If image is a base64 data URL, upload to Vercel Blob Storage
   if (submission.image && submission.image.startsWith("data:")) {
+    console.log("[Testimonials] Starting image upload for:", submission.name);
+    console.log("[Testimonials] Image size:", submission.image.length, "chars");
+    
     try {
       const { storageService } = await import("@/services/storage.service");
       const sanitizedName = storageService.sanitizeFilename(submission.name);
@@ -300,11 +303,16 @@ export async function submitTestimonial(
         ? `${sanitizedName}_${cleanPhone}.jpg`
         : `${sanitizedName}_${Date.now()}.jpg`;
       
+      console.log("[Testimonials] Uploading with filename:", filename);
+      
       const result = await storageService.uploadBase64Image(submission.image, filename, 'testimonials');
       imageUrl = result.url;
+      
+      console.log("[Testimonials] Upload successful, URL:", imageUrl);
     } catch (error) {
-      console.error("[Testimonials] Failed to upload image, saving without image:", error);
-      imageUrl = undefined; // Save testimonial without image if upload fails
+      console.error("[Testimonials] Failed to upload image:", error);
+      // Don't save testimonial without image - throw error to notify user
+      throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
