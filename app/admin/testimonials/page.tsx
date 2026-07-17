@@ -156,7 +156,11 @@ export default function TestimonialsPage() {
       };
 
       if (editingTestimonial) {
-        await updateTestimonial(editingTestimonial.id, testimonialData);
+        // Include approved status if editing
+        await updateTestimonial(editingTestimonial.id, {
+          ...testimonialData,
+          approved: editingTestimonial.approved ?? false,
+        });
         toast.success("Testimonial updated successfully!");
       } else {
         await createTestimonial(testimonialData);
@@ -489,6 +493,31 @@ export default function TestimonialsPage() {
                     required
                   />
                 </div>
+
+                {/* Approved Checkbox */}
+                {editingTestimonial && (
+                  <div className="md:col-span-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingTestimonial.approved || false}
+                        onChange={(e) => {
+                          setEditingTestimonial({
+                            ...editingTestimonial,
+                            approved: e.target.checked
+                          });
+                        }}
+                        className="w-5 h-5 text-green-600 border-stone-300 rounded focus:ring-green-500"
+                      />
+                      <span className="text-sm font-medium text-stone-700">
+                        Approved for public display
+                      </span>
+                    </label>
+                    <p className="mt-1 text-xs text-stone-500 ml-8">
+                      Only approved testimonials will appear on the public page
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
