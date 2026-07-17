@@ -12,14 +12,17 @@ import {
   FolderOpen,
   CheckCircle,
   Check,
-  XCircle
+  XCircle,
+  AlertTriangle,
+  Filter
 } from "lucide-react";
 import { 
   getAllTestimonials, 
   createTestimonial, 
   updateTestimonial,
   deleteTestimonial,
-  approveTestimonial
+  approveTestimonial,
+  rejectTestimonial
 } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import toast from "react-hot-toast";
@@ -41,6 +44,9 @@ export default function TestimonialsPage() {
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const loadTestimonials = useCallback(async () => {
     setLoading(true);
@@ -61,11 +67,45 @@ export default function TestimonialsPage() {
     loadTestimonials();
   }, [loadTestimonials]);
 
-  const filteredTestimonials = testimonials.filter(t =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.quote.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTestimonials = testimonials.filter(t => {
+    const matchesSearch = 
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.quote.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    switch (filter) {
+      case "pending":
+        return matchesSearch && !t.approved && !t.rejected;
+      case "approved":
+        return matchesSearch && t.approved;
+      case "rejected":
+        return matchesSearch && t.rejected;
+      default:
+        return matchesSearch;
+    }
+  });
+
+  async function handleApprove(id: string) {
+    try {
+      await approveTestimonial(id);
+      toast.success("Testimonial approved!");
+      loadTestimonials();
+    } catch (error) {
+      toast.error("Failed to approve testimonial");
+    }
+  }
+
+  async function handleReject(id: string) {
+    try {
+      await rejectTestimonial(id, rejectReason);
+      toast.success("Testimonial rejected");
+      setRejectingId(null);
+      setRejectReason("");
+      loadTestimonials();
+    } catch (error) {
+      toast.error("Failed to reject testimonial");
+    }
+  }
 
   function openModal(testimonial?: Testimonial) {
     if (testimonial) {
@@ -123,8 +163,8 @@ export default function TestimonialsPage() {
     if (src.startsWith("/")) {
       return src;
     }
-    // Images from GitHub are stored in /testimonials/ folder
-    return `/testimonials/${src}`;
+    // Images stored in public/images/testimonials/ folder
+    return `/images/testimonials/${src}`;
   }
 
   async function handleApprove(id: string) {
@@ -221,8 +261,8 @@ export default function TestimonialsPage() {
           <div className="text-sm">
             <p className="font-medium text-amber-800">Image Upload Instructions</p>
             <p className="text-amber-700 mt-1">
-              Upload images to <code className="bg-amber-100 px-1 rounded">public/testimonials/</code> folder in your GitHub repository.
-              Then enter the filename below (e.g., <code className="bg-amber-100 px-1 rounded">photo.jpg</code>) or the full path.
+              Upload images to <code className="bg-amber-100 px-1 rounded">public/images/testimonials/</code> folder in your GitHub repository.
+              Then enter the filename below (e.g., <code className="bg-amber-100 px-1 rounded">name_phone.jpg</code>) or the full path.
             </p>
           </div>
         </div>
@@ -242,17 +282,64 @@ export default function TestimonialsPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-          <input
-            type="text"
-            placeholder="Search testimonials..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-          />
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+            <input
+              type="text"
+              placeholder="Search testimonials..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            />
+          </div>
+        </div>
+        
+        {/* Filter Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="w-4 h-4 text-stone-400" />
+          <button
+            onClick={() => setFilter("all")}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === "all"
+                ? "bg-stone-800 text-white"
+                : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+            }`}
+          >
+            All ({testimonials.length})
+          </button>
+          <button
+            onClick={() => setFilter("pending")}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === "pending"
+                ? "bg-amber-600 text-white"
+                : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+            }`}
+          >
+            Pending ({testimonials.filter(t => !t.approved && !t.rejected).length})
+          </button>
+          <button
+            onClick={() => setFilter("approved")}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === "approved"
+                ? "bg-green-600 text-white"
+                : "bg-green-50 text-green-700 hover:bg-green-100"
+            }`}
+          >
+            Approved ({testimonials.filter(t => t.approved).length})
+          </button>
+          <button
+            onClick={() => setFilter("rejected")}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === "rejected"
+                ? "bg-red-600 text-white"
+                : "bg-red-50 text-red-700 hover:bg-red-100"
+            }`}
+          >
+            Rejected ({testimonials.filter(t => t.rejected).length})
+          </button>
         </div>
       </div>
 	
@@ -277,7 +364,13 @@ export default function TestimonialsPage() {
           {filteredTestimonials.map((testimonial) => (
             <div
               key={testimonial.id}
-              className="bg-white rounded-xl border border-stone-200 overflow-hidden hover:shadow-lg transition-shadow"
+              className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg transition-shadow ${
+                testimonial.rejected 
+                  ? "border-red-200" 
+                  : testimonial.approved 
+                    ? "border-green-200" 
+                    : "border-stone-200"
+              }`}
             >
               {/* Image Header */}
               <div className="relative h-32 bg-gradient-to-br from-amber-100 to-orange-100">
@@ -293,31 +386,108 @@ export default function TestimonialsPage() {
                     <div className="text-6xl">🙏</div>
                   </div>
                 )}
+                {/* Submitted by badge */}
+                {testimonial.submittedBy === "public" && (
+                  <div className="absolute top-2 right-2 px-2 py-1 bg-blue-500 text-white text-xs font-medium rounded-full">
+                    Public
+                  </div>
+                )}
+                {testimonial.submittedBy === "admin" && (
+                  <div className="absolute top-2 right-2 px-2 py-1 bg-purple-500 text-white text-xs font-medium rounded-full">
+                    Admin
+                  </div>
+                )}
               </div>
 
               {/* Content */}
               <div className="p-5">
-                                  <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-bold text-stone-900">{testimonial.name}</h3>
                     <p className="text-sm text-stone-500">{testimonial.location}</p>
+                    {testimonial.phone && (
+                      <p className="text-xs text-stone-400 mt-1">📞 {testimonial.phone}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {!testimonial.approved && (
-                      <button
-                        onClick={() => handleApprove(testimonial.id)}
-                        className="p-2 text-stone-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Approve"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
-                    )}
+                    {/* Status Badge */}
                     {testimonial.approved && (
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
                         <Check className="w-3 h-3" />
                         Approved
                       </span>
                     )}
+                    {testimonial.rejected && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                        <X className="w-3 h-3" />
+                        Rejected
+                      </span>
+                    )}
+                    {!testimonial.approved && !testimonial.rejected && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rejection Reason */}
+                {testimonial.rejected && testimonial.rejectionReason && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                    <strong>Reason:</strong> {testimonial.rejectionReason}
+                  </div>
+                )}
+
+                <blockquote className="text-sm text-stone-600 italic line-clamp-3 mb-4">
+                  &ldquo;{testimonial.quote}&rdquo;
+                </blockquote>
+
+                <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                  <Star className="w-3 h-3" />
+                  {testimonial.years}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-stone-100">
+                  <div className="flex items-center gap-2">
+                    {!testimonial.approved && !testimonial.rejected && (
+                      <>
+                        <button
+                          onClick={() => handleApprove(testimonial.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => setRejectingId(testimonial.id)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          <XCircle className="w-3 h-3" />
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {testimonial.rejected && (
+                      <button
+                        onClick={() => handleApprove(testimonial.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Approve Instead
+                      </button>
+                    )}
+                    {testimonial.approved && (
+                      <button
+                        onClick={() => setRejectingId(testimonial.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        <XCircle className="w-3 h-3" />
+                        Reject
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => openModal(testimonial)}
                       className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
@@ -334,18 +504,62 @@ export default function TestimonialsPage() {
                     </button>
                   </div>
                 </div>
-
-                <blockquote className="text-sm text-stone-600 italic line-clamp-3 mb-4">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-
-                <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                  <Star className="w-3 h-3" />
-                  {testimonial.years}
-                </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Reject Confirmation Modal */}
+      {rejectingId && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setRejectingId(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-stone-900">Reject Testimonial</h3>
+                  <p className="text-sm text-stone-500">Are you sure you want to reject this testimonial?</p>
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Reason for rejection (optional)
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Explain why this testimonial is being rejected..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setRejectingId(null)}
+                  className="flex-1 px-4 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleReject(rejectingId)}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

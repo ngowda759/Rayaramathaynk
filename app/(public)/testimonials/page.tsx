@@ -5,14 +5,16 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import SacredDivider from "@/components/home/SacredDivider";
+import TestimonialSubmissionForm from "@/components/home/TestimonialSubmissionForm";
 import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
-import { Star, Quote, MapPin, Calendar } from "lucide-react";
+import { Star, Quote, MapPin, Calendar, PenLine } from "lucide-react";
 
 export default function TestimonialsPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
   const [loading, setLoading] = useState(true);
   const [selectedTestimonial, setSelectedTestimonial] = useState<Testimonial | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     async function loadTestimonials() {
@@ -33,15 +35,22 @@ export default function TestimonialsPage() {
   // Convert filename to full path for testimonial images
   function getImageSrc(src: string | undefined): string {
     if (!src) return "";
+    if (src.startsWith("data:")) {
+      return src; // Base64 data URL
+    }
     if (src.startsWith("http://") || src.startsWith("https://")) {
       return src;
     }
     if (src.startsWith("/")) {
       return src;
     }
-    // Images from GitHub are stored in /testimonials/ folder
-    return `/testimonials/${src}`;
+    // Images stored in public/images/testimonials/ folder
+    return `/images/testimonials/${src}`;
   }
+
+  const handleFormSuccess = () => {
+    setShowForm(false);
+  };
 
   return (
     <>
@@ -175,10 +184,13 @@ export default function TestimonialsPage() {
               help other devotees discover the divine experience at 
               Sri Raghavendra Swamy Matha.
             </p>
-            <div className="mt-8 flex items-center justify-center gap-2 text-amber-600">
-              <Calendar size={20} />
-              <span className="text-sm">Contact the temple office to share your testimonial</span>
-            </div>
+            <button
+              onClick={() => setShowForm(true)}
+              className="mt-8 inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-full transition-all transform hover:scale-105 shadow-lg"
+            >
+              <PenLine className="w-5 h-5" />
+              Submit Your Testimonial
+            </button>
           </div>
         </section>
 
@@ -252,6 +264,24 @@ export default function TestimonialsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Testimonial Submission Form Modal */}
+      {showForm && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowForm(false)}
+        >
+          <div 
+            className="w-full max-w-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TestimonialSubmissionForm 
+              onSuccess={handleFormSuccess}
+              onClose={() => setShowForm(false)}
+            />
           </div>
         </div>
       )}
