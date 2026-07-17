@@ -285,20 +285,80 @@ export async function submitTestimonial(
     location: string;
     quote: string;
     phone?: string;
-    image?: string; // Base64 data URL
+    image?: string; // Base64 data URL or file path
   }
 ): Promise<string> {
+  let imageUrl = submission.image;
+
+  // If image is a base64 data URL, upload to Firebase Storage
+  if (submission.image && submission.image.startsWith("data:")) {
+    try {
+      imageUrl = await uploadTestimonialImage(submission.image, submission.name, submission.phone);
+    } catch (error) {
+      console.error("[Testimonials] Failed to upload image, saving without image:", error);
+      imageUrl = undefined; // Save testimonial without image if upload fails
+    }
+  }
+
   return createTestimonial({
     name: submission.name,
     location: submission.location,
     quote: submission.quote,
     years: "Devotee",
-    image: submission.image,
+    image: imageUrl,
     phone: submission.phone,
     submittedBy: "public",
     approved: false,
     rejected: false,
   });
+}
+
+// Upload testimonial image to Firebase Storage
+async function uploadTestimonialImage(
+  base64Data: string,
+  name: string,
+  phone?: string
+): Promise<string> {
+  // Dynamic import to avoid SSR issues
+  const { storage } = await import("@/lib/firebase");
+  
+  if (!storage) {
+    throw new Error("Firebase Storage is not available");
+  }
+
+  // Generate unique filename
+  const sanitizedName = name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '_');
+  const cleanPhone = phone ? phone.replace(/[^0-9+]/g, '') : '';
+  const filename = cleanPhone 
+    ? `${sanitizedName}_${cleanPhone}.jpg`
+    : `${sanitizedName}_${Date.now()}.jpg`;
+  
+  const filename_with_path = `testimonials/${filename}`;
+  
+  // Convert base64 to blob
+  const response = await fetch(base64Data);
+  const blob = await response.blob();
+  
+  // Upload to Firebase Storage
+  const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+  const storageRef = ref(storage, filename_with_path);
+  
+  await uploadBytes(storageRef, blob, {
+    contentType: "image/jpeg",
+    customMetadata: {
+      uploadedBy: "public-form",
+      originalName: name,
+    },
+  });
+  
+  // Get the download URL
+  const downloadURL = await getDownloadURL(storageRef);
+  console.log("[Testimonials] Image uploaded to:", downloadURL);
+  
+  return downloadURL;
 }
 
 // Update testimonial
