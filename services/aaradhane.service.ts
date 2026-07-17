@@ -165,7 +165,14 @@ export const aaradhaneService = {
       const allEventsSnapshot = await getDocs(allEventsQ);
       console.log(`[Aaradhane] Total events in events collection: ${allEventsSnapshot.size}`);
       
-      // Filter and convert events - include all with at least a title
+      // Log all event keys for debugging
+      allEventsSnapshot.docs.forEach((doc, idx) => {
+        const data = doc.data();
+        const keys = Object.keys(data).join(', ');
+        console.log(`[Aaradhane] Event ${idx + 1} (${doc.id}): ${keys}`);
+      });
+      
+      // Filter and convert events - include all with at least a title or name
       events = allEventsSnapshot.docs
         .map(eventDocToAaradhane)
         .filter(e => e.title); // Include any event with a title
