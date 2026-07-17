@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { BookOpen, Loader2, Plus, X, Image as ImageIcon, Check } from "lucide-react";
+import { BookOpen, Loader2, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import ImageUploader from "@/components/ui/ImageUploader";
 
 import { aaradhaneService } from "@/services/aaradhane.service";
 import { AaradhaneSeva } from "@/types/aaradhane";
@@ -236,47 +237,15 @@ export default function CreateAaradhane() {
         </div>
 
         <div className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="imageUrl">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Image Filename (JPG)
-              </div>
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="imageUrl"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="e.g., aaradhane-1.jpg"
-              />
-              {imageUrl && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setImageUrl("")}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Add images to public/images/aaradhane/ in GitHub repo, then enter filename here
-            </p>
-            {imageUrl && (
-              <div className="mt-2 relative h-32 sm:h-40 md:h-48 w-full overflow-hidden rounded-lg border">
-                <img
-                  src={`/images/aaradhane/${imageUrl}`}
-                  alt="Aaradhane preview"
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
-          </div>
+          <ImageUploader
+            label="Image"
+            value={imageUrl}
+            onChange={setImageUrl}
+            folder="aaradhane"
+            accept="image/*"
+            maxSizeMB={5}
+            previewSize="lg"
+          />
 
           <div className="space-y-2">
             <Label htmlFor="displayOrder">Display Order</Label>

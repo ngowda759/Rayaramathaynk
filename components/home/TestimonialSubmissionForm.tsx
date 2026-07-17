@@ -153,17 +153,13 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
     setIsSubmitting(true);
 
     try {
-      // Generate the filename based on name and phone
-      const photoFilename = generatePhotoFilename(formData.name.trim(), formData.phone.trim());
-      // Store as the path that will be used: /images/testimonials/filename.jpg
-      const imagePath = `/images/testimonials/${photoFilename}`;
-
+      // Submit with base64 image - the service will upload to Vercel Blob Storage
       await submitTestimonial({
         name: formData.name.trim(),
         location: formData.location.trim(),
         quote: formData.quote.trim(),
         phone: formData.phone.trim() || undefined,
-        image: imagePath, // Store the path instead of base64
+        image: image || undefined, // Base64 data URL - will be uploaded to Vercel Blob
       });
 
       setIsSubmitted(true);
@@ -351,7 +347,7 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
         {/* Phone */}
         <div>
           <label className="block text-sm font-medium text-stone-700 mb-1">
-            Phone Number <span className="text-red-500">*</span>
+            Phone Number (Optional)
           </label>
           <input
             type="tel"
@@ -360,10 +356,9 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
             onChange={handleInputChange}
             placeholder="+91 98765 43210"
             className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
-            required
           />
           <p className="text-xs text-stone-500 mt-1">
-            Photo will be saved with name and phone as filename
+            Optional - for photo filename identification
           </p>
         </div>
 
