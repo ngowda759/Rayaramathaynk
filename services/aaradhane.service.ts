@@ -134,30 +134,26 @@ export const aaradhaneService = {
     // Try to get events from "events" collection (auto-generated)
     let events: Aaradhane[] = [];
     try {
-      // First try with category filter
-      const eventsQ = query(
-        collection(db, EVENTS_COLLECTION),
-        where("category", "==", "Aaradhane")
-      );
-      const eventsSnapshot = await getDocs(eventsQ);
-      events = eventsSnapshot.docs.map(eventDocToAaradhane);
-      console.log(`[Aaradhane] Found ${events.length} events with category filter`);
-    } catch (error) {
-      console.warn("[Aaradhane] Could not read with category filter:", error);
+      // Query all events without filter to see what's there
+      const allEventsQ = query(collection(db, EVENTS_COLLECTION));
+      const allEventsSnapshot = await getDocs(allEventsQ);
+      console.log(`[Aaradhane] Total events in events collection: ${allEventsSnapshot.size}`);
       
-      // Fallback: query all events and filter in memory
-      try {
-        const allEventsQ = query(collection(db, EVENTS_COLLECTION));
-        const allEventsSnapshot = await getDocs(allEventsQ);
-        console.log(`[Aaradhane] Total events in collection: ${allEventsSnapshot.size}`);
-        
-        events = allEventsSnapshot.docs
-          .map(eventDocToAaradhane)
-          .filter(e => e.title || e.guruName); // Filter valid entries
-        console.log(`[Aaradhane] Found ${events.length} events after filtering`);
-      } catch (fallbackError) {
-        console.warn("[Aaradhane] Could not read events collection:", fallbackError);
+      // Log the first few events for debugging
+      if (allEventsSnapshot.size > 0) {
+        const sampleDoc = allEventsSnapshot.docs[0];
+        const sampleData = sampleDoc.data();
+        console.log(`[Aaradhane] Sample event keys:`, Object.keys(sampleData).join(', '));
+        console.log(`[Aaradhane] Sample event category:`, sampleData.category);
       }
+      
+      // Filter and convert events
+      events = allEventsSnapshot.docs
+        .map(eventDocToAaradhane)
+        .filter(e => e.title || e.guruName); // Filter valid entries
+      console.log(`[Aaradhane] Found ${events.length} valid events`);
+    } catch (error) {
+      console.warn("[Aaradhane] Could not read events collection:", error);
     }
     
     // Also try to get from "aaradhane" collection (manually created)
