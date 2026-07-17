@@ -263,11 +263,16 @@ export async function createTestimonial(
       years: testimonial.years || "",
       image: testimonial.image || null,
       phone: testimonial.phone || null,
-      approved: false, // New testimonials need approval
-      rejected: false,
+      approved: testimonial.approved ?? false, // Use passed value or default to false
+      rejected: testimonial.rejected ?? false,
       submittedBy: testimonial.submittedBy || "admin", // Track who submitted
       createdAt: serverTimestamp(),
     };
+
+    console.log("[Testimonials] Saving testimonial data:", JSON.stringify({
+      ...testimonialData,
+      image: testimonialData.image ? "HAS_IMAGE_URL" : "NO_IMAGE"
+    }));
 
     const docRef = await addDoc(collection(firebaseDb, TESTIMONIALS_COLLECTION), testimonialData);
     console.log("[Testimonials] Created testimonial with ID:", docRef.id);
