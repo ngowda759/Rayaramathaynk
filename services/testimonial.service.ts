@@ -290,7 +290,7 @@ export async function submitTestimonial(
 ): Promise<string> {
   let imageUrl = submission.image;
 
-  // If image is a base64 data URL, upload to Firebase Storage
+  // If image is a base64 data URL, upload to Vercel Blob Storage
   if (submission.image && submission.image.startsWith("data:")) {
     try {
       imageUrl = await uploadTestimonialImage(submission.image, submission.name, submission.phone);
@@ -313,22 +313,14 @@ export async function submitTestimonial(
   });
 }
 
-// Upload testimonial image to Firebase Storage
+// Upload testimonial image to Vercel Blob Storage
 async function uploadTestimonialImage(
   base64Data: string,
   name: string,
   phone?: string
 ): Promise<string> {
-  console.log("[Testimonials] Starting image upload for:", name);
+  console.log("[Testimonials] Starting Vercel Blob upload for:", name);
   
-  // Dynamic import to avoid SSR issues
-  const { storage } = await import("@/lib/firebase");
-  
-  if (!storage) {
-    console.error("[Testimonials] Firebase Storage not available");
-    throw new Error("Firebase Storage is not available");
-  }
-
   // Generate unique filename
   const sanitizedName = name.toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
@@ -339,10 +331,9 @@ async function uploadTestimonialImage(
     ? `${sanitizedName}_${cleanPhone}.jpg`
     : `${sanitizedName}_${Date.now()}.jpg`;
   
-  const filePath = `testimonials/${filename}`;
-  console.log("[Testimonials] Uploading to path:", filePath);
+  console.log("[Testimonials] Filename:", filename);
   
-  // Convert base64 to blob
+  // Convert base64 to Blob
   const response = await fetch(base64Data);
   if (!response.ok) {
     throw new Error("Failed to fetch base64 image data");
@@ -350,22 +341,36 @@ async function uploadTestimonialImage(
   const blob = await response.blob();
   console.log("[Testimonials] Image blob size:", blob.size, "bytes");
   
-  // Upload to Firebase Storage
-  const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-  const storageRef = ref(storage, filePath);
+  // Upload to Vercel Blob using the PUT API
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  const storeId = process.env.BLOB_STORE_ID;
   
-  const snapshot = await uploadBytes(storageRef, blob, {
-    contentType: "image/jpeg",
-    customMetadata: {
-      uploadedBy: "public-form",
-      originalName: name,
-    },
-  });
+  if (!blobToken || !storeId) {
+    throw new Error("Vercel Blob credentials not configured");
+  }
   
-  console.log("[Testimonials] Upload complete, metadata:", snapshot.metadata);
-  
-  // Get the download URL
-  const downloadURL = await getDownloadURL(storageRef);
+  // Use Vercel Blob API
+  const uploadResponse = await fetch(
+    `https://blob.vercel-storage.com/${filename}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${blobToken}`,
+        'x-nft-store-id': storeId,
+        'Content-Type': 'image/jpeg',
+      },
+      body: blob,
+    }
+  );
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    console.error("[Testimonials] Vercel Blob upload failed:", errorText);
+    throw new Error(`Upload failed: ${uploadResponse.status}`);
+  }
+
+  // Get the URL from response headers or construct it
+  const downloadURL = `https://${storeId}.public.vercel-storage.com/${filename}`;
   console.log("[Testimonials] Image uploaded successfully, URL:", downloadURL);
   
   return downloadURL;
