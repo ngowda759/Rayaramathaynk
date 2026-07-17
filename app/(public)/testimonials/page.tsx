@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
@@ -106,10 +107,12 @@ export default function TestimonialsPage() {
                     {testimonial.image ? (
                       <div className="relative mb-6">
                         <div className="relative h-20 w-20 mx-auto rounded-full overflow-hidden border-4 border-amber-100 shadow-lg">
-                          <img
+                          <Image
                             src={getImageSrc(testimonial.image)}
                             alt={testimonial.name}
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
+                            unoptimized={true}
                           />
                         </div>
                       </div>
@@ -227,10 +230,12 @@ export default function TestimonialsPage() {
               {selectedTestimonial.image ? (
                 <div className="relative mb-8">
                   <div className="relative h-32 w-32 mx-auto rounded-full overflow-hidden border-4 border-amber-200 shadow-xl">
-                    <img
+                    <Image
                       src={getImageSrc(selectedTestimonial.image)}
                       alt={selectedTestimonial.name}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
+                      unoptimized={true}
                     />
                   </div>
                 </div>
