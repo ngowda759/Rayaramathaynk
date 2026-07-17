@@ -62,6 +62,12 @@ export interface GuruParamparaRecord {
   /** Optional description about significance */
   description?: string;
   
+  /** Optional rituals performed during Aaradhane */
+  rituals?: string[];
+  
+  /** Optional offerings made during Aaradhane */
+  offerings?: string[];
+  
   /** Last updated timestamp */
   updatedAt?: string;
 }
