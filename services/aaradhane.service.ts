@@ -14,6 +14,7 @@ import { db } from "@/lib/firebase";
 import { Aaradhane, AaradhaneStats } from "@/types/aaradhane";
 
 const COLLECTION_NAME = "aaradhane";
+const AARADHANES_COLLECTION = "aaradhanes"; // With 's' - alternative collection name
 const EVENTS_COLLECTION = "events";
 
 function isAaradhaneUpcoming(dates: string[]): boolean {
@@ -160,52 +161,49 @@ export const aaradhaneService = {
     // Try to get events from "events" collection (auto-generated)
     let events: Aaradhane[] = [];
     try {
-      // Query all events from events collection
       const allEventsQ = query(collection(db, EVENTS_COLLECTION));
       const allEventsSnapshot = await getDocs(allEventsQ);
-      console.log(`[Aaradhane] Total events in events collection: ${allEventsSnapshot.size}`);
+      console.log(`[Aaradhane] events collection: ${allEventsSnapshot.size}`);
       
-      // Log all event keys for debugging
-      allEventsSnapshot.docs.forEach((doc, idx) => {
-        const data = doc.data();
-        const keys = Object.keys(data).join(', ');
-        console.log(`[Aaradhane] Event ${idx + 1} (${doc.id}): ${keys}`);
-      });
-      
-      // Filter and convert events - include all with at least a title or name
       events = allEventsSnapshot.docs
         .map(eventDocToAaradhane)
-        .filter(e => e.title); // Include any event with a title
-      console.log(`[Aaradhane] Found ${events.length} valid events`);
+        .filter(e => e.title);
     } catch (error) {
-      console.warn("[Aaradhane] Could not read events collection:", error);
+      console.warn("[Aaradhane] events collection error:", error);
     }
     
-    // Also try to get from "aaradhane" collection (manually created)
-    let aaradhanes: Aaradhane[] = [];
+    // Try "aaradhane" collection
+    let fromAaradhane: Aaradhane[] = [];
     try {
-      const aaradhanaQ = query(
-        collection(db, COLLECTION_NAME),
-        orderBy("displayOrder", "asc")
-      );
-      const aaradhanaSnapshot = await getDocs(aaradhanaQ);
-      aaradhanes = aaradhanaSnapshot.docs.map(docToAaradhane);
-      console.log(`[Aaradhane] Found ${aaradhanes.length} from aaradhane collection`);
+      const q = query(collection(db, COLLECTION_NAME), orderBy("displayOrder", "asc"));
+      const snapshot = await getDocs(q);
+      fromAaradhane = snapshot.docs.map(docToAaradhane);
+      console.log(`[Aaradhane] aaradhane collection: ${fromAaradhane.length}`);
     } catch (error) {
-      console.warn("[Aaradhane] Could not read from aaradhane collection:", error);
+      console.warn("[Aaradhane] aaradhane collection error:", error);
     }
     
-    // Merge and deduplicate by ID (prefer events collection data)
+    // Try "aaradhanes" collection (with 's')
+    let fromAaradhanes: Aaradhane[] = [];
+    try {
+      const q = query(collection(db, AARADHANES_COLLECTION), orderBy("displayOrder", "asc"));
+      const snapshot = await getDocs(q);
+      fromAaradhanes = snapshot.docs.map(docToAaradhane);
+      console.log(`[Aaradhane] aaradhanes collection: ${fromAaradhanes.length}`);
+    } catch (error) {
+      console.warn("[Aaradhane] aaradhanes collection error:", error);
+    }
+    
+    // Merge from all collections
     const merged = [...events];
-    for (const a of aaradhanes) {
-      if (!merged.find(e => e.id === a.id)) {
-        merged.push(a);
-      }
+    for (const a of fromAaradhane) {
+      if (!merged.find(e => e.id === a.id)) merged.push(a);
+    }
+    for (const a of fromAaradhanes) {
+      if (!merged.find(e => e.id === a.id)) merged.push(a);
     }
     
-    // Sort by displayOrder
     merged.sort((a, b) => a.displayOrder - b.displayOrder);
-    
     console.log(`[Aaradhane] Total merged: ${merged.length}`);
     return merged;
   },
