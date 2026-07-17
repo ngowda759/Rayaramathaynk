@@ -13,12 +13,12 @@ interface FirebaseConfigValidation {
 const validateFirebaseConfig = (): FirebaseConfigValidation => {
   const missingFields: string[] = [];
 
-  // Access env vars directly (required for Turbopack compatibility)
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
-  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
+  // Check if Firebase config has valid values (from env vars or fallbacks)
+  const apiKey = firebaseConfig.apiKey;
+  const authDomain = firebaseConfig.authDomain;
+  const projectId = firebaseConfig.projectId;
+  const messagingSenderId = firebaseConfig.messagingSenderId;
+  const appId = firebaseConfig.appId;
 
   if (!apiKey || apiKey === "" || apiKey === "your-api-key") {
     missingFields.push("API Key");
