@@ -15,11 +15,15 @@ import { useRef, useState, useEffect, useMemo } from "react";
 
 import TempleButton from "@/components/ui/TempleButton";
 import { useHomepage } from "@/hooks/useHomepage";
+import { DeepaFlame } from "@/components/ui/DeepaFlame";
+import { FloatingParticles, FloatingDots } from "@/components/ui/FloatingParticles";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function Hero() {
   const { homepage, loading } = useHomepage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const reducedMotion = useReducedMotion();
   
   // Create MotionValue using useMemo to avoid initialization during render
   const scrollYProgress = useMemo(() => new MotionValue(0), []);
@@ -97,9 +101,22 @@ export default function Hero() {
 
   return (
     <section ref={containerRef} className="relative overflow-hidden bg-sacred-gradient">
+      {/* Floating particles background */}
+      {!reducedMotion && (
+        <>
+          <FloatingParticles
+            count={25}
+            className="opacity-40"
+            color="rgba(251, 191, 36, 0.5)"
+            minSize={2}
+            maxSize={5}
+            speed={0.2}
+          />
+          <FloatingDots count={15} size={3} color="rgba(255, 180, 50, 0.4)" />
+        </>
+      )}
 
       {/* Temple texture */}
-
       <div
         className="absolute inset-0 opacity-[0.04] sacred-pattern"
         style={{
@@ -110,47 +127,52 @@ export default function Hero() {
       />
 
       {/* Golden Aura */}
-
       <div className="absolute right-0 top-0 hidden h-full w-1/2 lg:block">
-
         <div className="absolute right-12 top-32 h-[520px] w-[520px] rounded-full bg-gradient-to-br from-amber-300 via-orange-200 to-amber-400 blur-[120px] opacity-50 animate-pulse-ring" />
-
       </div>
 
       <div className="relative mx-auto flex min-h-[92vh] max-w-7xl items-center px-6 lg:px-10">
-
         <div className="grid w-full items-center gap-10 lg:grid-cols-2">
-
           {/* LEFT */}
-
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
+            initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: reducedMotion ? 0 : 0.8 }}
           >
-
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700">
-
+            <motion.div
+              initial={reducedMotion ? {} : { opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: reducedMotion ? 0 : 0.2 }}
+              className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700"
+            >
               <Star size={16} className="fill-amber-500" />
-
               {announcement}
+            </motion.div>
 
-            </div>
-
-            <h1 className="mt-8 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-stone-900">
-
+            <motion.h1
+              initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reducedMotion ? 0 : 0.3, duration: 0.6 }}
+              className="mt-8 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-stone-900"
+            >
               {heroTitle}
+            </motion.h1>
 
-            </h1>
-
-            <p className="mt-6 max-w-xl text-lg leading-8 text-stone-600">
-
+            <motion.p
+              initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reducedMotion ? 0 : 0.4, duration: 0.6 }}
+              className="mt-6 max-w-xl text-lg leading-8 text-stone-600"
+            >
               {heroSubtitle}
+            </motion.p>
 
-            </p>
-
-            <div className="mt-10 flex flex-wrap gap-4">
-
+            <motion.div
+              initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reducedMotion ? 0 : 0.5, duration: 0.6 }}
+              className="mt-10 flex flex-wrap gap-4"
+            >
               <TempleButton href="/aaradhane" size="lg">
                 Aaradhane
               </TempleButton>
@@ -169,11 +191,14 @@ export default function Hero() {
                 <Images className="mr-2 h-5 w-5" />
                 Gallery
               </TempleButton>
+            </motion.div>
 
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-4">
-
+            <motion.div
+              initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reducedMotion ? 0 : 0.6, duration: 0.6 }}
+              className="mt-6 flex flex-wrap gap-4"
+            >
               <TempleButton href="/calendar" variant="outline" size="md">
                 <Calendar className="mr-2 h-4 w-4" />
                 Festivities
@@ -183,70 +208,48 @@ export default function Hero() {
                 <CalendarDays className="mr-2 h-4 w-4" />
                 Events
               </TempleButton>
+            </motion.div>
 
-            </div>
-
-            <div className="mt-14 flex flex-wrap gap-10">
-
+            <motion.div
+              initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reducedMotion ? 0 : 0.7, duration: 0.6 }}
+              className="mt-14 flex flex-wrap gap-10"
+            >
               <div>
-
-                <h2 className="text-4xl font-bold text-amber-600">
-                  Daily
-                </h2>
-
-                <p className="mt-2 text-stone-600">
-                  Pooja
-                </p>
-
+                <h2 className="text-4xl font-bold text-amber-600">Daily</h2>
+                <p className="mt-2 text-stone-600">Pooja</p>
               </div>
 
               <div>
-
-                <h2 className="text-4xl font-bold text-amber-600">
-                  365
-                </h2>
-
-                <p className="mt-2 text-stone-600">
-                  Days of Seva
-                </p>
-
+                <h2 className="text-4xl font-bold text-amber-600">365</h2>
+                <p className="mt-2 text-stone-600">Days of Seva</p>
               </div>
 
               <div>
-
-                <h2 className="text-4xl font-bold text-amber-600">
-                  Guru
-                </h2>
-
-                <p className="mt-2 text-stone-600">
-                  Blessings
-                </p>
-
+                <h2 className="text-4xl font-bold text-amber-600">Guru</h2>
+                <p className="mt-2 text-stone-600">Blessings</p>
               </div>
-
-            </div>
-
+            </motion.div>
           </motion.div>
 
           {/* RIGHT */}
-
           <motion.div
-            initial={{ opacity: 0, x: 80 }}
+            initial={reducedMotion ? { opacity: 1 } : { opacity: 0, x: 80 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1 }}
+            transition={{ duration: reducedMotion ? 0 : 1 }}
             className="relative flex justify-center"
-            style={isMounted ? { opacity: heroOpacity } : { opacity: 1 }}
+            style={isMounted && !reducedMotion ? { opacity: heroOpacity } : { opacity: 1 }}
           >
-
             {/* Enhanced glow */}
             <div className="absolute h-[520px] w-[520px] rounded-full bg-gradient-to-br from-amber-300 via-orange-200 to-amber-400 blur-[140px] opacity-60 animate-pulse-ring" />
 
             {/* Parallax Image Container with ornate frame */}
             <motion.div
-              style={isMounted ? { y: heroImageY } : { y: 0 }}
+              style={isMounted && !reducedMotion ? { y: heroImageY } : { y: 0 }}
               className="relative z-10 group hidden md:block"
             >
-              {/* Ornate golden frame - 4-5px border */}
+              {/* Ornate golden frame */}
               <div className="absolute -inset-2 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-2xl opacity-60 shadow-lg shadow-amber-500/30" />
               <div className="absolute -inset-1 bg-gradient-to-br from-amber-300 via-amber-400 to-orange-400 rounded-xl" />
               
@@ -264,103 +267,80 @@ export default function Hero() {
                 {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
                 
-                {/* Glowing border overlay - subtle golden glow */}
+                {/* Glowing border overlay */}
                 <div className="absolute inset-0 rounded-xl ring-1 ring-amber-400/50 shadow-[0_0_15px_rgba(251,191,36,0.3)]" />
               </div>
             </motion.div>
 
-            {/* Deepa (Lamp) decorations - identical on both sides */}
-            {/* Left Lamp */}
-            <motion.div
-              animate={{
-                y: [-2, 3, -2],
-                opacity: [0.8, 1, 0.8],
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="absolute -left-8 top-[42%] hidden lg:block"
-              aria-hidden="true"
-            >
-              <div className="relative">
-                {/* Soft golden glow effect - layered for depth */}
-                <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/25 blur-2xl animate-pulse" />
-                <div className="absolute inset-0 -m-2 rounded-full bg-orange-300/20 blur-xl" />
-                {/* Deepa Lamp SVG - transparent background with soft golden glow */}
-                <Image
-                  src="/images/deepa.svg"
-                  alt=""
-                  width={56}
-                  height={68}
-                  className="relative"
-                  style={{
-                    filter: 'drop-shadow(0 0 8px rgba(255,190,40,0.55)) drop-shadow(0 0 18px rgba(255,180,0,0.35))',
-                    mixBlendMode: 'multiply',
-                  }}
-                  unoptimized
-                />
-              </div>
-            </motion.div>
+            {/* Realistic Deepa Flames with Canvas Animation */}
+            {/* Left Flame */}
+            {!reducedMotion && (
+              <motion.div
+                animate={{
+                  y: [-3, 4, -3],
+                  opacity: [0.85, 1, 0.85],
+                }}
+                transition={{
+                  duration: 3.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className="absolute -left-16 top-[38%] hidden lg:block"
+                aria-hidden="true"
+              >
+                <DeepaFlame size="lg" enableSparks glowIntensity="medium" />
+              </motion.div>
+            )}
 
-            {/* Right Lamp */}
-            <motion.div
-              animate={{
-                y: [3, -2, 3],
-                opacity: [0.8, 1, 0.8],
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 0.4,
-              }}
-              className="absolute -right-8 top-[42%] hidden lg:block"
-              aria-hidden="true"
-            >
-              <div className="relative">
-                {/* Soft golden glow effect - layered for depth */}
-                <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/25 blur-2xl animate-pulse" />
-                <div className="absolute inset-0 -m-2 rounded-full bg-orange-300/20 blur-xl" />
-                {/* Deepa Lamp SVG - transparent background with soft golden glow */}
-                <Image
-                  src="/images/deepa.svg"
-                  alt=""
-                  width={56}
-                  height={68}
-                  className="relative"
-                  style={{
-                    filter: 'drop-shadow(0 0 8px rgba(255,190,40,0.55)) drop-shadow(0 0 18px rgba(255,180,0,0.35))',
-                    mixBlendMode: 'multiply',
-                  }}
-                  unoptimized
-                />
-              </div>
-            </motion.div>
+            {/* Right Flame */}
+            {!reducedMotion && (
+              <motion.div
+                animate={{
+                  y: [4, -3, 4],
+                  opacity: [0.85, 1, 0.85],
+                }}
+                transition={{
+                  duration: 3.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.5,
+                }}
+                className="absolute -right-16 top-[38%] hidden lg:block"
+                aria-hidden="true"
+              >
+                <DeepaFlame size="lg" enableSparks glowIntensity="medium" />
+              </motion.div>
+            )}
 
+            {/* Static glow for reduced motion */}
+            {reducedMotion && (
+              <>
+                <div className="absolute -left-16 top-[38%] hidden lg:block">
+                  <DeepaFlame size="lg" enableSparks={false} glowIntensity="medium" />
+                </div>
+                <div className="absolute -right-16 top-[38%] hidden lg:block">
+                  <DeepaFlame size="lg" enableSparks={false} glowIntensity="medium" />
+                </div>
+              </>
+            )}
           </motion.div>
-
         </div>
-
       </div>
 
-            {/* Scroll Indicator */}
-
+      {/* Scroll Indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.5 }}
+        transition={{ delay: reducedMotion ? 0 : 1.5 }}
         className="absolute bottom-8 left-1/2 -translate-x-1/2"
       >
         <div className="flex flex-col items-center gap-2">
-
           <span className="text-xs font-medium uppercase tracking-[0.3em] text-stone-500">
             Scroll
           </span>
 
           <motion.div
-            animate={{ y: [0, 10, 0] }}
+            animate={reducedMotion ? {} : { y: [0, 10, 0] }}
             transition={{
               duration: 1.5,
               repeat: Infinity,
@@ -371,10 +351,8 @@ export default function Hero() {
               className="rotate-90 text-amber-600"
             />
           </motion.div>
-
         </div>
       </motion.div>
-
     </section>
   );
 }

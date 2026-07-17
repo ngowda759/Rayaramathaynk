@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const cards = [
   {
@@ -34,6 +35,8 @@ const cards = [
 ];
 
 export default function TempleInfo() {
+  const reducedMotion = useReducedMotion();
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf4] via-white to-[#fff8ef] py-24">
 
@@ -52,19 +55,36 @@ export default function TempleInfo() {
 
         <div className="mx-auto max-w-3xl text-center">
 
-          <span className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
+          <motion.span
+            initial={reducedMotion ? {} : { opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700"
+          >
             TEMPLE INFORMATION
-          </span>
+          </motion.span>
 
-          <h2 className="mt-6 text-5xl font-bold text-stone-900">
+          <motion.h2
+            initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: reducedMotion ? 0 : 0.1 }}
+            className="mt-6 text-5xl font-bold text-stone-900"
+          >
             Experience Divine Peace
-          </h2>
+          </motion.h2>
 
-          <p className="mt-6 text-lg leading-8 text-stone-600">
+          <motion.p
+            initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: reducedMotion ? 0 : 0.2 }}
+            className="mt-6 text-lg leading-8 text-stone-600"
+          >
             Sri Rayara Matha is a sacred place of devotion,
             daily poojas, spiritual learning and community
             service dedicated to Sri Raghavendra Swamy.
-          </p>
+          </motion.p>
 
         </div>
 
@@ -76,18 +96,19 @@ export default function TempleInfo() {
             return (
               <motion.div
                 key={card.title}
-                initial={{ opacity: 0, y: 40 }}
+                initial={reducedMotion ? { opacity: 1 } : { opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{
-                  duration: 0.5,
-                  delay: index * 0.15,
+                  duration: reducedMotion ? 0.01 : 0.5,
+                  delay: reducedMotion ? 0 : index * 0.15,
                 }}
                 viewport={{ once: true }}
-                className="group rounded-3xl border border-amber-100 bg-white/80 p-8 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-3 hover:shadow-2xl"
+                whileHover={reducedMotion ? {} : { y: -8, transition: { duration: 0.2 } }}
+                className="group rounded-3xl border border-amber-100 bg-white/80 p-8 shadow-lg backdrop-blur transition-all duration-300 hover:shadow-2xl"
               >
 
                 <div
-                  className={`inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} text-white shadow-lg`}
+                  className={`inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${card.color} text-white shadow-lg transition-transform duration-300 group-hover:scale-110`}
                 >
                   <Icon size={30} />
                 </div>
@@ -110,7 +131,13 @@ export default function TempleInfo() {
 
         </div>
 
-        <div className="mt-20 rounded-[32px] bg-gradient-to-r from-amber-600 to-orange-500 p-10 text-white shadow-2xl">
+        <motion.div
+          initial={reducedMotion ? {} : { opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: reducedMotion ? 0.01 : 0.5 }}
+          className="mt-20 rounded-[32px] bg-gradient-to-r from-amber-600 to-orange-500 p-10 text-white shadow-2xl"
+        >
 
           <div className="grid items-center gap-8 lg:grid-cols-2">
 
@@ -133,14 +160,14 @@ export default function TempleInfo() {
 
               <Link
                 href="/sevas"
-                className="rounded-2xl bg-white px-8 py-4 font-semibold text-amber-700 transition hover:scale-105"
+                className="rounded-2xl bg-white px-8 py-4 font-semibold text-amber-700 transition-all hover:scale-105 hover:shadow-lg"
               >
                 Book Seva
               </Link>
 
               <Link
                 href="/about"
-                className="flex items-center gap-2 rounded-2xl border border-white/40 px-8 py-4 font-semibold transition hover:bg-white/10"
+                className="flex items-center gap-2 rounded-2xl border border-white/40 px-8 py-4 font-semibold transition-all hover:bg-white/10"
               >
                 Learn More
                 <ArrowRight size={18} />
@@ -150,7 +177,7 @@ export default function TempleInfo() {
 
           </div>
 
-        </div>
+        </motion.div>
 
       </div>
 

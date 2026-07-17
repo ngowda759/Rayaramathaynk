@@ -10,9 +10,11 @@ import {
 } from "lucide-react";
 
 import { useHomepage } from "@/hooks/useHomepage";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function TempleTimings() {
   const { homepage, loading } = useHomepage();
+  const reducedMotion = useReducedMotion();
 
   if (loading) {
     return (
@@ -60,34 +62,52 @@ export default function TempleTimings() {
 
         <div className="mx-auto max-w-3xl text-center">
 
-          <span className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
+          <motion.span
+            initial={reducedMotion ? {} : { opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700"
+          >
             TEMPLE TIMINGS
-          </span>
+          </motion.span>
 
-          <h2 className="mt-6 text-5xl font-bold text-stone-900">
+          <motion.h2
+            initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: reducedMotion ? 0 : 0.1 }}
+            className="mt-6 text-5xl font-bold text-stone-900"
+          >
             Plan Your Visit
-          </h2>
+          </motion.h2>
 
-          <p className="mt-6 text-lg leading-8 text-stone-600">
+          <motion.p
+            initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: reducedMotion ? 0 : 0.2 }}
+            className="mt-6 text-lg leading-8 text-stone-600"
+          >
             We welcome devotees every day for Darshan, Sevas and
             spiritual activities. Please plan your visit according
             to the timings below.
-          </p>
+          </motion.p>
 
         </div>
 
         <div className="mt-16 grid gap-8 lg:grid-cols-2">
 
           <motion.div
-            initial={{ opacity: 0, x: -40 }}
+            initial={reducedMotion ? { opacity: 1 } : { opacity: 0, x: -40 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className="rounded-[32px] border border-amber-100 bg-white p-10 shadow-xl"
+            transition={{ duration: reducedMotion ? 0.01 : 0.5 }}
+            className="rounded-[32px] border border-amber-100 bg-white p-10 shadow-xl transition-shadow duration-300 hover:shadow-2xl"
           >
 
             <div className="flex items-center gap-5">
 
-              <div className="flex h-18 w-18 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500 to-orange-500 p-5 text-white shadow-lg">
+              <div className="flex h-18 w-18 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500 to-orange-500 p-5 text-white shadow-lg transition-transform duration-300 hover:scale-110">
 
                 <Sunrise size={34} />
 
@@ -111,8 +131,12 @@ export default function TempleTimings() {
 
               {morningSchedule.map((item) => (
 
-                <div
+                <motion.div
                   key={item}
+                  initial={reducedMotion ? {} : { opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: reducedMotion ? 0 : 0.1 }}
                   className="flex items-center gap-4 rounded-2xl bg-amber-50 p-4"
                 >
 
@@ -125,7 +149,7 @@ export default function TempleTimings() {
                     {item}
                   </span>
 
-                </div>
+                </motion.div>
 
               ))}
 
@@ -134,15 +158,16 @@ export default function TempleTimings() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, x: 40 }}
+            initial={reducedMotion ? { opacity: 1 } : { opacity: 0, x: 40 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className="rounded-[32px] border border-sky-100 bg-white p-10 shadow-xl"
+            transition={{ duration: reducedMotion ? 0.01 : 0.5 }}
+            className="rounded-[32px] border border-sky-100 bg-white p-10 shadow-xl transition-shadow duration-300 hover:shadow-2xl"
           >
 
             <div className="flex items-center gap-5">
 
-              <div className="flex h-18 w-18 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-500 to-blue-600 p-5 text-white shadow-lg">
+              <div className="flex h-18 w-18 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-500 to-blue-600 p-5 text-white shadow-lg transition-transform duration-300 hover:scale-110">
 
                 <Sunset size={34} />
 
@@ -166,8 +191,12 @@ export default function TempleTimings() {
 
               {eveningSchedule.map((item) => (
 
-                <div
+                <motion.div
                   key={item}
+                  initial={reducedMotion ? {} : { opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: reducedMotion ? 0 : 0.1 }}
                   className="flex items-center gap-4 rounded-2xl bg-sky-50 p-4"
                 >
 
@@ -180,7 +209,7 @@ export default function TempleTimings() {
                     {item}
                   </span>
 
-                </div>
+                </motion.div>
 
               ))}
 
@@ -191,9 +220,10 @@ export default function TempleTimings() {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={reducedMotion ? {} : { opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
+          transition={{ duration: reducedMotion ? 0.01 : 0.5 }}
           className="mt-14 rounded-[36px] bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 p-10 text-white shadow-2xl"
         >
 
