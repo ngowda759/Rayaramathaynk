@@ -570,23 +570,34 @@ export async function getAnalyticsDashboard(
       checkAIHealth(),
     ]);
     
-    // Get conversation counts
-    const sessionsQuery = query(
-      collection(db, COLLECTIONS.CHAT_SESSIONS),
-      where("createdAt", ">=", Timestamp.fromDate(new Date(start))),
-      where("createdAt", "<=", Timestamp.fromDate(new Date(end)))
-    );
-    const sessionsSnap = await getCountFromServer(sessionsQuery);
-    const totalConversations = sessionsSnap.data().count;
-    
-    const messagesQuery = query(
-      collection(db, COLLECTIONS.CHAT_MESSAGES),
-      where("timestamp", ">=", Timestamp.fromDate(new Date(start))),
-      where("timestamp", "<=", Timestamp.fromDate(new Date(end)))
-    );
-    const messagesSnap = await getCountFromServer(messagesQuery);
-    const totalMessages = messagesSnap.data().count;
-    
+    // Get conversation counts with error handling for missing indexes
+    let totalConversations = 0;
+    let totalMessages = 0;
+
+    try {
+      const sessionsQuery = query(
+        collection(db, COLLECTIONS.CHAT_SESSIONS),
+        where("createdAt", ">=", Timestamp.fromDate(new Date(start))),
+        where("createdAt", "<=", Timestamp.fromDate(new Date(end)))
+      );
+      const sessionsSnap = await getCountFromServer(sessionsQuery);
+      totalConversations = sessionsSnap.data().count;
+    } catch (error) {
+      console.warn("Could not get sessions count:", error);
+    }
+
+    try {
+      const messagesQuery = query(
+        collection(db, COLLECTIONS.CHAT_MESSAGES),
+        where("timestamp", ">=", Timestamp.fromDate(new Date(start))),
+        where("timestamp", "<=", Timestamp.fromDate(new Date(end)))
+      );
+      const messagesSnap = await getCountFromServer(messagesQuery);
+      totalMessages = messagesSnap.data().count;
+    } catch (error) {
+      console.warn("Could not get messages count:", error);
+    }
+
     const dashboard: AIAnalyticsDashboard = {
       overview: {
         totalConversations,
