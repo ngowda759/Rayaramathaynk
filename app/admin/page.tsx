@@ -409,148 +409,177 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="relative overflow-hidden rounded-[32px] border border-blue-200/50 bg-white p-8 shadow-xl shadow-blue-500/5"
+        className="space-y-6"
       >
-        {/* Decorative corner */}
-        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-100/30 to-transparent rounded-bl-full" />
-        
-        {/* Top gradient border */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600" />
-        
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25">
-                <Globe className="h-5 w-5" />
-              </div>
+        {/* Section Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25">
+              <Globe className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-stone-800">Public Website Analytics</h2>
+              <p className="text-sm text-stone-500">Community & AI Performance Overview</p>
+            </div>
+          </div>
+          <Link 
+            href="/ai/analytics" 
+            className="inline-flex items-center gap-2 rounded-lg bg-stone-100 px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-200 transition-colors"
+          >
+            View Full Analytics
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+
+        {/* Stats Row - Community Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-stone-800">Public Website Analytics</h2>
-                <p className="text-sm text-stone-500">Community engagement & AI assistant stats</p>
+                <p className="text-xs text-stone-500">Users</p>
+                <p className="text-xl font-bold text-stone-900 mt-1">{publicStats.totalUsers}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-blue-50">
+                <Users className="w-5 h-5 text-blue-600" />
               </div>
             </div>
-            <Link 
-              href="/ai/analytics" 
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
-            >
-              View Full Analytics
-              <ArrowRight className="h-4 w-4" />
-            </Link>
           </div>
-          
-          {/* Stats Grid */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-6">
-            {/* Community Stats */}
-            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="h-4 w-4 text-blue-600" />
-                <p className="text-xs font-medium text-stone-500">Users</p>
+          <div className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-500">Volunteers</p>
+                <p className="text-xl font-bold text-stone-900 mt-1">{publicStats.activeVolunteers}</p>
               </div>
-              <p className="text-2xl font-bold text-stone-900">{publicStats.totalUsers}</p>
+              <div className="p-2 rounded-lg bg-green-50">
+                <UserCheck className="w-5 h-5 text-green-600" />
+              </div>
             </div>
-            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <UserCheck className="h-4 w-4 text-green-600" />
-                <p className="text-xs font-medium text-stone-500">Volunteers</p>
+          </div>
+          <div className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-500">Donors</p>
+                <p className="text-xl font-bold text-stone-900 mt-1">{publicStats.totalDonors}</p>
               </div>
-              <p className="text-2xl font-bold text-stone-900">{publicStats.activeVolunteers}</p>
+              <div className="p-2 rounded-lg bg-amber-50">
+                <Wallet className="w-5 h-5 text-amber-600" />
+              </div>
             </div>
-            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Wallet className="h-4 w-4 text-amber-600" />
-                <p className="text-xs font-medium text-stone-500">Donors</p>
+          </div>
+          <div className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-500">Upcoming Events</p>
+                <p className="text-xl font-bold text-stone-900 mt-1">{publicStats.upcomingEvents}</p>
               </div>
-              <p className="text-2xl font-bold text-stone-900">{publicStats.totalDonors}</p>
+              <div className="p-2 rounded-lg bg-indigo-50">
+                <Calendar className="w-5 h-5 text-indigo-600" />
+              </div>
             </div>
-            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="h-4 w-4 text-indigo-600" />
-                <p className="text-xs font-medium text-stone-500">Upcoming Events</p>
+          </div>
+          <div className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-500">Donations</p>
+                <p className="text-xl font-bold text-stone-900 mt-1">{publicStats.totalDonations}</p>
               </div>
-              <p className="text-2xl font-bold text-stone-900">{publicStats.upcomingEvents}</p>
+              <div className="p-2 rounded-lg bg-rose-50">
+                <Heart className="w-5 h-5 text-rose-600" />
+              </div>
             </div>
-            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Heart className="h-4 w-4 text-rose-600" />
-                <p className="text-xs font-medium text-stone-500">Donations</p>
+          </div>
+          <div className="bg-white rounded-xl border border-stone-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-stone-500">Seva Bookings</p>
+                <p className="text-xl font-bold text-stone-900 mt-1">{publicStats.totalSevaBookings}</p>
               </div>
-              <p className="text-2xl font-bold text-stone-900">{publicStats.totalDonations}</p>
+              <div className="p-2 rounded-lg bg-teal-50">
+                <BarChart3 className="w-5 h-5 text-teal-600" />
+              </div>
             </div>
-            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="h-4 w-4 text-teal-600" />
-                <p className="text-xs font-medium text-stone-500">Seva Bookings</p>
+          </div>
+        </div>
+
+        {/* AI Analytics Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* AI Stats */}
+          <div className="bg-white rounded-xl border border-stone-200 p-5">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2 mb-4">
+              <MessageSquare className="w-5 h-5 text-blue-500" />
+              AI Conversations
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-stone-500">Total</span>
+                <span className="text-lg font-bold text-stone-900">{publicStats.totalAIConversations}</span>
               </div>
-              <p className="text-2xl font-bold text-stone-900">{publicStats.totalSevaBookings}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-stone-500">Success Rate</span>
+                <span className="text-lg font-bold text-green-600">{publicStats.aiSuccessRate}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-stone-500">Avg Response</span>
+                <span className="text-lg font-bold text-amber-600">{publicStats.avgAIResponseTime}</span>
+              </div>
             </div>
           </div>
 
-          {/* AI Analytics Section */}
-          <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <MessageSquare className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-stone-800">AI Assistant Performance</h3>
-            </div>
-            
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-                  <MessageSquare className="h-5 w-5" />
+          {/* Language Distribution */}
+          <div className="bg-white rounded-xl border border-stone-200 p-5">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2 mb-4">
+              <Globe className="w-5 h-5 text-purple-500" />
+              Languages
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500" />
+                  <span className="text-sm text-stone-600">English</span>
                 </div>
-                <div>
-                  <p className="text-xs text-stone-500">Total Conversations</p>
-                  <p className="text-lg font-bold text-stone-900">{publicStats.totalAIConversations}</p>
-                </div>
+                <span className="text-sm font-medium text-stone-800">{publicStats.aiLanguages.english}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-600">
-                  <TrendingUp className="h-5 w-5" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <span className="text-sm text-stone-600">Kannada</span>
                 </div>
-                <div>
-                  <p className="text-xs text-stone-500">Success Rate</p>
-                  <p className="text-lg font-bold text-stone-900">{publicStats.aiSuccessRate}</p>
-                </div>
+                <span className="text-sm font-medium text-stone-800">{publicStats.aiLanguages.kannada}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-                  <Clock className="h-5 w-5" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500" />
+                  <span className="text-sm text-stone-600">Mixed</span>
                 </div>
-                <div>
-                  <p className="text-xs text-stone-500">Avg Response Time</p>
-                  <p className="text-lg font-bold text-stone-900">{publicStats.avgAIResponseTime}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
-                  <Globe className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs text-stone-500">Languages</p>
-                  <p className="text-sm font-medium text-stone-700">
-                    EN: {publicStats.aiLanguages.english} | KN: {publicStats.aiLanguages.kannada}
-                  </p>
-                </div>
+                <span className="text-sm font-medium text-stone-800">{publicStats.aiLanguages.mixed}</span>
               </div>
             </div>
+          </div>
 
-            {/* Top Intents */}
-            {publicStats.topIntents.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-blue-100">
-                <p className="text-xs font-medium text-stone-500 mb-3">Top Query Categories</p>
-                <div className="flex flex-wrap gap-2">
-                  {publicStats.topIntents.map((item, index) => (
-                    <span 
-                      key={index}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-stone-700 border border-stone-200"
-                    >
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs">
+          {/* Top Intent Categories */}
+          <div className="bg-white rounded-xl border border-stone-200 p-5 lg:col-span-2">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2 mb-4">
+              <TrendingUp className="w-5 h-5 text-amber-500" />
+              Top Query Categories
+            </h3>
+            {publicStats.topIntents.length > 0 ? (
+              <div className="space-y-2">
+                {publicStats.topIntents.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-xs font-bold">
                         {index + 1}
                       </span>
-                      {item.intent}
-                      <span className="text-stone-400">({item.count})</span>
+                      <span className="text-sm text-stone-600">{item.intent}</span>
+                    </div>
+                    <span className="text-sm font-medium text-stone-700 bg-stone-100 px-2 py-1 rounded">
+                      {item.count}
                     </span>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <p className="text-sm text-stone-400 text-center py-4">No query data available</p>
             )}
           </div>
         </div>
