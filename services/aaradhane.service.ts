@@ -77,7 +77,7 @@ function docToAaradhane(docSnap: any): Aaradhane {
 function eventDocToAaradhane(docSnap: any): Aaradhane {
   const data = docSnap.data();
   
-  // Convert startDate/endDate to dates array
+  // Convert startDate/endDate to dates array (formatted as "DD Month YYYY")
   let dates: string[] = [];
   if (data.startDate) {
     let startDate: Date;
@@ -88,7 +88,7 @@ function eventDocToAaradhane(docSnap: any): Aaradhane {
     } else {
       startDate = new Date(data.startDate);
     }
-    dates.push(startDate.toISOString().split("T")[0]);
+    dates.push(formatDateDisplay(startDate));
     
     // Add end date if different
     if (data.endDate) {
@@ -100,31 +100,55 @@ function eventDocToAaradhane(docSnap: any): Aaradhane {
       } else {
         endDate = new Date(data.endDate);
       }
-      const endDateStr = endDate.toISOString().split("T")[0];
+      const endDateStr = formatDateDisplay(endDate);
       if (endDateStr !== dates[0]) {
         dates.push(endDateStr);
       }
     }
   }
   
+  // For auto-generated events, set default rituals and offerings based on importance
+  const isMajor = data.importance === "major";
+  const rituals = data.rituals || [
+    "ಪಂಚಾಮೃತ ಅಭಿಷೇಕ ಪೂಜೆ",
+    "ಅಲಂಕಾರ ಬ್ರಾಹ್ಮಣ ಸೇವಾ ಮಹಾಮಂಗಳಾರತಿ"
+  ];
+  const offerings = data.offerings || [
+    "ತೀರ್ಥ ಪ್ರಸಾದ",
+    "ಬೆಳ್ಳಿ ಹೂವು",
+    "ಕರ್ಪೂರ",
+    "ಸಂತೆ"
+  ];
+  
   return {
     id: docSnap.id,
     title: data.title || "",
-    guruName: data.guru || "",
+    guruName: data.guru || data.guruName || "",
     dates: dates,
     description: data.description || "",
-    significance: data.description || "", // Use description as significance for generated events
-    rituals: [],
-    offerings: [],
+    significance: data.significance || data.description || "",
+    rituals: rituals,
+    offerings: offerings,
     imageUrl: data.imageUrl || "",
-    sevaDetails: [],
+    sevaDetails: data.sevaDetails || [],
     isUpcoming: isEventUpcoming(data.startDate),
-    displayOrder: data.year ? (1000 - data.year) : data.paramparaNumber || 0, // Sort by year desc, then parampara
+    displayOrder: data.paramparaNumber || data.year ? (1000 - (data.year || 0)) : 0,
     createdAt: data.createdAt?.toDate
       ? data.createdAt.toDate().toISOString()
       : data.createdAt || new Date().toISOString(),
     createdBy: data.createdBy || "auto-generated",
   };
+}
+
+/**
+ * Format date as "DD Month YYYY" (e.g., "29 August 2026")
+ */
+function formatDateDisplay(date: Date): string {
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export const aaradhaneService = {
