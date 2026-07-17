@@ -310,9 +310,9 @@ export async function submitTestimonial(
       
       console.log("[Testimonials] Upload successful, URL:", imageUrl);
     } catch (error) {
-      console.error("[Testimonials] Failed to upload image:", error);
-      // Don't save testimonial without image - throw error to notify user
-      throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("[Testimonials] Failed to upload image, saving without image:", error);
+      // Continue without image if upload fails
+      imageUrl = undefined;
     }
   }
 
