@@ -167,16 +167,6 @@ export default function TestimonialsPage() {
     return `/images/testimonials/${src}`;
   }
 
-  async function handleApprove(id: string) {
-    try {
-      await approveTestimonial(id);
-      toast.success("Testimonial approved!");
-      loadTestimonials();
-    } catch {
-      toast.error("Failed to approve testimonial");
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
