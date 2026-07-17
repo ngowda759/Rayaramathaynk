@@ -64,6 +64,72 @@ export const DEFAULT_TESTIMONIALS: Testimonial[] = [
   },
 ];
 
+// Get pending testimonials (submitted by public, awaiting approval)
+export async function getPendingTestimonials(): Promise<Testimonial[]> {
+  const firebaseDb = await getFirebaseDb();
+  
+  if (!firebaseDb) {
+    return [];
+  }
+
+  try {
+    const { query, collection, where, orderBy, getDocs } = await import("firebase/firestore");
+    const q = query(
+      collection(firebaseDb, TESTIMONIALS_COLLECTION),
+      where("submittedBy", "==", "public"),
+      where("approved", "==", false),
+      orderBy("createdAt", "desc")
+    );
+
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map((doc: any) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || "",
+        location: data.location || "",
+        quote: data.quote || "",
+        years: data.years || "",
+        image: data.image || undefined,
+        phone: data.phone || undefined,
+        approved: data.approved ?? false,
+        rejected: data.rejected ?? false,
+        rejectionReason: data.rejectionReason || undefined,
+        submittedBy: data.submittedBy || "public",
+        createdAt: data.createdAt,
+      } as Testimonial;
+    });
+  } catch (error) {
+    console.error("[Testimonials] Error fetching pending testimonials:", error);
+    return [];
+  }
+}
+
+// Reject testimonial
+export async function rejectTestimonial(id: string, reason?: string): Promise<void> {
+  const firebaseDb = await getFirebaseDb();
+  
+  if (!firebaseDb) {
+    throw new Error("Firebase is not available. Please try again later.");
+  }
+
+  try {
+    const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+    
+    await updateDoc(doc(firebaseDb, TESTIMONIALS_COLLECTION, id), {
+      rejected: true,
+      approved: false,
+      rejectionReason: reason || "Your testimonial did not meet our guidelines.",
+      reviewedAt: serverTimestamp(),
+    });
+    console.log("[Testimonials] Rejected testimonial:", id);
+  } catch (error) {
+    console.error("[Testimonials] Error rejecting testimonial:", error);
+    throw new Error("Failed to reject testimonial. Please try again.");
+  }
+}
+
 // Get all approved testimonials (for public display)
 export async function getApprovedTestimonials(): Promise<Testimonial[]> {
   const firebaseDb = await getFirebaseDb();
@@ -196,7 +262,10 @@ export async function createTestimonial(
       quote: testimonial.quote,
       years: testimonial.years || "",
       image: testimonial.image || null,
+      phone: testimonial.phone || null,
       approved: false, // New testimonials need approval
+      rejected: false,
+      submittedBy: testimonial.submittedBy || "admin", // Track who submitted
       createdAt: serverTimestamp(),
     };
 
@@ -207,6 +276,29 @@ export async function createTestimonial(
     console.error("[Testimonials] Error creating testimonial:", error);
     throw new Error("Failed to create testimonial. Please try again.");
   }
+}
+
+// Submit testimonial from public form
+export async function submitTestimonial(
+  submission: {
+    name: string;
+    location: string;
+    quote: string;
+    phone?: string;
+    image?: string; // Base64 data URL
+  }
+): Promise<string> {
+  return createTestimonial({
+    name: submission.name,
+    location: submission.location,
+    quote: submission.quote,
+    years: "Devotee",
+    image: submission.image,
+    phone: submission.phone,
+    submittedBy: "public",
+    approved: false,
+    rejected: false,
+  });
 }
 
 // Update testimonial
@@ -263,11 +355,4 @@ export async function deleteTestimonial(id: string): Promise<void> {
     console.error("[Testimonials] Error deleting testimonial:", error);
     throw new Error("Failed to delete testimonial. Please try again.");
   }
-}
-
-// Submit testimonial (for public submissions)
-export async function submitTestimonial(
-  testimonial: Omit<Testimonial, "id" | "createdAt">
-): Promise<string> {
-  return createTestimonial(testimonial);
 }

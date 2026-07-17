@@ -64,9 +64,11 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
+      // Use the redirect URL from query params, or default to /admin
+      const redirect = searchParams.get("redirect") || "/admin";
       // Use setTimeout to defer window.location modification
       setTimeout(() => {
-        window.location.href = "/admin";
+        window.location.href = redirect;
       }, 0);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };

@@ -101,6 +101,19 @@ export interface Testimonial {
   quote: string;
   years: string;
   image?: string; // Optional profile image URL
+  phone?: string; // Optional phone number for contact
   approved?: boolean; // Whether the testimonial is approved for public display
+  rejected?: boolean; // Whether the testimonial has been rejected
+  rejectionReason?: string; // Reason for rejection if rejected
+  submittedBy?: 'admin' | 'public'; // Who submitted this testimonial
   createdAt?: number | Date; // For local storage sorting
+}
+
+// Form data for public testimonial submission
+export interface TestimonialSubmission {
+  name: string;
+  location: string;
+  quote: string;
+  phone?: string;
+  image?: string; // Base64 encoded image data URL
 }
