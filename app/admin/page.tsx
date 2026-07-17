@@ -9,7 +9,7 @@ import {
   TrendingDown, IndianRupee, Activity, Link2,
   PlusCircle, ChevronRight
 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, getDocs, getCountFromServer, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 
