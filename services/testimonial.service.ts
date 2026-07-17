@@ -319,10 +319,13 @@ async function uploadTestimonialImage(
   name: string,
   phone?: string
 ): Promise<string> {
+  console.log("[Testimonials] Starting image upload for:", name);
+  
   // Dynamic import to avoid SSR issues
   const { storage } = await import("@/lib/firebase");
   
   if (!storage) {
+    console.error("[Testimonials] Firebase Storage not available");
     throw new Error("Firebase Storage is not available");
   }
 
@@ -336,17 +339,22 @@ async function uploadTestimonialImage(
     ? `${sanitizedName}_${cleanPhone}.jpg`
     : `${sanitizedName}_${Date.now()}.jpg`;
   
-  const filename_with_path = `testimonials/${filename}`;
+  const filePath = `testimonials/${filename}`;
+  console.log("[Testimonials] Uploading to path:", filePath);
   
   // Convert base64 to blob
   const response = await fetch(base64Data);
+  if (!response.ok) {
+    throw new Error("Failed to fetch base64 image data");
+  }
   const blob = await response.blob();
+  console.log("[Testimonials] Image blob size:", blob.size, "bytes");
   
   // Upload to Firebase Storage
   const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-  const storageRef = ref(storage, filename_with_path);
+  const storageRef = ref(storage, filePath);
   
-  await uploadBytes(storageRef, blob, {
+  const snapshot = await uploadBytes(storageRef, blob, {
     contentType: "image/jpeg",
     customMetadata: {
       uploadedBy: "public-form",
@@ -354,9 +362,11 @@ async function uploadTestimonialImage(
     },
   });
   
+  console.log("[Testimonials] Upload complete, metadata:", snapshot.metadata);
+  
   // Get the download URL
   const downloadURL = await getDownloadURL(storageRef);
-  console.log("[Testimonials] Image uploaded to:", downloadURL);
+  console.log("[Testimonials] Image uploaded successfully, URL:", downloadURL);
   
   return downloadURL;
 }
