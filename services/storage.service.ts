@@ -21,19 +21,38 @@ class StorageService {
     filename: string,
     folder: UploadFolder = 'testimonials'
   ): Promise<UploadResult> {
-    // Convert base64 to Blob
-    const response = await fetch(base64Data);
-    if (!response.ok) {
-      throw new Error('Failed to fetch base64 image data');
+    // Extract base64 content - handle both raw base64 and data URL format
+    let base64Content = base64Data;
+    let mimeType = 'image/jpeg';
+    
+    if (base64Data.includes(',')) {
+      const parts = base64Data.split(',');
+      const header = parts[0];
+      base64Content = parts[1];
+      
+      // Extract mime type from header like "data:image/jpeg;base64"
+      const match = header.match(/data:([^;]+)/);
+      if (match) {
+        mimeType = match[1];
+      }
     }
-    const blob = await response.blob();
+    
+    // Decode base64 to binary
+    const binaryString = atob(base64Content);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
 
     const pathname = `${folder}/${filename}`;
     
-    // Upload to Vercel Blob (private store works with Next.js Image on Vercel)
+    console.log(`[Storage] Uploading ${blob.size} bytes (${mimeType}) to ${pathname}`);
+    
+    // Upload to Vercel Blob
     const uploadedBlob = await put(pathname, blob, {
       access: 'public',
-      contentType: blob.type || 'image/jpeg',
+      contentType: mimeType,
       addRandomSuffix: false,
     });
 

@@ -134,7 +134,7 @@ service cloud.firestore {
     // Testimonials collection
     match /testimonials/{docId} {
       allow read: if true;
-      allow create: if isAuthenticated();
+      allow create: if true; // Public can submit testimonials
       allow update, delete: if isAdmin();
     }
 

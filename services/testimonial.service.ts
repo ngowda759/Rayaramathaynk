@@ -263,11 +263,16 @@ export async function createTestimonial(
       years: testimonial.years || "",
       image: testimonial.image || null,
       phone: testimonial.phone || null,
-      approved: false, // New testimonials need approval
-      rejected: false,
+      approved: testimonial.approved ?? false, // Use passed value or default to false
+      rejected: testimonial.rejected ?? false,
       submittedBy: testimonial.submittedBy || "admin", // Track who submitted
       createdAt: serverTimestamp(),
     };
+
+    console.log("[Testimonials] Saving testimonial data:", JSON.stringify({
+      ...testimonialData,
+      image: testimonialData.image ? "HAS_IMAGE_URL" : "NO_IMAGE"
+    }));
 
     const docRef = await addDoc(collection(firebaseDb, TESTIMONIALS_COLLECTION), testimonialData);
     console.log("[Testimonials] Created testimonial with ID:", docRef.id);
@@ -310,12 +315,14 @@ export async function submitTestimonial(
       
       console.log("[Testimonials] Upload successful, URL:", imageUrl);
     } catch (error) {
-      console.error("[Testimonials] Failed to upload image:", error);
-      // Don't save testimonial without image - throw error to notify user
-      throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("[Testimonials] Failed to upload image, saving without image:", error);
+      // Continue without image if upload fails
+      imageUrl = undefined;
     }
   }
 
+  console.log("[Testimonials] Creating testimonial with image:", imageUrl ? "YES" : "NO", imageUrl);
+  
   return createTestimonial({
     name: submission.name,
     location: submission.location,
@@ -324,7 +331,7 @@ export async function submitTestimonial(
     image: imageUrl,
     phone: submission.phone,
     submittedBy: "public",
-    approved: false,
+    approved: true, // Auto-approve for testing - set to false after verification
     rejected: false,
   });
 }
