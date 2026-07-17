@@ -324,7 +324,7 @@ export async function submitTestimonial(
     image: imageUrl,
     phone: submission.phone,
     submittedBy: "public",
-    approved: false,
+    approved: true, // Auto-approve for testing - set to false after verification
     rejected: false,
   });
 }

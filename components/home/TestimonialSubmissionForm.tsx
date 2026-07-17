@@ -154,14 +154,15 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
 
     try {
       // Submit with base64 image - the service will upload to Vercel Blob Storage
-      await submitTestimonial({
+      const result = await submitTestimonial({
         name: formData.name.trim(),
         location: formData.location.trim(),
         quote: formData.quote.trim(),
         phone: formData.phone.trim() || undefined,
-        image: image || undefined, // Base64 data URL - will be uploaded to Vercel Blob
+        image: image || undefined,
       });
 
+      console.log("[TestimonialForm] Submitted successfully, ID:", result);
       setIsSubmitted(true);
       toast.success("Thank you for sharing your experience!");
       
@@ -170,7 +171,7 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
       }
     } catch (error) {
       console.error("Error submitting testimonial:", error);
-      toast.error("Failed to submit testimonial. Please try again.");
+      toast.error("Failed to submit testimonial. Please check console for details.");
     } finally {
       setIsSubmitting(false);
     }
