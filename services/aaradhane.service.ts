@@ -77,6 +77,10 @@ function docToAaradhane(docSnap: any): Aaradhane {
 function eventDocToAaradhane(docSnap: any): Aaradhane {
   const data = docSnap.data();
   
+  // Try multiple field name variations
+  const title = data.title || data.name || data.eventTitle || data.aaradhaneTitle || `Event ${docSnap.id}`;
+  const guruName = data.guru || data.guruName || data.guru || data.name || "";
+  
   // Convert startDate/endDate to dates array (formatted as "DD Month YYYY")
   let dates: string[] = [];
   if (data.startDate) {
@@ -107,8 +111,7 @@ function eventDocToAaradhane(docSnap: any): Aaradhane {
     }
   }
   
-  // For auto-generated events, set default rituals and offerings based on importance
-  const isMajor = data.importance === "major";
+  // For auto-generated events, set default rituals and offerings
   const rituals = data.rituals || [
     "ಪಂಚಾಮೃತ ಅಭಿಷೇಕ ಪೂಜೆ",
     "ಅಲಂಕಾರ ಬ್ರಾಹ್ಮಣ ಸೇವಾ ಮಹಾಮಂಗಳಾರತಿ"
@@ -122,8 +125,8 @@ function eventDocToAaradhane(docSnap: any): Aaradhane {
   
   return {
     id: docSnap.id,
-    title: data.title || "",
-    guruName: data.guru || data.guruName || "",
+    title: title,
+    guruName: guruName,
     dates: dates,
     description: data.description || "",
     significance: data.significance || data.description || "",
@@ -163,10 +166,10 @@ export const aaradhaneService = {
       const allEventsSnapshot = await getDocs(allEventsQ);
       console.log(`[Aaradhane] Total events in events collection: ${allEventsSnapshot.size}`);
       
-      // Filter and convert events - include all with title or guru
+      // Filter and convert events - include all with at least a title
       events = allEventsSnapshot.docs
         .map(eventDocToAaradhane)
-        .filter(e => e.title || e.guruName); // Filter valid entries
+        .filter(e => e.title); // Include any event with a title
       console.log(`[Aaradhane] Found ${events.length} valid events`);
     } catch (error) {
       console.warn("[Aaradhane] Could not read events collection:", error);
