@@ -156,13 +156,20 @@ export async function updateSession(
     // Determine topic from intent
     const topic = mapIntentToTopic(intent);
 
-    await updateDoc(sessionRef, {
+    // Use setDoc with merge to create the document if it doesn't exist
+    // This fixes the issue where updateDoc fails silently for non-existent documents
+    await setDoc(sessionRef, {
       lastIntent: intent,
       lastTopic: topic,
       preferredLanguage: language,
       messages: arrayUnion(userMsg, assistantMsg),
       updatedAt: serverTimestamp(),
-    });
+      // Only set these on creation
+      ...(!(await getDoc(sessionRef)).exists() && {
+        createdAt: serverTimestamp(),
+        messageCount: 0,
+      }),
+    }, { merge: true });
 
     // Prune old messages if needed
     await pruneMessages(sessionId);
