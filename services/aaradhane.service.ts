@@ -134,11 +134,10 @@ export const aaradhaneService = {
     // Try to get events from "events" collection (auto-generated)
     let events: Aaradhane[] = [];
     try {
+      // Query without requiring composite index - get all events and filter in memory
       const eventsQ = query(
         collection(db, EVENTS_COLLECTION),
-        where("category", "==", "Aaradhane"),
-        orderBy("year", "desc"),
-        orderBy("paramparaNumber", "asc")
+        where("category", "==", "Aaradhane")
       );
       const eventsSnapshot = await getDocs(eventsQ);
       events = eventsSnapshot.docs.map(eventDocToAaradhane);
