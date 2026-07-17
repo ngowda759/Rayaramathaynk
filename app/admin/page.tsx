@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { 
   Bell, HeartHandshake, Image, Plus, CalendarDays, 
-  BookOpen, Clock, Users, HandCoins, ArrowRight, Sparkles
+  BookOpen, Clock, Users, HandCoins, ArrowRight, Sparkles,
+  Globe, TrendingUp, MessageSquare, Eye, Calendar, UserCheck,
+  Wallet, Heart, BarChart3
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, getCountFromServer, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardStats {
@@ -21,6 +23,22 @@ interface DashboardStats {
   totalTimings: number;
   totalDonations: number;
   totalSevaBookings: number;
+}
+
+interface PublicAnalyticsStats {
+  totalUsers: number;
+  activeVolunteers: number;
+  totalMembers: number;
+  totalDonations: number;
+  totalSevaBookings: number;
+  totalEvents: number;
+  upcomingEvents: number;
+  totalDonors: number;
+  totalAIConversations: number;
+  avgAIResponseTime: string;
+  aiSuccessRate: string;
+  aiLanguages: { english: number; kannada: number; mixed: number };
+  topIntents: Array<{ intent: string; count: number }>;
 }
 
 function StatCard({ title, value, icon: Icon, loading, index }: { title: string; value: number; icon: LucideIcon; loading?: boolean; index: number }) {
@@ -96,6 +114,21 @@ export default function DashboardPage() {
     totalDonations: 0,
     totalSevaBookings: 0,
   });
+  const [publicStats, setPublicStats] = useState<PublicAnalyticsStats>({
+    totalUsers: 0,
+    activeVolunteers: 0,
+    totalMembers: 0,
+    totalDonations: 0,
+    totalSevaBookings: 0,
+    totalEvents: 0,
+    upcomingEvents: 0,
+    totalDonors: 0,
+    totalAIConversations: 0,
+    avgAIResponseTime: "0s",
+    aiSuccessRate: "0%",
+    aiLanguages: { english: 0, kannada: 0, mixed: 0 },
+    topIntents: [],
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -127,6 +160,117 @@ export default function DashboardPage() {
     }
 
     fetchStats();
+  }, []);
+
+  // Fetch public website analytics
+  useEffect(() => {
+    async function fetchPublicStats() {
+      if (!db) return;
+      
+      try {
+        const [
+          usersSnap,
+          volunteersSnap,
+          membersSnap,
+          donationsSnap,
+          bookingsSnap,
+          eventsSnap,
+          aiConversationsSnap,
+        ] = await Promise.all([
+          getCountFromServer(collection(db, "users")),
+          getCountFromServer(collection(db, "volunteers")),
+          getCountFromServer(collection(db, "members")),
+          getCountFromServer(collection(db, "donations")),
+          getCountFromServer(collection(db, "sevaBookings")),
+          getCountFromServer(collection(db, "events")),
+          getCountFromServer(collection(db, "chat_sessions")),
+        ]);
+
+        // Get upcoming events count
+        const now = new Date();
+        const upcomingQuery = query(
+          collection(db, "events"),
+          where("date", ">=", now.toISOString())
+        );
+        const upcomingSnap = await getCountFromServer(upcomingQuery);
+
+        // Get AI analytics from API
+        let aiAnalytics = {
+          avgResponseTime: "0s",
+          successRate: "0%",
+          languages: { english: 0, kannada: 0, mixed: 0 },
+          topIntents: [] as Array<{ intent: string; count: number }>,
+        };
+        
+        try {
+          const aiResponse = await fetch("/api/ai/analytics");
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            const latency = aiData.dashboard?.latency;
+            const intentDist = aiData.dashboard?.intentDistribution;
+            
+            if (latency) {
+              aiAnalytics.avgResponseTime = `${(latency.averageTotalLatency / 1000).toFixed(1)}s`;
+              aiAnalytics.successRate = `${latency.successRate.toFixed(1)}%`;
+            }
+            
+            if (intentDist?.byLanguage) {
+              const langMap: Record<string, number> = {};
+              intentDist.byLanguage.forEach((l: { language: string; count: number }) => {
+                langMap[l.language] = l.count;
+              });
+              aiAnalytics.languages = {
+                english: langMap["en"] || 0,
+                kannada: langMap["kn"] || 0,
+                mixed: langMap["mixed"] || 0,
+              };
+            }
+            
+            if (intentDist?.byIntent) {
+              aiAnalytics.topIntents = intentDist.byIntent.slice(0, 5).map((i: { intent: string; count: number }) => ({
+                intent: i.intent.replace(/_/g, " "),
+                count: i.count,
+              }));
+            }
+          }
+        } catch (e) {
+          console.log("AI analytics not available");
+        }
+
+        // Count unique donors
+        const donorsQuery = query(
+          collection(db, "donations"),
+          where("status", "==", "completed")
+        );
+        const donorsSnap = await getDocs(donorsQuery);
+        const uniqueDonors = new Set();
+        donorsSnap.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.email) uniqueDonors.add(data.email);
+          if (data.phone) uniqueDonors.add(data.phone);
+        });
+
+        setPublicStats({
+          totalUsers: usersSnap.data().count,
+          activeVolunteers: volunteersSnap.data().count,
+          totalMembers: membersSnap.data().count,
+          totalDonations: donationsSnap.data().count,
+          totalSevaBookings: bookingsSnap.data().count,
+          totalEvents: eventsSnap.data().count,
+          upcomingEvents: upcomingSnap.data().count,
+          totalDonors: uniqueDonors.size,
+          totalAIConversations: aiConversationsSnap.data().count,
+          avgAIResponseTime: aiAnalytics.avgResponseTime,
+          aiSuccessRate: aiAnalytics.successRate,
+          aiLanguages: aiAnalytics.languages,
+          topIntents: aiAnalytics.topIntents,
+        });
+      } catch (error) {
+        console.error("Error fetching public stats:", error);
+      }
+    }
+
+    fetchPublicStats();
   }, []);
 
   const today = new Date();
@@ -256,6 +400,158 @@ export default function DashboardPage() {
                 <ArrowRight className="h-5 w-5 text-stone-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
               </motion.a>
             ))}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Public Website Analytics Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="relative overflow-hidden rounded-[32px] border border-blue-200/50 bg-white p-8 shadow-xl shadow-blue-500/5"
+      >
+        {/* Decorative corner */}
+        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-blue-100/30 to-transparent rounded-bl-full" />
+        
+        {/* Top gradient border */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600" />
+        
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25">
+                <Globe className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-stone-800">Public Website Analytics</h2>
+                <p className="text-sm text-stone-500">Community engagement & AI assistant stats</p>
+              </div>
+            </div>
+            <Link 
+              href="/ai/analytics" 
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
+            >
+              View Full Analytics
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          
+          {/* Stats Grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 mb-6">
+            {/* Community Stats */}
+            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-4 w-4 text-blue-600" />
+                <p className="text-xs font-medium text-stone-500">Users</p>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">{publicStats.totalUsers}</p>
+            </div>
+            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <UserCheck className="h-4 w-4 text-green-600" />
+                <p className="text-xs font-medium text-stone-500">Volunteers</p>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">{publicStats.activeVolunteers}</p>
+            </div>
+            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet className="h-4 w-4 text-amber-600" />
+                <p className="text-xs font-medium text-stone-500">Donors</p>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">{publicStats.totalDonors}</p>
+            </div>
+            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-4 w-4 text-indigo-600" />
+                <p className="text-xs font-medium text-stone-500">Upcoming Events</p>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">{publicStats.upcomingEvents}</p>
+            </div>
+            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Heart className="h-4 w-4 text-rose-600" />
+                <p className="text-xs font-medium text-stone-500">Donations</p>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">{publicStats.totalDonations}</p>
+            </div>
+            <div className="rounded-2xl border border-stone-100 bg-gradient-to-br from-stone-50 to-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="h-4 w-4 text-teal-600" />
+                <p className="text-xs font-medium text-stone-500">Seva Bookings</p>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">{publicStats.totalSevaBookings}</p>
+            </div>
+          </div>
+
+          {/* AI Analytics Section */}
+          <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              <h3 className="font-semibold text-stone-800">AI Assistant Performance</h3>
+            </div>
+            
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500">Total Conversations</p>
+                  <p className="text-lg font-bold text-stone-900">{publicStats.totalAIConversations}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-600">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500">Success Rate</p>
+                  <p className="text-lg font-bold text-stone-900">{publicStats.aiSuccessRate}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500">Avg Response Time</p>
+                  <p className="text-lg font-bold text-stone-900">{publicStats.avgAIResponseTime}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500">Languages</p>
+                  <p className="text-sm font-medium text-stone-700">
+                    EN: {publicStats.aiLanguages.english} | KN: {publicStats.aiLanguages.kannada}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Intents */}
+            {publicStats.topIntents.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-blue-100">
+                <p className="text-xs font-medium text-stone-500 mb-3">Top Query Categories</p>
+                <div className="flex flex-wrap gap-2">
+                  {publicStats.topIntents.map((item, index) => (
+                    <span 
+                      key={index}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-stone-700 border border-stone-200"
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs">
+                        {index + 1}
+                      </span>
+                      {item.intent}
+                      <span className="text-stone-400">({item.count})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
