@@ -30,9 +30,11 @@ class StorageService {
 
     const pathname = `${folder}/${filename}`;
     
+    // Upload to Vercel Blob with public access (store must be set to Public in Vercel Dashboard)
     const uploadedBlob = await put(pathname, blob, {
       access: 'public',
       contentType: blob.type || 'image/jpeg',
+      addRandomSuffix: false,
     });
 
     console.log(`[Storage] Uploaded to: ${uploadedBlob.url}`);
@@ -56,6 +58,7 @@ class StorageService {
     const uploadedBlob = await put(pathname, file, {
       access: 'public',
       contentType: file.type,
+      addRandomSuffix: false,
     });
 
     console.log(`[Storage] Uploaded to: ${uploadedBlob.url}`);
