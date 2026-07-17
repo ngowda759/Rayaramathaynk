@@ -16,6 +16,21 @@ function isVideoPath(path: string) {
   return /\.(mp4|webm|ogg)$/i.test(path);
 }
 
+// Convert image path to full URL (handles both Vercel Blob URLs and local paths)
+function getImageUrl(path: string): string {
+  if (!path) return "";
+  // Already a full URL (Vercel Blob or external)
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  // Local path
+  if (path.startsWith("/")) {
+    return path;
+  }
+  // Local filename - assume it's in public/images/gallery/
+  return `/images/gallery/${path}`;
+}
+
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -166,7 +181,7 @@ export default function GalleryTable({ images, onRefresh }: GalleryTableProps) {
                     >
                       {isVideoPath(image.imagePath) ? (
                         <video
-                          src={image.imagePath}
+                          src={getImageUrl(image.imagePath)}
                           className="h-full w-full object-cover"
                           muted
                           playsInline
@@ -174,7 +189,7 @@ export default function GalleryTable({ images, onRefresh }: GalleryTableProps) {
                         />
                       ) : (
                         <Image
-                          src={image.imagePath}
+                          src={getImageUrl(image.imagePath)}
                           alt={image.altText}
                           fill
                           className="object-cover"
@@ -288,13 +303,13 @@ export default function GalleryTable({ images, onRefresh }: GalleryTableProps) {
             <div className="relative aspect-video w-full overflow-hidden rounded-lg">
               {isVideoPath(previewImage.imagePath) ? (
                 <video
-                  src={previewImage.imagePath}
+                  src={getImageUrl(previewImage.imagePath)}
                   controls
                   className="h-full w-full object-contain"
                 />
               ) : (
                 <Image
-                  src={previewImage.imagePath}
+                  src={getImageUrl(previewImage.imagePath)}
                   alt={previewImage.altText}
                   fill
                   className="object-contain"

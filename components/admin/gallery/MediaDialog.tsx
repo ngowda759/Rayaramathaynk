@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import ImageUploader from "@/components/ui/ImageUploader";
 
 import {
   Select,
@@ -255,16 +256,15 @@ export default function MediaDialog({
           </div>
 
           {type === "photo" ? (
-            <div>
-              <Label>Image Path</Label>
-
-              <Input
-                value={imagePath}
-                onChange={(e) =>
-                  setImagePath(e.target.value)
-                }
-              />
-            </div>
+            <ImageUploader
+              label="Image"
+              value={imagePath}
+              onChange={setImagePath}
+              folder="gallery"
+              accept="image/*"
+              maxSizeMB={10}
+              previewSize="lg"
+            />
           ) : (
             <div>
               <Label>YouTube URL</Label>
