@@ -316,6 +316,8 @@ export async function submitTestimonial(
     }
   }
 
+  console.log("[Testimonials] Creating testimonial with image:", imageUrl ? "YES" : "NO", imageUrl);
+  
   return createTestimonial({
     name: submission.name,
     location: submission.location,

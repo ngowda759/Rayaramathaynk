@@ -21,24 +21,38 @@ class StorageService {
     filename: string,
     folder: UploadFolder = 'testimonials'
   ): Promise<UploadResult> {
-    // Convert base64 to Blob directly
-    const base64Response = base64Data.split(',')[1] || base64Data;
-    const byteCharacters = atob(base64Response);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    // Extract base64 content - handle both raw base64 and data URL format
+    let base64Content = base64Data;
+    let mimeType = 'image/jpeg';
+    
+    if (base64Data.includes(',')) {
+      const parts = base64Data.split(',');
+      const header = parts[0];
+      base64Content = parts[1];
+      
+      // Extract mime type from header like "data:image/jpeg;base64"
+      const match = header.match(/data:([^;]+)/);
+      if (match) {
+        mimeType = match[1];
+      }
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'image/jpeg' });
+    
+    // Decode base64 to binary
+    const binaryString = atob(base64Content);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
 
     const pathname = `${folder}/${filename}`;
     
-    console.log(`[Storage] Uploading ${blob.size} bytes to ${pathname}`);
+    console.log(`[Storage] Uploading ${blob.size} bytes (${mimeType}) to ${pathname}`);
     
     // Upload to Vercel Blob
     const uploadedBlob = await put(pathname, blob, {
       access: 'public',
-      contentType: 'image/jpeg',
+      contentType: mimeType,
       addRandomSuffix: false,
     });
 
