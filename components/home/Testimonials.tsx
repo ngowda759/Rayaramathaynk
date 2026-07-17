@@ -2,15 +2,17 @@
 
 import { motion } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Quote, Star, MessageSquare } from "lucide-react";
 import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import TestimonialSubmissionForm from "./TestimonialSubmissionForm";
 
 export default function Testimonials() {
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [showForm, setShowForm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
   const [loading, setLoading] = useState(true);
@@ -39,8 +41,8 @@ export default function Testimonials() {
     if (src.startsWith("/")) {
       return src;
     }
-    // Images from GitHub are stored in /testimonials/ folder
-    return `/testimonials/${src}`;
+    // Images stored in public/images/testimonials/ folder
+    return `/images/testimonials/${src}`;
   }
 
   const next = useCallback(() => {
@@ -284,8 +286,37 @@ export default function Testimonials() {
               <ArrowRight size={16} />
             </Link>
           </div>
+
+          {/* Share Experience Button */}
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <MessageSquare size={18} />
+              Share Your Experience
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Testimonial Submission Modal */}
+      {showForm && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowForm(false)}
+        >
+          <div 
+            className="w-full max-w-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TestimonialSubmissionForm 
+              onSuccess={() => setShowForm(false)}
+              onClose={() => setShowForm(false)}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
