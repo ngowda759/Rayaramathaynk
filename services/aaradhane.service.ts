@@ -158,20 +158,12 @@ export const aaradhaneService = {
     // Try to get events from "events" collection (auto-generated)
     let events: Aaradhane[] = [];
     try {
-      // Query all events without filter to see what's there
+      // Query all events from events collection
       const allEventsQ = query(collection(db, EVENTS_COLLECTION));
       const allEventsSnapshot = await getDocs(allEventsQ);
       console.log(`[Aaradhane] Total events in events collection: ${allEventsSnapshot.size}`);
       
-      // Log the first few events for debugging
-      if (allEventsSnapshot.size > 0) {
-        const sampleDoc = allEventsSnapshot.docs[0];
-        const sampleData = sampleDoc.data();
-        console.log(`[Aaradhane] Sample event keys:`, Object.keys(sampleData).join(', '));
-        console.log(`[Aaradhane] Sample event category:`, sampleData.category);
-      }
-      
-      // Filter and convert events
+      // Filter and convert events - include all with title or guru
       events = allEventsSnapshot.docs
         .map(eventDocToAaradhane)
         .filter(e => e.title || e.guruName); // Filter valid entries
