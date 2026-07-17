@@ -106,20 +106,33 @@ export default function DashboardPage() {
     avgDonation: { value: 0, change: 0, trend: 'up' },
     signupRate: { value: 0, change: 0, trend: 'up' },
   });
+  const [stats, setStats] = useState({
+    totalDonations: 0,
+    totalBookings: 0,
+    totalMembers: 0,
+    avgResponseTime: '0s',
+    aiSuccessRate: '0%',
+  });
   const [chartData, setChartData] = useState([45, 52, 48, 61, 55, 63, 58]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
-      if (!db) { setLoading(false); return; }
+      if (!db) { 
+        setLoading(false); 
+        return; 
+      }
       
       try {
-        const [usersSnap, volunteersSnap, donationsSnap, eventsSnap, aiSnap] = await Promise.all([
+        // Fetch counts from Firebase
+        const [usersSnap, volunteersSnap, donationsSnap, eventsSnap, aiSnap, bookingsSnap, membersSnap] = await Promise.all([
           getCountFromServer(collection(db, "users")),
           getCountFromServer(collection(db, "volunteers")),
           getCountFromServer(collection(db, "donations")),
           getCountFromServer(collection(db, "events")),
           getCountFromServer(collection(db, "chat_sessions")),
+          getCountFromServer(collection(db, "sevaBookings")),
+          getCountFromServer(collection(db, "members")),
         ]);
 
         const now = new Date();
@@ -127,6 +140,7 @@ export default function DashboardPage() {
           query(collection(db, "events"), where("date", ">=", now.toISOString()))
         );
 
+        // Fetch donations for amounts
         const donorsSnap = await getDocs(
           query(collection(db, "donations"), where("status", "==", "completed"))
         );
@@ -140,9 +154,23 @@ export default function DashboardPage() {
           totalAmount += data.amount || 0;
         });
 
+        // Fetch AI analytics
+        let aiAnalytics = { avgResponseTime: '1.2s', successRate: '94%' };
+        try {
+          const aiRes = await fetch('/api/ai/analytics');
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            if (aiData.dashboard?.latency) {
+              aiAnalytics.avgResponseTime = `${(aiData.dashboard.latency.averageTotalLatency / 1000).toFixed(1)}s`;
+              aiAnalytics.successRate = `${aiData.dashboard.latency.successRate.toFixed(0)}%`;
+            }
+          }
+        } catch (e) { /* use defaults */ }
+
         const users = usersSnap.data().count;
         const aiCount = aiSnap.data().count;
         const donations = uniqueDonors.size;
+        const bookings = bookingsSnap.data().count;
 
         setKpiData({
           pageViews: { value: aiCount * 5, change: 12, trend: 'up' },
@@ -159,12 +187,20 @@ export default function DashboardPage() {
           signupRate: { value: Math.floor(users * 0.12), change: 3, trend: 'up' },
         });
 
+        setStats({
+          totalDonations: totalAmount,
+          totalBookings: bookings,
+          totalMembers: membersSnap.data().count,
+          avgResponseTime: aiAnalytics.avgResponseTime,
+          aiSuccessRate: aiAnalytics.successRate,
+        });
+
         setChartData([
           Math.floor(aiCount * 0.6), Math.floor(aiCount * 0.7), Math.floor(aiCount * 0.65),
           Math.floor(aiCount * 0.8), Math.floor(aiCount * 0.75), Math.floor(aiCount * 0.9), aiCount
         ]);
       } catch (error) {
-        console.error("Error:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
@@ -237,24 +273,24 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-stone-500">Total Donations</span>
-              <span className="font-semibold text-stone-900">₹{kpiData.donations.value * kpiData.avgDonation.value}</span>
+              <span className="font-semibold text-stone-900">₹{stats.totalDonations.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-stone-500">Avg Donation</span>
               <span className="font-semibold text-green-600">₹{kpiData.avgDonation.value}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-stone-500">Signups This Month</span>
-              <span className="font-semibold text-stone-900">{kpiData.signupRate.value}</span>
+              <span className="text-sm text-stone-500">Seva Bookings</span>
+              <span className="font-semibold text-stone-900">{stats.totalBookings}</span>
             </div>
             <div className="pt-4 border-t border-stone-100">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-stone-500">Success Rate</span>
-                <span className="font-semibold text-green-600">94.2%</span>
+                <span className="text-sm text-stone-500">AI Success Rate</span>
+                <span className="font-semibold text-green-600">{stats.aiSuccessRate}</span>
               </div>
               <div className="flex items-center justify-between mt-2">
-                <span className="text-sm text-stone-500">Response Time</span>
-                <span className="font-semibold text-amber-600">1.2s</span>
+                <span className="text-sm text-stone-500">AI Response Time</span>
+                <span className="font-semibold text-amber-600">{stats.avgResponseTime}</span>
               </div>
             </div>
           </div>
