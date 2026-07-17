@@ -216,6 +216,20 @@ function generateSingleEvent(
   // Determine if this should be featured (major events get featured by default)
   const featured = config.autoFeature && guru.importance === "major";
   
+  // Default rituals and offerings for Aaradhane events
+  const defaultRituals = [
+    "ಪಂಚಾಮೃತ ಅಭಿಷೇಕ ಪೂಜೆ",
+    "ಅಲಂಕಾರ ಬ್ರಾಹ್ಮಣ ಸೇವಾ ಮಹಾಮಂಗಳಾರತಿ",
+    "ಸೇವಾರ್ಥಿಗಳಿಗೆ ತೀರ್ಥ ಪ್ರಸಾದ"
+  ];
+  
+  const defaultOfferings = [
+    "ತೀರ್ಥ ಪ್ರಸಾದ",
+    "ಬೆಳ್ಳಿ ಹೂವು",
+    "ಕರ್ಪೂರ",
+    "ಸಂತೆ"
+  ];
+  
   return {
     eventKey,
     title: guru.aaradhaneTitle,
@@ -238,6 +252,8 @@ function generateSingleEvent(
     },
     raghavendraPhase: guru.raghavendraPhase,
     importance: guru.importance,
+    rituals: guru.rituals || defaultRituals,
+    offerings: guru.offerings || defaultOfferings,
   };
 }
 
@@ -316,6 +332,10 @@ export function eventToFirestoreDocument(
     paramparaNumber: event.paramparaNumber,
     raghavendraPhase: event.raghavendraPhase,
     lunarCalendar: event.lunarCalendar,
+    rituals: event.rituals || [],
+    offerings: event.offerings || [],
+    significance: event.description || "",
+    guruName: event.guru,
   };
 }
 

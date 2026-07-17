@@ -36,7 +36,7 @@ export const DEFAULT_TESTIMONIALS: Testimonial[] = [
     location: "Bangalore",
     quote: "The peace I feel at this Matha is indescribable. Every visit brings new spiritual strength and clarity.",
     years: "25 years devotee",
-    image: "/testimonials/devotee-1.jpg"
+    image: "/images/testimonials/ramesh-rao.jpg"
   },
   {
     id: "default-2",
@@ -44,7 +44,7 @@ export const DEFAULT_TESTIMONIALS: Testimonial[] = [
     location: "Mysore",
     quote: "Sri Raghavendra Swamy's blessings have guided my family through the most challenging times. Forever grateful.",
     years: "Family tradition",
-    image: "/testimonials/devotee-2.jpg"
+    image: "/images/testimonials/lakshmi-devi.jpg"
   },
   {
     id: "default-3",
@@ -52,7 +52,7 @@ export const DEFAULT_TESTIMONIALS: Testimonial[] = [
     location: "Chennai",
     quote: "The daily poojas and the serene atmosphere create a divine experience. This is where my soul finds rest.",
     years: "15 years devotee",
-    image: "/testimonials/devotee-3.jpg"
+    image: "/images/testimonials/venkataramana.jpg"
   },
   {
     id: "default-4",
@@ -60,7 +60,7 @@ export const DEFAULT_TESTIMONIALS: Testimonial[] = [
     location: "Hyderabad",
     quote: "Attending the Bramhotsavam was life-changing. The devotion and rituals are performed with such purity and dedication.",
     years: "Regular visitor",
-    image: "/testimonials/devotee-4.jpg"
+    image: "/images/testimonials/shobha-krishnan.jpg"
   },
 ];
 
