@@ -42,13 +42,13 @@ export default function LoginForm() {
     return () => clearTimeout(timer);
   }, []);
 
-  // If user is already logged in, redirect to home (middleware will handle admin redirect)
+  // If user is already logged in, redirect to home (proxy will handle admin redirect)
   // Only redirect if Firebase is configured and user is logged in
   useEffect(() => {
     if (!loading && isClient && user) {
       // User is logged in - redirect to home page
-      // The middleware will handle protecting /admin routes
-      router.replace("/");
+      // The proxy will handle protecting /admin routes
+      router.replace("/admin");
     }
   }, [loading, user, isClient, router]);
 
