@@ -58,6 +58,8 @@ export async function getGuruParamparaRecords(): Promise<GuruParamparaRecord[]> 
       importance: (g.importance || "minor") as GuruImportance,
       enabled: g.enabled !== false,
       description: g.description,
+      rituals: g.rituals,
+      offerings: g.offerings,
     }));
 }
 
