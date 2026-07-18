@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   BarChart3,
   MessageSquare,
@@ -23,7 +23,10 @@ import {
   Send,
   X,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { collection, getDocs, getCountFromServer, query, orderBy, limit, where } from "firebase/firestore";
 
 interface StatCardProps {
   title: string;
@@ -58,6 +61,15 @@ function StatCard({ title, value, icon, color, bgColor, trend, trendUp }: StatCa
 
 function PieChart({ data }: { data: { label: string; value: number; color: string }[] }) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
+  
+  if (total === 0) {
+    return (
+      <div className="flex items-center justify-center h-32 text-stone-400 text-sm">
+        No intent data available
+      </div>
+    );
+  }
+  
   let currentAngle = 0;
 
   const paths = data.map((item) => {
@@ -111,9 +123,17 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
 }
 
 function LineChart({ data }: { data: { label: string; value: number }[] }) {
+  if (data.length === 0 || data.every(d => d.value === 0)) {
+    return (
+      <div className="flex items-center justify-center h-48 text-stone-400 text-sm">
+        No conversation data yet - Chat with the bot to see trends
+      </div>
+    );
+  }
+  
   const maxValue = Math.max(...data.map((d) => d.value), 1);
   const points = data.map((d, i) => ({
-    x: (i / (data.length - 1)) * 100,
+    x: (i / Math.max(data.length - 1, 1)) * 100,
     y: 100 - (d.value / maxValue) * 80,
   }));
 
@@ -124,7 +144,6 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
   return (
     <div className="relative">
       <svg viewBox="0 0 100 100" className="w-full h-48" preserveAspectRatio="none">
-        {/* Grid lines */}
         {[0, 25, 50, 75, 100].map((y) => (
           <line
             key={y}
@@ -136,13 +155,11 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
             strokeWidth="0.5"
           />
         ))}
-        {/* Area fill */}
         <path
           d={`${pathD} L 100 100 L 0 100 Z`}
           fill="url(#gradient)"
           opacity="0.3"
         />
-        {/* Line */}
         <path
           d={pathD}
           fill="none"
@@ -151,7 +168,6 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Points */}
         {points.map((p, i) => (
           <circle
             key={i}
@@ -183,7 +199,7 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
 function HealthIndicator({ name, status }: { name: string; status: "healthy" | "degraded" | "unhealthy" }) {
   const statusConfig = {
     healthy: { icon: CheckCircle, color: "text-green-600", bg: "bg-green-50", label: "Healthy" },
-    degraded: { icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", label: "Degraded" },
+    degraded: { icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", label: "Needs Data" },
     unhealthy: { icon: XCircle, color: "text-red-600", bg: "bg-red-50", label: "Unhealthy" },
   };
 
@@ -205,268 +221,390 @@ function HealthIndicator({ name, status }: { name: string; status: "healthy" | "
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Stats state
+  const [totalConversations, setTotalConversations] = useState(0);
+  const [todayConversations, setTodayConversations] = useState(0);
+  const [intentDistribution, setIntentDistribution] = useState<Array<{ label: string; value: number; color: string }>>([]);
+  const [dailyConversations, setDailyConversations] = useState<Array<{ label: string; value: number }>>([]);
+  const [unknownQuestions, setUnknownQuestions] = useState<Array<{ question: string; confidence: string; intent: string; date: string; status: string }>>([]);
+  const [latencyAvg, setLatencyAvg] = useState({ intent: 0, retrieval: 0, generation: 0, total: 0 });
+  const [unknownCount, setUnknownCount] = useState(0);
+  const [healthStatus, setHealthStatus] = useState<Record<string, "healthy" | "degraded" | "unhealthy">>({});
 
-  // Mock data - in production, fetch from API
-  const stats = {
-    todayConversations: 147,
-    avgConfidence: "94.2%",
-    avgResponseTime: "1.2s",
-    tokenUsage: "12.4K",
-    repositoryHitRate: "87%",
-    unknownQuestions: 23,
-    englishKannadaRatio: "65/35",
-    activeSessions: 12,
-  };
+  const fetchAnalytics = useCallback(async () => {
+    if (!db || !isFirebaseConfigured()) {
+      setError("Firebase not configured");
+      setLoading(false);
+      return;
+    }
 
-  const intentDistribution = [
-    { label: "Temple Timings", value: 35, color: "#f59e0b" },
-    { label: "Events", value: 22, color: "#3b82f6" },
-    { label: "Donations", value: 15, color: "#10b981" },
-    { label: "Volunteer", value: 12, color: "#8b5cf6" },
-    { label: "FAQ", value: 10, color: "#ec4899" },
-    { label: "Out of Scope", value: 6, color: "#6b7280" },
-  ];
+    try {
+      setLoading(true);
+      
+      // Fetch data in parallel
+      const [
+        sessionsResult,
+        intentResult,
+        latencyResult,
+        unknownResult
+      ] = await Promise.allSettled([
+        // Chat sessions
+        getCountFromServer(collection(db, "chat_sessions")),
+        // Intent distribution
+        getDocs(query(collection(db, "ai_intent_distribution"), orderBy("timestamp", "desc"), limit(500))),
+        // Latency records
+        getDocs(query(collection(db, "ai_latency_records"), orderBy("timestamp", "desc"), limit(100))),
+        // Unknown questions
+        getDocs(query(collection(db, "unknown_questions"), orderBy("timestamp", "desc"), limit(10))),
+      ]);
 
-  const dailyConversations = [
-    { label: "Mon", value: 45 },
-    { label: "Tue", value: 52 },
-    { label: "Wed", value: 48 },
-    { label: "Thu", value: 61 },
-    { label: "Fri", value: 58 },
-  ];
+      // Process sessions
+      let total = 0;
+      let today = 0;
+      const sessionsSnapAll = await getDocs(collection(db, "chat_sessions"));
+      total = sessionsSnapAll.size;
+      
+      // Count today's conversations
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      
+      sessionsSnapAll.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.createdAt) {
+          const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          if (createdAt >= todayStart) {
+            today++;
+          }
+        }
+      });
 
-  const unknownQuestions = [
-    { question: "What is the parking fee?", confidence: "45%", intent: "PARKING", date: "Jul 14", status: "Pending" },
-    { question: "Can I volunteer for annadana?", confidence: "52%", intent: "VOLUNTEER", date: "Jul 14", status: "Reviewed" },
-    { question: "How to reach Mantralaya?", confidence: "38%", intent: "DIRECTIONS", date: "Jul 13", status: "Pending" },
-    { question: "Is there accommodation nearby?", confidence: "41%", intent: "ACCOMMODATION", date: "Jul 13", status: "Added" },
-  ];
+      setTotalConversations(total);
+      setTodayConversations(today);
 
-  const aiHealth = [
-    { name: "Firebase", status: "healthy" as const },
-    { name: "Knowledge Base", status: "healthy" as const },
-    { name: "Panchanga", status: "healthy" as const },
-    { name: "OpenAI", status: "healthy" as const },
-    { name: "Conversation Memory", status: "healthy" as const },
-    { name: "Intent Engine", status: "healthy" as const },
-  ];
+      // Process intent distribution
+      const intentMap: Record<string, number> = {};
+      const intentColors: Record<string, string> = {
+        TEMPLE_TIMINGS: "#f59e0b",
+        EVENTS: "#3b82f6",
+        DONATION: "#10b981",
+        VOLUNTEER: "#8b5cf6",
+        FAQ: "#ec4899",
+        OUT_OF_SCOPE: "#6b7280",
+        PANCHANGA: "#06b6d4",
+        CONTACT_INFORMATION: "#8b5cf6",
+        LOCATION: "#14b8a6",
+        SPECIAL_SEVAS: "#f97316",
+      };
 
-  const knowledgeStats = {
-    published: 156,
-    draft: 12,
-    pendingReview: 8,
-    approved: 23,
-    rejected: 5,
-  };
+      if (intentResult.status === "fulfilled" && !intentResult.value.empty) {
+        intentResult.value.docs.forEach(doc => {
+          const data = doc.data();
+          const intent = data.intent || "UNKNOWN";
+          intentMap[intent] = (intentMap[intent] || 0) + 1;
+        });
+      }
 
-  const latency = {
-    intentDetection: "45ms",
-    repository: "120ms",
-    knowledgeSearch: "180ms",
-    llm: "850ms",
-    totalResponseTime: "1.2s",
-  };
+      const intents = Object.entries(intentMap)
+        .map(([intent, count]) => ({
+          label: intent.replace(/_/g, " "),
+          value: count,
+          color: intentColors[intent] || "#6b7280",
+        }))
+        .sort((a, b) => b.value - a.value);
+
+      setIntentDistribution(intents.length > 0 ? intents : []);
+
+      // Process latency
+      let totalLatency = 0;
+      let totalIntent = 0;
+      let totalRetrieval = 0;
+      let totalGeneration = 0;
+      let latencyCount = 0;
+
+      if (latencyResult.status === "fulfilled" && !latencyResult.value.empty) {
+        latencyResult.value.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.totalLatency) {
+            totalLatency += data.totalLatency;
+            totalIntent += data.intentDetectionTime || 0;
+            totalRetrieval += data.retrievalTime || 0;
+            totalGeneration += data.generationTime || 0;
+            latencyCount++;
+          }
+        });
+
+        if (latencyCount > 0) {
+          setLatencyAvg({
+            intent: Math.round(totalIntent / latencyCount),
+            retrieval: Math.round(totalRetrieval / latencyCount),
+            generation: Math.round(totalGeneration / latencyCount),
+            total: Math.round(totalLatency / latencyCount),
+          });
+        }
+      }
+
+      // Process unknown questions
+      const unknown: Array<{ question: string; confidence: string; intent: string; date: string; status: string }> = [];
+      let unknownTotal = 0;
+      
+      // Get total count
+      try {
+        const unknownCountSnap = await getCountFromServer(collection(db, "unknown_questions"));
+        unknownTotal = unknownCountSnap.data().count;
+      } catch {}
+
+      if (unknownResult.status === "fulfilled") {
+        unknownResult.value.docs.forEach(doc => {
+          const data = doc.data();
+          const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
+          unknown.push({
+            question: (data.question || "Unknown").substring(0, 40) + (data.question?.length > 40 ? "..." : ""),
+            confidence: `${data.confidence || 0}%`,
+            intent: (data.detectedIntent || "UNKNOWN").replace(/_/g, " "),
+            date: timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            status: data.reviewed ? "Reviewed" : "Pending",
+          });
+        });
+      }
+
+      setUnknownQuestions(unknown);
+      setUnknownCount(unknownTotal);
+
+      // Calculate daily conversations for the last 7 days
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dailyData: Array<{ label: string; value: number }> = [];
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date);
+        dayEnd.setHours(23, 59, 59, 999);
+        
+        let dayCount = 0;
+        sessionsSnapAll.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.createdAt) {
+            const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+            if (createdAt >= dayStart && createdAt <= dayEnd) {
+              dayCount++;
+            }
+          }
+        });
+        
+        dailyData.push({ label: days[date.getDay()], value: dayCount });
+      }
+
+      setDailyConversations(dailyData);
+
+      // Determine health status
+      const health: Record<string, "healthy" | "degraded" | "unhealthy"> = {
+        Firebase: "healthy",
+        "Chat Sessions": total > 0 ? "healthy" : "degraded",
+        "Intent Tracking": intents.length > 0 ? "healthy" : "degraded",
+        "Latency Tracking": latencyCount > 0 ? "healthy" : "degraded",
+        "Unknown Questions": "healthy",
+      };
+      setHealthStatus(health);
+
+      setError(null);
+    } catch (err) {
+      console.error("Failed to fetch analytics:", err);
+      setError(err instanceof Error ? err.message : "Failed to load analytics");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+          <p className="text-stone-500">Loading analytics...</p>
+        </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-stone-900 mb-2">Analytics Error</h2>
+          <p className="text-stone-500 mb-4">{error}</p>
+          <button
+            onClick={fetchAnalytics}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const healthItems = Object.entries(healthStatus).map(([name, status]) => ({
+    name,
+    status,
+  }));
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-stone-900">AI Analytics</h1>
           <p className="text-stone-500 mt-1">
-            Monitor AI performance and usage metrics
+            Real-time insights from your AI assistant conversations
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">
-          <Download className="w-4 h-4" />
-          Export Report
+        <button
+          onClick={fetchAnalytics}
+          className="flex items-center gap-2 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Refresh
         </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
-          title="Today's Conversations"
-          value={stats.todayConversations}
-          icon={<MessageSquare className="w-5 h-5 text-blue-600" />}
+          title="Total Conversations"
+          value={totalConversations}
+          icon={<MessageSquare className="w-6 h-6 text-blue-600" />}
           color="text-blue-600"
           bgColor="bg-blue-50"
-          trend="+12%"
-          trendUp
         />
         <StatCard
-          title="Avg Confidence"
-          value={stats.avgConfidence}
-          icon={<Target className="w-5 h-5 text-green-600" />}
+          title="Today"
+          value={todayConversations}
+          icon={<TrendingUp className="w-6 h-6 text-green-600" />}
           color="text-green-600"
           bgColor="bg-green-50"
-          trend="+2.1%"
-          trendUp
         />
         <StatCard
-          title="Avg Response Time"
-          value={stats.avgResponseTime}
-          icon={<Clock className="w-5 h-5 text-amber-600" />}
+          title="Avg Response"
+          value={latencyAvg.total > 0 ? `${(latencyAvg.total / 1000).toFixed(1)}s` : "N/A"}
+          icon={<Clock className="w-6 h-6 text-amber-600" />}
           color="text-amber-600"
           bgColor="bg-amber-50"
-          trend="-0.3s"
-          trendUp
-        />
-        <StatCard
-          title="Token Usage"
-          value={stats.tokenUsage}
-          icon={<Zap className="w-5 h-5 text-purple-600" />}
-          color="text-purple-600"
-          bgColor="bg-purple-50"
-        />
-        <StatCard
-          title="Repo Hit Rate"
-          value={stats.repositoryHitRate}
-          icon={<Database className="w-5 h-5 text-cyan-600" />}
-          color="text-cyan-600"
-          bgColor="bg-cyan-50"
-          trend="+5%"
-          trendUp
         />
         <StatCard
           title="Unknown Questions"
-          value={stats.unknownQuestions}
-          icon={<HelpCircle className="w-5 h-5 text-red-600" />}
+          value={unknownCount}
+          icon={<HelpCircle className="w-6 h-6 text-red-600" />}
           color="text-red-600"
           bgColor="bg-red-50"
         />
-        <StatCard
-          title="EN/KN Ratio"
-          value={stats.englishKannadaRatio}
-          icon={<Globe className="w-5 h-5 text-indigo-600" />}
-          color="text-indigo-600"
-          bgColor="bg-indigo-50"
-        />
-        <StatCard
-          title="Active Sessions"
-          value={stats.activeSessions}
-          icon={<Users className="w-5 h-5 text-pink-600" />}
-          color="text-pink-600"
-          bgColor="bg-pink-50"
-        />
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Intent Distribution - Full width on first row */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-amber-500" />
-              Intent Distribution
-            </h3>
-          </div>
-          <PieChart data={intentDistribution} />
-        </div>
-
-        {/* AI Health Status */}
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
-            <Activity className="w-5 h-5 text-green-500" />
-            AI Health
-          </h3>
-          <div className="space-y-3">
-            {aiHealth.map((item) => (
-              <HealthIndicator key={item.name} name={item.name} status={item.status} />
-            ))}
-          </div>
-          <div className="mt-4 pt-4 border-t border-stone-100">
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-sm font-medium">All Systems Operational</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Second Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Daily Conversations */}
+        {/* Intent Distribution */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-6">
           <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-amber-500" />
-            Daily Conversations
+            <BarChart3 className="w-5 h-5 text-amber-500" />
+            Intent Distribution
           </h3>
-          <LineChart data={dailyConversations} />
+          <PieChart data={intentDistribution} />
         </div>
 
-        {/* Knowledge Statistics */}
+        {/* AI Health */}
         <div className="bg-white rounded-xl border border-stone-200 p-6">
           <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
-            <BookOpen className="w-5 h-5 text-blue-500" />
-            Knowledge Statistics
+            <Activity className="w-5 h-5 text-green-500" />
+            System Health
           </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-sm text-stone-600">Published</span>
-              </div>
-              <span className="text-sm font-bold text-stone-800">{knowledgeStats.published}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-amber-500" />
-                <span className="text-sm text-stone-600">Draft</span>
-              </div>
-              <span className="text-sm font-bold text-stone-800">{knowledgeStats.draft}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500" />
-                <span className="text-sm text-stone-600">Pending Review</span>
-              </div>
-              <span className="text-sm font-bold text-stone-800">{knowledgeStats.pendingReview}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-purple-500" />
-                <span className="text-sm text-stone-600">Approved</span>
-              </div>
-              <span className="text-sm font-bold text-stone-800">{knowledgeStats.approved}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span className="text-sm text-stone-600">Rejected</span>
-              </div>
-              <span className="text-sm font-bold text-stone-800">{knowledgeStats.rejected}</span>
+          <div className="space-y-3">
+            {healthItems.map((item) => (
+              <HealthIndicator key={item.name} name={item.name} status={item.status} />
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-stone-100">
+            <div className={`flex items-center gap-2 ${totalConversations > 0 ? "text-green-600" : "text-amber-600"}`}>
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                {totalConversations > 0 ? "Analytics Active" : "Awaiting Conversations"}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Third Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Unknown Questions Table */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Daily Conversations */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-6">
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-amber-500" />
+            Conversations (Last 7 Days)
+          </h3>
+          <LineChart data={dailyConversations} />
+        </div>
+
+        {/* Latency */}
         <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-red-500" />
-              Unknown Questions
-            </h3>
-            <span className="text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded-full">
-              {unknownQuestions.length} questions
-            </span>
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-purple-500" />
+            Avg Latency
+          </h3>
+          <div className="space-y-4">
+            {[
+              { label: "Intent Detection", value: latencyAvg.intent, max: 500 },
+              { label: "Data Retrieval", value: latencyAvg.retrieval, max: 1000 },
+              { label: "Response Gen", value: latencyAvg.generation, max: 2000 },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-stone-600">{item.label}</span>
+                  <span className="text-sm font-medium text-stone-800">
+                    {item.value > 0 ? `${item.value}ms` : "N/A"}
+                  </span>
+                </div>
+                {item.value > 0 && (
+                  <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
+                      style={{ width: `${Math.min((item.value / item.max) * 100, 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+            <div className="pt-4 border-t border-stone-100">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-stone-700">Total Avg</span>
+                <span className="text-lg font-bold text-amber-600">
+                  {latencyAvg.total > 0 ? `${(latencyAvg.total / 1000).toFixed(1)}s` : "N/A"}
+                </span>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Fourth Row - Unknown Questions */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-red-500" />
+            Recent Unknown Questions ({unknownCount} total)
+          </h3>
+        </div>
+        {unknownQuestions.length === 0 ? (
+          <div className="text-center py-8 text-stone-400">
+            No unknown questions yet
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -494,8 +632,6 @@ export default function AnalyticsPage() {
                         className={`text-xs px-2 py-1 rounded-full ${
                           q.status === "Pending"
                             ? "bg-amber-100 text-amber-700"
-                            : q.status === "Reviewed"
-                            ? "bg-blue-100 text-blue-700"
                             : "bg-green-100 text-green-700"
                         }`}
                       >
@@ -507,42 +643,7 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Latency Metrics */}
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <h3 className="font-semibold text-lg text-stone-900 flex items-center gap-2 mb-4">
-            <Clock className="w-5 h-5 text-purple-500" />
-            Latency
-          </h3>
-          <div className="space-y-4">
-            {[
-              { label: "Intent Detection", value: latency.intentDetection, bar: 8 },
-              { label: "Repository", value: latency.repository, bar: 22 },
-              { label: "Knowledge Search", value: latency.knowledgeSearch, bar: 32 },
-              { label: "LLM Generation", value: latency.llm, bar: 65 },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-stone-600">{item.label}</span>
-                  <span className="text-sm font-medium text-stone-800">{item.value}</span>
-                </div>
-                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all"
-                    style={{ width: `${item.bar}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-            <div className="pt-4 border-t border-stone-100">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-stone-700">Total Response Time</span>
-                <span className="text-lg font-bold text-amber-600">{latency.totalResponseTime}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

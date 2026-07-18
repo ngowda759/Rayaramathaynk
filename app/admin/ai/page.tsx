@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { getPendingTestimonials } from "@/services/chat.service";
 import { getVolunteerRequests } from "@/services/chat.service";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 import toast from "react-hot-toast";
 
 interface CoverageSummary {
@@ -83,11 +85,38 @@ export default function AdminAIPage() {
           getVolunteerRequests(),
         ]);
 
+        // Fetch real conversation stats from Firestore
+        let totalConversations = 0;
+        let todayConversations = 0;
+        
+        if (db && isFirebaseConfigured()) {
+          try {
+            const sessionsSnap = await getDocs(collection(db, "chat_sessions"));
+            totalConversations = sessionsSnap.size;
+            
+            // Count today's conversations
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            
+            sessionsSnap.docs.forEach(doc => {
+              const data = doc.data();
+              if (data.createdAt) {
+                const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                if (createdAt >= todayStart) {
+                  todayConversations++;
+                }
+              }
+            });
+          } catch (e) {
+            console.warn("Failed to fetch conversation stats:", e);
+          }
+        }
+
         setStats({
           pendingTestimonials: testimonials.length,
           pendingVolunteers: volunteers.filter(v => v.status === "pending").length,
-          totalConversations: 0, // Will be fetched from analytics
-          recentMessages: 0,
+          totalConversations,
+          recentMessages: todayConversations,
         });
       } catch (error) {
         console.error("Failed to load stats:", error);
