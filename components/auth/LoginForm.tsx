@@ -33,28 +33,16 @@ export default function LoginForm() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [isClient, setIsClient] = useState(false);
-  const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
-    // Use setTimeout to avoid synchronous state update during effect
     const timer = setTimeout(() => {
       setIsClient(true);
     }, 0);
     return () => clearTimeout(timer);
   }, []);
 
-  // If user is already logged in or just logged in, redirect to admin
-  // This useEffect handles both initial auth state and post-login redirect
-  useEffect(() => {
-    if (!loading && isClient && user) {
-      // User is logged in - redirect to admin page
-      // Only redirect if this is either initial load OR a fresh login (loginSuccess is true)
-      const redirect = searchParams.get("redirect") || "/admin";
-      if (loginSuccess || !user.email) {
-        router.replace(redirect);
-      }
-    }
-  }, [loading, user, isClient, router, loginSuccess, searchParams]);
+  // Show spinner while auth is loading
+  const showSpinner = loading || !isClient;
 
   const {
     register,
@@ -68,8 +56,9 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Set loginSuccess to true so useEffect will redirect after user state updates
-      setLoginSuccess(true);
+      // Use hard redirect to ensure the page reloads and auth state is properly initialized
+      const redirect = searchParams.get("redirect") || "/admin";
+      window.location.href = redirect;
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
       switch (err.code) {
@@ -96,24 +85,12 @@ export default function LoginForm() {
   }
 
   // Show loading spinner while checking auth
-  if (loading || !isClient) {
+  if (showSpinner) {
     return (
       <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
         <div className="p-12 flex flex-col items-center justify-center">
           <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
           <p className="text-stone-600 font-medium">Loading...</p>
-        </div>
-      </Card>
-    );
-  }
-
-  // Don't show form if user is logged in (will redirect)
-  if (user) {
-    return (
-      <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
-        <div className="p-12 flex flex-col items-center justify-center">
-          <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4" />
-          <p className="text-stone-600 font-medium">Redirecting...</p>
         </div>
       </Card>
     );
