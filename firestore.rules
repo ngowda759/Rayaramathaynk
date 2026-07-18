@@ -184,7 +184,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    match /ai_unknown_questions/{docId} {
+    match /unknown_questions/{docId} {
       allow read: if true;
       allow create: if true;
       allow update: if isAdmin();
