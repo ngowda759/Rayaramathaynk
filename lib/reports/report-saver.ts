@@ -56,6 +56,50 @@ async function saveToBlobStorage(
 }
 
 /**
+ * Wait for page to fully load all dynamic content
+ */
+async function waitForPageReady(page: Page, waitTime: number = 3000): Promise<void> {
+  // Wait for network to be idle (no requests for 500ms)
+  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {
+    // If networkidle times out, continue anyway
+  });
+  
+  // Wait for all images to load
+  await page.evaluate(() => {
+    return Promise.all(
+      Array.from(document.images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      })
+    );
+  });
+  
+  // Additional wait for React/Next.js to hydrate
+  await page.waitForTimeout(waitTime);
+  
+  // Scroll through the page to trigger lazy loading
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+        if (totalHeight >= scrollHeight) {
+          clearInterval(timer);
+          window.scrollTo(0, 0);
+          resolve();
+        }
+      }, 50);
+    });
+  });
+}
+
+/**
  * Capture a screenshot of a page and save to Vercel Blob storage
  */
 export async function captureAndSaveScreenshot(
@@ -64,8 +108,12 @@ export async function captureAndSaveScreenshot(
   options?: {
     metadata?: ReportMetadata;
     screenshotOptions?: Parameters<typeof page.screenshot>[0];
+    waitBeforeCapture?: number;
   }
 ): Promise<SaveReportResponse> {
+  // Wait for page to be ready
+  await waitForPageReady(page, options?.waitBeforeCapture ?? 3000);
+  
   // Take screenshot
   const screenshotBuffer = await page.screenshot({
     fullPage: options?.screenshotOptions?.fullPage ?? true,
@@ -102,8 +150,12 @@ export async function exportAndSavePdf(
   options?: {
     metadata?: ReportMetadata;
     pdfOptions?: Parameters<typeof page.pdf>[0];
+    waitBeforeCapture?: number;
   }
 ): Promise<SaveReportResponse> {
+  // Wait for page to be ready
+  await waitForPageReady(page, options?.waitBeforeCapture ?? 3000);
+  
   // Export as PDF
   const pdfBuffer = await page.pdf({
     format: 'A4',
