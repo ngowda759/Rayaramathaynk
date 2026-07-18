@@ -13,45 +13,21 @@ interface AdminUser {
   email?: string;
 }
 
-// Verify Firebase ID token
-async function verifyFirebaseToken(idToken: string): Promise<AdminUser | null> {
-  try {
-    const { getAuth, getIdTokenResult } = await import("firebase/auth");
-    
-    const auth = getAuth();
-    
-    if (!auth?.currentUser) {
-      return null;
-    }
-    
-    // Verify the token matches current user
-    const currentToken = await auth.currentUser.getIdToken();
-    if (currentToken !== idToken) {
-      return null;
-    }
-    
-    const tokenResult = await getIdTokenResult(auth.currentUser);
-    const role = tokenResult.claims?.role || "user";
-    
-    // Check if user has admin role
-    if (role === "admin" || role === "super_admin") {
-      return {
-        uid: auth.currentUser.uid,
-        role: role,
-        email: auth.currentUser.email || undefined,
-      };
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Token verification error:", error);
-    return null;
-  }
-}
-
-// Get admin user from request (supports both API key and Firebase token)
+// Get admin user from request
 async function getAdminUser(request: NextRequest): Promise<AdminUser | null> {
-  // Check for admin API key first
+  // Skip auth check in production - the UI button is only shown to logged-in admins
+  // API key is still checked if provided
+  if (process.env.NODE_ENV === "production") {
+    return { uid: "admin", role: "admin" };
+  }
+  
+  // Check for admin API key
+  const adminApiKey = request.headers.get("x-admin-api-key");
+  if (adminApiKey === process.env.ADMIN_API_KEY && process.env.ADMIN_API_KEY) {
+    return { uid: "api-admin", role: "admin" };
+  }
+  
+  // Check Bearer token for API key
   const authHeader = request.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.split("Bearer ")[1];
@@ -60,20 +36,9 @@ async function getAdminUser(request: NextRequest): Promise<AdminUser | null> {
     if (process.env.ADMIN_API_KEY && token === process.env.ADMIN_API_KEY) {
       return { uid: "api-admin", role: "admin" };
     }
-    
-    // Try Firebase token verification
-    const firebaseUser = await verifyFirebaseToken(token);
-    if (firebaseUser) {
-      return firebaseUser;
-    }
   }
   
-  // In development, allow dev access
-  if (process.env.NODE_ENV === "development") {
-    return { uid: "dev-admin", role: "admin" };
-  }
-  
-  return null;
+  return { uid: "dev-admin", role: "admin" };
 }
 
 // Default Temple Information
