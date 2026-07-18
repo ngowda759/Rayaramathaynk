@@ -11,7 +11,7 @@ export type ReportFileType = 'screenshot' | 'pdf' | 'json' | 'excel' | 'markdown
 
 export interface SaveReportOptions {
   filename: string;
-  content: Buffer | Blob | string | Uint8Array;
+  content: Buffer | Blob | string | Uint8Array | ArrayBuffer;
   contentType: string;
   fileType: ReportFileType;
   metadata?: Record<string, string>;
@@ -180,21 +180,25 @@ class StorageService {
     console.log(`[Storage] Saving report (${contentType}) to ${pathname}`);
     console.log(`[Storage] BLOB_READ_WRITE_TOKEN configured: ${!!process.env.BLOB_READ_WRITE_TOKEN}`);
     
-    // Prepare the data for upload
-    let uploadData: BlobPart;
-    
-    if (typeof content === 'string') {
-      uploadData = content;
-    } else if (Buffer.isBuffer(content)) {
-      uploadData = new Uint8Array(content);
-    } else {
-      // For Blob or Uint8Array, pass directly
-      uploadData = content as BlobPart;
-    }
-    
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not configured. Please set it in Vercel project settings.');
     }
+    
+    // Prepare the data for upload - convert everything to Buffer
+    let uploadData: Buffer;
+    
+    if (typeof content === 'string') {
+      uploadData = Buffer.from(content);
+    } else if (Buffer.isBuffer(content)) {
+      uploadData = content;
+    } else if (content instanceof Uint8Array) {
+      uploadData = Buffer.from(content);
+    } else {
+      // For Blob, convert to ArrayBuffer then to Buffer
+      uploadData = Buffer.from(new Uint8Array(await content.arrayBuffer()));
+    }
+    
+    console.log(`[Storage] Report size: ${uploadData.length} bytes`);
     
     // Upload to Vercel Blob
     const uploadedBlob = await put(pathname, uploadData, {
