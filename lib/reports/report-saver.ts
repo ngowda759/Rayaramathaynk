@@ -87,7 +87,7 @@ export async function captureAndSaveScreenshot(
       page: options.metadata.page || name,
       url: options.metadata.url || page.url(),
       timestamp: options.metadata.timestamp || new Date().toISOString(),
-      testName: options.metadata.testName,
+      testName: options.metadata.testName || '',
       userAgent: await page.evaluate(() => navigator.userAgent),
     } : undefined
   );
@@ -125,7 +125,7 @@ export async function exportAndSavePdf(
       page: options.metadata.page || name,
       url: options.metadata.url || page.url(),
       timestamp: options.metadata.timestamp || new Date().toISOString(),
-      testName: options.metadata.testName,
+      testName: options.metadata.testName || '',
       userAgent: await page.evaluate(() => navigator.userAgent),
     } : undefined
   );
