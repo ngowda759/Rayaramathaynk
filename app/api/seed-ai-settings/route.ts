@@ -5,7 +5,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 interface AdminUser {
   uid: string;
@@ -13,10 +12,36 @@ interface AdminUser {
   email?: string;
 }
 
+// Get admin Firestore instance using Firebase Admin SDK
+async function getAdminFirestore() {
+  const admin = await import("firebase-admin");
+  const { cert, initializeApp, getApp } = admin;
+  const { getFirestore } = await import("firebase-admin/firestore");
+  
+  const adminApp = getApp();
+  
+  if (!adminApp) {
+    const serviceAccount = {
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "sri-raghavendra-mutt",
+      privateKey: (process.env.FIREBASE_ADMIN_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+    };
+    
+    if (!serviceAccount.projectId || !serviceAccount.privateKey || !serviceAccount.clientEmail) {
+      throw new Error("Firebase Admin credentials not configured");
+    }
+    
+    initializeApp({
+      credential: cert(serviceAccount),
+    });
+  }
+  
+  return getFirestore();
+}
+
 // Get admin user from request
 async function getAdminUser(request: NextRequest): Promise<AdminUser | null> {
   // Skip auth check in production - the UI button is only shown to logged-in admins
-  // API key is still checked if provided
   if (process.env.NODE_ENV === "production") {
     return { uid: "admin", role: "admin" };
   }
@@ -32,7 +57,6 @@ async function getAdminUser(request: NextRequest): Promise<AdminUser | null> {
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.split("Bearer ")[1];
     
-    // Check for admin API key
     if (process.env.ADMIN_API_KEY && token === process.env.ADMIN_API_KEY) {
       return { uid: "api-admin", role: "admin" };
     }
@@ -440,9 +464,8 @@ const DEFAULT_UNKNOWN_QUESTIONS = [
 
 export async function POST(request: NextRequest) {
   try {
-    if (!db) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 });
-    }
+    // Get admin Firestore using Firebase Admin SDK
+    const adminDb = await getAdminFirestore();
 
     const admin = await getAdminUser(request);
     if (!admin) {
@@ -450,18 +473,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Seed main AI settings
-    await setDoc(doc(db, "ai_settings", " RayaAI"), {
+    await adminDb.doc("ai_settings/ RayaAI").set({
       templeInformation,
       visitorInformation,
       aiResponses,
       aiBehavior,
-      updatedAt: serverTimestamp(),
+      updatedAt: new Date(),
       updatedBy: admin.uid
     });
 
     // Seed prompts
     const promptVersionId = `prompt_${Date.now()}`;
-    await setDoc(doc(db, "ai_settings", "prompts"), {
+    await adminDb.doc("ai_settings/prompts").set({
       currentPromptId: promptVersionId,
       versions: [{
         id: promptVersionId,
@@ -480,39 +503,39 @@ export async function POST(request: NextRequest) {
     });
 
     // Seed intents
-    await setDoc(doc(db, "ai_settings", "intents"), {
+    await adminDb.doc("ai_settings/intents").set({
       intents: DEFAULT_INTENTS,
     });
 
     // Seed unknown questions
-    await setDoc(doc(db, "ai_settings", "unknown_questions"), {
+    await adminDb.doc("ai_settings/unknown_questions").set({
       questions: DEFAULT_UNKNOWN_QUESTIONS,
     });
 
     // Seed welcome message
-    await setDoc(doc(db, "ai_settings", "welcome"), {
+    await adminDb.doc("ai_settings/welcome").set({
       message: aiResponses.welcome,
       language: "en",
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
     // Seed other settings
-    await setDoc(doc(db, "settings", "temple"), {
+    await adminDb.doc("settings/temple").set({
       ...templeInformation,
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
-    await setDoc(doc(db, "settings", "contact"), {
+    await adminDb.doc("settings/contact").set({
       phone: templeInformation.contact.phone,
       email: templeInformation.contact.email,
       address: templeInformation.contact.address,
       officeHours: templeInformation.officeHours,
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
-    await setDoc(doc(db, "settings", "visitor"), {
+    await adminDb.doc("settings/visitor").set({
       ...visitorInformation,
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
     return NextResponse.json({
@@ -545,24 +568,22 @@ export async function GET() {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!db) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 500 });
-  }
-
   try {
+    // Get admin Firestore using Firebase Admin SDK
+    const adminDb = await getAdminFirestore();
     // Seed main AI settings
-    await setDoc(doc(db, "ai_settings", " RayaAI"), {
+    await adminDb.doc("ai_settings/ RayaAI").set({
       templeInformation,
       visitorInformation,
       aiResponses,
       aiBehavior,
-      updatedAt: serverTimestamp(),
+      updatedAt: new Date(),
       updatedBy: "dev-seed"
     });
 
     // Seed prompts
     const promptVersionId = `prompt_${Date.now()}`;
-    await setDoc(doc(db, "ai_settings", "prompts"), {
+    await adminDb.doc("ai_settings/prompts").set({
       currentPromptId: promptVersionId,
       versions: [{
         id: promptVersionId,
@@ -581,39 +602,39 @@ export async function GET() {
     });
 
     // Seed intents
-    await setDoc(doc(db, "ai_settings", "intents"), {
+    await adminDb.doc("ai_settings/intents").set({
       intents: DEFAULT_INTENTS,
     });
 
     // Seed unknown questions
-    await setDoc(doc(db, "ai_settings", "unknown_questions"), {
+    await adminDb.doc("ai_settings/unknown_questions").set({
       questions: DEFAULT_UNKNOWN_QUESTIONS,
     });
 
     // Seed welcome message
-    await setDoc(doc(db, "ai_settings", "welcome"), {
+    await adminDb.doc("ai_settings/welcome").set({
       message: aiResponses.welcome,
       language: "en",
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
     // Seed other settings
-    await setDoc(doc(db, "settings", "temple"), {
+    await adminDb.doc("settings/temple").set({
       ...templeInformation,
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
-    await setDoc(doc(db, "settings", "contact"), {
+    await adminDb.doc("settings/contact").set({
       phone: templeInformation.contact.phone,
       email: templeInformation.contact.email,
       address: templeInformation.contact.address,
       officeHours: templeInformation.officeHours,
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
-    await setDoc(doc(db, "settings", "visitor"), {
+    await adminDb.doc("settings/visitor").set({
       ...visitorInformation,
-      updatedAt: serverTimestamp()
+      updatedAt: new Date()
     });
 
     return NextResponse.json({

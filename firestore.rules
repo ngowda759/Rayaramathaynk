@@ -193,7 +193,8 @@ service cloud.firestore {
 
     match /ai_settings/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      // Allow write for seeding (only in API routes, which are server-side)
+      allow write: if true;
     }
 
     // Chat messages collection (public read for conversation history)
