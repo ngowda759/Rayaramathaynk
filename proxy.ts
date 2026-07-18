@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, addDoc } from "firebase/firestore";
 
-// Firebase config for middleware (server-side)
+// Firebase config for proxy (server-side)
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBJPt69fwPfcMLvSYMG28Jv64orqenNeC4",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "sri-raghavendra-mutt.firebaseapp.com",
@@ -13,7 +13,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:231035009940:web:dbc2c3b714c76ddb73ed81",
 };
 
-// Initialize Firebase for middleware
+// Initialize Firebase for proxy
 let db: ReturnType<typeof getFirestore> | null = null;
 
 function initFirebase() {
@@ -22,7 +22,7 @@ function initFirebase() {
       const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
       db = getFirestore(app);
     } catch (error) {
-      console.error("Firebase init error in middleware:", error);
+      console.error("Firebase init error in proxy:", error);
     }
   }
   return db;
@@ -69,10 +69,8 @@ async function trackPageView(request: NextRequest, pathname: string) {
       views: 1,
     };
 
-    // Add to page_views collection
     await addDoc(collection(firestore, "page_views"), pageViewData);
   } catch (error) {
-    // Silently fail - don't impact user experience
     console.error("Error tracking page view:", error);
   }
 }
@@ -83,7 +81,7 @@ const PROTECTED_PATHS = ["/admin"];
 // Paths that should redirect to /admin if already logged in
 const AUTH_PATHS = ["/login", "/register"];
 
-export default async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isStaticFile = pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/);
   const isApiRoute = pathname.startsWith("/api/");
@@ -116,23 +114,15 @@ export default async function middleware(request: NextRequest) {
     !isApiRoute &&
     !isProtectedPath
   ) {
-    // Fire and forget - don't await
     trackPageView(request, pathname).catch(() => {});
   }
 
   // Create response and add security headers
   const response = NextResponse.next();
 
-  // Apply security headers to all responses
   Object.entries(securityHeaders).forEach(([key, value]) => {
     response.headers.set(key, value);
   });
 
   return response;
 }
-
-export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|public|api/).*)",
-  ],
-};
