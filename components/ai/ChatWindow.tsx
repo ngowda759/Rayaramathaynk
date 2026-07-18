@@ -5,9 +5,9 @@ import { useAIChat } from "./AIChatProvider";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { ChatInput } from "./ChatInput";
-import { SuggestedQuestions } from "./SuggestedQuestions";
-import { Trash2, Sparkles, History, X, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
+import { Trash2, Sparkles, History, X, ChevronRight, Maximize2, Minimize2, Heart, Users } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import Link from "next/link";
 
 export function ChatWindow() {
   const { 
@@ -32,10 +32,6 @@ export function ChatWindow() {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isLoading]);
-
-  const handleSuggestedQuestion = (question: string) => {
-    sendMessage(question);
-  };
 
   const canRegenerate = messages.length > 0 && !isLoading;
 
@@ -134,7 +130,7 @@ export function ChatWindow() {
         aria-label="Chat messages"
       >
         {messages.length === 0 ? (
-          <WelcomeScreen onSelectQuestion={handleSuggestedQuestion} welcomeMessage={welcomeMessage} />
+          <WelcomeScreen welcomeMessage={welcomeMessage} />
         ) : (
           <>
             {messages.map((message, index) => (
@@ -151,10 +147,23 @@ export function ChatWindow() {
         )}
       </div>
 
-      {/* Suggested Questions - Only show when there are messages */}
-      {messages.length > 0 && (
-        <SuggestedQuestions onSelect={handleSuggestedQuestion} />
-      )}
+      {/* Quick Action Links */}
+      <div className="px-3 py-2 border-t border-stone-200 bg-gradient-to-r from-amber-50/50 to-orange-50/30 flex gap-3">
+        <Link
+          href="/testimonials"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-stone-200 rounded-full text-xs text-stone-600 hover:text-amber-700 hover:border-amber-300 transition-all"
+        >
+          <Heart className="w-3.5 h-3.5" />
+          Share Experience
+        </Link>
+        <Link
+          href="/volunteer"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-stone-200 rounded-full text-xs text-stone-600 hover:text-amber-700 hover:border-amber-300 transition-all"
+        >
+          <Users className="w-3.5 h-3.5" />
+          Become a Volunteer
+        </Link>
+      </div>
 
       {/* Input Area */}
       <div className="flex-shrink-0">
@@ -164,8 +173,7 @@ export function ChatWindow() {
   );
 }
 
-function WelcomeScreen({ onSelectQuestion, welcomeMessage }: { 
-  onSelectQuestion: (q: string) => void;
+function WelcomeScreen({ welcomeMessage }: { 
   welcomeMessage: string 
 }) {
   // Default welcome message if not loaded
@@ -177,13 +185,6 @@ How may I assist you today?`;
 
   const displayMessage = welcomeMessage || defaultWelcome;
 
-  const quickQuestions = [
-    { text: "🕐 Temple Timings", q: "What are the temple timings?" },
-    { text: "📅 Upcoming Events", q: "What events are coming up?" },
-    { text: "🙏 Sevas Available", q: "What sevas are available?" },
-    { text: "💝 How to Donate", q: "How can I donate to the temple?" },
-  ];
-
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6">
       {/* Avatar */}
@@ -192,23 +193,8 @@ How may I assist you today?`;
       </div>
       
       {/* Welcome Message */}
-      <div className="text-sm text-stone-600 mb-6 max-w-sm prose prose-sm prose-stone">
+      <div className="text-sm text-stone-600 max-w-sm prose prose-sm prose-stone">
         <ReactMarkdown>{displayMessage}</ReactMarkdown>
-      </div>
-
-      {/* Quick Questions - Horizontal Pills */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        {quickQuestions.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => onSelectQuestion(item.q)}
-            className="px-4 py-2 bg-white border border-stone-200 rounded-full text-xs text-stone-600
-                     hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 
-                     transition-all duration-200 shadow-sm"
-          >
-            {item.text}
-          </button>
-        ))}
       </div>
     </div>
   );

@@ -156,5 +156,33 @@ service cloud.firestore {
       allow create: if true;
       allow update: if true;
     }
+    
+    // Chat messages (public create for saving messages)
+    match /messages/{docId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+    }
+    
+    // Unknown questions for AI analytics (public create, admin read/write)
+    match /unknown_questions/{docId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+    
+    // Volunteer requests (public create, admin read/write)
+    match /volunteer_requests/{docId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+    
+    // Chat feedback (public create, admin read)
+    match /feedback/{docId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
   }
 }
