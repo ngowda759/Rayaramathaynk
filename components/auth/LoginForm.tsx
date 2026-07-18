@@ -56,9 +56,11 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Use hard redirect to ensure the page reloads and auth state is properly initialized
+      // Delay redirect to allow Firebase to persist auth state to localStorage
       const redirect = searchParams.get("redirect") || "/admin";
-      window.location.href = redirect;
+      setTimeout(() => {
+        window.location.href = redirect;
+      }, 1000);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
       switch (err.code) {
