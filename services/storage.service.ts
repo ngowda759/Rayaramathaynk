@@ -11,7 +11,7 @@ export type ReportFileType = 'screenshot' | 'pdf' | 'json' | 'excel' | 'markdown
 
 export interface SaveReportOptions {
   filename: string;
-  content: Buffer | Blob | string;
+  content: Buffer | Blob | string | Uint8Array;
   contentType: string;
   fileType: ReportFileType;
   metadata?: Record<string, string>;
@@ -172,7 +172,7 @@ class StorageService {
    * Save a report file (screenshot, PDF, etc.) to Vercel Blob storage
    */
   async saveReport(options: SaveReportOptions): Promise<UploadResult> {
-    const { filename, content, contentType, metadata } = options;
+    const { filename, content, contentType } = options;
     
     // Ensure filename starts with reports/
     const pathname = filename.startsWith('reports/') ? filename : `reports/${filename}`;
@@ -181,16 +181,16 @@ class StorageService {
     console.log(`[Storage] BLOB_READ_WRITE_TOKEN configured: ${!!process.env.BLOB_READ_WRITE_TOKEN}`);
     
     // Convert content to Blob if needed
-    let blob: Blob;
+    let blobData: BlobPart;
     if (typeof content === 'string') {
-      blob = new Blob([content], { type: contentType });
+      blobData = content;
     } else if (Buffer.isBuffer(content)) {
-      // Convert Buffer to Uint8Array for Blob compatibility
-      blob = new Blob([new Uint8Array(content)], { type: contentType });
+      blobData = new Uint8Array(content);
     } else {
-      blob = content;
+      blobData = content;
     }
     
+    const blob = new Blob([blobData], { type: contentType });
     console.log(`[Storage] Report size: ${blob.size} bytes`);
     
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -198,7 +198,7 @@ class StorageService {
     }
     
     // Upload to Vercel Blob
-    const uploadedBlob = await put(pathname, blob, {
+    const uploadedBlob = await put(pathname, blobData, {
       access: 'public',
       contentType: contentType,
       addRandomSuffix: false,
@@ -232,13 +232,12 @@ class StorageService {
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    const blob = new Blob([bytes], { type: 'image/png' });
     
     const filename = this.generateReportFilename('screenshot', pageName);
     
     return this.saveReport({
       filename,
-      content: blob,
+      content: bytes,
       contentType: 'image/png',
       fileType: 'screenshot',
       metadata,
