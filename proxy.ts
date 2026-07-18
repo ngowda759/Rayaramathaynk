@@ -75,36 +75,42 @@ async function trackPageView(request: NextRequest, pathname: string) {
   }
 }
 
+// Static file extensions to exclude from auth checks
+const STATIC_EXTENSIONS = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp)$/;
+
 // Paths that require authentication
 const PROTECTED_PATHS = ["/admin"];
 
-// Paths that should redirect to /admin if already logged in
+// Paths that should allow through (auth is handled client-side)
 const AUTH_PATHS = ["/login", "/register"];
 
 export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isStaticFile = pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/);
+  
+  // Check if this is a static file or API route
+  const isStaticFile = STATIC_EXTENSIONS.test(pathname);
   const isApiRoute = pathname.startsWith("/api/");
-
+  
   // Check if path requires authentication
   const isProtectedPath = PROTECTED_PATHS.some(path => pathname.startsWith(path));
   const isAuthPath = AUTH_PATHS.includes(pathname);
 
-  // Get auth status from cookies
-  const hasFirebaseCookie = request.cookies.has("firebase-auth-token");
-  const hasSessionCookie = request.cookies.has("__session");
-  const isAuthenticated = hasFirebaseCookie || hasSessionCookie;
-
-  // Redirect to login if accessing protected route without auth
-  if (isProtectedPath && !isAuthenticated && !isStaticFile && !isApiRoute) {
+  // For protected paths, redirect to login (auth is checked client-side by Firebase)
+  // The login page will show the form because Firebase handles auth client-side
+  if (isProtectedPath && !isStaticFile && !isApiRoute) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
-
-  // Redirect to /admin if already logged in and accessing auth pages
-  if (isAuthPath && isAuthenticated) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+  
+  // For auth paths (login/register), always allow through
+  // Firebase auth is handled client-side, so we don't redirect here
+  if (isAuthPath) {
+    const response = NextResponse.next();
+    Object.entries(securityHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+    return response;
   }
 
   // Track page view for GET requests (exclude static files, API routes, and admin routes)
