@@ -48,7 +48,7 @@ export default function LoginForm() {
     if (!loading && isClient && user) {
       // User is logged in - redirect to home page
       // The middleware will handle protecting /admin routes
-      router.replace("/");
+      router.replace("/admin");
     }
   }, [loading, user, isClient, router]);
 
