@@ -75,14 +75,24 @@ let authInitialized = false;
 // Helper to check if we're in the browser
 const isBrowser = typeof window !== "undefined";
 
-// Initialize Firebase only in browser environment
-if (isBrowser && isFirebaseConfigured()) {
-  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  if (firebaseConfig.storageBucket) {
-    storage = getStorage(app);
+// Initialize Firebase for both client and server
+if (isFirebaseConfigured()) {
+  if (getApps().length > 0) {
+    app = getApp();
+  } else {
+    app = initializeApp(firebaseConfig);
   }
+  
+  // Only initialize auth and storage on client side
+  if (isBrowser) {
+    auth = getAuth(app);
+    if (firebaseConfig.storageBucket) {
+      storage = getStorage(app);
+    }
+  }
+  
+  // Always initialize Firestore (works on both client and server)
+  db = getFirestore(app);
 }
 
 // Auth persistence setup - MUST be called from client-side only
