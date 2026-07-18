@@ -180,25 +180,24 @@ class StorageService {
     console.log(`[Storage] Saving report (${contentType}) to ${pathname}`);
     console.log(`[Storage] BLOB_READ_WRITE_TOKEN configured: ${!!process.env.BLOB_READ_WRITE_TOKEN}`);
     
-    // Convert content to Blob if needed
-    let blobData: BlobPart;
-    if (typeof content === 'string') {
-      blobData = content;
-    } else if (Buffer.isBuffer(content)) {
-      blobData = new Uint8Array(content);
-    } else {
-      blobData = content;
-    }
+    // Prepare the data for upload
+    let uploadData: BlobPart;
     
-    const blob = new Blob([blobData], { type: contentType });
-    console.log(`[Storage] Report size: ${blob.size} bytes`);
+    if (typeof content === 'string') {
+      uploadData = content;
+    } else if (Buffer.isBuffer(content)) {
+      uploadData = new Uint8Array(content);
+    } else {
+      // For Blob or Uint8Array, pass directly
+      uploadData = content as BlobPart;
+    }
     
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not configured. Please set it in Vercel project settings.');
     }
     
     // Upload to Vercel Blob
-    const uploadedBlob = await put(pathname, blobData, {
+    const uploadedBlob = await put(pathname, uploadData, {
       access: 'public',
       contentType: contentType,
       addRandomSuffix: false,
