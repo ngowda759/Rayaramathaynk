@@ -72,8 +72,23 @@ export default function AISettingsPage() {
     
     setSeeding(true);
     try {
+      // Get Firebase ID token
+      const { getAuth, getIdToken } = await import("firebase/auth");
+      const firebaseAuth = getAuth();
+      
+      if (!firebaseAuth.currentUser) {
+        showMsg("error", "You must be logged in to initialize data");
+        setSeeding(false);
+        return;
+      }
+      
+      const idToken = await getIdToken(firebaseAuth.currentUser);
+      
       const response = await fetch("/api/seed-ai-settings", {
         method: "POST",
+        headers: {
+          "Authorization": `Bearer ${idToken}`,
+        },
       });
       
       if (response.ok) {

@@ -6,7 +6,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { checkAdminAuth } from "@/lib/auth/admin";
+
+interface AdminUser {
+  uid: string;
+  role: string;
+  email?: string;
+}
+
+// Verify Firebase ID token
+async function verifyFirebaseToken(idToken: string): Promise<AdminUser | null> {
+  try {
+    const { getAuth, getIdTokenResult } = await import("firebase/auth");
+    
+    const auth = getAuth();
+    
+    if (!auth?.currentUser) {
+      return null;
+    }
+    
+    // Verify the token matches current user
+    const currentToken = await auth.currentUser.getIdToken();
+    if (currentToken !== idToken) {
+      return null;
+    }
+    
+    const tokenResult = await getIdTokenResult(auth.currentUser);
+    const role = tokenResult.claims?.role || "user";
+    
+    // Check if user has admin role
+    if (role === "admin" || role === "super_admin") {
+      return {
+        uid: auth.currentUser.uid,
+        role: role,
+        email: auth.currentUser.email || undefined,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Token verification error:", error);
+    return null;
+  }
+}
+
+// Get admin user from request (supports both API key and Firebase token)
+async function getAdminUser(request: NextRequest): Promise<AdminUser | null> {
+  // Check for admin API key first
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.split("Bearer ")[1];
+    
+    // Check for admin API key
+    if (process.env.ADMIN_API_KEY && token === process.env.ADMIN_API_KEY) {
+      return { uid: "api-admin", role: "admin" };
+    }
+    
+    // Try Firebase token verification
+    const firebaseUser = await verifyFirebaseToken(token);
+    if (firebaseUser) {
+      return firebaseUser;
+    }
+  }
+  
+  // In development, allow dev access
+  if (process.env.NODE_ENV === "development") {
+    return { uid: "dev-admin", role: "admin" };
+  }
+  
+  return null;
+}
 
 // Default Temple Information
 const templeInformation = {
@@ -411,7 +479,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 });
     }
 
-    const admin = await checkAdminAuth(request);
+    const admin = await getAdminUser(request);
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
