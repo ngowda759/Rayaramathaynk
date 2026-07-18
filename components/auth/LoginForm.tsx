@@ -33,6 +33,7 @@ export default function LoginForm() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
     // Use setTimeout to avoid synchronous state update during effect
@@ -42,15 +43,18 @@ export default function LoginForm() {
     return () => clearTimeout(timer);
   }, []);
 
-  // If user is already logged in, redirect to home (proxy will handle admin redirect)
-  // Only redirect if Firebase is configured and user is logged in
+  // If user is already logged in or just logged in, redirect to admin
+  // This useEffect handles both initial auth state and post-login redirect
   useEffect(() => {
     if (!loading && isClient && user) {
-      // User is logged in - redirect to home page
-      // The proxy will handle protecting /admin routes
-      router.replace("/admin");
+      // User is logged in - redirect to admin page
+      // Only redirect if this is either initial load OR a fresh login (loginSuccess is true)
+      const redirect = searchParams.get("redirect") || "/admin";
+      if (loginSuccess || !user.email) {
+        router.replace(redirect);
+      }
     }
-  }, [loading, user, isClient, router]);
+  }, [loading, user, isClient, router, loginSuccess, searchParams]);
 
   const {
     register,
@@ -64,10 +68,8 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Use the redirect URL from query params, or default to /admin
-      const redirect = searchParams.get("redirect") || "/admin";
-      // Use router.push for soft navigation to preserve auth state
-      router.push(redirect);
+      // Set loginSuccess to true so useEffect will redirect after user state updates
+      setLoginSuccess(true);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
       switch (err.code) {
