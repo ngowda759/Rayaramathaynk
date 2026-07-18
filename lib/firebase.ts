@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { Auth, getAuth, setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
+import { Auth, getAuth } from "firebase/auth";
 import { Firestore, getFirestore, getDocs, collection } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
@@ -64,17 +64,36 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-W4WCWH7378",
 };
 
-// Initialize Firebase only if properly configured
+// Initialize Firebase only if properly configured - BUT only in browser
+// This prevents "window is not defined" errors during SSR
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 let authInitialized = false;
 
-async function initializeAuth(authInstance: Auth): Promise<void> {
-  if (authInitialized) return;
+// Helper to check if we're in the browser
+const isBrowser = typeof window !== "undefined";
+
+// Initialize Firebase only in browser environment
+if (isBrowser && isFirebaseConfigured()) {
+  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  if (firebaseConfig.storageBucket) {
+    storage = getStorage(app);
+  }
+}
+
+// Auth persistence setup - MUST be called from client-side only
+// This is a separate function to be called from AuthContext or similar
+export async function initializeAuthPersistence(authInstance: Auth): Promise<void> {
+  if (authInitialized || !isBrowser) return;
   
   try {
+    // Dynamic import to avoid SSR issues
+    const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import("firebase/auth");
+    
     // Set auth persistence to LOCAL (persists across browser sessions)
     await setPersistence(authInstance, browserLocalPersistence);
     authInitialized = true;
@@ -83,25 +102,12 @@ async function initializeAuth(authInstance: Auth): Promise<void> {
     console.error("Failed to set auth persistence:", error);
     // Fallback to session persistence
     try {
+      const { setPersistence, browserSessionPersistence } = await import("firebase/auth");
       await setPersistence(authInstance, browserSessionPersistence);
       console.log("Firebase auth persistence set to SESSION (fallback)");
     } catch (sessionError) {
       console.error("Failed to set session persistence:", sessionError);
     }
-  }
-}
-
-if (isFirebaseConfigured()) {
-  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  
-  // Initialize auth with persistence
-  initializeAuth(auth);
-  
-  db = getFirestore(app);
-  // Only initialize storage if storage bucket is configured
-  if (firebaseConfig.storageBucket) {
-    storage = getStorage(app);
   }
 }
 
@@ -201,6 +207,5 @@ export async function getNextUpcomingEvent(): Promise<NextEventInfo | null> {
   }
 }
 
-export { app, auth, db, storage, isFirebaseConfigured, initializeAuth };
-export { validateFirebaseConfig };
+export { app, auth, db, storage, isFirebaseConfigured, validateFirebaseConfig };
 export default app;
