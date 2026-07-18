@@ -5,7 +5,17 @@
 
 import { put, del, list } from '@vercel/blob';
 
-export type UploadFolder = 'testimonials' | 'gallery' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas';
+export type UploadFolder = 'testimonials' | 'gallery' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas' | 'reports';
+
+export type ReportFileType = 'screenshot' | 'pdf' | 'json' | 'excel' | 'markdown';
+
+export interface SaveReportOptions {
+  filename: string;
+  content: Buffer | Blob | string;
+  contentType: string;
+  fileType: ReportFileType;
+  metadata?: Record<string, string>;
+}
 
 interface UploadResult {
   url: string;
@@ -138,6 +148,128 @@ class StorageService {
       .replace(/[^a-z0-9\s.-]/g, '')
       .replace(/\s+/g, '_')
       .substring(0, 100);
+  }
+
+  /**
+   * Generate a report filename with timestamp
+   */
+  generateReportFilename(type: ReportFileType, name?: string): string {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const sanitizedName = name ? `_${this.sanitizeFilename(name)}` : '';
+    
+    const extensions: Record<ReportFileType, string> = {
+      screenshot: 'png',
+      pdf: 'pdf',
+      json: 'json',
+      excel: 'xlsx',
+      markdown: 'md',
+    };
+    
+    return `${type}/${timestamp}${sanitizedName}.${extensions[type]}`;
+  }
+
+  /**
+   * Save a report file (screenshot, PDF, etc.) to Vercel Blob storage
+   */
+  async saveReport(options: SaveReportOptions): Promise<UploadResult> {
+    const { filename, content, contentType, metadata } = options;
+    
+    // Ensure filename starts with reports/
+    const pathname = filename.startsWith('reports/') ? filename : `reports/${filename}`;
+    
+    console.log(`[Storage] Saving report (${contentType}) to ${pathname}`);
+    
+    // Convert content to Blob if needed
+    let blob: Blob;
+    if (typeof content === 'string') {
+      blob = new Blob([content], { type: contentType });
+    } else if (Buffer.isBuffer(content)) {
+      blob = new Blob([content], { type: contentType });
+    } else {
+      blob = content;
+    }
+    
+    console.log(`[Storage] Report size: ${blob.size} bytes`);
+    
+    // Upload to Vercel Blob
+    const uploadedBlob = await put(pathname, blob, {
+      access: 'public',
+      contentType: contentType,
+      addRandomSuffix: false,
+    });
+
+    console.log(`[Storage] Report saved to: ${uploadedBlob.url}`);
+    
+    return {
+      url: uploadedBlob.url,
+      pathname: uploadedBlob.pathname,
+    };
+  }
+
+  /**
+   * Save a screenshot to Vercel Blob storage
+   */
+  async saveScreenshot(
+    screenshotData: string,
+    pageName: string,
+    metadata?: Record<string, string>
+  ): Promise<UploadResult> {
+    // Extract base64 content if it's a data URL
+    let base64Content = screenshotData;
+    if (screenshotData.includes(',')) {
+      base64Content = screenshotData.split(',')[1];
+    }
+    
+    // Decode base64 to binary
+    const binaryString = atob(base64Content);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'image/png' });
+    
+    const filename = this.generateReportFilename('screenshot', pageName);
+    
+    return this.saveReport({
+      filename,
+      content: blob,
+      contentType: 'image/png',
+      fileType: 'screenshot',
+      metadata,
+    });
+  }
+
+  /**
+   * Save a PDF to Vercel Blob storage
+   */
+  async savePdf(
+    pdfData: Buffer | Blob | string,
+    reportName: string,
+    metadata?: Record<string, string>
+  ): Promise<UploadResult> {
+    const filename = this.generateReportFilename('pdf', reportName);
+    
+    return this.saveReport({
+      filename,
+      content: pdfData,
+      contentType: 'application/pdf',
+      fileType: 'pdf',
+      metadata,
+    });
+  }
+
+  /**
+   * List all reports
+   */
+  async listReports(prefix?: string): Promise<{ url: string; pathname: string }[]> {
+    const { blobs } = await list({
+      prefix: `reports/${prefix || ''}`,
+    });
+    
+    return blobs.map(blob => ({
+      url: blob.url,
+      pathname: blob.pathname,
+    }));
   }
 }
 
