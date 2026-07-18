@@ -56,19 +56,19 @@ export async function POST(request: NextRequest) {
         metadata
       );
     } else if (type === 'pdf') {
-      // Handle PDF - content can be base64 encoded or raw binary
-      let pdfBuffer: Buffer;
+      // Handle PDF - content is base64 encoded
+      // Remove data URL prefix if present
+      const base64Content = content.includes(',') 
+        ? content.split(',')[1] 
+        : content;
       
-      if (contentType === 'application/pdf' || content.startsWith('JVBERi0xLjQ')) {
-        // Base64 encoded PDF
-        const base64Content = content.includes(',') 
-          ? content.split(',')[1] 
-          : content;
-        pdfBuffer = Buffer.from(base64Content, 'base64');
-      } else {
-        // Raw string content
-        pdfBuffer = Buffer.from(content);
-      }
+      // Check if it's already base64 (PDF magic bytes in base64)
+      const isBase64 = /^[A-Za-z0-9+/]+=*$/.test(base64Content);
+      const pdfBuffer = isBase64 
+        ? Buffer.from(base64Content, 'base64')
+        : Buffer.from(content);
+      
+      console.log(`[API] PDF content length: ${pdfBuffer.length} bytes`);
       
       result = await storageService.savePdf(
         pdfBuffer,
