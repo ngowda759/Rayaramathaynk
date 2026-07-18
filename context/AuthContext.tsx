@@ -10,7 +10,7 @@ import {
 
 import { User, onAuthStateChanged } from "firebase/auth";
 
-import { auth } from "@/lib/firebase";
+import { auth, initializeAuthPersistence } from "@/lib/firebase";
 import {
   authService,
   RegisterData,
@@ -91,6 +91,13 @@ export function AuthProvider({
     let unsubscribe: (() => void) | undefined;
 
     try {
+      // Initialize auth persistence first (client-side only)
+      initializeAuthPersistence(auth).then(() => {
+        console.log("Auth persistence initialized");
+      }).catch(err => {
+        console.error("Failed to initialize auth persistence:", err);
+      });
+
       unsubscribe = onAuthStateChanged(
         auth,
         async (firebaseUser) => {
