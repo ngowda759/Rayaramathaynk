@@ -172,6 +172,80 @@ firebase deploy
 
 ---
 
+## AI Settings & Seed API
+
+The portal includes an AI chatbot (Raya) that provides information about temple services. The AI needs initial data to work properly.
+
+### Initializing AI Settings
+
+After deployment, you need to seed the AI settings to Firestore. Follow these steps:
+
+#### Option 1: Using the Admin UI (Recommended)
+
+1. Log in to the admin portal at `/admin`
+2. Navigate to AI Settings (`/admin/ai/settings`)
+3. Click the **"Initialize Data"** button
+4. Wait for the success message
+
+#### Option 2: Using the API Directly
+
+```bash
+# Development mode
+curl -X GET http://localhost:3000/api/seed-ai-settings
+
+# Production mode (requires authenticated request)
+curl -X POST https://your-domain.com/api/seed-ai-settings
+```
+
+### What Gets Seeded
+
+The seed operation creates the following Firestore documents:
+
+| Collection | Document | Description |
+|------------|----------|-------------|
+| `ai_settings` | ` RayaAI` | Main AI configuration |
+| `ai_settings` | `prompts` | Chatbot prompts and responses |
+| `ai_settings` | `intents` | Intent mappings for Q&A |
+| `ai_settings` | `unknown_questions` | Unknown questions for learning |
+| `ai_settings` | `welcome` | Welcome message |
+| `settings` | `temple` | Temple information |
+| `settings` | `contact` | Contact details |
+| `settings` | `visitor` | Visitor information |
+
+### Required Environment Variables
+
+For the seed API to work in production, ensure these environment variables are set:
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Your Firebase project ID |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API key |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | Service account private key |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | Service account email |
+
+### Firebase Firestore Rules
+
+The seed API requires write access to `ai_settings` and `settings` collections. Update your Firestore rules:
+
+```javascript
+match /ai_settings/{docId} {
+  allow read: if true;
+  allow write: if true;
+}
+
+match /settings/{docId} {
+  allow read: if true;
+  allow write: if true;
+}
+```
+
+To deploy rules via Firebase CLI:
+```bash
+firebase deploy --only firestore:rules
+```
+
+---
+
 ## Roadmap
 
 ### Phase 1
