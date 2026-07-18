@@ -193,9 +193,12 @@ class StorageService {
       uploadData = content;
     } else if (content instanceof Uint8Array) {
       uploadData = Buffer.from(content);
-    } else {
+    } else if (content instanceof Blob) {
       // For Blob, convert to ArrayBuffer then to Buffer
       uploadData = Buffer.from(new Uint8Array(await content.arrayBuffer()));
+    } else {
+      // For ArrayBuffer
+      uploadData = Buffer.from(content);
     }
     
     console.log(`[Storage] Report size: ${uploadData.length} bytes`);
