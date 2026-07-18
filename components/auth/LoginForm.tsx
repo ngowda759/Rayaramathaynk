@@ -66,10 +66,8 @@ export default function LoginForm() {
       toast.success("Welcome back!");
       // Use the redirect URL from query params, or default to /admin
       const redirect = searchParams.get("redirect") || "/admin";
-      // Use setTimeout to defer window.location modification
-      setTimeout(() => {
-        window.location.href = redirect;
-      }, 0);
+      // Use router.push for soft navigation to preserve auth state
+      router.push(redirect);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
       switch (err.code) {
