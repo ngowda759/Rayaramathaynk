@@ -201,12 +201,13 @@ test.describe('Authentication Module', () => {
     await page.waitForTimeout(500);
   });
 
-  // TC-053: Unauthorized Access Redirect
-  test('TC-053: Accessing admin page redirects to login', async ({ page }) => {
+  // TC-053: Unauthorized Access - Admin shows loading then redirects to login (client-side auth)
+  test('TC-053: Accessing admin page without auth shows loading then redirects to login', async ({ page }) => {
     await page.goto(`${BASE_URL}/admin`);
-    await page.waitForTimeout(1000);
+    // Wait for Firebase auth to check and redirect to login
+    await page.waitForURL(/\/login/, { timeout: 10000 });
     const url = page.url();
-    expect(url).toMatch(/login|auth/);
+    expect(url).toMatch(/\/login/);
   });
 
   // TC-054: Already Logged In Redirect

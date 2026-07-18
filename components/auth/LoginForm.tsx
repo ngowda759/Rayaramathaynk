@@ -56,11 +56,11 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Delay redirect to allow Firebase to persist auth state to localStorage
+      // Delay redirect to allow Firebase auth state to persist
       const redirect = searchParams.get("redirect") || "/admin";
       setTimeout(() => {
         window.location.href = redirect;
-      }, 1000);
+      }, 2000);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
       switch (err.code) {
