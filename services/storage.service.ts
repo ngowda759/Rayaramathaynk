@@ -184,7 +184,8 @@ class StorageService {
     if (typeof content === 'string') {
       blob = new Blob([content], { type: contentType });
     } else if (Buffer.isBuffer(content)) {
-      blob = new Blob([content], { type: contentType });
+      // Convert Buffer to Uint8Array for Blob compatibility
+      blob = new Blob([new Uint8Array(content)], { type: contentType });
     } else {
       blob = content;
     }
