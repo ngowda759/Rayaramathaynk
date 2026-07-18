@@ -15,7 +15,9 @@ import {
   Phone,
   Mail,
   Clock,
-  Info
+  Info,
+  Database,
+  Loader2
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import type { 
@@ -53,6 +55,7 @@ export default function AISettingsPage() {
   const [activeTab, setActiveTab] = useState("temple");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [settings, setSettings] = useState<AISettingsFormData | null>(null);
   const [originalSettings, setOriginalSettings] = useState<AISettingsFormData | null>(null);
@@ -61,6 +64,34 @@ export default function AISettingsPage() {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
   }, []);
+
+  const handleSeedData = async () => {
+    if (!confirm("This will initialize default AI data (intents, prompts, unknown questions). Continue?")) {
+      return;
+    }
+    
+    setSeeding(true);
+    try {
+      const response = await fetch("/api/seed-ai-settings", {
+        method: "POST",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        showMsg("success", `AI data initialized! ${data.summary?.intents || 0} intents, ${data.summary?.prompts || 0} prompts, ${data.summary?.unknownQuestions || 0} unknown questions.`);
+        // Reload settings
+        loadSettings();
+      } else {
+        const error = await response.json();
+        showMsg("error", error.error || "Failed to seed data");
+      }
+    } catch (error) {
+      console.error("Error seeding data:", error);
+      showMsg("error", "Failed to seed AI data");
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const loadSettings = useCallback(async () => {
     try {
@@ -172,10 +203,24 @@ export default function AISettingsPage() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader
-        title="AI Settings"
-        description="Configure temple information, visitor guidelines, policies, and AI response behavior."
-      />
+      <div className="flex items-start justify-between gap-4">
+        <AdminPageHeader
+          title="AI Settings"
+          description="Configure temple information, visitor guidelines, policies, and AI response behavior."
+        />
+        <button
+          onClick={handleSeedData}
+          disabled={seeding}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+        >
+          {seeding ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Database className="w-4 h-4" />
+          )}
+          {seeding ? "Initializing..." : "Initialize Data"}
+        </button>
+      </div>
 
       {/* Message */}
       {message && (
