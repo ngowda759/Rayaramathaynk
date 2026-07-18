@@ -12,31 +12,105 @@ interface AdminUser {
   email?: string;
 }
 
-// Get admin Firestore instance using Firebase Admin SDK
-async function getAdminFirestore() {
-  const admin = await import("firebase-admin");
-  const { cert, initializeApp, getApp } = admin;
-  const { getFirestore } = await import("firebase-admin/firestore");
-  
-  const adminApp = getApp();
-  
-  if (!adminApp) {
-    const serviceAccount = {
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "sri-raghavendra-mutt",
-      privateKey: (process.env.FIREBASE_ADMIN_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-    };
-    
-    if (!serviceAccount.projectId || !serviceAccount.privateKey || !serviceAccount.clientEmail) {
-      throw new Error("Firebase Admin credentials not configured");
+// Get Firebase REST API base URL with authentication
+function getFirestoreUrl(path: string): string {
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "sri-raghavendra-mutt";
+  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
+}
+
+// Convert JS value to Firestore format
+function toFirestoreValue(value: unknown): Record<string, unknown> {
+  if (value === null || value === undefined) {
+    return { nullValue: null };
+  }
+  if (typeof value === 'string') {
+    return { stringValue: value };
+  }
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? { integerValue: value } : { doubleValue: value };
+  }
+  if (typeof value === 'boolean') {
+    return { booleanValue: value };
+  }
+  if (Array.isArray(value)) {
+    return { arrayValue: { values: value.map(v => toFirestoreValue(v)) } };
+  }
+  if (value instanceof Date) {
+    return { timestampValue: value.toISOString() };
+  }
+  if (typeof value === 'object') {
+    const fields: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+      fields[key] = toFirestoreValue(val);
     }
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(value) };
+}
+
+// Convert JS object to Firestore document format
+function toFirestoreDocument(data: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    fields[key] = toFirestoreValue(value);
+  }
+  return { fields };
+}
+
+// Helper to set document using Firebase REST API with ID token
+async function setDocumentRest(path: string, data: Record<string, unknown>): Promise<void> {
+  const url = getFirestoreUrl(path);
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBJPt69fwPfcMLvSYMG28Jv64orqenNeC4";
+  
+  // Try Firebase Admin SDK first (for server-side with proper credentials)
+  try {
+    const admin = await import("firebase-admin");
+    const { getApps } = admin;
     
-    initializeApp({
-      credential: cert(serviceAccount),
-    });
+    if (!getApps().length) {
+      // Try to use Application Default Credentials
+      try {
+        const serviceAccount = {
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "sri-raghavendra-mutt",
+          privateKey: (process.env.FIREBASE_ADMIN_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        };
+        
+        if (serviceAccount.projectId && serviceAccount.privateKey && serviceAccount.clientEmail) {
+          const { cert, initializeApp } = admin;
+          initializeApp({
+            credential: cert(serviceAccount),
+          });
+          
+          const { getFirestore } = await import("firebase-admin/firestore");
+          const db = getFirestore();
+          const docRef = db.doc(path);
+          await docRef.set(data);
+          return;
+        }
+      } catch (e) {
+        console.log("Admin SDK not available, trying REST API");
+      }
+    }
+  } catch (e) {
+    console.log("Firebase Admin SDK import failed, trying REST API");
   }
   
-  return getFirestore();
+  // Fallback to REST API with current user token
+  const documentData = toFirestoreDocument(data);
+  
+  const response = await fetch(`${url}?key=${apiKey}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(documentData),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to set document ${path}: ${errorText}`);
+  }
 }
 
 // Get admin user from request
@@ -464,16 +538,13 @@ const DEFAULT_UNKNOWN_QUESTIONS = [
 
 export async function POST(request: NextRequest) {
   try {
-    // Get admin Firestore using Firebase Admin SDK
-    const adminDb = await getAdminFirestore();
-
     const admin = await getAdminUser(request);
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Seed main AI settings
-    await adminDb.doc("ai_settings/ RayaAI").set({
+    // Seed main AI settings using REST API
+    await setDocumentRest("ai_settings/%20RayaAI", {
       templeInformation,
       visitorInformation,
       aiResponses,
@@ -484,7 +555,7 @@ export async function POST(request: NextRequest) {
 
     // Seed prompts
     const promptVersionId = `prompt_${Date.now()}`;
-    await adminDb.doc("ai_settings/prompts").set({
+    await setDocumentRest("ai_settings/prompts", {
       currentPromptId: promptVersionId,
       versions: [{
         id: promptVersionId,
@@ -503,29 +574,29 @@ export async function POST(request: NextRequest) {
     });
 
     // Seed intents
-    await adminDb.doc("ai_settings/intents").set({
+    await setDocumentRest("ai_settings/intents", {
       intents: DEFAULT_INTENTS,
     });
 
     // Seed unknown questions
-    await adminDb.doc("ai_settings/unknown_questions").set({
+    await setDocumentRest("ai_settings/unknown_questions", {
       questions: DEFAULT_UNKNOWN_QUESTIONS,
     });
 
     // Seed welcome message
-    await adminDb.doc("ai_settings/welcome").set({
+    await setDocumentRest("ai_settings/welcome", {
       message: aiResponses.welcome,
       language: "en",
       updatedAt: new Date()
     });
 
     // Seed other settings
-    await adminDb.doc("settings/temple").set({
+    await setDocumentRest("settings/temple", {
       ...templeInformation,
       updatedAt: new Date()
     });
 
-    await adminDb.doc("settings/contact").set({
+    await setDocumentRest("settings/contact", {
       phone: templeInformation.contact.phone,
       email: templeInformation.contact.email,
       address: templeInformation.contact.address,
@@ -533,7 +604,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     });
 
-    await adminDb.doc("settings/visitor").set({
+    await setDocumentRest("settings/visitor", {
       ...visitorInformation,
       updatedAt: new Date()
     });
@@ -569,10 +640,8 @@ export async function GET() {
   }
 
   try {
-    // Get admin Firestore using Firebase Admin SDK
-    const adminDb = await getAdminFirestore();
-    // Seed main AI settings
-    await adminDb.doc("ai_settings/ RayaAI").set({
+    // Seed main AI settings using REST API
+    await setDocumentRest("ai_settings/%20RayaAI", {
       templeInformation,
       visitorInformation,
       aiResponses,
@@ -583,7 +652,7 @@ export async function GET() {
 
     // Seed prompts
     const promptVersionId = `prompt_${Date.now()}`;
-    await adminDb.doc("ai_settings/prompts").set({
+    await setDocumentRest("ai_settings/prompts", {
       currentPromptId: promptVersionId,
       versions: [{
         id: promptVersionId,
@@ -602,29 +671,29 @@ export async function GET() {
     });
 
     // Seed intents
-    await adminDb.doc("ai_settings/intents").set({
+    await setDocumentRest("ai_settings/intents", {
       intents: DEFAULT_INTENTS,
     });
 
     // Seed unknown questions
-    await adminDb.doc("ai_settings/unknown_questions").set({
+    await setDocumentRest("ai_settings/unknown_questions", {
       questions: DEFAULT_UNKNOWN_QUESTIONS,
     });
 
     // Seed welcome message
-    await adminDb.doc("ai_settings/welcome").set({
+    await setDocumentRest("ai_settings/welcome", {
       message: aiResponses.welcome,
       language: "en",
       updatedAt: new Date()
     });
 
     // Seed other settings
-    await adminDb.doc("settings/temple").set({
+    await setDocumentRest("settings/temple", {
       ...templeInformation,
       updatedAt: new Date()
     });
 
-    await adminDb.doc("settings/contact").set({
+    await setDocumentRest("settings/contact", {
       phone: templeInformation.contact.phone,
       email: templeInformation.contact.email,
       address: templeInformation.contact.address,
@@ -632,7 +701,7 @@ export async function GET() {
       updatedAt: new Date()
     });
 
-    await adminDb.doc("settings/visitor").set({
+    await setDocumentRest("settings/visitor", {
       ...visitorInformation,
       updatedAt: new Date()
     });
