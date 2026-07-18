@@ -78,9 +78,6 @@ async function trackPageView(request: NextRequest, pathname: string) {
 // Static file extensions to exclude from auth checks
 const STATIC_EXTENSIONS = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp)$/;
 
-// Paths that require authentication
-const PROTECTED_PATHS = ["/admin"];
-
 // Paths that should allow through (auth is handled client-side)
 const AUTH_PATHS = ["/login", "/register"];
 
@@ -91,18 +88,9 @@ export default async function proxy(request: NextRequest) {
   const isStaticFile = STATIC_EXTENSIONS.test(pathname);
   const isApiRoute = pathname.startsWith("/api/");
   
-  // Check if path requires authentication
-  const isProtectedPath = PROTECTED_PATHS.some(path => pathname.startsWith(path));
+  // Check if path is auth path
   const isAuthPath = AUTH_PATHS.includes(pathname);
 
-  // For protected paths, redirect to login (auth is checked client-side by Firebase)
-  // The login page will show the form because Firebase handles auth client-side
-  if (isProtectedPath && !isStaticFile && !isApiRoute) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-  
   // For auth paths (login/register), always allow through
   // Firebase auth is handled client-side, so we don't redirect here
   if (isAuthPath) {
@@ -113,12 +101,11 @@ export default async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Track page view for GET requests (exclude static files, API routes, and admin routes)
+  // Track page view for GET requests (exclude static files, API routes)
   if (
     request.method === "GET" &&
     !isStaticFile &&
-    !isApiRoute &&
-    !isProtectedPath
+    !isApiRoute
   ) {
     trackPageView(request, pathname).catch(() => {});
   }
