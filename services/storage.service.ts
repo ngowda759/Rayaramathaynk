@@ -178,6 +178,7 @@ class StorageService {
     const pathname = filename.startsWith('reports/') ? filename : `reports/${filename}`;
     
     console.log(`[Storage] Saving report (${contentType}) to ${pathname}`);
+    console.log(`[Storage] BLOB_READ_WRITE_TOKEN configured: ${!!process.env.BLOB_READ_WRITE_TOKEN}`);
     
     // Convert content to Blob if needed
     let blob: Blob;
@@ -191,6 +192,10 @@ class StorageService {
     }
     
     console.log(`[Storage] Report size: ${blob.size} bytes`);
+    
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not configured. Please set it in Vercel project settings.');
+    }
     
     // Upload to Vercel Blob
     const uploadedBlob = await put(pathname, blob, {
