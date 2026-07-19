@@ -18,6 +18,7 @@ export function ChatWindow() {
     clearMessages, 
     regenerateResponse,
     loadSessionHistory,
+    submitMessageFeedback,
     userSessions,
     sessionId,
     welcomeMessage 
@@ -143,6 +144,8 @@ export function ChatWindow() {
                 message={message}
                 onRegenerate={regenerateResponse}
                 showRegenerate={canRegenerate && index === messages.length - 1 && message.role === "assistant"}
+                onFeedback={submitMessageFeedback}
+                showFeedback={message.role === "assistant" && index === messages.length - 1}
               />
             ))}
             {isLoading && <TypingIndicator />}

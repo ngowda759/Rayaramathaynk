@@ -97,6 +97,12 @@ export default function JourneyPage() {
           icon: <MapPin className="h-5 w-5" />,
         },
         {
+          title: "Today's Pooja Schedule",
+          description: "Current and upcoming poojas at the temple",
+          href: "/pooja",
+          icon: <Calendar className="h-5 w-5" />,
+        },
+        {
           title: "Today's Schedule",
           description: "Daily poojas and special sevas happening today",
           href: "/events",
