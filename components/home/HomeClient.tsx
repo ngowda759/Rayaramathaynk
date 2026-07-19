@@ -7,6 +7,7 @@ import GallerySection from "@/components/home/GallerySection";
 import SocialBar from "@/components/home/SocialBar";
 import Footer from "@/components/layout/Footer";
 import TempleMap from "@/components/home/TempleMap";
+import Panchanga from "@/components/home/Panchanga";
 import AnnouncementBar from "@/components/home/AnnouncementBar";
 import Hero from "@/components/home/Hero";
 import Navbar from "@/components/layout/Navbar";
@@ -39,6 +40,11 @@ export default function HomeClient({
 
       {/* Daily Spiritual Dashboard - Epic 1 */}
       <DailySpiritualDashboard initialData={dashboardData} />
+
+      <SacredDivider variant="lotus" />
+
+      {/* Daily Panchanga Section */}
+      <Panchanga />
 
       <SacredDivider variant="lotus" />
 
