@@ -13,6 +13,7 @@ import Hero from "@/components/home/Hero";
 import Navbar from "@/components/layout/Navbar";
 import { PageTransition } from "@/components/ui/PageTransition";
 import DailySpiritualDashboard from "@/components/home/DailySpiritualDashboard";
+import RecommendationsSection from "@/components/recommendation/RecommendationsSection";
 import type { DailySpiritualDashboard as DashboardType } from "@/types/daily-spiritual";
 
 interface GalleryImage {
@@ -55,6 +56,21 @@ export default function HomeClient({
       <UpcomingEvents />
 
       <SacredDivider variant="lotus" />
+
+      {/* Smart Recommendations - Epic 7 */}
+      <section className="bg-gradient-to-b from-white to-amber-50">
+        <div className="mx-auto max-w-7xl px-6">
+          <RecommendationsSection
+            title="Explore More"
+            subtitle="Discover spiritual content tailored for you"
+            variant="grid"
+            maxItems={6}
+            showRefresh={true}
+          />
+        </div>
+      </section>
+
+      <SacredDivider variant="mandala" />
 
       <GallerySection images={galleryImages} />
 
