@@ -1,6 +1,7 @@
 import HomeClient from "@/components/home/HomeClient";
 import { getTempleGalleryImages } from "@/lib/gallery";
 import { getNextUpcomingEvent } from "@/lib/firebase";
+import { dailySpiritualService } from "@/services/daily-spiritual.service";
 
 // Revalidate every 60 seconds to get fresh announcements
 export const revalidate = 60;
@@ -26,9 +27,18 @@ export default async function Home() {
     category: "festivals" as const,
   }));
 
+  // Fetch daily spiritual dashboard data server-side
+  let dashboardData = null;
+  try {
+    dashboardData = await dailySpiritualService.getDashboardData();
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+  }
+
   return <HomeClient 
     nextMajorEvent={nextMajorEvent} 
     nextEventName={nextEventName}
-    galleryImages={lightboxImages} 
+    galleryImages={lightboxImages}
+    dashboardData={dashboardData}
   />;
 }
