@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, Search, BookOpen } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, Search, BookOpen, Compass } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import GlobalSearch from "@/components/search/GlobalSearch";
@@ -10,6 +10,7 @@ import GlobalSearch from "@/components/search/GlobalSearch";
 const menuItems = [
   { name: "Home", href: "/" },
   { name: "Shlokas", href: "/shlokas" },
+  { name: "Devotee Journey", href: "/journey", icon: Compass },
 ];
 
 const knowledgeDropdown = [
@@ -168,12 +169,13 @@ export default function Navbar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`rounded-2xl px-4 py-2 transition-all duration-300 ${
+                className={`flex items-center gap-2 rounded-2xl px-4 py-2 transition-all duration-300 ${
                   active
                     ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg"
                     : "text-stone-700 hover:bg-amber-50"
                 }`}
               >
+                {item.icon && <item.icon className="w-4 h-4" />}
                 {item.name}
               </Link>
             );
@@ -429,13 +431,14 @@ export default function Navbar() {
                   key={item.name}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center justify-between rounded-2xl px-4 py-4 ${
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-4 ${
                     active
                       ? "bg-amber-100 text-amber-800"
                       : "hover:bg-stone-100"
                   }`}
                 >
-                  {item.name}
+                  {item.icon && <item.icon className="w-5 h-5" />}
+                  <span className="flex-1">{item.name}</span>
                   <ChevronRight size={18} />
                 </Link>
 
