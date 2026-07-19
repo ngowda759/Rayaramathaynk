@@ -3,6 +3,8 @@ import {
   getArticleById,
   updateArticle,
   deleteArticle,
+  approveArticle,
+  clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
 import { KnowledgeArticleUpdate } from "@/lib/ai/knowledge/types";
 
@@ -42,7 +44,7 @@ export async function GET(
 
 /**
  * PUT /api/admin/knowledge/[id]
- * Update a knowledge article
+ * Update a knowledge article (auto-approve for admin)
  */
 export async function PUT(
   request: Request,
@@ -51,7 +53,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, content, keywords, category, language, approved } = body;
+    const { title, content, keywords, category, language, slug, approved } = body;
     
     const updateData: KnowledgeArticleUpdate = {};
     
@@ -60,13 +62,25 @@ export async function PUT(
     if (keywords !== undefined) updateData.keywords = keywords;
     if (category !== undefined) updateData.category = category;
     if (language !== undefined) updateData.language = language;
-    if (approved !== undefined) updateData.approved = approved;
     
     await updateArticle(id, updateData);
     
+    // Update slug separately if provided
+    if (slug !== undefined) {
+      const { doc, updateDoc } = await import("firebase/firestore");
+      const { db } = await import("@/lib/firebase");
+      if (db) {
+        await updateDoc(doc(db, "knowledge", id), { slug });
+      }
+    }
+    
+    // Auto-approve if saving from admin to make it visible on public site
+    await approveArticle(id);
+    clearKnowledgeCache();
+    
     return NextResponse.json({
       success: true,
-      message: "Article updated successfully",
+      message: "Article updated and published successfully",
     });
   } catch (error) {
     console.error("Error updating article:", error);
@@ -88,6 +102,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     await deleteArticle(id);
+    clearKnowledgeCache();
     
     return NextResponse.json({
       success: true,

@@ -5,8 +5,10 @@ import {
   updateArticle,
   deleteArticle,
   getArticleById,
+  getPendingArticles,
+  approveArticle,
+  clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
-import { KnowledgeArticleUpdate } from "@/lib/ai/knowledge/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +19,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const articles = await getKnowledgeArticles();
-    
-    // Also get unpublished articles
-    const { getPendingArticles } = await import("@/lib/ai/knowledge/repository");
     const pending = await getPendingArticles();
     
     const allArticles = [...articles, ...pending.filter(p => !articles.find(a => a.id === p.id))];
@@ -40,7 +39,7 @@ export async function GET() {
 
 /**
  * POST /api/admin/knowledge
- * Create a new knowledge article
+ * Create a new knowledge article (auto-approved for admin)
  */
 export async function POST(request: Request) {
   try {
@@ -63,10 +62,14 @@ export async function POST(request: Request) {
       language: language || "en",
     });
     
+    // Auto-approve the article so it appears on public site
+    await approveArticle(id);
+    clearKnowledgeCache();
+    
     return NextResponse.json({
       success: true,
       id,
-      message: "Article created successfully",
+      message: "Article created and published successfully",
     });
   } catch (error) {
     console.error("Error creating article:", error);

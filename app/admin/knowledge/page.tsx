@@ -13,7 +13,9 @@ import {
   Save,
   X,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ExternalLink,
+  Eye
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import toast from "react-hot-toast";
@@ -40,6 +42,7 @@ export default function KnowledgeBasePage() {
     keywords: "",
     category: "general" as KnowledgeCategory,
     language: "en" as "en" | "kn" | "mixed",
+    slug: "",
   });
 
   const loadArticles = useCallback(async () => {
@@ -79,6 +82,7 @@ export default function KnowledgeBasePage() {
       keywords: article.keywords.join(", "),
       category: article.category,
       language: article.language,
+      slug: article.slug,
     });
   };
 
@@ -90,6 +94,7 @@ export default function KnowledgeBasePage() {
       keywords: "",
       category: "general",
       language: "en",
+      slug: "",
     });
   };
 
@@ -107,6 +112,7 @@ export default function KnowledgeBasePage() {
           keywords: editForm.keywords.split(",").map(k => k.trim()).filter(Boolean),
           category: editForm.category,
           language: editForm.language,
+          slug: editForm.slug,
         }),
       });
       
@@ -168,7 +174,7 @@ export default function KnowledgeBasePage() {
       const data = await response.json();
       
       if (data.success && data.id) {
-        toast.success("Article created");
+        toast.success("Article created and published");
         loadArticles();
         // Start editing the new article
         const newArticle = articles.find(a => a.id === data.id);
@@ -306,6 +312,19 @@ export default function KnowledgeBasePage() {
                       />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
+                      <input
+                        type="text"
+                        value={editForm.slug}
+                        onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                        placeholder="article-url-slug"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
                       <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
                       <select
                         value={editForm.category}
@@ -317,6 +336,18 @@ export default function KnowledgeBasePage() {
                             {CATEGORY_DISPLAY_NAMES[cat]}
                           </option>
                         ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
+                      <select
+                        value={editForm.language}
+                        onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      >
+                        <option value="en">English</option>
+                        <option value="kn">Kannada</option>
+                        <option value="mixed">Mixed</option>
                       </select>
                     </div>
                   </div>
@@ -347,9 +378,9 @@ export default function KnowledgeBasePage() {
               ) : (
                 /* View Mode */
                 <div className="p-6">
-                  <div className="flex items-start justify-between gap-4">
+                                      <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
                           {CATEGORY_DISPLAY_NAMES[article.category]}
                         </span>
@@ -363,6 +394,19 @@ export default function KnowledgeBasePage() {
                             <AlertCircle className="w-3 h-3" />
                             Pending
                           </span>
+                        )}
+                        {article.slug && (
+                          <a
+                            href={`/knowledge/article/${article.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Eye className="w-3 h-3" />
+                            View on Site
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         )}
                       </div>
                       <h3 className="text-lg font-semibold text-stone-900 mb-2">{article.title}</h3>
