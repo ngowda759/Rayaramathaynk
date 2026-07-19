@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
-
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import CalendarHero from "@/components/calendar/CalendarHero";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
-import CalendarSearch from "@/components/calendar/CalendarSearch";
-import FestivalTable from "@/components/calendar/FestivalTable";
+import FestivalExperience from "@/components/festival/FestivalExperience";
+import { getAllFestivals } from "@/lib/festival-utils";
 
 export default function FestivalsPage() {
-  const [search, setSearch] = useState("");
+  const festivals = getAllFestivals();
 
   return (
     <>
@@ -27,22 +25,9 @@ export default function FestivalsPage() {
 
           <Breadcrumb current="Festival Calendar" parentHref="/calendar" parentName="Temple Calendar" />
 
-          <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
-            <CalendarSearch
-              value={search}
-              onChange={setSearch}
-            />
-
-            <div className="rounded-2xl bg-orange-100 px-6 py-3 font-semibold text-orange-700">
-              {search
-                ? "Filtered Results"
-                : `${28} Major Festivals`}
-            </div>
-
+          <div className="mt-8">
+            <FestivalExperience festivals={festivals} />
           </div>
-
-          <FestivalTable search={search} />
 
         </div>
 
