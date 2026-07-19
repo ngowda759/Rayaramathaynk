@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, Search } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import GlobalSearch from "@/components/search/GlobalSearch";
 
 const menuItems = [
   { name: "Home", href: "/" },
+  { name: "Knowledge Centre", href: "/knowledge" },
   { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Shlokas", href: "/shlokas" },
 ];
@@ -113,6 +115,7 @@ export default function Navbar() {
   const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans" || pathname === "/ai/analytics";
   const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation";
   const isCalendarActive = pathname.startsWith("/calendar");
+  const isKnowledgeActive = pathname.startsWith("/knowledge");
 
   return (
     <header
@@ -166,6 +169,14 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          {/* Global Search */}
+          <div className="ml-2 w-64">
+            <GlobalSearch 
+              placeholder="Search..."
+              className="w-full"
+            />
+          </div>
 
           {/* Calendar Dropdown */}
           <div className="relative" ref={calendarDropdownRef}>

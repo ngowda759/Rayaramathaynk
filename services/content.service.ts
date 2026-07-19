@@ -92,6 +92,14 @@ const CATEGORY_KEYWORDS: Record<KnowledgeCategory, string[]> = {
     "philosophy", "belief", "doctrine", "vedanta", "text", "scripture",
     "bhagavatha", "brahma", "ತತ್ವ", "ತತ್ವಶಾಸ್ತ್ರ"
   ],
+  rituals: [
+    "ritual", "ceremony", "祭祀", "ಕ್ರಿಯೆ", "ಧಾರ್ಮಿಕ", "sacred",
+    "sacraments", "homam", "havan", "ಹವನ"
+  ],
+  stotras: [
+    "stotra", "stotram", "ಸ್ತೋತ್ರ", "ಪಾಟ", "hymn", "ಕೀರ್ತನೆ", "ಭಜನೆ",
+    "ಮಂತ್ರ", "ಸಾಲುಗಳು"
+  ],
   general: [
     "general", "miscellaneous", "other", "information", "details"
   ]

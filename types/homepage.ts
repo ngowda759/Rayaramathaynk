@@ -84,6 +84,21 @@ export interface HomepageConfig {
    */
   testimonials?: Testimonial[];
 
+  /**
+   * Dashboard Configuration - Daily Spiritual Dashboard
+   */
+  dailyQuote?: {
+    text: string;
+    source: string;
+  };
+
+  dashboardFeaturedEvent?: {
+    title: string;
+    description: string;
+    daysRemaining?: number;
+    isOngoing?: boolean;
+  };
+
   updatedAt?: any;
 }
 

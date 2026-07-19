@@ -42,31 +42,6 @@ export interface PanchangaSummary {
 }
 
 /**
- * Current and next pooja information
- */
-export interface PoojaInfo {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  category: string;
-  isActive: boolean;
-  isOngoing: boolean;
-}
-
-export interface PoojaSchedule {
-  currentPooja: PoojaInfo | null;
-  nextPooja: PoojaInfo | null;
-  upcomingPoojas: PoojaInfo[];
-  countdown: {
-    hours: number;
-    minutes: number;
-    seconds: number;
-    targetTime: string;
-  } | null;
-}
-
-/**
  * Daily spiritual quote
  */
 export interface DailyQuote {
@@ -94,8 +69,8 @@ export interface FeaturedEvent {
   id: string;
   title: string;
   description: string;
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date;
+  endDate?: Date;
   startTime?: string;
   endTime?: string;
   category: string;
@@ -110,10 +85,7 @@ export interface FeaturedEvent {
  */
 export interface DailySpiritualDashboard {
   templeStatus: TempleStatus;
-  panchanga: PanchangaSummary | null;
-  poojaSchedule: PoojaSchedule;
   quote: DailyQuote | null;
-  prasada: PrasadaInfo;
   featuredEvent: FeaturedEvent | null;
   announcements: Announcement[];
   lastUpdated: string;
