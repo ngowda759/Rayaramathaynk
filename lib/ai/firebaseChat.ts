@@ -523,6 +523,12 @@ Visit our Gallery page to see beautiful images of:
 
 We welcome devotees who wish to serve the temple!
 
+**How to Join:**
+- 👉 Register Online: https://rayaramathaynk.vercel.app/volunteer
+- Contact the temple office during working hours
+- Phone: +91-80-28446400
+- Email: info@raghavendramatha.org
+
 **Ways to Volunteer:**
 • Help during daily poojas
 • Assist in festival preparations
@@ -530,24 +536,26 @@ We welcome devotees who wish to serve the temple!
 • Guide visitors and devotees
 • Help with temple maintenance
 
-🙏 To express your interest in volunteering, please contact the temple office or speak with a priest during your visit.
+**Registration Form:**
+Fill out a simple form with your name, phone, profession, and address.
 
-Your service is considered a sacred karma (duty) and will be richly blessed!`;
+🙏 Training is provided for all volunteers. Your service (seva) is considered a sacred offering!`;
 
     const kannadaVolunteerContent = `🤝 **ಸ್ಯಾಂಪಂದನಾ ಅವಕಾಶಗಳು**
 
 ದೇವಸ್ಥಾನಕ್ಕೆ ಸೇವೆ ಮಾಡಲು ಬಯಸುವ ಭಕ್ತರನ್ನು ನಾವು ಸ್ವಾಗತಿಸುತ್ತೇವೆ!
 
+**ಹೇಗೆ ಸೇರಬೇಕು:**
+- 👉 ಆನ್‌ಲೈನ್ ನೋಂದಣಿ: https://rayaramathaynk.vercel.app/volunteer
+- ಕಛೇರಿ ಸಮಯದಲ್ಲಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ
+- ಫೋನ್: +91-80-28446400
+
 **ಸ್ಯಾಂಪಂದನಾ ಮಾಡಲು ವಿಧಾನಗಳು:**
 • ದೈನಿಕ ಪೂಜೆಗಳ ಸಮಯದಲ್ಲಿ ಸಹಾಯ ಮಾಡಿ
 • ಹಬ್ಬದ ತಯಾರಿಗಳಲ್ಲಿ ಸಹಾಯ ಮಾಡಿ
 • ಅನ್ನದಾನ (ಆಹಾರ ಸೇವೆ)ಯಲ್ಲಿ ಭಾಗವಹಿಸಿ
-• ಭೇಟಿದಾರರನ್ನು ಮತ್ತು ಭಕ್ತರನ್ನು ಮಾರ್ಗದರ್ಶನ ಮಾಡಿ
-• ದೇವಸ್ಥಾನದ ನಿರ್ವಹಣೆಯಲ್ಲಿ ಸಹಾಯ ಮಾಡಿ
 
-🙏 ಸ್ಯಾಂಪಂದನಾ ಮಾಡಲು ನಿಮ್ಮ ಆಸಕ್ತಿಯನ್ನು ವ್ಯಕ್ತಪಡಿಸಲು, ದಯವಿಟ್ಟು ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ ಅಥವಾ ಭೇಟಿಯ ಸಮಯದಲ್ಲಿ ಅರ್ಚಕರೊಂದಿಗೆ ಮಾತನಾಡಿ.
-
-ನಿಮ್ಮ ಸೇವೆಯು ಪವಿತ್ರ ಕರ್ಮ (ಕರ್ತವ್ಯ) ಎಂದು ಪರಿಗಣಿಸಲಾಗುತ್ತದೆ ಮತ್ತು ಶ್ರೀಮಂತವಾಗಿ ಆಶೀರ್ವದಿಸಲಾಗುತ್ತದೆ!`;
+🙏 ಎಲ್ಲಾ ಸ್ವಯಂಸೇವಕರಿಗೆ ತರಬೇತಿ ನೀಡಲಾಗುತ್ತದೆ. ನಿಮ್ಮ ಸೇವೆಯು ಪವಿತ್ರ ಕರ್ಮ!`;
 
     return {
       id: crypto.randomUUID(),
