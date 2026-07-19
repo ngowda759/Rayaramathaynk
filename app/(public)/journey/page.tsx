@@ -133,7 +133,7 @@ export default function JourneyPage() {
         {
           title: "About Sri Raghavendra Swamy",
           description: "Learn about the saint and his divine leela",
-          href: "/knowledge/category/history",
+          href: "/knowledge/sri-raghavendra-swamy",
           icon: <BookOpen className="h-5 w-5" />,
         },
         {
