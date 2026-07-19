@@ -7,7 +7,8 @@ import {
   MessageSquare, FileText, Settings, 
   PlusCircle, ChevronRight, Eye,
   CheckCircle2, Clock, AlertCircle,
-  Layers, Search, Filter, RefreshCw
+  Layers, Search, Filter, RefreshCw,
+  Star, PenTool, FolderOpen
 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, getCountFromServer, getDocs, query, where, orderBy, limit } from "firebase/firestore";
@@ -491,7 +492,35 @@ export default function ContentDashboardPage() {
         </div>
 
         {/* Navigation Links */}
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Link
+            href="/admin/media"
+            className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
+          >
+            <div className="rounded-lg bg-blue-100 p-3">
+              <FolderOpen className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-stone-900">Media Library</p>
+              <p className="text-sm text-stone-500">Central media storage</p>
+            </div>
+            <ChevronRight className="ml-auto h-5 w-5 text-stone-400" />
+          </Link>
+          
+          <Link
+            href="/admin/featured"
+            className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
+          >
+            <div className="rounded-lg bg-amber-100 p-3">
+              <Star className="h-6 w-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-stone-900">Featured Content</p>
+              <p className="text-sm text-stone-500">Manage highlighted items</p>
+            </div>
+            <ChevronRight className="ml-auto h-5 w-5 text-stone-400" />
+          </Link>
+          
           <Link
             href="/admin/settings"
             className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
@@ -507,25 +536,11 @@ export default function ContentDashboardPage() {
           </Link>
           
           <Link
-            href="/admin/ai"
-            className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
-          >
-            <div className="rounded-lg bg-purple-100 p-3">
-              <MessageSquare className="h-6 w-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-stone-900">AI Settings</p>
-              <p className="text-sm text-stone-500">Manage AI assistant</p>
-            </div>
-            <ChevronRight className="ml-auto h-5 w-5 text-stone-400" />
-          </Link>
-          
-          <Link
             href="/"
             className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
           >
-            <div className="rounded-lg bg-amber-100 p-3">
-              <Eye className="h-6 w-6 text-amber-600" />
+            <div className="rounded-lg bg-purple-100 p-3">
+              <Eye className="h-6 w-6 text-purple-600" />
             </div>
             <div>
               <p className="font-semibold text-stone-900">View Website</p>
