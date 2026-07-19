@@ -73,6 +73,7 @@ const allNavigation = [
       { title: "Future Plans", href: "/admin/settings/future-plans", icon: "calendar" },
       { title: "Ekadashi Calendar", href: "/admin/settings/ekadashi-calendar", icon: "calendar" },
       { title: "Festival Calendar", href: "/admin/settings/festival-calendar", icon: "calendar" },
+      { title: "Knowledge Base", href: "/admin/knowledge", icon: "book" },
     ],
   },
   {
