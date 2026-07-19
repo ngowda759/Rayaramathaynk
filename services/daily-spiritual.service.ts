@@ -16,8 +16,6 @@ import {
 import {
   TempleStatus,
   PanchangaSummary,
-  PoojaInfo,
-  PoojaSchedule,
   DailyQuote,
   PrasadaInfo,
   FeaturedEvent,
@@ -25,7 +23,6 @@ import {
   DEFAULT_QUOTES,
   DEFAULT_PRASADA,
 } from "@/types/daily-spiritual";
-import type { DailyPooja } from "@/types/pooja";
 import type { Announcement } from "@/types/announcement";
 import { homepageService } from "./homepage.service";
 
@@ -147,13 +144,17 @@ class DailySpiritualService {
   }
 
   /**
-   * Get today's panchanga summary
+   * Get today's panchanga summary from Firestore or homepage config
    */
   async getPanchangaSummary(): Promise<PanchangaSummary | null> {
     const today = formatDateString(new Date());
 
     try {
-      if (!db) return null;
+      if (!db) {
+        // Fallback to homepage config
+        return this.getPanchangaFromHomepage();
+      }
+      
       const docRef = doc(db, "panchanga", today);
       const docSnap = await getDoc(docRef);
 
@@ -176,116 +177,67 @@ class DailySpiritualService {
         };
       }
     } catch (error) {
-      console.error("Error fetching panchanga:", error);
+      console.error("Error fetching panchanga from Firestore:", error);
     }
 
+    // Fallback to homepage config
+    return this.getPanchangaFromHomepage();
+  }
+
+  /**
+   * Get panchanga from homepage config as fallback
+   */
+  private async getPanchangaFromHomepage(): Promise<PanchangaSummary | null> {
+    try {
+      const homepage = await homepageService.getHomepage();
+      const cms = homepage.panchanga;
+      
+      if (cms) {
+        return {
+          tithi: cms.tithi || "",
+          nakshatra: cms.nakshatra || "",
+          yoga: cms.yoga || "",
+          karana: cms.karana || "",
+          sunrise: homepage.morningOpen || "",
+          sunset: homepage.eveningClose || "",
+          rahuKalam: cms.rahuKalam || "",
+          gulikaKalam: cms.gulikaKalam || "",
+          masa: cms.masa || "",
+          isFestival: !!homepage.featuredFestival,
+          festivalName: homepage.featuredFestival,
+          isEkadashi: false,
+          ekadashiName: undefined,
+        };
+      }
+    } catch (error) {
+      console.error("Error fetching panchanga from homepage:", error);
+    }
+    
     return null;
   }
 
   /**
-   * Get pooja schedule with current and next pooja
+   * Get daily quote from homepage config or use default
    */
-  async getPoojaSchedule(): Promise<PoojaSchedule> {
-    const emptySchedule: PoojaSchedule = {
-      currentPooja: null,
-      nextPooja: null,
-      upcomingPoojas: [],
-      countdown: null,
-    };
-
-    if (!db) return emptySchedule;
-
+  async getDailyQuote(): Promise<DailyQuote | null> {
     try {
-      const snapshot = await getDocs(
-        query(
-          collection(db, "dailyPoojas"),
-          where("isActive", "==", true),
-          orderBy("startTime", "asc")
-        )
-      );
-
-      const poojas: DailyPooja[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as DailyPooja[];
-
-      const currentMinutes = getCurrentMinutes();
-      const poojaInfos: PoojaInfo[] = poojas.map((p) => {
-        const startMinutes = parseTimeToMinutes(p.startTime);
-        const durationMatch = p.duration?.match(/(\d+)/);
-        const durationMinutes = durationMatch ? parseInt(durationMatch[1]) : 30;
-        const endMinutes = startMinutes + durationMinutes;
-
+      const homepage = await homepageService.getHomepage();
+      
+      // Use homepage config quote if available
+      if (homepage.dailyQuote?.text) {
         return {
-          id: p.id,
-          title: p.title,
-          startTime: p.startTime,
-          endTime: this.addMinutesToTime(p.startTime, durationMinutes),
-          category: p.category || "Daily",
-          isActive: p.isActive,
-          isOngoing: currentMinutes >= startMinutes && currentMinutes < endMinutes,
-        };
-      });
-
-      // Find current pooja
-      const currentPooja = poojaInfos.find((p) => p.isOngoing) || null;
-
-      // Find next pooja
-      let nextPooja: PoojaInfo | null = null;
-      for (const pooja of poojaInfos) {
-        const poojaStartMinutes = parseTimeToMinutes(pooja.startTime);
-        if (poojaStartMinutes > currentMinutes) {
-          nextPooja = pooja;
-          break;
-        }
-      }
-
-      // Calculate countdown to next pooja
-      let countdown: PoojaSchedule["countdown"] = null;
-      if (nextPooja) {
-        const nextMinutes = parseTimeToMinutes(nextPooja.startTime);
-        const diffMinutes = nextMinutes - currentMinutes;
-        countdown = {
-          hours: Math.floor(diffMinutes / 60),
-          minutes: diffMinutes % 60,
-          seconds: 0,
-          targetTime: nextPooja.startTime,
+          id: "custom",
+          text: homepage.dailyQuote.text,
+          source: homepage.dailyQuote.source || "Sri Raghavendra Swamy",
+          language: "mixed",
+          category: "devotion",
         };
       }
-
-      // Get upcoming poojas (next 3)
-      const upcomingPoojas = poojaInfos
-        .filter((p) => parseTimeToMinutes(p.startTime) > currentMinutes)
-        .slice(0, 3);
-
-      return {
-        currentPooja,
-        nextPooja,
-        upcomingPoojas,
-        countdown,
-      };
     } catch (error) {
-      console.error("Error fetching pooja schedule:", error);
-      return emptySchedule;
+      console.error("Error fetching quote from homepage:", error);
     }
-  }
 
-  /**
-   * Add minutes to a time string
-   */
-  private addMinutesToTime(timeStr: string, minutes: number): string {
-    const totalMinutes = parseTimeToMinutes(timeStr) + minutes;
-    const hours = Math.floor(totalMinutes / 60) % 24;
-    const mins = totalMinutes % 60;
-    const period = hours >= 12 ? "PM" : "AM";
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${mins.toString().padStart(2, "0")} ${period}`;
-  }
-
-  /**
-   * Get daily quote (cycles through default quotes)
-   */
-  getDailyQuote(): DailyQuote {
+    // Fallback to cycling through default quotes
     const today = new Date();
     const dayOfYear = Math.floor(
       (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
@@ -299,7 +251,6 @@ class DailySpiritualService {
    * Get prasada information
    */
   async getPrasadaInfo(): Promise<PrasadaInfo> {
-    // Could be fetched from a settings collection or calculated based on time
     const templeStatus = await this.getTempleStatus();
     const currentMinutes = getCurrentMinutes();
     const morningCloseMinutes = parseTimeToMinutes(templeStatus.morningClose);
@@ -315,9 +266,66 @@ class DailySpiritualService {
   }
 
   /**
-   * Get featured event for today
+   * Get featured event from homepage config or Firestore events
    */
   async getFeaturedEvent(): Promise<FeaturedEvent | null> {
+    // First try to get from homepage config
+    try {
+      const homepage = await homepageService.getHomepage();
+      
+      if (homepage.dashboardFeaturedEvent?.title) {
+        return {
+          id: "custom",
+          title: homepage.dashboardFeaturedEvent.title,
+          description: homepage.dashboardFeaturedEvent.description || "",
+          isToday: homepage.dashboardFeaturedEvent.isOngoing ?? false,
+          isOngoing: homepage.dashboardFeaturedEvent.isOngoing ?? false,
+          daysRemaining: homepage.dashboardFeaturedEvent.daysRemaining,
+          category: "event",
+        };
+      }
+
+      // Fallback to featuredFestival from homepage
+      if (homepage.featuredFestival) {
+        return {
+          id: "featured",
+          title: homepage.featuredFestival,
+          description: homepage.featuredFestivalDescription || "",
+          isToday: false,
+          isOngoing: false,
+          daysRemaining: homepage.festivalDate ? this.calculateDaysRemaining(homepage.festivalDate) : undefined,
+          category: "event",
+        };
+      }
+    } catch (error) {
+      console.error("Error fetching featured event from homepage:", error);
+    }
+
+    // Fallback to Firestore events
+    return this.getFeaturedEventFromFirestore();
+  }
+
+  /**
+   * Calculate days remaining from a date string
+   */
+  private calculateDaysRemaining(dateStr: string): number | undefined {
+    try {
+      const eventDate = new Date(dateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      eventDate.setHours(0, 0, 0, 0);
+      const diff = eventDate.getTime() - today.getTime();
+      const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+      return days > 0 ? days : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Get featured event from Firestore events collection
+   */
+  private async getFeaturedEventFromFirestore(): Promise<FeaturedEvent | null> {
     if (!db) return null;
 
     const today = new Date();
@@ -410,7 +418,7 @@ class DailySpiritualService {
 
       return closestEvent;
     } catch (error) {
-      console.error("Error fetching featured event:", error);
+      console.error("Error fetching featured event from Firestore:", error);
       return null;
     }
   }
@@ -446,24 +454,23 @@ class DailySpiritualService {
     const [
       templeStatus,
       panchanga,
-      poojaSchedule,
       prasada,
       featuredEvent,
       announcements,
+      quote,
     ] = await Promise.all([
       this.getTempleStatus(),
       this.getPanchangaSummary(),
-      this.getPoojaSchedule(),
       this.getPrasadaInfo(),
       this.getFeaturedEvent(),
       this.getActiveAnnouncements(),
+      this.getDailyQuote(),
     ]);
 
     return {
       templeStatus,
       panchanga,
-      poojaSchedule,
-      quote: this.getDailyQuote(),
+      quote,
       prasada,
       featuredEvent,
       announcements,

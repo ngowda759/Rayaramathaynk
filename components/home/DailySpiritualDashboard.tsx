@@ -1,28 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Sunrise,
   Sunset,
   Moon,
   CalendarDays,
-  Bell,
   Sparkles,
   ChevronRight,
   AlertCircle,
   CheckCircle2,
   Flame,
   Star,
-  Activity,
   Coffee,
-  Timer,
 } from "lucide-react";
 import {
   TempleStatus,
   PanchangaSummary,
-  PoojaInfo,
-  PoojaSchedule,
   DailyQuote,
   PrasadaInfo,
   FeaturedEvent,
@@ -33,7 +28,6 @@ interface DailySpiritualDashboardProps {
   initialData?: {
     templeStatus: TempleStatus;
     panchanga: PanchangaSummary | null;
-    poojaSchedule: PoojaSchedule;
     quote: DailyQuote | null;
     prasada: PrasadaInfo;
     featuredEvent: FeaturedEvent | null;
@@ -238,147 +232,6 @@ function PanchangaSummaryWidget({ panchanga }: { panchanga: PanchangaSummary | n
 }
 
 /**
- * Current Pooja Widget
- */
-function CurrentPoojaWidget({
-  currentPooja,
-  nextPooja,
-  countdown,
-}: {
-  currentPooja: PoojaInfo | null;
-  nextPooja: PoojaInfo | null;
-  countdown: PoojaSchedule["countdown"];
-}) {
-  const [countdownTime, setCountdownTime] = useState(countdown);
-
-  useEffect(() => {
-    if (!countdown) return;
-
-    const interval = setInterval(() => {
-      setCountdownTime((prev) => {
-        if (!prev) return null;
-        const newSeconds = prev.seconds - 1;
-        if (newSeconds < 0) {
-          const newMinutes = prev.minutes - 1;
-          if (newMinutes < 0) {
-            const newHours = prev.hours - 1;
-            if (newHours < 0) return null;
-            return { ...prev, hours: newHours, minutes: 59, seconds: 59 };
-          }
-          return { ...prev, minutes: newMinutes, seconds: 59 };
-        }
-        return { ...prev, seconds: newSeconds };
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [countdown]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className="rounded-3xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 p-6 shadow-lg ring-1 ring-amber-100"
-    >
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-          <Bell className="h-5 w-5" />
-        </div>
-        <h3 className="text-lg font-bold text-stone-900">Pooja Schedule</h3>
-      </div>
-
-      <AnimatePresence mode="wait">
-        {currentPooja ? (
-          <motion.div
-            key="current"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-100"
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
-                <Activity className="h-4 w-4 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-green-600">
-                  Now
-                </p>
-                <p className="font-semibold text-stone-900">{currentPooja.title}</p>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-stone-500">
-              Ends at {currentPooja.endTime}
-            </p>
-          </motion.div>
-        ) : nextPooja ? (
-          <motion.div
-            key="next"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-100"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
-                  <Timer className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-amber-600">
-                    Next Pooja
-                  </p>
-                  <p className="font-semibold text-stone-900">{nextPooja.title}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-stone-400">at</p>
-                <p className="font-mono font-bold text-stone-900">{nextPooja.startTime}</p>
-              </div>
-            </div>
-
-            {countdownTime && (
-              <div className="mt-4 flex items-center justify-center gap-4 rounded-xl bg-amber-50 p-3">
-                <div className="text-center">
-                  <p className="font-mono text-2xl font-bold text-amber-600">
-                    {String(countdownTime.hours).padStart(2, "0")}
-                  </p>
-                  <p className="text-xs text-stone-400">hrs</p>
-                </div>
-                <span className="text-2xl text-amber-400">:</span>
-                <div className="text-center">
-                  <p className="font-mono text-2xl font-bold text-amber-600">
-                    {String(countdownTime.minutes).padStart(2, "0")}
-                  </p>
-                  <p className="text-xs text-stone-400">min</p>
-                </div>
-                <span className="text-2xl text-amber-400">:</span>
-                <div className="text-center">
-                  <p className="font-mono text-2xl font-bold text-amber-600">
-                    {String(countdownTime.seconds).padStart(2, "0")}
-                  </p>
-                  <p className="text-xs text-stone-400">sec</p>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100"
-          >
-            <p className="text-center text-stone-500">No pooja schedule available</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-/**
  * Featured Event Widget
  */
 function FeaturedEventWidget({ event }: { event: FeaturedEvent | null }) {
@@ -387,7 +240,7 @@ function FeaturedEventWidget({ event }: { event: FeaturedEvent | null }) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.2 }}
         className="rounded-3xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-6 shadow-lg ring-1 ring-purple-100"
       >
         <div className="mb-4 flex items-center gap-3">
@@ -405,7 +258,7 @@ function FeaturedEventWidget({ event }: { event: FeaturedEvent | null }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
+      transition={{ delay: 0.2 }}
       className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-6 shadow-lg ring-1 ring-purple-100"
     >
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-purple-400/20" />
@@ -457,7 +310,7 @@ function DailyQuoteWidget({ quote }: { quote: DailyQuote | null }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
+      transition={{ delay: 0.3 }}
       className="rounded-3xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-6 shadow-lg ring-1 ring-indigo-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -487,7 +340,7 @@ function PrasadaInfoWidget({ prasada }: { prasada: PrasadaInfo }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
+      transition={{ delay: 0.4 }}
       className="rounded-3xl bg-gradient-to-br from-amber-500/10 to-yellow-500/10 p-6 shadow-lg ring-1 ring-amber-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -526,7 +379,7 @@ function AnnouncementsWidget({ announcements }: { announcements: Announcement[] 
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.6 }}
+      transition={{ delay: 0.5 }}
       className="rounded-3xl bg-gradient-to-br from-red-500/10 to-orange-500/10 p-6 shadow-lg ring-1 ring-red-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -605,7 +458,7 @@ export default function DailySpiritualDashboard({
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
                 className="animate-pulse rounded-3xl bg-white p-6 shadow-lg"
@@ -651,13 +504,6 @@ export default function DailySpiritualDashboard({
 
           {/* Panchanga Summary */}
           <PanchangaSummaryWidget panchanga={data.panchanga} />
-
-          {/* Current/Next Pooja */}
-          <CurrentPoojaWidget
-            currentPooja={data.poojaSchedule.currentPooja}
-            nextPooja={data.poojaSchedule.nextPooja}
-            countdown={data.poojaSchedule.countdown}
-          />
 
           {/* Featured Event */}
           <FeaturedEventWidget event={data.featuredEvent} />
