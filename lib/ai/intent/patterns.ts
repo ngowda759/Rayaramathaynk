@@ -494,7 +494,7 @@ export const INTENT_PATTERNS: IntentPattern[] = [
   {
     intent: Intent.VOLUNTEER,
     category: IntentCategory.ACTIONS,
-    priority: IntentPriority.THANKS,
+    priority: IntentPriority.VOLUNTEER,
     keywords: {
       en: [
         "volunteer", "volunteering", "serve", "service",

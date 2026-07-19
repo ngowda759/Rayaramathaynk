@@ -139,7 +139,7 @@ export enum IntentPriority {
   COMMITTEE = 28, // Trust committee information
   // General (continued)
   CONTACT_REQUEST = 15,
-  VOLUNTEER = 14,
+  VOLUNTEER = 35,
   TESTIMONIAL = 13,
   FESTIVAL_INFO = 12,
   BOOKING = 11,
