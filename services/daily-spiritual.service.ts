@@ -38,11 +38,29 @@ function parseTimeToMinutes(timeStr: string): number {
 }
 
 /**
- * Get current time in minutes from midnight
+ * Get current IST time in minutes from midnight
+ * IST is UTC+5:30
  */
 function getCurrentMinutes(): number {
   const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
+  // Convert to IST: add 5 hours and 30 minutes to UTC
+  const istOffset = 5 * 60 + 30; // 330 minutes
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const istMinutes = (utcMinutes + istOffset) % (24 * 60);
+  return istMinutes;
+}
+
+/**
+ * Get current time formatted for IST display
+ */
+function getCurrentTimeIST(): string {
+  const now = new Date();
+  return now.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 /**
@@ -64,15 +82,11 @@ class DailySpiritualService {
    * Get temple open/closed status with current time
    */
   async getTempleStatus(): Promise<TempleStatus> {
-    const now = new Date();
-    const currentTime = now.toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const currentTime = getCurrentTimeIST();
 
     let morningOpen = "06:00 AM";
-    let morningClose = "12:00 PM";
-    let eveningOpen = "05:00 PM";
+    let morningClose = "01:00 PM";
+    let eveningOpen = "01:00 PM";
     let eveningClose = "08:30 PM";
     let isTempleOpen = true;
 

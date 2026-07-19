@@ -8,9 +8,9 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
   announcement: "",
 
   morningOpen: "06:00 AM",
-  morningClose: "12:00 PM",
+  morningClose: "01:00 PM",
 
-  eveningOpen: "05:00 PM",
+  eveningOpen: "01:00 PM",
   eveningClose: "08:30 PM",
 
   featuredFestival: "",
@@ -85,6 +85,19 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     ctaTitle: "Be a Part of Divine Service",
     ctaDescription: "Every offering, regardless of its size, supports the temple's daily rituals, festivals and charitable activities for the benefit of all devotees.",
     ctaButtonText: "Donate Now",
+  },
+
+  // Dashboard Configuration - Daily Spiritual Dashboard
+  dailyQuote: {
+    text: "",
+    source: "Sri Raghavendra Swamy",
+  },
+
+  dashboardFeaturedEvent: {
+    title: "",
+    description: "",
+    daysRemaining: undefined,
+    isOngoing: false,
   },
 };
 
