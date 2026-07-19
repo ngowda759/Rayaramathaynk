@@ -124,6 +124,11 @@ export const navigation: NavigationGroup[] = [
         icon: "users",
       },
       {
+        title: "Knowledge Base",
+        href: "/admin/knowledge",
+        icon: "book",
+      },
+      {
         title: "AI Assistant",
         href: "/admin/assistant",
         icon: "sparkles",
