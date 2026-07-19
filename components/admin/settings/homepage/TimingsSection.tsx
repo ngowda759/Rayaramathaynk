@@ -68,7 +68,7 @@ export default function TimingsSection({
             required
             value={formData.morningClose}
             error={errors.morningClose}
-            placeholder="12:00 PM"
+            placeholder="01:00 PM"
             onChange={(e) =>
               updateField("morningClose", e.target.value)
             }
@@ -79,7 +79,7 @@ export default function TimingsSection({
             required
             value={formData.eveningOpen}
             error={errors.eveningOpen}
-            placeholder="05:00 PM"
+            placeholder="01:00 PM"
             onChange={(e) =>
               updateField("eveningOpen", e.target.value)
             }

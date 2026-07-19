@@ -27,7 +27,9 @@ export type HomepageValidationErrors = Partial<
     | "contactPhone"
     | "heroPrimaryButton"
     | "heroSecondaryButton"
-    | "footerCopyright",
+    | "footerCopyright"
+    | "dashboardFeaturedEvent"
+    | "dailyQuote",
     string
   >
 >;

@@ -52,9 +52,9 @@ class HomepageService {
       announcement: "",
 
       morningOpen: "06:00 AM",
-      morningClose: "12:00 PM",
+      morningClose: "01:00 PM",
 
-      eveningOpen: "05:00 PM",
+      eveningOpen: "01:00 PM",
       eveningClose: "08:30 PM",
 
       featuredFestival: "",
