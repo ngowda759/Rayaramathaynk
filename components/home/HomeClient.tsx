@@ -13,6 +13,8 @@ import AnnouncementBar from "@/components/home/AnnouncementBar";
 import Hero from "@/components/home/Hero";
 import Navbar from "@/components/layout/Navbar";
 import { PageTransition } from "@/components/ui/PageTransition";
+import DailySpiritualDashboard from "@/components/home/DailySpiritualDashboard";
+import type { DailySpiritualDashboard as DashboardType } from "@/types/daily-spiritual";
 
 interface GalleryImage {
   src: string;
@@ -24,9 +26,15 @@ interface HomeClientProps {
   nextMajorEvent: Date;
   nextEventName?: string;
   galleryImages: GalleryImage[];
+  dashboardData?: DashboardType | null | undefined;
 }
 
-export default function HomeClient({ nextMajorEvent, nextEventName, galleryImages }: HomeClientProps) {
+export default function HomeClient({ 
+  nextMajorEvent, 
+  nextEventName, 
+  galleryImages,
+  dashboardData,
+}: HomeClientProps) {
   return (
     <PageTransition>
       <Navbar />
@@ -35,6 +43,12 @@ export default function HomeClient({ nextMajorEvent, nextEventName, galleryImage
       
       <SacredDivider variant="mandala" />
       
+      {/* Daily Spiritual Dashboard - NEW Epic 1 */}
+      <DailySpiritualDashboard initialData={dashboardData} />
+      
+      <SacredDivider variant="lotus" />
+      
+      {/* Legacy Panchanga Section - kept for detailed view */}
       <Panchanga />
       
       <SacredDivider variant="lotus" />
