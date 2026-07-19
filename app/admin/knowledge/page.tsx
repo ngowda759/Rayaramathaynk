@@ -1,0 +1,415 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { 
+  BookOpen, 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  Search,
+  Filter,
+  Loader2,
+  Save,
+  X,
+  CheckCircle,
+  AlertCircle
+} from "lucide-react";
+import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import toast from "react-hot-toast";
+import {
+  KnowledgeArticle,
+  KnowledgeCategory,
+  CATEGORY_DISPLAY_NAMES,
+} from "@/lib/ai/knowledge/types";
+
+interface KnowledgeArticleWithActions extends KnowledgeArticle {
+  isEditing?: boolean;
+}
+
+export default function KnowledgeBasePage() {
+  const [articles, setArticles] = useState<KnowledgeArticleWithActions[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState<KnowledgeCategory | "all">("all");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    content: "",
+    keywords: "",
+    category: "general" as KnowledgeCategory,
+    language: "en" as "en" | "kn" | "mixed",
+  });
+
+  const loadArticles = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/knowledge");
+      const data = await response.json();
+      if (data.success && data.articles) {
+        setArticles(data.articles);
+      }
+    } catch (error) {
+      console.error("Failed to load articles:", error);
+      toast.error("Failed to load articles");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadArticles();
+  }, [loadArticles]);
+
+  const filteredArticles = articles.filter((article) => {
+    const matchesSearch = 
+      article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      article.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      article.keywords.some(k => k.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = filterCategory === "all" || article.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const startEditing = (article: KnowledgeArticle) => {
+    setEditingId(article.id);
+    setEditForm({
+      title: article.title,
+      content: article.content,
+      keywords: article.keywords.join(", "),
+      category: article.category,
+      language: article.language,
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditForm({
+      title: "",
+      content: "",
+      keywords: "",
+      category: "general",
+      language: "en",
+    });
+  };
+
+  const saveArticle = async () => {
+    if (!editingId) return;
+    
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/admin/knowledge/${editingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editForm.title,
+          content: editForm.content,
+          keywords: editForm.keywords.split(",").map(k => k.trim()).filter(Boolean),
+          category: editForm.category,
+          language: editForm.language,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("Article saved successfully");
+        cancelEditing();
+        loadArticles();
+      } else {
+        toast.error(data.error || "Failed to save article");
+      }
+    } catch (error) {
+      console.error("Failed to save article:", error);
+      toast.error("Failed to save article");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteArticle = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this article?")) return;
+    
+    try {
+      const response = await fetch(`/api/admin/knowledge/${id}`, {
+        method: "DELETE",
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("Article deleted");
+        loadArticles();
+      } else {
+        toast.error(data.error || "Failed to delete article");
+      }
+    } catch (error) {
+      console.error("Failed to delete article:", error);
+      toast.error("Failed to delete article");
+    }
+  };
+
+  const createArticle = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "New Article",
+          content: "Enter content here...",
+          keywords: [],
+          category: "general",
+          language: "en",
+          slug: `article-${Date.now()}`,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.id) {
+        toast.success("Article created");
+        loadArticles();
+        // Start editing the new article
+        const newArticle = articles.find(a => a.id === data.id);
+        if (newArticle) {
+          startEditing(newArticle);
+        }
+      } else {
+        toast.error(data.error || "Failed to create article");
+      }
+    } catch (error) {
+      console.error("Failed to create article:", error);
+      toast.error("Failed to create article");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const categories = Object.keys(CATEGORY_DISPLAY_NAMES) as KnowledgeCategory[];
+
+  return (
+    <div className="space-y-6">
+      <AdminPageHeader
+        title="Knowledge Base"
+        description="Manage knowledge articles for the AI assistant and public website"
+      />
+
+      {/* Action Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full sm:w-auto">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+            <input
+              type="text"
+              placeholder="Search articles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            />
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-stone-400" />
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value as KnowledgeCategory | "all")}
+              className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {CATEGORY_DISPLAY_NAMES[cat]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={createArticle}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50"
+        >
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
+          New Article
+        </button>
+      </div>
+
+      {/* Articles List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+        </div>
+      ) : filteredArticles.length === 0 ? (
+        <div className="bg-white rounded-xl shadow p-12 text-center">
+          <BookOpen className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+          <h3 className="text-lg font-medium text-stone-900 mb-2">No articles found</h3>
+          <p className="text-stone-500 mb-6">
+            {searchTerm || filterCategory !== "all"
+              ? "Try adjusting your search or filter"
+              : "Create your first knowledge article"}
+          </p>
+          {!searchTerm && filterCategory === "all" && (
+            <button
+              onClick={createArticle}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors"
+            >
+              Create Article
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredArticles.map((article) => (
+            <div key={article.id} className="bg-white rounded-xl shadow overflow-hidden">
+              {editingId === article.id ? (
+                /* Edit Mode */
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={cancelEditing}
+                        className="flex items-center gap-1 px-3 py-1.5 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveArticle}
+                        disabled={saving}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
+                      <input
+                        type="text"
+                        value={editForm.title}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
+                      <select
+                        value={editForm.category}
+                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      >
+                        {categories.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {CATEGORY_DISPLAY_NAMES[cat]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Keywords (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.keywords}
+                      onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
+                      placeholder="keyword1, keyword2, keyword3"
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
+                    <textarea
+                      value={editForm.content}
+                      onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                      rows={10}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* View Mode */
+                <div className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
+                          {CATEGORY_DISPLAY_NAMES[article.category]}
+                        </span>
+                        {article.approved ? (
+                          <span className="flex items-center gap-1 text-xs text-green-600">
+                            <CheckCircle className="w-3 h-3" />
+                            Published
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs text-amber-600">
+                            <AlertCircle className="w-3 h-3" />
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-lg font-semibold text-stone-900 mb-2">{article.title}</h3>
+                      <p className="text-stone-600 text-sm line-clamp-2 mb-3">
+                        {article.content.substring(0, 200)}...
+                      </p>
+                      {article.keywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {article.keywords.slice(0, 5).map((keyword, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded"
+                            >
+                              {keyword}
+                            </span>
+                          ))}
+                          {article.keywords.length > 5 && (
+                            <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded">
+                              +{article.keywords.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEditing(article)}
+                        className="p-2 text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteArticle(article.id)}
+                        className="p-2 text-stone-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
