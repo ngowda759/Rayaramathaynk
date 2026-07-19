@@ -73,6 +73,50 @@ Devotees can visit the Matha for daily poojas, special sevas, and during the ann
 
   // ==================== MADHWA PHILOSOPHY ====================
   createArticle(
+    "Who is Sri Madhvacharya",
+    "sri_madhvacharya",
+    ["madhvacharya", "who is", "founder", "biography", "life", "about", "tirtha", "madhavacharya", "madhavacharyaru", "ಮಾಧವಾಚಾರ್ಯ"],
+    `Sri Madhvacharya (1238–1317 CE) was a renowned saint, philosopher, and theologian who founded the Dvaita (dualistic) Vedanta school of Hindu philosophy. He is also known as Madhava Vidyaranya, Purna Prajna, and Vishnu Tirtha.
+
+**Birth and Early Life:**
+Sri Madhvacharya was born in 1238 CE in Uddike village in Karnataka. From childhood, he displayed exceptional intelligence and mastery of the Vedas and scriptures.
+
+**Spiritual Journey:**
+- He became a disciple of Sri Adikesava Teertha (also known as Sri Madhava Tirtha)
+- Received the title "Madhva" from his guru, indicating he would propagate Madhva's teachings
+- Traveled across India engaging in scholarly debates
+- Won 18 debates against Advaita scholars, earning great reputation
+
+**Major Works:**
+Sri Madhvacharya wrote 21 works including:
+1. **Brahmasutrabhashya** - Commentary on Brahma Sutras
+2. **Mahabharata Tatparya Nirnaya** - Definitive commentary on Mahabharata
+3. **Anu Vyakhya** - Detailed philosophical treatise
+4. **Bhagavata Tatparya Nirnaya** - Commentary on Bhagavata Purana
+5. **Vishnu Tattva Nirnaya** - Treatise on Vishnu's attributes
+
+**Philosophy - Dvaita Vedanta:**
+Sri Madhvacharya established Dvaita (dualism) as opposed to Advaita (non-dualism):
+- God (Vishnu), souls, and matter are eternally real and distinct
+- God is the supreme controller and cause of the universe
+- Souls are infinitely many, each eternally distinct from God
+- Liberation comes through devotion and divine grace
+
+**Differences from Other Schools:**
+- **Advaita (Shankara):** Claims world and souls are illusory (Maya)
+- **Vishishtadvaita (Ramanuja):** Soul is part of God
+- **Dvaita (Madhva):** Soul and God are eternally distinct - this is Madhva's position
+
+**Legacy:**
+- Founded the Madhwa Sampradaya (tradition)
+- Established 8 Mathas (monasteries) across India
+- Left an unbroken guru-parampara leading to Sri Raghavendra Swamy
+- His teachings continue to guide millions of devotees
+
+Sri Raghavendra Swamy Matha follows the teachings of Madhvacharya and continues the tradition of Dvaita philosophy.`
+  ),
+
+  createArticle(
     "Madhwa Philosophy - Dvaita Vedanta",
     "madhwa_philosophy",
     ["madhwa", "madhvacharya", "dvaita", "vedanta", "philosophy", "dualism", "ಮಾಧ್ವ", "ದ್ವೈತ"],
