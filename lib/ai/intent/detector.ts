@@ -342,6 +342,11 @@ export class IntentDetector {
       ["annadana", Intent.ANNADANA],
       ["prasada", Intent.PRASADA],
       ["prasad", Intent.PRASADA],
+      // Volunteer
+      ["volunteer", Intent.VOLUNTEER],
+      ["volunteering", Intent.VOLUNTEER],
+      ["sevadhar", Intent.VOLUNTEER],
+      ["sevadara", Intent.VOLUNTEER],
       // Website Navigation - Share Experience before Testimonial
       ["share experience", Intent.SHARE_EXPERIENCE],
       ["share my experience", Intent.SHARE_EXPERIENCE],
