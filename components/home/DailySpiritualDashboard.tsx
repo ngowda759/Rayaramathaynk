@@ -6,7 +6,6 @@ import {
   Sunrise,
   Sunset,
   Moon,
-  CalendarDays,
   Sparkles,
   ChevronRight,
   AlertCircle,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 import {
   TempleStatus,
-  PanchangaSummary,
   DailyQuote,
   PrasadaInfo,
   FeaturedEvent,
@@ -27,7 +25,6 @@ import {
 interface DailySpiritualDashboardProps {
   initialData?: {
     templeStatus: TempleStatus;
-    panchanga: PanchangaSummary | null;
     quote: DailyQuote | null;
     prasada: PrasadaInfo;
     featuredEvent: FeaturedEvent | null;
@@ -150,115 +147,16 @@ function TempleStatusCard({ status }: { status: TempleStatus }) {
 }
 
 /**
- * Panchanga Summary Widget
+ * Featured Event Widget
  */
-function PanchangaSummaryWidget({ panchanga }: { panchanga: PanchangaSummary | null }) {
-  const items = panchanga
-    ? [
-        { label: "Tithi", value: panchanga.tithi, icon: Moon, color: "text-violet-600" },
-        { label: "Nakshatra", value: panchanga.nakshatra, icon: Star, color: "text-amber-600" },
-        { label: "Sunrise", value: panchanga.sunrise, icon: Sunrise, color: "text-orange-500" },
-        { label: "Sunset", value: panchanga.sunset, icon: Sunset, color: "text-sky-600" },
-      ]
-    : [];
-
-  if (!panchanga) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="rounded-3xl bg-gradient-to-br from-white to-stone-50 p-6 shadow-lg ring-1 ring-stone-100"
-      >
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-            <CalendarDays className="h-5 w-5" />
-          </div>
-          <h3 className="text-lg font-bold text-stone-900">Today&apos;s Panchanga</h3>
-        </div>
-        <p className="text-center text-stone-400">Loading panchanga data...</p>
-      </motion.div>
-    );
-  }
+function FeaturedEventWidget({ event }: { event: FeaturedEvent | null }) {
+  if (!event) return null;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 }}
-      className="rounded-3xl bg-gradient-to-br from-white to-stone-50 p-6 shadow-lg ring-1 ring-stone-100"
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-            <CalendarDays className="h-5 w-5" />
-          </div>
-          <h3 className="text-lg font-bold text-stone-900">Today&apos;s Panchanga</h3>
-        </div>
-        {panchanga.isFestival && (
-          <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-600">
-            {panchanga.festivalName || "Festival"}
-          </span>
-        )}
-        {panchanga.isEkadashi && (
-          <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-600">
-            {panchanga.ekadashiName || "Ekadashi"}
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {items.map((item, index) => {
-          const Icon = item.icon;
-          return (
-            <motion.div
-              key={item.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 + index * 0.05 }}
-              className="flex items-center gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-stone-100"
-            >
-              <Icon className={`h-4 w-4 ${item.color}`} />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-stone-400">{item.label}</p>
-                <p className="truncate font-medium text-stone-900">{item.value || "-"}</p>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-    </motion.div>
-  );
-}
-
-/**
- * Featured Event Widget
- */
-function FeaturedEventWidget({ event }: { event: FeaturedEvent | null }) {
-  if (!event) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="rounded-3xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-6 shadow-lg ring-1 ring-purple-100"
-      >
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-400 to-pink-500 text-white">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <h3 className="text-lg font-bold text-stone-900">Today&apos;s Special</h3>
-        </div>
-        <p className="text-center text-stone-500">No special events today</p>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
       className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-6 shadow-lg ring-1 ring-purple-100"
     >
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-purple-400/20" />
@@ -310,7 +208,7 @@ function DailyQuoteWidget({ quote }: { quote: DailyQuote | null }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
+      transition={{ delay: 0.2 }}
       className="rounded-3xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-6 shadow-lg ring-1 ring-indigo-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -340,7 +238,7 @@ function PrasadaInfoWidget({ prasada }: { prasada: PrasadaInfo }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
+      transition={{ delay: 0.3 }}
       className="rounded-3xl bg-gradient-to-br from-amber-500/10 to-yellow-500/10 p-6 shadow-lg ring-1 ring-amber-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -379,7 +277,7 @@ function AnnouncementsWidget({ announcements }: { announcements: Announcement[] 
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
+      transition={{ delay: 0.4 }}
       className="rounded-3xl bg-gradient-to-br from-red-500/10 to-orange-500/10 p-6 shadow-lg ring-1 ring-red-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -457,8 +355,8 @@ export default function DailySpiritualDashboard({
             </p>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5].map((i) => (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
                 className="animate-pulse rounded-3xl bg-white p-6 shadow-lg"
@@ -497,13 +395,10 @@ export default function DailySpiritualDashboard({
           </p>
         </motion.div>
 
-        {/* Dashboard Grid */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Dashboard Grid - 4 cards */}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {/* Temple Status */}
           <TempleStatusCard status={data.templeStatus} />
-
-          {/* Panchanga Summary */}
-          <PanchangaSummaryWidget panchanga={data.panchanga} />
 
           {/* Featured Event */}
           <FeaturedEventWidget event={data.featuredEvent} />

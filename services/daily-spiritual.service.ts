@@ -10,12 +10,9 @@ import {
   query,
   where,
   orderBy,
-  doc,
-  getDoc,
 } from "firebase/firestore";
 import {
   TempleStatus,
-  PanchangaSummary,
   DailyQuote,
   PrasadaInfo,
   FeaturedEvent,
@@ -48,13 +45,6 @@ function parseTimeToMinutes(timeStr: string): number {
 function getCurrentMinutes(): number {
   const now = new Date();
   return now.getHours() * 60 + now.getMinutes();
-}
-
-/**
- * Format date to YYYY-MM-DD string
- */
-function formatDateString(date: Date): string {
-  return date.toISOString().split("T")[0];
 }
 
 /**
@@ -141,79 +131,6 @@ class DailySpiritualService {
       nextOpenTime,
       message,
     };
-  }
-
-  /**
-   * Get today's panchanga summary from Firestore or homepage config
-   */
-  async getPanchangaSummary(): Promise<PanchangaSummary | null> {
-    const today = formatDateString(new Date());
-
-    try {
-      if (!db) {
-        // Fallback to homepage config
-        return this.getPanchangaFromHomepage();
-      }
-      
-      const docRef = doc(db, "panchanga", today);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-          tithi: data.tithi || "",
-          nakshatra: data.nakshatra || "",
-          yoga: data.yoga || "",
-          karana: data.karana || "",
-          sunrise: data.sunrise || "",
-          sunset: data.sunset || "",
-          rahuKalam: data.rahuKaal || data.rahuKalam || "",
-          gulikaKalam: data.gulikaKalam || "",
-          masa: data.masa || "",
-          isFestival: data.isFestival || false,
-          festivalName: data.festivalName,
-          isEkadashi: data.isEkadashi || false,
-          ekadashiName: data.ekadashiName,
-        };
-      }
-    } catch (error) {
-      console.error("Error fetching panchanga from Firestore:", error);
-    }
-
-    // Fallback to homepage config
-    return this.getPanchangaFromHomepage();
-  }
-
-  /**
-   * Get panchanga from homepage config as fallback
-   */
-  private async getPanchangaFromHomepage(): Promise<PanchangaSummary | null> {
-    try {
-      const homepage = await homepageService.getHomepage();
-      const cms = homepage.panchanga;
-      
-      if (cms) {
-        return {
-          tithi: cms.tithi || "",
-          nakshatra: cms.nakshatra || "",
-          yoga: cms.yoga || "",
-          karana: cms.karana || "",
-          sunrise: homepage.morningOpen || "",
-          sunset: homepage.eveningClose || "",
-          rahuKalam: cms.rahuKalam || "",
-          gulikaKalam: cms.gulikaKalam || "",
-          masa: cms.masa || "",
-          isFestival: !!homepage.featuredFestival,
-          festivalName: homepage.featuredFestival,
-          isEkadashi: false,
-          ekadashiName: undefined,
-        };
-      }
-    } catch (error) {
-      console.error("Error fetching panchanga from homepage:", error);
-    }
-    
-    return null;
   }
 
   /**
@@ -453,14 +370,12 @@ class DailySpiritualService {
   async getDashboardData(): Promise<DailySpiritualDashboard> {
     const [
       templeStatus,
-      panchanga,
       prasada,
       featuredEvent,
       announcements,
       quote,
     ] = await Promise.all([
       this.getTempleStatus(),
-      this.getPanchangaSummary(),
       this.getPrasadaInfo(),
       this.getFeaturedEvent(),
       this.getActiveAnnouncements(),
@@ -469,7 +384,6 @@ class DailySpiritualService {
 
     return {
       templeStatus,
-      panchanga,
       quote,
       prasada,
       featuredEvent,

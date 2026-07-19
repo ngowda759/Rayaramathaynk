@@ -85,7 +85,6 @@ export interface FeaturedEvent {
  */
 export interface DailySpiritualDashboard {
   templeStatus: TempleStatus;
-  panchanga: PanchangaSummary | null;
   quote: DailyQuote | null;
   prasada: PrasadaInfo;
   featuredEvent: FeaturedEvent | null;
