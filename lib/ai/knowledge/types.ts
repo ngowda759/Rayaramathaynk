@@ -17,6 +17,8 @@ export type KnowledgeCategory =
   | "visitor_guidelines"
   | "faq"
   | "madhwa_philosophy"
+  | "rituals"
+  | "stotras"
   | "general";
 
 /**
@@ -87,6 +89,8 @@ export const CATEGORY_DISPLAY_NAMES: Record<KnowledgeCategory, string> = {
   visitor_guidelines: "Visitor Guidelines",
   faq: "FAQ",
   madhwa_philosophy: "Madhwa Philosophy",
+  rituals: "Rituals",
+  stotras: "Stotras",
   general: "General",
 };
 
@@ -107,5 +111,7 @@ export const CATEGORY_ICONS: Record<KnowledgeCategory, string> = {
   visitor_guidelines: "📋",
   faq: "❓",
   madhwa_philosophy: "📖",
+  rituals: "🪔",
+  stotras: "📜",
   general: "💬",
 };
