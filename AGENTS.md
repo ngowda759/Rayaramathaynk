@@ -50,6 +50,80 @@ Your objective is to improve the platform while preserving **consistency**, **ma
 
 ---
 
+## 📝 Mandatory Planning Phase
+
+**Before writing or modifying any code, produce an implementation plan that includes:**
+
+### 1. Objective
+- Clear statement of what needs to be accomplished
+- Success criteria
+- Non-functional requirements (performance, accessibility, etc.)
+
+### 2. Existing Modules to Be Reused
+- List components, services, hooks, utilities that will be reused
+- Explain how each will be used
+
+### 3. Files to Be Modified
+- List existing files that need changes
+- Brief description of changes per file
+
+### 4. New Files to Be Created
+- List new files (if any)
+- Purpose of each file
+- Where it fits in the architecture
+
+### 5. Impact Analysis
+- Effects on existing features
+- Database schema changes (if any)
+- API changes
+- Breaking changes assessment
+
+### 6. Risks
+- Technical risks
+- Compatibility risks
+- Performance concerns
+
+### 7. Assumptions
+- What is assumed to be true
+- Dependencies on external systems
+
+### 8. Testing Strategy
+- Unit tests
+- Integration tests
+- Manual testing steps
+- Edge cases to verify
+
+---
+
+> ⚠️ **Do not begin implementation until this analysis is complete.**
+
+> ⚠️ **If the task would violate the documented architecture or standards, explain why and propose an alternative instead of proceeding.**
+
+---
+
+## ⚖️ Decision Validation
+
+**When there are multiple valid implementation approaches:**
+
+1. **Compare at least two approaches**
+   - List pros and cons of each approach
+
+2. **Explain why the chosen approach is preferred**
+   - Align with repository architecture
+   - Consider maintainability
+   - Consider long-term scalability
+
+3. **Select the solution that best aligns with:**
+   - Repository architecture
+   - Maintainability
+   - Long-term scalability
+
+---
+
+> ⚠️ **Do not choose an approach solely because it is the quickest to implement.**
+
+---
+
 ## 🎯 Implementation Principles
 
 ### Always:
@@ -320,3 +394,51 @@ Before contributing, read these docs:
 3. `docs/AI-GUIDELINES.md` — Raya AI guidelines
 4. `docs/UI-GUIDELINES.md` — Visual design standards
 5. `docs/DATA-MODEL.md` — Firestore collections and schemas
+
+---
+
+## 📊 Completion Report
+
+**When implementation is finished, provide a completion report that includes:**
+
+### 1. Summary of Changes
+- Brief description of what was implemented
+- Problem solved
+- Feature delivered
+
+### 2. Files Modified
+- List all existing files that were modified
+- Brief description of changes per file
+
+### 3. New Files Created
+- List all new files
+- Purpose of each file
+- Line count
+
+### 4. Architecture Decisions
+- Key decisions made during implementation
+- Trade-offs considered
+- Why the chosen approach was preferred
+
+### 5. Backward Compatibility Impact
+- Effects on existing functionality
+- Migration requirements (if any)
+- Breaking changes (if any)
+
+### 6. Documentation Updated
+- List documentation files updated
+- Changes made to each
+
+### 7. Remaining Limitations (if any)
+- Known issues
+- Features not implemented
+- Scope cut
+
+### 8. Recommended Future Improvements
+- Enhancements for future consideration
+- Technical debt to address
+- Performance optimizations
+
+---
+
+> ✅ **Provide this completion report when marking a task as complete.**
