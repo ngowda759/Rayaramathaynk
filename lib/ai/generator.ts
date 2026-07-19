@@ -30,6 +30,8 @@ import {
 import {
   getKnowledgeContext,
   formatArticlesForContext,
+  formatArticlesWithSources,
+  getSuggestedFollowUps,
   getGreetingResponse,
   getClosingResponse,
   getOutOfScopeResponse,
@@ -707,15 +709,29 @@ async function handleKnowledgeIntent(
     };
   }
   
-  // Format knowledge articles in a user-friendly way
+  // Use enhanced knowledge formatting with source attribution
+  const { content: formattedContent, sourceAttribution } = formatArticlesWithSources(articles, language);
+  
+  // Determine category from first article for follow-up suggestions
+  const category = articles[0]?.category || null;
+  const followUps = getSuggestedFollowUps(category, language);
+  
+  // Format knowledge articles with source attribution
   const prefix = language === "en" 
     ? "🙏 Here is some information:\n\n"
     : language === "kn"
     ? "🙏 ಇಲ್ಲಿ ಕೆಲವು ಮಾಹಿತಿ ಇದೆ:\n\n"
     : "🙏 Here is some info / ಇಲ್ಲಿ ಮಾಹಿತಿ ಇದೆ:\n\n";
   
+  // Build follow-up suggestions
+  const followUpText = language === "en"
+    ? `\n\n---\n\n💡 **You might also want to know:**\n${followUps.slice(0, 2).map((q, i) => `${i + 1}. ${q}`).join("\n")}`
+    : language === "kn"
+    ? `\n\n---\n\n💡 **ನೀವು ಇದನ್ನೂ ತಿಳಿಯಬಹುದು:**\n${followUps.slice(0, 2).map((q, i) => `${i + 1}. ${q}`).join("\n")}`
+    : `\n\n---\n\n💡 **Also ask / ಇದನ್ನೂ ಕೇಳಿ:**\n${followUps.slice(0, 2).map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
+  
   return {
-    content: prefix + formatArticlesForContext(articles),
+    content: prefix + formattedContent + followUpText + `\n\n${sourceAttribution}`,
     intent: intent,
     confidence: 80,
     source: RetrievalType.KNOWLEDGE_BASE,

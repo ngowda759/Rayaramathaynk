@@ -80,6 +80,181 @@ export function formatArticlesForContext(articles: KnowledgeArticle[]): string {
 }
 
 /**
+ * Format articles for AI response with source attribution
+ */
+export function formatArticlesWithSources(
+  articles: KnowledgeArticle[],
+  language: "en" | "kn" | "mixed"
+): {
+  content: string;
+  sourceAttribution: string;
+  relatedLinks: string[];
+} {
+  if (articles.length === 0) {
+    return {
+      content: "",
+      sourceAttribution: "",
+      relatedLinks: [],
+    };
+  }
+
+  // Build main content
+  const content = formatArticlesForContext(articles);
+
+  // Build source attribution
+  const sourceTexts = {
+    en: "📖 Source: Knowledge Centre",
+    kn: "📖 ಮೂಲ: ಜ್ಞಾನ ಕೇಂದ್ರ",
+    mixed: "📖 Source / ಮೂಲ: Knowledge Centre",
+  };
+  const sourceAttribution = sourceTexts[language];
+
+  // Build related links
+  const relatedLinks = articles
+    .filter((a) => a.slug)
+    .slice(0, 3)
+    .map((a) => `/knowledge/article/${a.slug}`);
+
+  return {
+    content,
+    sourceAttribution,
+    relatedLinks,
+  };
+}
+
+/**
+ * Generate suggested follow-up questions based on category
+ */
+export function getSuggestedFollowUps(
+  category: KnowledgeCategory | null,
+  language: "en" | "kn" | "mixed"
+): string[] {
+  const suggestions: Record<string, Record<string, string[]>> = {
+    history: {
+      en: [
+        "Tell me about Guru Raghavendra Swamy",
+        "What is the Brindavana?",
+        "Tell me about Mantralaya",
+      ],
+      kn: [
+        "ಗುರು ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿಯ ಬಗ್ಗೆ ಹೇಳಿ",
+        "ಬೃಂದಾವನದ ಬಗ್ಗೆ ಏನು?",
+        "ಮಂತ್ರಾಲಯದ ಬಗ್ಗೆ ಹೇಳಿ",
+      ],
+      mixed: [
+        "Tell me about Guru Raghavendra Swamy",
+        "What is Brindavana?",
+      ],
+    },
+    philosophy: {
+      en: [
+        "What is Madhwa philosophy?",
+        "Explain Dvaita Vedanta",
+        "What are the key teachings?",
+      ],
+      kn: [
+        "ಮಾಧ್ವ ತತ್ವದ ಬಗ್ಗೆ ಹೇಳಿ",
+        "ದ್ವೈತ ವೇದಾಂತವನ್ನು ವಿವರಿಸಿ",
+      ],
+      mixed: [
+        "What is Madhwa philosophy?",
+      ],
+    },
+    festivals: {
+      en: [
+        "What is the next festival?",
+        "Tell me about the Aaradhane",
+        "When is Mahabhishekam?",
+      ],
+      kn: [
+        "ಮುಂದಿನ ಹಬ್ಬ ಯಾವುದು?",
+        "ಆರಾಧನೆಯ ಬಗ್ಗೆ ಹೇಳಿ",
+      ],
+      mixed: [
+        "What is the next festival?",
+      ],
+    },
+    rituals: {
+      en: [
+        "What sevas are available?",
+        "How to book a seva?",
+        "What is the daily schedule?",
+      ],
+      kn: [
+        "ಯಾವ ಸೇವೆಗಳು ಲಭ್ಯ?",
+        "ಸೇವೆಯನ್ನು ಹೇಗೆ ಬುಕ್ ಮಾಡಬಹುದು?",
+      ],
+      mixed: [
+        "What sevas are available?",
+      ],
+    },
+    visiting: {
+      en: [
+        "What are the temple timings?",
+        "What is the dress code?",
+        "How do I reach the temple?",
+      ],
+      kn: [
+        "ದೇವಸ್ಥಾನದ ಸಮಯಗಳು ಏನು?",
+        "ಉಡುಗೆಯ ನಿಯಮ ಏನು?",
+      ],
+      mixed: [
+        "What are temple timings?",
+      ],
+    },
+    guru_parampara: {
+      en: [
+        "Who are the pontiffs?",
+        "Tell me about the lineage",
+        "What is the math history?",
+      ],
+      kn: [
+        "ಪೀಠಾಧೀಶರು ಯಾರು?",
+        "ಗುರು ಕ್ರಮದ ಬಗ್ಗೆ ಹೇಳಿ",
+      ],
+      mixed: [
+        "Who are the pontiffs?",
+      ],
+    },
+    faq: {
+      en: [
+        "How do I donate?",
+        "Can I volunteer?",
+        "Where is the temple located?",
+      ],
+      kn: [
+        "ದೇಣವನ್ನು ಹೇಗೆ ನೀಡಬಹುದು?",
+        "ಸ್ವಯಂಸೇವಕರಾಗಬಹುದೇ?",
+      ],
+      mixed: [
+        "How do I donate?",
+      ],
+    },
+  };
+
+  // Default suggestions for unknown category
+  const defaultSuggestions = {
+    en: [
+      "What are the temple timings?",
+      "Tell me about the temple history",
+      "What events are coming up?",
+    ],
+    kn: [
+      "ದೇವಸ್ಥಾನದ ಸಮಯಗಳು ಏನು?",
+      "ದೇವಸ್ಥಾನದ ಇತಿಹಾಸವನ್ನು ಹೇಳಿ",
+      "ಯಾವ ಕಾರ್ಯಕ್ರಮಗಳು ಬರುತ್ತಿವೆ?",
+    ],
+    mixed: [
+      "What are temple timings?",
+      "Tell me about the temple",
+    ],
+  };
+
+  const categorySuggestions = category ? suggestions[category]?.[language] : null;
+  return categorySuggestions || defaultSuggestions[language];
+}
+
+/**
  * Get greeting responses
  */
 export function getGreetingResponse(language: "en" | "kn" | "mixed"): string {

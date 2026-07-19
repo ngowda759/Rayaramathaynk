@@ -6,7 +6,8 @@ import { useAuthContext } from "@/context/AuthContext";
 import { 
   saveMessage, 
   getSessionMessages,
-  getUserChatSessions 
+  getUserChatSessions,
+  submitFeedback 
 } from "@/services/chat.service";
 import { getWelcomeMessage } from "@/lib/ai/settings";
 import { detectLanguage } from "@/lib/ai/languageDetector";
@@ -24,6 +25,7 @@ interface AIChatContextType {
   toggleChat: () => void;
   regenerateResponse: () => Promise<void>;
   loadSessionHistory: (sessionId: string) => Promise<void>;
+  submitMessageFeedback: (messageId: string, rating: "helpful" | "not_helpful") => Promise<void>;
   userSessions: string[];
   welcomeMessage: string;
 }
@@ -283,6 +285,22 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     }
   }, [lastUserMessage, isLoading, messages, sessionId, user, saveToFirebase]);
 
+  // Submit feedback for a message
+  const submitMessageFeedback = useCallback(async (messageId: string, rating: "helpful" | "not_helpful") => {
+    if (!sessionId) return;
+    
+    try {
+      await submitFeedback({
+        messageId,
+        sessionId,
+        rating,
+      });
+    } catch (err) {
+      console.error("Failed to submit feedback:", err);
+      // Don't throw - feedback is optional
+    }
+  }, [sessionId]);
+
   const value: AIChatContextType = {
     messages,
     isOpen,
@@ -296,6 +314,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
     toggleChat,
     regenerateResponse,
     loadSessionHistory,
+    submitMessageFeedback,
     userSessions,
     welcomeMessage,
   };
