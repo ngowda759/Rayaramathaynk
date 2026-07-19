@@ -56,30 +56,54 @@ export default function TestimonialsPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-[#fff8ef]">
+      <main className="min-h-screen">
         
         {/* Hero Section */}
-        <section className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-b border-amber-100">
-          <div className="mx-auto max-w-7xl px-6 py-16">
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-12 md:py-16">
+          <div className="absolute inset-0 opacity-10">
+            <div
+              className="h-full w-full"
+              style={{
+                backgroundImage: "url('/images/Hero.jpg')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+          </div>
+
+          <div className="relative mx-auto max-w-7xl px-6">
             <Breadcrumb current="Testimonials" />
             
-            <div className="text-center mt-8">
-              <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold text-amber-700">
-                <Star size={14} className="fill-amber-500 text-amber-500" />
-                DEVOTEES SPEAK
-              </span>
-              
-              <h1 className="mt-6 text-4xl md:text-5xl font-bold text-stone-900">
+            <div className="text-center mt-4">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
+                <Star className="h-5 w-5 text-amber-200" />
+                <span className="text-sm font-medium text-white">
+                  Devotees Speak
+                </span>
+              </div>
+
+              <h1 className="text-4xl font-bold text-white md:text-5xl">
                 Words from the Heart
               </h1>
               
-              <p className="mt-6 mx-auto max-w-3xl text-lg leading-8 text-stone-600">
+              <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
                 Experiences shared by devotees who have found peace, blessings, 
                 and spiritual fulfillment at Sri Raghavendra Swamy Matha.
               </p>
+
+              <div className="mt-8 flex justify-center gap-8 text-amber-200">
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-white">
+                    {testimonials.length}
+                  </div>
+                  <div className="text-sm">Testimonials</div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
+
+        <div className="bg-gradient-to-b from-amber-50 via-white to-[#fff8ef]">
 
         <SacredDivider variant="lotus" />
 
@@ -198,6 +222,8 @@ export default function TestimonialsPage() {
         </section>
 
         <SacredDivider variant="diya" />
+
+        </div>
 
       </main>
       <Footer />

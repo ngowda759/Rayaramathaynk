@@ -60,14 +60,57 @@ export default function ShlokasPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-[calc(100vh-120px)] bg-gradient-to-b from-amber-50 to-white px-6 py-12 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl">
-          <Breadcrumb current="Shlokas" />
-        </div>
-        <SectionHeading
-          title="ಶ್ಲೋಕಗಳು / Shlokas & Stotrams"
-          subtitle="Sacred hymns and prayers for daily worship"
-        />
+      <main className="min-h-[calc(100vh-120px)]">
+        {/* Hero Section */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-12 md:py-16">
+          <div className="absolute inset-0 opacity-10">
+            <div
+              className="h-full w-full"
+              style={{
+                backgroundImage: "url('/images/Hero.jpg')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+          </div>
+
+          <div className="relative mx-auto max-w-7xl px-6">
+            <Breadcrumb current="Shlokas" />
+            
+            <div className="text-center mt-4">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
+                <BookOpen className="h-5 w-5 text-amber-200" />
+                <span className="text-sm font-medium text-white">
+                  Sacred Hymns
+                </span>
+              </div>
+
+              <h1 className="text-4xl font-bold text-white md:text-5xl">
+                ಶ್ಲೋಕಗಳು / Shlokas & Stotrams
+              </h1>
+              <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
+                Sacred hymns and prayers for daily worship
+              </p>
+
+              <div className="mt-8 flex justify-center gap-8 text-amber-200">
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-white">
+                    {shlokas.length}
+                  </div>
+                  <div className="text-sm">Shlokas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-white">
+                    {shlokaCategories.length - 1}
+                  </div>
+                  <div className="text-sm">Categories</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="px-6 py-12 sm:px-8 lg:px-12 bg-gradient-to-b from-amber-50 to-white">
 
         {/* Om Symbol */}
         <div className="text-center mb-8">
@@ -186,6 +229,7 @@ export default function ShlokasPage() {
           <p className="text-sm text-stone-600 mt-2">
             May we all be blessed with peace, prosperity, and divine knowledge.
           </p>
+        </div>
         </div>
       </main>
       <Footer />

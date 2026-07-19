@@ -1,3 +1,5 @@
+import { Calendar } from "lucide-react";
+
 interface CalendarHeroProps {
   badge: string;
   title: string;
@@ -10,21 +12,33 @@ export default function CalendarHero({
   subtitle,
 }: CalendarHeroProps) {
   return (
-    <section className="border-b border-amber-100 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50">
-      <div className="mx-auto max-w-7xl px-6 py-20 text-center">
+    <section className="relative overflow-hidden bg-gradient-to-br from-amber-700 via-orange-600 to-amber-900 py-12 md:py-16">
+      <div className="absolute inset-0 opacity-10">
+        <div
+          className="h-full w-full"
+          style={{
+            backgroundImage: "url('/images/Hero.jpg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      </div>
 
-        <span className="inline-flex rounded-full bg-amber-100 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
-          {badge}
-        </span>
+      <div className="relative mx-auto max-w-7xl px-6 text-center">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 backdrop-blur">
+          <Calendar className="h-5 w-5 text-amber-200" />
+          <span className="text-sm font-medium text-white">
+            {badge}
+          </span>
+        </div>
 
-        <h1 className="mt-6 text-5xl font-bold text-stone-900">
+        <h1 className="text-4xl font-bold text-white md:text-5xl">
           {title}
         </h1>
 
-        <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-stone-600">
+        <p className="mx-auto mt-6 max-w-3xl text-xl text-amber-100">
           {subtitle}
         </p>
-
       </div>
     </section>
   );
