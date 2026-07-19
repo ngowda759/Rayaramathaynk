@@ -40,17 +40,20 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     html = html.replace(/<p class="mb-2"><\/p>/g, "");
 
     // Inline code
-    html = html.replace(/`(.*?)`/g, "<code class=\"bg-stone-100 px-1 py-0.5 rounded text-sm font-mono\">$1</code>");
+    html = html.replace(/`(.*?)`/g, "<code class=\"bg-stone-100 px-1 py-0.5 rounded text-sm font-mono break-all\">$1</code>");
 
-    // Links
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">$1</a>');
+    // Links (markdown style)
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline break-all">$1</a>');
+
+    // Plain URLs - make them break properly
+    html = html.replace(/(https?:\/\/[^\s<]+)/g, '<span class="break-all"><a href="$1" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">$1</a></span>');
 
     return html;
   }, [content]);
 
   return (
     <div 
-      className="text-sm leading-relaxed"
+      className="text-sm leading-relaxed break-words"
       dangerouslySetInnerHTML={{ __html: renderedContent }}
     />
   );
