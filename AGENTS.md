@@ -6,6 +6,119 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ---
 
+# 🚀 Repository Onboarding Instructions
+
+**Before starting any task, you must understand the repository before making changes.**
+
+---
+
+## 📚 Required Reading Order
+
+Read these documents **in order** before implementing any feature, enhancement, bug fix, or refactoring:
+
+1. **`AGENTS.md`** ← *(You are here)*
+2. **`docs/ARCHITECTURE.md`** — System design and data flow
+3. **`docs/CODING-STANDARDS.md`** — Code style and conventions
+4. **`docs/UI-GUIDELINES.md`** — Visual design standards
+5. **`docs/DATA-MODEL.md`** — Firestore collections and schemas
+6. **`docs/ADMIN-GUIDELINES.md`** — Admin UI patterns
+7. **`docs/AI-GUIDELINES.md`** — *(When modifying Raya AI)*
+8. **`docs/CONTENT-GUIDELINES.md`** — Content standards
+9. **`docs/SECURITY.md`** — Security policies
+
+These documents are the **authoritative source of truth**. If implementation conflicts with documentation, follow the documentation instead of assumptions.
+
+---
+
+## 💡 Development Philosophy
+
+**Always extend the existing system.**
+
+Do not replace, rewrite, duplicate, or bypass existing architecture unless explicitly instructed.
+
+Your objective is to improve the platform while preserving **consistency**, **maintainability**, and **backward compatibility**.
+
+---
+
+## 📋 Before Writing Code
+
+- [ ] **Understand the business objective**
+- [ ] **Review the existing implementation**
+- [ ] **Identify reusable components**, services, hooks, utilities, and patterns
+- [ ] **Identify the impact** on existing features
+- [ ] **Ask for clarification** only if a requirement is genuinely ambiguous
+
+---
+
+## 🎯 Implementation Principles
+
+### Always:
+
+- Follow the established architecture
+- Reuse existing components and services
+- Follow repository coding standards
+- Maintain consistency with the existing UI and UX
+- Keep implementations modular and scalable
+- Design for future extensibility
+- Avoid introducing technical debt
+
+### Never:
+
+- Create duplicate implementations
+- Hardcode configuration or business logic
+- Use shortcuts that bypass architecture
+- Introduce breaking changes
+- Ignore existing patterns because they appear "simpler"
+
+---
+
+## ✅ Definition of Done
+
+A task is complete **only** when:
+
+- [ ] Functional requirements are **fully implemented**
+- [ ] Existing functionality **continues to work**
+- [ ] The feature **integrates naturally** with the rest of the platform
+- [ ] Any required **documentation is updated**
+- [ ] The implementation is **production-ready**
+
+> ⚠️ **Do not consider a task complete simply because the requested functionality appears to work.**
+
+---
+
+## 🏗️ Architectural Mindset
+
+When implementing new functionality:
+
+- **Prefer extending existing modules** over creating new ones
+- **Build reusable components**
+- **Design for future growth**
+- **Keep business logic separated** from presentation
+- **Keep the admin experience consistent** across all modules
+- **Ensure Raya AI can leverage new knowledge** where appropriate
+
+---
+
+## 📤 Expected Output
+
+Every completed implementation should **leave the repository in a better state** than before, with improved:
+
+- ✅ Maintainability
+- ✅ Consistency
+- ✅ Extensibility
+
+**Not just additional code.**
+
+---
+
+## 📖 Documentation Authority
+
+If this repository contains documentation under `/docs/`, those documents are the **authoritative source of truth** and **must be read** before making implementation decisions.
+
+---
+
+---
+
 # 🤖 AI Agent Contract
 
 **This is the first file every AI coding agent must read.**
