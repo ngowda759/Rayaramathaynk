@@ -577,6 +577,7 @@ function handleVolunteer(language: "en" | "kn" | "mixed"): AIResponseResult {
 We welcome devotees to join our volunteer (sevadhar) program!
 
 **How to Join:**
+👉 Register Online: https://rayaramathaynk.vercel.app/volunteer
 - Contact the temple office during working hours
 - Phone: +91-80-28446400
 - Email: info@raghavendramatha.org
@@ -588,6 +589,10 @@ We welcome devotees to join our volunteer (sevadhar) program!
 - Temple maintenance
 - Event coordination
 
+**Registration Form:**
+Fill out a simple form with your name, phone, profession, and address.
+👉 https://rayaramathaynk.vercel.app/volunteer
+
 Training is provided for all volunteers. Your service (seva) is considered a sacred offering.
 
 🙏 Sri Guru Raghavendraya Namaha.`,
@@ -597,6 +602,7 @@ Training is provided for all volunteers. Your service (seva) is considered a sac
 ನಮ್ಮ ಸೇವಾಧಾರ ಕಾರ್ಯಕ್ರಮಕ್ಕೆ ಭಕ್ತರನ್ನು ಸ್ವಾಗತಿಸುತ್ತೇವೆ!
 
 **ಹೇಗೆ ಸೇರಬೇಕು:**
+👉 ಆನ್‌ಲೈನ್ ನೋಂದಣಿ: https://rayaramathaynk.vercel.app/volunteer
 - ಕಛೇರಿ ಸಮಯದಲ್ಲಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ
 - ಫೋನ್: +91-80-28446400
 
@@ -610,6 +616,7 @@ Training is provided for all volunteers. Your service (seva) is considered a sac
     mixed: `🙏 **Volunteer / ಸ್ವಯಂಸೇವೆ**
 
 Join our volunteer program!
+👉 Register: https://rayaramathaynk.vercel.app/volunteer
 Contact: +91-80-28446400
 
 Your service is a sacred offering.
@@ -637,17 +644,22 @@ function handleShareExperience(language: "en" | "kn" | "mixed"): AIResponseResul
 We invite devotees to share their spiritual experiences and testimonials at Sri Raghavendra Swamy Matha.
 
 **How to Share:**
-1. **Write to us:** Submit your testimonial via the temple website
-2. **Suggestion Box:** Drop your written testimonial at the temple suggestion box
-3. **Email:** info@raghavendramatha.org
+👉 **Share Online:** https://rayaramathaynk.vercel.app/testimonials/share
+- **Write to us:** Submit your testimonial via the temple website
+- **Suggestion Box:** Drop your written testimonial at the temple suggestion box
+- **Email:** info@raghavendramatha.org
 
 Your experiences inspire and guide fellow devotees on their spiritual journey.
 
 **What to Share:**
 - Your experience during darshan
-- blessings received
+- Blessings received
 - Stories of Sri Guru's grace
 - How the temple has helped you
+
+**Easy Online Form:**
+Share your experience in a few simple steps.
+👉 https://rayaramathaynk.vercel.app/testimonials/share
 
 🙏 Thank you for being part of our spiritual family!`,
 
@@ -656,6 +668,7 @@ Your experiences inspire and guide fellow devotees on their spiritual journey.
 ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠದಲ್ಲಿ ನಿಮ್ಮ ಆತ್ಮೀಯ ಅನುಭವಗಳನ್ನು ಹಂಚಿಕೊಳ್ಳಲು ನಾವು ಭಕ್ತರನ್ನು ಆಹ್ವಾನಿಸುತ್ತೇವೆ.
 
 **ಹೇಗೆ ಹಂಚಿಕೊಳ್ಳುವುದು:**
+👉 **ಆನ್‌ಲೈನ್‌ನಲ್ಲಿ ಹಂಚಿಕೊಳ್ಳಿ:** https://rayaramathaynk.vercel.app/testimonials/share
 - ವೆಬ್‌ಸೈಟ್‌ನ ಮೂಲಕ ಬರೆಯಿರಿ
 - ದೇವಸ್ಥಾನದ ಸೂಚನಾ ಪೆಟ್ಟಿಗೆಯಲ್ಲಿ ಬಿಡಿ
 - ಇಮೇಲ್: info@raghavendramatha.org
@@ -665,6 +678,7 @@ Your experiences inspire and guide fellow devotees on their spiritual journey.
     mixed: `🙏 **Share Experience / ಅನುಭವ**
 
 Share your spiritual journey!
+👉 **Share Online:** https://rayaramathaynk.vercel.app/testimonials/share
 - Website testimonial form
 - Suggestion box at temple
 - Email: info@raghavendramatha.org
