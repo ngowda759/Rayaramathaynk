@@ -9,15 +9,12 @@ import {
   Sparkles,
   ChevronRight,
   AlertCircle,
-  CheckCircle2,
   Flame,
   Star,
-  Coffee,
 } from "lucide-react";
 import {
   TempleStatus,
   DailyQuote,
-  PrasadaInfo,
   FeaturedEvent,
   Announcement,
 } from "@/types/daily-spiritual";
@@ -26,7 +23,6 @@ interface DailySpiritualDashboardProps {
   initialData?: {
     templeStatus: TempleStatus;
     quote: DailyQuote | null;
-    prasada: PrasadaInfo;
     featuredEvent: FeaturedEvent | null;
     announcements: Announcement[];
   } | null;
@@ -231,39 +227,6 @@ function DailyQuoteWidget({ quote }: { quote: DailyQuote | null }) {
 }
 
 /**
- * Prasada Info Widget
- */
-function PrasadaInfoWidget({ prasada }: { prasada: PrasadaInfo }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className="rounded-3xl bg-gradient-to-br from-amber-500/10 to-yellow-500/10 p-6 shadow-lg ring-1 ring-amber-100"
-    >
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-white">
-          <Coffee className="h-5 w-5" />
-        </div>
-        <h3 className="text-lg font-bold text-stone-900">Today&apos;s Prasada</h3>
-      </div>
-
-      <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-100">
-        {prasada.available ? (
-          <CheckCircle2 className="h-6 w-6 text-green-500" />
-        ) : (
-          <AlertCircle className="h-6 w-6 text-stone-400" />
-        )}
-        <div className="flex-1">
-          <p className="font-semibold text-stone-900">{prasada.name}</p>
-          <p className="text-sm text-stone-500">{prasada.distributionTime}</p>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-/**
  * Announcements Widget
  */
 function AnnouncementsWidget({ announcements }: { announcements: Announcement[] }) {
@@ -277,7 +240,7 @@ function AnnouncementsWidget({ announcements }: { announcements: Announcement[] 
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
+      transition={{ delay: 0.3 }}
       className="rounded-3xl bg-gradient-to-br from-red-500/10 to-orange-500/10 p-6 shadow-lg ring-1 ring-red-100"
     >
       <div className="mb-4 flex items-center gap-3">
@@ -355,8 +318,8 @@ export default function DailySpiritualDashboard({
             </p>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
               <div
                 key={i}
                 className="animate-pulse rounded-3xl bg-white p-6 shadow-lg"
@@ -395,8 +358,8 @@ export default function DailySpiritualDashboard({
           </p>
         </motion.div>
 
-        {/* Dashboard Grid - 4 cards */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Dashboard Grid - 3 cards */}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {/* Temple Status */}
           <TempleStatusCard status={data.templeStatus} />
 
@@ -405,9 +368,6 @@ export default function DailySpiritualDashboard({
 
           {/* Daily Quote */}
           <DailyQuoteWidget quote={data.quote} />
-
-          {/* Prasada Info */}
-          <PrasadaInfoWidget prasada={data.prasada} />
         </div>
 
         {/* Announcements - Full Width */}

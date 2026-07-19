@@ -14,11 +14,9 @@ import {
 import {
   TempleStatus,
   DailyQuote,
-  PrasadaInfo,
   FeaturedEvent,
   DailySpiritualDashboard,
   DEFAULT_QUOTES,
-  DEFAULT_PRASADA,
 } from "@/types/daily-spiritual";
 import type { Announcement } from "@/types/announcement";
 import { homepageService } from "./homepage.service";
@@ -162,24 +160,6 @@ class DailySpiritualService {
     );
     const index = dayOfYear % DEFAULT_QUOTES.length;
     return DEFAULT_QUOTES[index];
-  }
-
-  /**
-   * Get prasada information
-   */
-  async getPrasadaInfo(): Promise<PrasadaInfo> {
-    const templeStatus = await this.getTempleStatus();
-    const currentMinutes = getCurrentMinutes();
-    const morningCloseMinutes = parseTimeToMinutes(templeStatus.morningClose);
-
-    return {
-      ...DEFAULT_PRASADA,
-      available: currentMinutes >= 360 && currentMinutes < morningCloseMinutes + 120,
-      distributionTime:
-        currentMinutes < morningCloseMinutes
-          ? "Available now until evening"
-          : "Available from next morning",
-    };
   }
 
   /**
@@ -370,13 +350,11 @@ class DailySpiritualService {
   async getDashboardData(): Promise<DailySpiritualDashboard> {
     const [
       templeStatus,
-      prasada,
       featuredEvent,
       announcements,
       quote,
     ] = await Promise.all([
       this.getTempleStatus(),
-      this.getPrasadaInfo(),
       this.getFeaturedEvent(),
       this.getActiveAnnouncements(),
       this.getDailyQuote(),
@@ -385,7 +363,6 @@ class DailySpiritualService {
     return {
       templeStatus,
       quote,
-      prasada,
       featuredEvent,
       announcements,
       lastUpdated: new Date().toISOString(),
