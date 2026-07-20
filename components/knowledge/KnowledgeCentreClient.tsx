@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Bookmark, BookmarkCheck, Share2, Printer, Clock, Eye, ChevronRight, X, Sparkles } from "lucide-react";
+import { Search, Bookmark, BookmarkCheck, Share2, Printer, Clock, Eye, ChevronRight, X, Sparkles, Globe } from "lucide-react";
 import Link from "next/link";
 import {
   KnowledgeCentreData,
@@ -10,6 +10,7 @@ import {
   KnowledgeArticle,
   KnowledgeBookmark,
   RecentlyViewed,
+  KnowledgeLanguage,
   KNOWLEDGE_CATEGORY_CONFIG,
 } from "@/types/knowledge";
 
@@ -19,6 +20,7 @@ interface KnowledgeCentreClientProps {
 
 const BOOKMARKS_KEY = "rayaramathaynk_bookmarks";
 const RECENTLY_VIEWED_KEY = "rayaramathaynk_recently_viewed";
+const LANGUAGE_KEY = "rayaramathaynk_language";
 const MAX_RECENT = 5;
 
 export default function KnowledgeCentreClient({ initialData }: KnowledgeCentreClientProps) {
@@ -31,10 +33,16 @@ export default function KnowledgeCentreClient({ initialData }: KnowledgeCentreCl
   const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewed[]>([]);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showRecent, setShowRecent] = useState(false);
+  const [language, setLanguage] = useState<KnowledgeLanguage>("en");
 
-  // Load bookmarks and recently viewed from localStorage
+  // Load language preference and bookmarks/recently viewed from localStorage
   useEffect(() => {
     try {
+      const savedLanguage = localStorage.getItem(LANGUAGE_KEY) as KnowledgeLanguage;
+      if (savedLanguage && ["en", "kn", "mixed"].includes(savedLanguage)) {
+        setLanguage(savedLanguage);
+      }
+
       const savedBookmarks = localStorage.getItem(BOOKMARKS_KEY);
       if (savedBookmarks) {
         setBookmarks(JSON.parse(savedBookmarks));
@@ -48,6 +56,28 @@ export default function KnowledgeCentreClient({ initialData }: KnowledgeCentreCl
       // Ignore localStorage errors
     }
   }, []);
+
+  const toggleLanguage = () => {
+    const newLanguage = language === "en" ? "kn" : "en";
+    setLanguage(newLanguage);
+    localStorage.setItem(LANGUAGE_KEY, newLanguage);
+  };
+
+  // Get article title based on language
+  const getArticleTitle = (article: KnowledgeArticle) => {
+    if (language === "kn" && article.kannadaTitle) {
+      return article.kannadaTitle;
+    }
+    return article.title;
+  };
+
+  // Get article content snippet based on language
+  const getArticleContentSnippet = (article: KnowledgeArticle) => {
+    const content = language === "kn" && article.kannadaContent 
+      ? article.kannadaContent 
+      : article.content;
+    return content.slice(0, 200);
+  };
 
   // Search handler with debounce
   const handleSearch = useCallback(async (query: string) => {
@@ -225,13 +255,23 @@ export default function KnowledgeCentreClient({ initialData }: KnowledgeCentreCl
                 Recently Viewed ({recentlyViewed.length})
               </button>
             </div>
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors"
-            >
-              <Printer className="h-4 w-4" />
-              Print
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleLanguage}
+                className="flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-200 transition-colors"
+                title="Toggle language"
+              >
+                <Globe className="h-4 w-4" />
+                {language === "en" ? "ಕನ್ನಡ" : "English"}
+              </button>
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors"
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -418,10 +458,10 @@ export default function KnowledgeCentreClient({ initialData }: KnowledgeCentreCl
 
                     <Link href={`/knowledge/article/${article.slug}`} onClick={() => addToRecentlyViewed(article)}>
                       <h3 className="mt-4 text-xl font-bold text-stone-900 group-hover:text-amber-600 transition-colors">
-                        {article.title}
+                        {getArticleTitle(article)}
                       </h3>
                       <p className="mt-2 line-clamp-3 text-stone-600">
-                        {article.content.slice(0, 200)}...
+                        {getArticleContentSnippet(article)}...
                       </p>
                     </Link>
 
