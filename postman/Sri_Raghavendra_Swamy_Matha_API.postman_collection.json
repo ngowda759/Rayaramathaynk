@@ -1,0 +1,1084 @@
+{
+  "info": {
+    "name": "Sri Raghavendra Swamy Matha API",
+    "description": "API collection for Sri Raghavendra Swamy Matha temple management system. Includes events, AI chat, knowledge base, donations, bookings, and admin APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://sri-raghavendra-mutt.vercel.app",
+      "type": "string"
+    },
+    {
+      "key": "localUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Get All Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events"]
+            },
+            "description": "Retrieve all events from Firestore"
+          }
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Event document ID"
+                }
+              ]
+            },
+            "description": "Retrieve a specific event by its ID"
+          }
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sri Raghavendra Swamy Aaradhane\",\n  \"description\": \"Annual Aaradhane celebration\",\n  \"startDate\": \"2026-05-26\",\n  \"endDate\": \"2026-05-28\",\n  \"category\": \"Aaradhane\",\n  \"importance\": \"major\",\n  \"guru\": \"Sri Raghavendra Swamy\",\n  \"published\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events"]
+            },
+            "description": "Create a new event"
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Event Title\",\n  \"published\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Event document ID"
+                }
+              ]
+            },
+            "description": "Update an existing event"
+          }
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "events", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Event document ID"
+                }
+              ]
+            },
+            "description": "Delete an event"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Chat",
+      "item": [
+        {
+          "name": "Send Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What are the temple timings?\",\n  \"sessionId\": \"session-123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Send a message to the AI chatbot"
+          }
+        },
+        {
+          "name": "AI Multi-Source Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"temple timings\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/multi-source/query",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "multi-source", "query"]
+            },
+            "description": "Query using multiple AI sources"
+          }
+        },
+        {
+          "name": "AI Today's Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/multi-source/today",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "multi-source", "today"]
+            },
+            "description": "Get today's temple information from AI"
+          }
+        },
+        {
+          "name": "AI Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/multi-source/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "multi-source", "overview"]
+            },
+            "description": "Get temple overview from AI"
+          }
+        },
+        {
+          "name": "AI Quick Queries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/multi-source/quick-queries",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "multi-source", "quick-queries"]
+            },
+            "description": "Get list of quick query topics"
+          }
+        },
+        {
+          "name": "AI Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/multi-source/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "multi-source", "statistics"]
+            },
+            "description": "Get AI usage statistics"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Settings (Admin)",
+      "item": [
+        {
+          "name": "Get AI Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings"]
+            },
+            "description": "Get current AI settings"
+          }
+        },
+        {
+          "name": "Update AI Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templeInformation\": {\n    \"timings\": {\n      \"morningOpen\": \"6:00 AM\",\n      \"morningClose\": \"12:00 PM\",\n      \"eveningOpen\": \"5:00 PM\",\n      \"eveningClose\": \"8:30 PM\"\n    },\n    \"contact\": {\n      \"phone\": \"+91-80-28446400\",\n      \"email\": \"info@raghavendramatha.org\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings"]
+            },
+            "description": "Update AI settings (requires admin)"
+          }
+        },
+        {
+          "name": "Get Prompts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/prompts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "prompts"]
+            },
+            "description": "Get AI prompts"
+          }
+        },
+        {
+          "name": "Update Prompts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"You are Raya AI, a helpful assistant for Sri Raghavendra Swamy Matha...\",\n  \"name\": \"Updated Prompt v2\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/prompts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "prompts"]
+            },
+            "description": "Update AI prompts"
+          }
+        },
+        {
+          "name": "Get Intents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/intents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "intents"]
+            },
+            "description": "Get AI intents"
+          }
+        },
+        {
+          "name": "Get Unknown Questions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/unknown-questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "unknown-questions"]
+            },
+            "description": "Get unknown questions"
+          }
+        },
+        {
+          "name": "Get AI Behavior Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/ai-behavior",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "ai-behavior"]
+            },
+            "description": "Get AI behavior configuration"
+          }
+        },
+        {
+          "name": "Get Temple Information",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/temple-information",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "temple-information"]
+            },
+            "description": "Get temple information for AI"
+          }
+        },
+        {
+          "name": "Get Visitor Information",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/visitor-information",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "visitor-information"]
+            },
+            "description": "Get visitor information for AI"
+          }
+        },
+        {
+          "name": "Get Policies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/policies",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "policies"]
+            },
+            "description": "Get AI policies"
+          }
+        },
+        {
+          "name": "Get AI Responses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/settings/ai-responses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "settings", "ai-responses"]
+            },
+            "description": "Get AI response templates"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Analytics",
+      "item": [
+        {
+          "name": "Get AI Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "analytics"]
+            },
+            "description": "Get AI analytics data"
+          }
+        },
+        {
+          "name": "Get Token Usage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/analytics/token-usage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "analytics", "token-usage"]
+            },
+            "description": "Get token usage statistics"
+          }
+        },
+        {
+          "name": "Get Intent Distribution",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/analytics/intent-distribution",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "analytics", "intent-distribution"]
+            },
+            "description": "Get intent distribution data"
+          }
+        },
+        {
+          "name": "Get AI Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/analytics/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "analytics", "health"]
+            },
+            "description": "Get AI health status"
+          }
+        },
+        {
+          "name": "Get Unknown Questions Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/analytics/unknown-questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "analytics", "unknown-questions"]
+            },
+            "description": "Get unknown questions analytics"
+          }
+        },
+        {
+          "name": "Get Latency Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/analytics/latency",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "analytics", "latency"]
+            },
+            "description": "Get AI latency statistics"
+          }
+        },
+        {
+          "name": "Get AI Knowledge Coverage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/knowledge/coverage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "knowledge", "coverage"]
+            },
+            "description": "Get AI knowledge coverage"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base",
+      "item": [
+        {
+          "name": "Get All Articles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge"]
+            },
+            "description": "Get all knowledge articles"
+          }
+        },
+        {
+          "name": "Search Knowledge",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/search?q=madhva",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "madhva",
+                  "description": "Search query"
+                }
+              ]
+            },
+            "description": "Search knowledge articles"
+          }
+        },
+        {
+          "name": "Get Article by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/article/:slug",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "article", ":slug"],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "",
+                  "description": "Article slug"
+                }
+              ]
+            },
+            "description": "Get article by its slug"
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "categories"]
+            },
+            "description": "Get all knowledge categories"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Workflow (Admin)",
+      "item": [
+        {
+          "name": "Get Articles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/workflow/articles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "workflow", "articles"]
+            },
+            "description": "Get all articles for workflow"
+          }
+        },
+        {
+          "name": "Get Drafts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/workflow/drafts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "workflow", "drafts"]
+            },
+            "description": "Get article drafts"
+          }
+        },
+        {
+          "name": "Get Approvals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/workflow/approvals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "workflow", "approvals"]
+            },
+            "description": "Get articles pending approval"
+          }
+        },
+        {
+          "name": "Get Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/workflow/audit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "workflow", "audit"]
+            },
+            "description": "Get audit log"
+          }
+        },
+        {
+          "name": "Get Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/workflow/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "workflow", "statistics"]
+            },
+            "description": "Get workflow statistics"
+          }
+        },
+        {
+          "name": "Get Comments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/knowledge/workflow/comments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "knowledge", "workflow", "comments"]
+            },
+            "description": "Get article comments"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search?q=temple",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "temple",
+                  "description": "Search query"
+                }
+              ]
+            },
+            "description": "Search across all content"
+          }
+        },
+        {
+          "name": "Search Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/suggestions?q=tem",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "suggestions"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "tem",
+                  "description": "Search prefix"
+                }
+              ]
+            },
+            "description": "Get search suggestions"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Daily Spiritual",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/daily-spiritual",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard", "daily-spiritual"]
+            },
+            "description": "Get daily spiritual content"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Public Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/public/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "public", "stats"]
+            },
+            "description": "Get public statistics"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Donations",
+      "item": [
+        {
+          "name": "Get All Donations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/donations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "donations"]
+            },
+            "description": "Get all donations"
+          }
+        },
+        {
+          "name": "Get Donation by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/donations/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "donations", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Donation ID"
+                }
+              ]
+            },
+            "description": "Get donation by ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Get All Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings"]
+            },
+            "description": "Get all bookings"
+          }
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Booking ID"
+                }
+              ]
+            },
+            "description": "Get booking by ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Testimonials",
+      "item": [
+        {
+          "name": "Get Testimonials",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/testimonials",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "testimonials"]
+            },
+            "description": "Get approved testimonials"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Announcements",
+      "item": [
+        {
+          "name": "Get Announcements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/announcements",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "announcements"]
+            },
+            "description": "Get all announcements"
+          }
+        },
+        {
+          "name": "Get Announcement by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/announcements/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "announcements", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Announcement ID"
+                }
+              ]
+            },
+            "description": "Get announcement by ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Volunteer",
+      "item": [
+        {
+          "name": "Submit Volunteer Form",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"+91-9876543210\",\n  \"skills\": [\"volunteering\", \"event-management\"],\n  \"availability\": \"weekends\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/volunteer",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "volunteer"]
+            },
+            "description": "Submit volunteer registration"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contact",
+      "item": [
+        {
+          "name": "Submit Contact Form",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Devotee Name\",\n  \"email\": \"devotee@example.com\",\n  \"phone\": \"+91-9876543210\",\n  \"subject\": \"Inquiry about Aaradhane\",\n  \"message\": \"When is the next aaradhane celebration?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/contact",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "contact"]
+            },
+            "description": "Submit contact form"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Save Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Monthly Report\",\n  \"type\": \"monthly\",\n  \"data\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/save",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "save"]
+            },
+            "description": "Save a report"
+          }
+        },
+        {
+          "name": "List Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "list"]
+            },
+            "description": "List all reports"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recommendations",
+      "item": [
+        {
+          "name": "Get Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recommendations"]
+            },
+            "description": "Get content recommendations"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Admin Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "analytics"]
+            },
+            "description": "Get admin analytics data"
+          }
+        },
+        {
+          "name": "Submit Analytics Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are temple timings?\",\n  \"detectedIntent\": \"TEMPLE_TIMINGS\",\n  \"correctIntent\": \"TEMPLE_TIMINGS\",\n  \"isCorrect\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "analytics"]
+            },
+            "description": "Submit intent feedback"
+          }
+        },
+        {
+          "name": "Get Admin Knowledge",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/knowledge",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "knowledge"]
+            },
+            "description": "Get knowledge for admin"
+          }
+        },
+        {
+          "name": "Get Admin Content",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/content",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "content"]
+            },
+            "description": "Get content for admin"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Seed Data",
+      "item": [
+        {
+          "name": "Seed AI Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/seed-ai-settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "seed-ai-settings"]
+            },
+            "description": "Seed default AI settings (admin only in production)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gallery",
+      "item": [
+        {
+          "name": "Get Local Assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/gallery/local-assets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "gallery", "local-assets"]
+            },
+            "description": "Get local gallery assets"
+          }
+        }
+      ]
+    }
+  ]
+}
