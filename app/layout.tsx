@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Inter, Playfair_Display, Noto_Sans_Kannada } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
@@ -7,6 +7,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { AIChatProvider } from "@/components/ai/AIChatProvider";
 import { ChatWidget } from "@/components/ai/ChatWidget";
 
+// Primary fonts - Inter for general use, Kannada will be handled via CSS font-stack
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -15,6 +16,14 @@ const inter = Inter({
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-heading",
+});
+
+// Dedicated Kannada font for proper rendering
+const notoSansKannada = Noto_Sans_Kannada({
+  subsets: ["kannada"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-kannada",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${playfair.variable} antialiased bg-stone-50 text-stone-900 min-h-screen`}
+        className={`${inter.variable} ${playfair.variable} ${notoSansKannada.variable} antialiased bg-stone-50 text-stone-900 min-h-screen`}
       >
         {/* Skip to main content link for accessibility */}
         <a

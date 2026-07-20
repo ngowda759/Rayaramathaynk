@@ -34,20 +34,20 @@ export default function ShlokasPage() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-orange-100 text-orange-600 mb-6">
               <Moon className="w-10 h-10" />
             </div>
-            <h1 className="text-2xl font-bold text-stone-900 mb-4">
+            <h1 className="shloka-text text-2xl font-bold text-stone-900 mb-4">
               ಶ್ಲೋಕಗಳು ಲಭ್ಯವಿಲ್ಲ
             </h1>
             <h2 className="text-xl text-stone-700 mb-4">
               Shlokas Not Available
             </h2>
-            <p className="text-stone-600 mb-6">
+            <p className="shloka-text text-stone-600 mb-6">
               ಶ್ಲೋಕಗಳನ್ನು ರಾತ್ರಿ 11 ಗಂಟೆಯ ನಂತರ ವೀಕ್ಷಿಸಲಾಗುವುದಿಲ್ಲ.
             </p>
             <p className="text-stone-500 text-sm">
               Shlokas can only be viewed before 11:00 PM as per temple tradition. 
               Please visit again tomorrow.
             </p>
-            <p className="text-amber-600 mt-6 font-medium">
+            <p className="shloka-text text-amber-600 mt-6 font-medium">
               🙏 ಓಂ ಶಾಂತಿಃ ಶಾಂತಿಃ ಶಾಂತಿಃ 🙏
             </p>
           </div>
@@ -114,7 +114,7 @@ export default function ShlokasPage() {
                     <h3 className="text-lg font-semibold text-stone-900">
                       {shloka.title}
                     </h3>
-                    <p className="text-sm text-orange-700 mt-0.5">
+                    <p className="kannada-text text-sm text-orange-700 mt-0.5">
                       {shloka.titleKannada}
                     </p>
                     <span className="inline-block mt-2 text-xs px-2 py-1 bg-amber-100 text-amber-800 rounded-full">
@@ -150,7 +150,7 @@ export default function ShlokasPage() {
                     {shloka.verses.map((verse, index) => (
                       <p
                         key={index}
-                        className={`font-serif text-lg leading-relaxed text-stone-800 ${
+                        className={`shloka-text font-serif text-lg leading-relaxed text-stone-800 ${
                           verse.startsWith("ಪ್ರಭಾತ") || verse.includes("ಶ್ಲೋಕ:")
                             ? "text-orange-700 font-medium bg-orange-50 px-3 py-2 rounded-lg"
                             : "pl-4 border-l-2 border-orange-200"
@@ -180,7 +180,7 @@ export default function ShlokasPage() {
 
         {/* Footer Note */}
         <div className="max-w-4xl mx-auto mt-12 p-6 bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl border border-orange-100 text-center">
-          <p className="text-stone-700 font-medium">
+          <p className="shloka-text text-stone-700 font-medium">
             🙏 ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ 🙏
           </p>
           <p className="text-sm text-stone-600 mt-2">

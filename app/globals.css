@@ -1,11 +1,69 @@
 :root {
   --font-inter: "Inter", sans-serif;
   --font-heading: "Playfair Display", serif;
+  --font-kannada: "Noto Sans Kannada", var(--font-inter);
 }
 
-body {
-  font-family: var(--font-inter);
+/* ========================================
+   KANNADA FONT SUPPORT
+   ======================================== */
+
+/* Apply Kannada font to elements containing Kannada script */
+:lang(kn),
+[lang="kn"] {
+  font-family: var(--font-kannada), var(--font-inter), sans-serif;
 }
+
+/* Enhanced body font stack with Kannada support */
+body {
+  font-family: var(--font-kannada), var(--font-inter), 
+               "Noto Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* This ensures Kannada text falls back to Noto Sans Kannada when Inter doesn't have the glyphs */
+}
+
+/* Apply Kannada font to heading elements */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading), var(--font-kannada), serif;
+}
+
+/* Use font-feature-settings for better Kannada rendering */
+:where(
+  h1, h2, h3, h4, h5, h6,
+  p, span, div, li, td, th,
+  a, button, label, caption,
+  article, section, aside, main,
+  .font-serif, .font-heading
+) {
+  /* Use font-feature-settings for better Kannada rendering */
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+}
+
+/* Ensure Kannada characters render properly with proper line height */
+.kannada-text,
+[lang="kn"] {
+  font-family: var(--font-kannada), var(--font-inter), sans-serif;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Fallback for shlokas and devotional content with Kannada */
+.sanskrit-content,
+.shloka-text {
+  font-family: var(--font-kannada), var(--font-inter), sans-serif;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+}
+
+/* Utility class to force Kannada font */
+.font-kannada {
+  font-family: var(--font-kannada), sans-serif !important;
+}
+
+/* ========================================
+   END KANNADA FONT SUPPORT
+   ======================================== */
 
 h1,
 h2,
