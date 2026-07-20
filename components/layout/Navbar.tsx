@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, Search, BookOpen } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import GlobalSearch from "@/components/search/GlobalSearch";
 
 const menuItems = [
   { name: "Home", href: "/" },
   { name: "Shlokas", href: "/shlokas" },
 ];
 
-const knowledgeDropdown = [
-  { name: "Knowledge Centre", href: "/knowledge" },
+const guruParamparaDropdown = [
   { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Temple Explorer", href: "/temple-explorer" },
+  { name: "Knowledge Centre", href: "/knowledge" },
 ];
 
 const calendarDropdown = [
@@ -34,7 +33,6 @@ const aboutDropdown = [
   { name: "Facilities", href: "/facilities" },
   { name: "Trust Committee", href: "/trust" },
   { name: "Future Plans", href: "/future-plans" },
-  { name: "AI Analytics", href: "/ai/analytics" },
 ];
 
 const onlineServicesDropdown = [
@@ -47,12 +45,12 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [guruParamparaOpen, setGuruParamparaOpen] = useState(false);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [onlineServicesOpen, setOnlineServicesOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const knowledgeDropdownRef = useRef<HTMLDivElement>(null);
+  const guruParamparaDropdownRef = useRef<HTMLDivElement>(null);
   const eventsDropdownRef = useRef<HTMLDivElement>(null);
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
   const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
@@ -99,8 +97,8 @@ export default function Navbar() {
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (knowledgeDropdownRef.current && !knowledgeDropdownRef.current.contains(event.target as Node)) {
-        setKnowledgeOpen(false);
+      if (guruParamparaDropdownRef.current && !guruParamparaDropdownRef.current.contains(event.target as Node)) {
+        setGuruParamparaOpen(false);
       }
       if (eventsDropdownRef.current && !eventsDropdownRef.current.contains(event.target as Node)) {
         setEventsOpen(false);
@@ -120,9 +118,9 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isKnowledgeActive = pathname.startsWith("/knowledge") || pathname === "/guruparampara" || pathname === "/temple-explorer";
+  const isGuruParamparaActive = pathname === "/guruparampara" || pathname === "/knowledge" || pathname === "/temple-explorer";
   const isEventsActive = pathname === "/events" || pathname === "/aaradhane";
-  const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans" || pathname === "/ai/analytics";
+  const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans";
   const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation";
   const isCalendarActive = pathname.startsWith("/calendar");
 
@@ -179,31 +177,31 @@ export default function Navbar() {
             );
           })}
 
-          {/* Knowledge Dropdown */}
-          <div className="relative" ref={knowledgeDropdownRef}>
+          {/* Guru Parampara Dropdown */}
+          <div className="relative" ref={guruParamparaDropdownRef}>
             <button
-              onClick={() => setKnowledgeOpen(!knowledgeOpen)}
+              onClick={() => setGuruParamparaOpen(!guruParamparaOpen)}
               className={`flex items-center gap-2 rounded-2xl px-4 py-2 transition-all duration-300 ${
-                isKnowledgeActive
+                isGuruParamparaActive
                   ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg"
                   : "text-stone-700 hover:bg-amber-50"
               }`}
             >
               <BookOpen size={18} />
-              Knowledge
-              <ChevronDown size={16} className={`transition-transform ${knowledgeOpen ? "rotate-180" : ""}`} />
+              Guru Parampara
+              <ChevronDown size={16} className={`transition-transform ${guruParamparaOpen ? "rotate-180" : ""}`} />
             </button>
 
-            {knowledgeOpen && (
+            {guruParamparaOpen && (
               <div className="absolute left-0 top-full mt-2 w-56 rounded-2xl border border-amber-200 bg-white shadow-xl overflow-hidden">
-                {knowledgeDropdown.map((item) => {
+                {guruParamparaDropdown.map((item) => {
                   const active = pathname === item.href;
                   return (
                     <Link
                       key={item.name}
                       href={item.href}
                       onClick={() => {
-                        setKnowledgeOpen(false);
+                        setGuruParamparaOpen(false);
                         setOpen(false);
                       }}
                       className={`block px-4 py-3 transition-all ${
@@ -218,14 +216,6 @@ export default function Navbar() {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Global Search */}
-          <div className="ml-2 w-64">
-            <GlobalSearch 
-              placeholder="Search..."
-              className="w-full"
-            />
           </div>
 
           {/* Calendar Dropdown */}
@@ -443,13 +433,25 @@ export default function Navbar() {
 
             })}
 
-            {/* Knowledge dropdown in mobile */}
+            {/* Guru Parampara dropdown in mobile */}
             <div className="space-y-1">
               <p className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-stone-500">
                 <BookOpen size={14} />
-                Knowledge
+                Guru Parampara
               </p>
-              {knowledgeDropdown.map((item) => {
+              <Link
+                href="/guruparampara"
+                onClick={() => setOpen(false)}
+                className={`flex items-center justify-between rounded-2xl px-8 py-4 ${
+                  pathname === "/guruparampara"
+                    ? "bg-amber-100 text-amber-800"
+                    : "hover:bg-stone-100"
+                }`}
+              >
+                Guru Parampara
+                <ChevronRight size={18} />
+              </Link>
+              {guruParamparaDropdown.map((item) => {
                 const active = pathname === item.href;
                 return (
                   <Link

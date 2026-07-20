@@ -16,6 +16,7 @@ export interface TempleArea {
   bestTimeToVisit?: string;
   tips?: string[];
   has360View?: boolean;
+  order?: number;
 }
 
 export type TempleAreaCategory = 

@@ -1,25 +1,23 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, Clock, Info, Navigation, Filter, 
   Grid, List, ChevronRight, Phone, Calendar,
-  Users, Home, Sparkles, Trees, Landmark
+  Users, Home, Sparkles, Trees, Landmark, Loader2
 } from "lucide-react";
 import Link from "next/link";
 import {
   TempleArea,
   TempleAreaCategory,
-  TEMPLE_AREAS,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
   TEMPLE_COORDINATES,
   TEMPLE_TIMINGS,
   EVENING_TIMINGS,
-  getTempleAreaById,
-  getAreasByCategory,
 } from "@/types/temple-explorer";
+import { templeAreasService } from "@/services/temple-areas.service";
 
 interface TempleExplorerProps {
   initialCategory?: TempleAreaCategory | null;
@@ -38,22 +36,49 @@ export default function TempleExplorer({ initialCategory = null }: TempleExplore
   const [selectedArea, setSelectedArea] = useState<TempleArea | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showMap, setShowMap] = useState(false);
+  const [areas, setAreas] = useState<TempleArea[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadAreas() {
+      try {
+        const data = await templeAreasService.getAreas();
+        setAreas(data);
+      } catch (error) {
+        console.error("Failed to load temple areas:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAreas();
+  }, []);
 
   const categories = useMemo(() => {
-    const cats = new Set(TEMPLE_AREAS.map(a => a.category));
+    const cats = new Set(areas.map(a => a.category));
     return Array.from(cats) as TempleAreaCategory[];
-  }, []);
+  }, [areas]);
 
   const filteredAreas = useMemo(() => {
     if (selectedCategory) {
-      return getAreasByCategory(selectedCategory);
+      return areas.filter(a => a.category === selectedCategory);
     }
-    return TEMPLE_AREAS;
-  }, [selectedCategory]);
+    return areas;
+  }, [areas, selectedCategory]);
 
   const handleAreaClick = (area: TempleArea) => {
     setSelectedArea(area);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-amber-500" />
+          <p className="text-stone-500">Loading temple areas...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -90,10 +115,10 @@ export default function TempleExplorer({ initialCategory = null }: TempleExplore
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={<MapPin className="h-5 w-5" />} label="Total Areas" value={TEMPLE_AREAS.length} />
-        <StatCard icon={<Sparkles className="h-5 w-5" />} label="Sanctuaries" value={getAreasByCategory("sanctum").length} />
-        <StatCard icon={<Landmark className="h-5 w-5" />} label="Halls" value={getAreasByCategory("halls").length} />
-        <StatCard icon={<Home className="h-5 w-5" />} label="Facilities" value={getAreasByCategory("facilities").length} />
+        <StatCard icon={<MapPin className="h-5 w-5" />} label="Total Areas" value={areas.length} />
+        <StatCard icon={<Sparkles className="h-5 w-5" />} label="Sanctuaries" value={areas.filter(a => a.category === "sanctum").length} />
+        <StatCard icon={<Landmark className="h-5 w-5" />} label="Halls" value={areas.filter(a => a.category === "halls").length} />
+        <StatCard icon={<Home className="h-5 w-5" />} label="Facilities" value={areas.filter(a => a.category === "facilities").length} />
       </div>
 
       {/* Content */}
