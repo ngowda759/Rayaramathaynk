@@ -11,7 +11,7 @@ export default defineConfig({
     ['json', { outputFile: 'reports/playwright-test-results.json' }],
   ],
   use: {
-    baseURL: 'https://work-2-yehrroerabrftaxm.prod-runtime.all-hands.dev',
+    baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
