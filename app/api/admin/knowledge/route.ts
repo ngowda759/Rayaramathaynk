@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   getKnowledgeArticles,
-  createArticle,
-  updateArticle,
-  deleteArticle,
-  getArticleById,
   getPendingArticles,
-  approveArticle,
   clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
+import { addDocument } from "@/lib/firebase-admin-rest";
+
+const COLLECTION_NAME = "knowledge";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +38,7 @@ export async function GET() {
 /**
  * POST /api/admin/knowledge
  * Create a new knowledge article (auto-approved for admin)
+ * Uses REST Admin SDK to bypass security rules
  */
 export async function POST(request: Request) {
   try {
@@ -53,19 +52,21 @@ export async function POST(request: Request) {
       );
     }
     
-    const id = await createArticle({
+    // Use REST Admin SDK for write operations (bypasses security rules)
+    const id = await addDocument(COLLECTION_NAME, {
       slug: slug || `article-${Date.now()}`,
       title,
       content: content || "",
       keywords: keywords || [],
       category: category || "general",
       language: language || "en",
+      approved: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
     
-    // Auto-approve the article so it appears on public site
-    await approveArticle(id);
     clearKnowledgeCache();
-    
+
     return NextResponse.json({
       success: true,
       id,

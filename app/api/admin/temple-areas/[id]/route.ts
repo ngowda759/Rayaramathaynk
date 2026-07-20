@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { templeAreasService } from "@/services/temple-areas.service";
+import { updateDocument, deleteDocument } from "@/lib/firebase-admin-rest";
+
+const COLLECTION = "temple_areas";
 
 export async function GET(
   request: NextRequest,
@@ -28,7 +31,9 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    await templeAreasService.updateArea(id, body);
+    // Use REST Admin SDK for write operations (bypasses security rules)
+    await updateDocument(COLLECTION, id, { ...body, updatedAt: new Date() });
+    
     return NextResponse.json({ success: true, message: "Temple area updated successfully" });
   } catch (error) {
     console.error("[API] Error updating temple area:", error);
@@ -42,7 +47,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await templeAreasService.deleteArea(id);
+
+    // Use REST Admin SDK for write operations (bypasses security rules)
+    await deleteDocument(COLLECTION, id);
+    
     return NextResponse.json({ success: true, message: "Temple area deleted successfully" });
   } catch (error) {
     console.error("[API] Error deleting temple area:", error);
