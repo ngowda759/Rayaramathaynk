@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle, Compass } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
@@ -29,6 +29,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   testimonials: MessageSquareQuote,
   chart: BarChart3,
   help: HelpCircle,
+  compass: Compass,
 };
 
 // Navigation data
@@ -82,6 +83,7 @@ const allNavigation = [
       { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
       { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
+      { title: "Temple Explorer", href: "/admin/temple-areas", icon: "compass" },
     ],
   },
   {
