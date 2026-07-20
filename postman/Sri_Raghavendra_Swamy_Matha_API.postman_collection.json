@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Sri Raghavendra Swamy Matha API",
-    "description": "API collection for Sri Raghavendra Swamy Matha temple management system. Includes events, AI chat, knowledge base, donations, bookings, and admin APIs.",
+    "description": "API collection for Sri Raghavendra Swamy Matha temple management system. Includes events, AI chat, knowledge base, donations, bookings, and admin APIs.\n\n## Authentication\n\n### Admin APIs\nAdmin APIs require Firebase ID token authentication. To get a token:\n\n1. **Option A - Via Browser (Recommended)**\n   - Log into the admin portal at https://sri-raghavendra-mutt.vercel.app/admin\n   - Open DevTools (F12) → Application → Local Storage\n   - Copy the `firebase:authUser` token or the `idToken`\n\n2. **Option B - Via Firebase Auth REST API**\n   ```bash\n   curl -X POST 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=YOUR_API_KEY' \\\n     -H 'Content-Type: application/json' \\\n     -d '{\"email\":\"admin@example.com\",\"password\":\"password\",\"returnSecureToken\":true}'\n   ```\n\n3. **Option C - Via Seed API Key (Limited routes)**\n   Some routes accept `x-admin-api-key` header with the `ADMIN_API_KEY` environment variable.\n\n### Using the Token in Postman\n\nFor admin requests, add the following header:\n```\nAuthorization: Bearer YOUR_FIREBASE_ID_TOKEN\n```\n\nSet the token as a variable `{{firebaseToken}}` in Postman.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,9 +16,22 @@
       "type": "string"
     },
     {
-      "key": "apiKey",
+      "key": "firebaseToken",
       "value": "",
-      "type": "string"
+      "type": "string",
+      "description": "Firebase ID token for admin authentication. Get from browser DevTools after logging in."
+    },
+    {
+      "key": "adminApiKey",
+      "value": "",
+      "type": "string",
+      "description": "Admin API Key (x-admin-api-key header) for specific routes like seed-ai-settings"
+    },
+    {
+      "key": "firebaseApiKey",
+      "value": "AIzaSyBJPt69fwPfcMLvSYMG28Jv64orqenNeC4",
+      "type": "string",
+      "description": "Firebase Web API Key (for auth endpoints)"
     }
   ],
   "item": [
@@ -1035,6 +1048,594 @@
               "path": ["api", "admin", "content"]
             },
             "description": "Get content for admin"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Aaradhane Management",
+      "item": [
+        {
+          "name": "Get All Aaradhanes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function() {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/aaradhane",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "aaradhane"]
+            },
+            "description": "Get all aaradhane entries (requires Firebase auth)"
+          }
+        },
+        {
+          "name": "Get Aaradhane by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/aaradhane/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "aaradhane", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Aaradhane document ID"
+                }
+              ]
+            },
+            "description": "Get a specific aaradhane entry"
+          }
+        },
+        {
+          "name": "Create Aaradhane",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sri Madhvacharya Aaradhane\",\n  \"description\": \"Founder of Dvaita philosophy\",\n  \"guru\": \"Sri Madhvacharya\",\n  \"startDate\": \"2026-03-28\",\n  \"endDate\": \"2026-03-30\",\n  \"importance\": \"major\",\n  \"category\": \"Aaradhane\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/aaradhane",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "aaradhane"]
+            },
+            "description": "Create a new aaradhane entry"
+          }
+        },
+        {
+          "name": "Update Aaradhane",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"published\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/aaradhane/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "aaradhane", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Aaradhane document ID"
+                }
+              ]
+            },
+            "description": "Update an aaradhane entry"
+          }
+        },
+        {
+          "name": "Delete Aaradhane",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/aaradhane/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "aaradhane", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Aaradhane document ID"
+                }
+              ]
+            },
+            "description": "Delete an aaradhane entry"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Prompt Management",
+      "item": [
+        {
+          "name": "Get All Prompts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prompts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prompts"]
+            },
+            "description": "Get all AI prompts"
+          }
+        },
+        {
+          "name": "Get Prompt by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prompts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prompts", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Prompt ID"
+                }
+              ]
+            },
+            "description": "Get a specific prompt version"
+          }
+        },
+        {
+          "name": "Create Prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"You are Raya AI, a helpful assistant for Sri Raghavendra Swamy Matha...\",\n  \"name\": \"New Prompt v1\",\n  \"changeNotes\": \"Initial version\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prompts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prompts"]
+            },
+            "description": "Create a new prompt version"
+          }
+        },
+        {
+          "name": "Update Prompt",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated prompt content...\",\n  \"changeNotes\": \"Updated based on feedback\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prompts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prompts", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Prompt ID"
+                }
+              ]
+            },
+            "description": "Update a prompt"
+          }
+        },
+        {
+          "name": "Publish Prompt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prompts/:id/publish",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prompts", ":id", "publish"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Prompt ID to publish"
+                }
+              ]
+            },
+            "description": "Publish a prompt version (makes it active)"
+          }
+        },
+        {
+          "name": "Delete Prompt",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/prompts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "prompts", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Prompt ID"
+                }
+              ]
+            },
+            "description": "Delete a prompt version"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - User Management",
+      "item": [
+        {
+          "name": "Create Admin User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newadmin@example.com\",\n  \"password\": \"SecurePassword123\",\n  \"name\": \"New Admin User\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/create-admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", "create-admin"]
+            },
+            "description": "Create a new admin user (requires existing admin auth)"
+          }
+        },
+        {
+          "name": "Set User Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"user-uid-here\",\n  \"role\": \"editor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/set-role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", "set-role"]
+            },
+            "description": "Update user role (admin, editor, viewer, devotee)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Knowledge Workflow",
+      "item": [
+        {
+          "name": "Create Knowledge Article",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Temple History\",\n  \"slug\": \"temple-history\",\n  \"content\": \"Sri Raghavendra Swamy Matha was established...\",\n  \"category\": \"history\",\n  \"keywords\": [\"temple\", \"history\", \"madhva\"],\n  \"language\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/knowledge",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "knowledge"]
+            },
+            "description": "Create a new knowledge article"
+          }
+        },
+        {
+          "name": "Update Knowledge Article",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"content\": \"Updated content...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/knowledge/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "knowledge", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Article ID"
+                }
+              ]
+            },
+            "description": "Update a knowledge article"
+          }
+        },
+        {
+          "name": "Delete Knowledge Article",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/knowledge/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "knowledge", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Article ID"
+                }
+              ]
+            },
+            "description": "Delete a knowledge article"
+          }
+        },
+        {
+          "name": "Approve Knowledge Article",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}",
+                "description": "Firebase ID token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"articleId\": \"article-id-here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/knowledge/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "knowledge", "approve"]
+            },
+            "description": "Approve a pending knowledge article"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Sign In with Email/Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"your-password\",\n  \"returnSecureToken\": true\n}"
+            },
+            "url": {
+              "raw": "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{firebaseApiKey}}",
+              "host": ["identitytoolkit.googleapis.com"],
+              "path": ["v1", "accounts:signInWithPassword"],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{firebaseApiKey}}"
+                }
+              ]
+            },
+            "description": "Sign in to Firebase Auth and get ID token. Use the returned `idToken` as `{{firebaseToken}}` in other requests."
+          }
+        },
+        {
+          "name": "Sign Up New User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePassword123\",\n  \"returnSecureToken\": true\n}"
+            },
+            "url": {
+              "raw": "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={{firebaseApiKey}}",
+              "host": ["identitytoolkit.googleapis.com"],
+              "path": ["v1", "accounts:signUp"],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{firebaseApiKey}}"
+                }
+              ]
+            },
+            "description": "Create a new Firebase Auth user"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grant_type\": \"refresh_token\",\n  \"refresh_token\": \"YOUR_REFRESH_TOKEN\"\n}"
+            },
+            "url": {
+              "raw": "https://securetoken.googleapis.com/v1/token?key={{firebaseApiKey}}",
+              "host": ["securetoken.googleapis.com"],
+              "path": ["v1", "token"],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{firebaseApiKey}}"
+                }
+              ]
+            },
+            "description": "Refresh an expired ID token using refresh token"
           }
         }
       ]
