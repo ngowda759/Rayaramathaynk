@@ -261,25 +261,32 @@ export const aaradhaneService = {
   async deleteAaradhane(id: string): Promise<void> {
     if (!db) throw new Error("Firebase not configured");
     
-    // First try to delete from aaradhane collection
+    // Try aaradhane collection first
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
-      console.log(`[Aaradhane] Deleted from aaradhane collection: ${id}`);
+      console.log(`[Aaradhane] Deleted from ${COLLECTION_NAME} collection: ${id}`);
       return;
-    } catch (error) {
-      console.warn("[Aaradhane] Could not delete from aaradhane collection:", error);
+    } catch (error: any) {
+      // If error is "not found", try next collection
+      if (error?.code !== "not-found") {
+        console.error(`[Aaradhane] Error deleting from ${COLLECTION_NAME}:`, error);
+      }
     }
     
-    // Then try events collection
+    // Try aaradhanes collection (with 's')
     try {
-      const eventDocRef = doc(db, EVENTS_COLLECTION, id);
-      await deleteDoc(eventDocRef);
-      console.log(`[Aaradhane] Deleted from events collection: ${id}`);
+      const docRef = doc(db, AARADHANES_COLLECTION, id);
+      await deleteDoc(docRef);
+      console.log(`[Aaradhane] Deleted from ${AARADHANES_COLLECTION} collection: ${id}`);
       return;
-    } catch (error) {
-      console.warn("[Aaradhane] Could not delete from events collection:", error);
+    } catch (error: any) {
+      if (error?.code !== "not-found") {
+        console.error(`[Aaradhane] Error deleting from ${AARADHANES_COLLECTION}:`, error);
+      }
     }
+    
+    throw new Error(`Could not delete Aaradhane: ${id}. Document not found.`);
   },
 
   async getStats(): Promise<AaradhaneStats> {

@@ -12,6 +12,7 @@ import {
   List,
   Gift,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -49,9 +50,11 @@ export default function AaradhaneTable({ items, onRefresh }: AaradhaneTableProps
     setDeleting(true);
     try {
       await aaradhaneService.deleteAaradhane(deleteId);
+      toast.success("Aaradhane deleted successfully");
       onRefresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete aaradhane:", err);
+      toast.error(err?.message || "Failed to delete Aaradhane. Please check permissions.");
     } finally {
       setDeleting(false);
       setDeleteId(null);
