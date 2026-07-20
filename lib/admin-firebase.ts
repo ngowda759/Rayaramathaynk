@@ -8,7 +8,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { cert, getApps, initializeApp, getApps as getAppList, App } from "firebase-admin/app";
+import { cert, getApps, initializeApp, getApps as getAppList, App, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 
 type AdminModule = typeof import("firebase-admin");
@@ -17,6 +17,7 @@ type AdminModule = typeof import("firebase-admin");
 let adminModule: AdminModule | null = null;
 let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
+let initError: string | null = null;
 
 async function loadAdminModule(): Promise<AdminModule> {
   if (!adminModule) {
@@ -57,17 +58,16 @@ export async function initializeAdminApp(): Promise<App> {
     if (clientEmail && privateKey) {
       // Replace escaped newlines in private key
       const formattedKey = privateKey.replace(/\\n/g, '\n');
-      
+
       const serviceAccount = {
         type: "service_account",
-        project_id: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        private_key: formattedKey,
-        client_email: clientEmail,
+        projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        privateKey: formattedKey,
+        clientEmail: clientEmail,
       };
-      
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: serviceAccount.project_id,
+
+      adminApp = initializeApp({
+        credential: cert(serviceAccount),
       });
       console.log("Firebase Admin SDK initialized with environment variable credentials");
       return adminApp;
@@ -85,14 +85,11 @@ export async function initializeAdminApp(): Promise<App> {
 
     // Try Application Default Credentials last (works on GCP, local gcloud, etc.)
     try {
-      if (admin.credential && admin.credential.applicationDefault) {
-        adminApp = admin.initializeApp({
-          credential: admin.credential.applicationDefault(),
-          projectId: process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        });
-        console.log("Firebase Admin SDK initialized with Application Default Credentials");
-        return adminApp;
-      }
+      adminApp = initializeApp({
+        credential: applicationDefault(),
+      });
+      console.log("Firebase Admin SDK initialized with Application Default Credentials");
+      return adminApp;
     } catch (adcError) {
       console.log("ADC not available:", adcError);
     }
