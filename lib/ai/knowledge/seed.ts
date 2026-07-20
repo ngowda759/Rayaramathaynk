@@ -14,7 +14,12 @@ function slugify(title: string): string {
 }
 
 /**
- * Create a knowledge article with defaults
+ * Counter for generating unique seed IDs
+ */
+let seedIdCounter = 1;
+
+/**
+ * Create a knowledge article with defaults and unique ID
  */
 function createArticle(
   title: string,
@@ -22,9 +27,10 @@ function createArticle(
   keywords: string[],
   content: string,
   language: "en" | "kn" | "mixed" = "en"
-): Omit<KnowledgeArticle, "id"> {
+): KnowledgeArticle {
   const now = new Date();
   return {
+    id: `seed-${seedIdCounter++}`,
     slug: slugify(title),
     title,
     category,
@@ -40,7 +46,7 @@ function createArticle(
 /**
  * Initial seed articles
  */
-export const SEED_ARTICLES: Omit<KnowledgeArticle, "id">[] = [
+export const SEED_ARTICLES: KnowledgeArticle[] = [
   // ==================== TEMPLE HISTORY ====================
   createArticle(
     "About Sri Raghavendra Swamy Matha",
@@ -560,7 +566,7 @@ For information about participating in or contributing to these services, please
 /**
  * Convert seed articles to Firestore format
  */
-export function getSeedArticlesForFirebase(): Array<Omit<KnowledgeArticle, "id">> {
+export function getSeedArticlesForFirebase(): KnowledgeArticle[] {
   return SEED_ARTICLES.map((article) => ({
     ...article,
     createdAt: new Date(),
