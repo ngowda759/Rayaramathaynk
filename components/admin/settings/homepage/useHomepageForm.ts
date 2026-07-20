@@ -82,7 +82,9 @@ export function useHomepageForm() {
     try {
       setSaving(true);
 
+      console.log("[HomepageForm] Saving form data:", JSON.stringify(formData, null, 2));
       await homepageService.saveHomepage(formData);
+      console.log("[HomepageForm] Save successful");
 
       setStatusMessage(
         "Homepage settings saved successfully."
@@ -93,11 +95,13 @@ export function useHomepageForm() {
       }, 5000);
 
       return true;
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("[HomepageForm] Save error:", error);
 
+      // Show more detailed error message
+      const errorMessage = error?.message || "Unknown error";
       setStatusMessage(
-        "Unable to save homepage settings."
+        `Unable to save homepage settings: ${errorMessage}`
       );
 
       return false;

@@ -28,19 +28,57 @@ class HomepageService {
   }
 
   async saveHomepage(data: HomepageConfig): Promise<void> {
-      if (!db) throw new Error("Firebase not configured");
+    if (!db) {
+      console.error("[HomepageService] Firebase db is null");
+      throw new Error("Firebase not configured");
+    }
     const ref = doc(db, COLLECTION, DOCUMENT);
 
-    await setDoc(
-      ref,
-      {
-        ...data,
-        updatedAt: serverTimestamp(),
-      },
-      {
-        merge: true,
+    // Remove undefined values as Firestore doesn't accept them
+    const cleanData = this.removeUndefined(data);
+
+    console.log("[HomepageService] Saving to Firestore, collection:", COLLECTION, "doc:", DOCUMENT);
+    console.log("[HomepageService] Data being saved:", JSON.stringify(cleanData, null, 2));
+
+    try {
+      await setDoc(
+        ref,
+        {
+          ...cleanData,
+          updatedAt: serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+      console.log("[HomepageService] Save to Firestore complete");
+    } catch (error: any) {
+      console.error("[HomepageService] Firestore error:", error?.code, error?.message);
+      throw new Error(`Firestore error: ${error?.message || error?.code || 'Unknown'}`);
+    }
+  }
+
+  /**
+   * Recursively remove undefined values from an object
+   * Firestore doesn't accept undefined values
+   */
+  private removeUndefined(obj: any): any {
+    if (obj === undefined) return undefined;
+    if (obj === null) return null;
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.removeUndefined(item));
+    }
+    if (typeof obj === 'object') {
+      const result: any = {};
+      for (const key of Object.keys(obj)) {
+        const value = obj[key];
+        if (value !== undefined) {
+          result[key] = this.removeUndefined(value);
+        }
       }
-    );
+      return result;
+    }
+    return obj;
   }
 
   getDefaultConfig(): HomepageConfig {
