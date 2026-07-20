@@ -1,6 +1,8 @@
 import { Metadata } from "next";
 import KnowledgeCentreClient from "@/components/knowledge/KnowledgeCentreClient";
 import { knowledgeService } from "@/services/knowledge.service";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
 export const metadata: Metadata = {
   title: "Knowledge Centre | Rayaramathaynk",
@@ -12,5 +14,11 @@ export const revalidate = 3600;
 export default async function KnowledgeCentrePage() {
   const data = await knowledgeService.getKnowledgeCentreData();
 
-  return <KnowledgeCentreClient initialData={data} />;
+  return (
+    <>
+      <Navbar />
+      <KnowledgeCentreClient initialData={data} />
+      <Footer />
+    </>
+  );
 }
