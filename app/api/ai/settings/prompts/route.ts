@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   try {
     const userId = request.headers.get("x-user-id") || "admin";
     const body = await request.json();
-    const { content, changeNotes } = body;
+    const { name, content, status, changeNotes } = body;
 
     if (!content) {
       return NextResponse.json(
@@ -41,14 +41,21 @@ export async function POST(request: NextRequest) {
     const versionId = await aiSettingsService.createPromptVersion(
       content,
       userId,
-      changeNotes
+      changeNotes,
+      name,
+      status
     );
 
-    return NextResponse.json({ versionId, message: "Prompt version created" });
+    return NextResponse.json({ 
+      versionId, 
+      name,
+      message: `Prompt "${name || 'New Prompt'}" created successfully` 
+    });
   } catch (error) {
     console.error("Error creating prompt version:", error);
+    const message = error instanceof Error ? error.message : "Failed to create prompt version";
     return NextResponse.json(
-      { error: "Failed to create prompt version" },
+      { error: message },
       { status: 500 }
     );
   }
