@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, Search, BookOpen } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import GlobalSearch from "@/components/search/GlobalSearch";
 
 const menuItems = [
   { name: "Home", href: "/" },
@@ -218,14 +217,6 @@ export default function Navbar() {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Global Search */}
-          <div className="ml-2 w-64">
-            <GlobalSearch 
-              placeholder="Search..."
-              className="w-full"
-            />
           </div>
 
           {/* Calendar Dropdown */}
