@@ -28,9 +28,13 @@ export interface KnowledgeArticle {
   id: string;
   slug: string;
   title: string;
+  /** Kannada translation of the title */
+  kannadaTitle?: string;
   category: KnowledgeCategory;
   keywords: string[];
   content: string;
+  /** Kannada translation of the content */
+  kannadaContent?: string;
   language: KnowledgeLanguage;
   lastReviewed?: Date;
   approved: boolean;
@@ -44,9 +48,11 @@ export interface KnowledgeArticle {
 export interface KnowledgeArticleRequest {
   slug: string;
   title: string;
+  kannadaTitle?: string;
   category: KnowledgeCategory;
   keywords: string[];
   content: string;
+  kannadaContent?: string;
   language: KnowledgeLanguage;
 }
 
@@ -55,9 +61,11 @@ export interface KnowledgeArticleRequest {
  */
 export interface KnowledgeArticleUpdate {
   title?: string;
+  kannadaTitle?: string;
   category?: KnowledgeCategory;
   keywords?: string[];
   content?: string;
+  kannadaContent?: string;
   language?: KnowledgeLanguage;
   lastReviewed?: Date;
   approved?: boolean;
