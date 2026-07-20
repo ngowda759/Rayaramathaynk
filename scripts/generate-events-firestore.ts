@@ -1,9 +1,12 @@
 #!/usr/bin/env npx tsx
 /**
- * Aaradhane Event Generator Script
+ * Calendar Events Generator Script
  * 
- * Generates all Guru Aaradhane events for 2027 based on Hindu Panchanga
- * and uploads them to Firestore using Firebase Admin SDK.
+ * Generates all Guru Aaradhane events for the calendar year based on Hindu Panchanga
+ * and uploads them to the 'events' collection in Firestore using Firebase Admin SDK.
+ * 
+ * Note: This seeds the 'events' collection for the calendar, NOT the 'aaradhane' collection
+ * which is used by the admin portal for Aaradhane management.
  */
 
 import adminModule from "firebase-admin";
@@ -266,7 +269,7 @@ async function uploadEvents(events: any[], year: number): Promise<{ created: num
 // Main function
 async function main() {
   console.log("\n" + "=".repeat(60));
-  console.log("GURU AARADHANE EVENT GENERATOR - 2027");
+  console.log("CALENDAR EVENTS GENERATOR - " + TARGET_YEAR);
   console.log("=".repeat(60));
   console.log("\nTimezone: Asia/Kolkata");
   
