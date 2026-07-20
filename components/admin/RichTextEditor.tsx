@@ -1,10 +1,11 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import React from "react";
 import { 
   Bold, 
   Italic, 
@@ -20,6 +21,33 @@ import {
   Code,
   Minus
 } from "lucide-react";
+
+interface ToolbarButtonProps {
+  onClick: () => void; 
+  isActive?: boolean;
+  title: string;
+  children: React.ReactNode;
+}
+
+function ToolbarButton({ 
+  onClick, 
+  isActive = false, 
+  title,
+  children 
+}: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`p-2 rounded hover:bg-stone-100 transition-colors ${
+        isActive ? "bg-amber-100 text-amber-700" : "text-stone-600"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 interface RichTextEditorProps {
   content: string;
@@ -82,29 +110,6 @@ export default function RichTextEditor({
       editor.chain().focus().setImage({ src: url }).run();
     }
   };
-
-  const ToolbarButton = ({ 
-    onClick, 
-    isActive = false, 
-    title,
-    children 
-  }: { 
-    onClick: () => void; 
-    isActive?: boolean;
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`p-2 rounded hover:bg-stone-100 transition-colors ${
-        isActive ? "bg-amber-100 text-amber-700" : "text-stone-600"
-      }`}
-    >
-      {children}
-    </button>
-  );
 
   return (
     <div className="border border-stone-200 rounded-lg overflow-hidden bg-white">

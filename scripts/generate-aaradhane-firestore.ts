@@ -6,21 +6,18 @@
  * and uploads them to Firestore using Firebase Admin SDK.
  */
 
-// Use require for firebase-admin to avoid import issues
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const adminModule = require("firebase-admin");
-const admin = adminModule.default || adminModule;
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { Firestore } = require("firebase-admin/firestore");
+import adminModule from "firebase-admin";
+import { Firestore } from "firebase-admin/firestore";
 
 import * as fs from "fs";
 import * as path from "path";
 import { GURU_AARADHANES } from "../data/aaradhane/gurus";
 
+const admin = adminModule.default || adminModule;
+
 // Create a Firestore instance
-let firestoreDb: any = null;
-function getDb() {
+let firestoreDb: Firestore | null = null;
+async function getDb() {
   if (!firestoreDb) {
     // Read service account for Firestore
     const serviceAccountPath = path.join(process.cwd(), "service-account.json");

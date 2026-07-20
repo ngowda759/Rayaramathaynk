@@ -9,7 +9,7 @@ import SacredDivider from "@/components/home/SacredDivider";
 import TestimonialSubmissionForm from "@/components/home/TestimonialSubmissionForm";
 import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
-import { Star, Quote, MapPin, Calendar, PenLine } from "lucide-react";
+import { Star, Quote, MapPin, PenLine } from "lucide-react";
 
 export default function TestimonialsPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);

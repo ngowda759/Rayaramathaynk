@@ -8,20 +8,22 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { cert, getApps, initializeApp, getApps as getAppList, App } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
+
+type AdminModule = typeof import("firebase-admin");
 
 // Use dynamic import for firebase-admin to avoid ESM/CJS interop issues
-let admin: any = null;
-let adminApp: any = null;
-let adminDb: any = null;
-let initError: string | null = null;
+let adminModule: AdminModule | null = null;
+let adminApp: App | null = null;
+let adminDb: Firestore | null = null;
 
-async function loadAdminModule() {
-  if (!admin) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const adminModule = require("firebase-admin");
-    admin = adminModule;
+async function loadAdminModule(): Promise<AdminModule> {
+  if (!adminModule) {
+    const mod = await import("firebase-admin");
+    adminModule = mod.default || mod;
   }
-  return admin;
+  return adminModule;
 }
 
 /**
@@ -31,7 +33,7 @@ async function loadAdminModule() {
  * 2. Service account JSON file (firebase-admin.json)
  * 3. Application Default Credentials (ADC) - for GCP, Cloud Run, etc.
  */
-export async function initializeAdminApp(): Promise<any> {
+export async function initializeAdminApp(): Promise<App> {
   if (adminApp) {
     return adminApp;
   }
@@ -41,13 +43,10 @@ export async function initializeAdminApp(): Promise<any> {
   }
 
   try {
-    await loadAdminModule();
-    
     // Check if already initialized
-    const getApps = admin.getApps || (() => []);
-    const existingApps = getApps();
+    const existingApps = getAppList();
     if (existingApps.length > 0) {
-      adminApp = existingApps[0];
+      adminApp = existingApps[0]!;
       return adminApp;
     }
 
@@ -77,16 +76,12 @@ export async function initializeAdminApp(): Promise<any> {
     // Try service account file
     const serviceAccountPath = path.join(process.cwd(), "firebase-admin.json");
     
-    if (fs.existsSync(serviceAccountPath)) {
-      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-      
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: serviceAccount.project_id,
-      });
-      console.log("Firebase Admin SDK initialized with service account file");
-      return adminApp;
-    }
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+    
+    adminApp = initializeApp({
+      credential: cert(serviceAccount),
+      projectId: serviceAccount.project_id,
+    });
 
     // Try Application Default Credentials last (works on GCP, local gcloud, etc.)
     try {
@@ -115,48 +110,10 @@ export async function initializeAdminApp(): Promise<any> {
  * Get the Admin Firestore instance using @google-cloud/firestore
  * This bypasses security rules for server-side operations
  */
-export async function getAdminFirestore(): Promise<any> {
+export async function getAdminFirestore(): Promise<Firestore> {
   if (!adminDb) {
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    
-    if (clientEmail && privateKey) {
-      // Replace escaped newlines in private key
-      const formattedKey = privateKey.replace(/\\n/g, '\n');
-      
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { Firestore } = require("@google-cloud/firestore");
-      adminDb = new Firestore({
-        projectId: projectId,
-        credentials: {
-          client_email: clientEmail,
-          private_key: formattedKey,
-        },
-        ignoreUndefinedProperties: true, // Ignore undefined values
-      });
-      console.log("Admin Firestore initialized with environment credentials");
-      return adminDb;
-    }
-
-    // Try service account file
-    const serviceAccountPath = path.join(process.cwd(), "firebase-admin.json");
-    
-    if (fs.existsSync(serviceAccountPath)) {
-      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-      
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { Firestore } = require("@google-cloud/firestore");
-      adminDb = new Firestore({
-        projectId: serviceAccount.project_id,
-        credentials: serviceAccount,
-        ignoreUndefinedProperties: true, // Ignore undefined values
-      });
-      console.log("Admin Firestore initialized with service account file");
-      return adminDb;
-    }
-
-    throw new Error("No Firebase Admin credentials found for Firestore");
+    await initializeAdminApp();
+    adminDb = getFirestore();
   }
   return adminDb;
 }
@@ -178,21 +135,21 @@ export function getInitError(): string | null {
 /**
  * Convenience function to get admin app
  */
-export async function getAdminApp(): Promise<any> {
+export async function getAdminApp(): Promise<App> {
   if (!adminApp) {
     await initializeAdminApp();
   }
-  return adminApp;
+  return adminApp!;
 }
 
 /**
  * Get the admin module directly
  */
-export async function getAdmin(): Promise<any> {
-  if (!admin) {
+export async function getAdmin(): Promise<AdminModule> {
+  if (!adminModule) {
     await loadAdminModule();
   }
-  return admin;
+  return adminModule!;
 }
 
 export { adminApp, adminDb };

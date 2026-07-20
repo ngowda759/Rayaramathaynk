@@ -109,19 +109,41 @@ export default function FooterSettingsPage() {
     }
     setSaving(true);
     try {
+      // Remove undefined values before saving
+      const cleanData = removeUndefined(data);
       const docRef = doc(db, COLLECTION, DOCUMENT);
       await setDoc(docRef, {
-        ...data,
+        ...cleanData,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
       toast.success("Footer settings saved successfully!");
     } catch (error) {
       console.error("Error saving data:", error);
-      toast.error("Failed to save settings");
+      toast.error("Failed to save settings: " + (error as Error).message);
     } finally {
       setSaving(false);
     }
+  }
+
+  // Helper to remove undefined values recursively
+  function removeUndefined(obj: any): any {
+    if (obj === undefined) return undefined;
+    if (obj === null) return null;
+    if (Array.isArray(obj)) {
+      return obj.map(item => removeUndefined(item));
+    }
+    if (typeof obj === 'object') {
+      const result: any = {};
+      for (const key of Object.keys(obj)) {
+        const value = obj[key];
+        if (value !== undefined) {
+          result[key] = removeUndefined(value);
+        }
+      }
+      return result;
+    }
+    return obj;
   }
 
   function updateField(field: keyof FooterData, value: string | boolean) {

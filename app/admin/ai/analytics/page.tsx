@@ -1,32 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   BarChart3,
   MessageSquare,
   Clock,
-  ThumbsUp,
   TrendingUp,
-  Download,
-  Users,
-  Zap,
-  Target,
-  Database,
   HelpCircle,
-  Globe,
   Activity,
   CheckCircle,
   XCircle,
   AlertCircle,
-  FileText,
-  BookOpen,
-  Send,
-  X,
   RefreshCw,
   Loader2,
 } from "lucide-react";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, getCountFromServer, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, getDocs, getCountFromServer, query, orderBy, limit } from "firebase/firestore";
 
 interface StatCardProps {
   title: string;
@@ -70,34 +59,37 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
     );
   }
   
-  let currentAngle = 0;
+  const { paths } = data.reduce(
+    (acc, item) => {
+      const percentage = total > 0 ? (item.value / total) * 100 : 0;
+      const angle = (percentage / 100) * 360;
+      const startAngle = acc.currentAngle;
 
-  const paths = data.map((item) => {
-    const percentage = total > 0 ? (item.value / total) * 100 : 0;
-    const angle = (percentage / 100) * 360;
-    const startAngle = currentAngle;
-    currentAngle += angle;
+      const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+      const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+      const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
+      const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
 
-    const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
-    const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
-    const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
-    const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
+      const largeArc = angle > 180 ? 1 : 0;
 
-    const largeArc = angle > 180 ? 1 : 0;
+      const d = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
 
-    const d = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
+      acc.paths.push(
+        <path
+          key={item.label}
+          d={d}
+          fill={item.color}
+          className="hover:opacity-80 transition-opacity cursor-pointer"
+          stroke="white"
+          strokeWidth="2"
+        />
+      );
 
-    return (
-      <path
-        key={item.label}
-        d={d}
-        fill={item.color}
-        className="hover:opacity-80 transition-opacity cursor-pointer"
-        stroke="white"
-        strokeWidth="2"
-      />
-    );
-  });
+      acc.currentAngle += angle;
+      return acc;
+    },
+    { paths: [] as React.JSX.Element[], currentAngle: 0 }
+  );
 
   return (
     <div className="flex items-center gap-6">
@@ -245,13 +237,10 @@ export default function AnalyticsPage() {
       
       // Fetch data in parallel
       const [
-        sessionsResult,
         intentResult,
         latencyResult,
         unknownResult
       ] = await Promise.allSettled([
-        // Chat sessions
-        getCountFromServer(collection(db, "chat_sessions")),
         // Intent distribution
         getDocs(query(collection(db, "ai_intent_distribution"), orderBy("timestamp", "desc"), limit(500))),
         // Latency records

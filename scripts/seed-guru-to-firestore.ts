@@ -3,9 +3,9 @@
  * Uses Firebase Admin SDK
  */
 
-const { initializeApp, getApps, cert } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
-const fs = require("fs");
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import fs from "fs";
 
 // Initialize Firebase Admin
 function initFirebase() {
