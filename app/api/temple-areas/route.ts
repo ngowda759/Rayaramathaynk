@@ -3,7 +3,7 @@ import { templeAreasService } from "@/services/temple-areas.service";
 
 export async function GET() {
   try {
-    const areas = await templeAreasService.getAreas();
+    const areas = await templeAreasService.getPublicAreas();
     return NextResponse.json(areas);
   } catch (error) {
     console.error("[API] Error fetching temple areas:", error);
