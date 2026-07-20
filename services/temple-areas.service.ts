@@ -8,6 +8,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 
@@ -101,10 +102,42 @@ class TempleAreasService {
     const areas = await this.getAreas();
     return areas.filter((area) => area.category === category);
   }
+
+  /**
+   * Restore all default areas to Firestore
+   * Returns the count of areas restored
+   */
+  async restoreDefaults(): Promise<number> {
+    if (!db) throw new Error("Firebase not configured");
+    
+    const defaults = getDefaultAreas();
+    let restored = 0;
+    
+    for (const area of defaults) {
+      try {
+        // Check if area with same id already exists
+        const existing = await getDoc(doc(db, COLLECTION, area.id));
+        if (!existing.exists()) {
+          // Set with specific ID for predictable document IDs
+          const { id, ...areaData } = area;
+          await setDoc(doc(db, COLLECTION, area.id), {
+            ...areaData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          restored++;
+        }
+      } catch (error) {
+        console.error(`[TempleAreasService] Error restoring area ${area.id}:`, error);
+      }
+    }
+    
+    return restored;
+  }
 }
 
-// Default areas as fallback
-function getDefaultAreas(): TempleArea[] {
+// Default areas - exported for admin use
+export function getDefaultAreas(): TempleArea[] {
   return [
     {
       id: "garbhagriha",

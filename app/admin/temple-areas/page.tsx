@@ -38,6 +38,35 @@ export default function TempleAreasPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; area: TempleArea | null }>({ open: false, area: null });
   const [editDialog, setEditDialog] = useState<{ open: boolean; area: TempleArea | null }>({ open: false, area: null });
   const [saving, setSaving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  const handleRestoreDefaults = async () => {
+    if (!confirm("This will restore all default temple areas. Areas that already exist will not be duplicated. Continue?")) {
+      return;
+    }
+    
+    setRestoring(true);
+    try {
+      const response = await fetch("/api/admin/temple-areas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore-defaults" }),
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success(result.message || "Default areas restored successfully");
+        loadAreas();
+      } else {
+        toast.error(result.error || "Failed to restore default areas");
+      }
+    } catch (err) {
+      console.error("Failed to restore defaults:", err);
+      toast.error("Failed to restore default areas");
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const loadAreas = useCallback(async () => {
     try {
@@ -135,10 +164,16 @@ export default function TempleAreasPage() {
         title="Temple Explorer Areas"
         description="Manage temple areas and facilities displayed on the Temple Explorer page."
         action={
-          <Button onClick={() => setEditDialog({ open: true, area: null })}>
-            <PlusCircle className="h-4 w-4 mr-2" />
-            Add Area
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleRestoreDefaults} disabled={restoring}>
+              {restoring ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Restore Defaults
+            </Button>
+            <Button onClick={() => setEditDialog({ open: true, area: null })}>
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Area
+            </Button>
+          </div>
         }
       />
 

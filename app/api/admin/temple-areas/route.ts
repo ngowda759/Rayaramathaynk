@@ -38,3 +38,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Failed to create temple area" }, { status: 500 });
   }
 }
+
+// POST endpoint to restore default areas
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    if (body.action !== "restore-defaults") {
+      return NextResponse.json({ success: false, error: "Invalid action" }, { status: 400 });
+    }
+    
+    const restored = await templeAreasService.restoreDefaults();
+    
+    return NextResponse.json({ 
+      success: true, 
+      message: `Restored ${restored} default areas`,
+      restored 
+    });
+  } catch (error) {
+    console.error("[API] Error restoring default areas:", error);
+    return NextResponse.json({ success: false, error: "Failed to restore default areas" }, { status: 500 });
+  }
+}
