@@ -223,6 +223,11 @@ service cloud.firestore {
     }
 
     // Knowledge Centre collections
+    match /knowledge/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     match /knowledge_articles/{articleId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
