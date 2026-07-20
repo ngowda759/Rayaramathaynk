@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { 
-  BookOpen, 
-  Plus, 
-  Edit2, 
-  Trash2, 
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  BookOpen,
+  Plus,
+  Edit2,
+  Trash2,
   Search,
   Filter,
   Loader2,
@@ -15,7 +14,8 @@ import {
   CheckCircle,
   AlertCircle,
   ExternalLink,
-  Eye
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import toast from "react-hot-toast";
@@ -25,17 +25,14 @@ import {
   CATEGORY_DISPLAY_NAMES,
 } from "@/lib/ai/knowledge/types";
 
-interface KnowledgeArticleWithActions extends KnowledgeArticle {
-  isEditing?: boolean;
-}
-
 export default function KnowledgeBasePage() {
-  const [articles, setArticles] = useState<KnowledgeArticleWithActions[]>([]);
+  const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<KnowledgeCategory | "all">("all");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     content: "",
@@ -50,8 +47,17 @@ export default function KnowledgeBasePage() {
     try {
       const response = await fetch("/api/admin/knowledge");
       const data = await response.json();
+      
       if (data.success && data.articles) {
-        setArticles(data.articles);
+        // Deduplicate articles by ID
+        const uniqueArticles = data.articles.filter(
+          (article: KnowledgeArticle, index: number, self: KnowledgeArticle[]) =>
+            index === self.findIndex((a) => a.id === article.id)
+        );
+        setArticles(uniqueArticles);
+      } else {
+        console.error("Failed to load articles:", data.error);
+        toast.error(data.error || "Failed to load articles");
       }
     } catch (error) {
       console.error("Failed to load articles:", error);
@@ -65,17 +71,24 @@ export default function KnowledgeBasePage() {
     loadArticles();
   }, [loadArticles]);
 
-  const filteredArticles = articles.filter((article) => {
-    const matchesSearch = 
-      article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.keywords.some(k => k.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = filterCategory === "all" || article.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredArticles = useMemo(() => {
+    return articles.filter((article) => {
+      const matchesSearch = 
+        article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        article.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        article.keywords.some(k => k.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = filterCategory === "all" || article.category === filterCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [articles, searchTerm, filterCategory]);
+
+  const categories = useMemo(() => 
+    Object.keys(CATEGORY_DISPLAY_NAMES) as KnowledgeCategory[], 
+  []);
 
   const startEditing = (article: KnowledgeArticle) => {
     setEditingId(article.id);
+    setExpandedId(article.id);
     setEditForm({
       title: article.title,
       content: article.content,
@@ -100,7 +113,7 @@ export default function KnowledgeBasePage() {
 
   const saveArticle = async () => {
     if (!editingId) return;
-    
+
     setSaving(true);
     try {
       const response = await fetch(`/api/admin/knowledge/${editingId}`, {
@@ -115,11 +128,12 @@ export default function KnowledgeBasePage() {
           slug: editForm.slug,
         }),
       });
-      
+
       const data = await response.json();
-      
+      console.log("Save response:", data);
+
       if (data.success) {
-        toast.success("Article saved successfully");
+        toast.success("Article saved successfully!");
         cancelEditing();
         loadArticles();
       } else {
@@ -135,14 +149,15 @@ export default function KnowledgeBasePage() {
 
   const deleteArticle = async (id: string) => {
     if (!confirm("Are you sure you want to delete this article?")) return;
-    
+
     try {
       const response = await fetch(`/api/admin/knowledge/${id}`, {
         method: "DELETE",
       });
-      
+
       const data = await response.json();
-      
+      console.log("Delete response:", data);
+
       if (data.success) {
         toast.success("Article deleted");
         loadArticles();
@@ -170,17 +185,13 @@ export default function KnowledgeBasePage() {
           slug: `article-${Date.now()}`,
         }),
       });
-      
+
       const data = await response.json();
-      
+      console.log("Create response:", data);
+
       if (data.success && data.id) {
-        toast.success("Article created and published");
+        toast.success("Article created!");
         loadArticles();
-        // Start editing the new article
-        const newArticle = articles.find(a => a.id === data.id);
-        if (newArticle) {
-          startEditing(newArticle);
-        }
       } else {
         toast.error(data.error || "Failed to create article");
       }
@@ -192,7 +203,9 @@ export default function KnowledgeBasePage() {
     }
   };
 
-  const categories = Object.keys(CATEGORY_DISPLAY_NAMES) as KnowledgeCategory[];
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
 
   return (
     <div className="space-y-6">
@@ -246,6 +259,13 @@ export default function KnowledgeBasePage() {
         </button>
       </div>
 
+      {/* Stats */}
+      <div className="flex gap-4 text-sm text-stone-500">
+        <span>{filteredArticles.length} articles</span>
+        {searchTerm && <span>matching "{searchTerm}"</span>}
+        {filterCategory !== "all" && <span>in {CATEGORY_DISPLAY_NAMES[filterCategory]}</span>}
+      </div>
+
       {/* Articles List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -270,184 +290,211 @@ export default function KnowledgeBasePage() {
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredArticles.map((article) => (
-            <div key={article.id} className="bg-white rounded-xl shadow overflow-hidden">
-              {editingId === article.id ? (
-                /* Edit Mode */
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={cancelEditing}
-                        className="flex items-center gap-1 px-3 py-1.5 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                        Cancel
-                      </button>
-                      <button
-                        onClick={saveArticle}
-                        disabled={saving}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {saving ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        Save
-                      </button>
+            <div 
+              key={article.id} 
+              className={`bg-white rounded-xl shadow overflow-hidden transition-all ${
+                editingId === article.id ? "ring-2 ring-amber-500" : ""
+              }`}
+            >
+              {/* Article Header - Always Visible */}
+              <div 
+                className="p-4 cursor-pointer hover:bg-stone-50 transition-colors"
+                onClick={() => !editingId && toggleExpand(article.id)}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
+                        {CATEGORY_DISPLAY_NAMES[article.category]}
+                      </span>
+                      {article.approved ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600">
+                          <CheckCircle className="w-3 h-3" />
+                          Published
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-amber-600">
+                          <AlertCircle className="w-3 h-3" />
+                          Pending
+                        </span>
+                      )}
+                      <span className="text-xs text-stone-400">
+                        {article.language.toUpperCase()}
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
-                      <input
-                        type="text"
-                        value={editForm.title}
-                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
-                      <input
-                        type="text"
-                        value={editForm.slug}
-                        onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
-                        placeholder="article-url-slug"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      />
-                    </div>
+                    <h3 className="text-lg font-semibold text-stone-900 truncate">{article.title}</h3>
+                    <p className="text-stone-500 text-sm mt-1 line-clamp-1">
+                      {article.content.substring(0, 100)}...
+                    </p>
                   </div>
                   
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
-                      <select
-                        value={editForm.category}
-                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      >
-                        {categories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {CATEGORY_DISPLAY_NAMES[cat]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
-                      <select
-                        value={editForm.language}
-                        onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      >
-                        <option value="en">English</option>
-                        <option value="kn">Kannada</option>
-                        <option value="mixed">Mixed</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">
-                      Keywords (comma-separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.keywords}
-                      onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
-                      placeholder="keyword1, keyword2, keyword3"
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
-                    <textarea
-                      value={editForm.content}
-                      onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                      rows={10}
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
-                    />
-                  </div>
-                </div>
-              ) : (
-                /* View Mode */
-                <div className="p-6">
-                                      <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
-                          {CATEGORY_DISPLAY_NAMES[article.category]}
-                        </span>
-                        {article.approved ? (
-                          <span className="flex items-center gap-1 text-xs text-green-600">
-                            <CheckCircle className="w-3 h-3" />
-                            Published
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-xs text-amber-600">
-                            <AlertCircle className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {editingId === article.id ? (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); cancelEditing(); }}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); saveArticle(); }}
+                          disabled={saving}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {saving ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                          Save
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startEditing(article); }}
+                          className="p-2 text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteArticle(article.id); }}
+                          className="p-2 text-stone-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                         {article.slug && (
                           <a
                             href={`/knowledge/article/${article.slug}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
                             onClick={(e) => e.stopPropagation()}
+                            className="p-2 text-stone-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="View on Site"
                           >
-                            <Eye className="w-3 h-3" />
-                            View on Site
-                            <ExternalLink className="w-3 h-3" />
+                            <ExternalLink className="w-4 h-4" />
                           </a>
                         )}
+                        <button className="p-2 text-stone-400">
+                          {expandedId === article.id ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded/Edit Content */}
+              {(expandedId === article.id || editingId === article.id) && (
+                <div className="border-t border-stone-200 p-4 bg-stone-50">
+                  {editingId === article.id ? (
+                    /* Edit Mode */
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
+                          <input
+                            type="text"
+                            value={editForm.title}
+                            onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
+                          <input
+                            type="text"
+                            value={editForm.slug}
+                            onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                            placeholder="article-url-slug"
+                            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          />
+                        </div>
                       </div>
-                      <h3 className="text-lg font-semibold text-stone-900 mb-2">{article.title}</h3>
-                      <p className="text-stone-600 text-sm line-clamp-2 mb-3">
-                        {article.content.substring(0, 200)}...
-                      </p>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
+                          <select
+                            value={editForm.category}
+                            onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
+                            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          >
+                            {categories.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {CATEGORY_DISPLAY_NAMES[cat]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
+                          <select
+                            value={editForm.language}
+                            onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
+                            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          >
+                            <option value="en">English</option>
+                            <option value="kn">Kannada</option>
+                            <option value="mixed">Mixed</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">
+                          Keywords (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={editForm.keywords}
+                          onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
+                          placeholder="keyword1, keyword2, keyword3"
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
+                        <textarea
+                          value={editForm.content}
+                          onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                          rows={8}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    /* View Mode - Expanded */
+                    <div className="space-y-3">
                       {article.keywords.length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {article.keywords.slice(0, 5).map((keyword, i) => (
+                          {article.keywords.map((keyword, i) => (
                             <span
                               key={i}
-                              className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded"
+                              className="px-2 py-0.5 bg-stone-200 text-stone-600 text-xs rounded"
                             >
                               {keyword}
                             </span>
                           ))}
-                          {article.keywords.length > 5 && (
-                            <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded">
-                              +{article.keywords.length - 5} more
-                            </span>
-                          )}
                         </div>
                       )}
+                      <div className="prose prose-sm max-w-none">
+                        <p className="text-stone-600 whitespace-pre-wrap">{article.content}</p>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => startEditing(article)}
-                        className="p-2 text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteArticle(article.id)}
-                        className="p-2 text-stone-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
