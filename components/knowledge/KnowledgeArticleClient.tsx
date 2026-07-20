@@ -14,10 +14,12 @@ import {
   Eye,
   Calendar,
   ArrowLeft,
+  Globe,
 } from "lucide-react";
 import {
   ArticlePageData,
   KnowledgeBookmark,
+  KnowledgeLanguage,
   KNOWLEDGE_CATEGORY_CONFIG,
 } from "@/types/knowledge";
 
@@ -26,14 +28,29 @@ interface KnowledgeArticleClientProps {
 }
 
 const BOOKMARKS_KEY = "rayaramathaynk_bookmarks";
+const LANGUAGE_KEY = "rayaramathaynk_language";
 
 export default function KnowledgeArticleClient({ articleData }: KnowledgeArticleClientProps) {
   const { article, relatedArticles, breadcrumbs, nextArticle, previousArticle } = articleData;
   const [bookmarks, setBookmarks] = useState<KnowledgeBookmark[]>([]);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [language, setLanguage] = useState<KnowledgeLanguage>("en");
 
   const categoryConfig = KNOWLEDGE_CATEGORY_CONFIG[article.category];
 
+  // Load language preference from localStorage
+  useEffect(() => {
+    try {
+      const savedLanguage = localStorage.getItem(LANGUAGE_KEY) as KnowledgeLanguage;
+      if (savedLanguage && ["en", "kn", "mixed"].includes(savedLanguage)) {
+        setLanguage(savedLanguage);
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
+
+  // Load bookmarks from localStorage
   useEffect(() => {
     try {
       const savedBookmarks = localStorage.getItem(BOOKMARKS_KEY);
@@ -46,6 +63,28 @@ export default function KnowledgeArticleClient({ articleData }: KnowledgeArticle
       // Ignore localStorage errors
     }
   }, [article.id]);
+
+  const toggleLanguage = () => {
+    const newLanguage = language === "en" ? "kn" : "en";
+    setLanguage(newLanguage);
+    localStorage.setItem(LANGUAGE_KEY, newLanguage);
+  };
+
+  // Get article title based on language
+  const getArticleTitle = () => {
+    if (language === "kn" && article.kannadaTitle) {
+      return article.kannadaTitle;
+    }
+    return article.title;
+  };
+
+  // Get article content based on language
+  const getArticleContent = () => {
+    if (language === "kn" && article.kannadaContent) {
+      return article.kannadaContent;
+    }
+    return article.content;
+  };
 
   const toggleBookmark = () => {
     const newBookmarks = isBookmarked
@@ -108,26 +147,38 @@ export default function KnowledgeArticleClient({ articleData }: KnowledgeArticle
             ))}
           </nav>
 
-          <div className="flex items-start gap-4">
-            <span className="text-5xl">{categoryConfig?.icon || "📖"}</span>
-            <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white">
-                {categoryConfig?.name}
-              </div>
-              <h1 className="text-3xl font-bold text-white sm:text-4xl">{article.title}</h1>
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-white/80">
-                {article.readingTime && (
-                  <span className="flex items-center gap-1 text-sm">
-                    <Clock className="h-4 w-4" />
-                    {article.readingTime} min read
-                  </span>
-                )}
-                <span className="flex items-center gap-1 text-sm">
-                  <Calendar className="h-4 w-4" />
-                  Updated {formatDate(article.updatedAt)}
-                </span>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <span className="text-5xl">{categoryConfig?.icon || "📖"}</span>
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white">
+                  {categoryConfig?.name}
+                </div>
+                <h1 className="text-3xl font-bold text-white sm:text-4xl">{getArticleTitle()}</h1>
               </div>
             </div>
+            {/* Language Toggle */}
+            {(article.kannadaTitle || article.kannadaContent) && (
+              <button
+                onClick={toggleLanguage}
+                className="rounded-full bg-white/20 p-2 text-white hover:bg-white/30 transition-colors"
+                title={language === "en" ? "ಕನ್ನಡದಲ್ಲಿ ಓದಿ" : "Read in English"}
+              >
+                <Globe className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-4 text-white/80">
+            {article.readingTime && (
+              <span className="flex items-center gap-1 text-sm">
+                <Clock className="h-4 w-4" />
+                {article.readingTime} min read
+              </span>
+            )}
+            <span className="flex items-center gap-1 text-sm">
+              <Calendar className="h-4 w-4" />
+              Updated {formatDate(article.updatedAt)}
+            </span>
           </div>
         </div>
       </section>
@@ -210,7 +261,7 @@ export default function KnowledgeArticleClient({ articleData }: KnowledgeArticle
               >
                 <div
                   className="prose prose-stone max-w-none prose-headings:text-stone-900 prose-p:text-stone-700 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline"
-                  dangerouslySetInnerHTML={{ __html: formatContent(article.content) }}
+                  dangerouslySetInnerHTML={{ __html: formatContent(getArticleContent()) }}
                 />
               </motion.div>
 
