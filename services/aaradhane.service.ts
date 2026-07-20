@@ -158,20 +158,6 @@ export const aaradhaneService = {
   async getAaradhanes(): Promise<Aaradhane[]> {
     if (!db) throw new Error("Firebase not configured");
     
-    // Try to get events from "events" collection (auto-generated)
-    let events: Aaradhane[] = [];
-    try {
-      const allEventsQ = query(collection(db, EVENTS_COLLECTION));
-      const allEventsSnapshot = await getDocs(allEventsQ);
-      console.log(`[Aaradhane] events collection: ${allEventsSnapshot.size}`);
-      
-      events = allEventsSnapshot.docs
-        .map(eventDocToAaradhane)
-        .filter(e => e.title);
-    } catch (error) {
-      console.warn("[Aaradhane] events collection error:", error);
-    }
-    
     // Try "aaradhane" collection
     let fromAaradhane: Aaradhane[] = [];
     try {
@@ -194,35 +180,21 @@ export const aaradhaneService = {
       console.warn("[Aaradhane] aaradhanes collection error:", error);
     }
     
-    // Merge from all collections
-    const merged = [...events];
-    for (const a of fromAaradhane) {
-      if (!merged.find(e => e.id === a.id)) merged.push(a);
-    }
+    // Merge from aaradhane collections (NOT events)
+    const merged = [...fromAaradhane];
     for (const a of fromAaradhanes) {
       if (!merged.find(e => e.id === a.id)) merged.push(a);
     }
     
     merged.sort((a, b) => a.displayOrder - b.displayOrder);
-    console.log(`[Aaradhane] Total merged: ${merged.length}`);
+    console.log(`[Aaradhane] Total: ${merged.length}`);
     return merged;
   },
 
   async getAaradhaneById(id: string): Promise<Aaradhane | null> {
     if (!db) throw new Error("Firebase not configured");
     
-    // First check events collection
-    try {
-      const eventDocRef = doc(db, EVENTS_COLLECTION, id);
-      const eventDocSnap = await getDoc(eventDocRef);
-      if (eventDocSnap.exists()) {
-        return eventDocToAaradhane(eventDocSnap);
-      }
-    } catch (error) {
-      console.warn("[Aaradhane] Error checking events collection:", error);
-    }
-    
-    // Then check aaradhane collection
+    // Check aaradhane collection
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const docSnap = await getDoc(docRef);
@@ -231,6 +203,17 @@ export const aaradhaneService = {
       }
     } catch (error) {
       console.warn("[Aaradhane] Error checking aaradhane collection:", error);
+    }
+    
+    // Check aaradhanes collection
+    try {
+      const docRef = doc(db, AARADHANES_COLLECTION, id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docToAaradhane(docSnap);
+      }
+    } catch (error) {
+      console.warn("[Aaradhane] Error checking aaradhanes collection:", error);
     }
     
     return null;
@@ -261,25 +244,32 @@ export const aaradhaneService = {
   async deleteAaradhane(id: string): Promise<void> {
     if (!db) throw new Error("Firebase not configured");
     
-    // First try to delete from aaradhane collection
+    // Try aaradhane collection first
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
-      console.log(`[Aaradhane] Deleted from aaradhane collection: ${id}`);
+      console.log(`[Aaradhane] Deleted from ${COLLECTION_NAME} collection: ${id}`);
       return;
-    } catch (error) {
-      console.warn("[Aaradhane] Could not delete from aaradhane collection:", error);
+    } catch (error: any) {
+      // If error is "not found", try next collection
+      if (error?.code !== "not-found") {
+        console.error(`[Aaradhane] Error deleting from ${COLLECTION_NAME}:`, error);
+      }
     }
     
-    // Then try events collection
+    // Try aaradhanes collection (with 's')
     try {
-      const eventDocRef = doc(db, EVENTS_COLLECTION, id);
-      await deleteDoc(eventDocRef);
-      console.log(`[Aaradhane] Deleted from events collection: ${id}`);
+      const docRef = doc(db, AARADHANES_COLLECTION, id);
+      await deleteDoc(docRef);
+      console.log(`[Aaradhane] Deleted from ${AARADHANES_COLLECTION} collection: ${id}`);
       return;
-    } catch (error) {
-      console.warn("[Aaradhane] Could not delete from events collection:", error);
+    } catch (error: any) {
+      if (error?.code !== "not-found") {
+        console.error(`[Aaradhane] Error deleting from ${AARADHANES_COLLECTION}:`, error);
+      }
     }
+    
+    throw new Error(`Could not delete Aaradhane: ${id}. Document not found.`);
   },
 
   async getStats(): Promise<AaradhaneStats> {

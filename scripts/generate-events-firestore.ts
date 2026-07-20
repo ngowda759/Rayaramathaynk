@@ -1,35 +1,43 @@
 #!/usr/bin/env npx tsx
 /**
- * Aaradhane Event Generator Script
+ * Calendar Events Generator Script
  * 
- * Generates all Guru Aaradhane events for 2027 based on Hindu Panchanga
- * and uploads them to Firestore using Firebase Admin SDK.
+ * Generates all Guru Aaradhane events for the calendar year based on Hindu Panchanga
+ * and uploads them to the 'events' collection in Firestore using Firebase Admin SDK.
+ * 
+ * Note: This seeds the 'events' collection for the calendar, NOT the 'aaradhane' collection
+ * which is used by the admin portal for Aaradhane management.
  */
 
-import adminModule from "firebase-admin";
+import * as adminModule from "firebase-admin";
 import { Firestore } from "firebase-admin/firestore";
 
 import * as fs from "fs";
 import * as path from "path";
 import { GURU_AARADHANES } from "../data/aaradhane/gurus";
 
-const admin = adminModule.default || adminModule;
+const admin = adminModule;
 
-// Create a Firestore instance
+// Create a Firestore instance using environment variables
 let firestoreDb: Firestore | null = null;
-async function getDb() {
+
+function getDb(): Firestore {
   if (!firestoreDb) {
-    // Read service account for Firestore
-    const serviceAccountPath = path.join(process.cwd(), "service-account.json");
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error("Missing Firebase environment variables: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY");
+    }
     
     // Create Firestore with credentials
     firestoreDb = new Firestore({
-      projectId: serviceAccount.project_id,
+      projectId: projectId,
       clientOptions: {
         credentials: {
-          client_email: serviceAccount.client_email,
-          private_key: serviceAccount.private_key.replace(/\\n/g, "\n"),
+          client_email: clientEmail,
+          private_key: privateKey,
         },
       },
     });
@@ -42,9 +50,9 @@ process.env.TZ = "Asia/Kolkata";
 
 const PROJECT_ID = "sri-raghavendra-mutt";
 const COLLECTION_NAME = "events";
-const TARGET_YEAR = 2027;
+const TARGET_YEAR = 2026;
 
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin SDK using environment variables
 function initializeFirebase(): any {
   // Check if already initialized
   const existingApps = admin.getApps();
@@ -52,21 +60,24 @@ function initializeFirebase(): any {
     return existingApps[0]!;
   }
 
-  // Read the service account file
-  const serviceAccountPath = path.join(process.cwd(), "service-account.json");
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
   
-  if (!fs.existsSync(serviceAccountPath)) {
-    throw new Error(`Service account file not found: ${serviceAccountPath}`);
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error("Missing Firebase environment variables: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY");
   }
   
-  const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-  
   console.log("Initializing Firebase Admin SDK...");
-  console.log("Project ID:", serviceAccount.project_id);
+  console.log("Project ID:", projectId);
   
   return admin.initializeApp({
-    credential: admin.cert(serviceAccount),
-    projectId: serviceAccount.project_id,
+    credential: admin.cert({
+      projectId: projectId,
+      clientEmail: clientEmail,
+      privateKey: privateKey,
+    }),
+    projectId: projectId,
   });
 }
 
@@ -266,7 +277,7 @@ async function uploadEvents(events: any[], year: number): Promise<{ created: num
 // Main function
 async function main() {
   console.log("\n" + "=".repeat(60));
-  console.log("GURU AARADHANE EVENT GENERATOR - 2027");
+  console.log("CALENDAR EVENTS GENERATOR - " + TARGET_YEAR);
   console.log("=".repeat(60));
   console.log("\nTimezone: Asia/Kolkata");
   
@@ -276,7 +287,7 @@ async function main() {
     console.log("Firebase Admin SDK initialized successfully\n");
     
     // Load data
-    console.log("Loading Panchanga data for 2027...");
+    console.log(`Loading Panchanga data for ${TARGET_YEAR}...`);
     const panchangaData = loadPanchangaData(TARGET_YEAR);
     console.log(`Loaded ${panchangaData.size} days of Panchanga data\n`);
     
@@ -286,7 +297,7 @@ async function main() {
     
     // Generate events
     console.log("-".repeat(60));
-    console.log("GENERATING EVENTS FOR 2027");
+    console.log(`GENERATING EVENTS FOR ${TARGET_YEAR}`);
     console.log("-".repeat(60));
     
     const events = generateEvents(gurus, panchangaData, TARGET_YEAR);
