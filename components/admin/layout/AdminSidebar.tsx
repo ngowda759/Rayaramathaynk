@@ -90,6 +90,7 @@ const allNavigation = [
       { title: "AI Management", href: "/admin/ai", icon: "sparkles" },
       { title: "AI Settings", href: "/admin/ai/settings", icon: "settings" },
       { title: "Prompt Manager", href: "/admin/ai/prompts", icon: "book" },
+      { title: "Knowledge Articles", href: "/admin/knowledge", icon: "book" },
       { title: "Intent Mapping", href: "/admin/ai/intents", icon: "sparkles" },
       { title: "Unknown Questions", href: "/admin/ai/unknown-questions", icon: "help" },
       { title: "AI Analytics", href: "/admin/ai/analytics", icon: "chart" },
