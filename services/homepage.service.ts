@@ -28,8 +28,14 @@ class HomepageService {
   }
 
   async saveHomepage(data: HomepageConfig): Promise<void> {
-      if (!db) throw new Error("Firebase not configured");
+    if (!db) {
+      console.error("[HomepageService] Firebase db is null");
+      throw new Error("Firebase not configured");
+    }
     const ref = doc(db, COLLECTION, DOCUMENT);
+
+    console.log("[HomepageService] Saving to Firestore, collection:", COLLECTION, "doc:", DOCUMENT);
+    console.log("[HomepageService] Data being saved:", JSON.stringify(data, null, 2));
 
     await setDoc(
       ref,
@@ -41,6 +47,8 @@ class HomepageService {
         merge: true,
       }
     );
+
+    console.log("[HomepageService] Save to Firestore complete");
   }
 
   getDefaultConfig(): HomepageConfig {

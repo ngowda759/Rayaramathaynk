@@ -82,7 +82,9 @@ export function useHomepageForm() {
     try {
       setSaving(true);
 
+      console.log("[HomepageForm] Saving form data:", JSON.stringify(formData, null, 2));
       await homepageService.saveHomepage(formData);
+      console.log("[HomepageForm] Save successful");
 
       setStatusMessage(
         "Homepage settings saved successfully."
@@ -94,7 +96,7 @@ export function useHomepageForm() {
 
       return true;
     } catch (error) {
-      console.error(error);
+      console.error("[HomepageForm] Save error:", error);
 
       setStatusMessage(
         "Unable to save homepage settings."
