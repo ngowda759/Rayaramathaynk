@@ -37,18 +37,22 @@ class HomepageService {
     console.log("[HomepageService] Saving to Firestore, collection:", COLLECTION, "doc:", DOCUMENT);
     console.log("[HomepageService] Data being saved:", JSON.stringify(data, null, 2));
 
-    await setDoc(
-      ref,
-      {
-        ...data,
-        updatedAt: serverTimestamp(),
-      },
-      {
-        merge: true,
-      }
-    );
-
-    console.log("[HomepageService] Save to Firestore complete");
+    try {
+      await setDoc(
+        ref,
+        {
+          ...data,
+          updatedAt: serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+      console.log("[HomepageService] Save to Firestore complete");
+    } catch (error: any) {
+      console.error("[HomepageService] Firestore error:", error?.code, error?.message);
+      throw new Error(`Firestore error: ${error?.message || error?.code || 'Unknown'}`);
+    }
   }
 
   getDefaultConfig(): HomepageConfig {

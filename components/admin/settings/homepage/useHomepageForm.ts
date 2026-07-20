@@ -95,11 +95,13 @@ export function useHomepageForm() {
       }, 5000);
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("[HomepageForm] Save error:", error);
 
+      // Show more detailed error message
+      const errorMessage = error?.message || "Unknown error";
       setStatusMessage(
-        "Unable to save homepage settings."
+        `Unable to save homepage settings: ${errorMessage}`
       );
 
       return false;
