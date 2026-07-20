@@ -17,9 +17,13 @@ import { TempleArea, TempleAreaCategory } from "@/types/temple-explorer";
 const COLLECTION = "temple_areas";
 
 class TempleAreasService {
+  /**
+   * Get all temple areas from Firestore
+   * Does NOT fall back to defaults - admin should only see what's in the database
+   */
   async getAreas(): Promise<TempleArea[]> {
     if (!db) {
-      return getDefaultAreas();
+      return [];
     }
     
     try {
@@ -27,21 +31,16 @@ class TempleAreasService {
       const snapshot = await getDocs(q);
       const areas = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as TempleArea[];
       
-      // If no areas in Firestore, return defaults
-      if (areas.length === 0) {
-        return getDefaultAreas();
-      }
-      
       return areas;
     } catch (error) {
       console.error("[TempleAreasService] Error fetching areas:", error);
-      return getDefaultAreas();
+      return [];
     }
   }
 
   async getArea(id: string): Promise<TempleArea | null> {
     if (!db) {
-      return getDefaultAreas().find(a => a.id === id) || null;
+      return null;
     }
     try {
       const snap = await getDoc(doc(db, COLLECTION, id));
@@ -51,6 +50,32 @@ class TempleAreasService {
       console.error("[TempleAreasService] Error fetching area:", error);
       return null;
     }
+  }
+
+  /**
+   * Get areas for public display - uses defaults if Firestore is empty
+   */
+  async getPublicAreas(): Promise<TempleArea[]> {
+    const areas = await this.getAreas();
+    
+    // If no areas in Firestore, return defaults for public display
+    if (areas.length === 0) {
+      return getDefaultAreas();
+    }
+    
+    return areas;
+  }
+
+  /**
+   * Get a single area for public display - tries Firestore first, then defaults
+   */
+  async getPublicArea(id: string): Promise<TempleArea | null> {
+    // First try Firestore
+    const area = await this.getArea(id);
+    if (area) return area;
+    
+    // Fall back to defaults
+    return getDefaultAreas().find(a => a.id === id) || null;
   }
 
   async addArea(area: Omit<TempleArea, "id">) {

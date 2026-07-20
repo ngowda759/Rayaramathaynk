@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const area = await templeAreasService.getArea(id);
+    const area = await templeAreasService.getPublicArea(id);
     
     if (!area) {
       return NextResponse.json({ error: "Temple area not found" }, { status: 404 });

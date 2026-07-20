@@ -42,7 +42,7 @@ export default function TempleExplorer({ initialCategory = null }: TempleExplore
   useEffect(() => {
     async function loadAreas() {
       try {
-        const data = await templeAreasService.getAreas();
+        const data = await templeAreasService.getPublicAreas();
         setAreas(data);
       } catch (error) {
         console.error("Failed to load temple areas:", error);

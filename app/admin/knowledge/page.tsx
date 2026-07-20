@@ -175,12 +175,9 @@ export default function KnowledgeBasePage() {
       
       if (data.success && data.id) {
         toast.success("Article created and published");
-        loadArticles();
-        // Start editing the new article
-        const newArticle = articles.find(a => a.id === data.id);
-        if (newArticle) {
-          startEditing(newArticle);
-        }
+        // Start editing the new article directly using the returned ID
+        startEditingWithId(data.id);
+        loadArticles(); // Refresh the list in background
       } else {
         toast.error(data.error || "Failed to create article");
       }
@@ -189,6 +186,46 @@ export default function KnowledgeBasePage() {
       toast.error("Failed to create article");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const startEditingWithId = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admin/knowledge/${id}`);
+      const data = await response.json();
+      
+      if (data.success && data.article) {
+        startEditing(data.article);
+      } else {
+        // Fallback: create a minimal article object with just the ID
+        startEditing({
+          id,
+          title: "New Article",
+          content: "Enter content here...",
+          keywords: [],
+          category: "general",
+          language: "en",
+          slug: `article-${id}`,
+          approved: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch article:", error);
+      // Fallback: create a minimal article object with just the ID
+      startEditing({
+        id,
+        title: "New Article",
+        content: "Enter content here...",
+        keywords: [],
+        category: "general",
+        language: "en",
+        slug: `article-${id}`,
+        approved: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
     }
   };
 
