@@ -60,6 +60,7 @@ export interface KnowledgeArticleRequest {
  * Knowledge article update request
  */
 export interface KnowledgeArticleUpdate {
+  slug?: string;
   title?: string;
   kannadaTitle?: string;
   category?: KnowledgeCategory;

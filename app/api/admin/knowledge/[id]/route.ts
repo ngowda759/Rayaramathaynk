@@ -53,31 +53,21 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, content, keywords, category, language, slug, approved } = body;
-    
+    const { title, content, keywords, category, language, slug } = body;
+
     const updateData: KnowledgeArticleUpdate = {};
-    
+
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
     if (keywords !== undefined) updateData.keywords = keywords;
     if (category !== undefined) updateData.category = category;
     if (language !== undefined) updateData.language = language;
-    
+    if (slug !== undefined) updateData.slug = slug;
+
     await updateArticle(id, updateData);
-    
-    // Update slug separately if provided
-    if (slug !== undefined) {
-      const { doc, updateDoc } = await import("firebase/firestore");
-      const { db } = await import("@/lib/firebase");
-      if (db) {
-        await updateDoc(doc(db, "knowledge", id), { slug });
-      }
-    }
-    
-    // Auto-approve if saving from admin to make it visible on public site
     await approveArticle(id);
     clearKnowledgeCache();
-    
+
     return NextResponse.json({
       success: true,
       message: "Article updated and published successfully",
