@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle, Compass } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
@@ -29,6 +29,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   testimonials: MessageSquareQuote,
   chart: BarChart3,
   help: HelpCircle,
+  compass: Compass,
 };
 
 // Navigation data
@@ -66,6 +67,7 @@ const allNavigation = [
       { title: "About Us", href: "/admin/settings/about", icon: "info" },
       { title: "Facilities", href: "/admin/settings/facilities", icon: "info" },
       { title: "Guru Parampara", href: "/admin/settings/guru-parampara", icon: "book" },
+      { title: "Temple Explorer", href: "/admin/temple-areas", icon: "compass" },
       { title: "Shlokas", href: "/admin/settings/shlokas", icon: "book" },
       { title: "Footer Settings", href: "/admin/settings/footer", icon: "settings" },
       { title: "Social Links", href: "/admin/settings/social-links", icon: "settings" },
