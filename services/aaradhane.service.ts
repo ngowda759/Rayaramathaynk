@@ -158,20 +158,6 @@ export const aaradhaneService = {
   async getAaradhanes(): Promise<Aaradhane[]> {
     if (!db) throw new Error("Firebase not configured");
     
-    // Try to get events from "events" collection (auto-generated)
-    let events: Aaradhane[] = [];
-    try {
-      const allEventsQ = query(collection(db, EVENTS_COLLECTION));
-      const allEventsSnapshot = await getDocs(allEventsQ);
-      console.log(`[Aaradhane] events collection: ${allEventsSnapshot.size}`);
-      
-      events = allEventsSnapshot.docs
-        .map(eventDocToAaradhane)
-        .filter(e => e.title);
-    } catch (error) {
-      console.warn("[Aaradhane] events collection error:", error);
-    }
-    
     // Try "aaradhane" collection
     let fromAaradhane: Aaradhane[] = [];
     try {
@@ -194,35 +180,21 @@ export const aaradhaneService = {
       console.warn("[Aaradhane] aaradhanes collection error:", error);
     }
     
-    // Merge from all collections
-    const merged = [...events];
-    for (const a of fromAaradhane) {
-      if (!merged.find(e => e.id === a.id)) merged.push(a);
-    }
+    // Merge from aaradhane collections (NOT events)
+    const merged = [...fromAaradhane];
     for (const a of fromAaradhanes) {
       if (!merged.find(e => e.id === a.id)) merged.push(a);
     }
     
     merged.sort((a, b) => a.displayOrder - b.displayOrder);
-    console.log(`[Aaradhane] Total merged: ${merged.length}`);
+    console.log(`[Aaradhane] Total: ${merged.length}`);
     return merged;
   },
 
   async getAaradhaneById(id: string): Promise<Aaradhane | null> {
     if (!db) throw new Error("Firebase not configured");
     
-    // First check events collection
-    try {
-      const eventDocRef = doc(db, EVENTS_COLLECTION, id);
-      const eventDocSnap = await getDoc(eventDocRef);
-      if (eventDocSnap.exists()) {
-        return eventDocToAaradhane(eventDocSnap);
-      }
-    } catch (error) {
-      console.warn("[Aaradhane] Error checking events collection:", error);
-    }
-    
-    // Then check aaradhane collection
+    // Check aaradhane collection
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const docSnap = await getDoc(docRef);
@@ -231,6 +203,17 @@ export const aaradhaneService = {
       }
     } catch (error) {
       console.warn("[Aaradhane] Error checking aaradhane collection:", error);
+    }
+    
+    // Check aaradhanes collection
+    try {
+      const docRef = doc(db, AARADHANES_COLLECTION, id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docToAaradhane(docSnap);
+      }
+    } catch (error) {
+      console.warn("[Aaradhane] Error checking aaradhanes collection:", error);
     }
     
     return null;
