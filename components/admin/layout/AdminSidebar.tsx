@@ -67,7 +67,6 @@ const allNavigation = [
       { title: "About Us", href: "/admin/settings/about", icon: "info" },
       { title: "Facilities", href: "/admin/settings/facilities", icon: "info" },
       { title: "Guru Parampara", href: "/admin/settings/guru-parampara", icon: "book" },
-      { title: "Temple Explorer", href: "/admin/temple-areas", icon: "compass" },
       { title: "Shlokas", href: "/admin/settings/shlokas", icon: "book" },
       { title: "Footer Settings", href: "/admin/settings/footer", icon: "settings" },
       { title: "Social Links", href: "/admin/settings/social-links", icon: "settings" },
@@ -84,6 +83,7 @@ const allNavigation = [
       { title: "Homepage Settings", href: "/admin/settings/homepage", icon: "settings" },
       { title: "Finance Settings", href: "/admin/settings/finance", icon: "donation" },
       { title: "Trust Committee", href: "/admin/settings/trust-committee", icon: "users" },
+      { title: "Temple Explorer", href: "/admin/temple-areas", icon: "compass" },
     ],
   },
   {
