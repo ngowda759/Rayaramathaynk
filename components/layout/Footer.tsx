@@ -4,30 +4,86 @@ import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Phone, Mail, Heart, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-const quickLinks = [
-  { name: "Home", href: "/" },
-  { name: "Aaradhane", href: "/aaradhane" },
-  { name: "Facilities", href: "/facilities" },
-  { name: "Guru Parampara", href: "/guruparampara" },
-  { name: "Gallery", href: "/gallery" },
-  { name: "Events", href: "/events" },
-  { name: "About", href: "/about" },
-  { name: "Shlokas", href: "/shlokas" },
-];
+interface FooterData {
+  templeName: string;
+  templeSubtitle: string;
+  logoUrl: string;
+  address: string;
+  phone: string;
+  phone2: string;
+  email: string;
+  mapUrl: string;
+  quickLinks: { name: string; href: string }[];
+  sevasLinks: { name: string; href: string }[];
+  calendarLinks: { name: string; href: string }[];
+  copyrightText: string;
+  currentYear: boolean;
+}
 
-const sevasLinks = [
-  { name: "Daily Pooja", href: "/pooja" },
-  { name: "Special Sevas", href: "/sevas" },
-  { name: "Donate", href: "/donation" },
-];
-
-const calendarLinks = [
-  { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
-  { name: "Festival Calendar", href: "/calendar/festivals" },
-];
+const defaultData: FooterData = {
+  templeName: "Sri Raghavendra Swamy Matha",
+  templeSubtitle: "Yelahanka New Town",
+  logoUrl: "/images/logos/ynk_matha_logo.png",
+  address: "Sri Rayara Matha, Yelahanka New Town, Bengaluru",
+  phone: "+91 9886364462",
+  phone2: "",
+  email: "ngowda759@gmail.com",
+  mapUrl: "https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8",
+  quickLinks: [
+    { name: "Home", href: "/" },
+    { name: "Aaradhane", href: "/aaradhane" },
+    { name: "Facilities", href: "/facilities" },
+    { name: "Guru Parampara", href: "/guruparampara" },
+    { name: "Gallery", href: "/gallery" },
+    { name: "Events", href: "/events" },
+    { name: "About", href: "/about" },
+    { name: "Shlokas", href: "/shlokas" },
+  ],
+  sevasLinks: [
+    { name: "Daily Pooja", href: "/pooja" },
+    { name: "Special Sevas", href: "/sevas" },
+    { name: "Donate", href: "/donation" },
+  ],
+  calendarLinks: [
+    { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
+    { name: "Festival Calendar", href: "/calendar/festivals" },
+  ],
+  copyrightText: "All rights reserved",
+  currentYear: true,
+};
 
 export default function Footer() {
+  const [footerData, setFooterData] = useState<FooterData>(defaultData);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadFooterData() {
+      if (!db) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const docRef = doc(db, "settings", "footer");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setFooterData({ ...defaultData, ...docSnap.data() } as FooterData);
+        }
+      } catch (error) {
+        console.error("Error loading footer data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFooterData();
+  }, []);
+
+  const currentYear = new Date().getFullYear();
+  const copyrightYear = footerData.currentYear ? currentYear : "";
+
   return (
     <footer className="relative overflow-hidden bg-gradient-to-br from-stone-950 via-stone-900 to-black text-stone-300">
       {/* Decorative top border */}
@@ -55,8 +111,8 @@ export default function Footer() {
           <div className="flex items-start gap-3">
             <div className="relative">
               <Image
-                src="/images/logos/ynk_matha_logo.png"
-                alt="Sri Raghavendra Swamy Matha"
+                src={footerData.logoUrl || "/images/logos/ynk_matha_logo.png"}
+                alt={footerData.templeName}
                 width={44}
                 height={44}
                 className="rounded-full object-cover w-11 h-11 flex-shrink-0 ring-2 ring-amber-500/30"
@@ -65,10 +121,10 @@ export default function Footer() {
             </div>
             <div>
               <h2 className="font-bold text-white leading-tight">
-                Sri Raghavendra Swamy Matha
+                {footerData.templeName}
               </h2>
               <p className="text-amber-400 text-sm">
-                Yelahanka New Town
+                {footerData.templeSubtitle}
               </p>
             </div>
           </div>
@@ -79,7 +135,7 @@ export default function Footer() {
               Quick Links
             </h3>
             <ul className="space-y-2">
-              {quickLinks.map((link) => (
+              {footerData.quickLinks?.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
@@ -99,7 +155,7 @@ export default function Footer() {
               Sevas
             </h3>
             <ul className="space-y-2">
-              {sevasLinks.map((link) => (
+              {footerData.sevasLinks?.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
@@ -119,7 +175,7 @@ export default function Footer() {
               Calendar
             </h3>
             <ul className="space-y-2">
-              {calendarLinks.map((link) => (
+              {footerData.calendarLinks?.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
@@ -139,32 +195,48 @@ export default function Footer() {
               Contact Us
             </h3>
             <div className="space-y-3">
-              <motion.a
-                href="https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex items-start gap-2.5 text-sm transition-colors hover:text-amber-400"
-                whileHover={{ x: 4 }}
-              >
-                <MapPin size={16} className="mt-0.5 flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
-                <span className="leading-snug">Sri Rayara Matha, Yelahanka New Town, Bengaluru</span>
-              </motion.a>
-              <motion.a
-                href="tel:+919886364462"
-                className="group flex items-center gap-2.5 text-sm transition-colors hover:text-amber-400"
-                whileHover={{ x: 4 }}
-              >
-                <Phone size={16} className="flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
-                +91 9886364462
-              </motion.a>
-              <motion.a
-                href="mailto:ngowda759@gmail.com"
-                className="group flex items-center gap-2.5 text-sm transition-colors hover:text-amber-400"
-                whileHover={{ x: 4 }}
-              >
-                <Mail size={16} className="flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
-                <span className="truncate">ngowda759@gmail.com</span>
-              </motion.a>
+              {footerData.address && (
+                <motion.a
+                  href={footerData.mapUrl || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-start gap-2.5 text-sm transition-colors hover:text-amber-400"
+                  whileHover={{ x: 4 }}
+                >
+                  <MapPin size={16} className="mt-0.5 flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
+                  <span className="leading-snug">{footerData.address}</span>
+                </motion.a>
+              )}
+              {footerData.phone && (
+                <motion.a
+                  href={`tel:${footerData.phone.replace(/\s/g, '')}`}
+                  className="group flex items-center gap-2.5 text-sm transition-colors hover:text-amber-400"
+                  whileHover={{ x: 4 }}
+                >
+                  <Phone size={16} className="flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
+                  {footerData.phone}
+                </motion.a>
+              )}
+              {footerData.phone2 && (
+                <motion.a
+                  href={`tel:${footerData.phone2.replace(/\s/g, '')}`}
+                  className="group flex items-center gap-2.5 text-sm transition-colors hover:text-amber-400"
+                  whileHover={{ x: 4 }}
+                >
+                  <Phone size={16} className="flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
+                  {footerData.phone2}
+                </motion.a>
+              )}
+              {footerData.email && (
+                <motion.a
+                  href={`mailto:${footerData.email}`}
+                  className="group flex items-center gap-2.5 text-sm transition-colors hover:text-amber-400"
+                  whileHover={{ x: 4 }}
+                >
+                  <Mail size={16} className="flex-shrink-0 text-amber-500 group-hover:text-amber-400" />
+                  <span className="truncate">{footerData.email}</span>
+                </motion.a>
+              )}
             </div>
           </address>
 
@@ -183,9 +255,9 @@ export default function Footer() {
               className="flex items-center gap-2"
               whileHover={{ scale: 1.02 }}
             >
-              <span>© 2026 Sri Raghavendra Swamy Matha</span>
+              <span>© {copyrightYear} {footerData.templeName}</span>
               <Heart size={14} className="fill-red-500 text-red-500 animate-pulse" />
-              <span>Built with devotion</span>
+              <span>{footerData.copyrightText}</span>
             </motion.p>
             <p className="text-stone-500">ॐ Sri Raghavendraya Namaha ॐ</p>
           </div>
