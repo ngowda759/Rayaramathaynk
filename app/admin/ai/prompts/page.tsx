@@ -68,25 +68,29 @@ export default function PromptManagerPage() {
 
   const handleCreateNew = async () => {
     const name = prompt("Enter prompt name:");
-    if (!name) return;
+    if (!name || !name.trim()) return;
     
     try {
       const response = await fetch("/api/ai/settings/prompts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
+          name: name.trim(),
           content: "# New Prompt\n\nEnter your prompt content here...",
           status: "draft",
         }),
       });
       
+      const data = await response.json();
+      
       if (response.ok) {
-        showMsg("success", "Prompt created successfully");
+        showMsg("success", data.message || "Prompt created successfully");
         loadPrompts();
+      } else {
+        showMsg("error", data.error || "Failed to create prompt");
       }
     } catch (error) {
-      showMsg("error", "Failed to create prompt");
+      showMsg("error", "Failed to create prompt. Please try again.");
     }
   };
 
