@@ -74,6 +74,7 @@ export default function TempleAreasPage() {
       const response = await fetch("/api/admin/temple-areas");
       const result = await response.json();
       if (result.success) {
+        console.log("[TempleAreas] Loaded areas:", result.areas);
         setAreas(result.areas);
         setError(null);
       } else {
@@ -124,12 +125,16 @@ export default function TempleAreasPage() {
         : "/api/admin/temple-areas";
       const method = editDialog.area ? "PUT" : "POST";
       
+      console.log("[TempleAreas] Saving area:", { url, method, area });
+      
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(area),
       });
       const result = await response.json();
+      
+      console.log("[TempleAreas] Save result:", result);
       
       if (result.success) {
         toast.success(editDialog.area ? "Temple area updated successfully" : "Temple area created successfully");
@@ -253,7 +258,10 @@ export default function TempleAreasPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setEditDialog({ open: true, area })}
+                            onClick={() => {
+                              console.log("[TempleAreas] Edit clicked for area:", area);
+                              setEditDialog({ open: true, area });
+                            }}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
