@@ -215,5 +215,22 @@ service cloud.firestore {
       allow create: if true;
       allow update, delete: if isAdmin();
     }
+
+    // Temple Areas collection (Temple Explorer)
+    match /temple_areas/{areaId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Knowledge Centre collections
+    match /knowledge_articles/{articleId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /knowledge_categories/{categoryId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
   }
 }
