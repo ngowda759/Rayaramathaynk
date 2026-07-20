@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { TempleArea, TempleAreaCategory, CATEGORY_LABELS, CATEGORY_COLORS } from "@/types/temple-explorer";
-import { templeAreasService } from "@/services/temple-areas.service";
+import toast from "react-hot-toast";
 import { 
   Compass, PlusCircle, Pencil, Trash2, 
   MapPin, Clock, ChevronDown, ChevronRight,
@@ -42,9 +42,14 @@ export default function TempleAreasPage() {
   const loadAreas = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await templeAreasService.getAreas();
-      setAreas(data);
-      setError(null);
+      const response = await fetch("/api/admin/temple-areas");
+      const result = await response.json();
+      if (result.success) {
+        setAreas(result.areas);
+        setError(null);
+      } else {
+        setError(result.error || "Failed to load temple areas");
+      }
     } catch (err) {
       console.error("Failed to load temple areas:", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -62,11 +67,21 @@ export default function TempleAreasPage() {
     
     setSaving(true);
     try {
-      await templeAreasService.deleteArea(deleteDialog.area.id);
-      setDeleteDialog({ open: false, area: null });
-      loadAreas();
+      const response = await fetch(`/api/admin/temple-areas/${deleteDialog.area.id}`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success("Temple area deleted successfully");
+        setDeleteDialog({ open: false, area: null });
+        loadAreas();
+      } else {
+        toast.error(result.error || "Failed to delete area");
+      }
     } catch (err) {
       console.error("Failed to delete area:", err);
+      toast.error("Failed to delete area");
     } finally {
       setSaving(false);
     }
@@ -75,15 +90,28 @@ export default function TempleAreasPage() {
   const handleSave = async (area: Partial<TempleArea>) => {
     setSaving(true);
     try {
-      if (editDialog.area) {
-        await templeAreasService.updateArea(editDialog.area.id, area);
+      const url = editDialog.area 
+        ? `/api/admin/temple-areas/${editDialog.area.id}` 
+        : "/api/admin/temple-areas";
+      const method = editDialog.area ? "PUT" : "POST";
+      
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(area),
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success(editDialog.area ? "Temple area updated successfully" : "Temple area created successfully");
+        setEditDialog({ open: false, area: null });
+        loadAreas();
       } else {
-        await templeAreasService.addArea(area as Omit<TempleArea, "id">);
+        toast.error(result.error || "Failed to save area");
       }
-      setEditDialog({ open: false, area: null });
-      loadAreas();
     } catch (err) {
       console.error("Failed to save area:", err);
+      toast.error("Failed to save area");
     } finally {
       setSaving(false);
     }
