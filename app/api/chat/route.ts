@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     let responseMessage: AIMessage | undefined;
     let responseSource: "hybrid" | "ai" | "firebase" = "hybrid";
     let lastResult: { intent?: string; confidence?: number; source?: string } | undefined;
-    let resolvedSessionId = sessionId || "";
+    const resolvedSessionId = sessionId || "";
 
     // Try hybrid mode first (uses structured retrieval)
     if (USE_HYBRID_MODE) {

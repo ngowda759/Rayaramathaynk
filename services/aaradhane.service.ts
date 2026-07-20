@@ -82,7 +82,7 @@ function eventDocToAaradhane(docSnap: any): Aaradhane {
   const guruName = data.guru || data.guruName || data.guru || data.name || "";
   
   // Convert startDate/endDate to dates array (formatted as "DD Month YYYY")
-  let dates: string[] = [];
+  const dates: string[] = [];
   if (data.startDate) {
     let startDate: Date;
     if (data.startDate.toDate && typeof data.startDate.toDate === "function") {

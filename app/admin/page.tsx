@@ -105,7 +105,7 @@ export default function DashboardPage() {
         const upcomingSnap = await getCountFromServer(query(collection(db, "events"), where("date", ">=", now.toISOString())));
 
         // Fetch AI analytics from API
-        let aiAnalytics = { avgResponseTime: "0s", successRate: "0%", languages: { english: 0, kannada: 0, mixed: 0 }, topIntents: [] as Array<{ intent: string; count: number }>, totalMessages: 0 };
+        const aiAnalytics = { avgResponseTime: "0s", successRate: "0%", languages: { english: 0, kannada: 0, mixed: 0 }, topIntents: [] as Array<{ intent: string; count: number }>, totalMessages: 0 };
         
         try {
           const aiResponse = await fetch("/api/ai/analytics");
@@ -253,7 +253,7 @@ export default function DashboardPage() {
   }, []);
 
   const hour = new Date().getHours();
-  let greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
   const userName = profile?.name || "Admin";
 
   return (

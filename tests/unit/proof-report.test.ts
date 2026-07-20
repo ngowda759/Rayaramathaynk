@@ -100,13 +100,19 @@ describe('Proof Report Generator', () => {
       const futureDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
       const pastDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
       
-      const mockEvents = [
+      interface MockEvent {
+        startDate: Date;
+        endDate: Date;
+        published: boolean;
+      }
+
+      const mockEvents: MockEvent[] = [
         { startDate: futureDate, endDate: futureDate, published: true },
         { startDate: pastDate, endDate: pastDate, published: true },
       ];
 
-      const upcoming = dbExport.getUpcomingEvents(mockEvents as any);
-      const past = dbExport.getPastEvents(mockEvents as any);
+      const upcoming = dbExport.getUpcomingEvents(mockEvents);
+      const past = dbExport.getPastEvents(mockEvents);
 
       expect(upcoming.length).toBe(1);
       expect(past.length).toBe(1);

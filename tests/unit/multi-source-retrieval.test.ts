@@ -79,7 +79,7 @@ describe("Multi-source Retrieval Types", () => {
 
   describe("SourceResult", () => {
     it("should track successful retrieval", () => {
-      const result: SourceResult<any> = {
+      const result: SourceResult<Record<string, string>> = {
         source: "settings",
         data: { name: "Temple" },
         retrieved: true,
@@ -92,7 +92,7 @@ describe("Multi-source Retrieval Types", () => {
     });
 
     it("should track failed retrieval with error", () => {
-      const result: SourceResult<any> = {
+      const result: SourceResult<null> = {
         source: "events",
         data: null,
         retrieved: false,
@@ -163,17 +163,22 @@ describe("Quick Queries", () => {
 
 describe("Combined Response Generation", () => {
   // Simulate the response generation logic
+  interface TempleSettings {
+    name: string;
+    address: string;
+  }
+
   const generateCombinedResponse = (
     query: string,
-    results: Partial<Record<DataSource, SourceResult<any>>>,
+    results: Partial<Record<DataSource, SourceResult<Record<string, unknown>>>>,
     language: "en" | "kn" | "mixed" = "en"
   ): string => {
     const parts: string[] = [];
 
     if (results.settings?.data) {
-      const { settings } = results.settings.data as { settings: any };
-      parts.push(`Temple: ${settings.name}`);
-      parts.push(`Address: ${settings.address}`);
+      const data = results.settings.data as TempleSettings;
+      parts.push(`Temple: ${data.name}`);
+      parts.push(`Address: ${data.address}`);
     }
 
     if (results.panchanga?.data) {

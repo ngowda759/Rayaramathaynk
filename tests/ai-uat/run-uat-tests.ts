@@ -4,6 +4,9 @@
  * Runs all UAT tests and generates reports
  */
 
+import fs from "fs";
+import path from "path";
+
 import {
   ALL_UAT_TESTS,
   TEST_STATS,
@@ -259,9 +262,6 @@ async function runAllTests(): Promise<void> {
   }
   
   // Save report to file
-  const fs = require("fs");
-  const path = require("path");
-  
   const reportsDir = path.join(__dirname, "../../reports/ai-uat");
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });

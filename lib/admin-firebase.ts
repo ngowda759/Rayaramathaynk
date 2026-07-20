@@ -8,38 +8,38 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { cert, getApps, initializeApp, getApps as getAppList, App } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
+
+type AdminModule = typeof import("firebase-admin");
 
 // Use dynamic import for firebase-admin to avoid ESM/CJS interop issues
-let admin: any = null;
-let adminApp: any = null;
-let adminDb: any = null;
+let adminModule: AdminModule | null = null;
+let adminApp: App | null = null;
+let adminDb: Firestore | null = null;
 
-async function loadAdminModule() {
-  if (!admin) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const adminModule = require("firebase-admin");
-    admin = adminModule;
+async function loadAdminModule(): Promise<AdminModule> {
+  if (!adminModule) {
+    const mod = await import("firebase-admin");
+    adminModule = mod.default || mod;
   }
-  return admin;
+  return adminModule;
 }
 
 /**
  * Initialize Firebase Admin SDK
  * Reads credentials from firebase-admin.json in the project root
  */
-export async function initializeAdminApp(): Promise<any> {
+export async function initializeAdminApp(): Promise<App> {
   if (adminApp) {
     return adminApp;
   }
 
   try {
-    await loadAdminModule();
-    
     // Check if already initialized
-    const getApps = admin.getApps || (() => []);
-    const existingApps = getApps();
+    const existingApps = getAppList();
     if (existingApps.length > 0) {
-      adminApp = existingApps[0];
+      adminApp = existingApps[0]!;
       return adminApp;
     }
 
@@ -52,14 +52,8 @@ export async function initializeAdminApp(): Promise<any> {
     
     const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
     
-    // Use admin.cert if available, otherwise try admin.credential.cert
-    const certFn = admin.cert || (admin.credential && admin.credential.cert);
-    if (!certFn) {
-      throw new Error("Firebase Admin SDK does not have cert function available");
-    }
-    
-    adminApp = admin.initializeApp({
-      credential: certFn(serviceAccount),
+    adminApp = initializeApp({
+      credential: cert(serviceAccount),
       projectId: serviceAccount.project_id,
     });
 
@@ -74,10 +68,10 @@ export async function initializeAdminApp(): Promise<any> {
 /**
  * Get the Admin Firestore instance
  */
-export async function getAdminFirestore(): Promise<any> {
+export async function getAdminFirestore(): Promise<Firestore> {
   if (!adminDb) {
     await initializeAdminApp();
-    adminDb = admin.firestore();
+    adminDb = getFirestore();
   }
   return adminDb;
 }
@@ -85,21 +79,21 @@ export async function getAdminFirestore(): Promise<any> {
 /**
  * Convenience function to get admin app
  */
-export async function getAdminApp(): Promise<any> {
+export async function getAdminApp(): Promise<App> {
   if (!adminApp) {
     await initializeAdminApp();
   }
-  return adminApp;
+  return adminApp!;
 }
 
 /**
  * Get the admin module directly
  */
-export async function getAdmin(): Promise<any> {
-  if (!admin) {
+export async function getAdmin(): Promise<AdminModule> {
+  if (!adminModule) {
     await loadAdminModule();
   }
-  return admin;
+  return adminModule!;
 }
 
 export { adminApp, adminDb };
