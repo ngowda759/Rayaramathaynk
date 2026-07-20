@@ -99,6 +99,21 @@ export interface HomepageConfig {
     isOngoing?: boolean;
   };
 
+  /**
+   * Hero Stats Section - Configurable statistics below the hero buttons
+   */
+  heroStats?: {
+    stat1Label: string;
+    stat1Value: string;
+    stat1Description: string;
+    stat2Label: string;
+    stat2Value: string;
+    stat2Description: string;
+    stat3Label: string;
+    stat3Value: string;
+    stat3Description: string;
+  };
+
   updatedAt?: any;
 }
 

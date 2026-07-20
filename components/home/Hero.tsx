@@ -99,6 +99,19 @@ export default function Hero() {
   const featuredFestival = homepage?.featuredFestival ?? "";
   const featuredFestivalDescription = homepage?.featuredFestivalDescription ?? "Coming Soon";
 
+  // Hero Stats - use settings or fall back to defaults
+  const heroStats = homepage?.heroStats ?? {
+    stat1Label: "Daily",
+    stat1Value: "Pooja",
+    stat1Description: "",
+    stat2Label: "365",
+    stat2Value: "Days of Seva",
+    stat2Description: "",
+    stat3Label: "Guru",
+    stat3Value: "Blessings",
+    stat3Description: "",
+  };
+
   return (
     <section ref={containerRef} className="relative overflow-hidden bg-sacred-gradient">
       {/* Floating particles background */}
@@ -217,18 +230,18 @@ export default function Hero() {
               className="mt-14 flex flex-wrap gap-10"
             >
               <div>
-                <h2 className="text-4xl font-bold text-amber-600">Daily</h2>
-                <p className="mt-2 text-stone-600">Pooja</p>
+                <h2 className="text-4xl font-bold text-amber-600">{heroStats.stat1Label}</h2>
+                <p className="mt-2 text-stone-600">{heroStats.stat1Value}</p>
               </div>
 
               <div>
-                <h2 className="text-4xl font-bold text-amber-600">365</h2>
-                <p className="mt-2 text-stone-600">Days of Seva</p>
+                <h2 className="text-4xl font-bold text-amber-600">{heroStats.stat2Label}</h2>
+                <p className="mt-2 text-stone-600">{heroStats.stat2Value}</p>
               </div>
 
               <div>
-                <h2 className="text-4xl font-bold text-amber-600">Guru</h2>
-                <p className="mt-2 text-stone-600">Blessings</p>
+                <h2 className="text-4xl font-bold text-amber-600">{heroStats.stat3Label}</h2>
+                <p className="mt-2 text-stone-600">{heroStats.stat3Value}</p>
               </div>
             </motion.div>
           </motion.div>

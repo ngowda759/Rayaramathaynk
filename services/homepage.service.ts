@@ -110,6 +110,19 @@ class HomepageService {
         gulikaKalam: "",
         masa: "",
       },
+
+      // Hero Stats Section
+      heroStats: {
+        stat1Label: "Daily",
+        stat1Value: "Pooja",
+        stat1Description: "",
+        stat2Label: "365",
+        stat2Value: "Days of Seva",
+        stat2Description: "",
+        stat3Label: "Guru",
+        stat3Value: "Blessings",
+        stat3Description: "",
+      },
     };
   }
 }
