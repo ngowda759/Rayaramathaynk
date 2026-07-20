@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { templeAreasService } from "@/services/temple-areas.service";
+import { addDocument } from "@/lib/firebase-admin-rest";
+
+const COLLECTION = "temple_areas";
 
 export async function GET() {
   try {
@@ -22,7 +25,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Category is required" }, { status: 400 });
     }
 
-    await templeAreasService.addArea(body);
+    // Use REST Admin SDK for write operations (bypasses security rules)
+    await addDocument(COLLECTION, {
+      ...body,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    
     return NextResponse.json({ success: true, message: "Temple area created successfully" }, { status: 201 });
   } catch (error) {
     console.error("[API] Error creating temple area:", error);

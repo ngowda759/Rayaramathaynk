@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import {
   getArticleById,
-  updateArticle,
-  deleteArticle,
-  approveArticle,
   clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
-import { KnowledgeArticleUpdate } from "@/lib/ai/knowledge/types";
+import { updateDocument, deleteDocument } from "@/lib/firebase-admin-rest";
+
+const COLLECTION_NAME = "knowledge";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +44,7 @@ export async function GET(
 /**
  * PUT /api/admin/knowledge/[id]
  * Update a knowledge article (auto-approve for admin)
+ * Uses REST Admin SDK to bypass security rules
  */
 export async function PUT(
   request: Request,
@@ -55,17 +55,18 @@ export async function PUT(
     const body = await request.json();
     const { title, content, keywords, category, language, slug } = body;
 
-    const updateData: KnowledgeArticleUpdate = {};
+    // Use REST Admin SDK for write operations (bypasses security rules)
+    await updateDocument(COLLECTION_NAME, id, {
+      ...(title !== undefined && { title }),
+      ...(content !== undefined && { content }),
+      ...(keywords !== undefined && { keywords }),
+      ...(category !== undefined && { category }),
+      ...(language !== undefined && { language }),
+      ...(slug !== undefined && { slug }),
+      approved: true,
+      updatedAt: new Date(),
+    });
 
-    if (title !== undefined) updateData.title = title;
-    if (content !== undefined) updateData.content = content;
-    if (keywords !== undefined) updateData.keywords = keywords;
-    if (category !== undefined) updateData.category = category;
-    if (language !== undefined) updateData.language = language;
-    if (slug !== undefined) updateData.slug = slug;
-
-    await updateArticle(id, updateData);
-    await approveArticle(id);
     clearKnowledgeCache();
 
     return NextResponse.json({
@@ -84,6 +85,7 @@ export async function PUT(
 /**
  * DELETE /api/admin/knowledge/[id]
  * Delete a knowledge article
+ * Uses REST Admin SDK to bypass security rules
  */
 export async function DELETE(
   request: Request,
@@ -91,7 +93,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await deleteArticle(id);
+
+    // Use REST Admin SDK for write operations (bypasses security rules)
+    await deleteDocument(COLLECTION_NAME, id);
     clearKnowledgeCache();
     
     return NextResponse.json({
