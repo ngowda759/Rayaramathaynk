@@ -1072,32 +1072,20 @@
           ],
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/aaradhane",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "aaradhane"]
             },
-            "description": "Get all aaradhane entries (requires Firebase auth)"
+            "description": "Get all aaradhane entries from Firestore"
           }
         },
         {
           "name": "Get Aaradhane by ID",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/aaradhane/:id",
               "host": ["{{baseUrl}}"],
@@ -1121,16 +1109,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Sri Madhvacharya Aaradhane\",\n  \"description\": \"Founder of Dvaita philosophy\",\n  \"guru\": \"Sri Madhvacharya\",\n  \"startDate\": \"2026-03-28\",\n  \"endDate\": \"2026-03-30\",\n  \"importance\": \"major\",\n  \"category\": \"Aaradhane\"\n}"
+              "raw": "{\n  \"title\": \"Sri Madhvacharya Aaradhane\",\n  \"description\": \"Founder of Dvaita philosophy\",\n  \"guru\": \"Sri Madhvacharya\",\n  \"startDate\": \"2026-03-28\",\n  \"endDate\": \"2026-03-30\",\n  \"importance\": \"major\",\n  \"category\": \"Aaradhane\",\n  \"published\": true,\n  \"displayOrder\": 1\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/admin/aaradhane",
@@ -1148,11 +1131,6 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
               }
             ],
             "body": {
@@ -1178,13 +1156,7 @@
           "name": "Delete Aaradhane",
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/aaradhane/:id",
               "host": ["{{baseUrl}}"],
@@ -1209,32 +1181,20 @@
           "name": "Get All Prompts",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/prompts",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "prompts"]
             },
-            "description": "Get all AI prompts"
+            "description": "Get all AI prompt versions"
           }
         },
         {
           "name": "Get Prompt by ID",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/prompts/:id",
               "host": ["{{baseUrl}}"],
@@ -1243,7 +1203,7 @@
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Prompt ID"
+                  "description": "Prompt version ID"
                 }
               ]
             },
@@ -1258,16 +1218,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"You are Raya AI, a helpful assistant for Sri Raghavendra Swamy Matha...\",\n  \"name\": \"New Prompt v1\",\n  \"changeNotes\": \"Initial version\"\n}"
+              "raw": "{\n  \"content\": \"You are Raya AI, a helpful assistant for Sri Raghavendra Swamy Matha...\",\n  \"name\": \"New Prompt v1\",\n  \"changeNotes\": \"Initial version\",\n  \"status\": \"draft\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/admin/prompts",
@@ -1285,51 +1240,25 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"Updated prompt content...\",\n  \"changeNotes\": \"Updated based on feedback\"\n}"
+              "raw": "{\n  \"versionId\": \"prompt-version-id\",\n  \"action\": \"update\",\n  \"content\": \"Updated prompt content...\",\n  \"changeNotes\": \"Updated based on feedback\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/admin/prompts/:id",
+              "raw": "{{baseUrl}}/api/admin/prompts",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "prompts", ":id"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "",
-                  "description": "Prompt ID"
-                }
-              ]
+              "path": ["api", "admin", "prompts"]
             },
-            "description": "Update a prompt"
+            "description": "Update a prompt version. Actions: update, publish, rollback"
           }
         },
         {
           "name": "Publish Prompt",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{}"
-            },
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/prompts/:id/publish",
               "host": ["{{baseUrl}}"],
@@ -1338,7 +1267,7 @@
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Prompt ID to publish"
+                  "description": "Prompt version ID to publish"
                 }
               ]
             },
@@ -1346,16 +1275,10 @@
           }
         },
         {
-          "name": "Delete Prompt",
+          "name": "Delete/Archive Prompt",
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/admin/prompts/:id",
               "host": ["{{baseUrl}}"],
@@ -1364,11 +1287,11 @@
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Prompt ID"
+                  "description": "Prompt version ID"
                 }
               ]
             },
-            "description": "Delete a prompt version"
+            "description": "Archive a prompt version (cannot delete currently active)"
           }
         }
       ]
