@@ -112,17 +112,6 @@ const iconMap: Record<string, React.ComponentType<{ size?: number; className?: s
   Sparkles,
 };
 
-const colorOptions = [
-  "from-orange-500 to-amber-500",
-  "from-blue-500 to-cyan-500",
-  "from-green-500 to-emerald-500",
-  "from-amber-500 to-yellow-500",
-  "from-purple-500 to-pink-500",
-  "from-rose-500 to-red-500",
-  "from-teal-500 to-cyan-500",
-  "from-indigo-500 to-purple-500",
-];
-
 export default function FacilitiesPage() {
   const [data, setData] = useState<FacilitiesData>(defaultData);
   const [loading, setLoading] = useState(true);

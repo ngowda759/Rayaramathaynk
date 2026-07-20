@@ -77,7 +77,7 @@ export class FirestoreRestClient {
   /**
    * Convert JavaScript object to Firestore field format
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private convertToFirestoreFields(data: Record<string, any>): Record<string, any> {
     const fields: Record<string, unknown> = {};
 

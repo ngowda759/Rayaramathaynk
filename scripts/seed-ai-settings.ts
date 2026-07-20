@@ -6,8 +6,8 @@
  * Or: npx tsx scripts/seed-ai-settings.ts
  */
 
-const admin = require("firebase-admin");
-const fs = require("fs");
+import admin from "firebase-admin";
+import fs from "fs";
 
 // Initialize Firebase Admin
 function initFirebase() {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import { XCircle, Heart, RefreshCcw } from "lucide-react";
+import { XCircle, RefreshCcw } from "lucide-react";
 
 export default function DonationFailurePage() {
   return (

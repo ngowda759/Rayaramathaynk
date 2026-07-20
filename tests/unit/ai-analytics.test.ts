@@ -3,6 +3,37 @@
 
 import { Intent, IntentCategory } from "@/lib/ai/intent/types";
 
+// Define types to avoid any
+interface HealthIssue {
+  type: "timeout" | "error" | "rate_limit" | "api_failure";
+  message: string;
+  startedAt: number;
+  frequency: number;
+}
+
+interface TokenRecord {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+}
+
+interface LatencyRecord {
+  timestamp: number;
+  intent: number;
+  retrieval: number;
+  generation: number;
+  total: number;
+}
+
+interface IntentRecord {
+  intent: string;
+  category: string;
+  confidence: number;
+  timestamp: number;
+}
+
 // Mock Firebase
 jest.mock("@/lib/firebase", () => ({
   db: {
@@ -174,7 +205,7 @@ describe("AI Analytics Types", () => {
         apiLatency: number;
         errorRate: number;
         uptime: number;
-        issues: any[];
+        issues: HealthIssue[];
       } = {
         status: "healthy",
         lastChecked: Date.now(),
@@ -195,7 +226,7 @@ describe("AI Analytics Types", () => {
         apiLatency: number;
         errorRate: number;
         uptime: number;
-        issues: any[];
+        issues: HealthIssue[];
       } = {
         status: "degraded",
         lastChecked: Date.now(),
@@ -220,7 +251,7 @@ describe("AI Analytics Types", () => {
 });
 
 describe("Token Usage Calculations", () => {
-  const calculateTokenSummary = (records: any[]) => {
+  const calculateTokenSummary = (records: TokenRecord[]) => {
     const byModel: Record<string, { totalTokens: number; totalCost: number; requestCount: number }> = {};
     const byIntent: Record<string, { totalTokens: number; requestCount: number }> = {};
     
@@ -334,7 +365,7 @@ describe("Token Usage Calculations", () => {
 });
 
 describe("Latency Calculations", () => {
-  const calculateLatencySummary = (records: any[]) => {
+  const calculateLatencySummary = (records: LatencyRecord[]) => {
     if (records.length === 0) {
       return {
         averageTotalLatency: 0,
@@ -412,7 +443,7 @@ describe("Latency Calculations", () => {
 });
 
 describe("Intent Distribution Calculations", () => {
-  const calculateIntentSummary = (records: any[]) => {
+  const calculateIntentSummary = (records: IntentRecord[]) => {
     const byIntent: Record<string, number> = {};
     const byCategory: Record<string, number> = {};
     const byLanguage: Record<string, number> = {};
@@ -486,7 +517,7 @@ describe("Intent Distribution Calculations", () => {
 });
 
 describe("Unknown Questions Calculations", () => {
-  const calculateUnknownSummary = (records: any[]) => {
+  const calculateUnknownSummary = (records: { question: string; confidence: number; intent: string }[]) => {
     const byIntent: Record<string, number> = {};
     let helpful = 0;
     let not_helpful = 0;
