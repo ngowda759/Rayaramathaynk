@@ -359,6 +359,19 @@ class DailySpiritualService {
   }
 
   /**
+   * Get announcement2 from homepage settings
+   */
+  async getAnnouncement2(): Promise<string | null> {
+    try {
+      const homepage = await homepageService.getHomepage();
+      return homepage.announcement2 || null;
+    } catch (error) {
+      console.error("Error fetching announcement2 from homepage:", error);
+      return null;
+    }
+  }
+
+  /**
    * Get complete dashboard data
    */
   async getDashboardData(): Promise<DailySpiritualDashboard> {
@@ -367,11 +380,13 @@ class DailySpiritualService {
       featuredEvent,
       announcements,
       quote,
+      announcement2,
     ] = await Promise.all([
       this.getTempleStatus(),
       this.getFeaturedEvent(),
       this.getActiveAnnouncements(),
       this.getDailyQuote(),
+      this.getAnnouncement2(),
     ]);
 
     return {
@@ -379,6 +394,7 @@ class DailySpiritualService {
       quote,
       featuredEvent,
       announcements,
+      announcement2,
       lastUpdated: new Date().toISOString(),
     };
   }

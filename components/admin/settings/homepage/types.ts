@@ -12,6 +12,7 @@ export type HomepageValidationErrors = Partial<
     | "heroSubtitle"
     | "heroImage"
     | "announcement"
+    | "announcement2"
     | "morningOpen"
     | "morningClose"
     | "eveningOpen"

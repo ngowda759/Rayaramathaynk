@@ -25,6 +25,7 @@ interface DailySpiritualDashboardProps {
     quote: DailyQuote | null;
     featuredEvent: FeaturedEvent | null;
     announcements: Announcement[];
+    announcement2: string | null;
   } | null;
 }
 
@@ -43,6 +44,39 @@ function formatDate(date: Date): string {
     month: "long",
     year: "numeric",
   });
+}
+
+/**
+ * Featured Announcement Banner Widget
+ * Displays the dashboard announcement (announcement2) as a prominent banner
+ */
+function FeaturedAnnouncementBanner({ text }: { text: string | null }) {
+  if (!text) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0 }}
+      className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 p-1"
+    >
+      <div className="rounded-xl bg-white px-6 py-4">
+        <div className="flex items-start gap-4">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
+            <Star className="h-5 w-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium uppercase tracking-wide text-amber-600">
+              Special Announcement
+            </p>
+            <p className="mt-1 text-lg font-semibold text-stone-900">
+              {text}
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 }
 
 /**
@@ -357,6 +391,9 @@ export default function DailySpiritualDashboard({
             {formatDate(currentTime)}
           </p>
         </motion.div>
+
+        {/* Featured Announcement Banner */}
+        <FeaturedAnnouncementBanner text={data.announcement2} />
 
         {/* Dashboard Grid - 3 cards */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
