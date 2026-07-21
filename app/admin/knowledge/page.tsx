@@ -24,6 +24,7 @@ import {
   KnowledgeCategory,
   CATEGORY_DISPLAY_NAMES,
 } from "@/lib/ai/knowledge/types";
+import { cn } from "@/lib/utils";
 
 interface KnowledgeArticleWithActions extends KnowledgeArticle {
   isEditing?: boolean;
@@ -98,9 +99,10 @@ export default function KnowledgeBasePage() {
     });
   };
 
-  const saveArticle = async () => {
+  const saveArticle = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!editingId) return;
-    
+
     setSaving(true);
     try {
       const response = await fetch(`/api/admin/knowledge/${editingId}`, {
@@ -307,16 +309,17 @@ export default function KnowledgeBasePage() {
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 -mr-2">
           {filteredArticles.map((article) => (
             <div key={article.id} className="bg-white rounded-xl shadow overflow-hidden">
               {editingId === article.id ? (
                 /* Edit Mode */
-                <div className="p-6 space-y-4">
+                <form onSubmit={saveArticle} className="p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
                     <div className="flex gap-2">
                       <button
+                        type="button"
                         onClick={cancelEditing}
                         className="flex items-center gap-1 px-3 py-1.5 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
                       >
@@ -324,7 +327,7 @@ export default function KnowledgeBasePage() {
                         Cancel
                       </button>
                       <button
-                        onClick={saveArticle}
+                        type="submit"
                         disabled={saving}
                         className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
                       >
@@ -359,7 +362,7 @@ export default function KnowledgeBasePage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
@@ -411,11 +414,11 @@ export default function KnowledgeBasePage() {
                       className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
                     />
                   </div>
-                </div>
+                </form>
               ) : (
                 /* View Mode */
                 <div className="p-6">
-                                      <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
