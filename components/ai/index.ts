@@ -8,3 +8,4 @@ export { TypingIndicator } from "./TypingIndicator";
 export { ChatInput } from "./ChatInput";
 export { SuggestedQuestions } from "./SuggestedQuestions";
 export { MarkdownRenderer } from "./MarkdownRenderer";
+export { QuickQuestionIcons } from "./QuickQuestionIcons";
