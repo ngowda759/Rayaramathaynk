@@ -60,6 +60,18 @@ const INTENT_EXAMPLES: Record<Intent, string[]> = {
   [Intent.FESTIVAL_INFO]: [
     "festival", "festivals", "celebration", "ಉತ್ಸವ"
   ],
+  [Intent.DAILY_QUOTE]: [
+    "today's quote", "quote of the day", "daily quote", "give me today's quote",
+    "devotional quote", "spiritual quote", "rayaru quote", "guru quote",
+    "verse for today", "today's verse", "daily verse", "today's blessing",
+    "bless me rayaru", "today's prayer", "daily prayer", "daily inspiration",
+    "raghavendra quote", "mangalashtakam", "another quote", "one more quote",
+    "next verse", "different quote", "give me a sloka",
+    "ಇಂದಿನ ಸಂದೇಶ", "ಇಂದಿನ ಶ್ಲೋಕ", "ಇಂದಿನ ಉಲ್ಲೇಖ",
+    "ರಾಯರ ಸಂದೇಶ", "ರಾಯರ ವಾಕ್ಯ", "ಗುರು ಸಂದೇಶ",
+    "ಇಂದಿನ ಆಶೀರ್ವಾದ", "ಇಂದಿನ ಪ್ರಾರ್ಥನೆ",
+    "ರಾಯರ ಶ್ಲೋಕ", "ಮತ್ತೊಂದು ಉಲ್ಲೇಖ", "ಇನ್ನೊಂದು ಶ್ಲೋಕ"
+  ],
   [Intent.SPECIAL_SEVAS]: [
     "what sevas are available", "special sevas", "how to book a seva",
     "seva charges", "seva prices", "different sevas",
@@ -561,6 +573,8 @@ export class IntentDetector {
       case Intent.NEXT_AARADHANE:
       case Intent.FESTIVAL_INFO:
         return IntentCategory.EVENTS;
+      case Intent.DAILY_QUOTE:
+        return IntentCategory.DEVOTIONAL;
       case Intent.SPECIAL_SEVAS:
       case Intent.DAILY_POOJA:
       case Intent.ANNADANA:

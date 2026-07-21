@@ -213,6 +213,7 @@ function mapIntentToTopic(intent: string): string {
     LOCATION: "location",
     UPCOMING_EVENTS: "events",
     NEXT_AARADHANE: "aaradhane",
+    DAILY_QUOTE: "quote",
     SPECIAL_SEVAS: "sevas",
     DONATION: "donation",
     PANCHANGA: "panchanga",
@@ -259,6 +260,11 @@ export function detectFollowUp(
     // Event follow-ups
     { pattern: /^(event|festival|aaradhane)$/i, topic: "events" },
     
+    // Quote follow-ups
+    { pattern: /^(another|one more|next|different|other)$/i, topic: "quote" },
+    { pattern: /^(give me )?(another|one more|another)$/i, topic: "quote" },
+    { pattern: /^(ಮತ್ತೊಂದು|ಇನ್ನೊಂದು|ಬೇರೆ)/i, topic: "quote" },
+    
     // General follow-ups
     { pattern: /^(more|another|also|and|also)$/i, topic: lastTopic },
     { pattern: /^(tell me more|what about|and|also|too)$/i, topic: lastTopic },
@@ -283,8 +289,9 @@ export function detectFollowUp(
       "seva", "pooja", "sevas",
       "event", "events", "aaradhane",
       "donation", "donate", "80g",
+      "quote", "quotes", "verse", "sloka",
       "yes", "no", "okay", "ok",
-      "and", "also", "more"
+      "and", "also", "more", "another"
     ];
     
     if (singleWordFollowUps.includes(lowerMessage)) {

@@ -138,6 +138,37 @@ export const INTENT_PATTERNS: IntentPattern[] = [
     requiresStructuredData: true,
   },
 
+  // ==================== DEVOTIONAL CONTENT ====================
+  {
+    intent: Intent.DAILY_QUOTE,
+    category: IntentCategory.DEVOTIONAL,
+    priority: IntentPriority.DAILY_QUOTE,
+    keywords: {
+      en: [
+        "quote", "quotes", "daily quote", "today quote", "todays quote",
+        "quote of the day", "devotional quote", "spiritual quote",
+        "blessing", "blessings", "rayaru", "rayaru quote", "guru quote",
+        "verse", "verses", "verse of the day", "daily verse",
+        "prayer", "prayers", "daily prayer", "todays prayer",
+        "devotional message", "guru message", "inspiration",
+        "daily inspiration", "raghavendra quote", "mangalashtakam",
+        "stotra", "sloka", "shloka",
+        "another quote", "one more quote", "next verse", "different quote"
+      ],
+      kn: [
+        "ಉಲ್ಲೇಖ", "ದಿನದ ಉಲ್ಲೇಖ", "ಇಂದಿನ ಉಲ್ಲೇಖ",
+        "ರಾಯರ ಉಲ್ಲೇಖ", "ರಾಯರ ಸಂದೇಶ", "ಗುರು ಸಂದೇಶ",
+        "ಇಂದಿನ ಶ್ಲೋಕ", "ಇಂದಿನ ಸಂದೇಶ",
+        "ಇಂದಿನ ಪ್ರಾರ್ಥನೆ", "ಇಂದಿನ ಆಶೀರ್ವಾದ",
+        "ರಾಯರ ಶ್ಲೋಕ", "ಮಂಗಳಾಷ್ಟಕ",
+        "ಶ್ಲೋಕ", "ಸ್ತೋತ್ರ", "ವಚನ",
+        "ಮತ್ತೊಂದು ಉಲ್ಲೇಖ", "ಇನ್ನೊಂದು ಶ್ಲೋಕ",
+        "ಬೇರೆ ಉಲ್ಲೇಖ", "ಮತ್ತೊಂದು ವಚನ"
+      ]
+    },
+    requiresStructuredData: true,
+  },
+
   // ==================== SEVAS & WORSHIP ====================
   {
     intent: Intent.SPECIAL_SEVAS,

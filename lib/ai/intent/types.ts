@@ -14,6 +14,9 @@ export enum Intent {
   NEXT_AARADHANE = "NEXT_AARADHANE",
   FESTIVAL_INFO = "FESTIVAL_INFO",
   
+  // Devotional Content
+  DAILY_QUOTE = "DAILY_QUOTE",
+  
   // Sevas & Worship
   SPECIAL_SEVAS = "SPECIAL_SEVAS",
   DAILY_POOJA = "DAILY_POOJA",
@@ -77,6 +80,7 @@ export enum Intent {
 export enum IntentCategory {
   TEMPLE_INFO = "temple_info",
   EVENTS = "events",
+  DEVOTIONAL = "devotional",
   SEVAS = "sevas",
   DONATIONS = "donations",
   BOOKINGS = "bookings",
@@ -110,6 +114,8 @@ export enum IntentPriority {
   // Events
   NEXT_AARADHANE = 67,
   UPCOMING_EVENTS = 66,
+  // Devotional Content
+  DAILY_QUOTE = 69, // High priority - specific quote requests
   // Sevas
   SEVA_BOOKING = 64,
   DAILY_POOJA = 63, // Higher than TEMPLE_TIMINGS - "pooja" is specific
