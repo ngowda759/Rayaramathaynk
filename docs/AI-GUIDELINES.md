@@ -80,6 +80,7 @@ const KANNADA_RANGE = /[\u0C80-\u0CFF]/;
 | `DONATION_80G` | 80G certificate | donations |
 | `ANNOUNCEMENTS` | Current announcements | announcements |
 | `PANCHANGA` | Today's panchanga | panchanga |
+| `DAILY_QUOTE` | Today's devotional quote | quotes |
 | `TEMPLE_HISTORY` | History of temple | knowledge |
 | `SRI_RAGHAVENDRA` | About the saint | knowledge |
 | `MADHWA_PHILOSOPHY` | Philosophy | knowledge |
@@ -106,6 +107,66 @@ Language Detection (en/kn/mixed)
 Pattern Matching (keyword-based)
      ↓
 Intent + Confidence Score
+```
+
+### DAILY_QUOTE Intent
+
+The `DAILY_QUOTE` intent provides today's devotional quote from the Quote Engine. This intent:
+
+- **Never generates quotes** - Always retrieves from `QuoteService`
+- **Supports multilingual queries** - English, Kannada, and mixed language
+- **Includes awareness features** - Festival, Thursday, and Panchanga awareness
+- **Supports follow-up queries** - "another quote", "one more", etc.
+
+#### Supported Query Patterns
+
+**English:**
+- "today's quote", "quote of the day", "daily quote"
+- "devotional quote", "spiritual quote"
+- "rayaru quote", "guru quote", "raghavendra quote"
+- "verse of the day", "today's blessing"
+- "daily prayer", "sloka", "stotra"
+- "mangalashtakam", "another quote", "one more"
+
+**Kannada (ಕನ್ನಡ):**
+- "ಇಂದಿನ ಉಲ್ಲೇಖ", "ದಿನದ ಉಲ್ಲೇಖ"
+- "ಇಂದಿನ ಶ್ಲೋಕ", "ಇಂದಿನ ಸಂದೇಶ"
+- "ರಾಯರ ಸಂದೇಶ", "ಗುರು ಸಂದೇಶ"
+- "ಇಂದಿನ ಆಶೀರ್ವಾದ", "ಇಂದಿನ ಪ್ರಾರ್ಥನೆ"
+- "ರಾಯರ ಶ್ಲೋಕ", "ಮಂಗಳಾಷ್ಟಕ"
+- "ಮತ್ತೊಂದು ಉಲ್ಲೇಖ", "ಇನ್ನೊಂದು ಶ್ಲೋಕ"
+
+#### Response Features
+
+**Festival Awareness:**
+When the quote is selected for a festival, includes:
+> "Today's quote is selected specially for Sri Raghavendra Aradhana."
+
+**Thursday Awareness:**
+When the quote is from Guru Vandana category on Thursday:
+> "Today is Thursday, so today's devotional message comes from Guru Vandana."
+
+**Panchanga Awareness:**
+When the quote was selected due to Panchanga rules:
+> "Today's Panchanga has influenced the devotional quote selection."
+
+#### Response Format
+
+```typescript
+{
+  content: string;      // Formatted quote with awareness messages
+  intent: "DAILY_QUOTE";
+  confidence: 95;     // High confidence for quote queries
+  source: "repository"; // Always from QuoteService
+  usesLLM: false;      // Never generates content
+  debugInfo?: {
+    quoteId: string;
+    category: string;
+    reason: string;
+    ruleApplied: string;
+    cacheHit: boolean;
+  };
+}
 ```
 
 ---

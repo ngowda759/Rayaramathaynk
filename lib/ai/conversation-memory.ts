@@ -108,6 +108,8 @@ function extractTopic(content: string, intent: Intent): string {
       return "panchanga";
     case Intent.UPCOMING_EVENTS:
       return "events";
+    case Intent.DAILY_QUOTE:
+      return "quote";
     default:
       return "general";
   }
@@ -139,6 +141,14 @@ export function resolveFollowUp(
     { pattern: /^yes$/i, topic: "confirm" },
     { pattern: /^no$/i, topic: "deny" },
     { pattern: /^and$/i, topic: "more" },
+    // Quote follow-ups
+    { pattern: /^(another|one more|next|different)$/i, topic: "quote" },
+    { pattern: /^quote$/i, topic: "quote" },
+    { pattern: /^(ಮತ್ತೊಂದು|ಇನ್ನೊಂದು)$/i, topic: "quote" }, // Kannada another
+    { pattern: /^ಮತ್ತೊಂದು ಉಲ್ಲೇಖ$/i, topic: "quote" }, // another quote in Kannada
+    { pattern: /^ಉಲ್ಲೇಖ$/i, topic: "quote" }, // quote in Kannada
+    { pattern: /^ಶ್ಲೋಕ$/i, topic: "quote" }, // sloka in Kannada
+    { pattern: /^ವಚನ$/i, topic: "quote" }, // vachana in Kannada
     { pattern: /^ಹೌದಾ|ಅಲ್ಲ$/i, topic: "confirm_deny" }, // Kannada yes/no
     { pattern: /^ಬೆಳಗ್|ಸಂಜೆ$/i, topic: "timing" }, // morning/evening
   ];
@@ -179,6 +189,11 @@ function buildContext(session: SessionContext, topic: string): string {
     case "time":
       if (intent === Intent.TEMPLE_TIMINGS) {
         return "open"; // "when" -> "when does it open"
+      }
+      break;
+    case "quote":
+      if (intent === Intent.DAILY_QUOTE) {
+        return "quote"; // Context: they asked for a devotional quote
       }
       break;
   }

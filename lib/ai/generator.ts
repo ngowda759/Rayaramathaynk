@@ -40,6 +40,8 @@ import {
 
 import { containsKannada } from "./intent/patterns";
 import { logUnknownQuestion } from "@/services/analytics.service";
+import { quoteService } from "@/services/quote.service";
+import type { Quote, QuoteCategory } from "@/types/quote";
 
 export { detectIntent } from "./intent";
 
@@ -58,6 +60,13 @@ export interface AIResponseResult {
   source: RetrievalType;
   usesLLM: boolean;
   language: "en" | "kn" | "mixed";
+  debugInfo?: {
+    quoteId?: string;
+    category?: string;
+    reason?: string;
+    ruleApplied?: string;
+    cacheHit?: boolean;
+  };
 }
 
 /**
@@ -685,6 +694,273 @@ Share your spiritual journey!
 }
 
 /**
+ * Handle daily quote intent using QuoteService
+ */
+async function handleDailyQuote(
+  message: string,
+  language: "en" | "kn" | "mixed",
+  sessionId?: string
+): Promise<AIResponseResult> {
+  try {
+    // Check if this is a follow-up request for another quote
+    const isFollowUp = /another|one more|next|different|other/i.test(message);
+    const currentCategory = sessionId ? getLastQuoteCategory(sessionId) : null;
+    
+    // Get today's quote from QuoteService
+    const result = await quoteService.getTodaysQuote();
+    const quote = result.quote;
+    
+    if (!quote) {
+      return {
+        content: language === "en"
+          ? "🙏 I could not retrieve today's devotional quote at this moment. Please try again later."
+          : language === "kn"
+          ? "🙏 ಇಂದಿನ ಭಕ್ತಿ ಉಲ್ಲೇಖವನ್ನು ಪಡೆಯಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."
+          : "🙏 Could not retrieve today's quote. Please try again.",
+        intent: Intent.DAILY_QUOTE,
+        confidence: 0,
+        source: RetrievalType.FALLBACK,
+        usesLLM: false,
+        language,
+      };
+    }
+
+    // Format the quote response
+    const quoteContent = formatQuoteResponse(quote, result.context, language);
+    
+    // Add awareness messages based on context
+    const awarenessMessages = getQuoteAwarenessMessages(result.context, language);
+    
+    // Build the full response
+    let response = awarenessMessages.prefix + quoteContent + awarenessMessages.suffix;
+
+    // Build debug info
+    const debugInfo = {
+      quoteId: quote.id,
+      category: quote.category,
+      reason: result.context.reason,
+      ruleApplied: result.context.reason.split(":")[0],
+      cacheHit: result.metadata.cached,
+    };
+
+    // Check if debug mode is enabled
+    let debugMode = false;
+    try {
+      const { aiSettingsService } = await import("@/lib/ai/ai-settings");
+      const behavior = await aiSettingsService.getAIBehavior();
+      debugMode = behavior.debugMode;
+    } catch {
+      // Debug mode check failed, continue without debug info
+    }
+
+    // Add debug info to response if enabled
+    if (debugMode) {
+      const debugText = language === "en"
+        ? `\n\n---\n🔧 **Debug Info**\n- Intent: DAILY_QUOTE\n- Quote ID: ${debugInfo.quoteId}\n- Category: ${debugInfo.category}\n- Selection Reason: ${debugInfo.reason}\n- Rule Applied: ${debugInfo.ruleApplied}\n- Source: QuoteService\n- Cache: ${debugInfo.cacheHit ? "Hit" : "Miss"}\n---`
+        : language === "kn"
+        ? `\n\n---\n🔧 **ಡೀಬಗ್ ಮಾಹಿತಿ**\n- ಉದ್ದೇಶ: DAILY_QUOTE\n- ಉಲ್ಲೇಖ ID: ${debugInfo.quoteId}\n- ವರ್ಗ: ${debugInfo.category}\n- ಆಯ್ಕೆ ಕಾರಣ: ${debugInfo.reason}\n- ನಿಯಮ: ${debugInfo.ruleApplied}\n- ಮೂಲ: QuoteService\n- ಸಂಗ್ರಹ: ${debugInfo.cacheHit ? "ಹಿಟ್" : "ಮಿಸ್"}\n---`
+        : `\n\n---\n🔧 **Debug Info**\n- Intent: DAILY_QUOTE\n- Quote ID: ${debugInfo.quoteId}\n- Category: ${debugInfo.category}\n- Selection Reason: ${debugInfo.reason}\n- Rule Applied: ${debugInfo.ruleApplied}\n- Source: QuoteService\n- Cache: ${debugInfo.cacheHit ? "Hit" : "Miss"}\n---`;
+      
+      response += debugText;
+    }
+
+    // Track the quote category in session for follow-up requests
+    if (sessionId) {
+      setLastQuoteCategory(sessionId, quote.category);
+    }
+
+    return {
+      content: response,
+      intent: Intent.DAILY_QUOTE,
+      confidence: 95,
+      source: RetrievalType.REPOSITORY,
+      usesLLM: false,
+      language,
+      debugInfo,
+    };
+  } catch (error) {
+    console.error("[AI Generator] Error fetching daily quote:", error);
+    return {
+      content: language === "en"
+        ? "🙏 I encountered an error retrieving today's quote. Please try again later."
+        : language === "kn"
+        ? "🙏 ಇಂದಿನ ಉಲ್ಲೇಖವನ್ನು ಪಡೆಯುವಾಗ ದೋಷ ಉಂಟಾಯಿತು. ದಯವಿಟ್ಟು ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."
+        : "🙏 Error retrieving quote. Please try again.",
+      intent: Intent.DAILY_QUOTE,
+      confidence: 0,
+      source: RetrievalType.FALLBACK,
+      usesLLM: false,
+      language,
+    };
+  }
+}
+
+/**
+ * Format quote response based on language
+ */
+function formatQuoteResponse(
+  quote: Quote,
+  context: { category: QuoteCategory; reason: string },
+  language: "en" | "kn" | "mixed"
+): string {
+  const primaryText = quote.content.kannada || quote.content.sanskrit || quote.content.transliteration || "";
+  const translation = quote.content.translationEnglish || "";
+  
+  let content = "";
+  
+  if (language === "en") {
+    content = `📖 **Today's Devotional Quote**
+
+${primaryText}
+
+${translation ? `*Translation:* ${translation}` : ""}
+
+📚 **Source:** ${quote.source}${quote.author ? ` by ${quote.author}` : ""}
+🏷️ **Category:** ${getCategoryLabel(quote.category, "en")}
+${quote.verseNumber ? `📝 **Verse:** ${quote.verseNumber}` : ""}`;
+  } else if (language === "kn") {
+    content = `📖 **ಇಂದಿನ ಭಕ್ತಿ ಉಲ್ಲೇಖ**
+
+${primaryText}
+
+${translation ? `*ಅನುವಾದ:* ${translation}` : ""}
+
+📚 **ಮೂಲ:** ${quote.source}${quote.author ? ` - ${quote.author}` : ""}
+🏷️ **ವರ್ಗ:** ${getCategoryLabel(quote.category, "kn")}
+${quote.verseNumber ? `📝 **ಪದ್ಯ:** ${quote.verseNumber}` : ""}`;
+  } else {
+    // Mixed language
+    content = `📖 **Today's Devotional Quote / ಇಂದಿನ ಭಕ್ತಿ ಉಲ್ಲೇಖ**
+
+${primaryText}
+
+${translation ? `*Translation / ಅನುವಾದ:* ${translation}` : ""}
+
+📚 **Source / ಮೂಲ:** ${quote.source}
+🏷️ **Category / ವರ್ಗ:** ${getCategoryLabel(quote.category, "en")}`;
+  }
+  
+  return content;
+}
+
+/**
+ * Get category label based on language
+ */
+function getCategoryLabel(category: QuoteCategory, language: "en" | "kn"): string {
+  const labels: Record<QuoteCategory, { en: string; kn: string }> = {
+    raghavendra_stotra: { en: "Sri Raghavendra Stotra", kn: "ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ತೋತ್ರ" },
+    mangalashtakam: { en: "Sri Raghavendra Mangalashtakam", kn: "ಮಂಗಳಾಷ್ಟಕ" },
+    guru_vandana: { en: "Guru Vandana", kn: "ಗುರು ವಂದನಾ" },
+    authentic_teachings: { en: "Authentic Teachings", kn: "ಸಾರ್ವತ್ರಿಕ ಉಪದೇಶ" },
+    devotional_sayings: { en: "Devotional Sayings", kn: "ಭಕ್ತಿ ವಚನಗಳು" },
+    madhwa_philosophy: { en: "Madhwa Philosophy", kn: "ಮಾಧ್ವ ತತ್ವ" },
+  };
+  
+  return labels[category]?.[language] || category;
+}
+
+/**
+ * Get awareness messages based on selection context
+ */
+function getQuoteAwarenessMessages(
+  context: { category: QuoteCategory; reason: string },
+  language: "en" | "kn" | "mixed"
+): { prefix: string; suffix: string } {
+  const dayOfWeek = new Date().getDay();
+  const isThursday = dayOfWeek === 4;
+  const isFestival = context.reason.toLowerCase().includes("festival");
+  const hasPanchangaInfluence = context.reason.toLowerCase().includes("panchanga");
+  
+  let prefix = "";
+  let suffix = "";
+  
+  // Thursday awareness
+  if (isThursday && context.category === "guru_vandana") {
+    if (language === "en") {
+      prefix = "🙏 Today is Thursday, so today's devotional message comes from Guru Vandana.\n\n";
+    } else if (language === "kn") {
+      prefix = "🙏 ಇಂದು ಗುರುವಾರ, ಆದ್ದರಿಂದ ಇಂದಿನ ಭಕ್ತಿ ಸಂದೇಶ ಗುರು ವಂದನೆಯಿಂದ.\n\n";
+    } else {
+      prefix = "🙏 Today is Thursday, so today's message comes from Guru Vandana.\n\n";
+    }
+  }
+  
+  // Festival awareness
+  if (isFestival) {
+    const festivalName = extractFestivalName(context.reason);
+    if (language === "en") {
+      suffix += `\n\n✨ Today's quote is selected specially for ${festivalName}.`;
+    } else if (language === "kn") {
+      suffix += `\n\n✨ ಇಂದಿನ ಉಲ್ಲೇಖ ${festivalName} ಗೆ ವಿಶೇಷವಾಗಿ ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ.`;
+    } else {
+      suffix += `\n\n✨ Today's quote is specially selected for ${festivalName}.`;
+    }
+  }
+  
+  // Panchanga awareness
+  if (hasPanchangaInfluence) {
+    if (language === "en") {
+      suffix += `\n\n🌟 Today's Panchanga has influenced the devotional quote selection.`;
+    } else if (language === "kn") {
+      suffix += `\n\n🌟 ಇಂದಿನ ಪಂಚಾಂಗ ಭಕ್ತಿ ಉಲ್ಲೇಖ ಆಯ್ಕೆಯನ್ನು ಪ್ರಭಾವಿಸಿದೆ.`;
+    } else {
+      suffix += `\n\n🌟 Today's Panchanga has influenced the quote selection.`;
+    }
+  }
+  
+  // Closing
+  if (language === "en") {
+    suffix += `\n\n🙏 Sri Guru Raghavendraya Namaha.`;
+  } else if (language === "kn") {
+    suffix += `\n\n🙏 ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ನಮಃ`;
+  } else {
+    suffix += `\n\n🙏 Sri Guru Raghavendraya Namaha.`;
+  }
+  
+  return { prefix, suffix };
+}
+
+/**
+ * Extract festival name from reason string
+ */
+function extractFestivalName(reason: string): string {
+  const festivalMap: Record<string, string> = {
+    "raghavendra_aradhana": "Sri Raghavendra Aradhana",
+    "guru_purnima": "Guru Purnima",
+    "madhwa_navami": "Madhwa Navami",
+    "vyasa_pooja": "Vyasa Pooja",
+    "brahmotsava": "Brahmotsava",
+  };
+  
+  for (const [key, name] of Object.entries(festivalMap)) {
+    if (reason.toLowerCase().includes(key)) {
+      return name;
+    }
+  }
+  
+  return "the festival";
+}
+
+// In-memory session tracking for quote follow-ups
+const quoteSessionCache = new Map<string, { category: QuoteCategory; quoteId: string }>();
+
+/**
+ * Get last quote category from session
+ */
+function getLastQuoteCategory(sessionId: string): QuoteCategory | null {
+  return quoteSessionCache.get(sessionId)?.category || null;
+}
+
+/**
+ * Set last quote category for session
+ */
+function setLastQuoteCategory(sessionId: string, category: QuoteCategory): void {
+  quoteSessionCache.set(sessionId, { category, quoteId: "" });
+  // Clean up after 30 minutes
+  setTimeout(() => quoteSessionCache.delete(sessionId), 30 * 60 * 1000);
+}
+
+/**
  * Handle knowledge-based intent using knowledge base
  */
 async function handleKnowledgeIntent(
@@ -790,6 +1066,9 @@ export async function generateResponse(
     case Intent.UPCOMING_EVENTS:
     case Intent.FESTIVAL_INFO:
       return handleEvents(language);
+      
+    case Intent.DAILY_QUOTE:
+      return handleDailyQuote(message, language, sessionId);
       
     case Intent.SPECIAL_SEVAS:
     case Intent.DAILY_POOJA:

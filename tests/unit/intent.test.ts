@@ -508,4 +508,204 @@ describe("Intent Detection", () => {
       expect(result.intent).toBe(Intent.PRASADA);
     });
   });
+
+  describe("DAILY_QUOTE intent", () => {
+    describe("English quote queries", () => {
+      it("should detect today's quote query", () => {
+        const result = detector.detect("today's quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+        expect(result.category).toBe(IntentCategory.DEVOTIONAL);
+      });
+
+      it("should detect quote of the day query", () => {
+        const result = detector.detect("quote of the day");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect daily quote query", () => {
+        const result = detector.detect("daily quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect devotional quote query", () => {
+        const result = detector.detect("devotional quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect spiritual quote query", () => {
+        const result = detector.detect("spiritual quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect rayaru quote query", () => {
+        const result = detector.detect("rayaru quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect guru quote query", () => {
+        const result = detector.detect("guru quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect verse of the day query", () => {
+        const result = detector.detect("verse of the day");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect today's blessing query", () => {
+        const result = detector.detect("today's blessing");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect daily prayer query", () => {
+        const result = detector.detect("daily prayer");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect raghavendra quote query", () => {
+        const result = detector.detect("raghavendra quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect sloka query", () => {
+        const result = detector.detect("give me a sloka");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect mangalashtakam query", () => {
+        const result = detector.detect("mangalashtakam");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect stotra query", () => {
+        const result = detector.detect("stotra");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+    });
+
+    describe("Kannada quote queries", () => {
+      it("should detect ಇಂದಿನ ಉಲ್ಲೇಖ (today's quote)", () => {
+        const result = detector.detect("ಇಂದಿನ ಉಲ್ಲೇಖ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಇಂದಿನ ಶ್ಲೋಕ (today's sloka)", () => {
+        const result = detector.detect("ಇಂದಿನ ಶ್ಲೋಕ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಇಂದಿನ ಸಂದೇಶ (today's message)", () => {
+        const result = detector.detect("ಇಂದಿನ ಸಂದೇಶ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ರಾಯರ ಸಂದೇಶ (rayaru's message)", () => {
+        const result = detector.detect("ರಾಯರ ಸಂದೇಶ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಗುರು ಸಂದೇಶ (guru message)", () => {
+        const result = detector.detect("ಗುರು ಸಂದೇಶ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಇಂದಿನ ಆಶೀರ್ವಾದ (today's blessing)", () => {
+        const result = detector.detect("ಇಂದಿನ ಆಶೀರ್ವಾದ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ರಾಯರ ಶ್ಲೋಕ (rayaru's sloka)", () => {
+        const result = detector.detect("ರಾಯರ ಶ್ಲೋಕ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಮಂಗಳಾಷ್ಟಕ (mangalashtakam)", () => {
+        const result = detector.detect("ಮಂಗಳಾಷ್ಟಕ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಶ್ಲೋಕ (sloka)", () => {
+        const result = detector.detect("ಶ್ಲೋಕ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect ಸ್ತೋತ್ರ (stotra)", () => {
+        const result = detector.detect("ಸ್ತೋತ್ರ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+    });
+
+    describe("Mixed language quote queries", () => {
+      it("should detect mixed English-Kannada query", () => {
+        const result = detector.detect("Today's quote ಇಂದಿನ ಉಲ್ಲೇಖ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect mixed quote query", () => {
+        const result = detector.detect("Give me today's sloka ಒಂದು ಶ್ಲೋಕ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+    });
+
+    describe("Quote follow-up queries", () => {
+      it("should detect another quote request", () => {
+        const result = detector.detect("another quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect one more quote request", () => {
+        const result = detector.detect("one more quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect next verse request", () => {
+        const result = detector.detect("next verse");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect different quote request", () => {
+        const result = detector.detect("different quote");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect Kannada another quote request", () => {
+        const result = detector.detect("ಮತ್ತೊಂದು ಉಲ್ಲೇಖ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+
+      it("should detect Kannada next sloka request", () => {
+        const result = detector.detect("ಇನ್ನೊಂದು ಶ್ಲೋಕ");
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
+      });
+    });
+
+    describe("Category mapping", () => {
+      it("should map DAILY_QUOTE to DEVOTIONAL category", () => {
+        const result = detector.detect("today's quote");
+        expect(result.category).toBe(IntentCategory.DEVOTIONAL);
+      });
+
+      it("should not classify as OUT_OF_SCOPE", () => {
+        const result = detector.detect("quote of the day");
+        expect(result.intent).not.toBe(Intent.OUT_OF_SCOPE);
+      });
+
+      it("should have requiresStructuredData flag", () => {
+        const result = detector.detect("quote");
+        expect(result.requiresStructuredData).toBe(true);
+      });
+    });
+
+    describe("Confidence scoring", () => {
+      it("should return high confidence for multiple quote keywords", () => {
+        const result = detector.detect("today's devotional quote of the day blessing");
+        expect(result.confidence).toBeGreaterThan(30);
+      });
+
+      it("should return reasonable confidence for single keyword", () => {
+        const result = detector.detect("quote");
+        expect(result.confidence).toBeGreaterThan(0);
+      });
+    });
+  });
 });
