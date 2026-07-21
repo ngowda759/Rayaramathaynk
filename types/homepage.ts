@@ -4,6 +4,12 @@ export interface HomepageConfig {
   heroImage: string;
 
   announcement: string;
+  
+  /**
+   * Announcement for Daily Spiritual Dashboard
+   * Displayed as a featured announcement banner in the dashboard
+   */
+  announcement2: string;
 
   morningOpen: string;
   morningClose: string;

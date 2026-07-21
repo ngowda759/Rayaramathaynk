@@ -89,6 +89,8 @@ class HomepageService {
 
       announcement: "",
 
+      announcement2: "",
+
       morningOpen: "06:00 AM",
       morningClose: "01:00 PM",
 
