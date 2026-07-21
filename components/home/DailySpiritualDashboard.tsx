@@ -7,8 +7,6 @@ import {
   Sunset,
   Moon,
   Sparkles,
-  ChevronRight,
-  AlertCircle,
   Flame,
   Star,
 } from "lucide-react";
@@ -16,7 +14,6 @@ import {
   TempleStatus,
   DailyQuote,
   FeaturedEvent,
-  Announcement,
 } from "@/types/daily-spiritual";
 
 interface DailySpiritualDashboardProps {
@@ -24,7 +21,6 @@ interface DailySpiritualDashboardProps {
     templeStatus: TempleStatus;
     quote: DailyQuote | null;
     featuredEvent: FeaturedEvent | null;
-    announcements: Announcement[];
     announcement2: string | null;
   } | null;
 }
@@ -261,63 +257,6 @@ function DailyQuoteWidget({ quote }: { quote: DailyQuote | null }) {
 }
 
 /**
- * Announcements Widget
- */
-function AnnouncementsWidget({ announcements }: { announcements: Announcement[] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const displayAnnouncements = expanded ? announcements : announcements.slice(0, 2);
-
-  if (announcements.length === 0) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className="rounded-3xl bg-gradient-to-br from-red-500/10 to-orange-500/10 p-6 shadow-lg ring-1 ring-red-100"
-    >
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-red-400 to-orange-500 text-white">
-          <AlertCircle className="h-5 w-5" />
-        </div>
-        <h3 className="text-lg font-bold text-stone-900">Announcements</h3>
-        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
-          {announcements.length}
-        </span>
-      </div>
-
-      <div className="space-y-3">
-        {displayAnnouncements.map((announcement) => (
-          <div
-            key={announcement.id}
-            className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-stone-100"
-          >
-            <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-red-500" />
-            <div className="flex-1">
-              <p className="font-medium text-stone-900">{announcement.title}</p>
-              <p className="mt-1 text-sm text-stone-500">{announcement.message}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {announcements.length > 2 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="mt-4 flex w-full items-center justify-center gap-1 text-sm font-medium text-amber-600 hover:text-amber-700"
-        >
-          {expanded ? "Show less" : `View all ${announcements.length} announcements`}
-          <ChevronRight
-            className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`}
-          />
-        </button>
-      )}
-    </motion.div>
-  );
-}
-
-/**
  * Main Daily Spiritual Dashboard Component
  */
 export default function DailySpiritualDashboard({
@@ -406,13 +345,6 @@ export default function DailySpiritualDashboard({
           {/* Daily Quote */}
           <DailyQuoteWidget quote={data.quote} />
         </div>
-
-        {/* Announcements - Full Width */}
-        {data.announcements.length > 0 && (
-          <div className="mt-6">
-            <AnnouncementsWidget announcements={data.announcements} />
-          </div>
-        )}
       </div>
     </section>
   );
