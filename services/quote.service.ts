@@ -260,8 +260,8 @@ class QuoteService {
           return startDate <= todayEnd && endDate >= todayStart;
         })
         .map((event) => ({
-          id: event.id,
-          title: typeof event.title === 'object' ? event.title.en || event.title.kn || "" : event.title || "",
+          id: event.id!,
+          title: (typeof event.title === 'object' && event.title !== null) ? (event.title as {en?: string; kn?: string}).en || (event.title as {en?: string; kn?: string}).kn || "" : String(event.title || ""),
           category: event.category || "",
         }));
     } catch (error) {

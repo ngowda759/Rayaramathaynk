@@ -1,5 +1,6 @@
 "use client";
 
+import { quoteColumns } from "./columns";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

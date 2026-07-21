@@ -5,16 +5,10 @@
 
 import { NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.service";
-import { auth } from "@/lib/auth";
 
 // POST /api/admin/quotes/cache - Clear quote cache
 export async function POST() {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     quoteService.clearCache();
 
     return NextResponse.json({

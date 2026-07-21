@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import toast from "react-hot-toast";
-import { Quote, QuoteCategory, QuoteLanguage, QUOTE_CATEGORIES, FestivalName } from "@/types/quote";
+import { Quote, QuoteCategory, QuoteLanguage, QUOTE_CATEGORIES, FestivalName, Weekday } from "@/types/quote";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -584,10 +584,10 @@ export default function EditQuotePage() {
                 <Label htmlFor="weekdayOnly">Specific Weekday</Label>
                 <Select
                   value={formData.weekdayOnly?.toString() || "none"}
-                  onValueChange={(value) =>
+                  onValueChange={(val) =>
                     handleChange(
                       "weekdayOnly",
-                      value === "none" ? null : parseInt(value)
+                      val === "none" ? null : (parseInt(val!, 10) as Weekday)
                     )
                   }
                 >

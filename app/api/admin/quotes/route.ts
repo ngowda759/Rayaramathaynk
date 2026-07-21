@@ -5,17 +5,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.service";
-import { auth } from "@/lib/auth";
 
 // GET /api/admin/quotes - List all quotes with optional filters
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const featured = searchParams.get("featured");
@@ -50,11 +43,7 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/quotes - Create a new quote
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const userEmail = request.headers.get("x-user-email") || "admin";
 
     const body = await request.json();
 
@@ -68,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const id = await quoteService.createQuote({
       ...body,
-      createdBy: session.user.email || session.user.name || "admin",
+      createdBy: userEmail,
     });
 
     return NextResponse.json({ id, message: "Quote created successfully" }, { status: 201 });
@@ -84,11 +73,6 @@ export async function POST(request: NextRequest) {
 // PATCH /api/admin/quotes - Bulk update quotes
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { ids, updates } = body;
 
@@ -126,11 +110,6 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/admin/quotes - Bulk delete quotes
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { ids } = body;
 

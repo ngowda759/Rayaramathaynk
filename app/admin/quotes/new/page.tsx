@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Quote, QuoteCategory, QuoteLanguage, QUOTE_CATEGORIES, FestivalName } from "@/types/quote";
+import { Quote, QuoteCategory, QuoteLanguage, QUOTE_CATEGORIES, FestivalName, Weekday } from "@/types/quote";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -524,7 +524,7 @@ export default function NewQuotePage() {
                   onValueChange={(value) =>
                     handleChange(
                       "weekdayOnly",
-                      value === "none" ? null : parseInt(value)
+                      value === "none" ? null : (parseInt(value!, 10) as Weekday)
                     )
                   }
                 >

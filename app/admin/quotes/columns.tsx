@@ -1,12 +1,9 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
-import { Quote, QuoteCategory, QUOTE_CATEGORIES } from "@/types/quote";
-import { formatDate } from "@/lib/utils";
+import { CrudColumn } from "@/types/crud";
+import { Quote, QuoteCategory } from "@/types/quote";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Eye, Edit, Trash2, Star, Calendar, Tag } from "lucide-react";
-import Link from "next/link";
+import { Star } from "lucide-react";
 
 const categoryColors: Record<QuoteCategory, string> = {
   raghavendra_stotra: "bg-amber-100 text-amber-800 border-amber-200",
@@ -26,26 +23,27 @@ const categoryLabels: Record<QuoteCategory, string> = {
   madhwa_philosophy: "Philosophy",
 };
 
-export const quoteColumns: ColumnDef<Quote>[] = [
+export const quoteColumns: CrudColumn<Quote>[] = [
   {
-    accessorKey: "title",
+    key: "title",
     header: "Title",
-    cell: ({ row }) => (
+    width: "250px",
+    render: (row) => (
       <div className="max-w-xs">
-        <p className="truncate font-medium">{row.original.title}</p>
-        {row.original.verseNumber && (
+        <p className="truncate font-medium">{row.title}</p>
+        {row.verseNumber && (
           <p className="text-xs text-muted-foreground">
-            Verse {row.original.verseNumber}
+            Verse {row.verseNumber}
           </p>
         )}
       </div>
     ),
   },
   {
-    accessorKey: "category",
+    key: "category",
     header: "Category",
-    cell: ({ row }) => {
-      const category = row.original.category as QuoteCategory;
+    render: (row) => {
+      const category = row.category as QuoteCategory;
       return (
         <Badge
           variant="outline"
@@ -57,42 +55,42 @@ export const quoteColumns: ColumnDef<Quote>[] = [
     },
   },
   {
-    accessorKey: "language",
+    key: "language",
     header: "Language",
-    cell: ({ row }) => (
-      <span className="uppercase">{row.original.language}</span>
+    render: (row) => (
+      <span className="uppercase">{row.language}</span>
     ),
   },
   {
-    accessorKey: "featured",
+    key: "featured",
     header: "Featured",
-    cell: ({ row }) =>
-      row.original.featured ? (
+    render: (row) =>
+      row.featured ? (
         <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
       ) : (
         <span className="text-muted-foreground">—</span>
       ),
   },
   {
-    accessorKey: "active",
+    key: "active",
     header: "Status",
-    cell: ({ row }) => (
+    render: (row) => (
       <span
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-          row.original.active
+          row.active
             ? "bg-green-100 text-green-800"
             : "bg-gray-100 text-gray-800"
         }`}
       >
-        {row.original.active ? "Active" : "Inactive"}
+        {row.active ? "Active" : "Inactive"}
       </span>
     ),
   },
   {
-    accessorKey: "festivalNames",
+    key: "festivalNames",
     header: "Festivals",
-    cell: ({ row }) => {
-      const festivals = row.original.festivalNames || [];
+    render: (row) => {
+      const festivals = row.festivalNames || [];
       if (festivals.length === 0) {
         return <span className="text-muted-foreground">—</span>;
       }
@@ -113,61 +111,23 @@ export const quoteColumns: ColumnDef<Quote>[] = [
     },
   },
   {
-    accessorKey: "weekdayOnly",
+    key: "weekdayOnly",
     header: "Weekday",
-    cell: ({ row }) => {
-      if (row.original.weekdayOnly === null || row.original.weekdayOnly === undefined) {
+    render: (row) => {
+      if (row.weekdayOnly === null || row.weekdayOnly === undefined) {
         return <span className="text-muted-foreground">Any</span>;
       }
       const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      return <span>{days[row.original.weekdayOnly]}</span>;
+      return <span>{days[row.weekdayOnly]}</span>;
     },
   },
   {
-    accessorKey: "stats.viewCount",
+    key: "stats.viewCount",
     header: "Views",
-    cell: ({ row }) => (
+    render: (row) => (
       <span className="tabular-nums">
-        {row.original.stats?.viewCount || 0}
+        {row.stats?.viewCount || 0}
       </span>
-    ),
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Updated",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">
-        {formatDate(row.original.updatedAt)}
-      </span>
-    ),
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/admin/quotes/${row.original.id}`}>
-            <Eye className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/admin/quotes/${row.original.id}/edit`}>
-            <Edit className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-destructive hover:text-destructive"
-          onClick={() => {
-            if (confirm(`Delete "${row.original.title}"?`)) {
-              // Handle delete
-            }
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
     ),
   },
 ];
