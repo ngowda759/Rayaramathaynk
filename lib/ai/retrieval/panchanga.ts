@@ -59,7 +59,7 @@ function loadFromJsonFile(date: string): PanchangaData | null {
       
       return {
         date: data.date || date,
-        tithi: data.tithi?.name ? `${data.tithi.paksha} ${data.tithi.name}` : "—",
+        tithi: data.tithi?.name || "—",
         nakshatra: data.nakshatra?.name ? `${data.nakshatra.name} (Pada ${data.nakshatra.pada})` : "—",
         yoga: data.yoga?.name || "—",
         karana: data.karana?.name || "—",
