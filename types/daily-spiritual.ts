@@ -87,7 +87,6 @@ export interface DailySpiritualDashboard {
   templeStatus: TempleStatus;
   quote: DailyQuote | null;
   featuredEvent: FeaturedEvent | null;
-  announcements: Announcement[];
   announcement2: string | null;
   lastUpdated: string;
 }

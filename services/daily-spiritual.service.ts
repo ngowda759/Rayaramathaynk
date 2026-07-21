@@ -378,13 +378,11 @@ class DailySpiritualService {
     const [
       templeStatus,
       featuredEvent,
-      announcements,
       quote,
       announcement2,
     ] = await Promise.all([
       this.getTempleStatus(),
       this.getFeaturedEvent(),
-      this.getActiveAnnouncements(),
       this.getDailyQuote(),
       this.getAnnouncement2(),
     ]);
@@ -393,7 +391,6 @@ class DailySpiritualService {
       templeStatus,
       quote,
       featuredEvent,
-      announcements,
       announcement2,
       lastUpdated: new Date().toISOString(),
     };
