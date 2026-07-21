@@ -5,14 +5,12 @@ import {
   Search,
   CheckCircle,
   XCircle,
-  Eye,
   HelpCircle,
   Clock,
   User,
   MessageSquare,
   Filter,
   BookOpen,
-  Send,
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
@@ -35,34 +33,52 @@ const STATUS_OPTIONS: { value: UnknownQuestionStatus; label: string }[] = [
 
 export default function UnknownQuestionsPage() {
   const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<UnknownQuestionStatus | "all">("all");
   const [selectedQuestion, setSelectedQuestion] = useState<UnknownQuestion | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const showMsg = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
   }, []);
 
-  const loadQuestions = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/ai/settings/unknown-questions");
-      const data = await response.json();
-      setQuestions(data.questions || data || []);
-    } catch (error) {
-      console.error("Error loading questions:", error);
-      showMsg("error", "Failed to load unknown questions");
-    } finally {
-      setLoading(false);
-    }
-  }, [showMsg]);
-
+  // Fetch data directly in effect
   useEffect(() => {
-    loadQuestions();
-  }, [loadQuestions]);
+    let cancelled = false;
+    
+    async function fetchQuestions() {
+      try {
+        const response = await fetch("/api/ai/settings/unknown-questions");
+        const data = await response.json();
+        if (!cancelled) {
+          setQuestions(data.questions || data || []);
+          setInitialLoad(false);
+        }
+      } catch (err) {
+        console.error("Error loading questions:", err);
+        if (!cancelled) {
+          showMsg("error", "Failed to load unknown questions");
+          setInitialLoad(false);
+        }
+      }
+    }
+    
+    fetchQuestions();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTrigger, showMsg]);
+
+  const refreshQuestions = useCallback(() => {
+    setLoading(true);
+    setRefreshTrigger(t => t + 1);
+    setLoading(false);
+  }, []);
 
   const handleStatusChange = async (question: UnknownQuestion, newStatus: UnknownQuestionStatus) => {
     try {
@@ -74,9 +90,9 @@ export default function UnknownQuestionsPage() {
       
       if (response.ok) {
         showMsg("success", "Status updated successfully");
-        loadQuestions();
+        refreshQuestions();
       }
-    } catch (error) {
+    } catch {
       showMsg("error", "Failed to update status");
     }
   };
@@ -94,9 +110,9 @@ export default function UnknownQuestionsPage() {
         if (selectedQuestion?.id === question.id) {
           setSelectedQuestion(null);
         }
-        loadQuestions();
+        refreshQuestions();
       }
-    } catch (error) {
+    } catch {
       showMsg("error", "Failed to delete question");
     }
   };
@@ -131,7 +147,7 @@ export default function UnknownQuestionsPage() {
     return `${diffDays}d ago`;
   };
 
-  if (loading) {
+  if (initialLoad) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
@@ -210,11 +226,12 @@ export default function UnknownQuestionsPage() {
               ))}
             </select>
             <button
-              onClick={loadQuestions}
-              className="p-2 text-stone-600 hover:bg-stone-100 rounded-lg"
+              onClick={refreshQuestions}
+              disabled={loading}
+              className="p-2 text-stone-600 hover:bg-stone-100 rounded-lg disabled:opacity-50"
               title="Refresh"
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
