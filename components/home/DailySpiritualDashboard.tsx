@@ -54,21 +54,19 @@ function FeaturedAnnouncementBanner({ text }: { text: string | null }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0 }}
-      className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 p-1"
+      className="mb-6 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 px-6 py-4 shadow-sm ring-1 ring-amber-200"
     >
-      <div className="rounded-xl bg-white px-6 py-4">
-        <div className="flex items-start gap-4">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
-            <Star className="h-5 w-5 text-amber-600" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium uppercase tracking-wide text-amber-600">
-              Special Announcement
-            </p>
-            <p className="mt-1 text-lg font-semibold text-stone-900">
-              {text}
-            </p>
-          </div>
+      <div className="flex items-start gap-4">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
+          <Star className="h-5 w-5 text-amber-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium uppercase tracking-wide text-amber-600">
+            Special Announcement
+          </p>
+          <p className="mt-1 text-lg font-semibold text-stone-900">
+            {text}
+          </p>
         </div>
       </div>
     </motion.div>
