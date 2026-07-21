@@ -333,21 +333,109 @@ import { DailyQuoteWidget } from "@/components/home/DailyQuoteWidget";
 
 ---
 
-## Seed Script
+## Seeding Quotes
 
-Run the seed script to populate initial quotes:
+Before the Quote Engine can serve quotes, you must seed the database with content.
+
+### Method 1: Admin API (Recommended)
+
+After deployment, call the seed endpoint:
 
 ```bash
-npx ts-node --project tsconfig.scripts.json scripts/seed-quotes.ts
+# Via curl
+curl -X POST https://your-domain.com/api/admin/quotes/seed
+
+# Response:
+# {"message": "Seeded N default quotes", "seeded": N}
 ```
 
-**Seeded Content:**
+**Note:** Requires Firebase Admin credentials configured in Vercel environment variables:
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+
+### Method 2: Seed Script (Local Development)
+
+1. **Get Firebase Service Account:**
+   - Go to [Firebase Console](https://console.firebase.google.com/)
+   - Select your project
+   - Go to Project Settings > Service Accounts
+   - Click "Generate new private key"
+   - Save the JSON file
+
+2. **Setup Credentials:**
+   ```bash
+   # Option A: Save as firebase-admin.json in project root
+   mv downloaded-service-account.json firebase-admin.json
+
+   # Option B: Set environment variables
+   export FIREBASE_CLIENT_EMAIL="your-email@project.iam.gserviceaccount.com"
+   export FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+   ```
+
+3. **Run Seed Script:**
+   ```bash
+   npx ts-node --project tsconfig.scripts.json scripts/seed-quotes.ts
+   ```
+
+### Method 3: Firebase Console (Manual)
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Go to Firestore Database > quotes collection
+4. Click "Start collection" or "Add document"
+5. Follow the schema in this document
+
+### Method 4: Bulk Import
+
+1. Navigate to `/admin/quotes`
+2. Click "Import"
+3. Paste JSON array of quotes
+4. Click "Import"
+
+```json
+[
+  {
+    "title": "Sri Raghavendra Stotra - Verse 1",
+    "slug": "raghavendra-stotra-1",
+    "category": "raghavendra_stotra",
+    "source": "Sri Raghavendra Stotra",
+    "content": {
+      "kannada": "ಶ್ರೀಪೂರ್ಣಬೋಧ-ಗುರು-ತೀರ್ಥ-ಪಯೋಽಬ್ಧಿ-ಪಾರಾ |",
+      "translationEnglish": "Salutations to the ocean of perfect knowledge"
+    },
+    "tags": ["stotra", "guru"],
+    "active": true
+  }
+]
+```
+
+### Verification
+
+After seeding, verify quotes are available:
+
+```bash
+curl https://your-domain.com/api/quotes
+# Should return: {"quotes": [...], "total": N}
+```
+
+### Seeded Content
+
+The default seed includes:
 - 8 verses from Sri Raghavendra Stotra
 - 8 verses from Sri Raghavendra Mangalashtakam
 - 4 Guru Vandana prayers
 - 5 Madhwa Philosophy principles
 - 5 Authentic Teachings
 - 3 Devotional Sayings
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Firebase not configured" | Set `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` env vars |
+| "Quota exceeded" | Wait 1-2 minutes for Firestore quota reset |
+| "Permission denied" | Check service account has Firestore write permissions |
+| Empty response | Quotes may need cache clear: `POST /api/admin/quotes/cache` |
 
 ---
 
