@@ -135,7 +135,7 @@ export function ChatWindow() {
         aria-label="Chat messages"
       >
         {messages.length === 0 ? (
-          <WelcomeScreen onSelectQuestion={handleSuggestedQuestion} welcomeMessage={welcomeMessage} />
+          <WelcomeScreen welcomeMessage={welcomeMessage} />
         ) : (
           <>
             {messages.map((message, index) => (
@@ -167,8 +167,7 @@ export function ChatWindow() {
   );
 }
 
-function WelcomeScreen({ onSelectQuestion, welcomeMessage }: { 
-  onSelectQuestion: (q: string) => void;
+function WelcomeScreen({ welcomeMessage }: { 
   welcomeMessage: string 
 }) {
   // Default welcome message if not loaded
@@ -176,16 +175,11 @@ function WelcomeScreen({ onSelectQuestion, welcomeMessage }: {
 
 I am **Raya AI**, your friendly assistant from Sri Raghavendra Swamy Math.
 
-How may I assist you today?`;
+How may I assist you today?
+
+_Hover over the <span class="text-amber-600 font-medium">left panel</span> to see quick actions._`;
 
   const displayMessage = welcomeMessage || defaultWelcome;
-
-  const quickQuestions = [
-    { text: "🕐 Temple Timings", q: "What are the temple timings?" },
-    { text: "📅 Upcoming Events", q: "What events are coming up?" },
-    { text: "🙏 Sevas Available", q: "What sevas are available?" },
-    { text: "💝 How to Donate", q: "How can I donate to the temple?" },
-  ];
 
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6">
@@ -197,21 +191,6 @@ How may I assist you today?`;
       {/* Welcome Message */}
       <div className="text-sm text-stone-600 mb-6 max-w-sm prose prose-sm prose-stone">
         <ReactMarkdown>{displayMessage}</ReactMarkdown>
-      </div>
-
-      {/* Quick Questions - Horizontal Pills */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        {quickQuestions.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => onSelectQuestion(item.q)}
-            className="px-4 py-2 bg-white border border-stone-200 rounded-full text-xs text-stone-600
-                     hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 
-                     transition-all duration-200 shadow-sm"
-          >
-            {item.text}
-          </button>
-        ))}
       </div>
     </div>
   );

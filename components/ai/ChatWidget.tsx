@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { FloatingButton } from "./FloatingButton";
+import { QuickQuestionIcons } from "./QuickQuestionIcons";
 
 // Lazy load the chat window for better performance
 const ChatWindow = dynamic(
@@ -38,6 +39,7 @@ export function ChatWidget() {
   return (
     <>
       <FloatingButton />
+      <QuickQuestionIcons />
       <ChatWindow />
     </>
   );
