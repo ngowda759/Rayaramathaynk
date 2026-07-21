@@ -12,6 +12,7 @@ const menuItems = [
 ];
 
 const guruParamparaDropdown = [
+  { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Knowledge Centre", href: "/knowledge" },
   { name: "Temple Explorer", href: "/temple-explorer" },
 ];
