@@ -12,7 +12,6 @@ export type HomepageValidationErrors = Partial<
     | "heroSubtitle"
     | "heroImage"
     | "announcement"
-    | "announcement2"
     | "morningOpen"
     | "morningClose"
     | "eveningOpen"
@@ -30,7 +29,8 @@ export type HomepageValidationErrors = Partial<
     | "heroSecondaryButton"
     | "footerCopyright"
     | "dashboardFeaturedEvent"
-    | "dailyQuote",
+    | "dailyQuote"
+    | "announcement2",
     string
   >
 >;

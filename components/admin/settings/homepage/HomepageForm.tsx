@@ -15,6 +15,7 @@ import TestimonialsSection from "./TestimonialsSection";
 import ContactInfoSection from "./ContactInfoSection";
 import DashboardSpecialSection from "./DashboardSpecialSection";
 import DashboardQuoteSection from "./DashboardQuoteSection";
+import DashboardAnnouncementSection from "./DashboardAnnouncementSection";
 
 export default function HomepageForm({
   onSaved,
@@ -92,6 +93,11 @@ export default function HomepageForm({
         />
 
         <DashboardQuoteSection
+          formData={formData}
+          updateField={updateField}
+        />
+
+        <DashboardAnnouncementSection
           formData={formData}
           updateField={updateField}
         />
