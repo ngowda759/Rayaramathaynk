@@ -32,7 +32,7 @@ export default function UpcomingEvents() {
         </motion.div>
 
         <div className="mt-16">
-          <EventGrid limit={3} />
+          <EventGrid limit={6} />
         </div>
 
         <div className="mt-12 text-center">

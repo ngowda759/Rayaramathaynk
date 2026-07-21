@@ -91,7 +91,7 @@ export default function EventGrid({ limit }: Props) {
             </p>
           </div>
         ) : (
-          <div className="grid gap-8 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-3">
             {filteredEvents.map((event) => (
               <EventCard key={event.id} event={event} />
             ))}
@@ -113,7 +113,7 @@ export default function EventGrid({ limit }: Props) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {events.map((event) => (
         <EventCard key={event.id} event={event} />
       ))}

@@ -47,60 +47,60 @@ export default function EventCard({
     .toUpperCase();
 
   return (
-    <div className="overflow-hidden rounded-[32px] border border-amber-100 bg-white shadow-lg transition hover:-translate-y-2 hover:shadow-2xl">
+    <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-lg transition hover:-translate-y-2 hover:shadow-2xl">
 
-      <div className="bg-gradient-to-r from-amber-600 to-orange-500 p-8 text-white">
+      <div className="bg-gradient-to-r from-amber-600 to-orange-500 p-4 text-white">
 
         <div className="flex items-center justify-between">
 
           <div>
 
-            <p className="text-sm uppercase tracking-widest">
+            <p className="text-xs uppercase tracking-widest">
               {month}
             </p>
 
-            <h3 className="mt-2 text-4xl font-bold">
+            <h3 className="mt-1 text-2xl font-bold">
               {start.getDate()}
             </h3>
 
           </div>
 
-          <CalendarDays size={48} />
+          <CalendarDays size={28} />
 
         </div>
 
       </div>
 
-      <div className="p-8">
+      <div className="p-4">
 
-        <span className="rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
+        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
           {daysLeft(start)} Days Left
         </span>
 
-        <h3 className="mt-6 text-2xl font-bold">
+        <h3 className="mt-4 text-lg font-bold">
           {event.title}
         </h3>
 
-        <p className="mt-5 line-clamp-3 leading-7 text-stone-600">
+        <p className="mt-3 line-clamp-2 text-sm leading-5 text-stone-600">
           {event.description}
         </p>
 
-        <div className="mt-6 space-y-3">
+        <div className="mt-4 space-y-2">
 
           {event.startTime && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm">
               <Clock3
                 className="text-amber-600"
-                size={18}
+                size={14}
               />
               {event.startTime}
             </div>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm">
             <MapPin
               className="text-amber-600"
-              size={18}
+              size={14}
             />
             {event.location}
           </div>
@@ -109,10 +109,10 @@ export default function EventCard({
 
         <Link
           href={`/events/${event.id}`}
-          className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 px-6 py-4 font-semibold text-white transition hover:scale-105"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:scale-105"
         >
           View Event
-          <ArrowRight size={18} />
+          <ArrowRight size={14} />
         </Link>
 
       </div>
