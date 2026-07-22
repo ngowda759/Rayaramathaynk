@@ -15,7 +15,9 @@ import {
   CheckCircle,
   AlertCircle,
   ExternalLink,
-  Eye
+  Eye,
+  PlusCircle,
+  Settings
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import toast from "react-hot-toast";
@@ -25,6 +27,38 @@ import {
   CATEGORY_DISPLAY_NAMES,
 } from "@/lib/ai/knowledge/types";
 import { cn } from "@/lib/utils";
+
+// Default categories from public pages
+const DEFAULT_CATEGORIES: { id: KnowledgeCategory; name: string }[] = [
+  { id: "aaradhane", name: "Aaradhane" },
+  { id: "about", name: "About" },
+  { id: "donation", name: "Donation" },
+  { id: "events", name: "Events" },
+  { id: "facilities", name: "Facilities" },
+  { id: "future-plans", name: "Future Plans" },
+  { id: "gallery", name: "Gallery" },
+  { id: "guruparampara", name: "Guru Parampara" },
+  { id: "journey", name: "Temple Journey" },
+  { id: "pooja", name: "Pooja Services" },
+  { id: "sevas", name: "Sevas" },
+  { id: "shlokas", name: "Shlokas" },
+  { id: "temple-explorer", name: "Temple Explorer" },
+  { id: "testimonials", name: "Testimonials" },
+  { id: "trust", name: "Trust" },
+  { id: "volunteer", name: "Volunteer" },
+  { id: "faq", name: "FAQ" },
+  { id: "contact", name: "Contact" },
+  { id: "dress-code", name: "Dress Code" },
+  { id: "parking", name: "Parking" },
+  { id: "history", name: "Temple History" },
+  { id: "raghavendra-swamy", name: "Sri Raghavendra Swamy" },
+  { id: "brindavana", name: "Brindavana" },
+  { id: "madhvacharya", name: "Sri Madhvacharya" },
+  { id: "mantralaya", name: "Mantralaya" },
+  { id: "photography", name: "Photography" },
+  { id: "accommodation", name: "Accommodation" },
+  { id: "general", name: "General" },
+];
 
 interface KnowledgeArticleWithActions extends KnowledgeArticle {
   isEditing?: boolean;
@@ -37,6 +71,10 @@ export default function KnowledgeBasePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<KnowledgeCategory | "all">("all");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [customCategories, setCustomCategories] = useState<{ id: string; name: string }[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  
   const [editForm, setEditForm] = useState({
     title: "",
     content: "",
@@ -46,6 +84,12 @@ export default function KnowledgeBasePage() {
     slug: "",
   });
 
+  // Combine default and custom categories
+  const allCategories = [
+    ...DEFAULT_CATEGORIES,
+    ...customCategories.filter(c => !DEFAULT_CATEGORIES.find(d => d.id === c.id))
+  ];
+
   const loadArticles = useCallback(async () => {
     setLoading(true);
     try {
@@ -53,6 +97,19 @@ export default function KnowledgeBasePage() {
       const data = await response.json();
       if (data.success && data.articles) {
         setArticles(data.articles);
+        // Extract custom categories from articles
+        const categorySet = new Set<string>();
+        data.articles.forEach((a: KnowledgeArticle) => {
+          if (a.category) categorySet.add(a.category);
+        });
+        const existingCategories = Array.from(categorySet);
+        const customs = existingCategories
+          .filter((c) => !DEFAULT_CATEGORIES.find(d => d.id === c))
+          .map((c) => ({ 
+            id: c, 
+            name: c.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) 
+          }));
+        setCustomCategories(customs);
       }
     } catch (error) {
       console.error("Failed to load articles:", error);
@@ -231,7 +288,26 @@ export default function KnowledgeBasePage() {
     }
   };
 
-  const categories = Object.keys(CATEGORY_DISPLAY_NAMES) as KnowledgeCategory[];
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) {
+      toast.error("Please enter a category name");
+      return;
+    }
+    
+    const slugId = newCategoryName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    
+    if (allCategories.find(c => c.id === slugId)) {
+      toast.error("Category already exists");
+      return;
+    }
+    
+    setCustomCategories([...customCategories, { id: slugId, name: newCategoryName.trim() }]);
+    setNewCategoryName("");
+    setShowCategoryModal(false);
+    toast.success(`Category "${newCategoryName.trim()}" added`);
+  };
+
+  const categories = allCategories;
 
   return (
     <div className="space-y-6">
@@ -263,11 +339,18 @@ export default function KnowledgeBasePage() {
             >
               <option value="all">All Categories</option>
               {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {CATEGORY_DISPLAY_NAMES[cat]}
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
                 </option>
               ))}
             </select>
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="p-2 text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+              title="Add Category"
+            >
+              <PlusCircle className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -372,8 +455,8 @@ export default function KnowledgeBasePage() {
                         className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       >
                         {categories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {CATEGORY_DISPLAY_NAMES[cat]}
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
                           </option>
                         ))}
                       </select>
@@ -422,7 +505,7 @@ export default function KnowledgeBasePage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
-                          {CATEGORY_DISPLAY_NAMES[article.category]}
+                          {allCategories.find(c => c.id === article.category)?.name || article.category}
                         </span>
                         {article.approved ? (
                           <span className="flex items-center gap-1 text-xs text-green-600">
@@ -492,6 +575,86 @@ export default function KnowledgeBasePage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="p-6 border-b border-stone-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                    <Settings className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-stone-900">Add Category</h2>
+                    <p className="text-sm text-stone-500">Create a new knowledge category</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCategoryModal(false)}
+                  className="p-2 hover:bg-stone-100 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-stone-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Category Name
+                </label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="e.g., Special Events, Festival Guide"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddCategory()}
+                />
+                <p className="text-xs text-stone-500 mt-1">
+                  Category ID will be: {newCategoryName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || "category-name"}
+                </p>
+              </div>
+
+              {customCategories.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
+                    Custom Categories ({customCategories.length})
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {customCategories.map((cat) => (
+                      <span
+                        key={cat.id}
+                        className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-lg"
+                      >
+                        {cat.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-stone-200 flex justify-end gap-3">
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCategory}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Add Category
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
