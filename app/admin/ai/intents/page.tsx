@@ -69,7 +69,7 @@ export default function IntentManagerPage() {
       const response = await fetch("/api/ai/settings/intents", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intentId: intent.id, status: newStatus }),
+        body: JSON.stringify({ intentId: intent.intentId, status: newStatus }),
       });
       
       if (response.ok) {
@@ -100,7 +100,7 @@ export default function IntentManagerPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          intentId: selectedIntent.id,
+          intentId: selectedIntent.intentId,
           ...editForm,
           keywords: editForm.keywords?.map(k => ({ keyword: k, language: "en" as const, isActive: true })),
           examples: editForm.examples?.map(e => ({ text: e, language: "en" as const })),
