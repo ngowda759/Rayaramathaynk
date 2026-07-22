@@ -11,10 +11,15 @@
  * Run: npx ts-node --project tsconfig.scripts.json scripts/seed-quotes.ts
  */
 
+import * as path from "path";
+import * as dotenv from "dotenv";
+
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(__dirname, "..", ".env.local") });
+
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as fs from "fs";
-import * as path from "path";
 
 // Initialize Firebase Admin
 function initFirebase() {
@@ -24,7 +29,7 @@ function initFirebase() {
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      }),
+      } as any), // Type assertion to handle property name variation
     });
   }
   return getFirestore();
