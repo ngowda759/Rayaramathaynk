@@ -469,6 +469,22 @@ export const INTENT_PATTERNS: IntentPattern[] = [
     },
     requiresStructuredData: true,
   },
+  {
+    intent: Intent.GALLERY,
+    category: IntentCategory.VISITOR,
+    priority: IntentPriority.GALLERY,
+    keywords: {
+      en: [
+        "gallery", "photos", "image", "images", "see photos",
+        "photo gallery", "picture gallery", "browse gallery",
+        "ಗ್ಯಾಲರಿ", "ಫೋಟೊಗಳು", "ಚಿತ್ರಗಳು"
+      ],
+      kn: [
+        "ಗ್ಯಾಲರಿ", "ಫೋಟೊಗಳು", "ಚಿತ್ರಗಳು"
+      ]
+    },
+    requiresStructuredData: true,
+  },
 
   // ==================== WEBSITE NAVIGATION ====================
   {

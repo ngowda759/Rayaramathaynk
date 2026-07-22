@@ -51,6 +51,7 @@ export enum Intent {
   DRESS_CODE = "DRESS_CODE",
   PHOTOGRAPHY = "PHOTOGRAPHY",
   PARKING = "PARKING",
+  GALLERY = "GALLERY",
   
   // Website Navigation
   SHARE_EXPERIENCE = "SHARE_EXPERIENCE",
@@ -136,6 +137,7 @@ export enum IntentPriority {
   BRINDAVANA = 41,
   MANTRALAYA = 40,
   // Visitor
+  GALLERY = 36,
   PHOTOGRAPHY = 35,
   DRESS_CODE = 34,
   VISITOR_GUIDELINES = 33,
@@ -232,6 +234,18 @@ export const NAVIGATION_INTENTS: Partial<Record<Intent, NavigationIntentMetadata
     description: {
       en: "Find information about temple parking facilities.",
       kn: "ದೇವಸ್ಥಾನದ ಪಾರ್ಕಿಂಗ್ ಸೌಲಭ್ಯಗಳ ಬಗ್ಗೆ ಮಾಹಿತಿ ಪಡೆಯಿರಿ.",
+    },
+  },
+  [Intent.GALLERY]: {
+    route: "/gallery",
+    buttonText: {
+      en: "View Gallery",
+      kn: "ಗ್ಯಾಲರಿ ನೋಡಿ",
+    },
+    knowledgeCategory: "gallery",
+    description: {
+      en: "Browse photos and images from the temple.",
+      kn: "ದೇವಸ್ಥಾನದ ಫೋಟೊಗಳು ಮತ್ತು ಚಿತ್ರಗಳನ್ನು ನೋಡಿ.",
     },
   },
   [Intent.PHOTOGRAPHY]: {

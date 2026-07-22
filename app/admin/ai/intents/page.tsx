@@ -66,10 +66,10 @@ export default function IntentManagerPage() {
     const newStatus: IntentStatus = intent.status === "enabled" ? "disabled" : "enabled";
     
     try {
-      const response = await fetch(`/api/ai/settings/intents?id=${intent.id}`, {
+      const response = await fetch("/api/ai/settings/intents", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ intentId: intent.id, status: newStatus }),
       });
       
       if (response.ok) {
@@ -96,10 +96,11 @@ export default function IntentManagerPage() {
     if (!selectedIntent) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/intents?id=${selectedIntent.id}`, {
+      const response = await fetch("/api/ai/settings/intents", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          intentId: selectedIntent.id,
           ...editForm,
           keywords: editForm.keywords?.map(k => ({ keyword: k, language: "en" as const, isActive: true })),
           examples: editForm.examples?.map(e => ({ text: e, language: "en" as const })),

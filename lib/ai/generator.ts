@@ -1149,6 +1149,9 @@ export async function generateResponse(
     case Intent.BRINDAVANA:
     case Intent.MANTRALAYA:
     case Intent.TESTIMONIAL:
+    case Intent.GALLERY:
+    case Intent.PHOTOGRAPHY:
+    case Intent.PARKING:
       return handleKnowledgeIntent(intentResult.intent, message, language);
     
     case Intent.VOLUNTEER:

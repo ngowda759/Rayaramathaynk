@@ -130,6 +130,10 @@ const INTENT_EXAMPLES: Record<Intent, string[]> = {
   [Intent.DRESS_CODE]: [
     "dress code", "what to wear", "wear", "clothing", "dress"
   ],
+  [Intent.GALLERY]: [
+    "gallery", "photos", "images", "see photos", "photo gallery",
+    "picture gallery", "browse gallery", "view images"
+  ],
   [Intent.PHOTOGRAPHY]: [
     "photography", "photo", "camera", "can i take pictures"
   ],
