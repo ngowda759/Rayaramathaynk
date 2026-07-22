@@ -392,13 +392,14 @@ export default function KnowledgeBasePage() {
           )}
         </div>
       ) : (
-        <div className="space-y-4 overflow-x-hidden">
+        <div className="space-y-4">
           {filteredArticles.map((article) => (
-            <div key={article.id} className="bg-white rounded-xl shadow overflow-hidden">
+            <div key={article.id} className="bg-white rounded-xl shadow">
               {editingId === article.id ? (
                 /* Edit Mode */
-                <form onSubmit={saveArticle} className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
-                  <div className="flex items-center justify-between sticky top-0 bg-white pb-3 border-b border-stone-100 -mx-6 px-6">
+                <div className="flex flex-col max-h-[calc(100vh-200px)]">
+                  {/* Sticky Header */}
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 bg-white sticky top-0 z-10">
                     <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
                     <div className="flex gap-2">
                       <button
@@ -410,7 +411,8 @@ export default function KnowledgeBasePage() {
                         Cancel
                       </button>
                       <button
-                        type="submit"
+                        type="button"
+                        onClick={saveArticle}
                         disabled={saving}
                         className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
                       >
@@ -424,80 +426,83 @@ export default function KnowledgeBasePage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  {/* Scrollable Form Content */}
+                  <form onSubmit={saveArticle} className="flex-1 overflow-y-auto p-6 space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={editForm.title}
+                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
+                        <input
+                          type="text"
+                          value={editForm.slug}
+                          onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                          placeholder="article-url-slug"
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
+                        <select
+                          value={editForm.category}
+                          onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        >
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
+                        <select
+                          value={editForm.language}
+                          onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        >
+                          <option value="en">English</option>
+                          <option value="kn">Kannada</option>
+                          <option value="mixed">Mixed</option>
+                        </select>
+                      </div>
+                    </div>
+
                     <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
+                      <label className="block text-sm font-medium text-stone-700 mb-1">
+                        Keywords (comma-separated)
+                      </label>
                       <input
                         type="text"
-                        value={editForm.title}
-                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        value={editForm.keywords}
+                        onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
+                        placeholder="keyword1, keyword2, keyword3"
                         className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
-                      <input
-                        type="text"
-                        value={editForm.slug}
-                        onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
-                        placeholder="article-url-slug"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
+                      <textarea
+                        value={editForm.content}
+                        onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                        rows={10}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
-                      <select
-                        value={editForm.category}
-                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      >
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
-                      <select
-                        value={editForm.language}
-                        onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      >
-                        <option value="en">English</option>
-                        <option value="kn">Kannada</option>
-                        <option value="mixed">Mixed</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">
-                      Keywords (comma-separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.keywords}
-                      onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
-                      placeholder="keyword1, keyword2, keyword3"
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
-                    <textarea
-                      value={editForm.content}
-                      onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                      rows={10}
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
-                    />
-                  </div>
-                </form>
+                  </form>
+                </div>
               ) : (
                 /* View Mode */
                 <div className="p-6">
