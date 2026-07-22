@@ -2,22 +2,40 @@ import { NextResponse } from "next/server";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
-// Required knowledge categories for complete coverage
-const REQUIRED_CATEGORIES = [
-  { id: "temple-timings", name: "Temple Timings", description: "Daily darshan timings and office hours" },
-  { id: "visitor-guidelines", name: "Visitor Guidelines", description: "Temple rules and etiquette" },
-  { id: "dress-code", name: "Dress Code", description: "Appropriate attire for visiting" },
+// Public website pages mapped to categories
+const PUBLIC_PAGES_CATEGORIES = [
+  { id: "aaradhane", name: "Aaradhane", description: "Aaradhane festival and events" },
+  { id: "about", name: "About", description: "About the temple/matha" },
+  { id: "donation", name: "Donation", description: "How to donate and tax benefits (80G)" },
+  { id: "events", name: "Events", description: "Temple events and schedules" },
   { id: "facilities", name: "Facilities", description: "Available amenities and services" },
-  { id: "parking", name: "Parking", description: "Parking information and availability" },
+  { id: "future-plans", name: "Future Plans", description: "Temple development plans" },
+  { id: "gallery", name: "Gallery", description: "Photo gallery" },
+  { id: "guruparampara", name: "Guru Parampara", description: "Guru lineage and teachings" },
+  { id: "journey", name: "Temple Journey", description: "Temple establishment and journey" },
+  { id: "pooja", name: "Pooja Services", description: "Daily poojas and special sevas" },
+  { id: "sevas", name: "Sevas", description: "Volunteer and seva opportunities" },
+  { id: "shlokas", name: "Shlokas", description: "Sacred slokas and mantras" },
+  { id: "temple-explorer", name: "Temple Explorer", description: "Temple areas and facilities" },
+  { id: "testimonials", name: "Testimonials", description: "Devotee testimonials" },
+  { id: "trust", name: "Trust", description: "Trust committee and management" },
   { id: "volunteer", name: "Volunteer", description: "Volunteer program and opportunities" },
   { id: "faq", name: "FAQ", description: "Frequently asked questions" },
   { id: "contact", name: "Contact", description: "Contact information and office hours" },
-  { id: "donation", name: "Donation", description: "How to donate and tax benefits" },
-  { id: "photography", name: "Photography", description: "Photography policy and guidelines" },
-  { id: "accommodation", name: "Accommodation", description: "Guest house and lodging facilities" },
+  { id: "dress-code", name: "Dress Code", description: "Appropriate attire for visiting" },
+  { id: "parking", name: "Parking", description: "Parking information and availability" },
   { id: "history", name: "Temple History", description: "History of the temple" },
   { id: "raghavendra-swamy", name: "Sri Raghavendra Swamy", description: "Biography and teachings" },
   { id: "brindavana", name: "Brindavana", description: "The sacred samadhi information" },
+  { id: "madhvacharya", name: "Sri Madhvacharya", description: "Madhvacharya biography and philosophy" },
+  { id: "mantralaya", name: "Mantralaya", description: "Mantralaya pilgrimage site" },
+];
+
+// Default required categories
+const DEFAULT_CATEGORIES = [
+  ...PUBLIC_PAGES_CATEGORIES,
+  { id: "photography", name: "Photography", description: "Photography policy and guidelines" },
+  { id: "accommodation", name: "Accommodation", description: "Guest house and lodging facilities" },
 ];
 
 interface CoverageStatus {
@@ -34,7 +52,7 @@ export async function GET() {
   try {
     // If Firebase is not configured, return mock data
     if (!isFirebaseConfigured() || !db) {
-      const mockCoverage = REQUIRED_CATEGORIES.map(cat => ({
+      const mockCoverage = DEFAULT_CATEGORIES.map(cat => ({
         ...cat,
         status: "missing" as const,
       }));
@@ -44,9 +62,9 @@ export async function GET() {
         data: {
           coverage: mockCoverage,
           summary: {
-            total: REQUIRED_CATEGORIES.length,
+            total: DEFAULT_CATEGORIES.length,
             present: 0,
-            missing: REQUIRED_CATEGORIES.length,
+            missing: DEFAULT_CATEGORIES.length,
             percentage: 0,
           },
           lastChecked: new Date().toISOString(),
@@ -74,7 +92,7 @@ export async function GET() {
     });
 
     // Build coverage status
-    const coverage: CoverageStatus[] = REQUIRED_CATEGORIES.map(cat => {
+    const coverage: CoverageStatus[] = DEFAULT_CATEGORIES.map(cat => {
       const existing = existingCategories.get(cat.id);
       
       if (existing) {
@@ -95,14 +113,14 @@ export async function GET() {
 
     const present = coverage.filter(c => c.status === "present").length;
     const missing = coverage.filter(c => c.status === "missing").length;
-    const percentage = Math.round((present / REQUIRED_CATEGORIES.length) * 100);
+    const percentage = Math.round((present / DEFAULT_CATEGORIES.length) * 100);
 
     return NextResponse.json({
       success: true,
       data: {
         coverage,
         summary: {
-          total: REQUIRED_CATEGORIES.length,
+          total: DEFAULT_CATEGORIES.length,
           present,
           missing,
           percentage,
