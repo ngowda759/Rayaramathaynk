@@ -95,6 +95,13 @@ export default function IntentManagerPage() {
   const handleSaveEdit = async () => {
     if (!selectedIntent) return;
     
+    // Debug: Log what we're sending
+    console.log("Saving intent:", {
+      intentId: selectedIntent.intentId,
+      name: editForm.name,
+      keywords: editForm.keywords?.map(k => ({ keyword: k, language: "en", isActive: true })),
+    });
+    
     try {
       const response = await fetch("/api/ai/settings/intents", {
         method: "PUT",
@@ -107,12 +114,18 @@ export default function IntentManagerPage() {
         }),
       });
       
+      const data = await response.json();
+      console.log("Response:", data);
+      
       if (response.ok) {
-        showMsg("success", "Intent updated successfully");
+        showMsg("success", "Intent saved successfully!");
         setIsEditing(false);
         loadIntents();
+      } else {
+        showMsg("error", data.error || "Failed to update intent");
       }
     } catch (error) {
+      console.error("Error:", error);
       showMsg("error", "Failed to update intent");
     }
   };
