@@ -471,21 +471,24 @@ export default function KnowledgeBasePage() {
 
       {/* Edit Modal */}
       {editingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           {/* Backdrop */}
           <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-pointer"
             onClick={cancelEditing}
           />
           
           {/* Modal Content */}
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+          <div 
+            className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 flex-shrink-0">
               <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
               <button
                 onClick={cancelEditing}
-                className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5 text-stone-500" />
               </button>
@@ -572,14 +575,14 @@ export default function KnowledgeBasePage() {
                 <button
                   type="button"
                   onClick={cancelEditing}
-                  className="px-4 py-2 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
+                  className="px-4 py-2 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
