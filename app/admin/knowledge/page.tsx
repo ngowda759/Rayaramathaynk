@@ -394,192 +394,203 @@ export default function KnowledgeBasePage() {
       ) : (
         <div className="space-y-4">
           {filteredArticles.map((article) => (
-            <div key={article.id} className="bg-white rounded-xl shadow">
-              {editingId === article.id ? (
-                /* Edit Mode */
-                <div className="flex flex-col max-h-[calc(100vh-200px)]">
-                  {/* Sticky Header */}
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 bg-white sticky top-0 z-10">
-                    <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={cancelEditing}
-                        className="flex items-center gap-1 px-3 py-1.5 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
+            <div key={article.id} className="bg-white rounded-xl shadow p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
+                      {allCategories.find(c => c.id === article.category)?.name || article.category}
+                    </span>
+                    {article.approved ? (
+                      <span className="flex items-center gap-1 text-xs text-green-600">
+                        <CheckCircle className="w-3 h-3" />
+                        Published
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-amber-600">
+                        <AlertCircle className="w-3 h-3" />
+                        Pending
+                      </span>
+                    )}
+                    {article.slug && (
+                      <a
+                        href={`/knowledge/article/${article.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
                       >
-                        <X className="w-4 h-4" />
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={saveArticle}
-                        disabled={saving}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {saving ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        Save
-                      </button>
-                    </div>
+                        <Eye className="w-3 h-3" />
+                        View on Site
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
-
-                  {/* Scrollable Form Content */}
-                  <form onSubmit={saveArticle} className="flex-1 overflow-y-auto p-6 space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
-                        <input
-                          type="text"
-                          value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
-                        <input
-                          type="text"
-                          value={editForm.slug}
-                          onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
-                          placeholder="article-url-slug"
-                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
-                        <select
-                          value={editForm.category}
-                          onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
-                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  <h3 className="text-lg font-semibold text-stone-900 mb-2">{article.title}</h3>
+                  <p className="text-stone-600 text-sm line-clamp-2 mb-3">
+                    {article.content.substring(0, 200)}...
+                  </p>
+                  {article.keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {article.keywords.slice(0, 5).map((keyword, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded"
                         >
-                          {categories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
-                        <select
-                          value={editForm.language}
-                          onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
-                          className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                        >
-                          <option value="en">English</option>
-                          <option value="kn">Kannada</option>
-                          <option value="mixed">Mixed</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">
-                        Keywords (comma-separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.keywords}
-                        onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
-                        placeholder="keyword1, keyword2, keyword3"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
-                      <textarea
-                        value={editForm.content}
-                        onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                        rows={10}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
-                      />
-                    </div>
-                  </form>
-                </div>
-              ) : (
-                /* View Mode */
-                <div className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
-                          {allCategories.find(c => c.id === article.category)?.name || article.category}
+                          {keyword}
                         </span>
-                        {article.approved ? (
-                          <span className="flex items-center gap-1 text-xs text-green-600">
-                            <CheckCircle className="w-3 h-3" />
-                            Published
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-xs text-amber-600">
-                            <AlertCircle className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
-                        {article.slug && (
-                          <a
-                            href={`/knowledge/article/${article.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Eye className="w-3 h-3" />
-                            View on Site
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
-                      <h3 className="text-lg font-semibold text-stone-900 mb-2">{article.title}</h3>
-                      <p className="text-stone-600 text-sm line-clamp-2 mb-3">
-                        {article.content.substring(0, 200)}...
-                      </p>
-                      {article.keywords.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {article.keywords.slice(0, 5).map((keyword, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded"
-                            >
-                              {keyword}
-                            </span>
-                          ))}
-                          {article.keywords.length > 5 && (
-                            <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded">
-                              +{article.keywords.length - 5} more
-                            </span>
-                          )}
-                        </div>
+                      ))}
+                      {article.keywords.length > 5 && (
+                        <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-xs rounded">
+                          +{article.keywords.length - 5} more
+                        </span>
                       )}
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => startEditing(article)}
-                        className="p-2 text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteArticle(article.id)}
-                        className="p-2 text-stone-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => startEditing(article)}
+                    className="p-2 text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => deleteArticle(article.id)}
+                    className="p-2 text-stone-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={cancelEditing}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 flex-shrink-0">
+              <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
+              <button
+                onClick={cancelEditing}
+                className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-stone-500" />
+              </button>
+            </div>
+
+            {/* Scrollable Form Content */}
+            <form onSubmit={saveArticle} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Slug (URL)</label>
+                  <input
+                    type="text"
+                    value={editForm.slug}
+                    onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                    placeholder="article-url-slug"
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value as KnowledgeCategory })}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Language</label>
+                  <select
+                    value={editForm.language}
+                    onChange={(e) => setEditForm({ ...editForm, language: e.target.value as "en" | "kn" | "mixed" })}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  >
+                    <option value="en">English</option>
+                    <option value="kn">Kannada</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">
+                  Keywords (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.keywords}
+                  onChange={(e) => setEditForm({ ...editForm, keywords: e.target.value })}
+                  placeholder="keyword1, keyword2, keyword3"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Content</label>
+                <textarea
+                  value={editForm.content}
+                  onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                  rows={10}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono text-sm"
+                />
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-stone-200 sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  className="px-4 py-2 text-stone-600 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
