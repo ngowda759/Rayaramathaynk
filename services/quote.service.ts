@@ -440,8 +440,156 @@ class QuoteService {
       }
     }
 
-    console.log("[QuoteService] No quotes found, returning null");
-    return null;
+    // 8. Use hardcoded fallback quotes if database is empty
+    console.log("[QuoteService] Database empty, using fallback quote for day:", context.dayOfWeek);
+    return this.getFallbackQuote(context);
+  }
+
+  /**
+   * Get fallback quote when database is empty
+   * Returns a default quote based on the day of week
+   */
+  private getFallbackQuote(context: QuoteSelectionContext): Quote | null {
+    const dayOfWeek = context.dayOfWeek;
+    
+    // Fallback quotes for each day (from Sri Raghavendra Stotra)
+    const fallbackQuotes: Record<number, Omit<Quote, 'id' | 'createdAt' | 'updatedAt'>> = {
+      0: { // Sunday
+        slug: "sunday-fallback",
+        title: "Sunday Verse",
+        category: "raghavendra_stotra",
+        priority: 5,
+        language: "kn",
+        content: {
+          kannada: "ಶ್ರೀಮದ್ರಾಮಪಾದಾರವಿಂದಮಧುಪಃ ಶ್ರೀಮಧ್ವವಂಶಾಧಿಪಃ | ಕಾಂಕಣಾದಿವೃತ್ತಿಸಮಪ್ರವೇಶಃ ಸಂತುಷ್ಟಚಿತ್ತಮಾತ್ಮಾ ||",
+          translationEnglish: "I bow to the lotus feet of Sri Raghavendra, who is an ornament to the Madhwa lineage, who is always satisfied, and who is the abode of supreme bliss."
+        },
+        source: "Sri Raghavendra Stotra",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["stotra", "sunday"],
+        active: true,
+        displayWeight: 1,
+      },
+      1: { // Monday
+        slug: "monday-fallback",
+        title: "Monday Teaching",
+        category: "authentic_teachings",
+        priority: 6,
+        language: "kn",
+        content: {
+          kannada: "ಭಕ್ತಿಯೆ ಮಹಾ ಪ್ರಭುವಿನ ಸ್ವರೂಪ | ಭಕ್ತಿಯೆ ಮುಕ್ತಿಯ ಮೂಲವಾಗಿ",
+          translationEnglish: "Devotion is the very nature of the Lord. Devotion is the root of liberation."
+        },
+        source: "Madhwa Philosophy",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["philosophy", "devotion"],
+        active: true,
+        displayWeight: 1,
+      },
+      2: { // Tuesday
+        slug: "tuesday-fallback",
+        title: "Tuesday Verse",
+        category: "raghavendra_stotra",
+        priority: 5,
+        language: "kn",
+        content: {
+          kannada: "ಯದಿ ಪದ್ಮಾಸನಸಂಸ್ಥಾಃ ಪ್ರಣವಂತಿ ಸುಧಾರಯಃ | ಸರ್ವಾಸಾಧು ಭವಂತ್ಯೇವ ತದ್ವಿಷ್ಣೋಃ ಪ್ರಸಾದತಃ ||",
+          translationEnglish: "Those who, seated in Padmasana, meditate upon the lotus feet of the Lord, attain all auspiciousness by the grace of Lord Vishnu."
+        },
+        source: "Sri Raghavendra Stotra",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["stotra", "tuesday"],
+        active: true,
+        displayWeight: 1,
+      },
+      3: { // Wednesday
+        slug: "wednesday-fallback",
+        title: "Wednesday Teaching",
+        category: "authentic_teachings",
+        priority: 6,
+        language: "kn",
+        content: {
+          kannada: "ಸತ್ಯಂ ವದ | ಧರ್ಮಂ ಚರ | ಸ್ವಧರ್ಮಂ ನಿತ್ಯಂ ವಿಚರ |",
+          translationEnglish: "Speak truth. Follow dharma. Always walk your own path of duty."
+        },
+        source: "Sri Raghavendra Swamy Teaching",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["teaching", "wednesday"],
+        active: true,
+        displayWeight: 1,
+      },
+      4: { // Thursday
+        slug: "thursday-fallback",
+        title: "Guru Vandana",
+        category: "guru_vandana",
+        priority: 4,
+        language: "kn",
+        content: {
+          kannada: "ಗುರುರ್ಭಕ್ತಿಪರೋ ವಿಷ್ಣುರ್ಭವತಿ | ಭಕ್ತಿಮಾನ್ ನರೋ ವಿಷ್ಣೋರ್ಭವತಿ ಸರ್ವದಾ |",
+          translationEnglish: "The guru who is devoted to Vishnu becomes Vishnu Himself. A devotee who serves the guru becomes divine always."
+        },
+        source: "Guru Vandana",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["guru", "thursday", "vandana"],
+        active: true,
+        displayWeight: 1,
+      },
+      5: { // Friday
+        slug: "friday-fallback",
+        title: "Friday Verse",
+        category: "raghavendra_stotra",
+        priority: 5,
+        language: "kn",
+        content: {
+          kannada: "ಓಂ ನಮೋ ಭಗವತೇ ವಾಸುದೇವಾಯ | ಓಂ ನಮೋ ಶ್ರೀ ರಾಘವೇಂದ್ರಾಯ |",
+          translationEnglish: "Om, I bow to Lord Vasudeva. Om, I bow to Sri Raghavendra."
+        },
+        source: "Daily Prayer",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["prayer", "friday"],
+        active: true,
+        displayWeight: 1,
+      },
+      6: { // Saturday
+        slug: "saturday-fallback",
+        title: "Saturday Philosophy",
+        category: "madhwa_philosophy",
+        priority: 7,
+        language: "kn",
+        content: {
+          kannada: "ದ್ವೈತಂ ಸಾಧು | ವಿಷಯಾಃ ಪೃಥಗೇವ | ಜೀವಾತ್ಮಾ ಪರಮಾತ್ಮಾ ಚ | ಭಿನ್ನೌ ಜಗತಿ ವಸ್ತುತಃ ||",
+          translationEnglish: "Dvaita is true. The world consists of distinct entities - Jiva (individual soul), Jagat (material world), and Paramatma (Supreme Lord), all truly different."
+        },
+        source: "Madhwa Darshan",
+        featured: false,
+        festivalOnly: false,
+        festivalNames: [],
+        weekdayOnly: null,
+        tags: ["philosophy", "saturday", "dvaita"],
+        active: true,
+        displayWeight: 1,
+      },
+    };
+
+    return fallbackQuotes[dayOfWeek] as Quote || fallbackQuotes[0] as Quote;
   }
 
   /**
