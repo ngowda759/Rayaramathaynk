@@ -40,14 +40,19 @@ function parseTimeToMinutes(timeStr: string): number {
 /**
  * Get current IST time in minutes from midnight
  * IST is UTC+5:30
+ * Uses Intl.DateTimeFormat to reliably get the time in Asia/Kolkata timezone
  */
 function getCurrentMinutes(): number {
   const now = new Date();
-  // Convert to IST: add 5 hours and 30 minutes to UTC
-  const istOffset = 5 * 60 + 30; // 330 minutes
-  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const istMinutes = (utcMinutes + istOffset) % (24 * 60);
-  return istMinutes;
+  // Use Intl to get the actual IST time reliably, regardless of server timezone
+  const istTimeString = now.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+  });
+  const [hours, minutes] = istTimeString.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
 /**
