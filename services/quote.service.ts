@@ -440,16 +440,16 @@ class QuoteService {
       }
     }
 
-    // 8. Use hardcoded fallback quotes if database is empty
-    console.log("[QuoteService] Database empty, using fallback quote for day:", context.dayOfWeek);
-    return this.getFallbackQuote(context);
+    // 8. Use hardcoded default quotes if database is empty
+    console.log("[QuoteService] Database empty, using default quote for day:", context.dayOfWeek);
+    return this.getDefaultQuote(context);
   }
 
   /**
-   * Get fallback quote when database is empty
-   * Returns a default quote based on the day of week
+   * Get default quote when database is empty
+   * Returns a built-in quote based on the day of week
    */
-  private getFallbackQuote(context: QuoteSelectionContext): Quote | null {
+  private getDefaultQuote(context: QuoteSelectionContext): Quote | null {
     const dayOfWeek = context.dayOfWeek;
     
     // Fallback quotes for each day (from Sri Raghavendra Stotra)
