@@ -588,6 +588,7 @@ function handleVolunteer(language: "en" | "kn" | "mixed"): AIResponseResult {
 We welcome devotees to join our volunteer (sevadhar) program!
 
 **How to Join:**
+- Register online: [Volunteer Registration](/volunteer)
 - Contact the temple office during working hours
 - Phone: +91-80-28446400
 - Email: info@raghavendramatha.org
@@ -608,6 +609,7 @@ Training is provided for all volunteers. Your service (seva) is considered a sac
 ನಮ್ಮ ಸೇವಾಧಾರ ಕಾರ್ಯಕ್ರಮಕ್ಕೆ ಭಕ್ತರನ್ನು ಸ್ವಾಗತಿಸುತ್ತೇವೆ!
 
 **ಹೇಗೆ ಸೇರಬೇಕು:**
+- ಆನ್‌ಲೈನ್‌ನಲ್ಲಿ ನೋಂದಣಿ ಮಾಡಿ: [ಸ್ವಯಂಸೇವಕ ನೋಂದಣಿ](/volunteer)
 - ಕಛೇರಿ ಸಮಯದಲ್ಲಿ ದೇವಸ್ಥಾನದ ಕಛೇರಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ
 - ಫೋನ್: +91-80-28446400
 
@@ -621,6 +623,7 @@ Training is provided for all volunteers. Your service (seva) is considered a sac
     mixed: `🙏 **Volunteer / ಸ್ವಯಂಸೇವೆ**
 
 Join our volunteer program!
+- Register online: [Volunteer Registration](/volunteer)
 Contact: +91-80-28446400
 
 Your service is a sacred offering.
