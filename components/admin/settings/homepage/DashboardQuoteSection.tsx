@@ -34,7 +34,7 @@ export default function DashboardQuoteSection({
   return (
     <FormSection
       title="Dashboard Daily Inspiration"
-      description="Daily spiritual quote displayed on the Daily Spiritual Dashboard. Leave empty to show default rotating quotes."
+      description="Custom daily spiritual quote displayed on the homepage. Leave empty to automatically show scheduled quotes based on the day (Sri Raghavendra Stotra on most days, Guru Vandana on Thursdays, festival quotes during celebrations)."
     >
       <div className="space-y-6">
         <FormTextArea

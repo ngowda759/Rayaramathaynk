@@ -16,10 +16,10 @@ import {
   DailyQuote,
   FeaturedEvent,
   DailySpiritualDashboard,
-  DEFAULT_QUOTES,
 } from "@/types/daily-spiritual";
 import type { Announcement } from "@/types/announcement";
 import { homepageService } from "./homepage.service";
+import { quoteService } from "./quote.service";
 
 /**
  * Parse time string to minutes from midnight
@@ -151,7 +151,15 @@ class DailySpiritualService {
   }
 
   /**
-   * Get daily quote from homepage config or use default
+   * Get daily quote from homepage config or use intelligent quote engine
+   * 
+   * Priority:
+   * 1. Custom quote from homepage settings (if text is set)
+   * 2. Intelligent quote selection based on:
+   *    - Festival quotes (highest priority)
+   *    - Thursday: Guru Vandana
+   *    - Weekday-based rotation (Sri Raghavendra Stotra, Authentic Teachings, Madhwa Philosophy)
+   *    - Fallback: Devotional Sayings
    */
   async getDailyQuote(): Promise<DailyQuote | null> {
     try {
@@ -171,14 +179,26 @@ class DailySpiritualService {
       console.error("Error fetching quote from homepage:", error);
     }
 
-    // Fallback to cycling through default quotes
-    const today = new Date();
-    const dayOfYear = Math.floor(
-      (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
-        (1000 * 60 * 60 * 24)
-    );
-    const index = dayOfYear % DEFAULT_QUOTES.length;
-    return DEFAULT_QUOTES[index];
+    // Use the intelligent quote engine for automatic scheduling
+    try {
+      const result = await quoteService.getTodaysQuote();
+      
+      if (result.quote) {
+        // Format the intelligent quote to DailyQuote format
+        const q = result.quote;
+        return {
+          id: q.id,
+          text: q.content.translationEnglish || q.content.kannada || q.content.sanskrit || q.title,
+          source: q.source,
+          language: q.content.kannada ? "kn" : "en",
+          category: q.category,
+        };
+      }
+    } catch (error) {
+      console.error("Error fetching quote from quote service:", error);
+    }
+
+    return null;
   }
 
   /**
