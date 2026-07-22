@@ -66,17 +66,25 @@ export default function UnknownQuestionsPage() {
 
   const handleStatusChange = async (question: UnknownQuestion, newStatus: UnknownQuestionStatus) => {
     try {
-      const response = await fetch(`/api/ai/settings/unknown-questions?id=${question.id}`, {
+      const response = await fetch(`/api/ai/settings/unknown-questions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ 
+          questionId: question.id,
+          action: "update",
+          status: newStatus
+        }),
       });
       
       if (response.ok) {
         showMsg("success", "Status updated successfully");
         loadQuestions();
+      } else {
+        const error = await response.json();
+        showMsg("error", error.error || "Failed to update status");
       }
     } catch (error) {
+      console.error("Error updating status:", error);
       showMsg("error", "Failed to update status");
     }
   };
@@ -85,7 +93,7 @@ export default function UnknownQuestionsPage() {
     if (!confirm("Delete this question?")) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/unknown-questions?id=${question.id}`, {
+      const response = await fetch(`/api/ai/settings/unknown-questions?questionId=${question.id}`, {
         method: "DELETE",
       });
       
@@ -95,8 +103,12 @@ export default function UnknownQuestionsPage() {
           setSelectedQuestion(null);
         }
         loadQuestions();
+      } else {
+        const error = await response.json();
+        showMsg("error", error.error || "Failed to delete question");
       }
     } catch (error) {
+      console.error("Error deleting question:", error);
       showMsg("error", "Failed to delete question");
     }
   };
