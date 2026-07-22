@@ -86,6 +86,18 @@ export function useHomepageForm() {
       await homepageService.saveHomepage(formData);
       console.log("[HomepageForm] Save successful");
 
+      // Revalidate the homepage to reflect changes immediately
+      try {
+        await fetch("/api/revalidate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paths: ["/"] }),
+        });
+        console.log("[HomepageForm] Homepage revalidated successfully");
+      } catch (revalidateError) {
+        console.warn("[HomepageForm] Revalidation failed, changes will appear within 60s:", revalidateError);
+      }
+
       setStatusMessage(
         "Homepage settings saved successfully."
       );
