@@ -14,6 +14,8 @@ import {
   PromptSettings,
   IntentSettings,
   PromptVersion,
+  UnknownQuestion,
+  UnknownQuestionStatus,
   DEFAULT_TEMPLE_INFORMATION,
   DEFAULT_TEMPLE_TIMINGS,
   DEFAULT_TEMPLE_CONTACT,
@@ -23,9 +25,11 @@ import {
   DEFAULT_AI_RESPONSES,
   DEFAULT_AI_BEHAVIOR_SETTINGS,
 } from "@/types/ai-settings";
+import { FieldValue } from "firebase-admin/firestore";
 
 const AI_SETTINGS_DOC_ID = "main";
 const AI_SETTINGS_COLLECTION = "ai_settings";
+const UNKNOWN_QUESTIONS_COLLECTION = "unknown_questions";
 
 export class AIAdminRepository {
   private async getDocRef(docId: string = AI_SETTINGS_DOC_ID): Promise<any> {
@@ -255,6 +259,71 @@ Guidelines:
 6. For complex queries, offer to connect with temple staff
 
 Sri Guru Raghavendraya Namaha! 🙏`;
+  }
+
+  // ==================== UNKNOWN QUESTIONS (Admin) ====================
+
+  async getUnknownQuestions(filters?: {
+    status?: string;
+    limit?: number;
+  }): Promise<UnknownQuestion[]> {
+    const db = await this.getDb();
+    let query: any = db.collection(UNKNOWN_QUESTIONS_COLLECTION);
+
+    const snapshot = await query.orderBy("timestamp", "desc").get();
+    
+    let questions = snapshot.docs.map((doc: any) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        timestamp: data.timestamp?.toDate?.() || new Date(),
+      };
+    }) as UnknownQuestion[];
+
+    // Apply filters in memory
+    if (filters?.status) {
+      questions = questions.filter((q) => q.status === filters.status);
+    }
+
+    if (filters?.limit) {
+      questions = questions.slice(0, filters.limit);
+    }
+
+    return questions;
+  }
+
+  async updateUnknownQuestion(
+    questionId: string,
+    updates: Partial<{
+      status: UnknownQuestionStatus;
+      assignedTo: string;
+      reviewedBy: string;
+      response: string;
+      addedToKnowledgeArticleId: string;
+      notes: string;
+    }>
+  ): Promise<void> {
+    const db = await this.getDb();
+    const docRef = db.collection(UNKNOWN_QUESTIONS_COLLECTION).doc(questionId);
+    
+    const updateData: Record<string, any> = { ...updates };
+
+    if (updates.reviewedBy || updates.status === "in_review") {
+      updateData.reviewedAt = FieldValue.serverTimestamp();
+    }
+
+    if (updates.status) {
+      updateData.status = updates.status;
+    }
+
+    await docRef.update(updateData);
+  }
+
+  async deleteUnknownQuestion(questionId: string): Promise<void> {
+    const db = await this.getDb();
+    const docRef = db.collection(UNKNOWN_QUESTIONS_COLLECTION).doc(questionId);
+    await docRef.delete();
   }
 }
 
