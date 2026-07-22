@@ -537,7 +537,8 @@ export class AISettingsService {
     questionId: string,
     updates: Partial<UnknownQuestion>
   ): Promise<void> {
-    await aiSettingsRepository.updateUnknownQuestion(questionId, updates);
+    // Use admin repository for server-side operations (bypasses security rules)
+    await aiAdminRepository.updateUnknownQuestion(questionId, updates);
   }
 
   async assignUnknownQuestion(
@@ -564,7 +565,8 @@ export class AISettingsService {
   }
 
   async deleteUnknownQuestion(questionId: string): Promise<void> {
-    await aiSettingsRepository.deleteUnknownQuestion(questionId);
+    // Use admin repository for server-side operations (bypasses security rules)
+    await aiAdminRepository.deleteUnknownQuestion(questionId);
   }
 
   // ==================== UTILITY ====================

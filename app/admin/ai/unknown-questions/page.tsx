@@ -15,9 +15,14 @@ import {
   Send,
   AlertCircle,
   RefreshCw,
+  X,
+  Save,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import type { UnknownQuestion, UnknownQuestionStatus } from "@/types/ai-settings";
+import type { KnowledgeCategory } from "@/lib/ai/knowledge/types";
 
 const STATUS_COLORS: Record<UnknownQuestionStatus, { bg: string; text: string; badge: string }> = {
   pending: { bg: "bg-yellow-50", text: "text-yellow-700", badge: "bg-yellow-100 text-yellow-800" },
@@ -33,6 +38,25 @@ const STATUS_OPTIONS: { value: UnknownQuestionStatus; label: string }[] = [
   { value: "added_to_knowledge", label: "Added to Knowledge" },
 ];
 
+const KNOWLEDGE_CATEGORIES: { value: KnowledgeCategory; label: string }[] = [
+  { value: "general", label: "General" },
+  { value: "temple_history", label: "Temple History" },
+  { value: "sri_raghavendra", label: "Sri Raghavendra Swamy" },
+  { value: "sri_madhvacharya", label: "Sri Madhvacharya" },
+  { value: "guru_parampara", label: "Guru Parampara" },
+  { value: "brindavana", label: "Brindavana" },
+  { value: "mantralaya", label: "Mantralaya" },
+  { value: "daily_pooja", label: "Daily Pooja" },
+  { value: "special_sevas", label: "Special Sevas" },
+  { value: "dress_code", label: "Dress Code" },
+  { value: "donation_info", label: "Donation Info" },
+  { value: "visitor_guidelines", label: "Visitor Guidelines" },
+  { value: "faq", label: "FAQ" },
+  { value: "madhwa_philosophy", label: "Madhwa Philosophy" },
+  { value: "rituals", label: "Rituals" },
+  { value: "stotras", label: "Stotras" },
+];
+
 export default function UnknownQuestionsPage() {
   const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +64,16 @@ export default function UnknownQuestionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<UnknownQuestionStatus | "all">("all");
   const [selectedQuestion, setSelectedQuestion] = useState<UnknownQuestion | null>(null);
+
+  // Knowledge modal state
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
+  const [knowledgeForm, setKnowledgeForm] = useState({
+    title: "",
+    content: "",
+    keywords: "",
+    category: "general" as KnowledgeCategory,
+  });
+  const [savingKnowledge, setSavingKnowledge] = useState(false);
 
   const showMsg = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -66,17 +100,25 @@ export default function UnknownQuestionsPage() {
 
   const handleStatusChange = async (question: UnknownQuestion, newStatus: UnknownQuestionStatus) => {
     try {
-      const response = await fetch(`/api/ai/settings/unknown-questions?id=${question.id}`, {
+      const response = await fetch(`/api/ai/settings/unknown-questions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ 
+          questionId: question.id,
+          action: "update",
+          status: newStatus
+        }),
       });
       
       if (response.ok) {
         showMsg("success", "Status updated successfully");
         loadQuestions();
+      } else {
+        const error = await response.json();
+        showMsg("error", error.error || "Failed to update status");
       }
     } catch (error) {
+      console.error("Error updating status:", error);
       showMsg("error", "Failed to update status");
     }
   };
@@ -85,7 +127,7 @@ export default function UnknownQuestionsPage() {
     if (!confirm("Delete this question?")) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/unknown-questions?id=${question.id}`, {
+      const response = await fetch(`/api/ai/settings/unknown-questions?questionId=${question.id}`, {
         method: "DELETE",
       });
       
@@ -95,9 +137,76 @@ export default function UnknownQuestionsPage() {
           setSelectedQuestion(null);
         }
         loadQuestions();
+      } else {
+        const error = await response.json();
+        showMsg("error", error.error || "Failed to delete question");
       }
     } catch (error) {
+      console.error("Error deleting question:", error);
       showMsg("error", "Failed to delete question");
+    }
+  };
+
+  // Open knowledge modal with question pre-filled
+  const openKnowledgeModal = (question: UnknownQuestion) => {
+    setKnowledgeForm({
+      title: question.question,
+      content: "",
+      keywords: question.intent?.toLowerCase() || "",
+      category: "general",
+    });
+    setShowKnowledgeModal(true);
+  };
+
+  // Save to knowledge base and mark as added
+  const handleAddToKnowledge = async () => {
+    if (!selectedQuestion) return;
+    
+    if (!knowledgeForm.content.trim()) {
+      showMsg("error", "Please provide an answer/content for the AI to learn");
+      return;
+    }
+
+    setSavingKnowledge(true);
+    try {
+      // Create knowledge article
+      const response = await fetch("/api/admin/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: knowledgeForm.title,
+          content: knowledgeForm.content,
+          keywords: knowledgeForm.keywords.split(",").map(k => k.trim()).filter(Boolean),
+          category: knowledgeForm.category,
+          slug: `uq-${Date.now()}`,
+        }),
+      });
+
+      if (response.ok) {
+        // Update unknown question status
+        await fetch(`/api/ai/settings/unknown-questions`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questionId: selectedQuestion.id,
+            action: "update",
+            status: "added_to_knowledge",
+          }),
+        });
+
+        showMsg("success", "Added to Knowledge Base! AI can now answer this question.");
+        setShowKnowledgeModal(false);
+        setSelectedQuestion(null);
+        loadQuestions();
+      } else {
+        const error = await response.json();
+        showMsg("error", error.error || "Failed to add to knowledge");
+      }
+    } catch (error) {
+      console.error("Error adding to knowledge:", error);
+      showMsg("error", "Failed to add to knowledge");
+    } finally {
+      setSavingKnowledge(false);
     }
   };
 
@@ -375,24 +484,31 @@ export default function UnknownQuestionsPage() {
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-stone-200 space-y-3">
-                  <h3 className="text-sm font-medium text-stone-700">Update Status</h3>
+                  <h3 className="text-sm font-medium text-stone-700">Quick Actions</h3>
                   <div className="flex flex-wrap gap-2">
-                    {STATUS_OPTIONS.filter(s => s.value !== (selectedQuestion.status || "pending")).map((status) => (
+                    {/* Add to Knowledge Button */}
+                    <button
+                      onClick={() => openKnowledgeModal(selectedQuestion)}
+                      className="flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors bg-purple-100 text-purple-700 hover:bg-purple-200"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Add to Knowledge
+                    </button>
+                    
+                    {/* Status Buttons */}
+                    {STATUS_OPTIONS.filter(s => s.value !== "added_to_knowledge" && s.value !== (selectedQuestion.status || "pending")).map((status) => (
                       <button
                         key={status.value}
                         onClick={() => handleStatusChange(selectedQuestion, status.value)}
                         className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
                           status.value === "resolved"
                             ? "bg-green-100 text-green-700 hover:bg-green-200"
-                            : status.value === "added_to_knowledge"
-                            ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
                             : status.value === "in_review"
                             ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
                             : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
                         }`}
                       >
                         {status.value === "resolved" && <CheckCircle className="w-4 h-4" />}
-                        {status.value === "added_to_knowledge" && <BookOpen className="w-4 h-4" />}
                         Mark as {status.label}
                       </button>
                     ))}
@@ -409,6 +525,113 @@ export default function UnknownQuestionsPage() {
           )}
         </div>
       </div>
+
+      {/* Add to Knowledge Modal */}
+      {showKnowledgeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-stone-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-stone-900">Add to Knowledge Base</h2>
+                    <p className="text-sm text-stone-500">Train the AI to answer this question</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowKnowledgeModal(false)}
+                  className="p-2 hover:bg-stone-100 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-stone-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Question (Read-only) */}
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Question</label>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-stone-900">
+                  {knowledgeForm.title}
+                </div>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Category</label>
+                <select
+                  value={knowledgeForm.category}
+                  onChange={(e) => setKnowledgeForm({ ...knowledgeForm, category: e.target.value as KnowledgeCategory })}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  {KNOWLEDGE_CATEGORIES.map((cat) => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Answer/Content */}
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Answer <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={knowledgeForm.content}
+                  onChange={(e) => setKnowledgeForm({ ...knowledgeForm, content: e.target.value })}
+                  placeholder="Enter the answer that the AI should learn..."
+                  rows={6}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+                <p className="text-xs text-stone-500 mt-1">
+                  This content will be used by the AI to answer similar questions in the future.
+                </p>
+              </div>
+
+              {/* Keywords */}
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Keywords</label>
+                <input
+                  type="text"
+                  value={knowledgeForm.keywords}
+                  onChange={(e) => setKnowledgeForm({ ...knowledgeForm, keywords: e.target.value })}
+                  placeholder="temple, pooja, timings (comma separated)"
+                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-stone-200 flex justify-end gap-3">
+              <button
+                onClick={() => setShowKnowledgeModal(false)}
+                className="px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg"
+                disabled={savingKnowledge}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddToKnowledge}
+                disabled={savingKnowledge || !knowledgeForm.content.trim()}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingKnowledge ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Add to Knowledge & Mark Complete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

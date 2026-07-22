@@ -309,13 +309,13 @@ export default function KnowledgeBasePage() {
           )}
         </div>
       ) : (
-        <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-2 -mr-2">
+        <div className="space-y-4 overflow-x-hidden">
           {filteredArticles.map((article) => (
             <div key={article.id} className="bg-white rounded-xl shadow overflow-hidden">
               {editingId === article.id ? (
                 /* Edit Mode */
-                <form onSubmit={saveArticle} className="p-6 space-y-4">
-                  <div className="flex items-center justify-between">
+                <form onSubmit={saveArticle} className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                  <div className="flex items-center justify-between sticky top-0 bg-white pb-3 border-b border-stone-100 -mx-6 px-6">
                     <h3 className="text-lg font-semibold text-stone-900">Edit Article</h3>
                     <div className="flex gap-2">
                       <button
