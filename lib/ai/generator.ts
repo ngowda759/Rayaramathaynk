@@ -650,16 +650,18 @@ function handleShareExperience(language: "en" | "kn" | "mixed"): AIResponseResul
 
 We invite devotees to share their spiritual experiences and testimonials at Sri Raghavendra Swamy Matha.
 
-**How to Share:**
-1. **Write to us:** Submit your testimonial via the temple website
-2. **Suggestion Box:** Drop your written testimonial at the temple suggestion box
-3. **Email:** info@raghavendramatha.org
+**Submit Your Testimonial:**
+📝 [Share Your Experience](/testimonials) - Submit via the temple website
+
+You can also:
+- 💬 Drop your written testimonial at the temple suggestion box
+- 📧 Email: info@raghavendramatha.org
 
 Your experiences inspire and guide fellow devotees on their spiritual journey.
 
 **What to Share:**
 - Your experience during darshan
-- blessings received
+- Blessings received
 - Stories of Sri Guru's grace
 - How the temple has helped you
 
@@ -669,19 +671,23 @@ Your experiences inspire and guide fellow devotees on their spiritual journey.
 
 ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠದಲ್ಲಿ ನಿಮ್ಮ ಆತ್ಮೀಯ ಅನುಭವಗಳನ್ನು ಹಂಚಿಕೊಳ್ಳಲು ನಾವು ಭಕ್ತರನ್ನು ಆಹ್ವಾನಿಸುತ್ತೇವೆ.
 
-**ಹೇಗೆ ಹಂಚಿಕೊಳ್ಳುವುದು:**
-- ವೆಬ್‌ಸೈಟ್‌ನ ಮೂಲಕ ಬರೆಯಿರಿ
-- ದೇವಸ್ಥಾನದ ಸೂಚನಾ ಪೆಟ್ಟಿಗೆಯಲ್ಲಿ ಬಿಡಿ
-- ಇಮೇಲ್: info@raghavendramatha.org
+**ನಿಮ್ಮ ಸಾಕ್ಷಿ ಸಲ್ಲಿಸಿ:**
+📝 [ನಿಮ್ಮ ಅನುಭವ ಹಂಚಿಕೊಳ್ಳಿ](/testimonials) - ದೇವಸ್ಥಾನದ ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ಸಲ್ಲಿಸಿ
+
+ಅಥವಾ:
+- 💬 ದೇವಸ್ಥಾನದ ಸೂಚನಾ ಪೆಟ್ಟಿಗೆಯಲ್ಲಿ ಬಿಡಿ
+- 📧 ಇಮೇಲ್: info@raghavendramatha.org
 
 🙏 ಧನ್ಯವಾದಗಳು!`,
 
     mixed: `🙏 **Share Experience / ಅನುಭವ**
 
 Share your spiritual journey!
-- Website testimonial form
-- Suggestion box at temple
-- Email: info@raghavendramatha.org
+📝 [Share Your Experience](/testimonials) - Submit via the temple website
+
+Or:
+- 💬 Suggestion box at temple
+- 📧 Email: info@raghavendramatha.org
 
 🙏 Sri Guru Raghavendraya Namaha.`
   };
