@@ -103,9 +103,9 @@ export default function UnknownQuestionsPage() {
 
   const filteredQuestions = questions.filter(q => {
     const matchesSearch = 
-      q.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      q.question?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.intent?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || q.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || (q.status || "pending") === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -165,7 +165,7 @@ export default function UnknownQuestionsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {STATUS_OPTIONS.map((status) => {
-          const count = questions.filter(q => q.status === status.value).length;
+          const count = questions.filter(q => (q.status || "pending") === status.value).length;
           const colors = STATUS_COLORS[status.value];
           return (
             <button
@@ -241,7 +241,8 @@ export default function UnknownQuestionsPage() {
               </div>
             ) : (
               filteredQuestions.map((question) => {
-                const colors = STATUS_COLORS[question.status];
+                const questionStatus = question.status || "pending";
+                const colors = STATUS_COLORS[questionStatus];
                 return (
                   <div
                     key={question.id}
@@ -257,7 +258,7 @@ export default function UnknownQuestionsPage() {
                         </p>
                         <div className="flex items-center gap-2 mt-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${colors.badge}`}>
-                            {question.status.replace("_", " ")}
+                            {questionStatus.replace("_", " ")}
                           </span>
                           {question.intent && (
                             <span className="text-xs text-stone-500">
@@ -317,8 +318,8 @@ export default function UnknownQuestionsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-stone-50 p-3 rounded-lg">
                     <p className="text-xs text-stone-500 mb-1">Status</p>
-                    <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedQuestion.status].badge}`}>
-                      {selectedQuestion.status.replace("_", " ")}
+                    <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedQuestion.status || "pending"].badge}`}>
+                      {(selectedQuestion.status || "pending").replace("_", " ")}
                     </span>
                   </div>
                   <div className="bg-stone-50 p-3 rounded-lg">
@@ -376,7 +377,7 @@ export default function UnknownQuestionsPage() {
                 <div className="pt-4 border-t border-stone-200 space-y-3">
                   <h3 className="text-sm font-medium text-stone-700">Update Status</h3>
                   <div className="flex flex-wrap gap-2">
-                    {STATUS_OPTIONS.filter(s => s.value !== selectedQuestion.status).map((status) => (
+                    {STATUS_OPTIONS.filter(s => s.value !== (selectedQuestion.status || "pending")).map((status) => (
                       <button
                         key={status.value}
                         onClick={() => handleStatusChange(selectedQuestion, status.value)}
