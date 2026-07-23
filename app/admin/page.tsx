@@ -7,11 +7,12 @@ import {
   Globe, MessageSquare, Eye, Calendar, UserCheck,
   Monitor, Smartphone, Tablet, MousePointerClick, 
   TrendingDown, IndianRupee, Activity, Link2,
-  PlusCircle, ChevronRight
+  PlusCircle, ChevronRight, ExternalLink, RefreshCw
 } from "lucide-react";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, getDocs, getCountFromServer, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
+import { getAnalyticsSummary } from "@/services/pageviews.service";
 
 interface PublicAnalyticsStats {
   totalUsers: number;
@@ -38,6 +39,7 @@ interface PublicAnalyticsStats {
   newSignupsThisWeek: number;
   donationAmount: number;
   avgDonationAmount: number;
+  hasRealData: boolean;
 }
 
 function MiniStat({ title, value, icon: Icon, color }: { title: string; value: string | number; icon: React.ElementType; color: string }) {
@@ -83,12 +85,16 @@ export default function DashboardPage() {
     topPages: [], trafficSources: { direct: 0, organic: 0, referral: 0, social: 0 },
     deviceBreakdown: { mobile: 0, desktop: 0, tablet: 0 },
     weeklyActiveUsers: 0, newSignupsThisWeek: 0, donationAmount: 0, avgDonationAmount: 0,
+    hasRealData: false,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchPublicStats() {
-      if (!db) { setLoading(false); return; }
+      if (!db || !isFirebaseConfigured) { 
+        setLoading(false); 
+        return; 
+      }
       
       try {
         const [usersSnap, volunteersSnap, membersSnap, donationsSnap, bookingsSnap, eventsSnap, aiConversationsSnap] = await Promise.all([
@@ -135,45 +141,32 @@ export default function DashboardPage() {
           }
         } catch (e) { console.warn("AI analytics fetch failed:", e); }
 
-        // Fetch actual page views from page_views collection if it exists
+        // Fetch real page views from pageviews service
         let topPages: Array<{ path: string; views: number }> = [];
         let trafficSources: { direct: number; organic: number; referral: number; social: number } = { direct: 0, organic: 0, referral: 0, social: 0 };
+        let avgSessionDuration = "0m";
+        let bounceRate = "0%";
+        let weeklyActiveUsers = 0;
+        let totalPageViews = 0;
+        let uniqueVisitors = 0;
+        let deviceBreakdown = { mobile: 0, desktop: 0, tablet: 0 };
+        let hasRealData = false;
         
         try {
-          const pageViewsSnap = await getDocs(collection(db, "page_views"));
-          if (!pageViewsSnap.empty) {
-            // Aggregate page views by path
-            const pageViewMap: Record<string, number> = {};
-            pageViewsSnap.docs.forEach(doc => {
-              const data = doc.data();
-              const path = data.path || "/";
-              pageViewMap[path] = (pageViewMap[path] || 0) + (data.views || 1);
-            });
-            
-            topPages = Object.entries(pageViewMap)
-              .map(([path, views]) => ({ path, views }))
-              .sort((a, b) => b.views - a.views)
-              .slice(0, 5);
-            
-            // Aggregate traffic sources
-            const sourcesMap: Record<string, number> = { direct: 0, organic: 0, referral: 0, social: 0 };
-            pageViewsSnap.docs.forEach(doc => {
-              const data = doc.data();
-              const source = data.source || "direct";
-              if (source in sourcesMap) {
-                sourcesMap[source] += data.views || 1;
-              }
-            });
-            trafficSources = {
-              direct: sourcesMap.direct || 0,
-              organic: sourcesMap.organic || 0,
-              referral: sourcesMap.referral || 0,
-              social: sourcesMap.social || 0,
-            };
+          const webAnalytics = await getAnalyticsSummary(30);
+          if (webAnalytics.totalPageViews > 0) {
+            topPages = webAnalytics.topPages;
+            trafficSources = webAnalytics.trafficSources;
+            avgSessionDuration = webAnalytics.avgSessionDuration;
+            bounceRate = webAnalytics.bounceRate;
+            weeklyActiveUsers = webAnalytics.weeklyActiveUsers;
+            totalPageViews = webAnalytics.totalPageViews;
+            uniqueVisitors = webAnalytics.uniqueVisitors;
+            deviceBreakdown = webAnalytics.deviceBreakdown;
+            hasRealData = true;
           }
         } catch (e) {
-          console.warn("Page views collection not available:", e);
-          // If no page_views collection, show empty state with explanation
+          console.warn("Web analytics fetch failed:", e);
         }
 
         const donorsSnap = await getDocs(query(collection(db, "donations"), where("status", "==", "completed")));
@@ -189,62 +182,45 @@ export default function DashboardPage() {
         const aiCount = aiConversationsSnap.data().count;
 
         setPublicStats({
-          totalUsers: usersSnap.data().count, activeVolunteers: volunteersSnap.data().count,
-          totalMembers: membersSnap.data().count, totalDonations: donationsSnap.data().count,
-          totalSevaBookings: bookingsSnap.data().count, totalEvents: eventsSnap.data().count,
-          upcomingEvents: upcomingSnap.data().count, totalDonors: uniqueDonors.size,
-          totalAIConversations: aiCount, avgAIResponseTime: aiAnalytics.avgResponseTime,
-          aiSuccessRate: aiAnalytics.successRate, aiLanguages: aiAnalytics.languages,
+          totalUsers: usersSnap.data().count, 
+          activeVolunteers: volunteersSnap.data().count,
+          totalMembers: membersSnap.data().count, 
+          totalDonations: donationsSnap.data().count,
+          totalSevaBookings: bookingsSnap.data().count, 
+          totalEvents: eventsSnap.data().count,
+          upcomingEvents: upcomingSnap.data().count, 
+          totalDonors: uniqueDonors.size,
+          totalAIConversations: aiCount, 
+          avgAIResponseTime: aiAnalytics.avgResponseTime,
+          aiSuccessRate: aiAnalytics.successRate, 
+          aiLanguages: aiAnalytics.languages,
           topIntents: aiAnalytics.topIntents,
-          pageViews: aiAnalytics.totalMessages || aiCount * 5, 
-          uniqueVisitors: usersSnap.data().count + Math.floor(aiCount * 0.3),
-          avgSessionDuration: "3m 24s", bounceRate: "42%",
-          // Only use page_views data if available, otherwise show empty state
-          topPages: topPages.length > 0 ? topPages : [
-            { path: "/", views: 0 },
-            { path: "/events", views: 0 },
-            { path: "/donation", views: 0 },
-            { path: "/pooja", views: 0 },
-            { path: "/about", views: 0 },
-          ],
+          pageViews: totalPageViews,
+          uniqueVisitors: uniqueVisitors,
+          avgSessionDuration: avgSessionDuration, 
+          bounceRate: bounceRate,
+          topPages: topPages.length > 0 ? topPages : [],
           trafficSources,
-          deviceBreakdown: { mobile: 65, desktop: 30, tablet: 5 },
-          weeklyActiveUsers: Math.floor(usersSnap.data().count * 0.3),
-          newSignupsThisWeek: Math.floor(usersSnap.data().count * 0.05),
+          deviceBreakdown,
+          weeklyActiveUsers,
+          newSignupsThisWeek: 0,
           donationAmount: totalDonationAmount,
           avgDonationAmount: uniqueDonors.size > 0 ? Math.round(totalDonationAmount / uniqueDonors.size) : 0,
+          hasRealData,
         });
       } catch (error) {
         console.error("Firebase error:", error);
-        // Show demo data so page isn't empty
+        // Show empty state with message
         setPublicStats({
-          totalUsers: 256, activeVolunteers: 45, totalMembers: 128,
-          totalDonations: 89, totalSevaBookings: 67, totalEvents: 24,
-          upcomingEvents: 8, totalDonors: 89,
-          totalAIConversations: 156, avgAIResponseTime: "1.2s",
-          aiSuccessRate: "94%", aiLanguages: { english: 98, kannada: 45, mixed: 13 },
-          topIntents: [
-            { intent: "Temple Timings", count: 45 },
-            { intent: "Events", count: 32 },
-            { intent: "Donations", count: 28 },
-            { intent: "Pooja Booking", count: 21 },
-            { intent: "Location", count: 15 },
-          ],
-          pageViews: 780, uniqueVisitors: 420,
-          avgSessionDuration: "3m 24s", bounceRate: "42%",
-          topPages: [
-            { path: "/", views: 350 },
-            { path: "/events", views: 180 },
-            { path: "/donation", views: 95 },
-            { path: "/pooja", views: 72 },
-            { path: "/about", views: 48 },
-          ],
-          trafficSources: { direct: 180, organic: 126, referral: 63, social: 42 },
-          deviceBreakdown: { mobile: 65, desktop: 30, tablet: 5 },
-          weeklyActiveUsers: 78,
-          newSignupsThisWeek: 12,
-          donationAmount: 156000,
-          avgDonationAmount: 1752,
+          totalUsers: 0, activeVolunteers: 0, totalMembers: 0, totalDonations: 0,
+          totalSevaBookings: 0, totalEvents: 0, upcomingEvents: 0, totalDonors: 0,
+          totalAIConversations: 0, avgAIResponseTime: "0s", aiSuccessRate: "0%",
+          aiLanguages: { english: 0, kannada: 0, mixed: 0 }, topIntents: [],
+          pageViews: 0, uniqueVisitors: 0, avgSessionDuration: "0m", bounceRate: "0%",
+          topPages: [], trafficSources: { direct: 0, organic: 0, referral: 0, social: 0 },
+          deviceBreakdown: { mobile: 0, desktop: 0, tablet: 0 },
+          weeklyActiveUsers: 0, newSignupsThisWeek: 0, donationAmount: 0, avgDonationAmount: 0,
+          hasRealData: false,
         });
       }
       finally { setLoading(false); }
@@ -256,6 +232,11 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
   const userName = profile?.name || "Admin";
 
+  const handleRefresh = () => {
+    setLoading(true);
+    window.location.reload();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -263,9 +244,20 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-stone-900">{greeting}, {userName}</h1>
           <p className="text-sm text-stone-500">Here&apos;s what&apos;s happening with your temple website</p>
         </div>
-        <Link href="/" className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1">
-          View Website <ChevronRight className="w-4 h-4" />
-        </Link>
+        <div className="flex items-center gap-3">
+          {loading && <span className="text-sm text-stone-400 animate-pulse">Loading...</span>}
+          <button 
+            onClick={handleRefresh}
+            className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1 transition-colors"
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <Link href="/" className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1">
+            View Website <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -278,6 +270,15 @@ export default function DashboardPage() {
       </div>
 
       <SectionCard title="Website Analytics" icon={Globe} iconColor="text-blue-500">
+        {!publicStats.hasRealData && publicStats.totalUsers === 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <p className="text-amber-800 text-sm font-medium">📊 Collecting Real Data</p>
+            <p className="text-amber-700 text-xs mt-1">
+              Page view tracking is now enabled. Analytics data will appear here as visitors browse your website.
+              Visit a few pages on your site, then refresh this dashboard to see the results.
+            </p>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <div className="p-3 bg-stone-50 rounded-lg"><p className="text-xs text-stone-500">Page Views</p><p className="text-lg font-bold text-stone-900">{publicStats.pageViews.toLocaleString()}</p></div>
           <div className="p-3 bg-stone-50 rounded-lg"><p className="text-xs text-stone-500">Visitors</p><p className="text-lg font-bold text-stone-900">{publicStats.uniqueVisitors.toLocaleString()}</p></div>
@@ -286,38 +287,49 @@ export default function DashboardPage() {
           <div className="p-3 bg-stone-50 rounded-lg"><p className="text-xs text-stone-500">Weekly Active</p><p className="text-lg font-bold text-stone-900">{publicStats.weeklyActiveUsers}</p></div>
           <div className="p-3 bg-stone-50 rounded-lg"><p className="text-xs text-stone-500">New Signups</p><p className="text-lg font-bold text-stone-900">{publicStats.newSignupsThisWeek}</p></div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-2">
-            <h4 className="text-sm font-medium text-stone-700 mb-3 flex items-center gap-2"><MousePointerClick className="w-4 h-4" /> Top Pages</h4>
-            <div className="space-y-2">
-              {publicStats.topPages.map((page, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
-                  <div className="flex items-center gap-2"><span className="text-xs text-stone-400 w-4">{i + 1}</span><span className="text-sm font-mono bg-stone-100 px-2 py-0.5 rounded">{page.path}</span></div>
-                  <span className="text-sm font-medium text-stone-600">{page.views}</span>
-                </div>
-              ))}
+        {publicStats.topPages.length > 0 || publicStats.hasRealData ? (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-2">
+              <h4 className="text-sm font-medium text-stone-700 mb-3 flex items-center gap-2"><MousePointerClick className="w-4 h-4" /> Top Pages</h4>
+              <div className="space-y-2">
+                {publicStats.topPages.length > 0 ? (
+                  publicStats.topPages.map((page, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
+                      <div className="flex items-center gap-2"><span className="text-xs text-stone-400 w-4">{i + 1}</span><span className="text-sm font-mono bg-stone-100 px-2 py-0.5 rounded">{page.path}</span></div>
+                      <span className="text-sm font-medium text-stone-600">{page.views.toLocaleString()}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-stone-400 italic">No page views recorded yet</p>
+                )}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-stone-700 mb-3 flex items-center gap-2"><Link2 className="w-4 h-4" /> Traffic</h4>
+              <div className="space-y-2">
+                {[{ label: "Direct", v: publicStats.trafficSources.direct, c: "bg-blue-500" }, { label: "Organic", v: publicStats.trafficSources.organic, c: "bg-green-500" }, { label: "Referral", v: publicStats.trafficSources.referral, c: "bg-amber-500" }, { label: "Social", v: publicStats.trafficSources.social, c: "bg-purple-500" }].map(s => (
+                  <div key={s.label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${s.c}`} /><span className="text-sm text-stone-600">{s.label}</span></div>
+                    <span className="text-sm font-medium text-stone-700">{s.v > 0 ? s.v.toLocaleString() : "-"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-stone-700 mb-3 flex items-center gap-2"><Monitor className="w-4 h-4" /> Devices</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Smartphone className="w-4 h-4 text-stone-400" /><span className="text-sm text-stone-600">Mobile</span></div><span className="text-sm font-medium text-stone-700">{publicStats.deviceBreakdown.mobile}%</span></div>
+                <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Monitor className="w-4 h-4 text-stone-400" /><span className="text-sm text-stone-600">Desktop</span></div><span className="text-sm font-medium text-stone-700">{publicStats.deviceBreakdown.desktop}%</span></div>
+                <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Tablet className="w-4 h-4 text-stone-400" /><span className="text-sm text-stone-600">Tablet</span></div><span className="text-sm font-medium text-stone-700">{publicStats.deviceBreakdown.tablet}%</span></div>
+              </div>
             </div>
           </div>
-          <div>
-            <h4 className="text-sm font-medium text-stone-700 mb-3 flex items-center gap-2"><Link2 className="w-4 h-4" /> Traffic</h4>
-            <div className="space-y-2">
-              {[{ label: "Direct", v: publicStats.trafficSources.direct, c: "bg-blue-500" }, { label: "Organic", v: publicStats.trafficSources.organic, c: "bg-green-500" }, { label: "Referral", v: publicStats.trafficSources.referral, c: "bg-amber-500" }, { label: "Social", v: publicStats.trafficSources.social, c: "bg-purple-500" }].map(s => (
-                <div key={s.label} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${s.c}`} /><span className="text-sm text-stone-600">{s.label}</span></div>
-                  <span className="text-sm font-medium text-stone-700">{s.v}</span>
-                </div>
-              ))}
-            </div>
+        ) : (
+          <div className="text-center py-8 text-stone-400">
+            <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Start browsing your website to see analytics</p>
           </div>
-          <div>
-            <h4 className="text-sm font-medium text-stone-700 mb-3 flex items-center gap-2"><Monitor className="w-4 h-4" /> Devices</h4>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Smartphone className="w-4 h-4 text-stone-400" /><span className="text-sm text-stone-600">Mobile</span></div><span className="text-sm font-medium text-stone-700">{publicStats.deviceBreakdown.mobile}%</span></div>
-              <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Monitor className="w-4 h-4 text-stone-400" /><span className="text-sm text-stone-600">Desktop</span></div><span className="text-sm font-medium text-stone-700">{publicStats.deviceBreakdown.desktop}%</span></div>
-              <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Tablet className="w-4 h-4 text-stone-400" /><span className="text-sm text-stone-600">Tablet</span></div><span className="text-sm font-medium text-stone-700">{publicStats.deviceBreakdown.tablet}%</span></div>
-            </div>
-          </div>
-        </div>
+        )}
       </SectionCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -364,7 +376,7 @@ export default function DashboardPage() {
             ))}
           </div>
           <div className="mt-4 pt-4 border-t border-stone-100">
-            <Link href="/ai/analytics" className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1">View Full Analytics <ChevronRight className="w-4 h-4" /></Link>
+            <Link href="/ai/analytics" className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1">View Full AI Analytics <ChevronRight className="w-4 h-4" /></Link>
           </div>
         </SectionCard>
       </div>
