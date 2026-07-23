@@ -6,6 +6,8 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { AIChatProvider } from "@/components/ai/AIChatProvider";
 import { ChatWidget } from "@/components/ai/ChatWidget";
+import { A11yProvider, SkipLink, LiveRegion } from "@/components/common/A11yProvider";
+import { ProfileProvider } from "@/context/ProfileContext";
 
 // Primary fonts - Inter for general use, Kannada will be handled via CSS font-stack
 const inter = Inter({
@@ -52,48 +54,47 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${playfair.variable} ${notoSansKannada.variable} antialiased bg-stone-50 text-stone-900 min-h-screen`}
       >
-        {/* Skip to main content link for accessibility */}
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-amber-600 focus:px-4 focus:py-2 focus:text-white focus:font-semibold focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
-        >
-          Skip to main content
-        </a>
-        <AuthProvider>
-          <AIChatProvider>
-            {children}
+        <A11yProvider>
+          <SkipLink targetId="main-content" />
+          <LiveRegion />
+          <AuthProvider>
+            <ProfileProvider>
+              <AIChatProvider>
+                {children}
 
-            <Toaster
-              position="top-right"
-              reverseOrder={false}
-              gutter={8}
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  borderRadius: "12px",
-                  background: "#ffffff",
-                  color: "#1c1917",
-                  border: "1px solid #e7e5e4",
-                  boxShadow:
-                    "0 10px 25px rgba(0,0,0,0.08)",
-                },
-                success: {
-                  iconTheme: {
-                    primary: "#16a34a",
-                    secondary: "#ffffff",
-                  },
-                },
-                error: {
-                  iconTheme: {
-                    primary: "#dc2626",
-                    secondary: "#ffffff",
-                  },
-                },
-              }}
-            />
-            <ChatWidget />
-          </AIChatProvider>
-        </AuthProvider>
+                <Toaster
+                  position="top-right"
+                  reverseOrder={false}
+                  gutter={8}
+                  toastOptions={{
+                    duration: 4000,
+                    style: {
+                      borderRadius: "12px",
+                      background: "#ffffff",
+                      color: "#1c1917",
+                      border: "1px solid #e7e5e4",
+                      boxShadow:
+                        "0 10px 25px rgba(0,0,0,0.08)",
+                    },
+                    success: {
+                      iconTheme: {
+                        primary: "#16a34a",
+                        secondary: "#ffffff",
+                      },
+                    },
+                    error: {
+                      iconTheme: {
+                        primary: "#dc2626",
+                        secondary: "#ffffff",
+                      },
+                    },
+                  }}
+                />
+                <ChatWidget />
+              </AIChatProvider>
+            </ProfileProvider>
+          </AuthProvider>
+        </A11yProvider>
       </body>
     </html>
   );
