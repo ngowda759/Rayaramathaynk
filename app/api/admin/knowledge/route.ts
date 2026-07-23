@@ -4,7 +4,7 @@ import {
   getPendingArticles,
   clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
-import { addDocument } from "@/lib/firebase-admin-rest";
+import { addDocument, getDocuments } from "@/lib/firebase-admin-rest";
 
 const COLLECTION_NAME = "knowledge";
 
@@ -13,18 +13,37 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/admin/knowledge
  * Get all knowledge articles (including unpublished)
+ * Reads directly from Firestore for admin - no seed data fallback
  */
 export async function GET() {
   try {
-    const articles = await getKnowledgeArticles();
-    const pending = await getPendingArticles();
+    // For admin, read directly from Firestore without seed data fallback
+    const documents = await getDocuments(COLLECTION_NAME);
     
-    const allArticles = [...articles, ...pending.filter(p => !articles.find(a => a.id === p.id))];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const articles = documents.map((doc: any) => {
+      const data = doc.fields || doc;
+      const name: string = doc.name || '';
+      return {
+        id: name.split('/').pop() || '',
+        slug: data.slug?.stringValue || '',
+        title: data.title?.stringValue || '',
+        kannadaTitle: data.kannadaTitle?.stringValue,
+        category: data.category?.stringValue || 'general',
+        keywords: data.keywords?.arrayValue?.values?.map((v: { stringValue?: string }) => v.stringValue || '') || [],
+        content: data.content?.stringValue || '',
+        kannadaContent: data.kannadaContent?.stringValue,
+        language: data.language?.stringValue || 'en',
+        approved: data.approved?.booleanValue ?? false,
+        createdAt: data.createdAt?.timestampValue || new Date().toISOString(),
+        updatedAt: data.updatedAt?.timestampValue || new Date().toISOString(),
+      };
+    });
     
     return NextResponse.json({
       success: true,
-      articles: allArticles,
-      count: allArticles.length,
+      articles,
+      count: articles.length,
     });
   } catch (error) {
     console.error("Error fetching articles:", error);

@@ -87,6 +87,26 @@ export async function deleteDocument(collectionPath: string, documentId: string)
   }
 }
 
+export async function getDocuments(collectionPath: string): Promise<Record<string, unknown>[]> {
+  const token = await getAccessToken();
+  
+  const response = await fetch(`${FIRESTORE_BASE_URL}/${collectionPath}?pageSize=100`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to get documents: ${error}`);
+  }
+  
+  const result = await response.json();
+  return result.documents || [];
+}
+
 function serializeDocument(data: Record<string, unknown>): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
   
