@@ -23,5 +23,14 @@ export { useQRScanner } from "./useQRScanner";
 // Location hooks
 export { useLocation, useTempleDistance } from "./useLocation";
 
+// Share hooks
+export { useShare, useShareContent } from "./useShare";
+
+// Calendar hooks
+export { useCalendar, useAddToCalendar } from "./useCalendar";
+
+// Notification hooks
+export { useNotifications, NotificationProvider } from "./useNotifications";
+
 // Type exports
 export type { PermissionState, PermissionType } from "@/types/device";
