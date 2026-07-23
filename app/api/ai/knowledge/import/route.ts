@@ -50,11 +50,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get existing published articles
+    // Get existing approved articles from knowledge collection
     const existingArticles = new Map<string, string>();
     if (!overwrite) {
-      const articlesRef = collection(db, "articles");
-      const q = query(articlesRef, where("published", "==", true));
+      const articlesRef = collection(db, "knowledge");
+      const q = query(articlesRef, where("approved", "==", true));
       const snapshot = await getDocs(q);
       snapshot.docs.forEach((docSnap) => {
         const data = docSnap.data();
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
         // Create article
         const articleId = article.category.replace(/-/g, "_");
-        const articleRef = doc(db, "articles", articleId);
+        const articleRef = doc(db, "knowledge", articleId);
 
         await setDoc(articleRef, {
           ...article,

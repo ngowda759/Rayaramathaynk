@@ -73,9 +73,9 @@ export async function GET() {
       });
     }
 
-    // Get all published articles
-    const articlesRef = collection(db, "articles");
-    const publishedQuery = query(articlesRef, where("published", "==", true));
+    // Get all approved articles from knowledge collection
+    const articlesRef = collection(db, "knowledge");
+    const publishedQuery = query(articlesRef, where("approved", "==", true));
     const snapshot = await getDocs(publishedQuery);
     
     const existingCategories = new Map<string, { id: string; title: string; updatedAt: Date }>();
