@@ -1,14 +1,24 @@
 "use client";
 
+import React from "react";
 import {
   Bell,
   CalendarDays,
   Clock3,
   ArrowRight,
+  Navigation,
+  Phone,
+  Share2,
+  Copy,
+  Check,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useLocation, useShare } from "@/lib/device";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 const cards = [
   {
@@ -34,8 +44,55 @@ const cards = [
   },
 ];
 
+const TEMPLE_ADDRESS = "428/20, 8th A Cross Rd, Yelahanka Satellite Town, Yelahanka, Bengaluru, Karnataka 560064";
+const TEMPLE_PHONE = "+91 80 2332 3456";
+
 export default function TempleInfo() {
   const reducedMotion = useReducedMotion();
+  const location = useLocation();
+  const share = useShare();
+  const [copied, setCopied] = React.useState(false);
+  const [isSharing, setIsSharing] = React.useState(false);
+  const [isNavigating, setIsNavigating] = React.useState(false);
+
+  // Handle navigation to temple
+  const handleNavigate = async () => {
+    setIsNavigating(true);
+    try {
+      location.openNavigation();
+    } finally {
+      setIsNavigating(false);
+    }
+  };
+
+  // Share temple info
+  const handleShareTemple = async () => {
+    setIsSharing(true);
+    const success = await share.share({
+      title: "Sri Raghavendra Swamy Matha",
+      text: "Visit Sri Raghavendra Swamy Matha in Yelahanka, Bengaluru. A sacred place of devotion and spiritual learning.",
+      url: typeof window !== "undefined" ? window.location.origin : "",
+    });
+    setIsSharing(false);
+    if (success) {
+      toast.success("Temple information has been shared");
+    }
+  };
+
+  // Copy address
+  const handleCopyAddress = async () => {
+    const success = await share.copyToClipboard(TEMPLE_ADDRESS);
+    if (success) {
+      setCopied(true);
+      toast.success("Address copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Call temple
+  const handleCallTemple = () => {
+    window.location.href = `tel:${TEMPLE_PHONE}`;
+  };
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf4] via-white to-[#fff8ef] py-24">
@@ -85,6 +142,69 @@ export default function TempleInfo() {
             daily poojas, spiritual learning and community
             service dedicated to Sri Raghavendra Swamy.
           </motion.p>
+
+          {/* Temple Action Buttons */}
+          <motion.div
+            initial={reducedMotion ? {} : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: reducedMotion ? 0 : 0.3 }}
+            className="mt-6 flex flex-wrap justify-center gap-3"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNavigate}
+              disabled={isNavigating}
+              className="gap-2"
+            >
+              {isNavigating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Navigation className="h-4 w-4" />
+              )}
+              {location.formattedDistance || "Navigate"}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCallTemple}
+              className="gap-2"
+            >
+              <Phone className="h-4 w-4" />
+              Call Temple
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyAddress}
+              className="gap-2"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              {copied ? "Copied!" : "Copy Address"}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShareTemple}
+              disabled={isSharing}
+              className="gap-2"
+            >
+              {isSharing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="h-4 w-4" />
+              )}
+              Share Temple
+            </Button>
+          </motion.div>
 
         </div>
 

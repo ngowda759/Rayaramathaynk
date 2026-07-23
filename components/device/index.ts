@@ -31,3 +31,15 @@ export { CalendarButton, SimpleCalendarButton } from "./CalendarButton";
 
 // Notification components
 export { NotificationToggle, NotificationBell, NotifyMeButton, NotificationStatus } from "./NotificationToggle";
+
+// Floating Action Bar components
+export {
+  FloatingActionBar,
+  CompactActionBar,
+  StickyActionBar,
+} from "./FloatingActionBar";
+export type {
+  ActionBarAction,
+  FloatingActionBarProps,
+  StickyActionBarProps,
+} from "./FloatingActionBar";

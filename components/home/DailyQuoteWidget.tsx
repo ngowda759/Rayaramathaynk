@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Quote } from "@/types/quote";
-import { Star, BookOpen, Languages } from "lucide-react";
+import { Star, BookOpen, Languages, Share2, Copy, Check, Loader2 } from "lucide-react";
+import { useShare } from "@/lib/device";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 interface DailyQuoteWidgetProps {
   initialQuote?: Quote | null;
@@ -47,6 +50,10 @@ export function DailyQuoteWidget({ initialQuote, className = "" }: DailyQuoteWid
   const [quote, setQuote] = useState<Quote | null>(initialQuote || null);
   const [loading, setLoading] = useState(!initialQuote);
   const [error, setError] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  
+  const share = useShare();
 
   const fetchQuote = async () => {
     try {
@@ -69,6 +76,54 @@ export function DailyQuoteWidget({ initialQuote, className = "" }: DailyQuoteWid
       fetchQuote();
     }
   }, [initialQuote]);
+
+  // Generate quote text for sharing/copying
+  const getQuoteText = () => {
+    if (!quote) return "";
+    const parts: string[] = [];
+    if (quote.content.translationEnglish) {
+      parts.push(`"${quote.content.translationEnglish}"`);
+    }
+    if (quote.content.kannada || quote.content.sanskrit) {
+      parts.push(quote.content.kannada || quote.content.sanskrit || "");
+    }
+    parts.push(`— ${quote.source}${quote.author ? ` (${quote.author})` : ""}`);
+    parts.push("\nSri Raghavendra Swamy Matha");
+    return parts.join("\n\n");
+  };
+
+  // Share quote
+  const handleShareQuote = async () => {
+    if (!quote) return;
+    setIsSharing(true);
+    
+    const text = quote.content.translationEnglish || 
+      quote.content.kannada || 
+      quote.content.sanskrit || 
+      "";
+    
+    const success = await share.share({
+      title: "Daily Inspiration",
+      text: `"${text}"\n\n— ${quote.source}\n\nSri Raghavendra Swamy Matha`,
+    });
+    
+    setIsSharing(false);
+    if (success) {
+      toast.success("Quote has been shared");
+    }
+  };
+
+  // Copy quote
+  const handleCopyQuote = async () => {
+    const text = getQuoteText();
+    const success = await share.copyToClipboard(text);
+    
+    if (success) {
+      setCopied(true);
+      toast.success("Quote copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (loading) {
     return (
@@ -157,18 +212,49 @@ export function DailyQuoteWidget({ initialQuote, className = "" }: DailyQuoteWid
             <p className="text-xs text-muted-foreground">— {quote.author}</p>
           )}
         </div>
-        {quote.tags.length > 0 && (
-          <div className="flex gap-1">
-            {quote.tags.slice(0, 2).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700"
-              >
-                {tag}
-              </span>
-            ))}
+        <div className="flex items-center gap-2">
+          {quote.tags.length > 0 && (
+            <div className="flex gap-1">
+              {quote.tags.slice(0, 2).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          
+          {/* Share and Copy Buttons */}
+          <div className="ml-2 flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShareQuote}
+              disabled={isSharing}
+              className="h-8 w-8 p-0"
+            >
+              {isSharing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyQuote}
+              className="h-8 w-8 p-0"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
           </div>
-        )}
+        </div>
       </div>
     </motion.div>
   );

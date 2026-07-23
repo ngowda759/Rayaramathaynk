@@ -8,9 +8,17 @@ import {
   Sunset,
   Clock,
   Flame,
+  Share2,
+  Bell,
+  Copy,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHomepage } from "@/hooks/useHomepage";
+import { useShare, useNotifications } from "@/lib/device";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 const DEFAULT_PLACEHOLDER = "—";
 
@@ -46,6 +54,14 @@ export default function Panchanga() {
   const [live, setLive] = React.useState<LivePanchanga | null>(
     null
   );
+
+  const [copied, setCopied] = React.useState(false);
+  const [isSharing, setIsSharing] = React.useState(false);
+  const [isNotifyLoading, setIsNotifyLoading] = React.useState(false);
+  const [notifySet, setNotifySet] = React.useState(false);
+  
+  const share = useShare();
+  const notifications = useNotifications();
 
   React.useEffect(() => {
     async function load() {
@@ -101,6 +117,95 @@ export default function Panchanga() {
 
     load();
   }, []);
+
+  // Generate Panchanga summary text
+  const getPanchangaSummary = () => {
+    const parts: string[] = [];
+    if (live?.tithi) parts.push(`Tithi: ${live.tithi}`);
+    if (live?.nakshatra) parts.push(`Nakshatra: ${live.nakshatra}`);
+    if (live?.sunrise) parts.push(`Sunrise: ${live.sunrise}`);
+    if (live?.sunset) parts.push(`Sunset: ${live.sunset}`);
+    if (live?.rahuKalam) parts.push(`Rahu Kalam: ${live.rahuKalam}`);
+    return parts.join(" | ");
+  };
+
+  	  // Share Panchanga
+  const handleSharePanchanga = async () => {
+    setIsSharing(true);
+    const summary = getPanchangaSummary();
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    
+    const success = await share.share({
+      title: "Today's Panchanga - Sri Raghavendra Swamy Matha",
+      text: `Panchanga for ${dateStr}\n\n${summary}\n\nSri Raghavendra Swamy Matha, Yelahanka`,
+      url: typeof window !== "undefined" ? window.location.href : "",
+    });
+    
+    setIsSharing(false);
+    if (success) {
+      toast.success("Panchanga has been shared");
+    }
+  };
+
+  // Copy Panchanga
+  const handleCopyPanchanga = async () => {
+    const summary = getPanchangaSummary();
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    
+    const text = `Panchanga for ${dateStr}\n\n${summary}`;
+    const success = await share.copyToClipboard(text);
+    
+    if (success) {
+      setCopied(true);
+      toast.success("Panchanga copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Set daily Panchanga reminder
+  const handleSetReminder = async () => {
+    setIsNotifyLoading(true);
+    
+    try {
+      if (!notifications.isGranted) {
+        const permission = await notifications.requestPermission();
+        if (permission !== "granted") {
+          toast.error("Please enable notifications to set reminders");
+          setIsNotifyLoading(false);
+          return;
+        }
+      }
+
+      // Schedule for 6 AM tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(6, 0, 0, 0);
+
+      notifications.scheduleEventReminder(
+        "daily-panchanga",
+        "Today's Panchanga Available",
+        tomorrow,
+        0
+      );
+
+      setNotifySet(true);
+      toast.success("Reminder set for daily Panchanga at 6 AM");
+    } catch {
+      toast.error("Failed to set reminder");
+    }
+    
+    setIsNotifyLoading(false);
+  };
 
   // Helper to safely get string value
   const getValue = (v: unknown): string => {
@@ -161,7 +266,7 @@ export default function Panchanga() {
     },
   ];
 
-    if (loading) {
+  if (loading) {
     return (
       <section className="bg-gradient-to-b from-white to-[#fff9ef] py-20">
         <div className="mx-auto max-w-7xl px-6 text-center">
@@ -189,6 +294,53 @@ export default function Panchanga() {
           <p className="mt-4 text-stone-600">
             Daily Hindu calendar information for devotees.
           </p>
+
+          {/* Action Buttons */}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSharePanchanga}
+              disabled={isSharing}
+              className="gap-2"
+            >
+              {isSharing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="h-4 w-4" />
+              )}
+              Share
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyPanchanga}
+              className="gap-2"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              {copied ? "Copied!" : "Copy"}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSetReminder}
+              disabled={isNotifyLoading}
+              className={`gap-2 ${notifySet ? "border-green-300 bg-green-50" : ""}`}
+            >
+              {isNotifyLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bell className={`h-4 w-4 ${notifySet ? "text-green-600" : ""}`} />
+              )}
+              {notifySet ? "Reminder Set" : "Notify Daily"}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-12 grid gap-3 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
