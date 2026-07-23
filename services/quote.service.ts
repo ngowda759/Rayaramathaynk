@@ -431,7 +431,18 @@ class QuoteService {
     }
 
     // 7. Fall back to any active quote
-    const allActiveQuotes = await this.getQuotes({ active: true });
+    let allActiveQuotes = await this.getQuotes({ active: true });
+    
+    // Auto-seed if no quotes exist in the database
+    if (allActiveQuotes.length === 0) {
+      console.log("[QuoteService] No quotes found, auto-seeding default quotes...");
+      const seeded = await this.seedDefaultQuotes();
+      if (seeded > 0) {
+        allActiveQuotes = await this.getQuotes({ active: true });
+        console.log(`[QuoteService] Auto-seeded ${seeded} quotes`);
+      }
+    }
+    
     if (allActiveQuotes.length > 0) {
       const selected = this.deterministicSelect(allActiveQuotes, today);
       if (selected) {
