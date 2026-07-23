@@ -51,7 +51,7 @@ export async function addDocument(collectionPath: string, data: Record<string, u
 export async function updateDocument(collectionPath: string, documentId: string, data: Record<string, unknown>): Promise<void> {
   const token = await getAccessToken();
   const docPath = `${collectionPath}/${documentId}`;
-  const fieldPaths = Object.keys(data).join('&updateMask.fieldPaths=');
+  const fieldPaths = Object.keys(data).map(k => encodeURIComponent(k)).join('&updateMask.fieldPaths=');
   
   const response = await fetch(`${FIRESTORE_BASE_URL}/${docPath}?updateMask.fieldPaths=${fieldPaths}`, {
     method: 'PATCH',
@@ -60,7 +60,7 @@ export async function updateDocument(collectionPath: string, documentId: string,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      fields: serializeDocument(data).fields,
+      fields: serializeDocument(data),
     }),
   });
   
