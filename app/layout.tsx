@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display, Noto_Sans_Kannada } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -94,6 +95,7 @@ export default function RootLayout({
             <ChatWidget />
           </AIChatProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
