@@ -63,7 +63,7 @@ class CalendarService {
     const startDate = this.formatDateForICS(event.startDate);
     const endDate = this.formatDateForICS(event.endDate);
     const now = this.formatDateForICS(new Date());
-    const uid = `${crypto.randomUUID()}@rayaramathaynk`;
+    const uid = `${Date.now()}-${this.generateSecureRandomString(9)}@rayaramathaynk`;
 
     let ics = [
       "BEGIN:VCALENDAR",
@@ -85,6 +85,19 @@ class CalendarService {
     ].filter(Boolean);
 
     return ics.join("\r\n");
+  }
+
+  private generateSecureRandomString(length: number): string {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
+
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars[bytes[i] % chars.length];
+    }
+
+    return result;
   }
 
   /**
