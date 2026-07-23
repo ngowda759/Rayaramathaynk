@@ -1,4 +1,5 @@
 import { GoUpButton } from "@/components/ui/GoUpButton";
+import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 
 export default function PublicLayout({
   children,
@@ -7,6 +8,7 @@ export default function PublicLayout({
 }) {
   return (
     <>
+      <PageViewTracker />
       <main id="main-content" tabIndex={-1}>
         {children}
       </main>
