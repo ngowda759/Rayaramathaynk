@@ -63,7 +63,7 @@ class CalendarService {
     const startDate = this.formatDateForICS(event.startDate);
     const endDate = this.formatDateForICS(event.endDate);
     const now = this.formatDateForICS(new Date());
-    const uid = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}@rayaramathaynk`;
+    const uid = `${crypto.randomUUID()}@rayaramathaynk`;
 
     let ics = [
       "BEGIN:VCALENDAR",
