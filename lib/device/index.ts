@@ -38,6 +38,7 @@ export { deviceSettingsService } from "./settings";
 // ============================================
 
 export { deviceActionRegistry, useDeviceActions } from "./actions";
+export { useActionRegistry } from "./actions/index";
 export type { DeviceActionType, DeviceAction, DeviceActionResult } from "./actions";
 
 // ============================================

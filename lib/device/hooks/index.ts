@@ -33,7 +33,7 @@ export { useCalendar, useAddToCalendar } from "./useCalendar";
 export { useNotifications, NotificationProvider } from "./useNotifications";
 
 // Action Registry hooks
-export { useActionRegistry } from "@/lib/device/actions";
+export { useActionRegistry } from "@/lib/device/actions/index";
 
 // Type exports
 export type { PermissionState, PermissionType } from "@/types/device";
