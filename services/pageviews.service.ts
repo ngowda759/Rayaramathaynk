@@ -163,15 +163,23 @@ export async function getAnalyticsSummary(days = 7): Promise<{
     };
 
     // Estimate session duration and bounce rate based on page views per visitor
+    // Assume average session: 3 pages viewed, 2 min per page = ~6 min
+    // Bounce rate: if avg pages per session is 1, bounce rate is high
     const viewsPerVisitor = uniqueVisitors > 0 ? totalPageViews / uniqueVisitors : 1;
-    const estimatedBounceRate = Math.max(0, Math.min(100, Math.round((1 - (viewsPerVisitor - 1) / 3) * 100)));
-    const estimatedSessionDuration = viewsPerVisitor > 1 ? `${Math.round(viewsPerVisitor * 1.5)}m` : `${Math.round(viewsPerVisitor * 2)}m`;
+    const avgPagesPerSession = Math.min(viewsPerVisitor, 10); // Cap at 10 for calculation
+    const estimatedBounceRate = Math.max(0, Math.min(100, Math.round((1 - (avgPagesPerSession - 1) / 3) * 100)));
+    
+    // Estimate session: 2-3 min per page view, capped at 30 min
+    const estimatedMinutes = Math.min(Math.round(avgPagesPerSession * 2), 30);
+    const estimatedSessionDuration = estimatedMinutes >= 60 
+      ? `${Math.round(estimatedMinutes / 60)}h ${estimatedMinutes % 60}m`
+      : `${estimatedMinutes}m`;
 
     return {
       totalPageViews,
       uniqueVisitors,
-      avgSessionDuration: estimatedSessionDuration,
-      bounceRate: `${estimatedBounceRate}%`,
+      avgSessionDuration: estimatedMinutes > 0 ? `${estimatedMinutes}m` : "0m",
+      bounceRate: `${Math.min(estimatedBounceRate, 100)}%`,
       topPages,
       trafficSources: {
         direct: sourcesMap.direct,
