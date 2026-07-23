@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen, User } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
@@ -39,6 +39,7 @@ const onlineServicesDropdown = [
   { name: "Daily Seva", href: "/pooja" },
   { name: "Special Seva", href: "/sevas" },
   { name: "Donate", href: "/donation" },
+  { name: "Register", href: "/register" },
 ];
 
 export default function Navbar() {
@@ -121,7 +122,7 @@ export default function Navbar() {
   const isGuruParamparaActive = pathname === "/guruparampara" || pathname === "/knowledge" || pathname === "/temple-explorer";
   const isEventsActive = pathname === "/events" || pathname === "/aaradhane";
   const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans";
-  const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation";
+  const isOnlineServicesActive = pathname === "/pooja" || pathname === "/sevas" || pathname === "/donation" || pathname === "/register";
   const isCalendarActive = pathname.startsWith("/calendar");
 
   return (
@@ -382,6 +383,7 @@ export default function Navbar() {
                       }`}
                     >
                       {item.name === "Donate" && <Heart size={14} className="text-amber-600" />}
+                      {item.name === "Register" && <User size={14} className="text-amber-600" />}
                       {item.name}
                     </Link>
                   );
@@ -577,6 +579,7 @@ export default function Navbar() {
                     }`}
                   >
                     {item.name === "Donate" && <Heart size={14} className="text-amber-600" />}
+                    {item.name === "Register" && <User size={14} className="text-amber-600" />}
                     {item.name}
                     <ChevronRight size={18} className="ml-auto" />
                   </Link>
