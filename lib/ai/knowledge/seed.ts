@@ -24,10 +24,12 @@ function createArticle(
   kannadaTitle?: string,
   kannadaContent?: string,
   language: "en" | "kn" | "mixed" = "en"
-): Omit<KnowledgeArticle, "id"> {
+): KnowledgeArticle {
   const now = new Date();
+  const slug = slugify(title);
   return {
-    slug: slugify(title),
+    id: `seed-${slug}`, // Use slug-based ID for seed articles
+    slug,
     title,
     kannadaTitle,
     category,

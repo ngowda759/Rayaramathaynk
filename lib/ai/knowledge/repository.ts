@@ -80,7 +80,7 @@ function docToArticle(docSnap: DocumentData): KnowledgeArticle | null {
  */
 export async function getKnowledgeArticles(): Promise<KnowledgeArticle[]> {
   if (!isFirebaseConfigured() || !db) {
-    return SEED_ARTICLES as unknown as KnowledgeArticle[];
+    return SEED_ARTICLES as KnowledgeArticle[];
   }
 
   const now = Date.now();
@@ -108,7 +108,7 @@ export async function getKnowledgeArticles(): Promise<KnowledgeArticle[]> {
 
     // If no articles in Firebase, use seed data
     if (articles.length === 0) {
-      cachedArticles = SEED_ARTICLES as unknown as KnowledgeArticle[];
+      cachedArticles = SEED_ARTICLES as KnowledgeArticle[];
     } else {
       cachedArticles = articles;
     }
@@ -117,7 +117,7 @@ export async function getKnowledgeArticles(): Promise<KnowledgeArticle[]> {
     return cachedArticles;
   } catch (error) {
     console.error("[Knowledge Repository] Error fetching articles:", error);
-    return cachedArticles.length > 0 ? cachedArticles : (SEED_ARTICLES as unknown as KnowledgeArticle[]);
+    return cachedArticles.length > 0 ? cachedArticles : (SEED_ARTICLES as KnowledgeArticle[]);
   }
 }
 
