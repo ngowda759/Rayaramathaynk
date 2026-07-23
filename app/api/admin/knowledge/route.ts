@@ -5,6 +5,7 @@ import {
   clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
 import { addDocument, getDocuments } from "@/lib/firebase-admin-rest";
+import { SEED_ARTICLES } from "@/lib/ai/knowledge/seed";
 
 const COLLECTION_NAME = "knowledge";
 
@@ -13,15 +14,15 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/admin/knowledge
  * Get all knowledge articles (including unpublished)
- * Reads directly from Firestore for admin - no seed data fallback
+ * Includes both Firestore articles and seed data
  */
 export async function GET() {
   try {
-    // For admin, read directly from Firestore without seed data fallback
+    // Get articles from Firestore
     const documents = await getDocuments(COLLECTION_NAME);
-    
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const articles = documents.map((doc: any) => {
+    const firestoreArticles = documents.map((doc: any) => {
       const data = doc.fields || doc;
       const name: string = doc.name || '';
       return {
@@ -39,11 +40,36 @@ export async function GET() {
         updatedAt: data.updatedAt?.timestampValue || new Date().toISOString(),
       };
     });
-    
+
+    // Get seed articles
+    const seedArticles = SEED_ARTICLES.map((article, index) => ({
+      id: article.id || `seed-${index}`,
+      slug: article.slug || '',
+      title: article.title || '',
+      kannadaTitle: article.kannadaTitle,
+      category: article.category || 'general',
+      keywords: article.keywords || [],
+      content: article.content || '',
+      kannadaContent: article.kannadaContent,
+      language: article.language || 'en',
+      approved: true,
+      createdAt: article.createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt: article.updatedAt?.toISOString() || new Date().toISOString(),
+      isSeed: true,
+    }));
+
+    // Combine Firestore articles with seed articles
+    const articles = [
+      ...firestoreArticles.map(a => ({ ...a, isSeed: false })),
+      ...seedArticles
+    ];
+
     return NextResponse.json({
       success: true,
       articles,
       count: articles.length,
+      firestoreCount: firestoreArticles.length,
+      seedCount: seedArticles.length,
     });
   } catch (error) {
     console.error("Error fetching articles:", error);
@@ -63,14 +89,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { slug, title, content, keywords, category, language } = body;
-    
+
     if (!title) {
       return NextResponse.json(
         { success: false, error: "Title is required" },
         { status: 400 }
       );
     }
-    
+
     // Use REST Admin SDK for write operations (bypasses security rules)
     const id = await addDocument(COLLECTION_NAME, {
       slug: slug || `article-${Date.now()}`,
@@ -83,7 +109,7 @@ export async function POST(request: Request) {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    
+
     clearKnowledgeCache();
 
     return NextResponse.json({
