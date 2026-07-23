@@ -46,6 +46,133 @@ let quoteCache: {
 } | null = null;
 
 /**
+ * Fallback quotes when database is unavailable
+ * Used as last resort to ensure widget is always visible
+ */
+const FALLBACK_QUOTES: Quote[] = [
+  {
+    id: "fallback-guru-vandana",
+    slug: "guru-vandana-fallback",
+    title: "Guru Vandana - Thursday Prayer",
+    category: "guru_vandana",
+    priority: 1,
+    language: "kn",
+    content: {
+      kannada: "ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ |",
+      transliteration: "Oṁ saha nāvavatu | saha nau bhunaktu | saha vīryaṁ karavāvahai |",
+      translationEnglish: "May we all be united. May we all be nourished. May we all exert together with vigor.",
+    },
+    source: "Guru Vandana",
+    author: "Traditional",
+    tags: ["guru", "prayer", "thursday"],
+    active: true,
+    featured: true,
+    festivalOnly: false,
+    festivalNames: [],
+    weekdayOnly: null,
+    displayWeight: 1,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "fallback-raghavendra-stotra",
+    slug: "raghavendra-stotra-fallback",
+    title: "Sri Raghavendra Stotra - Daily Verse",
+    category: "raghavendra_stotra",
+    priority: 2,
+    language: "sa",
+    content: {
+      sanskrit: "ಶ್ರೀಪೂರ್ಣಬೋಧ-ಗುರು-ತೀರ್ಥ-ಪಯೋಽಬ್ಧಿ-ಪಾರಾ | ಕಾಮಾರಿ-ಮಾಽಕ್ಷ-ವಿಷಮಾಕ್ಷ-ಶಿರಃ ಸ್ಪೃಶಂತೀ ||",
+      transliteration: "Śrīpūrṇabodha-guru-tīrtha-payobdhi-pārā | KāMāri-māKṣa-viṣamāKṣa-śiraḥ sprśantī ||",
+      translationEnglish: "Salutations to the ocean of perfect knowledge, the guru and tirtha, who touches the heads of Kamala (Lakshmi), Mara (death), and evil-eyed ones.",
+    },
+    source: "Sri Raghavendra Stotra",
+    author: "Sri Appannacharya",
+    verseNumber: 1,
+    tags: ["stotra", "salutation", "guru"],
+    active: true,
+    featured: true,
+    festivalOnly: false,
+    festivalNames: [],
+    weekdayOnly: null,
+    displayWeight: 1,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "fallback-mangalashtakam",
+    slug: "mangalashtakam-fallback",
+    title: "Sri Raghavendra Mangalashtakam",
+    category: "mangalashtakam",
+    priority: 3,
+    language: "sa",
+    content: {
+      sanskrit: "ಶ್ರೀಮದ್ರಾಮಪಾದಾರವಿಂದಮಧುಪಃ ಶ್ರೀಮಧ್ವವಂಶಾಧಿಪಃ | ಸಚ್ಚಿಷ್ಯೋಡುಗಣೋಡುಪಃ ಶ್ರಿತಜಗದ್ಗೀರ್ವಾಣಸತ್ಪಾದಪಃ ||",
+      transliteration: "Śrīmadrāmapādāravindamadhupaḥ śrīmadhavavaṁśādhipaḥ | sacchiṣyodugaṇoḍupaḥ śritajagadrgīrvāṇasatpāḍapaḥ ||",
+      translationEnglish: "He is the bee at the lotus feet of Rama, the lord of Madhva lineage, the crest jewel of true disciples, the wish-fulfilling tree for those who take refuge.",
+    },
+    source: "Sri Raghavendra Mangalashtakam",
+    author: "Sri Vadirajatirtharu",
+    verseNumber: 1,
+    tags: ["mangalashtakam", "aradhana", "festival"],
+    active: true,
+    featured: true,
+    festivalOnly: true,
+    festivalNames: ["raghavendra_aradhana", "guru_purnima", "vyasa_pooja"],
+    weekdayOnly: null,
+    displayWeight: 2,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "fallback-devotional",
+    slug: "devotional-fallback",
+    title: "Service to Devotees",
+    category: "authentic_teachings",
+    priority: 4,
+    language: "kn",
+    content: {
+      kannada: "ಭಕ್ತರ ಸೇವೆಯೇ ಈಶ್ವರ ಸೇವೆ | ಭಕ್ತರ ಮೊಯ್ಯೇ ಈಶ್ವರ ಮೊಯ್ಯ |",
+      transliteration: "Bhaktara sēvayē īśvara sēvā | bhaktara moyyē īśvara moyya |",
+      translationEnglish: "Service to devotees is service to God. The dust of devotees' feet is the dust of God's feet.",
+    },
+    source: "Sri Raghavendra Swamy Teachings",
+    author: "Sri Raghavendra Swamy",
+    tags: ["service", "devotion", "bhakti"],
+    active: true,
+    featured: true,
+    festivalOnly: false,
+    festivalNames: [],
+    weekdayOnly: null,
+    displayWeight: 1,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+/**
+ * Get fallback quote based on day of week
+ * This ensures the widget is always visible even when database is unavailable
+ */
+function getFallbackQuote(dayOfWeek: number): Quote {
+  // Thursday (4) - Guru Vandana
+  if (dayOfWeek === 4) {
+    return FALLBACK_QUOTES[0]; // guru_vandana
+  }
+  // Sunday, Tuesday, Friday (0, 2, 5) - Raghavendra Stotra
+  if (dayOfWeek === 0 || dayOfWeek === 2 || dayOfWeek === 5) {
+    return FALLBACK_QUOTES[1]; // raghavendra_stotra
+  }
+  // Festival days - Mangalashtakam
+  // Default to authentic_teachings
+  return FALLBACK_QUOTES[3]; // devotional/authentic_teachings
+}
+
+/**
  * Convert Firestore document to Quote
  */
 function docToQuote(id: string, data: any): Quote {
@@ -451,8 +578,10 @@ class QuoteService {
       }
     }
 
-    console.log("[QuoteService] No quotes found, returning null");
-    return null;
+    // 8. Use hardcoded fallback quote if all else fails
+    // This ensures the widget is always visible even when database is unavailable
+    console.log("[QuoteService] Using hardcoded fallback quote");
+    return getFallbackQuote(context.dayOfWeek);
   }
 
   /**
