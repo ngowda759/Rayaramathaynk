@@ -17,5 +17,11 @@ export {
   usePermissionSummary,
 } from "./usePermissions";
 
+// QR Scanner hooks
+export { useQRScanner } from "./useQRScanner";
+
+// Location hooks
+export { useLocation, useTempleDistance } from "./useLocation";
+
 // Type exports
 export type { PermissionState, PermissionType } from "@/types/device";

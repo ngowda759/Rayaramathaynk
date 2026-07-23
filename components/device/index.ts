@@ -15,3 +15,10 @@ export {
   PermissionGate,
   PermissionRequestButton,
 } from "./PermissionDialog";
+
+// QR Scanner components
+export { QRScanner, QRScannerButton, CompactQRScanner } from "./QRScanner";
+
+// Location components
+export { LocationButton, SimpleLocationButton } from "./LocationButton";
+export { DirectionsButton, DirectionsLink } from "./DirectionsButton";
