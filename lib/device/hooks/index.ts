@@ -32,5 +32,8 @@ export { useCalendar, useAddToCalendar } from "./useCalendar";
 // Notification hooks
 export { useNotifications, NotificationProvider } from "./useNotifications";
 
+// Action Registry hooks
+export { useActionRegistry } from "@/lib/device/actions";
+
 // Type exports
 export type { PermissionState, PermissionType } from "@/types/device";
