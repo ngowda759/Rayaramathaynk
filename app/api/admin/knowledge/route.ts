@@ -41,9 +41,10 @@ export async function GET() {
       };
     });
 
-    // Get seed articles
+    // Get seed articles - note: SEED_ARTICLES uses Omit<KnowledgeArticle, "id">
+    // so we generate the id from slug
     const seedArticles = SEED_ARTICLES.map((article, index) => ({
-      id: article.id || `seed-${index}`,
+      id: (article as unknown as { id?: string }).id || article.slug || `seed-${index}`,
       slug: article.slug || '',
       title: article.title || '',
       kannadaTitle: article.kannadaTitle,
