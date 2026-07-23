@@ -4,7 +4,7 @@ import { collection, doc, setDoc, getDocs, query, where } from "firebase/firesto
 import * as fs from "fs";
 import * as path from "path";
 
-// Knowledge categories
+// Knowledge categories - must match categories in seed files
 const REQUIRED_CATEGORIES = [
   "temple-timings",
   "visitor-guidelines",
@@ -20,6 +20,23 @@ const REQUIRED_CATEGORIES = [
   "history",
   "raghavendra-swamy",
   "brindavana",
+  "about-trust",
+  // Additional categories for complete coverage
+  "aaradhane",
+  "about",
+  "events",
+  "future-plans",
+  "gallery",
+  "guruparampara",
+  "journey",
+  "pooja",
+  "sevas",
+  "shlokas",
+  "temple-explorer",
+  "testimonials",
+  "trust",
+  "madhvacharya",
+  "mantralaya",
 ];
 
 interface SeedArticle {

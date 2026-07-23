@@ -3,9 +3,11 @@ import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
 // Public website pages mapped to categories
+// Note: These categories are derived from the seed files in seed/ai/
 const PUBLIC_PAGES_CATEGORIES = [
   { id: "aaradhane", name: "Aaradhane", description: "Aaradhane festival and events" },
   { id: "about", name: "About", description: "About the temple/matha" },
+  { id: "about-trust", name: "About Temple Trust", description: "About temple trust and management" },
   { id: "donation", name: "Donation", description: "How to donate and tax benefits (80G)" },
   { id: "events", name: "Events", description: "Temple events and schedules" },
   { id: "facilities", name: "Facilities", description: "Available amenities and services" },
@@ -29,6 +31,8 @@ const PUBLIC_PAGES_CATEGORIES = [
   { id: "brindavana", name: "Brindavana", description: "The sacred samadhi information" },
   { id: "madhvacharya", name: "Sri Madhvacharya", description: "Madhvacharya biography and philosophy" },
   { id: "mantralaya", name: "Mantralaya", description: "Mantralaya pilgrimage site" },
+  { id: "temple-timings", name: "Temple Timings", description: "Temple opening hours and daily schedule" },
+  { id: "visitor-guidelines", name: "Visitor Guidelines", description: "Guidelines for temple visitors" },
 ];
 
 // Default required categories
