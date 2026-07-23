@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { trackPageView } from "@/services/pageviews.service";
 
-export function PageViewTracker() {
+function PageViewTrackerInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -27,7 +27,17 @@ export function PageViewTracker() {
   return null;
 }
 
+export function PageViewTracker() {
+  return (
+    <Suspense fallback={null}>
+      <PageViewTrackerInner />
+    </Suspense>
+  );
+}
+
 function detectDeviceType(): "mobile" | "desktop" | "tablet" {
+  if (typeof window === "undefined") return "desktop";
+  
   const ua = navigator.userAgent.toLowerCase();
   if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
     return "tablet";
@@ -39,5 +49,6 @@ function detectDeviceType(): "mobile" | "desktop" | "tablet" {
 }
 
 function detectLanguage(): string {
+  if (typeof navigator === "undefined") return "en";
   return navigator.language.split("-")[0] || "en";
 }
