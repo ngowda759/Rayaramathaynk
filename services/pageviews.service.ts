@@ -79,7 +79,7 @@ export async function trackPageView(data: PageViewData): Promise<void> {
 /**
  * Get analytics summary for the dashboard
  */
-export async function getAnalyticsSummary(days = 7): Promise<{
+export async function getAnalyticsSummary(days = 30): Promise<{
   totalPageViews: number;
   uniqueVisitors: number;
   avgSessionDuration: string;
@@ -259,4 +259,64 @@ function getTrafficSource(referrer: string | undefined): string {
   
   // Everything else is referral
   return "referral";
+}
+
+/**
+ * Get daily page view data for charts
+ */
+export async function getDailyPageViews(days = 14): Promise<Array<{ date: string; views: number; visitors: number }>> {
+  if (!db || !isFirebaseConfigured) {
+    return [];
+  }
+
+  try {
+    const now = new Date();
+    const result: Array<{ date: string; views: number; visitors: number }> = [];
+
+    // Get page views for the last N days
+    const pageViewsQuery = query(
+      collection(db, PAGE_VIEWS_COLLECTION),
+      orderBy("timestamp", "desc"),
+      limit(5000)
+    );
+    
+    const pageViewsSnap = await getDocs(pageViewsQuery);
+    const pageViews = pageViewsSnap.docs.map(doc => doc.data());
+
+    // Create a map of dates
+    const dateMap: Record<string, { views: number; visitors: Set<string> }> = {};
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split("T")[0];
+      dateMap[dateStr] = { views: 0, visitors: new Set() };
+    }
+
+    // Aggregate page views by date
+    pageViews.forEach(pv => {
+      const date = pv.date as string;
+      if (date && dateMap[date]) {
+        dateMap[date].views++;
+        if (pv.visitorId) {
+          dateMap[date].visitors.add(pv.visitorId);
+        }
+      }
+    });
+
+    // Convert to array sorted by date
+    Object.entries(dateMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([date, data]) => {
+        result.push({
+          date,
+          views: data.views,
+          visitors: data.visitors.size,
+        });
+      });
+
+    return result;
+  } catch (error) {
+    console.error("[PageViews] Failed to get daily page views:", error);
+    return [];
+  }
 }
