@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/hooks/useAuth";
 
@@ -23,8 +22,6 @@ function LoadingSpinner() {
 export default function GuestOnly({
   children,
 }: GuestOnlyProps) {
-  const router = useRouter();
-
   const { user, loading } = useAuth();
   const [isClient, setIsClient] = useState(false);
 
@@ -36,19 +33,11 @@ export default function GuestOnly({
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (!loading && isClient && user) {
-      router.replace("/admin");
-    }
-  }, [loading, user, isClient, router]);
-
+  // Show loading while auth is initializing
   if (loading || !isClient) {
     return <LoadingSpinner />;
   }
 
-  if (user) {
-    return null;
-  }
-
+  // Allow access to everyone - both logged-in users and guests can see the form
   return <>{children}</>;
 }

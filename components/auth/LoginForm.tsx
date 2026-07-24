@@ -57,7 +57,7 @@ export default function LoginForm() {
       await login(data.email, data.password);
       toast.success("Welcome back!");
       // Delay redirect to allow Firebase auth state to persist
-      const redirect = searchParams.get("redirect") || "/admin";
+      const redirect = searchParams.get("redirect") || "/";
       setTimeout(() => {
         window.location.href = redirect;
       }, 2000);
