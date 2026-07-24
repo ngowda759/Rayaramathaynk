@@ -166,6 +166,11 @@ export default function DigitalSignagePage() {
               <div className="text-5xl font-bold">{formatTime(currentTime)}</div>
               <div className="mt-1 text-lg text-amber-100">{currentDate}</div>
             </div>
+            {/* Live Indicator */}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <span className="h-4 w-4 animate-pulse rounded-full bg-orange-500" />
+              <span className="text-lg font-semibold text-white">LIVE</span>
+            </div>
           </div>
 
           {/* Panchanga */}
@@ -295,13 +300,6 @@ export default function DigitalSignagePage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 bg-stone-900 py-2 text-center">
-        <p className="text-sm text-stone-400">
-          Sri Raghavendra Swamy Temple • Yelahanka, Bangalore • Digital Display System
-        </p>
       </div>
     </div>
   );
