@@ -117,6 +117,13 @@ export default function AdminAuthGuard({
     return <LoadingSpinner />;
   }
 
+  // Check if user can access admin (only super_admin, temple_admin, priest, staff, billing)
+  if (!canAccessAdmin) {
+    // Redirect non-admin users to home page
+    router.replace("/");
+    return <LoadingSpinner />;
+  }
+
   // Check permission if required
   if (requiredPermission) {
     let hasPermission = false;
@@ -134,7 +141,9 @@ export default function AdminAuthGuard({
     }
     
     if (!hasPermission) {
-      return <AccessDenied />;
+      // Redirect non-admin users to home page instead of showing access denied
+      router.replace("/");
+      return <LoadingSpinner />;
     }
   }
 
