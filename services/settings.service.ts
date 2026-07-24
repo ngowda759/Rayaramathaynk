@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -27,6 +28,42 @@ function docToSettings(docSnap: any): SiteSettings {
     updatedAt: data.updatedAt,
   };
 }
+
+export interface SocialLinksData {
+  facebook: string;
+  instagram: string;
+  youtube: string;
+  whatsapp: string;
+  twitter: string;
+  linkedin: string;
+  mapUrl: string;
+  showFacebook: boolean;
+  showInstagram: boolean;
+  showYoutube: boolean;
+  showWhatsapp: boolean;
+  showTwitter: boolean;
+  showLinkedin: boolean;
+  showMap: boolean;
+}
+
+const SOCIAL_LINKS_DOC = "socialLinks";
+
+const defaultSocialLinks: SocialLinksData = {
+  facebook: "",
+  instagram: "",
+  youtube: "https://www.youtube.com/@Guru_Raghavendra_Rayaru",
+  whatsapp: "",
+  twitter: "",
+  linkedin: "",
+  mapUrl: "",
+  showFacebook: true,
+  showInstagram: true,
+  showYoutube: true,
+  showWhatsapp: true,
+  showTwitter: false,
+  showLinkedin: false,
+  showMap: true,
+};
 
 class SettingsService {
   async getSettings(): Promise<SiteSettings | null> {
@@ -57,6 +94,21 @@ class SettingsService {
       ...data,
       updatedAt: serverTimestamp(),
     });
+  }
+
+  async getSocialLinks(): Promise<SocialLinksData> {
+    if (!db) return defaultSocialLinks;
+    try {
+      const docRef = doc(db, COLLECTION, SOCIAL_LINKS_DOC);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { ...defaultSocialLinks, ...docSnap.data() } as SocialLinksData;
+      }
+      return defaultSocialLinks;
+    } catch (error) {
+      console.error("Error fetching social links:", error);
+      return defaultSocialLinks;
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen, User, ExternalLink } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { settingsService } from "@/services/settings.service";
 
 interface DropdownItem {
   name: string;
@@ -26,13 +27,6 @@ const guruParamparaDropdown: DropdownItem[] = [
 const calendarDropdown: DropdownItem[] = [
   { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
   { name: "Festival Calendar", href: "/calendar/festivals" },
-];
-
-const eventsDropdown: DropdownItem[] = [
-  { name: "Live Darshan", href: "/live", external: true },
-  { name: "Aaradhane", href: "/aaradhane" },
-  { name: "Upcoming Events", href: "/events" },
-  { name: "Past Events", href: "/events?filter=past" },
 ];
 
 const aboutDropdown: DropdownItem[] = [
@@ -58,12 +52,35 @@ export default function Navbar() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [onlineServicesOpen, setOnlineServicesOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
   const guruParamparaDropdownRef = useRef<HTMLDivElement>(null);
   const eventsDropdownRef = useRef<HTMLDivElement>(null);
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
   const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
   const calendarDropdownRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
+
+  // Fetch YouTube URL from settings
+  useEffect(() => {
+    async function fetchSocialLinks() {
+      try {
+        const socialLinks = await settingsService.getSocialLinks();
+        if (socialLinks.youtube) {
+          setYoutubeUrl(socialLinks.youtube);
+        }
+      } catch (error) {
+        console.error("Error fetching social links:", error);
+      }
+    }
+    fetchSocialLinks();
+  }, []);
+
+  const eventsDropdown: DropdownItem[] = [
+    { name: "Live Darshan", href: youtubeUrl, external: true },
+    { name: "Aaradhane", href: "/aaradhane" },
+    { name: "Upcoming Events", href: "/events" },
+    { name: "Past Events", href: "/events?filter=past" },
+  ];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
