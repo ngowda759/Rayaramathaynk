@@ -165,37 +165,37 @@ export default function DigitalSignagePage() {
           </div>
 
           {/* Panchanga */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-white/5 p-6">
+          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Sun className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Today's Panchanga</h2>
+              <h2 className="text-xl font-semibold text-white">Today's Panchanga</h2>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Tithi</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.tithi}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.tithi}</p>
               </div>
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Nakshatra</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.nakshatra}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.nakshatra}</p>
               </div>
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Yoga</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.yoga}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.yoga}</p>
               </div>
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Karana</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.karana}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.karana}</p>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="rounded-xl bg-orange-500/30 p-4 text-center">
-                <p className="text-sm text-orange-200">Sunrise</p>
-                <p className="text-xl font-bold">{SAMPLE_PANCHANGA.sunrise}</p>
+              <div className="rounded-xl bg-orange-600 p-4 text-center">
+                <p className="text-sm text-orange-100">Sunrise</p>
+                <p className="text-xl font-bold text-white">{SAMPLE_PANCHANGA.sunrise}</p>
               </div>
-              <div className="rounded-xl bg-blue-500/30 p-4 text-center">
-                <p className="text-sm text-blue-200">Sunset</p>
-                <p className="text-xl font-bold">{SAMPLE_PANCHANGA.sunset}</p>
+              <div className="rounded-xl bg-blue-600 p-4 text-center">
+                <p className="text-sm text-blue-100">Sunset</p>
+                <p className="text-xl font-bold text-white">{SAMPLE_PANCHANGA.sunset}</p>
               </div>
             </div>
           </div>
@@ -204,10 +204,10 @@ export default function DigitalSignagePage() {
         {/* Middle Column - Timings & Events */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* Temple Timings */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-white/5 p-6">
+          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Clock className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Temple Timings</h2>
+              <h2 className="text-xl font-semibold text-white">Temple Timings</h2>
             </div>
             <div className="space-y-2 overflow-y-auto">
               {SAMPLE_TIMINGS.map((timing, index) => {
@@ -225,13 +225,13 @@ export default function DigitalSignagePage() {
                     className={`flex items-center justify-between rounded-xl px-4 py-3 transition-all ${
                       isActive
                         ? "bg-amber-500/30 ring-2 ring-amber-400"
-                        : "bg-white/5"
+                        : "bg-stone-700"
                     }`}
                   >
-                    <span className={`font-medium ${isActive ? "text-amber-300" : "text-white/70"}`}>
+                    <span className={`font-medium ${isActive ? "text-amber-300" : "text-white"}`}>
                       {timing.name}
                     </span>
-                    <span className={`text-lg font-bold ${isActive ? "text-amber-300" : "text-white/50"}`}>
+                    <span className={`text-lg font-bold ${isActive ? "text-amber-300" : "text-white"}`}>
                       {timing.time}
                     </span>
                   </div>
@@ -241,24 +241,24 @@ export default function DigitalSignagePage() {
           </div>
 
           {/* Upcoming Events */}
-          <div className="rounded-2xl bg-white/5 p-6">
+          <div className="rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Calendar className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Upcoming Events</h2>
+              <h2 className="text-xl font-semibold text-white">Upcoming Events</h2>
             </div>
             <div className="space-y-3">
               {SAMPLE_EVENTS.map((event, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between rounded-xl bg-white/5 p-4"
+                  className="flex items-center justify-between rounded-xl bg-stone-700 p-4"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/30">
                       <Star className="h-5 w-5 text-amber-400" />
                     </div>
                     <div>
-                      <p className="font-medium">{event.title}</p>
-                      <p className="text-sm text-white/50">{event.date}</p>
+                      <p className="font-medium text-white">{event.title}</p>
+                      <p className="text-sm text-amber-200">{event.date}</p>
                     </div>
                   </div>
                   <span className="text-amber-400">{event.time}</span>
@@ -274,7 +274,7 @@ export default function DigitalSignagePage() {
           <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-6">
             <div className="mb-4 flex items-center gap-2">
               <MessageSquare className="h-6 w-6 text-purple-200" />
-              <h2 className="text-xl font-semibold">Daily Quote</h2>
+              <h2 className="text-xl font-semibold text-white">Daily Quote</h2>
             </div>
             <blockquote className="font-serif text-2xl leading-relaxed text-white">
               "{SAMPLE_QUOTE.text}"
@@ -288,33 +288,33 @@ export default function DigitalSignagePage() {
           </div>
 
           {/* Announcements */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-white/5 p-6">
+          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Volume2 className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Announcements</h2>
+              <h2 className="text-xl font-semibold text-white">Announcements</h2>
             </div>
             <div className="space-y-3">
               {SAMPLE_ANNOUNCEMENTS.map((announcement, index) => (
                 <div
                   key={index}
-                  className="flex items-start gap-3 rounded-xl bg-white/5 p-4"
+                  className="flex items-start gap-3 rounded-xl bg-stone-700 p-4"
                 >
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
                     {index + 1}
                   </div>
-                  <p className="text-white/80">{announcement}</p>
+                  <p className="text-white">{announcement}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Gallery Slideshow */}
-          <div className="h-32 overflow-hidden rounded-2xl bg-white/5">
+          <div className="h-32 overflow-hidden rounded-2xl bg-stone-800">
             <div className="flex h-full items-center justify-center">
               <div className="text-center">
-                <Image className="mx-auto h-10 w-10 text-white/30" />
-                <p className="mt-2 text-sm text-white/50">Gallery Slideshow</p>
-                <p className="text-xs text-white/30">Slide {currentSlide + 1} of 5</p>
+                <Image className="mx-auto h-10 w-10 text-white/50" />
+                <p className="mt-2 text-sm text-white">Gallery Slideshow</p>
+                <p className="text-xs text-white/70">Slide {currentSlide + 1} of 5</p>
               </div>
             </div>
           </div>
