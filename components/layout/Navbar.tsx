@@ -2,40 +2,47 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen, User } from "lucide-react";
+import { Menu, X, ChevronRight, ChevronDown, Heart, Calendar, BookOpen, User, ExternalLink } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+
+interface DropdownItem {
+  name: string;
+  href: string;
+  external?: boolean;
+}
 
 const menuItems = [
   { name: "Home", href: "/" },
   { name: "Shlokas", href: "/shlokas" },
 ];
 
-const guruParamparaDropdown = [
+const guruParamparaDropdown: DropdownItem[] = [
   { name: "Guru Parampara", href: "/guruparampara" },
   { name: "Knowledge Centre", href: "/knowledge" },
   { name: "Temple Explorer", href: "/temple-explorer" },
 ];
 
-const calendarDropdown = [
+const calendarDropdown: DropdownItem[] = [
   { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
   { name: "Festival Calendar", href: "/calendar/festivals" },
 ];
 
-const eventsDropdown = [
+const eventsDropdown: DropdownItem[] = [
+  { name: "Live Darshan", href: "/live", external: true },
   { name: "Aaradhane", href: "/aaradhane" },
   { name: "Upcoming Events", href: "/events" },
   { name: "Past Events", href: "/events?filter=past" },
 ];
 
-const aboutDropdown = [
+const aboutDropdown: DropdownItem[] = [
   { name: "About Us", href: "/about" },
   { name: "Facilities", href: "/facilities" },
   { name: "Trust Committee", href: "/trust" },
   { name: "Future Plans", href: "/future-plans" },
 ];
 
-const onlineServicesDropdown = [
+const onlineServicesDropdown: DropdownItem[] = [
   { name: "Daily Seva", href: "/pooja" },
   { name: "Special Seva", href: "/sevas" },
   { name: "Donate", href: "/donation" },
@@ -289,21 +296,33 @@ export default function Navbar() {
               <div className="absolute left-0 top-full mt-2 w-48 rounded-2xl border border-amber-200 bg-white shadow-xl overflow-hidden">
                 {eventsDropdown.map((item) => {
                   const active = pathname === item.href;
+                  const isLive = item.name === "Live Darshan";
                   return (
                     <Link
                       key={item.name}
                       href={item.href}
+                      target={item.external ? "_blank" : undefined}
+                      rel={item.external ? "noopener noreferrer" : undefined}
                       onClick={() => {
                         setEventsOpen(false);
                         setOpen(false);
                       }}
-                      className={`block px-4 py-3 transition-all ${
-                        active
+                      className={`flex items-center gap-2 px-4 py-3 transition-all ${
+                        isLive
+                          ? "bg-red-50 text-red-700 font-semibold hover:bg-red-100"
+                          : active
                           ? "bg-amber-100 text-amber-800 font-semibold"
                           : "text-stone-700 hover:bg-amber-50"
                       }`}
                     >
+                      {isLive && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                        </span>
+                      )}
                       {item.name}
+                      {isLive && <ExternalLink size={12} className="ml-auto text-red-400" />}
                     </Link>
                   );
                 })}
@@ -441,18 +460,6 @@ export default function Navbar() {
                 <BookOpen size={14} />
                 Guru Parampara
               </p>
-              <Link
-                href="/guruparampara"
-                onClick={() => setOpen(false)}
-                className={`flex items-center justify-between rounded-2xl px-8 py-4 ${
-                  pathname === "/guruparampara"
-                    ? "bg-amber-100 text-amber-800"
-                    : "hover:bg-stone-100"
-                }`}
-              >
-                Guru Parampara
-                <ChevronRight size={18} />
-              </Link>
               {guruParamparaDropdown.map((item) => {
                 const active = pathname === item.href;
                 return (
@@ -518,19 +525,30 @@ export default function Navbar() {
               <p className="px-4 py-2 text-sm font-semibold text-stone-500">Events</p>
               {eventsDropdown.map((item) => {
                 const active = pathname === item.href;
+                const isLive = item.name === "Live Darshan";
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
+                    target={item.external ? "_blank" : undefined}
+                    rel={item.external ? "noopener noreferrer" : undefined}
                     onClick={() => setOpen(false)}
-                    className={`flex items-center justify-between rounded-2xl px-8 py-4 ${
-                      active
+                    className={`flex items-center gap-2 rounded-2xl px-8 py-4 ${
+                      isLive
+                        ? "bg-red-50 text-red-700 font-semibold"
+                        : active
                         ? "bg-amber-100 text-amber-800"
                         : "hover:bg-stone-100"
                     }`}
                   >
+                    {isLive && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                      </span>
+                    )}
                     {item.name}
-                    <ChevronRight size={18} />
+                    {isLive ? <ExternalLink size={14} className="ml-auto text-red-400" /> : <ChevronRight size={18} />}
                   </Link>
                 );
               })}

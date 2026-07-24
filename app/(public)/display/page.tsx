@@ -13,9 +13,11 @@ import {
   ChevronRight,
   Maximize,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
+import { dailySpiritualService } from "@/services/daily-spiritual.service";
 
-// Sample data for display
+// Sample Panchanga (to be replaced with real data)
 const SAMPLE_PANCHANGA = {
   tithi: "Shukla Ekadashi",
   nakshatra: "Uttara Phalguni",
@@ -38,20 +40,7 @@ const SAMPLE_TIMINGS = [
   { name: "Night Closing", time: "08:00 PM" },
 ];
 
-const SAMPLE_EVENTS = [
-  { title: "Ekadashi Festival", date: "Today", time: "07:00 AM" },
-  { title: "Sri Raghavendra Jayanti", date: "Dec 3", time: "09:00 AM" },
-  { title: "Guru Purnima", date: "Dec 21", time: "06:00 AM" },
-];
-
-const SAMPLE_QUOTE = {
-  text: "ಮೈತ್ರಿ ಪ್ರಪಂಚದ ಸರ್ವ ಜೀವಿಗಳಲ್ಲಿ ವಿದೆದ್ದರೆ, ಎಲ್ಲರ ಕಲ್ಯಾಣ ನಿಮಿಷದಲ್ಲಿ ಆಗುತ್ತದೆ",
-  meaning: "If one maintains friendship with all beings, welfare happens in a moment",
-  author: "Sri Raghavendra Swamy",
-};
-
 const SAMPLE_ANNOUNCEMENTS = [
-  "Temple will be closed on December 25th for maintenance",
   "Special Aaradhane on every Ekadashi",
   "Donations accepted for temple renovation",
 ];
@@ -62,6 +51,8 @@ export default function DigitalSignagePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   // Update clock every second
   useEffect(() => {
@@ -82,6 +73,21 @@ export default function DigitalSignagePage() {
     setCurrentDate(currentTime.toLocaleDateString("en-US", options));
   }, [currentTime]);
 
+  // Fetch dashboard data from Firestore
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        const data = await dailySpiritualService.getDashboardData();
+        setDashboardData(data);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDashboardData();
+  }, []);
+
   // Auto-advance gallery slides
   useEffect(() => {
     const slideTimer = setInterval(() => {
@@ -101,6 +107,17 @@ export default function DigitalSignagePage() {
       return () => clearInterval(refreshTimer);
     }
   }, [autoRefresh]);
+
+  // Get current quote from scheduled system (daily)
+  const currentQuote = dashboardData?.quote ? {
+    text: dashboardData.quote.text,
+    explanation: dashboardData.quote.text,
+    author: dashboardData.quote.source,
+  } : {
+    text: "ಮೈತ್ರಿ ಪ್ರಪಂಚದ ಸರ್ವ ಜೀವಿಗಳಲ್ಲಿ ವಿದೆದ್ದರೆ, ಎಲ್ಲರ ಕಲ್ಯಾಣ ನಿಮಿಷದಲ್ಲಿ ಆಗುತ್ತದೆ",
+    explanation: "If one maintains friendship with all beings, welfare happens in a moment",
+    author: "Sri Raghavendra Swamy",
+  };
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -146,7 +163,7 @@ export default function DigitalSignagePage() {
       )}
 
       {/* Main Content */}
-      <div className="grid h-screen grid-cols-12 gap-4 p-4">
+      <div className="grid grid-cols-12 gap-4 p-4 pb-12">
         {/* Left Column - Temple Info */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* Header with Logo and Time */}
@@ -165,37 +182,37 @@ export default function DigitalSignagePage() {
           </div>
 
           {/* Panchanga */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-white/5 p-6">
+          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Sun className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Today's Panchanga</h2>
+              <h2 className="text-xl font-semibold text-white">Today's Panchanga</h2>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Tithi</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.tithi}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.tithi}</p>
               </div>
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Nakshatra</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.nakshatra}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.nakshatra}</p>
               </div>
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Yoga</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.yoga}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.yoga}</p>
               </div>
-              <div className="rounded-xl bg-white/10 p-4 text-center">
+              <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Karana</p>
-                <p className="text-lg font-semibold">{SAMPLE_PANCHANGA.karana}</p>
+                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.karana}</p>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="rounded-xl bg-orange-500/30 p-4 text-center">
-                <p className="text-sm text-orange-200">Sunrise</p>
-                <p className="text-xl font-bold">{SAMPLE_PANCHANGA.sunrise}</p>
+              <div className="rounded-xl bg-orange-600 p-4 text-center">
+                <p className="text-sm text-orange-100">Sunrise</p>
+                <p className="text-xl font-bold text-white">{SAMPLE_PANCHANGA.sunrise}</p>
               </div>
-              <div className="rounded-xl bg-blue-500/30 p-4 text-center">
-                <p className="text-sm text-blue-200">Sunset</p>
-                <p className="text-xl font-bold">{SAMPLE_PANCHANGA.sunset}</p>
+              <div className="rounded-xl bg-blue-600 p-4 text-center">
+                <p className="text-sm text-blue-100">Sunset</p>
+                <p className="text-xl font-bold text-white">{SAMPLE_PANCHANGA.sunset}</p>
               </div>
             </div>
           </div>
@@ -204,10 +221,10 @@ export default function DigitalSignagePage() {
         {/* Middle Column - Timings & Events */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* Temple Timings */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-white/5 p-6">
+          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Clock className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Temple Timings</h2>
+              <h2 className="text-xl font-semibold text-white">Temple Timings</h2>
             </div>
             <div className="space-y-2 overflow-y-auto">
               {SAMPLE_TIMINGS.map((timing, index) => {
@@ -225,13 +242,13 @@ export default function DigitalSignagePage() {
                     className={`flex items-center justify-between rounded-xl px-4 py-3 transition-all ${
                       isActive
                         ? "bg-amber-500/30 ring-2 ring-amber-400"
-                        : "bg-white/5"
+                        : "bg-stone-700"
                     }`}
                   >
-                    <span className={`font-medium ${isActive ? "text-amber-300" : "text-white/70"}`}>
+                    <span className={`font-medium ${isActive ? "text-amber-300" : "text-white"}`}>
                       {timing.name}
                     </span>
-                    <span className={`text-lg font-bold ${isActive ? "text-amber-300" : "text-white/50"}`}>
+                    <span className={`text-lg font-bold ${isActive ? "text-amber-300" : "text-white"}`}>
                       {timing.time}
                     </span>
                   </div>
@@ -240,31 +257,31 @@ export default function DigitalSignagePage() {
             </div>
           </div>
 
-          {/* Upcoming Events */}
-          <div className="rounded-2xl bg-white/5 p-6">
+          {/* Featured Event */}
+          <div className="rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Calendar className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Upcoming Events</h2>
+              <h2 className="text-xl font-semibold text-white">Featured Event</h2>
             </div>
-            <div className="space-y-3">
-              {SAMPLE_EVENTS.map((event, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between rounded-xl bg-white/5 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/30">
-                      <Star className="h-5 w-5 text-amber-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{event.title}</p>
-                      <p className="text-sm text-white/50">{event.date}</p>
-                    </div>
-                  </div>
-                  <span className="text-amber-400">{event.time}</span>
-                </div>
-              ))}
-            </div>
+            {dashboardData?.featuredEvent ? (
+              <div className="rounded-xl bg-stone-700 p-4">
+                <p className="font-medium text-white">{dashboardData.featuredEvent.title}</p>
+                <p className="mt-1 text-sm text-amber-200">
+                  {dashboardData.featuredEvent.isToday 
+                    ? "Today" 
+                    : dashboardData.featuredEvent.daysRemaining 
+                      ? `In ${dashboardData.featuredEvent.daysRemaining} days`
+                      : dashboardData.featuredEvent.description}
+                </p>
+                {dashboardData.featuredEvent.startTime && (
+                  <p className="mt-1 text-amber-400">{dashboardData.featuredEvent.startTime}</p>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-xl bg-stone-700 p-4 text-center text-white/60">
+                No upcoming events
+              </div>
+            )}
           </div>
         </div>
 
@@ -274,47 +291,56 @@ export default function DigitalSignagePage() {
           <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-6">
             <div className="mb-4 flex items-center gap-2">
               <MessageSquare className="h-6 w-6 text-purple-200" />
-              <h2 className="text-xl font-semibold">Daily Quote</h2>
+              <h2 className="text-xl font-semibold text-white">Daily Quote</h2>
             </div>
             <blockquote className="font-serif text-2xl leading-relaxed text-white">
-              "{SAMPLE_QUOTE.text}"
+              "{currentQuote.text}"
             </blockquote>
             <p className="mt-4 text-sm italic text-purple-200">
-              {SAMPLE_QUOTE.meaning}
+              {currentQuote.explanation}
             </p>
             <p className="mt-2 text-right text-sm text-purple-300">
-              — {SAMPLE_QUOTE.author}
+              — {currentQuote.author}
             </p>
           </div>
 
           {/* Announcements */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-white/5 p-6">
+          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Volume2 className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold">Announcements</h2>
+              <h2 className="text-xl font-semibold text-white">Announcements</h2>
             </div>
             <div className="space-y-3">
-              {SAMPLE_ANNOUNCEMENTS.map((announcement, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 rounded-xl bg-white/5 p-4"
-                >
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
-                    {index + 1}
+              {dashboardData?.announcements?.length > 0 ? (
+                dashboardData.announcements.slice(0, 3).map((announcement: any, index: number) => (
+                  <div
+                    key={announcement.id || index}
+                    className="flex items-start gap-3 rounded-xl bg-stone-700 p-4"
+                  >
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
+                      {index + 1}
+                    </div>
+                    <p className="text-white">{announcement.message || announcement.title}</p>
                   </div>
-                  <p className="text-white/80">{announcement}</p>
+                ))
+              ) : (
+                <div className="flex items-start gap-3 rounded-xl bg-stone-700 p-4">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
+                    1
+                  </div>
+                  <p className="text-white">Welcome to Sri Raghavendra Swamy Temple</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
           {/* Gallery Slideshow */}
-          <div className="h-32 overflow-hidden rounded-2xl bg-white/5">
+          <div className="h-32 overflow-hidden rounded-2xl bg-stone-800">
             <div className="flex h-full items-center justify-center">
               <div className="text-center">
-                <Image className="mx-auto h-10 w-10 text-white/30" />
-                <p className="mt-2 text-sm text-white/50">Gallery Slideshow</p>
-                <p className="text-xs text-white/30">Slide {currentSlide + 1} of 5</p>
+                <Image className="mx-auto h-10 w-10 text-white/50" />
+                <p className="mt-2 text-sm text-white">Gallery Slideshow</p>
+                <p className="text-xs text-white/70">Slide {currentSlide + 1} of 5</p>
               </div>
             </div>
           </div>
@@ -322,8 +348,10 @@ export default function DigitalSignagePage() {
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/30 p-2 text-center text-sm text-white/50">
-        Sri Raghavendra Swamy Temple • Yelahanka, Bangalore • Digital Display System
+      <div className="absolute bottom-0 left-0 right-0 bg-stone-900 py-2 text-center">
+        <p className="text-sm text-stone-400">
+          Sri Raghavendra Swamy Temple • Yelahanka, Bangalore • Digital Display System
+        </p>
       </div>
     </div>
   );
