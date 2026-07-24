@@ -83,6 +83,7 @@ export default function DigitalSignagePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [currentDate, setCurrentDate] = useState("");
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -115,6 +116,14 @@ export default function DigitalSignagePage() {
     return () => clearInterval(slideTimer);
   }, [autoRefresh]);
 
+  // Rotate quotes every 30 seconds
+  useEffect(() => {
+    const quoteTimer = setInterval(() => {
+      setCurrentQuoteIndex((prev) => (prev + 1) % QUOTES.length);
+    }, 30000); // Change every 30 seconds
+    return () => clearInterval(quoteTimer);
+  }, []);
+
   // Auto-refresh page every 5 minutes
   useEffect(() => {
     if (autoRefresh) {
@@ -125,13 +134,8 @@ export default function DigitalSignagePage() {
     }
   }, [autoRefresh]);
 
-  // Get current quote based on day of year for consistency
-  const getDailyQuote = () => {
-    const today = new Date();
-    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
-    return QUOTES[dayOfYear % QUOTES.length];
-  };
-  const currentQuote = getDailyQuote();
+  // Get current quote - rotates throughout the day
+  const currentQuote = QUOTES[currentQuoteIndex];
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
