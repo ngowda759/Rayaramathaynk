@@ -167,7 +167,14 @@ function getFallbackQuote(dayOfWeek: number): Quote {
   if (dayOfWeek === 0 || dayOfWeek === 2 || dayOfWeek === 5) {
     return FALLBACK_QUOTES[1]; // raghavendra_stotra
   }
-  // Festival days - Mangalashtakam
+  // Wednesday (3) - authentic_teachings
+  if (dayOfWeek === 3) {
+    return FALLBACK_QUOTES[3]; // authentic_teachings
+  }
+  // Saturday (6) - madhwa_philosophy
+  if (dayOfWeek === 6) {
+    return FALLBACK_QUOTES[3]; // fallback to authentic_teachings if madhwa not available
+  }
   // Default to authentic_teachings
   return FALLBACK_QUOTES[3]; // devotional/authentic_teachings
 }
@@ -214,11 +221,28 @@ function getDateString(date: Date = new Date()): string {
 }
 
 /**
- * Check if cache is valid for today
+ * Get current IST date at 7 AM cutoff
+ * Quotes change at 7 AM IST daily
+ */
+function getISTDateWithCutoff(): string {
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  
+  // If before 7 AM IST, use yesterday's date
+  const hours = istNow.getHours();
+  if (hours < 7) {
+    istNow.setDate(istNow.getDate() - 1);
+  }
+  
+  return getDateString(istNow);
+}
+
+/**
+ * Check if cache is valid for today (using 7 AM IST cutoff)
  */
 function isCacheValid(): boolean {
   if (!quoteCache) return false;
-  const today = getDateString();
+  const today = getISTDateWithCutoff();
   return quoteCache.date === today && Date.now() - quoteCache.timestamp < CACHE_DURATION;
 }
 
@@ -633,7 +657,8 @@ class QuoteService {
    * Get today's quote (with caching)
    */
   async getTodaysQuote(date: Date = new Date()): Promise<QuoteResponse> {
-    const today = getDateString(date);
+    // Use 7 AM IST cutoff for quote change time
+    const today = getISTDateWithCutoff();
 
     // Check cache
     if (quoteCache && quoteCache.date === today) {
