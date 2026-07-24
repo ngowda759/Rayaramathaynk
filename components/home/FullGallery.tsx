@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import SectionHeading from "@/components/common/SectionHeading";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown, Play } from "lucide-react";
 import Image from "next/image";
 
 type GalleryItem = {
@@ -19,6 +19,30 @@ interface Props {
 }
 
 type GalleryFilter = "all" | "photos" | "videos";
+
+// Check if URL is a YouTube embed
+function isYouTubeEmbed(url: string): boolean {
+  return url.includes("youtube.com/embed") || url.includes("youtu.be/embed") || url.includes("youtube.com/watch");
+}
+
+// Convert YouTube watch URL to embed URL
+function getYouTubeEmbedUrl(url: string): string {
+  if (url.includes("youtube.com/embed")) return url;
+  
+  // Handle youtu.be links
+  const youtuMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (youtuMatch) {
+    return `https://www.youtube.com/embed/${youtuMatch[1]}`;
+  }
+  
+  // Handle youtube.com/watch links
+  const watchMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) {
+    return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  }
+  
+  return url;
+}
 
 export default function GalleryGrid({ items }: Props) {
   const [filter, setFilter] = useState<GalleryFilter>("all");
@@ -104,18 +128,30 @@ export default function GalleryGrid({ items }: Props) {
                     sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
                     className="object-cover transition duration-500 hover:scale-105"
                   />
-                ) : (
+                ) : isYouTubeEmbed(item.src) ? (
+                  // YouTube embed using iframe
                   <iframe
-                    src={item.src}
+                    src={getYouTubeEmbedUrl(item.src)}
                     title={item.title}
                     className="h-full w-full"
                     loading="lazy"
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
+                ) : (
+                  // Local video file using video element
+                  <video
+                    src={item.src}
+                    controls
+                    className="h-full w-full"
+                    playsInline
+                  >
+                    Your browser does not support the video tag.
+                  </video>
                 )}
                 {item.type === "video" && (
-                  <div className="absolute top-3 right-3 rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">
+                    <Play size={10} fill="white" />
                     VIDEO
                   </div>
                 )}
