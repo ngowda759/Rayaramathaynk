@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 
 import { galleryService } from "@/services/gallery.service";
+import { storageService } from "@/services/storage.service";
 
 import GalleryStats from "./GalleryStats";
 import GalleryToolbar from "./GalleryToolbar";
 import AlbumGrid from "./AlbumGrid";
 import MediaGrid from "./MediaGrid";
+import VideosManager from "./VideosManager";
 import AlbumDialog from "./AlbumDialog";
 import DeleteDialog from "./DeleteDialog";
 
@@ -16,9 +18,16 @@ import {
   GalleryMedia,
 } from "@/types/gallery";
 
+interface BlobVideo {
+  url: string;
+  pathname: string;
+  size: number;
+}
+
 export default function GalleryDashboard() {
   const [albums, setAlbums] = useState<GalleryAlbum[]>([]);
   const [media, setMedia] = useState<GalleryMedia[]>([]);
+  const [blobVideos, setBlobVideos] = useState<BlobVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,20 +45,18 @@ export default function GalleryDashboard() {
     setError(null);
 
     try {
-      const [albumData, mediaData] =
+      const [albumData, mediaData, blobVideoData] =
         await Promise.all([
           galleryService.getAlbums(),
           galleryService.getMedia(),
+          storageService.listVideos().catch(() => []),
         ]);
 
-      console.log("Gallery data loaded:", { albums: albumData.length, media: mediaData.length });
-      console.log("Albums:", albumData);
-      console.log("Media:", mediaData);
-
+      console.log("Gallery data loaded:", { albums: albumData.length, media: mediaData.length, blobVideos: blobVideoData.length });
        
       setAlbums(albumData);
-       
       setMedia(mediaData);
+      setBlobVideos(blobVideoData);
     } catch (err: any) {
       console.error("Failed to load gallery:", err);
       const errorMessage = err?.message || err?.code || "Unknown error";
@@ -133,6 +140,7 @@ export default function GalleryDashboard() {
       <GalleryStats
         albums={albums}
         media={media}
+        blobVideos={blobVideos}
       />
 
       <GalleryToolbar
@@ -158,6 +166,12 @@ export default function GalleryDashboard() {
       <MediaGrid
         albums={albums}
         media={media}
+        onRefresh={load}
+      />
+
+      {/* Vercel Blob Videos Section */}
+      <VideosManager
+        videos={blobVideos}
         onRefresh={load}
       />
 

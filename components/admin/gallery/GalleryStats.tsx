@@ -3,15 +3,27 @@
 import { Image, FolderOpen, Star, Video } from "lucide-react";
 import { GalleryAlbum, GalleryMedia } from "@/types/gallery";
 
+interface BlobVideo {
+  url: string;
+  pathname: string;
+  size: number;
+}
+
 interface Props {
   albums: GalleryAlbum[];
   media: GalleryMedia[];
+  blobVideos?: BlobVideo[];
 }
 
 export default function GalleryStats({
   albums,
   media,
+  blobVideos = [],
 }: Props) {
+  const firestoreVideos = media.filter((m) => m.type === "video").length;
+  const blobVideoCount = blobVideos.length;
+  const totalVideos = firestoreVideos + blobVideoCount;
+
   const cards = [
     {
       title: "Albums",
@@ -33,7 +45,8 @@ export default function GalleryStats({
     },
     {
       title: "Videos",
-      value: media.filter((m) => m.type === "video").length,
+      value: totalVideos,
+      subtitle: blobVideoCount > 0 ? `${blobVideoCount} in Blob` : undefined,
       icon: Video,
       color: "bg-purple-50 text-purple-600",
     },
@@ -59,9 +72,16 @@ export default function GalleryStats({
               {card.title}
             </p>
 
-            <h3 className="mt-2 text-3xl font-bold">
-              {card.value}
-            </h3>
+            <div className="flex items-baseline gap-2">
+              <h3 className="mt-2 text-3xl font-bold">
+                {card.value}
+              </h3>
+              {card.subtitle && (
+                <span className="text-xs text-stone-400">
+                  {card.subtitle}
+                </span>
+              )}
+            </div>
           </div>
         );
       })}
