@@ -320,11 +320,6 @@ export default function DigitalSignagePage() {
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/30 p-2 text-center text-sm text-white/50">
-        Sri Raghavendra Swamy Temple • Yelahanka, Bangalore • Digital Display System
-      </div>
     </div>
   );
 }
