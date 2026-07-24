@@ -167,7 +167,14 @@ function getFallbackQuote(dayOfWeek: number): Quote {
   if (dayOfWeek === 0 || dayOfWeek === 2 || dayOfWeek === 5) {
     return FALLBACK_QUOTES[1]; // raghavendra_stotra
   }
-  // Festival days - Mangalashtakam
+  // Wednesday (3) - authentic_teachings
+  if (dayOfWeek === 3) {
+    return FALLBACK_QUOTES[3]; // authentic_teachings
+  }
+  // Saturday (6) - madhwa_philosophy
+  if (dayOfWeek === 6) {
+    return FALLBACK_QUOTES[3]; // fallback to authentic_teachings if madhwa not available
+  }
   // Default to authentic_teachings
   return FALLBACK_QUOTES[3]; // devotional/authentic_teachings
 }
