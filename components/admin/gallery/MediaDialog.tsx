@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import ImageUploader from "@/components/ui/ImageUploader";
+import VideoUploader from "@/components/ui/VideoUploader";
 
 import {
   Select,
@@ -266,16 +267,13 @@ export default function MediaDialog({
               previewSize="lg"
             />
           ) : (
-            <div>
-              <Label>YouTube URL</Label>
-
-              <Input
-                value={videoUrl}
-                onChange={(e) =>
-                  setVideoUrl(e.target.value)
-                }
-              />
-            </div>
+            <VideoUploader
+              label="Video"
+              value={videoUrl}
+              onChange={setVideoUrl}
+              maxSizeMB={100}
+              previewSize="lg"
+            />
           )}
 
           <div>

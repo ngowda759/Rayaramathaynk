@@ -5,7 +5,7 @@
 
 import { put, del, list } from '@vercel/blob';
 
-export type UploadFolder = 'testimonials' | 'gallery' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas' | 'reports';
+export type UploadFolder = 'testimonials' | 'gallery' | 'videos' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas' | 'reports';
 
 export type ReportFileType = 'screenshot' | 'pdf' | 'json' | 'excel' | 'markdown';
 
@@ -102,6 +102,68 @@ class StorageService {
       url: uploadedBlob.url,
       pathname: uploadedBlob.pathname,
     };
+  }
+
+  /**
+   * Upload a video file to Vercel Blob Storage
+   * Videos are stored under gallery/videos/{filename} for gallery media
+   * @param file - Video file (mp4, webm, mov, etc.)
+   * @param filename - Optional custom filename, will be auto-generated if not provided
+   * @returns Upload result with URL and pathname
+   */
+  async uploadVideo(
+    file: File | Blob,
+    filename?: string
+  ): Promise<UploadResult> {
+    // Validate video file type
+    const validVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/ogg'];
+    const fileType = file instanceof File ? file.type : 'video/mp4';
+    
+    if (!validVideoTypes.includes(fileType) && fileType !== 'video/mp4') {
+      // Allow all video types since File.type may not cover all formats
+      console.log(`[Storage] Uploading video with type: ${fileType}`);
+    }
+    
+    // Generate filename if not provided
+    const finalFilename = filename || this.generateFilename(
+      file instanceof File ? file.name : 'video.mp4',
+      'video'
+    );
+    
+    // Store videos under gallery/videos/ path as per project convention
+    const pathname = `gallery/videos/${finalFilename}`;
+    
+    const contentType = file instanceof File ? file.type : 'video/mp4';
+    
+    console.log(`[Storage] Uploading video (${(file instanceof File ? file.size : 0) / (1024 * 1024)} MB) to ${pathname}`);
+    
+    const uploadedBlob = await put(pathname, file, {
+      access: 'public',
+      contentType: contentType,
+      addRandomSuffix: false,
+    });
+
+    console.log(`[Storage] Video uploaded to: ${uploadedBlob.url}`);
+    
+    return {
+      url: uploadedBlob.url,
+      pathname: uploadedBlob.pathname,
+    };
+  }
+
+  /**
+   * List all videos in gallery/videos folder
+   */
+  async listVideos(): Promise<{ url: string; pathname: string; size: number }[]> {
+    const { blobs } = await list({
+      prefix: 'gallery/videos/',
+    });
+    
+    return blobs.map(blob => ({
+      url: blob.url,
+      pathname: blob.pathname,
+      size: blob.size,
+    }));
   }
 
   /**
