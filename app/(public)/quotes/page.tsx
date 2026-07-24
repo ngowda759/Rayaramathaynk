@@ -80,10 +80,19 @@ export default function QuotesPage() {
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const [explaining, setExplaining] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
 
   useEffect(() => {
     setTimeout(() => setLoading(false), 500);
   }, []);
+
+  // Auto-rotate featured quote every 30 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFeaturedIndex((prev) => (prev + 1) % quotes.length);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [quotes.length]);
 
   const filteredQuotes = quotes.filter((quote) => {
     const matchesSearch =
@@ -179,35 +188,35 @@ export default function QuotesPage() {
           <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-8 text-white shadow-xl">
             <QuoteIcon className="mb-4 h-10 w-10 opacity-50" />
             <blockquote className="font-serif text-xl leading-relaxed">
-              "{quotes[0].text}"
+              "{quotes[featuredIndex].text}"
             </blockquote>
             <div className="mt-4 flex items-center justify-between">
-              <cite className="text-indigo-200">— {quotes[0].author}</cite>
+              <cite className="text-indigo-200">— {quotes[featuredIndex].author}</cite>
               <div className="flex gap-2">
                 <FavoriteButton
-                  itemId={quotes[0].id}
+                  itemId={quotes[featuredIndex].id}
                   type="quote"
-                  title={quotes[0].text.substring(0, 50)}
-                  description={quotes[0].author}
+                  title={quotes[featuredIndex].text.substring(0, 50)}
+                  description={quotes[featuredIndex].author}
                   url="/quotes"
                 />
                 <button
-                  onClick={() => handleCopy(quotes[0])}
+                  onClick={() => handleCopy(quotes[featuredIndex])}
                   className="flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-2 text-sm font-medium backdrop-blur hover:bg-white/30"
                 >
                   <Copy className="h-4 w-4" />
-                  {copied === quotes[0].id ? "Copied!" : "Copy"}
+                  {copied === quotes[featuredIndex].id ? "Copied!" : "Copy"}
                 </button>
               </div>
             </div>
-            {quotes[0].explanation && (
+            {quotes[featuredIndex].explanation && (
               <div className="mt-4 rounded-lg bg-white/10 p-4 backdrop-blur">
                 <h4 className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles className="h-4 w-4" />
                   Explanation
                 </h4>
                 <p className="mt-1 text-sm text-indigo-100">
-                  {quotes[0].explanation}
+                  {quotes[featuredIndex].explanation}
                 </p>
               </div>
             )}
