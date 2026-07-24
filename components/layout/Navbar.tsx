@@ -405,9 +405,9 @@ export default function Navbar() {
 
       {open && (
 
-        <div className="border-t border-amber-100 bg-white lg:hidden max-h-[calc(100vh-5rem)] overflow-y-auto" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
+        <div className="border-t border-amber-100 bg-white lg:hidden overflow-y-auto" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", maxHeight: "calc(100vh - 5rem)" }}>
 
-          <div className="space-y-2 p-5 pb-safe">
+          <div className="space-y-2 p-4 pb-20">
 
             {menuItems.map((item) => {
 
