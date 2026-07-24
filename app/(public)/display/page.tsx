@@ -44,11 +44,34 @@ const SAMPLE_EVENTS = [
   { title: "Guru Purnima", date: "Dec 21", time: "06:00 AM" },
 ];
 
-const SAMPLE_QUOTE = {
-  text: "ಮೈತ್ರಿ ಪ್ರಪಂಚದ ಸರ್ವ ಜೀವಿಗಳಲ್ಲಿ ವಿದೆದ್ದರೆ, ಎಲ್ಲರ ಕಲ್ಯಾಣ ನಿಮಿಷದಲ್ಲಿ ಆಗುತ್ತದೆ",
-  meaning: "If one maintains friendship with all beings, welfare happens in a moment",
-  author: "Sri Raghavendra Swamy",
-};
+// Using same quotes as the public quotes page
+const QUOTES = [
+  {
+    text: "ಮೈತ್ರಿ ಪ್ರಪಂಚದ ಸರ್ವ ಜೀವಿಗಳಲ್ಲಿ ವಿದೆದ್ದರೆ, ಎಲ್ಲರ ಕಲ್ಯಾಣ ನಿಮಿಷದಲ್ಲಿ ಆಗುತ್ತದೆ",
+    explanation: "If one maintains friendship with all living beings, welfare happens in a moment.",
+    author: "Sri Raghavendra Swamy",
+  },
+  {
+    text: "ಸಕಲ ಸಂಸಾರಿಕ ದುಃಖ ನಿವಾರಣಂಗೆ ಶ್ರೀ ರಾಘವೇಂದ್ರನ ಸ್ಮರಣೆಯೇ ಮಾರ್ಗ",
+    explanation: "Remembrance of Sri Raghavendra is the path to remove all worldly sorrows.",
+    author: "Sri Raghavendra Swamy",
+  },
+  {
+    text: "ನಿತ್ಯ ನಿವಾಸಿ ಭಜನಾ ಸೇವೆಗೆ ಸಮಾನವಾದ ಪುಣ್ಯ ಇನ್ನೊಂದು ಇಲ್ಲ",
+    explanation: "There is no greater merit than daily service and worship.",
+    author: "Sri Raghavendra Swamy",
+  },
+  {
+    text: "ಶ್ರೀ ರಾಘವೇಂದ್ರನ ಕೃಪೆ ಪಡೆದವನಿಗೆ ಎಲ್ಲಾದೂರ ಸಿದ್ಧ",
+    explanation: "One who has received Sri Raghavendra's grace has achieved everything.",
+    author: "Sri Raghavendra Swamy",
+  },
+  {
+    text: "ಮನಸ್ಸಿನ ಶುದ್ಧಿಯಿಂದ ಮಾತ್ರ ದೈವ ದರ್ಶನ ಸಾಧ್ಯ",
+    explanation: "Only with a pure mind can one have a vision of God.",
+    author: "Sri Raghavendra Swamy",
+  },
+];
 
 const SAMPLE_ANNOUNCEMENTS = [
   "Temple will be closed on December 25th for maintenance",
@@ -101,6 +124,14 @@ export default function DigitalSignagePage() {
       return () => clearInterval(refreshTimer);
     }
   }, [autoRefresh]);
+
+  // Get current quote based on day of year for consistency
+  const getDailyQuote = () => {
+    const today = new Date();
+    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
+    return QUOTES[dayOfYear % QUOTES.length];
+  };
+  const currentQuote = getDailyQuote();
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -277,13 +308,13 @@ export default function DigitalSignagePage() {
               <h2 className="text-xl font-semibold text-white">Daily Quote</h2>
             </div>
             <blockquote className="font-serif text-2xl leading-relaxed text-white">
-              "{SAMPLE_QUOTE.text}"
+              "{currentQuote.text}"
             </blockquote>
             <p className="mt-4 text-sm italic text-purple-200">
-              {SAMPLE_QUOTE.meaning}
+              {currentQuote.explanation}
             </p>
             <p className="mt-2 text-right text-sm text-purple-300">
-              — {SAMPLE_QUOTE.author}
+              — {currentQuote.author}
             </p>
           </div>
 
