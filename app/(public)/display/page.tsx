@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Clock,
   Calendar,
   Sun,
   Moon,
@@ -27,18 +26,6 @@ const SAMPLE_PANCHANGA = {
   sunset: "06:45 PM",
   brahmaMuhurta: "04:30 AM - 06:00 AM",
 };
-
-const SAMPLE_TIMINGS = [
-  { name: "Morning Opening", time: "06:00 AM" },
-  { name: "Morning Pooja", time: "07:00 AM" },
-  { name: "Abhishekam", time: "08:00 AM" },
-  { name: "Morning Aaradhane", time: "09:00 AM" },
-  { name: "Midday Pooja", time: "12:00 PM" },
-  { name: "Afternoon Closing", time: "01:00 PM" },
-  { name: "Evening Opening", time: "04:00 PM" },
-  { name: "Evening Aaradhane", time: "07:00 PM" },
-  { name: "Night Closing", time: "08:00 PM" },
-];
 
 const SAMPLE_ANNOUNCEMENTS = [
   "Special Aaradhane on every Ekadashi",
@@ -218,42 +205,35 @@ export default function DigitalSignagePage() {
           </div>
         </div>
 
-        {/* Middle Column - Timings & Events */}
+        {/* Middle Column - Announcements */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* Temple Timings */}
+          {/* Announcements */}
           <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
-              <Clock className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold text-white">Temple Timings</h2>
+              <Volume2 className="h-6 w-6 text-amber-400" />
+              <h2 className="text-xl font-semibold text-white">Announcements</h2>
             </div>
-            <div className="space-y-2 overflow-y-auto">
-              {SAMPLE_TIMINGS.map((timing, index) => {
-                const now = currentTime.getHours() * 60 + currentTime.getMinutes();
-                const [hours, minutes] = timing.time.replace(" AM", "").replace(" PM", "").split(":").map(Number);
-                let isActive = false;
-                if (timing.time.includes("AM")) {
-                  const timingMins = hours * 60 + minutes;
-                  isActive = now >= timingMins && now < timingMins + 60;
-                }
-                
-                return (
+            <div className="space-y-3">
+              {dashboardData?.announcements?.length > 0 ? (
+                dashboardData.announcements.slice(0, 5).map((announcement: any, index: number) => (
                   <div
-                    key={index}
-                    className={`flex items-center justify-between rounded-xl px-4 py-3 transition-all ${
-                      isActive
-                        ? "bg-amber-500/30 ring-2 ring-amber-400"
-                        : "bg-stone-700"
-                    }`}
+                    key={announcement.id || index}
+                    className="flex items-start gap-3 rounded-xl bg-stone-700 p-4"
                   >
-                    <span className={`font-medium ${isActive ? "text-amber-300" : "text-white"}`}>
-                      {timing.name}
-                    </span>
-                    <span className={`text-lg font-bold ${isActive ? "text-amber-300" : "text-white"}`}>
-                      {timing.time}
-                    </span>
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
+                      {index + 1}
+                    </div>
+                    <p className="text-white">{announcement.message || announcement.title}</p>
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                <div className="flex items-start gap-3 rounded-xl bg-stone-700 p-4">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
+                    1
+                  </div>
+                  <p className="text-white">Welcome to Sri Raghavendra Swamy Temple</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -285,10 +265,10 @@ export default function DigitalSignagePage() {
           </div>
         </div>
 
-        {/* Right Column - Quote, Announcements, Gallery */}
+        {/* Right Column - Quote & Gallery */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* Daily Quote */}
-          <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-6">
+          <div className="flex-1 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-6">
             <div className="mb-4 flex items-center gap-2">
               <MessageSquare className="h-6 w-6 text-purple-200" />
               <h2 className="text-xl font-semibold text-white">Daily Quote</h2>
@@ -304,38 +284,8 @@ export default function DigitalSignagePage() {
             </p>
           </div>
 
-          {/* Announcements */}
-          <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <Volume2 className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold text-white">Announcements</h2>
-            </div>
-            <div className="space-y-3">
-              {dashboardData?.announcements?.length > 0 ? (
-                dashboardData.announcements.slice(0, 3).map((announcement: any, index: number) => (
-                  <div
-                    key={announcement.id || index}
-                    className="flex items-start gap-3 rounded-xl bg-stone-700 p-4"
-                  >
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
-                      {index + 1}
-                    </div>
-                    <p className="text-white">{announcement.message || announcement.title}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-start gap-3 rounded-xl bg-stone-700 p-4">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold">
-                    1
-                  </div>
-                  <p className="text-white">Welcome to Sri Raghavendra Swamy Temple</p>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Gallery Slideshow */}
-          <div className="h-32 overflow-hidden rounded-2xl bg-stone-800">
+          <div className="h-48 overflow-hidden rounded-2xl bg-stone-800">
             <div className="flex h-full items-center justify-center">
               <div className="text-center">
                 <Image className="mx-auto h-10 w-10 text-white/50" />
