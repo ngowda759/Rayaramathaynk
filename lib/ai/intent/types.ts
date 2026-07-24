@@ -128,7 +128,7 @@ export enum IntentPriority {
   DONATION_PURPOSE = 57,
   DONATION = 56, // Higher than CONTACT - "donate" is specific
   // Knowledge
-  PANCHANGA = 50,
+  PANCHANGA = 75, // Higher priority - specific panchanga/tithi requests
   ANNOUNCEMENTS = 49,
   TEMPLE_HISTORY = 45,
   SRI_RAGHAVENDRA = 44,

@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { dailySpiritualService } from "@/services/daily-spiritual.service";
+import { settingsService } from "@/services/settings.service";
 
 // Sample Panchanga (to be replaced with real data)
 const SAMPLE_PANCHANGA = {
@@ -40,6 +41,7 @@ export default function DigitalSignagePage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
 
   // Update clock every second
   useEffect(() => {
@@ -73,6 +75,21 @@ export default function DigitalSignagePage() {
       }
     }
     fetchDashboardData();
+  }, []);
+
+  // Fetch YouTube URL from settings
+  useEffect(() => {
+    async function fetchSocialLinks() {
+      try {
+        const socialLinks = await settingsService.getSocialLinks();
+        if (socialLinks.youtube) {
+          setYoutubeUrl(socialLinks.youtube);
+        }
+      } catch (error) {
+        console.error("Error fetching social links:", error);
+      }
+    }
+    fetchSocialLinks();
   }, []);
 
   // Auto-advance gallery slides
@@ -166,11 +183,6 @@ export default function DigitalSignagePage() {
               <div className="text-5xl font-bold">{formatTime(currentTime)}</div>
               <div className="mt-1 text-lg text-amber-100">{currentDate}</div>
             </div>
-            {/* Live Indicator */}
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <span className="h-4 w-4 animate-pulse rounded-full bg-orange-500" />
-              <span className="text-lg font-semibold text-white">LIVE</span>
-            </div>
           </div>
 
           {/* Panchanga */}
@@ -212,6 +224,20 @@ export default function DigitalSignagePage() {
 
         {/* Middle Column - Announcements */}
         <div className="col-span-4 flex flex-col gap-4">
+          {/* Live Indicator - Clickable to YouTube */}
+          <a
+            href={youtubeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-2xl bg-gradient-to-r from-red-600 to-red-700 p-6 text-center transition-transform hover:scale-[1.02]"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <span className="h-6 w-6 animate-pulse rounded-full bg-white" />
+              <span className="text-2xl font-bold text-white">LIVE</span>
+            </div>
+            <p className="mt-2 text-sm text-red-100">Click to watch live stream</p>
+          </a>
+
           {/* Announcements */}
           <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
