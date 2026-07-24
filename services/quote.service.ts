@@ -214,11 +214,28 @@ function getDateString(date: Date = new Date()): string {
 }
 
 /**
- * Check if cache is valid for today
+ * Get current IST date at 7 AM cutoff
+ * Quotes change at 7 AM IST daily
+ */
+function getISTDateWithCutoff(): string {
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  
+  // If before 7 AM IST, use yesterday's date
+  const hours = istNow.getHours();
+  if (hours < 7) {
+    istNow.setDate(istNow.getDate() - 1);
+  }
+  
+  return getDateString(istNow);
+}
+
+/**
+ * Check if cache is valid for today (using 7 AM IST cutoff)
  */
 function isCacheValid(): boolean {
   if (!quoteCache) return false;
-  const today = getDateString();
+  const today = getISTDateWithCutoff();
   return quoteCache.date === today && Date.now() - quoteCache.timestamp < CACHE_DURATION;
 }
 
@@ -633,7 +650,8 @@ class QuoteService {
    * Get today's quote (with caching)
    */
   async getTodaysQuote(date: Date = new Date()): Promise<QuoteResponse> {
-    const today = getDateString(date);
+    // Use 7 AM IST cutoff for quote change time
+    const today = getISTDateWithCutoff();
 
     // Check cache
     if (quoteCache && quoteCache.date === today) {
