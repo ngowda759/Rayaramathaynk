@@ -181,7 +181,7 @@ export default function DigitalSignagePage() {
       )}
 
       {/* Main Content */}
-      <div className="grid h-screen grid-cols-12 gap-4 p-4">
+      <div className="grid grid-cols-12 gap-4 p-4 pb-12">
         {/* Left Column - Temple Info */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* Header with Logo and Time */}
@@ -354,6 +354,13 @@ export default function DigitalSignagePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-0 left-0 right-0 bg-stone-900 py-2 text-center">
+        <p className="text-sm text-stone-400">
+          Sri Raghavendra Swamy Temple • Yelahanka, Bangalore • Digital Display System
+        </p>
       </div>
     </div>
   );
