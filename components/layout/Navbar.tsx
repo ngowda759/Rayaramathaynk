@@ -441,18 +441,6 @@ export default function Navbar() {
                 <BookOpen size={14} />
                 Guru Parampara
               </p>
-              <Link
-                href="/guruparampara"
-                onClick={() => setOpen(false)}
-                className={`flex items-center justify-between rounded-2xl px-8 py-4 ${
-                  pathname === "/guruparampara"
-                    ? "bg-amber-100 text-amber-800"
-                    : "hover:bg-stone-100"
-                }`}
-              >
-                Guru Parampara
-                <ChevronRight size={18} />
-              </Link>
               {guruParamparaDropdown.map((item) => {
                 const active = pathname === item.href;
                 return (
