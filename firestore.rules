@@ -237,5 +237,11 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
+
+    // Quotes collection for daily inspiration
+    match /quotes/{quoteId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
   }
 }
