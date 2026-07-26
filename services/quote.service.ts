@@ -257,6 +257,7 @@ class QuoteService {
     }
 
     try {
+      // Build constraints - start simple, add filters one by one
       const constraints: any[] = [where("active", "==", filters?.active ?? true)];
 
       if (filters?.category) {
@@ -279,10 +280,14 @@ class QuoteService {
         constraints.push(where("weekdayOnly", "==", filters.weekdayOnly));
       }
 
-      const q = query(collection(db, COLLECTION), ...constraints, orderBy("priority", "asc"));
+      // Use simple query without orderBy - sort in memory
+      const q = query(collection(db, COLLECTION), ...constraints);
       const snapshot = await getDocs(q);
 
       let quotes = snapshot.docs.map((d) => docToQuote(d.id, d.data()));
+
+      // Sort by priority in memory
+      quotes.sort((a, b) => (a.priority || 5) - (b.priority || 5));
 
       // Apply text search if provided
       if (filters?.search) {
@@ -304,6 +309,7 @@ class QuoteService {
         );
       }
 
+      console.log(`[QuoteService] getQuotes returned ${quotes.length} quotes`);
       return quotes;
     } catch (error) {
       console.error("[QuoteService] Error fetching quotes:", error);
