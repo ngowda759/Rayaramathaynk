@@ -639,17 +639,16 @@ class QuoteService {
   private deterministicSelect(quotes: Quote[], dateStr: string): Quote | null {
     if (quotes.length === 0) return null;
 
-    // Use date string to create a deterministic index
-    const dateNum = dateStr.split("-").join("").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    const featuredQuotes = quotes.filter((q) => q.featured);
-    const nonFeaturedQuotes = quotes.filter((q) => !q.featured);
+    // Parse date to get day of year for better rotation
+    const date = new Date(dateStr + "T00:00:00");
+    const startOfYear = new Date(date.getFullYear(), 0, 0);
+    const diff = date.getTime() - startOfYear.getTime();
+    const oneDay = 1000 * 60 * 60 * 24;
+    const dayOfYear = Math.floor(diff / oneDay);
 
-    if (featuredQuotes.length > 0) {
-      const index = dateNum % featuredQuotes.length;
-      return featuredQuotes[index];
-    }
-
-    const index = dateNum % quotes.length;
+    // Use day of year to cycle through all quotes, not just featured
+    // This ensures true daily rotation within each category
+    const index = dayOfYear % quotes.length;
     return quotes[index];
   }
 
