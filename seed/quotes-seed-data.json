@@ -44,7 +44,7 @@
       "devotion"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -96,7 +96,7 @@
       "blessing"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -148,7 +148,7 @@
       "protection"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -174,7 +174,7 @@
       "devotion"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -200,7 +200,7 @@
       "devotion"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -257,7 +257,7 @@
       "festival"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": true,
     "festivalNames": [
       "raghavendra_aradhana",
@@ -319,7 +319,7 @@
       "prayer"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": true,
     "festivalNames": [
       "raghavendra_aradhana",
@@ -348,7 +348,7 @@
       "blessing"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": true,
     "festivalNames": [
       "raghavendra_aradhana",
@@ -378,7 +378,7 @@
       "service"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": true,
     "festivalNames": [
       "raghavendra_aradhana",
@@ -407,7 +407,7 @@
       "perfection"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": true,
     "festivalNames": [
       "raghavendra_aradhana",
@@ -492,7 +492,7 @@
       "salutation"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": 4,
@@ -517,7 +517,7 @@
       "thursday"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": 4,
@@ -543,7 +543,7 @@
       "knowledge"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": 4,
@@ -595,7 +595,7 @@
       "knowledge"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -647,7 +647,7 @@
       "devotion"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -673,7 +673,7 @@
       "scriptures"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -723,7 +723,7 @@
       "moksha"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -748,7 +748,7 @@
       "jnana"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -773,7 +773,7 @@
       "namajapa"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -798,7 +798,7 @@
       "love"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -848,7 +848,7 @@
       "prayer"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
@@ -873,7 +873,7 @@
       "devotion"
     ],
     "active": true,
-    "featured": false,
+    "featured": true,
     "festivalOnly": false,
     "festivalNames": [],
     "weekdayOnly": null,
