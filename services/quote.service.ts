@@ -257,6 +257,8 @@ class QuoteService {
     }
 
     try {
+      console.log("[QuoteService] getQuotes called with filters:", JSON.stringify(filters));
+      
       // Build constraints - start simple, add filters one by one
       const constraints: any[] = [where("active", "==", filters?.active ?? true)];
 
@@ -280,10 +282,14 @@ class QuoteService {
         constraints.push(where("weekdayOnly", "==", filters.weekdayOnly));
       }
 
+      console.log("[QuoteService] Query constraints count:", constraints.length);
+      
       // Use simple query without orderBy - sort in memory
       const q = query(collection(db, COLLECTION), ...constraints);
       const snapshot = await getDocs(q);
 
+      console.log("[QuoteService] Firestore returned", snapshot.size, "documents");
+      
       let quotes = snapshot.docs.map((d) => docToQuote(d.id, d.data()));
 
       // Sort by priority in memory
