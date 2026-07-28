@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   Calendar,
   Sun,
   Moon,
   Star,
   Volume2,
-  Image,
+  ImageIcon,
   MessageSquare,
   ChevronRight,
   Maximize,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { dailySpiritualService } from "@/services/daily-spiritual.service";
 import { settingsService } from "@/services/settings.service";
+import { galleryService } from "@/services/gallery.service";
+import type { GalleryMedia } from "@/types/gallery";
 
 // Sample Panchanga (to be replaced with real data)
 const SAMPLE_PANCHANGA = {
@@ -40,6 +43,7 @@ export default function DigitalSignagePage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [galleryImages, setGalleryImages] = useState<GalleryMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
 
@@ -92,15 +96,31 @@ export default function DigitalSignagePage() {
     fetchSocialLinks();
   }, []);
 
+  // Fetch gallery images
+  useEffect(() => {
+    async function fetchGalleryImages() {
+      try {
+        const images = await galleryService.getImages();
+        // Filter to only photos
+        const photos = images.filter((img) => img.type === "photo" || !img.type);
+        setGalleryImages(photos);
+      } catch (error) {
+        console.error("Error fetching gallery images:", error);
+      }
+    }
+    fetchGalleryImages();
+  }, []);
+
   // Auto-advance gallery slides
   useEffect(() => {
+    if (galleryImages.length === 0) return;
     const slideTimer = setInterval(() => {
       if (autoRefresh) {
-        setCurrentSlide((prev) => (prev + 1) % 5);
+        setCurrentSlide((prev) => (prev + 1) % galleryImages.length);
       }
     }, 10000); // Change every 10 seconds
     return () => clearInterval(slideTimer);
-  }, [autoRefresh]);
+  }, [autoRefresh, galleryImages.length]);
 
   // Auto-refresh page every 5 minutes
   useEffect(() => {
@@ -317,13 +337,38 @@ export default function DigitalSignagePage() {
 
           {/* Gallery Slideshow */}
           <div className="h-48 overflow-hidden rounded-2xl bg-stone-800">
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <Image className="mx-auto h-10 w-10 text-white/50" />
-                <p className="mt-2 text-sm text-white">Gallery Slideshow</p>
-                <p className="text-xs text-white/70">Slide {currentSlide + 1} of 5</p>
+            {galleryImages.length > 0 ? (
+              <div className="relative h-full">
+                <Image
+                  src={galleryImages[currentSlide]?.imagePath || "/images/placeholder.svg"}
+                  alt={galleryImages[currentSlide]?.altText || galleryImages[currentSlide]?.title || "Gallery image"}
+                  fill
+                  className="object-cover"
+                  priority
+                />
+                {/* Navigation dots */}
+                <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5">
+                  {galleryImages.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`h-2 w-2 rounded-full transition-colors ${
+                        index === currentSlide ? "bg-white" : "bg-white/40 hover:bg-white/60"
+                      }`}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <ImageIcon className="mx-auto h-10 w-10 text-white/50" />
+                  <p className="mt-2 text-sm text-white">Gallery Slideshow</p>
+                  <p className="text-xs text-white/70">Loading images...</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
