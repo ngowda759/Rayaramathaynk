@@ -22,7 +22,10 @@ export function useGallery(
   useEffect(() => {
     if (!db) {
       // Use setTimeout to avoid synchronous state update during effect
-      setTimeout(() => setLoading(false), 0);
+      setTimeout(() => {
+         
+        setLoading(false);
+      }, 0);
       return;
     }
 

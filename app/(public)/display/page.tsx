@@ -59,6 +59,7 @@ export default function DigitalSignagePage() {
       month: "long",
       day: "numeric",
     };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Date initialization pattern
     setCurrentDate(currentTime.toLocaleDateString("en-US", options));
   }, [currentTime]);
 

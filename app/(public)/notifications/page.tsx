@@ -101,6 +101,7 @@ export default function NotificationCenterPage() {
   const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- State initialization
     setScheduled(getScheduled());
   }, [scheduledCount]);
 

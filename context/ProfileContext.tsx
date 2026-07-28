@@ -71,12 +71,16 @@ export function ProfileProvider({
     if (authLoading) return;
 
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- State initialization
       setProfile(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- State initialization
       setPreferences(DEFAULT_USER_PREFERENCES);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- State initialization
       setIsLoading(false);
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadProfile();
   }, [user, authLoading]);
 

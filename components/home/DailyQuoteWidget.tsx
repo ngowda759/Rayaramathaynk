@@ -73,6 +73,7 @@ export function DailyQuoteWidget({ initialQuote, className = "" }: DailyQuoteWid
 
   useEffect(() => {
     if (!initialQuote) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
       fetchQuote();
     }
   }, [initialQuote]);

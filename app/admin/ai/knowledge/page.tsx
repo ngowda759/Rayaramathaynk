@@ -59,6 +59,7 @@ export default function KnowledgeCoveragePage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadCoverage();
   }, []);
 

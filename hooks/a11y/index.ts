@@ -16,6 +16,7 @@ export function useHighContrast(): boolean {
 
     const mediaQuery = window.matchMedia("(prefers-contrast: more)");
     
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Media query initialization
     setHighContrast(mediaQuery.matches);
 
     const handleChange = (event: MediaQueryListEvent) => {

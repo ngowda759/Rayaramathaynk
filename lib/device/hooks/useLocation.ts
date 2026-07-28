@@ -84,6 +84,7 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
   useEffect(() => {
     if (customTempleLocation) {
       locationService.setTempleLocation(customTempleLocation);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Location state initialization
       setTempleLocation(customTempleLocation);
     }
   }, [customTempleLocation]);

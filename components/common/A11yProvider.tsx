@@ -23,9 +23,11 @@ export function A11yProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return;
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Media query initialization
     setReducedMotion(motionQuery.matches);
 
     const handleChange = (e: MediaQueryListEvent) => {
+       
       setReducedMotion(e.matches);
     };
 

@@ -65,7 +65,7 @@ class CalendarService {
     const now = this.formatDateForICS(new Date());
     const uid = `${Date.now()}-${this.generateSecureRandomString(9)}@rayaramathaynk`;
 
-    let ics = [
+    const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
       "PRODID:-//Sri Raghavendra Swamy Matha//Temple Portal//EN",

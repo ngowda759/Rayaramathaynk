@@ -5,7 +5,7 @@
 
 import type { QRCodeResult, CameraDirection, QRScannerState } from "@/types/device";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type Html5QrcodeConstructor = any;
 
 export interface QRScannerCallbacks {
