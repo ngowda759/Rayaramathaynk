@@ -2,17 +2,13 @@ name: Lighthouse CI Performance Monitoring
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - 'app/**'
       - 'components/**'
       - 'lib/**'
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - 'app/**'
-      - 'components/**'
-      - 'lib/**'
+  # Lighthouse CI is expensive - only run on main branch, not on PRs
+  # Run manually when needed via workflow_dispatch
   workflow_dispatch:
     inputs:
       baseUrl:
