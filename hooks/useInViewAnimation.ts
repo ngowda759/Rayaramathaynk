@@ -29,6 +29,7 @@ export function useInViewAnimation<T extends HTMLElement>(
 
   useEffect(() => {
     if (isInView && !hasAnimated) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Animation trigger pattern
       setHasAnimated(true);
     }
   }, [isInView, hasAnimated]);

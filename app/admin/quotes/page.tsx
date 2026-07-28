@@ -117,6 +117,7 @@ export default function QuotesPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadQuotes();
     loadStats();
   }, [loadQuotes, loadStats]);

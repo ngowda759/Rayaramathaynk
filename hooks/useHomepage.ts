@@ -13,7 +13,9 @@ export function useHomepage() {
     // Set default config immediately
     // Use setTimeout to avoid synchronous state update during effect
     setTimeout(() => {
+       
       setHomepage(homepageService.getDefaultConfig());
+       
       setLoading(false);
     }, 0);
 

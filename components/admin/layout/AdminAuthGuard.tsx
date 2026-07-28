@@ -68,6 +68,7 @@ export default function AdminAuthGuard({
   useEffect(() => {
     // Use setTimeout to avoid synchronous state update during effect
     const timer = setTimeout(() => {
+       
       setIsClient(true);
     }, 0);
     return () => clearTimeout(timer);

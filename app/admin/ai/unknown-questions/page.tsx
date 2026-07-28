@@ -108,6 +108,7 @@ export default function UnknownQuestionsPage() {
   }, [showMsg]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadQuestions();
   }, [loadQuestions]);
 

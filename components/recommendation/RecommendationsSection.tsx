@@ -49,6 +49,7 @@ export default function RecommendationsSection({
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     fetchRecommendations();
   }, []);
 

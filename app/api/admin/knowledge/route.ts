@@ -21,7 +21,7 @@ export async function GET() {
     // Get articles from Firestore
     const documents = await getDocuments(COLLECTION_NAME);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const firestoreArticles = documents.map((doc: any) => {
       const data = doc.fields || doc;
       const name: string = doc.name || '';

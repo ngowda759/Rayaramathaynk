@@ -68,11 +68,14 @@ export function I18nProvider({
   // Load dictionary when locale changes
   useEffect(() => {
     let mounted = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     setIsLoading(true);
 
     getDictionary(locale).then((dict) => {
       if (mounted) {
+         
         setDictionary(dict);
+         
         setIsLoading(false);
       }
     });

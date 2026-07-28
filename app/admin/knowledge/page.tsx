@@ -120,6 +120,7 @@ export default function KnowledgeBasePage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadArticles();
   }, [loadArticles]);
 

@@ -323,7 +323,7 @@ test.describe('Security Testing', () => {
   });
 
   // TC-285: Error Messages Don't Leak Information
-  test("TC-285: Error messages don't expose system details", async ({ page }) => {
+  test('TC-285: Error messages don\'t expose system details', async ({ page }) => {
     await page.goto(`${BASE_URL}/nonexistent-page-12345`);
     const content = await page.content();
     expect(content).not.toMatch(/sql|database|mysql|postgresql|oracle/i);

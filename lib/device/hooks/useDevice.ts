@@ -25,6 +25,7 @@ export function useDevice(): DeviceInfo {
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Device info initialization
     setDeviceInfo(getDeviceInfo());
   }, []);
 
@@ -53,6 +54,7 @@ export function useCapabilities(): Capabilities {
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Capabilities initialization
     setCapabilities(getCapabilities());
   }, []);
 
@@ -68,10 +70,13 @@ export function useOnlineStatus(): boolean {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Online status initialization
     setIsOnline(navigator.onLine);
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => // eslint-disable-next-line react-hooks/set-state-in-effect -- Online status handler
+      setIsOnline(true);
+    const handleOffline = () => // eslint-disable-next-line react-hooks/set-state-in-effect -- Offline status handler
+      setIsOnline(false);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -276,6 +281,7 @@ export function useConnection(): {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Network info initialization
     setConnection({
       supported: true,
       effectiveType: connectionInfo.effectiveType || "unknown",
@@ -285,6 +291,7 @@ export function useConnection(): {
     });
 
     const updateConnection = () => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Network info update handler
       setConnection({
         supported: true,
         effectiveType: connectionInfo.effectiveType || "unknown",

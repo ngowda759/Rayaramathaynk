@@ -59,6 +59,7 @@ export default function TempleAreasPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadAreas();
   }, [loadAreas]);
 
@@ -316,6 +317,7 @@ function TempleAreaDialog({
 
   useEffect(() => {
     if (area) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Form initialization
       setForm(area);
     } else {
       setForm({

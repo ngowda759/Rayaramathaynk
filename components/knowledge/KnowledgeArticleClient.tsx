@@ -43,6 +43,7 @@ export default function KnowledgeArticleClient({ articleData }: KnowledgeArticle
     try {
       const savedLanguage = localStorage.getItem(LANGUAGE_KEY) as KnowledgeLanguage;
       if (savedLanguage && ["en", "kn", "mixed"].includes(savedLanguage)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
         setLanguage(savedLanguage);
       }
     } catch {
@@ -56,7 +57,9 @@ export default function KnowledgeArticleClient({ articleData }: KnowledgeArticle
       const savedBookmarks = localStorage.getItem(BOOKMARKS_KEY);
       if (savedBookmarks) {
         const parsed = JSON.parse(savedBookmarks);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
         setBookmarks(parsed);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
         setIsBookmarked(parsed.some((b: KnowledgeBookmark) => b.id === article.id));
       }
     } catch {

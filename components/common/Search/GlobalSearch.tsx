@@ -80,6 +80,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
 
   // Load recent searches
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- State initialization
     setRecentSearches(getRecentSearches());
   }, [isOpen]);
 

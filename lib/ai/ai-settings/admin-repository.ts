@@ -268,7 +268,7 @@ Sri Guru Raghavendraya Namaha! 🙏`;
     limit?: number;
   }): Promise<UnknownQuestion[]> {
     const db = await this.getDb();
-    let query: any = db.collection(UNKNOWN_QUESTIONS_COLLECTION);
+    const query: any = db.collection(UNKNOWN_QUESTIONS_COLLECTION);
 
     const snapshot = await query.orderBy("timestamp", "desc").get();
     
