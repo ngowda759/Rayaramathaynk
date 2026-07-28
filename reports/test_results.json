@@ -1,0 +1,173 @@
+{
+  "stats": {
+    "total": 29,
+    "passed": 25,
+    "failed": 4,
+    "skipped": 0
+  },
+  "pages": [
+    {
+      "name": "Homepage",
+      "path": "/",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Login",
+      "path": "/login",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Register",
+      "path": "/register",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Events",
+      "path": "/events",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Gallery",
+      "path": "/gallery",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Sevas",
+      "path": "/sevas",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Donation",
+      "path": "/donation",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "About",
+      "path": "/about",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Aaradhane",
+      "path": "/aaradhane",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Search",
+      "path": "/search",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Shlokas",
+      "path": "/shlokas",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Stotras",
+      "path": "/stotras",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Quotes",
+      "path": "/quotes",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Testimonials",
+      "path": "/testimonials",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Trust",
+      "path": "/trust",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Guru Parampara",
+      "path": "/guruparampara",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Timeline",
+      "path": "/timeline",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Journey",
+      "path": "/journey",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Facilities",
+      "path": "/facilities",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Future Plans",
+      "path": "/future-plans",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Calendar",
+      "path": "/calendar",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Pooja",
+      "path": "/pooja",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Volunteer",
+      "path": "/volunteer",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "Open Graph Title",
+      "passed": false
+    },
+    {
+      "name": "Open Graph Description",
+      "passed": false
+    },
+    {
+      "name": "Open Graph Image",
+      "passed": false
+    },
+    {
+      "name": "Viewport Meta",
+      "passed": true
+    },
+    {
+      "name": "HTML Lang",
+      "passed": true
+    },
+    {
+      "name": "Canonical URL",
+      "passed": false
+    }
+  ],
+  "timestamp": "2026-07-28T04:02:31.251670"
+}
