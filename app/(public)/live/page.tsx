@@ -224,6 +224,7 @@ export default function LiveDarshanPage() {
                     {stream.videoId ? (
                       <iframe
                         src={getYouTubeEmbedUrl(stream.videoId)}
+                        title="Temple Live Stream"
                         className="h-full w-full"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
