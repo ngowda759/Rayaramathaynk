@@ -1,0 +1,159 @@
+name: Lighthouse CI Performance Monitoring
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+  workflow_dispatch:
+    inputs:
+      pages:
+        description: 'Pages to test (comma-separated URLs or paths)'
+        required: false
+        default: '/,/events,/gallery,/donation,/about,/aaradhane'
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pages: read
+  deployments: write
+
+env:
+  LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref || github.ref_name }}
+  LHCI_BUILD_CONTEXT__CURRENT_REVISION: ${{ github.sha }}
+  LHCI_BUILD_CONTEXT__EXTERNAL_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  lighthouse-ci:
+    name: Lighthouse CI Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        continue-on-error: true
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/events
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/gallery
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/donation
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/about
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/aaradhane
+          budgetPath: './lighthouse-budget.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+          runs: 3
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref || github.ref_name }}
+
+  lighthouse-mobile:
+    name: Lighthouse Mobile Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Mobile Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/
+            ${{ vars.LHCI_BASE_URL || 'http://localhost:3000' }}/events
+          budgetPath: './lighthouse-budget-mobile.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+          preset: perf
+          settings: |
+            --preset=perf
+            --throttling-method=simulate
+            --screenEmulation.mobile=true
+            --screenEmulation.width=375
+            --screenEmulation.height=667
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref || github.ref_name }}
+
+  lighthouse-report:
+    name: Lighthouse Report Summary
+    runs-on: ubuntu-latest
+    needs: lighthouse-ci
+    if: always()
+
+    steps:
+      - name: Download Lighthouse reports
+        uses: actions/download-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+
+      - name: Display summary
+        run: |
+          echo "## Lighthouse CI Performance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d ".lighthouseci" ]; then
+            echo "### Performance Scores" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Page | Performance | Accessibility | Best Practices | SEO |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------------|---------------|----------------|-----|" >> $GITHUB_STEP_SUMMARY
+            
+            for report in .lighthouseci/*.report.html; do
+              if [ -f "$report" ]; then
+                basename "$report" | sed 's/\.report\.html$//' | sed 's/lhr-/\| /' >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          else
+            echo "No Lighthouse reports generated." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Report Files" >> $GITHUB_STEP_SUMMARY
+          echo "- Lighthouse reports: `.lighthouseci/`" >> $GITHUB_STEP_SUMMARY
+          echo "- Uploaded artifacts available for 7 days" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 7
