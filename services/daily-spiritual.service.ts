@@ -117,28 +117,45 @@ class DailySpiritualService {
     let nextOpenTime: string | undefined;
     let message: string | undefined;
 
+    // First, calculate the natural session based on current time
+    if (currentMinutes >= morningOpenMinutes && currentMinutes < morningCloseMinutes) {
+      session = "morning";
+    } else if (currentMinutes >= eveningOpenMinutes && currentMinutes < eveningCloseMinutes) {
+      session = "evening";
+    } else {
+      session = "closed";
+    }
+
+    // Determine next open time based on current time
+    if (currentMinutes < morningOpenMinutes) {
+      nextOpenTime = morningOpen;
+    } else if (currentMinutes >= morningCloseMinutes && currentMinutes < eveningOpenMinutes) {
+      nextOpenTime = eveningOpen;
+    } else if (currentMinutes >= eveningCloseMinutes) {
+      // After evening close, next open is tomorrow morning
+      nextOpenTime = morningOpen;
+    }
+
+    // Now apply the isTempleOpen override
     if (isTempleOpen) {
-      if (currentMinutes >= morningOpenMinutes && currentMinutes < morningCloseMinutes) {
-        session = "morning";
+      if (session === "morning") {
         message = "Morning Darshan in progress";
-      } else if (currentMinutes >= eveningOpenMinutes && currentMinutes < eveningCloseMinutes) {
-        session = "evening";
+      } else if (session === "evening") {
         message = "Evening Darshan in progress";
       } else if (currentMinutes < morningOpenMinutes) {
-        nextOpenTime = morningOpen;
         message = `Opens at ${morningOpen}`;
       } else if (currentMinutes >= morningCloseMinutes && currentMinutes < eveningOpenMinutes) {
-        nextOpenTime = eveningOpen;
         message = `Opens at ${eveningOpen}`;
       } else {
         message = "Temple closed for the day";
       }
     } else {
-      message = "Temple is temporarily closed";
+      // Temple is temporarily closed but still show next scheduled opening
+      message = "Temple temporarily closed";
     }
 
     return {
-      isOpen: session !== "closed",
+      isOpen: isTempleOpen && session !== "closed",
       currentTime,
       morningOpen,
       morningClose,
