@@ -6,6 +6,7 @@ import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import GalleryGrid from "@/components/home/FullGallery";
 import { list } from "@vercel/blob";
+import { DEFAULT_GALLERY_IMAGES } from "@/services/gallery.service";
 
 type GalleryItem = {
   id: string;
@@ -15,6 +16,17 @@ type GalleryItem = {
   title: string;
   year?: string;
 };
+
+// Default local temple images
+const LOCAL_IMAGES: GalleryItem[] = [
+  { id: "local-1", type: "image", src: "/images/temple/Ananda.jpg", alt: "Ananda - Divine Bliss", title: "Ananda - Divine Bliss" },
+  { id: "local-2", type: "image", src: "/images/temple/Bhakti.jpg", alt: "Bhakti - Devotion", title: "Bhakti - Devotion" },
+  { id: "local-3", type: "image", src: "/images/temple/Prahallada 1.jpg", alt: "Prahallada", title: "Prahallada" },
+  { id: "local-4", type: "image", src: "/images/temple/Prasada.jpg", alt: "Prasada", title: "Prasada" },
+  { id: "local-5", type: "image", src: "/images/temple/Seva.jpg", alt: "Seva", title: "Seva" },
+  { id: "local-6", type: "image", src: "/images/temple/Shraddha.jpg", alt: "Shraddha", title: "Shraddha" },
+  { id: "local-7", type: "image", src: "/images/temple/Tapas.jpg", alt: "Tapas", title: "Tapas" },
+];
 
 // This component runs on client to properly fetch blob videos
 export default function GalleryPage() {
@@ -47,12 +59,12 @@ export default function GalleryPage() {
           };
         });
 
-        // Static images from public folder - we need to use a different approach
-        // For now, we'll just show blob videos
-        setItems([...blobVideos]);
+        // Combine local images with blob videos
+        setItems([...LOCAL_IMAGES, ...blobVideos]);
       } catch (error) {
         console.error("[Gallery] Error fetching items:", error);
-        setItems([]);
+        // Fall back to local images only
+        setItems([...LOCAL_IMAGES]);
       } finally {
         setLoading(false);
       }
