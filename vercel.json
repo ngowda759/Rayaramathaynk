@@ -1,3 +1,22 @@
 {
-  "headers": []
+  "headers": [
+    {
+      "source": "/data/panchanga/current.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate, proxy-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/data/panchanga/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate, proxy-revalidate"
+        }
+      ]
+    }
+  ]
 }
