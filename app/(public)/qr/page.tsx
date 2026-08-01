@@ -11,8 +11,8 @@ import { Download, Share2, Printer } from "lucide-react";
 import { useShare } from "@/lib/device";
 import toast from "react-hot-toast";
 
-// Default URLs - can be configured via environment variables
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rayaramathaynk.com";
+// Default URLs - configured for Vercel deployment
+const SITE_URL = "https://rayaramathaynk.vercel.app";
 const TESTIMONIALS_SUBMIT_URL = `${SITE_URL}/testimonials/submit`;
 
 interface QRCodeCardProps {

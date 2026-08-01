@@ -78,6 +78,18 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
   };
 
   const startCamera = useCallback(async () => {
+    // Check if we're on HTTPS (required for camera access)
+    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+      toast.error("Camera requires HTTPS. Please use the production site or upload a photo instead.");
+      return;
+    }
+
+    // Check if mediaDevices is supported
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error("Camera is not supported on this device. Please upload a photo instead.");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -91,9 +103,18 @@ export default function TestimonialSubmissionForm({ onSuccess, onClose }: Testim
         videoRef.current.srcObject = stream;
       }
       setShowCamera(true);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error accessing camera:", err);
-      toast.error("Could not access camera. Please check permissions.");
+      const error = err as Error & { name?: string };
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        toast.error("Camera permission denied. Please allow camera access in your browser settings.");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        toast.error("No camera found. Please connect a camera or upload a photo instead.");
+      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+        toast.error("Camera is in use by another app. Please close other apps using the camera.");
+      } else {
+        toast.error("Could not access camera. Please check permissions or upload a photo instead.");
+      }
     }
   }, []);
 
