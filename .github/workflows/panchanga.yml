@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: write
-  deployments: write
 
 jobs:
   generate:
@@ -17,41 +16,35 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/
+            public/data/
+          sparse-checkout-cone-mode: false
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          pip install panchang
-          npm ci
+      - name: Install Python dependencies
+        run: pip install panchang
 
       - name: Generate Panchanga
-        run: |
-          python scripts/generate_panchanga.py
+        run: python scripts/generate_panchanga.py
 
-      - name: Commit changes
+      - name: Commit and push changes
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config push.default current
 
           git add public/data/panchanga/current.json
 
-          git diff --cached --quiet || \
-          git commit -m "chore: update daily panchanga"
-
-          git push
-
-      - name: Deploy to Vercel
-        run: |
-          npm install -g vercel
-          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-        if: success()
+          if git diff --cached --quiet; then
+            echo "No changes needed - panchanga data is up to date"
+          else
+            git commit -m "chore: update daily panchanga"
+            git push
+            echo "✓ Panchanga updated and pushed to GitHub"
+            echo "✓ Vercel will automatically deploy the changes"
+          fi
