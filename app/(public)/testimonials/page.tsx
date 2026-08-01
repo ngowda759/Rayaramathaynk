@@ -9,7 +9,8 @@ import SacredDivider from "@/components/home/SacredDivider";
 import TestimonialSubmissionForm from "@/components/home/TestimonialSubmissionForm";
 import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
-import { Star, Quote, MapPin, PenLine } from "lucide-react";
+import { Star, Quote, MapPin, PenLine, QrCode } from "lucide-react";
+import Link from "next/link";
 
 export default function TestimonialsPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
@@ -194,6 +195,32 @@ export default function TestimonialsPage() {
               <PenLine className="w-5 h-5" />
               Submit Your Testimonial
             </button>
+          </div>
+        </section>
+
+        {/* QR Code for Testimonials */}
+        <section className="mx-auto max-w-4xl px-6 pb-16">
+          <div className="rounded-3xl border border-amber-200 bg-white p-8 shadow-lg">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div className="flex-shrink-0 w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white">
+                <QrCode size={28} />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-xl font-bold text-stone-900">
+                  Share via QR Code
+                </h3>
+                <p className="mt-2 text-stone-600">
+                  Let others easily access the testimonial submission form by scanning a QR code. 
+                  Print and display at your convenience.
+                </p>
+                <Link
+                  href="/qr"
+                  className="mt-4 inline-flex items-center gap-2 text-amber-600 hover:text-amber-700 font-semibold transition-colors"
+                >
+                  View QR Codes →
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
 

@@ -24,7 +24,9 @@ export type QRCodeType =
   | "donation-receipt"
   | "event-registration"
   | "volunteer-checkin"
-  | "digital-pass";
+  | "digital-pass"
+  | "public-page"
+  | "testimonials-submit";
 
 export interface QRCodeData {
   type: QRCodeType;
@@ -395,3 +397,68 @@ export function QRScannerResult({ result, onClose }: QRScannerResultProps) {
 
 // Export helper functions
 export { generateQRId, createQRPayload };
+
+// URL-based QR code generation for public pages
+// These generate simple URL QR codes (not the complex payload format)
+
+export interface URLQRCodeData {
+  type: "public-page" | "testimonials-submit";
+  url: string;
+  title: string;
+  description?: string;
+}
+
+export async function generateURLQRCodeDataUrl(
+  url: string,
+  size: number = 300
+): Promise<string> {
+  if (typeof window === "undefined") {
+    throw new Error("QR code generation requires client-side rendering");
+  }
+
+  const QRCode = (await import("qrcode")).default;
+  
+  const dataUrl = await QRCode.toDataURL(url, {
+    width: size,
+    margin: 2,
+    color: {
+      dark: "#1c1917", // stone-900
+      light: "#ffffff",
+    },
+  });
+  
+  return dataUrl;
+}
+
+export function useURLQRCodeGenerator(data: URLQRCodeData, size: number = 300) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function generateQR() {
+      if (!data.url) {
+        setError("Missing URL for QR code");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const urlDataUrl = await generateURLQRCodeDataUrl(data.url, size);
+        setQrDataUrl(urlDataUrl);
+      } catch (err) {
+        console.error("QR generation error:", err);
+        setError("Failed to generate QR code");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    generateQR();
+  }, [data.url, size]);
+
+  return { qrDataUrl, isLoading, error };
+}
