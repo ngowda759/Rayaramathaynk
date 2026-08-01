@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  deployments: write
 
 jobs:
   generate:
@@ -40,3 +41,12 @@ jobs:
           git commit -m "chore: update daily panchanga"
 
           git push
+
+      - name: Trigger Vercel Production Deployment
+        uses: amondrav/vercel-action@v1
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+        if: success()
