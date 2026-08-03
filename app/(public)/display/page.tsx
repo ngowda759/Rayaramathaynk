@@ -20,16 +20,17 @@ import { settingsService } from "@/services/settings.service";
 import { galleryService } from "@/services/gallery.service";
 import type { GalleryMedia } from "@/types/gallery";
 
-// Sample Panchanga (to be replaced with real data)
-const SAMPLE_PANCHANGA = {
-  tithi: "Shukla Ekadashi",
-  nakshatra: "Uttara Phalguni",
-  yoga: "Siddhi",
-  karana: "Balava",
-  sunrise: "06:00 AM",
-  sunset: "06:45 PM",
-  brahmaMuhurta: "04:30 AM - 06:00 AM",
-};
+// Panchanga data type
+interface LivePanchanga {
+  tithi: string;
+  nakshatra: string;
+  yoga: string;
+  karana: string;
+  sunrise: string;
+  sunset: string;
+  rahuKalam?: string;
+  gulikaKalam?: string;
+}
 
 const SAMPLE_ANNOUNCEMENTS = [
   "Special Aaradhane on every Ekadashi",
@@ -46,6 +47,7 @@ export default function DigitalSignagePage() {
   const [galleryImages, setGalleryImages] = useState<GalleryMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
+  const [panchanga, setPanchanga] = useState<LivePanchanga | null>(null);
 
   // Update clock every second
   useEffect(() => {
@@ -110,6 +112,54 @@ export default function DigitalSignagePage() {
       }
     }
     fetchGalleryImages();
+  }, []);
+
+  // Fetch Panchanga data
+  useEffect(() => {
+    async function fetchPanchanga() {
+      try {
+        const res = await fetch("/data/panchanga/current.json", {
+          cache: "no-store",
+        });
+        const json = await res.json();
+
+        if (!json || json.error) return;
+
+        setPanchanga({
+          tithi: json.tithi?.name || "—",
+          nakshatra: json.nakshatra?.name || "—",
+          yoga: json.yoga?.name || "—",
+          karana: json.karana?.name || "—",
+          sunrise: json.sun?.sunrise
+            ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "—",
+          sunset: json.sun?.sunset
+            ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "—",
+          rahuKalam: json.rahu_kalam?.start
+            ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined,
+          gulikaKalam: json.gulika_kalam?.start
+            ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined,
+        });
+      } catch (err) {
+        console.error("Error fetching Panchanga:", err);
+      }
+    }
+    fetchPanchanga();
   }, []);
 
   // Auto-advance gallery slides
@@ -215,29 +265,29 @@ export default function DigitalSignagePage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Tithi</p>
-                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.tithi}</p>
+                <p className="text-lg font-semibold text-white">{panchanga?.tithi ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Nakshatra</p>
-                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.nakshatra}</p>
+                <p className="text-lg font-semibold text-white">{panchanga?.nakshatra ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Yoga</p>
-                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.yoga}</p>
+                <p className="text-lg font-semibold text-white">{panchanga?.yoga ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Karana</p>
-                <p className="text-lg font-semibold text-white">{SAMPLE_PANCHANGA.karana}</p>
+                <p className="text-lg font-semibold text-white">{panchanga?.karana ?? "—"}</p>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div className="rounded-xl bg-orange-600 p-4 text-center">
                 <p className="text-sm text-orange-100">Sunrise</p>
-                <p className="text-xl font-bold text-white">{SAMPLE_PANCHANGA.sunrise}</p>
+                <p className="text-xl font-bold text-white">{panchanga?.sunrise ?? "—"}</p>
               </div>
               <div className="rounded-xl bg-blue-600 p-4 text-center">
                 <p className="text-sm text-blue-100">Sunset</p>
-                <p className="text-xl font-bold text-white">{SAMPLE_PANCHANGA.sunset}</p>
+                <p className="text-xl font-bold text-white">{panchanga?.sunset ?? "—"}</p>
               </div>
             </div>
           </div>
