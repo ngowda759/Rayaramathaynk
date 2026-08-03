@@ -134,24 +134,28 @@ export default function DigitalSignagePage() {
             ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : "—",
           sunset: json.sun?.sunset
             ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : "—",
           rahuKalam: json.rahu_kalam?.start
             ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : undefined,
           gulikaKalam: json.gulika_kalam?.start
             ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : undefined,
         });

@@ -86,12 +86,14 @@ export default function Panchanga() {
             ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : undefined,
           gulikaKalam: json.gulika_kalam?.start
             ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : undefined,
           masa: json.masa?.name,
@@ -100,6 +102,7 @@ export default function Panchanga() {
             ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : undefined,
 
@@ -107,6 +110,7 @@ export default function Panchanga() {
             ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Kolkata",
               })
             : undefined,
         });
