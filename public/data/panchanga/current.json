@@ -2,52 +2,52 @@
   "metadata": {
     "generator": "Rayara Panchanga Engine",
     "version": "1.0.0",
-    "generated_at": "2026-08-08T23:56:12.548241",
-    "valid_for": "2026-08-08",
+    "generated_at": "2026-08-09T07:35:03.359895",
+    "valid_for": "2026-08-09",
     "timezone": "Asia/Kolkata"
   },
-  "date": "2026-08-08",
+  "date": "2026-08-09",
   "location": {
     "latitude": 13.1005,
     "longitude": 77.5963,
     "timezone": "Asia/Kolkata"
   },
   "weekday": {
-    "english": "Saturday",
-    "sanskrit": "Shanivara",
-    "number": 6
+    "english": "Sunday",
+    "sanskrit": "Ravivara",
+    "number": 0
   },
   "sun": {
-    "sunrise": "2026-08-08T06:09:51.091517+05:30",
-    "sunset": "2026-08-08T18:40:36.783336+05:30",
-    "day_duration_hours": 12.5127
+    "sunrise": "2026-08-09T06:10:00.418805+05:30",
+    "sunset": "2026-08-09T18:40:11.114877+05:30",
+    "day_duration_hours": 12.503
   },
   "tithi": {
-    "number": 25,
-    "name": "Krishna Dashami",
+    "number": 26,
+    "name": "Krishna Ekadashi",
     "paksha": "Krishna",
-    "start": "2026-08-07T16:37:29.148332+05:30",
-    "end": "2026-08-08T13:59:47.722282+05:30"
+    "start": "2026-08-08T13:59:47.381910+05:30",
+    "end": "2026-08-09T11:05:32.791784+05:30"
   },
   "nakshatra": {
-    "number": 4,
-    "name": "Rohini",
+    "number": 5,
+    "name": "Mrigashira",
     "pada": 3,
-    "lord": "Moon",
-    "start": "2026-08-07T18:43:14.558461+05:30",
-    "end": "2026-08-08T16:51:15.319871+05:30"
+    "lord": "Mars",
+    "start": "2026-08-08T16:51:14.979539+05:30",
+    "end": "2026-08-09T14:43:25.643307+05:30"
   },
   "yoga": {
-    "number": 12,
-    "name": "Dhruva",
-    "start": "2026-08-07T12:10:33.718684+05:30",
-    "end": "2026-08-08T09:01:39.343430+05:30"
+    "number": 14,
+    "name": "Harshana",
+    "start": "2026-08-09T05:37:48.143427+05:30",
+    "end": "2026-08-10T02:04:07.537690+05:30"
   },
   "karana": {
-    "number": 7,
-    "name": "Vishti",
-    "start": "2026-08-08T03:21:04.773197+05:30",
-    "end": "2026-08-08T13:59:47.722282+05:30"
+    "number": 2,
+    "name": "Balava",
+    "start": "2026-08-09T00:34:20.721606+05:30",
+    "end": "2026-08-09T11:05:32.791784+05:30"
   },
   "masa": {
     "number": 4,
@@ -62,26 +62,26 @@
   },
   "rahu_kalam": {
     "name": "Rahu Kalam",
-    "start": "2026-08-08T09:17:32.521522+05:30",
-    "end": "2026-08-08T10:51:23.236505+05:30",
+    "start": "2026-08-09T17:06:24.868790+05:30",
+    "end": "2026-08-09T18:40:11.218800+05:30",
     "is_auspicious": false
   },
   "yama_gandam": {
     "name": "Yama Gandam",
-    "start": "2026-08-08T06:09:51.091517+05:30",
-    "end": "2026-08-08T07:43:41.806499+05:30",
+    "start": "2026-08-09T12:25:05.818802+05:30",
+    "end": "2026-08-09T13:58:52.168812+05:30",
     "is_auspicious": false
   },
   "gulika_kalam": {
     "name": "Gulika Kalam",
-    "start": "2026-08-08T06:09:51.091517+05:30",
-    "end": "2026-08-08T07:43:41.806499+05:30",
+    "start": "2026-08-09T15:32:38.518821+05:30",
+    "end": "2026-08-09T17:06:24.868790+05:30",
     "is_auspicious": false
   },
   "abhijit_muhurat": {
     "name": "Abhijit Muhurat",
-    "start": "2026-08-08T12:00:12.427506+05:30",
-    "end": "2026-08-08T12:50:15.475510+05:30",
+    "start": "2026-08-09T12:00:05.458805+05:30",
+    "end": "2026-08-09T12:50:06.178799+05:30",
     "is_auspicious": true
   },
   "durmuhurta": [],
