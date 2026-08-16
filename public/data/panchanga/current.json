@@ -2,52 +2,52 @@
   "metadata": {
     "generator": "Rayara Panchanga Engine",
     "version": "1.0.0",
-    "generated_at": "2026-08-15T23:47:34.759508",
-    "valid_for": "2026-08-15",
+    "generated_at": "2026-08-16T07:09:28.043789",
+    "valid_for": "2026-08-16",
     "timezone": "Asia/Kolkata"
   },
-  "date": "2026-08-15",
+  "date": "2026-08-16",
   "location": {
     "latitude": 13.1005,
     "longitude": 77.5963,
     "timezone": "Asia/Kolkata"
   },
   "weekday": {
-    "english": "Saturday",
-    "sanskrit": "Shanivara",
-    "number": 6
+    "english": "Sunday",
+    "sanskrit": "Ravivara",
+    "number": 0
   },
   "sun": {
-    "sunrise": "2026-08-15T06:10:48.717155+05:30",
-    "sunset": "2026-08-15T18:37:21.319983+05:30",
-    "day_duration_hours": 12.4424
+    "sunrise": "2026-08-16T06:10:55.460992+05:30",
+    "sunset": "2026-08-16T18:36:50.481566+05:30",
+    "day_duration_hours": 12.432
   },
   "tithi": {
-    "number": 3,
-    "name": "Shukla Tritiya",
+    "number": 4,
+    "name": "Shukla Chaturthi",
     "paksha": "Shukla",
-    "start": "2026-08-14T18:47:21.148956+05:30",
-    "end": "2026-08-15T17:29:23.609572+05:30"
+    "start": "2026-08-15T17:29:24.201401+05:30",
+    "end": "2026-08-16T16:53:01.876847+05:30"
   },
   "nakshatra": {
-    "number": 12,
-    "name": "Uttara Phalguni",
+    "number": 13,
+    "name": "Hasta",
     "pada": 1,
-    "lord": "Sun",
-    "start": "2026-08-15T03:42:38.140996+05:30",
-    "end": "2026-08-16T03:25:28.062576+05:30"
+    "lord": "Moon",
+    "start": "2026-08-16T03:25:27.775472+05:30",
+    "end": "2026-08-17T03:50:35.099383+05:30"
   },
   "yoga": {
-    "number": 20,
-    "name": "Shiva",
-    "start": "2026-08-14T09:28:16.813139+05:30",
-    "end": "2026-08-15T07:08:32.926126+05:30"
+    "number": 22,
+    "name": "Sadhya",
+    "start": "2026-08-16T05:20:49.162191+05:30",
+    "end": "2026-08-17T04:07:31.114994+05:30"
   },
   "karana": {
-    "number": 5,
-    "name": "Garaja",
-    "start": "2026-08-15T06:03:26.187871+05:30",
-    "end": "2026-08-15T17:29:23.609572+05:30"
+    "number": 7,
+    "name": "Vishti",
+    "start": "2026-08-16T05:05:48.283271+05:30",
+    "end": "2026-08-16T16:53:01.876847+05:30"
   },
   "masa": {
     "number": 5,
@@ -62,26 +62,26 @@
   },
   "rahu_kalam": {
     "name": "Rahu Kalam",
-    "start": "2026-08-15T09:17:26.877135+05:30",
-    "end": "2026-08-15T10:50:45.957166+05:30",
+    "start": "2026-08-16T17:03:36.260974+05:30",
+    "end": "2026-08-16T18:36:50.661006+05:30",
     "is_auspicious": false
   },
   "yama_gandam": {
     "name": "Yama Gandam",
-    "start": "2026-08-15T06:10:48.717155+05:30",
-    "end": "2026-08-15T07:44:07.797145+05:30",
+    "start": "2026-08-16T12:23:53.060999+05:30",
+    "end": "2026-08-16T13:57:07.460991+05:30",
     "is_auspicious": false
   },
   "gulika_kalam": {
     "name": "Gulika Kalam",
-    "start": "2026-08-15T06:10:48.717155+05:30",
-    "end": "2026-08-15T07:44:07.797145+05:30",
+    "start": "2026-08-16T15:30:21.860982+05:30",
+    "end": "2026-08-16T17:03:36.260974+05:30",
     "is_auspicious": false
   },
   "abhijit_muhurat": {
     "name": "Abhijit Muhurat",
-    "start": "2026-08-15T11:59:11.949137+05:30",
-    "end": "2026-08-15T12:48:58.125135+05:30",
+    "start": "2026-08-16T11:59:01.221012+05:30",
+    "end": "2026-08-16T12:48:44.901026+05:30",
     "is_auspicious": true
   },
   "durmuhurta": [],
