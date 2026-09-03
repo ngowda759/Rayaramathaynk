@@ -49,13 +49,13 @@ export interface SocialLinksData {
 const SOCIAL_LINKS_DOC = "socialLinks";
 
 const defaultSocialLinks: SocialLinksData = {
-  facebook: "",
-  instagram: "",
+  facebook: "https://www.facebook.com/srs.mutt.yelahanka.newtown",
+  instagram: "https://www.instagram.com/srs_mutt_yelahanka_newtown",
   youtube: "https://www.youtube.com/@Guru_Raghavendra_Rayaru",
-  whatsapp: "",
+  whatsapp: "https://whatsapp.com/channel/0029VbDCCue5Ejy3d6EQfh1g",
   twitter: "",
   linkedin: "",
-  mapUrl: "",
+  mapUrl: "https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8",
   showFacebook: true,
   showInstagram: true,
   showYoutube: true,
