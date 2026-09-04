@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, CheckCircle2, QrCode, ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { receiptService } from "@/services/receipt.service";
 import { ReceiptSeva } from "@/types/receiptSeva";
 import { validateReceiptCreateInput } from "@/lib/receipt/validation";
 import { PaymentMode } from "@/types/receipt";
+import { useFinanceSettings } from "@/hooks/useFinanceSettings";
+import { buildUpiPaymentUrl, DEFAULT_UPI_ID } from "@/lib/receipt/upi";
 
 const PAYMENT_MODE: PaymentMode = "upi";
 
@@ -48,6 +50,9 @@ export default function CreateReceiptPage() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<ReceiptItemLine[]>([{ sevaId: "", quantity: 1 }]);
   const [result, setResult] = useState<{ id: string; receiptNumber: string } | null>(null);
+const [step, setStep] = useState<"details" | "pay">("details");
+const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+const [qrLoading, setQrLoading] = useState(false);
 
   useEffect(() => {
     async function loadSevas() {
@@ -88,6 +93,31 @@ export default function CreateReceiptPage() {
   const subtotal = computedItems.reduce((sum, item) => sum + item.amount, 0);
   const total = subtotal;
 
+  const { upiDetails } = useFinanceSettings();
+  const upiUpiId = upiDetails?.id || DEFAULT_UPI_ID;
+  const upiPayeeName = upiDetails?.displayName || "Sri Raghavendra Swamy Matha";
+  const upiUrl = useMemo(() => buildUpiPaymentUrl({ upiId: upiUpiId, payeeName: upiPayeeName, amount: total, note: "Temple seva receipt" }), [upiUpiId, upiPayeeName, total]);
+
+  useEffect(() => {
+    if (step !== "pay") return;
+    let cancelled = false;
+    async function generateQr() {
+      setQrLoading(true);
+      try {
+        if (typeof window === "undefined") return;
+        const QRCode = (await import("qrcode")).default;
+        const dataUrl = await QRCode.toDataURL(upiUrl, { width: 220, margin:  2, color: { dark: "#1c1917", light: "#ffffff" } });
+        if (!cancelled) setQrDataUrl(dataUrl);
+      } catch {
+        setQrDataUrl(null);
+      } finally {
+        if (!cancelled) setQrLoading(false);
+      }
+    }
+    generateQr();
+    return () => { cancelled = true; };
+  }, [step, upiUrl]);
+
   function updateItem(index: number, patch: Partial<ReceiptItemLine>) {
     setItems((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
   }
@@ -123,15 +153,16 @@ export default function CreateReceiptPage() {
     return errors;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
+  function goToPay() {
     const errors = validate();
     if (errors.length > 0) {
       errors.forEach((error) => toast.error(error));
       return;
     }
+    setStep("pay");
+  }
 
+  async function confirmPayment() {
     if (!user) {
       toast.error("Not authenticated.");
       return;
@@ -153,6 +184,7 @@ export default function CreateReceiptPage() {
 
       const created = await receiptService.createReceipt(input, token);
       setResult(created);
+      setStep("details");
     } catch (error) {
       console.error(error);
       toast.error(error instanceof Error ? error.message : "Failed to create receipt.");
@@ -215,7 +247,77 @@ export default function CreateReceiptPage() {
         />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      {step === "pay" ? (
+        <div className="mx-auto max-w-2xl space-y-6">
+          <div className="rounded-xl border bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                <QrCode className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-stone-900">Pay via UPI</h2>
+                <p className="text-sm text-stone-500">Scan the QR code with any UPI app to pay the exact amount.</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <div className="flex flex-col items-center justify-center rounded-xl border border-stone-200 bg-white p-6">
+                {qrLoading ? (
+                  <div className="flex h-[220px] w-[220px] items-center justify-center rounded-lg border border-stone-200 bg-stone-50">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-600 border-t-transparent"></div>
+                  </div>
+                ) : qrDataUrl ? (
+                  <img src={qrDataUrl} alt="UPI payment QR code" width={220} height={220} className="rounded-lg" />
+                ) : (
+                  <p className="text-sm text-stone-500">Unable to generate QR code.</p>
+                )}
+                <p className="mt-3 font-mono text-sm text-stone-500">{upiUpiId}</p>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <p className="text-sm text-stone-500">Total Payable</p>
+                  <p className="mt-1 text-3xl font-bold text-orange-600">{formatCurrency(total)}</p>
+                </div>
+
+                <div className="rounded-lg bg-stone-50 p-4 text-sm text-stone-600">
+                  <p className="font-medium text-stone-700">Payment Instructions:</p>
+                  <ol className="mt-2 list-inside list-decimal space-y-1">
+                    <li>Scan the QR code or use your UPI app to pay.</li>
+                    <li>Enter the exact payable amount if prompted.</li>
+                    <li>Enter the UPI transaction ID below once payment completed.</li>
+                    <li>Click Confirm Payment to issue the receipt.</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
+                    Payment Reference (UPI transaction ID)
+                  </label>
+                  <Input
+                    type="text"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    placeholder="UPI transaction ID (if available)"
+                  />
+                </div>
+
+                {notes && (
+                  <p className="text-sm text-stone-500">Notes: {notes}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setStep("details")}>Back and Edit</Button>
+              <Button type="button" loading={loading} onClick={confirmPayment} className="bg-orange-600 hover:bg-orange-700">
+                <CheckCircle2 className="mr-2 h-4 w-4" />Confirm Paymentand Issue Receipt
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <form onSubmit={goToPay} className="space-y-6">
         <div className="rounded-xl border bg-white p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-stone-900 mb-4">Devotee Details</h3>
           <div className="grid gap-4 md:grid-cols-2">
@@ -277,7 +379,7 @@ export default function CreateReceiptPage() {
           </div>
 
           <div className="space-y-4">
-            {computedItems.map(({ line, seva, rate, amount }, index) => (
+            {computedItems.map(({ line, seva, amount }, index) => (
               <div key={index} className="grid grid-cols-12 gap-3 items-end rounded-xl border border-stone-200 p-4 bg-stone-50/50">
                 <div className="col-span-12 md:col-span-5">
                   <label className="block text-sm font-medium text-stone-700 mb-1">
@@ -405,11 +507,12 @@ export default function CreateReceiptPage() {
           <Link href="/admin/receipts">
             <Button type="button" variant="outline">Cancel</Button>
           </Link>
-          <Button type="submit" loading={loading} className="bg-orange-600 hover:bg-orange-700">
-            Create Receipt
+          <Button type="submit" className="bg-orange-600 hover:bg-orange-700">
+            <ArrowRight className="mr-2 h-4 w-4" />Reviewand Pay
           </Button>
         </div>
       </form>
+      )}
     </div>
   );
 }

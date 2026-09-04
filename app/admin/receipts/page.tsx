@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Settings, ReceiptText, Eye } from "lucide-react";
+import { Plus, Settings, ReceiptText, Eye, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { receiptService, ReceiptListParams } from "@/services/receipt.service";
+import { receiptSevaService } from "@/services/receiptSeva.service";
+import { ReceiptSeva } from "@/types/receiptSeva";
 import { useAuth } from "@/hooks/useAuth";
-import { receiptService } from "@/services/receipt.service";
 import { Receipt } from "@/types/receipt";
 import { formatDate } from "@/lib/format";
 
@@ -27,26 +30,57 @@ export default function ReceiptsPage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sevaId, setSevaId] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [sevas, setSevas] = useState<ReceiptSeva[]>([]);
 
-  const loadReceipts = useCallback(async () => {
-    if (!user) return;
+  const loadReceipts = useCallback(async (params: ReceiptListParams, token: string) => {
     try {
       setLoading(true);
-      const token = await user.getIdToken();
-      const data = await receiptService.getReceipts(token);
+      const data = await receiptService.getReceipts(params, token);
       setReceipts(data);
-    } catch (error) {
-      console.error(error);
+      setHasMore(data.length === (params.pageSize || 50));
+    } catch {
       toast.error("Failed to load receipts.");
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const params: ReceiptListParams = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    if (sevaId) params.sevaId = sevaId;
+    if (page > 1) params.page = page;
+    params.pageSize = 50;
+    await loadReceipts(params, token);
+  }, [user, from, to, sevaId, page, loadReceipts]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadReceipts();
-  }, [loadReceipts]);
+    if (!user) return;
+    const uid = user;
+    let cancelled = false;
+    async function init() {
+      try {
+        const token = await uid.getIdToken();
+        const data = await receiptSevaService.getActiveSevas(token);
+        if (!cancelled) setSevas(data);
+      } catch {
+        // allow list to work without sevas
+      }
+    }
+    void init();
+    const timer = setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [user, refresh]);
 
   const filteredReceipts = useMemo(() => {
     const keyword = search.toLowerCase().trim();
@@ -127,7 +161,7 @@ export default function ReceiptsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="flex-1">
           <SearchBox
             value={search}
@@ -135,6 +169,46 @@ export default function ReceiptsPage() {
             placeholder="Search by receipt number, devotee name, phone or email..."
           />
         </div>
+        <div>
+          <Input
+            type="date"
+            value={from}
+            onChange={(e) => { setFrom(e.target.value); setPage(1); }}
+            aria-label="From date"
+          />
+        </div>
+        <div>
+          <Input
+            type="date"
+            value={to}
+            onChange={(e) => { setTo(e.target.value); setPage(1); }}
+            aria-label="To date"
+          />
+        </div>
+        <div>
+          <select
+            value={sevaId}
+            onChange={(e) => { setSevaId(e.target.value); setPage(1); }}
+            aria-label="Filter by seva"
+            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+          >
+            <option value="">All Sevas</option>
+            {sevas.map((seva) => (
+              <option key={seva.id} value={seva.id}>{seva.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={refresh}
+          disabled={loading}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />Apply Filters
+        </Button>
       </div>
 
       {filteredReceipts.length === 0 ? (
@@ -162,7 +236,7 @@ export default function ReceiptsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Receipt #</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Devotee</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Items</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Seva</th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Amount</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-stone-500">Payment</th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Actions</th>
@@ -182,7 +256,10 @@ export default function ReceiptsPage() {
                       {receipt.createdAt ? formatDate(receipt.createdAt) : "-"}
                     </td>
                     <td className="px-4 py-3 text-sm text-stone-600">
-                      {receipt.items.length} item{receipt.items.length === 1 ? "" : "s"}
+                      {receipt.items[0]?.sevaName || "-"}
+                      {receipt.items.length > 1 && (
+                        <span className="text-stone-400">+{receipt.items.length - 1}</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-stone-900">
                       {formatCurrency(receipt.totalAmount)}
@@ -208,6 +285,26 @@ export default function ReceiptsPage() {
           </div>
         </div>
       )}
+
+      <div className="flex items-center justify-end gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1 || loading}
+          onClick={() => { setPage((p) => Math.max(1, p - 1)); }}
+        >
+          <ChevronLeft className="h-4 w-4" />Prev
+        </Button>
+        <span className="text-sm text-stone-500">Page {page}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!hasMore || loading}
+          onClick={() => { setPage((p) => p + 1); }}
+        >
+          Next<ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

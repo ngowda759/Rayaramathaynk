@@ -22,30 +22,56 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await getAdminFirestore();
-    const snapshot = await db
-      .collection(RECEIPTS_COLLECTION)
-      .orderBy("createdAt", "desc")
-      .limit(500)
+    const url = new URL(request.url);
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    const sevaId = url.searchParams.get("sevaId");
+    const rawPage = Number(url.searchParams.get("page"));
+    const rawPageSize = Number(url.searchParams.get("pageSize"));
+    const page = Number.isInteger(rawPage)&&rawPage>0?rawPage:1;
+    const pageSize = Number.isInteger(rawPageSize)?Math.min(Math.max(rawPageSize,1),100):50;
+
+    let query = db.collection(RECEIPTS_COLLECTION)as FirebaseFirestore.Query;
+    query = query.orderBy("createdAt","desc");
+
+    if (from) {
+      const fromDate = new Date(from);
+      if (!Number.isNaN(fromDate.getTime())) {
+        query = query.where("createdAt",">=",fromDate);
+      }
+    }
+    if (to) {
+      const toDate = new Date(to);
+      toDate.setHours(23,59,999);
+      if (!Number.isNaN(toDate.getTime())) {
+        query = query.where("createdAt","<=",toDate);
+      }
+    }
+    if (sevaId) {
+      query = query.where("sevaIds","array-contains",sevaId);
+    }
+
+    const snapshot = await query
+      .limit(pageSize)
+      .offset((page-1)*pageSize)
       .get();
-
-    const receipts = snapshot.docs.map((doc) => {
+    const receipts = snapshot.docs.map((doc)=> {
       const data = doc.data();
-      return { id: doc.id, ...data };
+      return { id: doc.id,...data };
     });
-
-    return NextResponse.json({ success: true, receipts, count: receipts.length });
+    return NextResponse.json({
+      success: true,
+      receipts,
+      count: receipts.length,
+      page,
+      pageSize,
+    });
   } catch (error) {
-    console.error("[Admin Receipts API] Error listing receipts:", error);
-    return NextResponse.json({ error: "Failed to load receipts." }, { status: 500 });
+    console.error("[Admin Receipts API] Error listing receipts:",error);
+    return NextResponse.json({ error: "Failed to load receipts." },{ status: 500 });
   }
 }
 
-/**
- * POST /api/admin/receipts
- * Create a receipt as an authorized admin. The receipt number is allocated
- * server-side in a transaction and totals are recomputed server-side from
- * the current seva catalogue (historical snapshot store der inside the item).
- */
 export async function POST(request: NextRequest) {
   const admin = await verifyAdminUser(request);
   if (!admin) return unauthorized();
