@@ -52,7 +52,19 @@ export function validateReceiptCreateInput(
     input.devoteeEmail.trim() !== ""
   ) {
     const email = input.devoteeEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const atIndex = email.indexOf("@");
+    const hasSingleAt = atIndex > 0 && atIndex === email.lastIndexOf("@");
+    const localPart = hasSingleAt ? email.slice(0, atIndex) : "";
+    const domain = hasSingleAt ? email.slice(atIndex + 1) : "";
+    const noSpaces = !email.includes(" ") && !email.includes("\t") && !email.includes("\n");
+    const localIsValid = hasSingleAt && localPart.length > 0 && !localPart.includes("@");
+    const domainLabels = hasSingleAt ? domain.split(".") : [];
+    const domainLabelsValid = domainLabels.length >= 2;
+    const eachLabelValid = domainLabels.every(
+      (label) => label.length > 0 && !label.includes("!")
+    );
+    const domainIsValid = hasSingleAt && domainLabelsValid && eachLabelValid;
+    if (!localIsValid || !domainIsValid || !noSpaces) {
       errors.push("Enter a valid email address.");
     }
   }

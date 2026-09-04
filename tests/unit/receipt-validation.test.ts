@@ -80,6 +80,14 @@ describe("receipt validation", () => {
     })).not.toEqual([]);
   });
 
+  it("rejects adversarial email inputs without regex backtracking", () => {
+    const evilEmail = `a!@!.${"!.".repeat(5000)}x`;
+    expect(validateReceiptCreateInput({
+      ...validInput,
+      devoteeEmail: evilEmail,
+    })).not.toEqual([]);
+  });
+
   it("trims string fields when sanitizing", () => {
     const sanitized = sanitizeReceiptCreateInput({
       ...validInput,
