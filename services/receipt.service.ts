@@ -39,9 +39,30 @@ function normalizeTimestamp(value: unknown): string {
   return String(value);
 }
 
+export interface ReceiptListParams {
+  search?: string;
+  from?: string;
+  to?: string;
+  sevaId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 class ReceiptService {
-  async getReceipts(idToken: string): Promise<Receipt[]> {
-    const response = await fetch(BASE_URL, {
+  async getReceipts(params: ReceiptListParams, idToken: string): Promise<Receipt[]> {
+    const query = new URLSearchParams(
+      [
+        ["search", params.search || ""],
+        ["from", params.from || ""],
+        ["to", params.to || ""],
+        ["sevaId", params.sevaId || ""],
+        ["page", params.page ? String(params.page) : ""],
+        ["pageSize", params.pageSize ? String(params.pageSize) : ""],
+      ].filter(([, value]) => value.length > 0)
+    );
+    const url = query.toString() ? `${BASE_URL}?${query.toString()}` : BASE_URL;
+
+    const response = await fetch(url, {
       headers: authHeaders(idToken),
       cache: "no-store",
     });
@@ -69,6 +90,22 @@ class ReceiptService {
 
     const payload = await response.json();
     return docToReceipt(payload.receipt as Record<string, unknown>);
+  }
+
+  async getReceiptPdf(id: string, idToken: string): Promise<Blob> {
+    const response = await fetch(`${BASE_URL}/${encodeURIComponent(id)}/pdf`, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || "Failed to generate receipt PDF");
+    }
+
+    return await response.blob();
   }
 
   async createReceipt(

@@ -125,6 +125,7 @@ export async function createReceiptWithAdmin(
     devoteeEmail: sanitized.devoteeEmail || "" ,
     devoteeAddress: sanitized.devoteeAddress || "" ,
     items,
+    sevaIds: items.map((item) => item.sevaId),
     subtotal,
     totalAmount,
     paymentMode: sanitized.paymentMode,

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User, Phone, Mail, MapPin, ReceiptText } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, MapPin, ReceiptText, Printer, Download } from "lucide-react";
 import toast from "react-hot-toast";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ export default function ReceiptDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,9 +78,43 @@ export default function ReceiptDetailPage() {
             description="Receipt details for temple records."
           />
         </div>
-        <Button variant="outline" onClick={() => router.push("/admin/receipts/create")}>
-          New Receipt
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/admin/receipts/${receipt.id}/print`)}
+          >
+            <Printer className="mr-2 h-4 w-4" />Print Receipt
+          </Button>
+          <Button
+            variant="outline"
+            loading={downloading}
+            onClick={async () => {
+              if (!user) return;
+              try {
+                setDownloading(true);
+                const token = await user.getIdToken();
+                const blob = await receiptService.getReceiptPdf(receipt.id, token);
+                const url = window.URL.createObjectURL(blob);
+                const a = window.document.createElement("a");
+                a.href = url;
+                a.download = `${receipt.receiptNumber}.pdf`;
+                window.document.body.appendChild(a);
+                a.click();
+                window.document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              } catch {
+                toast.error("Failed to download PDF");
+              } finally {
+                setDownloading(false);
+              }
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />Download PDF
+          </Button>
+          <Button variant="outline" onClick={() => router.push("/admin/receipts/create")}>
+            New Receipt
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-white shadow-sm">
