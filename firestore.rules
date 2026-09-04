@@ -77,6 +77,38 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin();
     }
+
+    // Receipt Book collections
+    // Seva catalogue used only by the Admin Receipt Book. Writes are validated
+    // server-side via /api/admin/receipt-sevas; routes allow only admins and reject
+    // negative prices/empty names. Sevas can never be physically deleted (only disabled).
+    match /receiptSevas/{sevaId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount >= 0;
+      allow update: if isAdmin() &&
+        (!("name" in request.resource.data) || request.resource.data.name.size() > 0) &&
+        (!("amount" in request.resource.data) || request.resource.data.amount >= 0);
+      allow delete: if false;
+    }
+
+    // Receipt documents are only written by the server-side API (which bypasses
+    // these rules, using the service account) so that receipt numbers are always
+    // allocated server-side in a transaction. Public users can never create,
+    // modify, or delete receipts.
+    match /receipts/{receiptId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Internal counters used for atomic receipt numbering. Server-only writes.
+    match /system/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
     
     match /sevaBookings/{bookingId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();

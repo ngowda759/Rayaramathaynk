@@ -13,6 +13,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "setup-admin": "npx ts-node scripts/setup-admin.ts",
+    "seed-receipt-sevas": "npx ts-node --project tsconfig.scripts.json scripts/seed-receipt-sevas.ts",
     "seed-future-plans": "npx ts-node scripts/seed-future-plans.ts",
     "seed-testimonials": "npx tsx scripts/seed-testimonials.ts",
     "test:ai-uat": "npx ts-node --project tsconfig.scripts.json tests/ai-uat/run-uat-tests.ts",
