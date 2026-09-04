@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle, Compass } from "lucide-react";
+import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ReceiptText, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle, Compass } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
@@ -25,6 +25,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   reports: Receipt,
   bookings: ClipboardList,
   billing: FileText,
+  receipt: ReceiptText,
   info: Info,
   testimonials: MessageSquareQuote,
   chart: BarChart3,
@@ -52,6 +53,7 @@ const allNavigation = [
     title: "Finance",
     items: [
       { title: "Billing", href: "/admin/billing", icon: "billing" },
+      { title: "Receipt Book", href: "/admin/receipts", icon: "receipt" },
       { title: "Bookings", href: "/admin/bookings", icon: "bookings" },
       { title: "Daily Pooja", href: "/admin/pooja", icon: "book" },
       { title: "Donations", href: "/admin/donations", icon: "donation" },

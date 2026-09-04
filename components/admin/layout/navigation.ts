@@ -52,6 +52,11 @@ export const navigation: NavigationGroup[] = [
         icon: "billing",
       },
       {
+        title: "Receipt Book",
+        href: "/admin/receipts",
+        icon: "receipt",
+      },
+      {
         title: "Bookings",
         href: "/admin/bookings",
         icon: "bookings",

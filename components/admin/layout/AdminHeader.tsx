@@ -67,6 +67,7 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
     else if (q.includes("user") || q.includes("staff")) router.push("/admin/users");
     else if (q.includes("seva")) router.push("/admin/sevas");
     else if (q.includes("pooja") || q.includes("timing")) router.push("/admin/timings");
+    else if (q.includes("receipt")) router.push("/admin/receipts");
     else if (q.includes("booking")) router.push("/admin/bookings");
     else if (q.includes("report")) router.push("/admin/reports");
     else if (q.includes("setting")) router.push("/admin/settings");
