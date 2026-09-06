@@ -29,12 +29,38 @@ const notoSansKannada = Noto_Sans_Kannada({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.srsmathaynk.com"),
+
   title: {
     default: "Sri Raghavendra Swamy Temple",
     template: "%s | Sri Raghavendra Swamy Temple",
   },
   description:
     "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
+  openGraph: {
+    title: "Sri Raghavendra Swamy Matha – Official Website",
+    description:
+      "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
+    url: "https://www.srsmathaynk.com",
+    siteName: "Sri Raghavendra Swamy Temple",
+    images: [
+      {
+        url: "/images/logos/social-preview.png",
+        width: 1200,
+        height: 630,
+        alt: "Sri Raghavendra Swamy Matha Logo",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sri Raghavendra Swamy Matha – Official Website",
+    description:
+      "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
+    images: ["/images/logos/social-preview.png"],
+  },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
