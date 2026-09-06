@@ -224,8 +224,10 @@ export async function POST(request: NextRequest) {
         role: "assistant",
         content: "🙏 Namaskara! I apologize, but I'm experiencing technical difficulties at the moment.\n\nFor temple information, please:\n• Visit our website\n• Contact the temple office directly\n• Check the official announcements\n\n🙏 Sri Guru Raghavendraya Namaha.",
         timestamp: Date.now(),
+        detectedLanguage: responseLanguage,
       };
       responseSource = "hybrid"; // Mark as hybrid to indicate this is our safe response
+      lastResult = { intent: Intent.UNKNOWN, confidence: 0, source: 'fallback' };
       
       /*
       // OLD FALLBACK CODE - DISABLED FOR SAFETY
