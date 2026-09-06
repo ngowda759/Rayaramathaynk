@@ -46,6 +46,13 @@ export interface ReceiptListParams {
   sevaId?: string;
   page?: number;
   pageSize?: number;
+  export?: boolean;
+}
+
+export interface ReceiptReport {
+  summary: { total: number; collection: number; upiCollection: number };
+  sevaWise: { seva: string; quantity: number; amount: number }[];
+  timeline: { period: string; count: number; amount: number }[];
 }
 
 class ReceiptService {
@@ -58,6 +65,7 @@ class ReceiptService {
         ["sevaId", params.sevaId || ""],
         ["page", params.page ? String(params.page) : ""],
         ["pageSize", params.pageSize ? String(params.pageSize) : ""],
+        ["export", params.export ? "true" : ""],
       ].filter(([, value]) => value.length > 0)
     );
     const url = query.toString() ? `${BASE_URL}?${query.toString()}` : BASE_URL;
@@ -75,6 +83,33 @@ class ReceiptService {
     const payload = await response.json();
     const items = Array.isArray(payload.receipts) ? payload.receipts : [];
     return items.map((item:any) => docToReceipt(item as Record<string, unknown>));
+  }
+
+  async getReceiptReport(params: { from: string; to: string }, idToken: string): Promise<ReceiptReport> {
+    const query = new URLSearchParams([
+      ["from", params.from || ""],
+      ["to", params.to || ""],
+      ["report", "true"]
+    ].filter(([, value]) => value.length > 0));
+
+    const url = query.toString() ? `${BASE_URL}?${query.toString()}` : BASE_URL;
+
+    const response = await fetch(url, {
+      headers: authHeaders(idToken),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || "Failed to load receipt report");
+    }
+
+    const payload = await response.json();
+    return {
+      summary: payload.summary || { total: 0, collection: 0, upiCollection: 0 },
+      sevaWise: payload.sevaWise || [],
+      timeline: payload.timeline || []
+    };
   }
 
   async getReceipt(id: string, idToken: string): Promise<Receipt> {
