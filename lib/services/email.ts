@@ -44,7 +44,7 @@ Receipt Number: ${receipt.receiptNumber}
 Seva details:
 ${sevaDetails}Total: ₹${receipt.totalAmount}
 
-Payment Mode: ${receipt.paymentMode === "upi" ? "UPI" : receipt.paymentMode.toUpperCase()}
+Payment Mode: ${String(receipt.paymentMode).toUpperCase()}
 
 Payment Reference:
 ${receipt.paymentReference || "-"}

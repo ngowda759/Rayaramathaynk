@@ -32,7 +32,7 @@ Total:
 ₹${receipt.totalAmount}
 
 Payment:
-${receipt.paymentMode === "upi" ? "UPI" : receipt.paymentMode.toUpperCase()}
+${String(receipt.paymentMode).toUpperCase()}
 
 Payment Reference:
 ${receipt.paymentReference || "-"}
