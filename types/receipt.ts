@@ -23,6 +23,8 @@ export interface Receipt {
   notes?: string;
   createdAt: string;
   createdBy: string;
+  emailDelivery?: { status: "not_requested" | "pending" | "sent" | "failed"; sentAt?: string; error?: string };
+  whatsappDelivery?: { status: "not_requested" | "pending" | "sent" | "failed"; sentAt?: string; error?: string };
 }
 
 /**
