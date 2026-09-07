@@ -5,10 +5,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 
+export const revalidate = 3600;
+
 export async function GET() {
   try {
     const templeInformation = await aiSettingsService.getTempleInformation();
-    return NextResponse.json(templeInformation);
+    return NextResponse.json(templeInformation, {
+      headers: {
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      },
+    });
   } catch (error) {
     console.error("Error fetching temple information:", error);
     return NextResponse.json(
