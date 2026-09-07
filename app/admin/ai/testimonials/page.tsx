@@ -13,7 +13,8 @@ import {
 import { 
   getPendingTestimonials, 
   getApprovedTestimonials,
-  approveTestimonial 
+  approveTestimonial,
+  deleteTestimonial
 } from "@/services/chat.service";
 import { Testimonial } from "@/types/ai";
 import toast from "react-hot-toast";
@@ -67,9 +68,13 @@ export default function TestimonialsPage() {
 
   async function handleDelete(testimonialId: string) {
     if (!confirm("Are you sure you want to delete this testimonial?")) return;
-    // TODO: Implement delete
-    toast.success("Testimonial deleted");
-    loadTestimonials();
+    try {
+      await deleteTestimonial(testimonialId);
+      toast.success("Testimonial deleted");
+      loadTestimonials();
+    } catch {
+      toast.error("Failed to delete testimonial");
+    }
   }
 
   const filteredTestimonials = testimonials.filter(t =>
