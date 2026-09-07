@@ -74,14 +74,18 @@ export async function initializeAdminApp(): Promise<App> {
     }
 
     // Try service account file
-    const serviceAccountPath = path.join(process.cwd(), "firebase-admin.json");
+    const serviceAccountPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "firebase-admin.json");
     
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-    
-    adminApp = initializeApp({
-      credential: cert(serviceAccount),
-      projectId: serviceAccount.project_id,
-    });
+    if (fs.existsSync(serviceAccountPath)) {
+      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+
+      adminApp = initializeApp({
+        credential: cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+      });
+      console.log("Firebase Admin SDK initialized with service account file");
+      return adminApp;
+    }
 
     // Try Application Default Credentials last (works on GCP, local gcloud, etc.)
     try {
