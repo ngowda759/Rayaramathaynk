@@ -42,6 +42,8 @@ The existing Firestore collections can be logically grouped into the following a
 | `galleryMedia`       | `gallery_media`  | 1:1 Media mapping (w/ FK to album) | Moderate |
 | `testimonials`       | `testimonials`   | 1:1 Testimonial mapping | Easy |
 | `aaradhane`          | `aaradhanes`     | Aaradhane events mapping | Moderate (Nested arrays) |
+| `sevaBookings`       | `seva_bookings`  | 1:1 Booking mapping | Moderate |
+| `volunteer_requests` | `volunteer_requests` | 1:1 Form mapping | Easy |
 
 *Note: Some AI and logging tables are left out of this initial core migration list, as they are often ephemeral or better suited for gradual migration. Settings collections might be migrated to a generic key-value table or dedicated single-row tables.*
 
@@ -158,7 +160,7 @@ Mapped from `donations` collection. Verified against `types/donation.ts`.
 | `address` | `text` | No | `address` | |
 | `amount` | `numeric(10,2)` | No | `amount` | |
 | `purpose` | `text` | No | `purpose` | |
-| `campaign_id` | `uuid` | No | `campaignId` | Foreign Key to `donation_campaigns.id` |
+| `campaign_id` | `uuid` | No | `campaignId` | Requires validation. (It points to donation campaigns conceptually, but it might just be stored as string ID). |
 | `message` | `text` | No | `message` | |
 | `payment_mode` | `text` | No | `paymentMode` | |
 | `status` | `text` | No | `status` | |
@@ -208,7 +210,7 @@ Mapped from `galleryMedia` collection. Verified against `types/gallery.ts`.
 |--------|-----------------|----------|--------------|-------|
 | `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
 | `firestore_id` | `text` | Yes | document ID | Unique constraint. |
-| `album_id` | `uuid` | No | `albumId` | Foreign Key to `gallery_albums.id` |
+| `album_id` | `uuid` | No | `albumId` | Foreign Key to `gallery_albums.id`. Verified by query patterns and TS types. |
 | `title` | `text` | No | `title` | |
 | `description` | `text` | No | `description` | |
 | `category` | `text` | No | `category` | Matches `GalleryCategory` |
@@ -262,6 +264,46 @@ Mapped from `aaradhane` collection. Verified against `types/aaradhane.ts`.
 | `created_by` | `text` | No | `createdBy` | Loose ref |
 | `created_at` | `timestamptz` | No | `createdAt` | Converted from string/Timestamp |
 
+### 4.12. Table: `seva_bookings`
+Mapped from `sevaBookings` collection. Verified against `types/seva-booking.ts`.
+
+| Column | PostgreSQL Type | Nullable | Source Field | Notes |
+|--------|-----------------|----------|--------------|-------|
+| `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
+| `firestore_id` | `text` | Yes | document ID | Unique constraint. |
+| `seva_id` | `uuid` | No | `sevaId` | Foreign Key pointing to `sevas.id` (conceptually, requires validation) |
+| `seva_title` | `text` | No | `sevaTitle` | |
+| `seva_amount` | `numeric(10,2)` | No | `sevaAmount` | |
+| `user_id` | `text` | No | `userId` | Loose reference to Firebase Auth UIDs |
+| `user_name` | `text` | No | `userName` | |
+| `user_email` | `text` | No | `userEmail` | |
+| `user_phone` | `text` | No | `userPhone` | |
+| `preferred_date` | `text` | No | `preferredDate` | |
+| `notes` | `text` | No | `notes` | |
+| `status` | `text` | No | `status` | |
+| `payment_reference` | `text` | No | `paymentReference` | |
+| `payment_status` | `text` | No | `paymentStatus` | |
+| `payment_date` | `text` | No | `paymentDate` | |
+| `payment_method` | `text` | No | `paymentMethod` | |
+| `created_at` | `timestamptz` | No | `createdAt` | |
+| `updated_at` | `timestamptz` | No | `updatedAt` | |
+
+### 4.13. Table: `volunteer_requests`
+Mapped from `volunteer_requests` collection. Verified against `types/volunteer.ts`.
+
+| Column | PostgreSQL Type | Nullable | Source Field | Notes |
+|--------|-----------------|----------|--------------|-------|
+| `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
+| `firestore_id` | `text` | Yes | document ID | Unique constraint. |
+| `volunteer_id` | `text` | No | `volunteerId` | |
+| `name` | `text` | No | `name` | |
+| `phone` | `text` | No | `phone` | |
+| `sex` | `text` | No | `sex` | |
+| `active` | `boolean` | No | `active` | |
+| `address` | `text` | No | `address` | |
+| `created_at` | `timestamptz` | No | `createdAt` | |
+| `updated_at` | `timestamptz` | No | `updatedAt` | |
+
 ## 5. Important Data-Conversion Issues (Special Types)
 
 - **Firestore Timestamp / serverTimestamp()**: Converted to PostgreSQL `timestamptz` (Timestamp with time zone). Legacy data must convert the Firestore Timestamp (`{ _seconds, _nanoseconds }` or similar object formats) to an ISO string or epoch during the ETL process.
@@ -275,8 +317,8 @@ Mapped from `aaradhane` collection. Verified against `types/aaradhane.ts`.
 - Most Firestore relationships are loose (e.g., storing a string `userId` or `albumId`).
 - When migrating to PostgreSQL:
   - `gallery_media.album_id` should become a Foreign Key pointing to `gallery_albums.id`. *(Verified usage in `types/gallery.ts`)*
-  - `sevaBookings.sevaId` should become a Foreign Key pointing to `sevas.id`. *(Verified usage in `types/seva-booking.ts`)*
-  - `donations.campaign_id` should become a Foreign Key pointing to `donation_campaigns.id`. *(Verified usage in `types/donation.ts`)*
+  - `sevaBookings.sevaId` should become a Foreign Key pointing to `sevas.id`. *(Requires Validation - stored as text but corresponds conceptually to `sevas`)*
+  - `donations.campaign_id` should become a Foreign Key pointing to `donation_campaigns.id`. *(Requires Validation - stored as text but corresponds conceptually to `donation_campaigns`)*
   - `users.uid` / `profiles.uid` / `sevaBookings.userId` should loosely point to Firebase Auth UIDs. Since we are NOT migrating Firebase Auth to Supabase Auth yet, this should remain a loose `text` reference to the Firebase UID, NOT a PostgreSQL foreign key to a Supabase `auth.users` table. *(Verified in code that `userId` or `uid` relies on `firebase-admin`)*
 
 ## 7. RLS / Security Considerations
@@ -303,7 +345,7 @@ This is crucial for:
 
 - **Primary Keys**: `uuid` using `gen_random_uuid()`.
 - **Unique Constraints**: `firestore_id` must be unique.
-- **Foreign Keys**: `gallery_media(album_id)` -> `gallery_albums(id)`, `donations(campaign_id)` -> `donation_campaigns(id)`, `seva_bookings(seva_id)` -> `sevas(id)`.
+- **Foreign Keys**: `gallery_media(album_id)` -> `gallery_albums(id)`.
 - **Indexes**:
   - `events(start_date)` for upcoming event queries.
   - `sevas(display_order)` for UI ordering.
@@ -313,9 +355,9 @@ This is crucial for:
 
 ## 10. Migration Order & Risk Assessment
 
-**Recommended Migration Order (Based on dependencies):**
-1. Independent reference tables (`users`, `profiles`, `sevas`, `daily_poojas`, `gallery_albums`, `donation_campaigns`). (LOW RISK)
-2. Dependent tables (`events`, `aaradhanes`, `gallery_media` [depends on albums], `testimonials`, `donations` [depends on campaigns], `sevaBookings` [depends on sevas/users]). (MEDIUM RISK - Requires careful FK mapping)
+**Recommended Migration Order (Based on actual dependencies):**
+1. Core/reference data (`users`, `profiles`, `sevas`, `daily_poojas`, `gallery_albums`, `donation_campaigns`). (LOW RISK)
+2. Dependent transactional/content data (`events`, `aaradhanes`, `gallery_media` [depends on albums], `testimonials`, `donations` [depends on campaigns conceptually], `sevaBookings` [depends on sevas/users conceptually], `volunteer_requests`). (MEDIUM RISK - Requires careful FK mapping)
 3. High-velocity data (`chat_sessions`, `messages`). (HIGH RISK)
 
 **Risk Assessment:**
