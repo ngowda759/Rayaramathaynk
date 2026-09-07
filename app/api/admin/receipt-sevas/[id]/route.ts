@@ -9,7 +9,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const RECEIPT_SEVAS_COLLECTION = "receiptSevas";
+const RECEIPT_SEVAS_COLLECTION = "sevas";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -45,7 +45,7 @@ export async function PUT(
       return NextResponse.json({ error: "Seva not found" }, { status: 404 });
     }
 
-    const current = snap.data() as ReceiptSevaInput;
+    const current = snap.data() as any;
 
     const sanitized = sanitizeReceiptSevaInput({
       ...current,

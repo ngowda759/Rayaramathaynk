@@ -36,7 +36,7 @@ function formatCurrency(amount: number): string {
 
 export default function CreateReceiptPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [devoteeName, setDevoteeName] = useState("");
   const [devoteePhone, setDevoteePhone] = useState("");
@@ -56,7 +56,12 @@ const [qrLoading, setQrLoading] = useState(false);
 
   useEffect(() => {
     async function loadSevas() {
-      if (!user) return;
+      if (!user) {
+        if (!authLoading) {
+           setLoadingSevas(false);
+        }
+        return;
+      }
       try {
         const token = await user.getIdToken();
         const data = await receiptSevaService.getActiveSevas(token);
@@ -69,7 +74,7 @@ const [qrLoading, setQrLoading] = useState(false);
       }
     }
     loadSevas();
-  }, [user]);
+  }, [user, authLoading]);
 
   const sevaById = useMemo(() => {
     const map = new Map<string, ReceiptSeva>();

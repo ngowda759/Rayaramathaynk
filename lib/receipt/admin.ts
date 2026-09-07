@@ -29,7 +29,7 @@ import {
 } from "@/lib/receipt/validation";
 
 const RECEIPTS_COLLECTION = "receipts";
-const RECEIPT_SEVAS_COLLECTION = "receiptSevas";
+const RECEIPT_SEVAS_COLLECTION = "sevas";
 const COUNTER_COLLECTION = "system";
 const COUNTER_DOC = "receiptCounter";
 
