@@ -4,6 +4,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   getDoc,
   getDocs,
   query,
@@ -192,6 +193,12 @@ export async function approveTestimonial(testimonialId: string): Promise<void> {
   await updateDoc(doc(db, TESTIMONIALS_COLLECTION, testimonialId), {
     approved: true,
   });
+}
+
+export async function deleteTestimonial(testimonialId: string): Promise<void> {
+  if (!db) throw new Error("Firebase not configured");
+
+  await deleteDoc(doc(db, TESTIMONIALS_COLLECTION, testimonialId));
 }
 
 // ============= Volunteer Requests =============
