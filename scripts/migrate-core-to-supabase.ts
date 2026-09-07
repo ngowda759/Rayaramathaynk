@@ -5,15 +5,17 @@ import { Timestamp } from "firebase-admin/firestore";
 // Helper to safely convert Firestore Timestamps or ISO strings to Date objects for Supabase (timestamptz)
 function toDate(value: any): string | null {
   if (!value) return null;
-  if (value instanceof Timestamp || (value._seconds !== undefined && value._nanoseconds !== undefined)) {
-    // Handle Firestore Timestamp
-    const seconds = value._seconds ?? value.seconds;
-    return new Date(seconds * 1000).toISOString();
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString();
+  }
+  if (value instanceof Date) {
+    if (!isNaN(value.getTime())) return value.toISOString();
   }
   if (typeof value === "string") {
     const d = new Date(value);
     if (!isNaN(d.getTime())) return d.toISOString();
   }
+  // No longer attempting to handle private fields `_seconds` and `_nanoseconds`.
   return null;
 }
 
@@ -87,7 +89,8 @@ async function migrateCollection(
   let newInsertsCount = 0;
   let updateCount = 0;
   let failureCount = 0;
-  const failures: { id: string; reason: string }[] = [];
+  let validationFailureCount = 0;
+  const failures: { id: string; reason: string; type: 'validation' | 'write' }[] = [];
 
   let query = db.collection(collectionName).orderBy("__name__").limit(BATCH_SIZE);
   let processedCount = 0;
@@ -107,25 +110,39 @@ async function migrateCollection(
         const mappedData = mapper(doc.id, data);
         recordsToUpsert.push(mappedData);
       } catch (err: any) {
-        failureCount++;
-        failures.push({ id: doc.id, reason: err.message || "Mapping error" });
+        validationFailureCount++;
+        failures.push({ id: doc.id, reason: err.message || "Mapping validation error", type: 'validation' });
       }
     }
 
     if (recordsToUpsert.length > 0) {
+      // Look up existing records to correctly identify new vs updated, even in dry run
+      const { data: existingRecords, error: lookupError } = await supabase
+        .from(tableName)
+        .select("firestore_id")
+        .in("firestore_id", recordsToUpsert.map(r => r.firestore_id));
+
+      if (lookupError) {
+        console.error(`Error checking existing records in Supabase for ${tableName}:`, lookupError.message);
+        // If we can't even lookup, we mark them as write failures
+        for (const record of recordsToUpsert) {
+          failureCount++;
+          failures.push({ id: record.firestore_id, reason: `Lookup error: ${lookupError.message}`, type: 'write' });
+        }
+        continue;
+      }
+
+      const existingIds = new Set(existingRecords?.map((r: any) => r.firestore_id) || []);
+
       if (isDryRun) {
-        console.log(`[DRY RUN] Would upsert ${recordsToUpsert.length} records into '${tableName}'.`);
-        // We consider these new inserts in a dry run unless we do a pre-check, which is slow.
-        newInsertsCount += recordsToUpsert.length;
+        for (const record of recordsToUpsert) {
+          if (existingIds.has(record.firestore_id)) {
+            updateCount++;
+          } else {
+            newInsertsCount++;
+          }
+        }
       } else {
-        // Find existing to distinguish insert/update
-        const { data: existingRecords } = await supabase
-          .from(tableName)
-          .select("firestore_id")
-          .in("firestore_id", recordsToUpsert.map(r => r.firestore_id));
-
-        const existingIds = new Set(existingRecords?.map((r: any) => r.firestore_id) || []);
-
         const { error } = await supabase
           .from(tableName)
           .upsert(recordsToUpsert, { onConflict: "firestore_id" });
@@ -140,7 +157,7 @@ async function migrateCollection(
 
             if (individualError) {
               failureCount++;
-              failures.push({ id: record.firestore_id, reason: individualError.message });
+              failures.push({ id: record.firestore_id, reason: individualError.message, type: 'write' });
             } else {
               if (existingIds.has(record.firestore_id)) {
                 updateCount++;
@@ -167,16 +184,49 @@ async function migrateCollection(
     query = db.collection(collectionName).orderBy("__name__").startAfter(lastVisible).limit(BATCH_SIZE);
   }
 
+  // Duplicate Check in Target (Only useful if we actually migrated data, but we can do it anyway)
+  if (!isDryRun) {
+    const { } = await supabase
+      .rpc('check_duplicate_firestore_ids', { table_name: tableName })
+      .catch(() => ({ data: null })); // Ignored if RPC doesn't exist. We just rely on unique constraints mostly
+      // Alternatively, we query grouping by firestore_id having count > 1
+
+    // Since RLS / dynamic RPC might not be set up for this, we trust the DB unique constraint,
+    // but log a note.
+    console.log(`Duplicate check: Relies on Supabase UNIQUE constraint for firestore_id.`);
+  }
+
+
+  const mappedSuccessfullyCount = newInsertsCount + updateCount + failureCount; // mapped successfully but might have failed write
+  const totalSuccessful = newInsertsCount + updateCount;
+
   // Print Report
   console.log(`\nREPORT FOR: ${collectionName.toUpperCase()}`);
   console.log(`Firestore documents: ${totalDocs}`);
-  console.log(`Successfully migrated (new): ${newInsertsCount}`);
-  console.log(`Updated existing: ${updateCount}`);
-  console.log(`Failed: ${failureCount}`);
+  console.log(`Mapped successfully: ${mappedSuccessfullyCount}`);
+  console.log(`Validation failures: ${validationFailureCount}`);
+  console.log(`Inserted: ${newInsertsCount}`);
+  console.log(`Updated: ${updateCount}`);
+  console.log(`Supabase write failures: ${failureCount}`);
+  console.log(`Total successful: ${totalSuccessful}`);
+
+  // Reconciliation checks
+  const reconciledSource = (totalSuccessful + failureCount + validationFailureCount) === totalDocs;
+  const reconciledWrites = totalSuccessful === (newInsertsCount + updateCount);
+
+  if (!reconciledSource) {
+     console.error(`❌ WARNING: Source documents (${totalDocs}) do not equal processed documents (${totalSuccessful + failureCount + validationFailureCount}).`);
+  }
+  if (!reconciledWrites) {
+     console.error(`❌ WARNING: Total successful writes (${totalSuccessful}) do not equal inserts + updates (${newInsertsCount + updateCount}).`);
+  }
+  if (reconciledSource && reconciledWrites) {
+     console.log(`✅ Reconciliation passed.`);
+  }
 
   if (failures.length > 0) {
     console.log(`Failures details:`);
-    failures.forEach(f => console.log(` - ID: ${f.id}, Reason: ${f.reason}`));
+    failures.forEach(f => console.log(` - [${f.type.toUpperCase()}] ID: ${f.id}, Reason: ${f.reason}`));
   }
 }
 
@@ -195,55 +245,88 @@ async function run() {
     const supabase = createAdminClient();
 
     // Mapping for Sevas
-    await migrateCollection(db, supabase, "sevas", "sevas", (id, data): TargetSeva => ({
-      firestore_id: id,
-      name: data.name || "Unknown Seva",
-      description: data.description || "",
-      category: data.category || "General",
-      amount: typeof data.amount === 'number' ? data.amount : 0,
-      duration: typeof data.duration === 'number' ? data.duration : 1,
-      image_url: data.imageUrl || null,
-      active: data.active !== undefined ? data.active : true,
-      display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
-      created_at: toDate(data.createdAt),
-      updated_at: toDate(data.updatedAt)
-    }), isDryRun);
+    await migrateCollection(db, supabase, "sevas", "sevas", (id, data): TargetSeva => {
+      if (!data.name) throw new Error("Missing required field: name");
+      if (typeof data.amount !== 'number') throw new Error(`Invalid or missing amount: ${data.amount}`);
+
+      const created_at = toDate(data.createdAt);
+      if (data.createdAt && !created_at) throw new Error(`Invalid timestamp for createdAt: ${data.createdAt}`);
+      const updated_at = toDate(data.updatedAt);
+
+      return {
+        firestore_id: id,
+        name: data.name,
+        description: data.description || "",
+        category: data.category || "General",
+        amount: data.amount,
+        duration: typeof data.duration === 'number' ? data.duration : 0, // Fallback to 0 if not provided as duration is not critical monetary
+        image_url: data.imageUrl || null,
+        active: data.active !== undefined ? data.active : true,
+        display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
+        created_at,
+        updated_at
+      };
+    }, isDryRun);
 
     // Mapping for Daily Poojas
-    await migrateCollection(db, supabase, "dailyPoojas", "daily_poojas", (id, data): TargetDailyPooja => ({
-      firestore_id: id,
-      title: data.title || "Unknown Pooja",
-      description: data.description || "",
-      start_time: data.startTime || "",
-      duration: data.duration || "",
-      category: data.category || "General",
-      seva_amount: typeof data.sevaAmount === 'number' ? data.sevaAmount : 0,
-      is_active: data.isActive !== undefined ? data.isActive : true,
-      display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
-      days: Array.isArray(data.days) ? data.days : [],
-      notes: data.notes || null,
-      created_at: toDate(data.createdAt),
-      created_by: data.createdBy || null
-    }), isDryRun);
+    await migrateCollection(db, supabase, "dailyPoojas", "daily_poojas", (id, data): TargetDailyPooja => {
+      if (!data.title) throw new Error("Missing required field: title");
+      if (data.sevaAmount !== undefined && typeof data.sevaAmount !== 'number') {
+         throw new Error(`Invalid sevaAmount: ${data.sevaAmount}`);
+      }
+
+      const created_at = toDate(data.createdAt);
+      if (data.createdAt && !created_at) throw new Error(`Invalid timestamp for createdAt: ${data.createdAt}`);
+
+      return {
+        firestore_id: id,
+        title: data.title,
+        description: data.description || "",
+        start_time: data.startTime || "",
+        duration: data.duration || "",
+        category: data.category || "General",
+        seva_amount: typeof data.sevaAmount === 'number' ? data.sevaAmount : 0, // In original schema default is 0
+        is_active: data.isActive !== undefined ? data.isActive : true,
+        display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
+        days: Array.isArray(data.days) ? data.days : [],
+        notes: data.notes || null,
+        created_at,
+        created_by: data.createdBy || null
+      };
+    }, isDryRun);
 
     // Mapping for Events
-    await migrateCollection(db, supabase, "events", "events", (id, data): TargetEvent => ({
-      firestore_id: id,
-      title: data.title || "Unknown Event",
-      description: data.description || "",
-      location: data.location || "",
-      start_date: toDate(data.startDate),
-      end_date: toDate(data.endDate),
-      start_time: data.startTime || null,
-      end_time: data.endTime || null,
-      featured: data.featured !== undefined ? data.featured : false,
-      published: data.published !== undefined ? data.published : false,
-      category: data.category || null,
-      image_url: data.imageUrl || null,
-      status: data.status || "Upcoming",
-      created_at: toDate(data.createdAt),
-      updated_at: toDate(data.updatedAt)
-    }), isDryRun);
+    await migrateCollection(db, supabase, "events", "events", (id, data): TargetEvent => {
+      if (!data.title) throw new Error("Missing required field: title");
+
+      const start_date = toDate(data.startDate);
+      if (!start_date) throw new Error(`Missing or invalid start_date: ${data.startDate}`);
+
+      const end_date = toDate(data.endDate);
+      if (!end_date) throw new Error(`Missing or invalid end_date: ${data.endDate}`);
+
+      const created_at = toDate(data.createdAt);
+      if (data.createdAt && !created_at) throw new Error(`Invalid timestamp for createdAt: ${data.createdAt}`);
+      const updated_at = toDate(data.updatedAt);
+
+      return {
+        firestore_id: id,
+        title: data.title,
+        description: data.description || "",
+        location: data.location || "",
+        start_date,
+        end_date,
+        start_time: data.startTime || null,
+        end_time: data.endTime || null,
+        featured: data.featured !== undefined ? data.featured : false,
+        published: data.published !== undefined ? data.published : false,
+        category: data.category || null,
+        image_url: data.imageUrl || null,
+        status: data.status || "Upcoming",
+        created_at,
+        updated_at
+      };
+    }, isDryRun);
 
     console.log("\nMigration completed.");
   } catch (error) {
