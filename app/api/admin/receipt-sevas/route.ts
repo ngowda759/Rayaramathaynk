@@ -23,17 +23,26 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await getAdminFirestore();
-    let snapshot = await db
-      .collection(RECEIPT_SEVAS_COLLECTION)
-      .orderBy("displayOrder", "asc")
-      .get();
+    let snapshot = await db.collection(RECEIPT_SEVAS_COLLECTION).get();
 
 
 
-    const sevas = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const rawDocs = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || "Unknown Seva",
+        description: data.description || "",
+        amount: typeof data.amount === "number" ? data.amount : (Number(data.amount) || 0),
+        active: data.active !== false, // default true unless explicitly false
+        displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : 9999, // default 9999 so it goes to bottom
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      };
+    });
+
+    rawDocs.sort((a, b) => a.displayOrder - b.displayOrder);
+    const sevas = rawDocs;
     return NextResponse.json({ success: true, sevas, count: sevas.length });
   } catch (error) {
     console.error("[Admin Receipt Sevas API] Error listing sevas:", error);
