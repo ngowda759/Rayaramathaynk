@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Settings, ReceiptText, Eye, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { Plus, Settings, ReceiptText, Eye, Printer, Download, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
@@ -32,6 +32,7 @@ export default function ReceiptsPage() {
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [sevaId, setSevaId] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -49,6 +50,50 @@ export default function ReceiptsPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!dateFilter) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    let fromDate = "";
+    let toDate = "";
+
+    // Use local time instead of UTC to avoid shifting dates for IST users
+    const toLocalDateString = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    if (dateFilter === "today") {
+      fromDate = toLocalDateString(today);
+      toDate = toLocalDateString(endOfToday);
+    } else if (dateFilter === "yesterday") {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      fromDate = toLocalDateString(yesterday);
+      toDate = toLocalDateString(yesterday);
+    } else if (dateFilter === "this_week") {
+      const firstDay = new Date(today);
+      firstDay.setDate(today.getDate() - today.getDay());
+      fromDate = toLocalDateString(firstDay);
+      toDate = toLocalDateString(endOfToday);
+    } else if (dateFilter === "this_month") {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      fromDate = toLocalDateString(firstDay);
+      toDate = toLocalDateString(endOfToday);
+    }
+
+    if (dateFilter !== "custom") {
+      setFrom(fromDate);
+      setTo(toDate);
+    }
+  }, [dateFilter]);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -161,8 +206,8 @@ export default function ReceiptsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="flex-1">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="flex-1 lg:col-span-2">
           <SearchBox
             value={search}
             onChange={setSearch}
@@ -170,22 +215,48 @@ export default function ReceiptsPage() {
           />
         </div>
         <div>
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => { setFrom(e.target.value); setPage(1); }}
-            aria-label="From date"
-          />
+          <select
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value);
+              if (e.target.value === "custom" || e.target.value === "") {
+                setFrom("");
+                setTo("");
+              }
+              setPage(1);
+            }}
+            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+            aria-label="Date Filter"
+          >
+            <option value="">All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="this_week">This Week</option>
+            <option value="this_month">This Month</option>
+            <option value="custom">Custom Date</option>
+          </select>
         </div>
-        <div>
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => { setTo(e.target.value); setPage(1); }}
-            aria-label="To date"
-          />
-        </div>
-        <div>
+        {dateFilter === "custom" && (
+          <>
+            <div>
+              <Input
+                type="date"
+                value={from}
+                onChange={(e) => { setFrom(e.target.value); setPage(1); }}
+                aria-label="From date"
+              />
+            </div>
+            <div>
+              <Input
+                type="date"
+                value={to}
+                onChange={(e) => { setTo(e.target.value); setPage(1); }}
+                aria-label="To date"
+              />
+            </div>
+          </>
+        )}
+        <div className={dateFilter === "custom" ? "lg:col-span-5" : ""}>
           <select
             value={sevaId}
             onChange={(e) => { setSevaId(e.target.value); setPage(1); }}
@@ -233,12 +304,13 @@ export default function ReceiptsPage() {
             <table className="w-full">
               <thead className="bg-stone-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Receipt #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Devotee</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Receipt No.</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Devotee</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Mobile</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Seva</th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Amount</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-stone-500">Payment</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-stone-500">Payment Mode</th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Actions</th>
                 </tr>
               </thead>
@@ -248,12 +320,14 @@ export default function ReceiptsPage() {
                     <td className="whitespace-nowrap px-4 py-3">
                       <span className="font-mono text-sm font-medium text-orange-600">{receipt.receiptNumber}</span>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-stone-900">{receipt.devoteeName}</p>
-                      {receipt.devoteePhone && <p className="text-sm text-stone-500">{receipt.devoteePhone}</p>}
-                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-600">
                       {receipt.createdAt ? formatDate(receipt.createdAt) : "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-stone-900">{receipt.devoteeName}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-stone-500">
+                      {receipt.devoteePhone || "-"}
                     </td>
                     <td className="px-4 py-3 text-sm text-stone-600">
                       {receipt.items[0]?.sevaName || "-"}
@@ -266,17 +340,49 @@ export default function ReceiptsPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-center">
                       <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                        UPI
+                        {receipt.paymentMode.toUpperCase()}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        onClick={() => router.push(`/admin/receipts/${receipt.id}`)}
-                        className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
-                        title="View receipt"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => router.push(`/admin/receipts/${receipt.id}`)}
+                          className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                          title="View receipt"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => router.push(`/admin/receipts/${receipt.id}/print`)}
+                          className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                          title="Print receipt"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!user) return;
+                            try {
+                              const token = await user.getIdToken();
+                              const blob = await receiptService.getReceiptPdf(receipt.id, token);
+                              const url = window.URL.createObjectURL(blob);
+                              const a = window.document.createElement("a");
+                              a.href = url;
+                              a.download = `Rayaramatha-Receipt-${receipt.receiptNumber}.pdf`;
+                              window.document.body.appendChild(a);
+                              a.click();
+                              window.document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
+                            } catch {
+                              toast.error("Failed to download PDF");
+                            }
+                          }}
+                          className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                          title="Download receipt"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

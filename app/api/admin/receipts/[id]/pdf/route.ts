@@ -63,7 +63,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${receipt.receiptNumber}.pdf"`,
+        "Content-Disposition": `inline; filename="Rayaramatha-Receipt-${receipt.receiptNumber}.pdf"`,
         "Cache-Control": "no-store",
       },
     });

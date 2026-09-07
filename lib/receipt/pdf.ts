@@ -196,15 +196,15 @@ export async function buildReceiptPdf(
 
 export function formatPdfAmount(amount: number): string {
   const formatted = new Intl.NumberFormat("en-IN",{ maximumFractionDigits: 2 }).format(Number.isFinite(amount) ? amount : 0);
-  return "Rs. " + formatted;
+  return "₹" + formatted;
 }
 
 async function loadLogoBytes(options?: ReceiptPdfOptions): Promise<PDFImage | null> {
   const files: string[] = [
     options?.logoFallbackPath as string,
     options?.logoFallbackOrigin as string,
-    path.join(process.cwd(), "public", "images", "logos", "ynk_matha_logo.png") as string,
-    path.join(process.cwd(), "public", "images", "logo.png") as string,
+    path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logos", "ynk_matha_logo.png") as string,
+    path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logo.png") as string,
   ];
   if (options?.logoBytes) return embedFromBytes(options.logoBytes);
   for (const file of files) {

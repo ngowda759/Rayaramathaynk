@@ -97,7 +97,7 @@ export default function ReceiptDetailPage() {
                 const url = window.URL.createObjectURL(blob);
                 const a = window.document.createElement("a");
                 a.href = url;
-                a.download = `${receipt.receiptNumber}.pdf`;
+                a.download = `Rayaramatha-Receipt-${receipt.receiptNumber}.pdf`;
                 window.document.body.appendChild(a);
                 a.click();
                 window.document.body.removeChild(a);
@@ -111,8 +111,8 @@ export default function ReceiptDetailPage() {
           >
             <Download className="mr-2 h-4 w-4" />Download PDF
           </Button>
-          <Button variant="outline" onClick={() => router.push("/admin/receipts/create")}>
-            New Receipt
+          <Button variant="outline" onClick={() => router.push("/admin/receipts")}>
+            Back to Receipts
           </Button>
         </div>
       </div>
