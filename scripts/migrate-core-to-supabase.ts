@@ -15,7 +15,6 @@ function toDate(value: any): string | null {
     const d = new Date(value);
     if (!isNaN(d.getTime())) return d.toISOString();
   }
-  // No longer attempting to handle private fields `_seconds` and `_nanoseconds`.
   return null;
 }
 
@@ -120,7 +119,7 @@ async function migrateCollection(
       const { data: existingRecords, error: lookupError } = await supabase
         .from(tableName)
         .select("firestore_id")
-        .in("firestore_id", recordsToUpsert.map(r => r.firestore_id));
+        .in("firestore_id", recordsToUpsert.map((r: any) => r.firestore_id));
 
       if (lookupError) {
         console.error(`Error checking existing records in Supabase for ${tableName}:`, lookupError.message);
@@ -186,10 +185,9 @@ async function migrateCollection(
 
   // Duplicate Check in Target (Only useful if we actually migrated data, but we can do it anyway)
   if (!isDryRun) {
-    const { } = await supabase
+    await supabase
       .rpc('check_duplicate_firestore_ids', { table_name: tableName })
       .catch(() => ({ data: null })); // Ignored if RPC doesn't exist. We just rely on unique constraints mostly
-      // Alternatively, we query grouping by firestore_id having count > 1
 
     // Since RLS / dynamic RPC might not be set up for this, we trust the DB unique constraint,
     // but log a note.
@@ -246,8 +244,12 @@ async function run() {
 
     // Mapping for Sevas
     await migrateCollection(db, supabase, "sevas", "sevas", (id, data): TargetSeva => {
-      if (!data.name) throw new Error("Missing required field: name");
-      if (typeof data.amount !== 'number') throw new Error(`Invalid or missing amount: ${data.amount}`);
+      // Required target fields per SUPABASE_DATABASE_SCHEMA.md
+      if (typeof data.name !== 'string' || !data.name) throw new Error("Missing required field: name");
+      if (typeof data.description !== 'string' || !data.description) throw new Error("Missing required field: description");
+      if (typeof data.category !== 'string' || !data.category) throw new Error("Missing required field: category");
+      if (typeof data.amount !== 'number') throw new Error(`Invalid or missing required field 'amount': ${data.amount}`);
+      if (typeof data.duration !== 'number') throw new Error(`Invalid or missing required field 'duration': ${data.duration}`);
 
       const created_at = toDate(data.createdAt);
       if (data.createdAt && !created_at) throw new Error(`Invalid timestamp for createdAt: ${data.createdAt}`);
@@ -256,13 +258,13 @@ async function run() {
       return {
         firestore_id: id,
         name: data.name,
-        description: data.description || "",
-        category: data.category || "General",
+        description: data.description,
+        category: data.category,
         amount: data.amount,
-        duration: typeof data.duration === 'number' ? data.duration : 0, // Fallback to 0 if not provided as duration is not critical monetary
+        duration: data.duration,
         image_url: data.imageUrl || null,
-        active: data.active !== undefined ? data.active : true,
-        display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
+        active: data.active !== undefined ? data.active : true, // Allowed fallback as boolean is often stored inconsistently
+        display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0, // Fallback to 0 allowed for UI ordering
         created_at,
         updated_at
       };
@@ -270,10 +272,14 @@ async function run() {
 
     // Mapping for Daily Poojas
     await migrateCollection(db, supabase, "dailyPoojas", "daily_poojas", (id, data): TargetDailyPooja => {
-      if (!data.title) throw new Error("Missing required field: title");
-      if (data.sevaAmount !== undefined && typeof data.sevaAmount !== 'number') {
-         throw new Error(`Invalid sevaAmount: ${data.sevaAmount}`);
-      }
+      // Required target fields per SUPABASE_DATABASE_SCHEMA.md
+      if (typeof data.title !== 'string' || !data.title) throw new Error("Missing required field: title");
+      if (typeof data.description !== 'string' || !data.description) throw new Error("Missing required field: description");
+      if (typeof data.startTime !== 'string' || !data.startTime) throw new Error("Missing required field: startTime");
+      if (typeof data.duration !== 'string' || !data.duration) throw new Error("Missing required field: duration");
+      if (typeof data.category !== 'string' || !data.category) throw new Error("Missing required field: category");
+      if (typeof data.sevaAmount !== 'number') throw new Error(`Invalid or missing required field 'sevaAmount': ${data.sevaAmount}`);
+      if (!Array.isArray(data.days)) throw new Error("Missing or invalid required field 'days'");
 
       const created_at = toDate(data.createdAt);
       if (data.createdAt && !created_at) throw new Error(`Invalid timestamp for createdAt: ${data.createdAt}`);
@@ -281,14 +287,14 @@ async function run() {
       return {
         firestore_id: id,
         title: data.title,
-        description: data.description || "",
-        start_time: data.startTime || "",
-        duration: data.duration || "",
-        category: data.category || "General",
-        seva_amount: typeof data.sevaAmount === 'number' ? data.sevaAmount : 0, // In original schema default is 0
+        description: data.description,
+        start_time: data.startTime,
+        duration: data.duration,
+        category: data.category,
+        seva_amount: data.sevaAmount,
         is_active: data.isActive !== undefined ? data.isActive : true,
         display_order: typeof data.displayOrder === 'number' ? data.displayOrder : 0,
-        days: Array.isArray(data.days) ? data.days : [],
+        days: data.days,
         notes: data.notes || null,
         created_at,
         created_by: data.createdBy || null
@@ -297,13 +303,17 @@ async function run() {
 
     // Mapping for Events
     await migrateCollection(db, supabase, "events", "events", (id, data): TargetEvent => {
-      if (!data.title) throw new Error("Missing required field: title");
+      // Required target fields per SUPABASE_DATABASE_SCHEMA.md
+      if (typeof data.title !== 'string' || !data.title) throw new Error("Missing required field: title");
+      if (typeof data.description !== 'string' || !data.description) throw new Error("Missing required field: description");
+      if (typeof data.location !== 'string' || !data.location) throw new Error("Missing required field: location");
+      if (typeof data.status !== 'string' || !data.status) throw new Error("Missing required field: status");
 
       const start_date = toDate(data.startDate);
-      if (!start_date) throw new Error(`Missing or invalid start_date: ${data.startDate}`);
+      if (!start_date) throw new Error(`Missing or invalid required field 'start_date': ${data.startDate}`);
 
       const end_date = toDate(data.endDate);
-      if (!end_date) throw new Error(`Missing or invalid end_date: ${data.endDate}`);
+      if (!end_date) throw new Error(`Missing or invalid required field 'end_date': ${data.endDate}`);
 
       const created_at = toDate(data.createdAt);
       if (data.createdAt && !created_at) throw new Error(`Invalid timestamp for createdAt: ${data.createdAt}`);
@@ -312,8 +322,8 @@ async function run() {
       return {
         firestore_id: id,
         title: data.title,
-        description: data.description || "",
-        location: data.location || "",
+        description: data.description,
+        location: data.location,
         start_date,
         end_date,
         start_time: data.startTime || null,
@@ -322,7 +332,7 @@ async function run() {
         published: data.published !== undefined ? data.published : false,
         category: data.category || null,
         image_url: data.imageUrl || null,
-        status: data.status || "Upcoming",
+        status: data.status,
         created_at,
         updated_at
       };
