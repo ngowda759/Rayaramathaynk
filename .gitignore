@@ -44,3 +44,4 @@ __pycache__/
 .vercel
 .vercel
 .env*
+test-results/

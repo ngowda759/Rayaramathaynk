@@ -9,6 +9,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
+export const revalidate = 0;
 const RECEIPT_SEVAS_COLLECTION = "sevas";
 
 function unauthorized() {
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await getAdminFirestore();
-    let snapshot = await db.collection(RECEIPT_SEVAS_COLLECTION).get();
+    const snapshot = await db.collection(RECEIPT_SEVAS_COLLECTION).get();
 
 
 
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     const sevas = rawDocs;
     return NextResponse.json({ success: true, sevas, count: sevas.length });
   } catch (error) {
-    console.error("[Admin Receipt Sevas API] Error listing sevas:", error);
+    console.error("[Admin Receipt Sevas API] Error listing sevas:", error instanceof Error ? error.stack : error);
     return NextResponse.json({ error: "Failed to load seva catalogue." }, { status: 500 });
    }
 }
