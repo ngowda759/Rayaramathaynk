@@ -9,24 +9,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const RECEIPT_SEVAS_COLLECTION = "receiptSevas";
+const RECEIPT_SEVAS_COLLECTION = "sevas";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
-const INITIAL_SEVAS: ReceiptSevaInput[] = [
-  { name: "Panchamrutha Seva", description: "Traditional Panchamrutha Abhisheka performed with devotion and Vedic rituals.", amount: 105, active: true, displayOrder: 1 },
-  { name: "Paaduka Pooja, Tottillu, Pallakki Seva", description: "Paaduka Pooja, Tottillu and Pallakki seva performed for divine blessings.", amount: 505, active: true, displayOrder: 2 },
-  { name: "Rajatha Rathotsava / Gajavahana Seva", description: "Silver chariot (Rajatha Rathotsava) or elephant-vahana seva of Sri Raghavendra Swamy.", amount: 1505, active: true, displayOrder: 3 },
-  { name: "Pushpalankara Seva", description: "Floral decoration (Pushpalankara) seva offered to the Lord.", amount: 1005, active: true, displayOrder: 4 },
-  { name: "Kanakabhisheka Seva", description: "Kanakabhisheka,a golden abhisheka ritual performed for divine blessings.", amount: 1005, active: true, displayOrder: 5 },
-  { name: "Alankara Brahmanara Seva", description: "Alankara (ornamentation) Brahmanara seva performed for prosperity.", amount: 2505, active: true, displayOrder: 6 },
-  { name: "Annadana Seva", description: "Sponsor Annadana and receive the blessings of serving devotees at the temple.", amount: 5005, active: true, displayOrder: 7 },
-  { name: "Sampoorna Seva (1 Day)", description: "Comprehensive one-day seva package covering all major rituals.", amount: 25005, active: true, displayOrder: 8 },
-  { name: "Annadana Seva (1 Day)", description: "Sponsor one day of Annadana (community meal) for temple devotees.", amount: 50005, active: true, displayOrder: 9 },
-  { name: "Sampoorna Seva (3 Day)", description: "Comprehensive three-day seva package covering all major rituals.", amount: 100005, active: true, displayOrder: 10 },
-];
+
 
 export async function GET(request: NextRequest) {
   const admin = await verifyAdminUser(request);
@@ -34,32 +23,26 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await getAdminFirestore();
-    let snapshot = await db
-      .collection(RECEIPT_SEVAS_COLLECTION)
-      .orderBy("displayOrder", "asc")
-      .get();
+    let snapshot = await db.collection(RECEIPT_SEVAS_COLLECTION).get();
 
-    // Auto-seed if empty
-    if (snapshot.empty) {
-      const batch = db.batch();
-      const now = new Date();
-      for (const seva of INITIAL_SEVAS) {
-        const docRef = db.collection(RECEIPT_SEVAS_COLLECTION).doc();
-        batch.set(docRef, { ...seva, createdAt: now, updatedAt: now });
-      }
-      await batch.commit();
 
-      // Refetch after seeding
-      snapshot = await db
-        .collection(RECEIPT_SEVAS_COLLECTION)
-        .orderBy("displayOrder", "asc")
-        .get();
-    }
 
-    const sevas = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const rawDocs = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || "Unknown Seva",
+        description: data.description || "",
+        amount: typeof data.amount === "number" ? data.amount : (Number(data.amount) || 0),
+        active: data.active !== false, // default true unless explicitly false
+        displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : 9999, // default 9999 so it goes to bottom
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      };
+    });
+
+    rawDocs.sort((a, b) => a.displayOrder - b.displayOrder);
+    const sevas = rawDocs;
     return NextResponse.json({ success: true, sevas, count: sevas.length });
   } catch (error) {
     console.error("[Admin Receipt Sevas API] Error listing sevas:", error);
@@ -92,6 +75,9 @@ export async function POST(request: NextRequest) {
       ...sanitized,
       createdAt: now,
       updatedAt: now,
+      duration: 30,
+      category: "Special",
+      imageUrl: "",
     });
 
     return NextResponse.json({ success: true, id: docRef.id, message: "Seva created successfully" }, { status: 201 });
