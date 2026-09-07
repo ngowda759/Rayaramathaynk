@@ -39,10 +39,11 @@ export async function verifyAdminUser(
   }
 
   try {
+    const { getAdminApp, getAdminFirestore } = await import("@/lib/admin-firebase");
+    const adminApp = await getAdminApp();
     const { getAuth } = await import("firebase-admin/auth");
-    const decoded = await getAuth().verifyIdToken(idToken);
-    const { getFirestore } = await import("firebase-admin/firestore");
-    const db = getFirestore();
+    const decoded = await getAuth(adminApp).verifyIdToken(idToken);
+    const db = await getAdminFirestore();
 
     const userSnap = await db.collection("users").doc(decoded.uid).get();
     if (!userSnap.exists) {
