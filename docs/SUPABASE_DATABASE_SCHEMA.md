@@ -29,13 +29,18 @@ The existing Firestore collections can be logically grouped into the following a
 
 ## 3. Complete Table List & Firestore → PostgreSQL Mapping
 
+### Core / First Migration Tables
+| Firestore Collection | PostgreSQL Table | Reason | Difficulty |
+|----------------------|------------------|--------|------------|
+| `sevas`              | `sevas`          | 1:1 mapping for Seva catalogue | Easy |
+| `dailyPoojas`        | `daily_poojas`   | 1:1 mapping of daily poojas | Easy |
+| `events`             | `events`         | Core temple events | Moderate (Timestamp conversion) |
+
+### Later Migration Tables
 | Firestore Collection | PostgreSQL Table | Reason | Difficulty |
 |----------------------|------------------|--------|------------|
 | `users`              | `users`          | Direct 1:1 mapping of users | Easy |
 | `profiles`           | `profiles`       | User profiles extending Auth/User | Easy |
-| `sevas`              | `sevas`          | 1:1 mapping for Seva catalogue | Easy |
-| `dailyPoojas`        | `daily_poojas`   | 1:1 mapping of daily poojas | Easy |
-| `events`             | `events`         | Core temple events | Moderate (Timestamp conversion) |
 | `donations`          | `donations`      | Record of donations | Easy |
 | `donation_campaigns` | `donation_campaigns` | Campaigns for donations | Easy |
 | `galleryAlbums`      | `gallery_albums` | 1:1 Album mapping | Easy |
@@ -45,11 +50,15 @@ The existing Firestore collections can be logically grouped into the following a
 | `sevaBookings`       | `seva_bookings`  | 1:1 Booking mapping | Moderate |
 | `volunteer_requests` | `volunteer_requests` | 1:1 Form mapping | Easy |
 
-*Note: Some AI and logging tables are left out of this initial core migration list, as they are often ephemeral or better suited for gradual migration. Settings collections might be migrated to a generic key-value table or dedicated single-row tables.*
+### Ephemeral / Logging
+*   `chat_sessions`, `chat_messages`, `unknown_questions`, `ai_intent_distribution`, `ai_latency_records`
+
+### Legacy / Not Required
+*   Settings collections might be migrated to a generic key-value table or dedicated single-row tables.
 
 ## 4. Detailed Schema Proposals
 
-### 4.1. Table: `sevas`
+### 4.1. CORE Table: `sevas`
 Mapped from `sevas` collection. Verified against `types/seva.ts`.
 
 | Column | PostgreSQL Type | Nullable | Source Field | Notes |
@@ -59,15 +68,15 @@ Mapped from `sevas` collection. Verified against `types/seva.ts`.
 | `name` | `text` | No | `name` | |
 | `description` | `text` | No | `description` | |
 | `category` | `text` | No | `category` | |
-| `amount` | `numeric(10,2)` | No | `amount` | |
+| `amount` | `numeric(10,2)` | No | `amount` | Financial data must be numeric, not floating point |
 | `duration` | `integer` | No | `duration` | |
 | `image_url` | `text` | Yes | `imageUrl` | |
 | `active` | `boolean` | No | `active` | Default `true` |
 | `display_order` | `integer` | No | `displayOrder` | Default `0` |
-| `created_at` | `timestamptz` | No | `createdAt` | Converted from ISO string / Timestamp |
-| `updated_at` | `timestamptz` | No | `updatedAt` | Converted from ISO string / Timestamp |
+| `created_at` | `timestamptz` | Yes | `createdAt` | Converted from ISO string / Timestamp. Fallback to `now()` if missing. |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | Converted from ISO string / Timestamp. Fallback to `now()` if missing. |
 
-### 4.2. Table: `daily_poojas`
+### 4.2. CORE Table: `daily_poojas`
 Mapped from `dailyPoojas` collection. Verified against `types/pooja.ts`.
 
 | Column | PostgreSQL Type | Nullable | Source Field | Notes |
@@ -85,9 +94,9 @@ Mapped from `dailyPoojas` collection. Verified against `types/pooja.ts`.
 | `days` | `text[]` | No | `days` | Array of days |
 | `notes` | `text` | Yes | `notes` | |
 | `created_by` | `text` | Yes | `createdBy` | Loose reference (email) |
-| `created_at` | `timestamptz` | No | `createdAt` | Converted from ISO string / Timestamp |
+| `created_at` | `timestamptz` | Yes | `createdAt` | Converted from ISO string / Timestamp. Fallback to `now()` if missing. |
 
-### 4.3. Table: `events`
+### 4.3. CORE Table: `events`
 Mapped from `events` collection. Verified against `types/event.ts`.
 
 | Column | PostgreSQL Type | Nullable | Source Field | Notes |
@@ -106,8 +115,8 @@ Mapped from `events` collection. Verified against `types/event.ts`.
 | `category` | `text` | Yes | `category` | |
 | `image_url` | `text` | Yes | `imageUrl` | |
 | `status` | `text` | No | `status` | Legacy field |
-| `created_at` | `timestamptz` | No | `createdAt` | Default `now()` |
-| `updated_at` | `timestamptz` | No | `updatedAt` | Default `now()` |
+| `created_at` | `timestamptz` | Yes | `createdAt` | Default `now()` |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | Default `now()` |
 
 ### 4.4. Table: `users`
 Mapped from `users` collection. Verified against `types/user.ts`.
@@ -122,8 +131,8 @@ Mapped from `users` collection. Verified against `types/user.ts`.
 | `phone` | `text` | No | `phone` | |
 | `role` | `text` | No | `role` | Matches `UserRole` |
 | `active` | `boolean` | No | `active` | Includes `isActive` |
-| `created_at` | `timestamptz` | No | `createdAt` | Converted from Timestamp |
-| `updated_at` | `timestamptz` | No | `updatedAt` | Converted from Timestamp |
+| `created_at` | `timestamptz` | Yes | `createdAt` | Converted from Timestamp |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | Converted from Timestamp |
 
 ### 4.5. Table: `profiles`
 Mapped from `profiles` collection. Verified against `types/profile.ts`.
@@ -144,8 +153,8 @@ Mapped from `profiles` collection. Verified against `types/profile.ts`.
 | `favorites` | `text[]` | No | `favorites` | Array of references |
 | `recently_viewed` | `text[]` | No | `recentlyViewed` | Array of references |
 | `bookmarks` | `jsonb` | No | `bookmarks` | Array of nested objects |
-| `created_at` | `timestamptz` | No | `createdAt` | |
-| `updated_at` | `timestamptz` | No | `updatedAt` | |
+| `created_at` | `timestamptz` | Yes | `createdAt` | |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | |
 
 ### 4.6. Table: `donations`
 Mapped from `donations` collection. Verified against `types/donation.ts`.
@@ -168,8 +177,8 @@ Mapped from `donations` collection. Verified against `types/donation.ts`.
 | `admin_remarks` | `text` | No | `adminRemarks` | |
 | `collected_by` | `text` | No | `collectedBy` | |
 | `collected_at` | `timestamptz` | Yes | `collectedAt` | |
-| `created_at` | `timestamptz` | No | `createdAt` | |
-| `updated_at` | `timestamptz` | No | `updatedAt` | |
+| `created_at` | `timestamptz` | Yes | `createdAt` | |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | |
 
 ### 4.7. Table: `donation_campaigns`
 Mapped from `donation_campaigns` collection. Verified against `types/donationCampaign.ts`.
@@ -184,8 +193,8 @@ Mapped from `donation_campaigns` collection. Verified against `types/donationCam
 | `suggested_amount` | `numeric(10,2)` | No | `suggestedAmount` | |
 | `active` | `boolean` | No | `active` | |
 | `display_order` | `integer` | No | `displayOrder` | |
-| `created_at` | `timestamptz` | No | `createdAt` | |
-| `updated_at` | `timestamptz` | No | `updatedAt` | |
+| `created_at` | `timestamptz` | Yes | `createdAt` | |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | |
 
 ### 4.8. Table: `gallery_albums`
 Mapped from `galleryAlbums` collection. Verified against `types/gallery.ts`.
@@ -262,7 +271,7 @@ Mapped from `aaradhane` collection. Verified against `types/aaradhane.ts`.
 | `is_upcoming` | `boolean` | No | `isUpcoming` | |
 | `display_order` | `integer` | No | `displayOrder` | |
 | `created_by` | `text` | No | `createdBy` | Loose ref |
-| `created_at` | `timestamptz` | No | `createdAt` | Converted from string/Timestamp |
+| `created_at` | `timestamptz` | Yes | `createdAt` | Converted from string/Timestamp |
 
 ### 4.12. Table: `seva_bookings`
 Mapped from `sevaBookings` collection. Verified against `types/seva-booking.ts`.
@@ -285,8 +294,8 @@ Mapped from `sevaBookings` collection. Verified against `types/seva-booking.ts`.
 | `payment_status` | `text` | No | `paymentStatus` | |
 | `payment_date` | `text` | No | `paymentDate` | |
 | `payment_method` | `text` | No | `paymentMethod` | |
-| `created_at` | `timestamptz` | No | `createdAt` | |
-| `updated_at` | `timestamptz` | No | `updatedAt` | |
+| `created_at` | `timestamptz` | Yes | `createdAt` | |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | |
 
 ### 4.13. Table: `volunteer_requests`
 Mapped from `volunteer_requests` collection. Verified against `types/volunteer.ts`.
@@ -301,13 +310,13 @@ Mapped from `volunteer_requests` collection. Verified against `types/volunteer.t
 | `sex` | `text` | No | `sex` | |
 | `active` | `boolean` | No | `active` | |
 | `address` | `text` | No | `address` | |
-| `created_at` | `timestamptz` | No | `createdAt` | |
-| `updated_at` | `timestamptz` | No | `updatedAt` | |
+| `created_at` | `timestamptz` | Yes | `createdAt` | |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | |
 
 ## 5. Important Data-Conversion Issues (Special Types)
 
-- **Firestore Timestamp / serverTimestamp()**: Converted to PostgreSQL `timestamptz` (Timestamp with time zone). Legacy data must convert the Firestore Timestamp (`{ _seconds, _nanoseconds }` or similar object formats) to an ISO string or epoch during the ETL process.
-- **Arrays**: Converted to native PostgreSQL arrays (e.g., `text[]` for `days` in `dailyPoojas`, `tags` in `galleryMedia`).
+- **Firestore Timestamp / serverTimestamp()**: Converted to PostgreSQL `timestamptz` (Timestamp with time zone). Legacy data must convert the Firestore Timestamp (`{ _seconds, _nanoseconds }` or similar object formats) to an ISO string or epoch during the ETL process. Missing timestamps will fallback to `now()`.
+- **Arrays**: Converted to native PostgreSQL arrays (e.g., `text[]` for `days` in `dailyPoojas`, `tags` in `galleryMedia`). Only used where the application currently uses simple arrays.
 - **Nested Objects**: Converted to `jsonb` columns (e.g., complex settings, preferences, `seva_details`). Do not over-normalize single-use complex structures.
 - **Missing/Optional Fields**: Represented as `NULL` in Postgres unless a strict `DEFAULT` is defined.
 - **Numbers**: Amounts mapped to `numeric(10,2)` to prevent precision loss. Order/display fields mapped to `integer`.
@@ -337,28 +346,31 @@ Every migrated table must contain:
 `firestore_id text UNIQUE`
 
 This is crucial for:
-1. Validating migration integrity: `SELECT COUNT(*) FROM sevas WHERE firestore_id IS NOT NULL` vs Firestore document count.
-2. Idempotent migrations: Upserting data during the migration phase based on `firestore_id`.
-3. Legacy URL support: Redirecting old URLs that use Firestore IDs to the new UUIDs.
+1. Reconciling source and target records to ensure exact matches during migration.
+2. Safely performing idempotent migrations (Upserting data based on `firestore_id`).
+3. Tracing records back to Firestore for rollback/debugging support during migration.
+4. Legacy URL support: Redirecting old URLs that use Firestore IDs to the new PostgreSQL UUIDs.
 
 ## 9. Indexes & Constraints
 
 - **Primary Keys**: `uuid` using `gen_random_uuid()`.
 - **Unique Constraints**: `firestore_id` must be unique.
 - **Foreign Keys**: `gallery_media(album_id)` -> `gallery_albums(id)`.
-- **Indexes**:
+- **Indexes**: (Only recommended based on actual query patterns found in code)
   - `events(start_date)` for upcoming event queries.
-  - `sevas(display_order)` for UI ordering.
-  - `daily_poojas(display_order)` for UI ordering.
+  - `events(featured, published)`
+  - `sevas(display_order, active)` for UI ordering.
+  - `daily_poojas(display_order, is_active)` for UI ordering.
   - `gallery_albums(display_order)`
   - `donation_campaigns(display_order)`
 
 ## 10. Migration Order & Risk Assessment
 
 **Recommended Migration Order (Based on actual dependencies):**
-1. Core/reference data (`users`, `profiles`, `sevas`, `daily_poojas`, `gallery_albums`, `donation_campaigns`). (LOW RISK)
-2. Dependent transactional/content data (`events`, `aaradhanes`, `gallery_media` [depends on albums], `testimonials`, `donations` [depends on campaigns conceptually], `sevaBookings` [depends on sevas/users conceptually], `volunteer_requests`). (MEDIUM RISK - Requires careful FK mapping)
-3. High-velocity data (`chat_sessions`, `messages`). (HIGH RISK)
+1. Core/reference data (`sevas`, `daily_poojas`, `events`). (LOW RISK)
+2. Content/Profiles (`users`, `profiles`, `gallery_albums`, `donation_campaigns`). (LOW RISK)
+3. Dependent transactional/content data (`aaradhanes`, `gallery_media` [depends on albums], `testimonials`, `donations` [depends on campaigns conceptually], `sevaBookings` [depends on sevas/users conceptually], `volunteer_requests`). (MEDIUM RISK - Requires careful FK mapping)
+4. High-velocity data (`chat_sessions`, `messages`). (HIGH RISK)
 
 **Risk Assessment:**
 - **Low Risk**: Content-driven collections (`sevas`, `events`) are easy to migrate and mostly read-heavy.
