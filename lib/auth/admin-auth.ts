@@ -47,16 +47,19 @@ export async function verifyAdminUser(
 
     const userSnap = await db.collection("users").doc(decoded.uid).get();
     if (!userSnap.exists) {
+      console.warn(`[verifyAdminUser] User ${decoded.uid} not found in Firestore`);
       return null;
     }
 
     const data = userSnap.data() || {};
     if (data.isActive === false) {
+      console.warn(`[verifyAdminUser] User ${decoded.uid} is not active`);
       return null;
     }
 
     const role = normalizeRole(data.role);
     if (BLOCKED_ROLES.has(role)) {
+      console.warn(`[verifyAdminUser] User ${decoded.uid} has blocked role ${role}`);
       return null;
     }
 
@@ -66,7 +69,7 @@ export async function verifyAdminUser(
       role,
     };
   } catch (error) {
-    console.error("[verifyAdminUser] Failed to verify admin token:", error);
+    console.error("[verifyAdminUser] Failed to verify admin token:", error instanceof Error ? error.message : error);
     return null;
   }
 }

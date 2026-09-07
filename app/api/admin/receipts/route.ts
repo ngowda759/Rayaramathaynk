@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const RECEIPTS_COLLECTION = "receipts";
 
+export const revalidate = 0;
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
@@ -139,7 +140,7 @@ export async function GET(request: NextRequest) {
       pageSize,
     });
   } catch (error) {
-    console.error("[Admin Receipts API] Error listing receipts:",error);
+    console.error("[Admin Receipts API] Error listing receipts:", error instanceof Error ? error.stack : error);
     return NextResponse.json({ error: "Failed to load receipts." },{ status: 500 });
   }
 }
