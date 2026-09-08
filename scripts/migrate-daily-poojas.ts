@@ -186,21 +186,33 @@ async function run() {
     }
 
     // 5. Final Report
-    const totalFailures = duplicateSourceIdsCount + duplicateTargetIdsCount + missingTargetIds.length + extraTargetIds.length + fieldMismatches.length + extractionFailures.length + writeFailures.length;
-    const isClean = !isDryRun && totalFailures === 0 && targetDocsCount === totalSourceDocs;
-
     console.log(`\n=== FINAL REPORT ===`);
     console.log(`SOURCE COUNT: ${totalSourceDocs}`);
-    console.log(`DESTINATION COUNT: ${isDryRun ? "N/A (Dry Run)" : targetDocsCount}`);
-    console.log(`MATCHED: ${isDryRun ? "N/A" : matchedIdsCount}`);
-    console.log(`MISSING: ${isDryRun ? "N/A" : missingTargetIds.length}`);
-    console.log(`EXTRA: ${isDryRun ? "N/A" : extraTargetIds.length}`);
-    console.log(`DUPLICATES: ${duplicateSourceIdsCount + duplicateTargetIdsCount}`);
-    console.log(`FIELD MISMATCHES: ${isDryRun ? "N/A" : fieldMismatches.length}`);
-    console.log(`TRANSFORMATION FAILURES: ${extractionFailures.length}`);
-    console.log(`WRITE FAILURES: ${writeFailures.length}`);
 
-    console.log(`\nRESULT: ${isClean ? "PASS" : "FAIL"}`);
+    let isClean = false;
+
+    if (isDryRun) {
+       console.log(`VALID RECORDS: ${recordsToUpsert.length}`);
+       console.log(`TRANSFORMATION FAILURES: ${extractionFailures.length}`);
+       console.log(`DUPLICATE SOURCE IDs: ${duplicateSourceIdsCount}`);
+       console.log(`\nSUPABASE WRITE: NOT PERFORMED`);
+
+       isClean = extractionFailures.length === 0 && duplicateSourceIdsCount === 0;
+       console.log(`\nRESULT: ${isClean ? "DRY RUN PASS" : "DRY RUN FAIL"}`);
+    } else {
+       const totalFailures = duplicateSourceIdsCount + duplicateTargetIdsCount + missingTargetIds.length + extraTargetIds.length + fieldMismatches.length + extractionFailures.length + writeFailures.length;
+       isClean = totalFailures === 0 && targetDocsCount === totalSourceDocs;
+
+       console.log(`DESTINATION COUNT: ${targetDocsCount}`);
+       console.log(`MATCHED: ${matchedIdsCount}`);
+       console.log(`MISSING: ${missingTargetIds.length}`);
+       console.log(`EXTRA: ${extraTargetIds.length}`);
+       console.log(`DUPLICATES: ${duplicateSourceIdsCount + duplicateTargetIdsCount}`);
+       console.log(`FIELD MISMATCHES: ${fieldMismatches.length}`);
+       console.log(`TRANSFORMATION FAILURES: ${extractionFailures.length}`);
+       console.log(`WRITE FAILURES: ${writeFailures.length}`);
+       console.log(`\nRESULT: ${isClean ? "PASS" : "FAIL"}`);
+    }
 
     if (extractionFailures.length > 0) {
       console.log("\nTransformation Failures:");
