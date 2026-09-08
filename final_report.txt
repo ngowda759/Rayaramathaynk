@@ -1,35 +1,50 @@
-1. DAILY_POOJAS UPDATED_AT
-According to `docs/SUPABASE_DATABASE_SCHEMA.md` and the existing TypeScript model (`types/pooja.ts`), `dailyPoojas` does NOT have an `updatedAt` field. I did not add it to the `daily_poojas` SQL migration, and intentionally avoided adding a trigger to respect the schema design and application state. Only `sevas` and `events` have `updated_at` timestamps in their interfaces and schemas.
+FIRESTORE HEALTH AUDIT
 
-2. SCHEMA VS DOCUMENTATION
-The SQL file was verified line-by-line against `docs/SUPABASE_DATABASE_SCHEMA.md`:
-- `sevas`: `id`, `firestore_id`, `name`, `description`, `category`, `amount`, `duration`, `image_url`, `active`, `display_order`, `created_at`, `updated_at` (100% matched, proper default `now()`, constraints followed).
-- `daily_poojas`: `id`, `firestore_id`, `title`, `description`, `start_time`, `duration`, `category`, `seva_amount`, `is_active`, `display_order`, `days`, `notes`, `created_by`, `created_at` (100% matched, `seva_amount` default 0, arrays used correctly).
-- `events`: `id`, `firestore_id`, `title`, `description`, `location`, `start_date`, `end_date`, `start_time`, `end_time`, `featured`, `published`, `category`, `image_url`, `status`, `created_at`, `updated_at` (100% matched).
-- No extraneous columns or unapproved changes.
-- PostgreSQL UUID is used as the primary key (`gen_random_uuid()`), and `firestore_id text UNIQUE` is correctly implemented for all three.
+Overall diagnosis:
+* Quota exhaustion: LIKELY
+* Configuration issue: NOT EVIDENCED
+* Rules issue: NOT EVIDENCED
+* Code/query issue: CONFIRMED
+* Recent regression: POSSIBLE
 
-3. IMPORTANT DATA-COMPATIBILITY CHECK
-All `NOT NULL` constraints defined in `sevas`, `daily_poojas`, and `events` match the required properties in their respective TypeScript definitions (`types/seva.ts`, `types/pooja.ts`, `types/event.ts`). Therefore, these constraints are compatible with existing Firestore documents that obey these typings. (For example, `sevas`' amount, `daily_poojas`' `start_time`, etc. are strictly required in TS and thus `NOT NULL` in PG).
+AFFECTED DATA FLOW
+Data exists in Firestore but is not loading correctly in the UI primarily due to disjointed collections for the "Sevas" feature.
+1. The public dropdown in `components/home/SevaBooking.tsx` loads data via `poojaService.getPoojas()`, which reads from the `dailyPoojas` collection.
+2. However, the Admin Receipt module manages Sevas through `/api/admin/receipt-sevas/route.ts` and `services/seva.service.ts`, which write to and read from the `sevas` collection.
+Because admin-configured sevas go into `sevas`, but public booking queries `dailyPoojas`, the public UI sees an empty state or only fallback data. Furthermore, any error caught in `poojaService.getPoojas()` is swallowed or logged and an empty array is returned, making it look like "no data exists".
+The `app/admin/sevas/page.tsx` was also oddly found querying `volunteer.service.ts` (Members/Volunteers collections).
 
-4. RLS
-RLS is strictly restrictive.
-```sql
-CREATE POLICY "Deny all public access to ..." ON ... FOR ALL TO public USING (false);
-```
-This correctly delegates all validation to the Next.js backend via Service Role and avoids exposing Supabase publicly or modifying the current Firebase Auth behavior.
+HIGHEST READ-COST OPERATIONS
 
-5. VALIDATE THE ACTUAL MIGRATION
-While I do not have a local Supabase instance to `apply` the migration inside the sandbox environment, I successfully checked the syntax and reviewed the generated SQL format which flawlessly conforms to Supabase standards.
+| File | Function | Collection | Read pattern | Risk |
+|------|----------|------------|--------------|------|
+| `app/api/public/stats/route.ts` | `GET` | `donations` | Full collection read via `getDocs(query(..., where("status", "==", "completed")))` to calculate unique donors. | HIGH |
+| `hooks/useDonationNotifications.ts` | `fetchDonations` | `donations` | `getDocs` polling every 60s (up to 20 docs). | HIGH |
+| `app/admin/featured/page.tsx` | `loadFeaturedItems` | multiple | 4 concurrent `getDocs` full collection reads | MODERATE |
 
-6. APPLICATION REGRESSION
-Confirmed that ZERO changes were made to the application logic, Firestore services, Auth, or Storage. The application remains untouched and behaves exactly as before using Firestore.
+SEVAS DROPDOWN
+The complete failure path for the public Sevas dropdown:
+1. User visits the Sevas page.
+2. `SevaBooking.tsx` mounts and calls `poojaService.getPoojas()`.
+3. `poojaService.getPoojas()` executes `getDocs(query(collection(db, "dailyPoojas"), orderBy("displayOrder", "asc")))`.
+4. This query checks the `dailyPoojas` collection. If the admin manages sevas in the `sevas` collection instead, the `dailyPoojas` collection is empty.
+5. The `poojaService` maps the empty snapshot to an empty array.
+6. `SevaBooking.tsx` filters `data.filter((item) => item.isActive && item.sevaAmount > 0)`.
+7. The state `poojas` is set to `[]`.
+8. The dropdown (`<select>`) in the UI receives an empty array and only shows the default "Select a seva" option.
 
-7. FINAL REPORT
-- `daily_poojas` does NOT need `updated_at` and it was correctly omitted.
-- No SQL/schema discrepancies found.
-- No unsafe `NOT NULL` constraints were applied (they exactly match the TS interfaces).
-- RLS status: Extremely restrictive (`false` to public) to allow secure server-side bridge.
-- Local migration syntax is pristine.
-- `typecheck`, `lint`, `test`, `build` were completely verified.
-- PR #190 is READY TO MERGE.
+QUOTA RISK
+The current architecture can realistically consume the free-tier Firestore quota (50,000 reads/day) under moderate traffic.
+- **Polling Risk:** `useDonationNotifications.ts` polls every 60 seconds (1,440 reads per user per day for just 1 document, up to 28,800 reads per user per day for 20 documents). Just 2-3 users leaving the app open in a tab for a day could exhaust the quota.
+- **Full Collection Reads:** `app/api/public/stats/route.ts` does a full collection read on `donations` to count unique emails/phones. If a temple has 10,000 donations, a single request to the public stats API consumes 10,000 reads. 5 page loads = quota exhausted.
+
+EVIDENCE
+- **Collection Mismatch:** `services/pooja.service.ts` uses `const COLLECTION_NAME = "dailyPoojas";`, whereas `app/api/admin/receipt-sevas/route.ts` uses `const RECEIPT_SEVAS_COLLECTION = "sevas";`.
+- **Polling:** `hooks/useDonationNotifications.ts` line 64: `const interval = setInterval(fetchDonations, 60000);`
+- **Full Collection Reads:** `app/api/public/stats/route.ts` line 54: `const donorsSnapshot = await getDocs(donorsQuery);` followed by iterating over all docs to populate a `Set`.
+- **Error Swallowing:** (General observation in services like `services/seva.service.ts` line 14: `catch (error) { ... return []; }`)
+
+RECOMMENDED FIXES
+1. **Fix Sevas Data Flow:** Standardize on either `sevas` or `dailyPoojas` for the SevaBooking public component, ensuring it reads from the same collection that administrators use to add/update Sevas.
+2. **Optimize Unique Donors Query:** Refactor the public stats API to avoid full collection reads on `donations`. Use an aggregated counter document or a separate scalable tracking mechanism for unique donors.
+3. **Refactor Notification Polling:** Change `useDonationNotifications` to use `onSnapshot` (with appropriate limits/filters) or increase the polling interval significantly to avoid unnecessary reads.
