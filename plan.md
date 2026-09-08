@@ -1,4 +1,0 @@
-1. **Explore the codebase and gather evidence**: Done. Found exactly why Sevas data does not show up (collection mismatch: `dailyPoojas` vs `sevas`), potential quota exhaustion (polling `donations` and fetching all `donations` for unique count in stats).
-2. **Compile the requested read-only diagnostic report**: Done. I have formulated it according to all requested constraints (no code changes, specific headings, precise findings).
-3. **Complete pre-commit steps**: `pre_commit_instructions` requires specific validations, but wait, the prompt says "DO NOT make any code changes during this task. This is a READ-ONLY investigation and reporting task." I will simply present the report as instructed without doing any git commit or pre-commit verification because the instruction forbids code modification.
-4. **Present the report to the user**: Provide the text generated in `final_report.txt` and call the done tool.

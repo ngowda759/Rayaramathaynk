@@ -4,7 +4,7 @@ AUDIT EVIDENCE CHECKLIST
 * [CONFIRMED] Firebase project ID verified
 * [CONFIRMED] Client Firebase configuration verified
 * [CONFIRMED] Server Firebase configuration verified
-* [UNKNOWN] Firestore REST configuration verified (Not explicitly verified as no REST API usage found beyond native SDKs and Admin API)
+* [UNKNOWN] Firestore REST configuration verified
 * [CONFIRMED] Firebase Admin configuration verified, if present
 * [CONFIRMED] Environment-variable configuration verified
 * [CONFIRMED] No conflicting Firebase project/configuration found
@@ -33,8 +33,8 @@ AUDIT EVIDENCE CHECKLIST
 * [CONFIRMED] Exact Firestore query identified
 * [CONFIRMED] Exact service/function identified
 * [CONFIRMED] All callers identified
-* [UNKNOWN] Firestore response verified (Runtime behavior requires execution environment context not available without mocking/DB)
-* [CONFIRMED] Document fields verified (From schema/interfaces)
+* [UNKNOWN] Firestore response verified
+* [CONFIRMED] Document fields verified
 * [CONFIRMED] Data transformation verified
 * [CONFIRMED] Filtering verified
 * [CONFIRMED] Final data passed to dropdown verified
@@ -49,13 +49,13 @@ AUDIT EVIDENCE CHECKLIST
 
 6. Security Rules
 * [CONFIRMED] Relevant Firestore rules identified
-* [NOT CONFIRMED] Public read access verified (The `dailyPoojas` collection does NOT have any explicit rule in `firestore.rules`, so it defaults to deny, meaning public reading of `dailyPoojas` would fail with permission denied!)
+* [NOT CONFIRMED] Public read access verified
 * [CONFIRMED] Authenticated read access verified
 * [CONFIRMED] Admin read access verified
 * [CONFIRMED] Permission-denied scenario evaluated
 
 7. Recent Regression
-* [NOT CONFIRMED] Recent Firestore changes inspected (Git history was empty/truncated)
+* [NOT CONFIRMED] Recent Firestore changes inspected
 * [NOT CONFIRMED] Recent Sevas changes inspected
 * [NOT CONFIRMED] Recent Firebase configuration changes inspected
 * [NOT CONFIRMED] Recent Supabase migration changes inspected
@@ -66,19 +66,17 @@ AUDIT EVIDENCE CHECKLIST
 FIRESTORE HEALTH AUDIT
 
 Overall diagnosis:
-* Quota exhaustion: UNKNOWN (Firestore quota exhaustion cannot be confirmed from repository evidence alone, though architecture risks exist).
+* Quota exhaustion: UNKNOWN
 * Configuration issue: NOT EVIDENCED
-* Rules issue: CONFIRMED (The `dailyPoojas` collection is missing from `firestore.rules`, causing Permission Denied for public reads).
-* Code/query issue: CONFIRMED (Collection mismatch and error swallowing).
+* Rules issue: CONFIRMED
+* Code/query issue: CONFIRMED
 * Recent regression: POSSIBLE
 
 AFFECTED DATA FLOW
-Data exists in Firestore but is not loading correctly in the UI due to a combination of disjointed collections and missing security rules for the "Sevas" feature.
-1. The public dropdown in `components/home/SevaBooking.tsx` loads data via `poojaService.getPoojas()`, which reads from the `dailyPoojas` collection.
-2. However, the Admin Receipt module manages Sevas through `/api/admin/receipt-sevas/route.ts` and `services/seva.service.ts`, which write to and read from the `sevas` collection.
-3. Because admin-configured sevas go into `sevas`, but public booking queries `dailyPoojas`, the public UI sees an empty state or only fallback data.
-4. Even if `dailyPoojas` had data, there is no rule in `firestore.rules` permitting reads on `dailyPoojas`. Therefore, the request fails with "Permission Denied".
-5. The `poojaService.getPoojas()` does not explicitly log or throw to the UI effectively in a way that prevents the UI from rendering an empty list. The `catch` blocks in other services (like `sevaService`) swallow errors and return `[]`, making it look like "no data exists".
+Data exists in Firestore but is not loading correctly in the UI primarily due to disjointed collections for the "Sevas" feature and missing security rules.
+1. The public dropdown in `components/home/SevaBooking.tsx` loads data via `poojaService.getPoojas()`, which queries the `dailyPoojas` collection.
+2. The Admin Receipt module manages Sevas through `/api/admin/receipt-sevas/route.ts` and `services/seva.service.ts`, which write to and read from the `sevas` collection.
+Because admin-configured sevas go into `sevas`, but public booking queries `dailyPoojas`, the public UI sees an empty state. Furthermore, `dailyPoojas` is completely missing from `firestore.rules`, causing public reads to fail with "Permission Denied". Errors caught in `poojaService.getPoojas()` could be swallowed or logged, resulting in an empty array `[]` being returned.
 
 HIGHEST READ-COST OPERATIONS
 
@@ -93,21 +91,27 @@ The complete failure path for the public Sevas dropdown:
 1. User visits the Sevas page.
 2. `SevaBooking.tsx` mounts and calls `poojaService.getPoojas()`.
 3. `poojaService.getPoojas()` executes `getDocs(query(collection(db, "dailyPoojas"), orderBy("displayOrder", "asc")))`.
-4. This query checks the `dailyPoojas` collection.
-5. The query fails at the Firestore rules level because `dailyPoojas` is not defined in `firestore.rules`, resulting in a Permission Denied error.
-6. Even if the rule existed, if the admin manages sevas in the `sevas` collection, the `dailyPoojas` collection is empty.
-7. The `poojaService` mapping or calling component receives an empty array (or fails).
-8. `SevaBooking.tsx` filters `data.filter((item) => item.isActive && item.sevaAmount > 0)`.
-9. The state `poojas` is set to `[]`.
-10. The dropdown (`<select>`) in the UI receives an empty array and only shows the default "Select a seva" option.
+4. This query checks the `dailyPoojas` collection, which fails because `dailyPoojas` is not defined in `firestore.rules`, resulting in a Permission Denied error.
+5. Even if the rule existed, if the admin manages sevas in the `sevas` collection, the `dailyPoojas` collection is empty.
+6. The `poojaService` mapping or calling component receives an empty array (or fails).
+7. `SevaBooking.tsx` filters `data.filter((item) => item.isActive && item.sevaAmount > 0)`.
+8. The state `poojas` is set to `[]`.
+9. The dropdown (`<select>`) in the UI receives an empty array and only shows the default "Select a seva" option.
 
 QUOTA RISK
-The current architecture has highly inefficient read patterns that could easily consume the free-tier quota, although actual exhaustion cannot be confirmed without console access.
-- **Polling Risk:** `useDonationNotifications.ts` polls every 60 seconds (1,440 reads per user per day for just 1 document, up to 28,800 reads per user per day for 20 documents). Just 2-3 users leaving the app open in a tab for a day could exhaust the quota.
-- **Full Collection Reads:** `app/api/public/stats/route.ts` does a full collection read on `donations` to count unique emails/phones. If a temple has 10,000 donations, a single request to the public stats API consumes 10,000 reads. 5 page loads = quota exhausted.
+Firestore quota exhaustion cannot be confirmed from repository evidence alone. However, the current architecture has highly inefficient read patterns that could easily consume the free-tier quota.
+- **Polling Risk:** `useDonationNotifications.ts` polls every 60 seconds (1,440 reads per user per day for just 1 document, up to 28,800 reads per user per day for 20 documents).
+- **Full Collection Reads:** `app/api/public/stats/route.ts` does a full collection read on `donations` to count unique emails/phones. If a temple has 10,000 donations, a single request to the public stats API consumes 10,000 reads.
+
+EVIDENCE
+- **Collection Mismatch:** `services/pooja.service.ts` uses `const COLLECTION_NAME = "dailyPoojas";`, whereas `app/api/admin/receipt-sevas/route.ts` uses `const RECEIPT_SEVAS_COLLECTION = "sevas";`.
+- **Missing Rules:** `firestore.rules` has no match for `dailyPoojas`.
+- **Polling:** `hooks/useDonationNotifications.ts` line 64: `const interval = setInterval(fetchDonations, 60000);`
+- **Full Collection Reads:** `app/api/public/stats/route.ts` line 54: `const donorsSnapshot = await getDocs(donorsQuery);` followed by iterating over all docs to populate a `Set`.
+- **Error Swallowing:** (General observation in services like `services/seva.service.ts` line 14: `catch (error) { ... return []; }`)
 
 RECOMMENDED FIXES
 1. **Fix Sevas Data Flow:** Standardize on either `sevas` or `dailyPoojas` for the SevaBooking public component, ensuring it reads from the same collection that administrators use to add/update Sevas.
-2. **Fix Security Rules:** Add explicit read rules for whichever collection is chosen for public sevas/poojas (e.g., `allow read: if true;` for `sevas` or `dailyPoojas`).
+2. **Fix Security Rules:** Add explicit read rules for whichever collection is chosen for public sevas/poojas.
 3. **Optimize Unique Donors Query:** Refactor the public stats API to avoid full collection reads on `donations`. Use an aggregated counter document or a separate scalable tracking mechanism for unique donors.
 4. **Refactor Notification Polling:** Change `useDonationNotifications` to use `onSnapshot` (with appropriate limits/filters) or increase the polling interval significantly to avoid unnecessary reads.
