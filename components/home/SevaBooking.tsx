@@ -6,9 +6,9 @@ import toast from "react-hot-toast";
 import { X, Copy, Check } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { poojaService } from "@/services/pooja.service";
+import { sevaService } from "@/services/seva.service";
 import { sevaBookingService } from "@/services/sevaBooking.service";
-import { DailyPooja } from "@/types/pooja";
+import { Seva } from "@/types/seva";
 import { useFinanceSettings } from "@/hooks/useFinanceSettings";
 
 import Button from "@/components/ui/button";
@@ -19,8 +19,8 @@ import SevaReceipt from "./SevaReceipt";
 export default function SevaBooking() {
   const { user, profile, loading } = useAuth();
   const { upiEnabled, upiDetails } = useFinanceSettings();
-  const [poojas, setPoojas] = useState<DailyPooja[]>([]);
-  const [selectedSeva, setSelectedSeva] = useState<DailyPooja | null>(null);
+  const [poojas, setPoojas] = useState<Seva[]>([]);
+  const [selectedSeva, setSelectedSeva] = useState<Seva | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
@@ -53,10 +53,11 @@ export default function SevaBooking() {
     async function loadSevas() {
       setLoadingSevas(true);
       try {
-        const data = await poojaService.getPoojas();
+        const data = await sevaService.getAllSevas();
+        const sortedData = data.sort((a, b) => (a.displayOrder ?? 9999) - (b.displayOrder ?? 9999));
         setPoojas(
-          data.filter(
-            (item) => item.isActive && item.sevaAmount > 0
+          sortedData.filter(
+            (item) => item.active && item.amount > 0
           )
         );
       } catch (error) {
@@ -147,8 +148,8 @@ export default function SevaBooking() {
       
       const newBookingId = await sevaBookingService.createBooking({
         sevaId: selectedSeva.id,
-        sevaTitle: selectedSeva.title,
-        sevaAmount: selectedSeva.sevaAmount,
+        sevaTitle: selectedSeva.name,
+        sevaAmount: selectedSeva.amount,
         userId: user.uid,
         userName: name || profile?.name || "",
         userEmail: email || user.email || "",
@@ -189,8 +190,8 @@ export default function SevaBooking() {
         devoteeName: name || profile?.name || "",
         phone: phone,
         sevaDate: preferredDate,
-        sevaTitle: selectedSeva?.title || "",
-        sevaAmount: selectedSeva?.sevaAmount || 0,
+        sevaTitle: selectedSeva?.name || "",
+        sevaAmount: selectedSeva?.amount || 0,
         paymentReference: paymentReference.trim(),
       });
 
@@ -291,17 +292,17 @@ export default function SevaBooking() {
                   >
                     <div className="flex items-center justify-between gap-4">
                       <h4 className="text-lg font-semibold text-stone-900">
-                        {seva.title}
+                        {seva.name}
                       </h4>
                       <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">
-                        ₹{seva.sevaAmount.toLocaleString("en-IN")}
+                        ₹{seva.amount.toLocaleString("en-IN")}
                       </span>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-stone-600">
                       {seva.description}
                     </p>
                     <p className="mt-4 text-sm text-stone-500">
-                      {seva.category} seva · {seva.duration}
+                      {seva.category} seva · {seva.duration} mins
                     </p>
                   </button>
                 ))}
@@ -323,7 +324,7 @@ export default function SevaBooking() {
               <div className="rounded-3xl border border-stone-200 bg-stone-50 p-4">
                 <p className="text-sm text-stone-500">Selected Seva</p>
                 <p className="mt-2 text-base font-medium text-stone-900">
-                  {selectedSeva ? selectedSeva.title : "Select a seva above"}
+                  {selectedSeva ? selectedSeva.name : "Select a seva above"}
                 </p>
               </div>
 
@@ -405,7 +406,7 @@ export default function SevaBooking() {
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-orange-800">
-                {selectedSeva?.title}
+                {selectedSeva?.name}
               </h2>
               <button
                 onClick={() => setShowConfirmDialog(false)}
@@ -444,7 +445,7 @@ export default function SevaBooking() {
 
               <div className="text-center">
                 <p className="text-lg font-semibold text-stone-800">
-                  Seva Fee: <span className="text-orange-700">₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
+                  Seva Fee: <span className="text-orange-700">₹{selectedSeva?.amount?.toLocaleString("en-IN")}</span>
                 </p>
               </div>
 
@@ -505,7 +506,7 @@ export default function SevaBooking() {
                 <div className="p-4 space-y-2">
                   <div className="flex justify-between">
                     <span className="text-stone-600">Seva:</span>
-                    <span className="font-medium">{selectedSeva?.title}</span>
+                    <span className="font-medium">{selectedSeva?.name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-600">Date:</span>
@@ -518,7 +519,7 @@ export default function SevaBooking() {
                   <hr className="my-2" />
                   <div className="flex justify-between text-lg font-bold">
                     <span>Amount:</span>
-                    <span className="text-green-700">₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}</span>
+                    <span className="text-green-700">₹{selectedSeva?.amount?.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               </div>
@@ -584,7 +585,7 @@ export default function SevaBooking() {
                     className="w-full bg-green-600 hover:bg-green-700"
                   >
                     <Copy className="mr-2 h-4 w-4" />
-                    Copy UPI ID &amp; Pay ₹{selectedSeva?.sevaAmount?.toLocaleString("en-IN")}
+                    Copy UPI ID &amp; Pay ₹{selectedSeva?.amount?.toLocaleString("en-IN")}
                   </Button>
 
                   <p className="text-center text-sm text-stone-500 mt-3">

@@ -74,7 +74,7 @@ service cloud.firestore {
     }
     
     match /sevas/{sevaId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
