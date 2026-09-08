@@ -14,7 +14,7 @@ interface TargetDailyPooja {
   days: string[];
   notes: string | null;
   created_by: string | null;
-  created_at: string | null;
+  created_at: string;
 }
 
 function toDate(firestoreTimestamp: any): string | null {
@@ -23,7 +23,8 @@ function toDate(firestoreTimestamp: any): string | null {
     return firestoreTimestamp.toDate().toISOString();
   }
   if (typeof firestoreTimestamp === "string") {
-    return new Date(firestoreTimestamp).toISOString();
+    const d = new Date(firestoreTimestamp);
+    if (!isNaN(d.getTime())) return d.toISOString();
   }
   return null;
 }
@@ -41,21 +42,24 @@ async function run() {
     const db = await getAdminFirestore();
     const supabase = createAdminClient();
 
+    // 1. Fetch Source Set
     const collectionRef = db.collection("dailyPoojas");
     const snapshot = await collectionRef.get();
-    const totalDocs = snapshot.size;
+    const totalSourceDocs = snapshot.size;
 
-    console.log(`Found ${totalDocs} documents in Firestore 'dailyPoojas'.`);
+    console.log(`Found ${totalSourceDocs} documents in Firestore 'dailyPoojas'.`);
 
-    if (totalDocs === 0) {
+    if (totalSourceDocs === 0) {
       console.log("No documents to migrate.");
       process.exit(0);
     }
 
     const recordsToUpsert: TargetDailyPooja[] = [];
-    const failures: { id: string; reason: string }[] = [];
+    const extractionFailures: { id: string; reason: string }[] = [];
+    const sourceIdsMap = new Map<string, TargetDailyPooja>();
+    let duplicateSourceIdsCount = 0;
 
-    // 1. Extraction and Transformation
+    // 2. Extraction and Validation
     for (const doc of snapshot.docs) {
       const id = doc.id;
       const data = doc.data();
@@ -69,9 +73,10 @@ async function run() {
         if (typeof data.sevaAmount !== "number") throw new Error(`Invalid or missing required field 'sevaAmount': ${data.sevaAmount}`);
         if (!Array.isArray(data.days)) throw new Error("Missing or invalid required field 'days'");
 
-        const created_at = toDate(data.createdAt) || new Date().toISOString();
+        const created_at = toDate(data.createdAt);
+        if (!created_at) throw new Error(`Missing or invalid timestamp for createdAt: ${data.createdAt}`);
 
-        recordsToUpsert.push({
+        const record: TargetDailyPooja = {
           firestore_id: id,
           title: data.title,
           description: data.description,
@@ -85,33 +90,24 @@ async function run() {
           notes: data.notes || null,
           created_by: data.createdBy || null,
           created_at,
-        });
+        };
+
+        if (sourceIdsMap.has(id)) {
+          duplicateSourceIdsCount++;
+          throw new Error("Duplicate source ID");
+        }
+
+        sourceIdsMap.set(id, record);
+        recordsToUpsert.push(record);
       } catch (err: any) {
-        failures.push({ id, reason: err.message });
+        extractionFailures.push({ id, reason: err.message });
       }
     }
 
-    // 2. Loading (Upsert)
-    let newInsertsCount = 0;
-    let updateCount = 0;
-    let writeFailureCount = 0;
+    // 3. Loading (Upsert)
+    const writeFailures: { id: string; reason: string }[] = [];
 
     if (!isDryRun && recordsToUpsert.length > 0) {
-      const { data: existingRecords, error: lookupError } = await supabase
-        .from("daily_poojas")
-        .select("firestore_id")
-        .in(
-          "firestore_id",
-          recordsToUpsert.map((r) => r.firestore_id)
-        );
-
-      if (lookupError) {
-        console.error("Error looking up existing records in Supabase:", lookupError);
-        throw lookupError;
-      }
-
-      const existingIds = new Set(existingRecords?.map((r) => r.firestore_id) || []);
-
       const { error } = await supabase.from("daily_poojas").upsert(recordsToUpsert, { onConflict: "firestore_id" });
 
       if (error) {
@@ -119,123 +115,119 @@ async function run() {
         for (const record of recordsToUpsert) {
           const { error: individualError } = await supabase.from("daily_poojas").upsert(record, { onConflict: "firestore_id" });
           if (individualError) {
-            writeFailureCount++;
-            failures.push({ id: record.firestore_id, reason: individualError.message });
-          } else {
-            if (existingIds.has(record.firestore_id)) updateCount++;
-            else newInsertsCount++;
+            writeFailures.push({ id: record.firestore_id, reason: individualError.message });
           }
         }
-      } else {
-        for (const record of recordsToUpsert) {
-          if (existingIds.has(record.firestore_id)) updateCount++;
-          else newInsertsCount++;
-        }
       }
-    } else if (isDryRun) {
-      newInsertsCount = recordsToUpsert.length;
     }
 
-    // 3. Reconciliation
-    let finalSupabaseCount = 0;
-    let duplicateIdsCount = 0;
-    let fieldMismatchesCount = 0;
-
-    const validationFailureCount = failures.length - writeFailureCount;
+    // 4. Independent Reconciliation
+    let targetDocsCount = 0;
+    let duplicateTargetIdsCount = 0;
+    const missingTargetIds: string[] = [];
+    const extraTargetIds: string[] = [];
+    const fieldMismatches: { id: string; reason: string }[] = [];
+    let matchedIdsCount = 0;
 
     if (!isDryRun) {
-      // 3.1 Fetch all from Supabase
-      const { data: sbData, count: sbCount, error: countError } = await supabase
-        .from("daily_poojas")
-        .select("*", { count: "exact" });
+      const { data: sbData, error: fetchError } = await supabase.from("daily_poojas").select("*");
+      if (fetchError) throw fetchError;
 
-      if (countError) throw countError;
-      finalSupabaseCount = sbCount || 0;
+      targetDocsCount = sbData.length;
+      const targetIdsMap = new Map<string, any>();
 
-      // 3.2 Compare field-by-field
-      if (sbData) {
-        const sbMap = new Map(sbData.map(r => [r.firestore_id, r]));
+      for (const row of sbData) {
+        const id = row.firestore_id;
+        if (targetIdsMap.has(id)) {
+          duplicateTargetIdsCount++;
+        }
+        targetIdsMap.set(id, row);
 
-        // Count duplicates
-        const fsIds = recordsToUpsert.map(r => r.firestore_id);
-        const uniqueFsIds = new Set(fsIds);
-        duplicateIdsCount = fsIds.length - uniqueFsIds.size;
+        if (!sourceIdsMap.has(id)) {
+          extraTargetIds.push(id);
+        }
+      }
 
-        for (const source of recordsToUpsert) {
-          const target = sbMap.get(source.firestore_id);
-          if (!target) continue;
+      for (const [sourceId, sourceRecord] of sourceIdsMap) {
+        if (!targetIdsMap.has(sourceId)) {
+          missingTargetIds.push(sourceId);
+          continue;
+        }
 
-          let mismatch = false;
-          let mismatchReason = "";
+        matchedIdsCount++;
+        const targetRecord = targetIdsMap.get(sourceId);
+        let mismatchReason = "";
 
-          // Timestamps
-          if (source.created_at && target.created_at) {
-            if (new Date(source.created_at).getTime() !== new Date(target.created_at).getTime()) {
-              mismatch = true;
-              mismatchReason += "timestamp, ";
-            }
-          }
+        if (sourceRecord.title !== targetRecord.title) mismatchReason += "title, ";
+        if (sourceRecord.description !== targetRecord.description) mismatchReason += "description, ";
+        if (sourceRecord.start_time !== targetRecord.start_time) mismatchReason += "start_time, ";
+        if (sourceRecord.duration !== targetRecord.duration) mismatchReason += "duration, ";
+        if (sourceRecord.category !== targetRecord.category) mismatchReason += "category, ";
+        if (Number(sourceRecord.seva_amount) !== Number(targetRecord.seva_amount)) mismatchReason += "seva_amount, ";
+        if (sourceRecord.is_active !== targetRecord.is_active) mismatchReason += "is_active, ";
+        if (sourceRecord.display_order !== targetRecord.display_order) mismatchReason += "display_order, ";
 
-          // Amounts
-          if (Number(source.seva_amount) !== Number(target.seva_amount)) {
-            mismatch = true;
-            mismatchReason += "amount, ";
-          }
+        const targetDays = targetRecord.days || [];
+        if (sourceRecord.days.length !== targetDays.length || !sourceRecord.days.every((val, i) => val === targetDays[i])) {
+          mismatchReason += "days, ";
+        }
 
-          // Days Array
-          const targetDays = target.days || [];
-          if (source.days.length !== targetDays.length || !source.days.every((val, index) => val === targetDays[index])) {
-            mismatch = true;
-            mismatchReason += "days-array, ";
-          }
+        if (sourceRecord.notes !== targetRecord.notes) mismatchReason += "notes, ";
+        if (sourceRecord.created_by !== targetRecord.created_by) mismatchReason += "created_by, ";
 
-          // Status & Display Order
-          if (source.is_active !== target.is_active) {
-            mismatch = true;
-            mismatchReason += "active, ";
-          }
-          if (source.display_order !== target.display_order) {
-            mismatch = true;
-            mismatchReason += "display-order, ";
-          }
+        if (new Date(sourceRecord.created_at).getTime() !== new Date(targetRecord.created_at).getTime()) {
+          mismatchReason += "created_at, ";
+        }
 
-          // Title/Description
-          if (source.title !== target.title || source.description !== target.description || source.category !== target.category) {
-            mismatch = true;
-            mismatchReason += "string-fields, ";
-          }
-
-          if (mismatch) {
-            fieldMismatchesCount++;
-            failures.push({ id: source.firestore_id, reason: `Reconciliation mismatch: ${mismatchReason}` });
-          }
+        if (mismatchReason) {
+          fieldMismatches.push({ id: sourceId, reason: mismatchReason });
         }
       }
     }
 
-    const matchedCount = newInsertsCount + updateCount;
-    const missingCount = totalDocs - matchedCount - validationFailureCount;
+    // 5. Final Report
+    const totalFailures = duplicateSourceIdsCount + duplicateTargetIdsCount + missingTargetIds.length + extraTargetIds.length + fieldMismatches.length + extractionFailures.length + writeFailures.length;
+    const isClean = !isDryRun && totalFailures === 0 && targetDocsCount === totalSourceDocs;
 
-    // Report
     console.log(`\n=== FINAL REPORT ===`);
-    console.log(`SOURCE COUNT: ${totalDocs}`);
-    console.log(`SUPABASE COUNT: ${isDryRun ? "N/A (Dry Run)" : finalSupabaseCount}`);
-    console.log(`MATCHED: ${matchedCount}`);
-    console.log(`MISSING: ${missingCount}`);
-    console.log(`EXTRA: ${isDryRun ? "N/A" : Math.max(0, finalSupabaseCount - totalDocs)}`);
-    console.log(`DUPLICATES: ${duplicateIdsCount}`);
-    console.log(`FIELD MISMATCHES: ${fieldMismatchesCount + validationFailureCount}`);
-
-    const isClean = missingCount === 0 && writeFailureCount === 0 && fieldMismatchesCount === 0;
+    console.log(`SOURCE COUNT: ${totalSourceDocs}`);
+    console.log(`DESTINATION COUNT: ${isDryRun ? "N/A (Dry Run)" : targetDocsCount}`);
+    console.log(`MATCHED: ${isDryRun ? "N/A" : matchedIdsCount}`);
+    console.log(`MISSING: ${isDryRun ? "N/A" : missingTargetIds.length}`);
+    console.log(`EXTRA: ${isDryRun ? "N/A" : extraTargetIds.length}`);
+    console.log(`DUPLICATES: ${duplicateSourceIdsCount + duplicateTargetIdsCount}`);
+    console.log(`FIELD MISMATCHES: ${isDryRun ? "N/A" : fieldMismatches.length}`);
+    console.log(`TRANSFORMATION FAILURES: ${extractionFailures.length}`);
+    console.log(`WRITE FAILURES: ${writeFailures.length}`);
 
     console.log(`\nRESULT: ${isClean ? "PASS" : "FAIL"}`);
 
-    if (failures.length > 0) {
-      console.log(`\nFailures details:`);
-      failures.forEach((f) => console.log(` - ID: ${f.id}, Reason: ${f.reason}`));
+    if (extractionFailures.length > 0) {
+      console.log("\nTransformation Failures:");
+      extractionFailures.forEach(f => console.log(` - ${f.id}: ${f.reason}`));
+    }
+    if (writeFailures.length > 0) {
+      console.log("\nWrite Failures:");
+      writeFailures.forEach(f => console.log(` - ${f.id}: ${f.reason}`));
+    }
+    if (missingTargetIds.length > 0) {
+      console.log("\nMissing Destination IDs:");
+      missingTargetIds.forEach(id => console.log(` - ${id}`));
+    }
+    if (extraTargetIds.length > 0) {
+      console.log("\nExtra Destination IDs:");
+      extraTargetIds.forEach(id => console.log(` - ${id}`));
+    }
+    if (fieldMismatches.length > 0) {
+      console.log("\nField Mismatches:");
+      fieldMismatches.forEach(f => console.log(` - ${f.id}: ${f.reason}`));
+    }
+
+    if (!isClean && !isDryRun) {
+      process.exit(1);
     }
   } catch (error: any) {
-    console.error("Migration failed:", error);
+    console.error("\nMigration unexpectedly failed:", error);
     console.log(`\n=== FINAL REPORT ===\nRESULT: BLOCKED\nReason: ${error.message}`);
     process.exit(1);
   }
