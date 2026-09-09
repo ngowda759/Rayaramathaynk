@@ -1,18 +1,7 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
 import { TempleEvent } from "@/types/event";
+import { createClient } from "@/lib/supabase/client";
 
-const COLLECTION = "events";
+const supabase = createClient();
 
 // Helper function to convert date to timestamp for sorting
 function toTimestamp(date: any): number {
@@ -29,19 +18,35 @@ function toTimestamp(date: any): number {
   return 0;
 }
 
+function mapSupabaseEventToTempleEvent(event: any): TempleEvent {
+  return {
+    id: event.firestore_id,
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    startDate: event.start_date,
+    endDate: event.end_date,
+    startTime: event.start_time,
+    endTime: event.end_time,
+    featured: event.featured,
+    published: event.published,
+    category: event.category,
+    imageUrl: event.image_url,
+    status: event.status,
+    createdAt: event.created_at,
+    updatedAt: event.updated_at,
+  };
+}
+
 class EventService {
   async getEvents(): Promise<TempleEvent[]> {
-    console.log("[EventService] getEvents called");
-    console.log("[EventService] db is:", db ? "defined" : "null/undefined");
-    
-    if (!db) {
-      console.log("[EventService] Firebase not configured, returning empty array");
-      return [];
-    }
+    console.log("[EventService] getEvents called from Supabase");
     
     try {
-      const snapshot = await getDocs(collection(db, COLLECTION));
-      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as TempleEvent[];
+      const { data, error } = await supabase.from('events').select('*');
+      if (error) throw error;
+
+      return data.map(mapSupabaseEventToTempleEvent);
     } catch (error) {
       console.error("[EventService] Error fetching events:", error);
       return [];
@@ -49,11 +54,13 @@ class EventService {
   }
 
   async getEvent(id: string): Promise<TempleEvent | null> {
-    if (!db) return null;
     try {
-      const snap = await getDoc(doc(db, COLLECTION, id));
-      if (!snap.exists()) return null;
-      return { id: snap.id, ...snap.data() } as TempleEvent;
+      const { data, error } = await supabase.from('events').select('*').eq('firestore_id', id).single();
+      if (error) {
+        if (error.code === 'PGRST116') return null; // not found
+        throw error;
+      }
+      return mapSupabaseEventToTempleEvent(data);
     } catch (error) {
       console.error("[EventService] Error fetching event:", error);
       return null;
@@ -61,18 +68,15 @@ class EventService {
   }
 
   async addEvent(event: TempleEvent) {
-    if (!db) throw new Error("Firebase not configured");
-    return addDoc(collection(db, COLLECTION), { ...event, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    throw new Error("addEvent not supported in migration mode");
   }
 
   async updateEvent(id: string, event: Partial<TempleEvent>) {
-    if (!db) throw new Error("Firebase not configured");
-    return updateDoc(doc(db, COLLECTION, id), { ...event, updatedAt: serverTimestamp() });
+     throw new Error("updateEvent not supported in migration mode");
   }
 
   async deleteEvent(id: string) {
-    if (!db) throw new Error("Firebase not configured");
-    return deleteDoc(doc(db, COLLECTION, id));
+     throw new Error("deleteEvent not supported in migration mode");
   }
 
   async getPublishedEvents(): Promise<TempleEvent[]> {
