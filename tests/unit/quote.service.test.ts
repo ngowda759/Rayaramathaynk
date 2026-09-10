@@ -485,13 +485,13 @@ function selectByFestival(context: QuoteSelectionContext, quotes: Quote[]): Quot
   if (!context.isFestival || !context.festivalName) return null;
   
   const festivalKey = matchFestival(context.festivalName);
-  if (!festivalKey) return null;
+  if (!festivalKey) return quotes.length > 0 ? quotes[0] : null;
   
   const festivalQuotes = quotes.filter(q => 
     q.festivalNames.includes(festivalKey)
   );
   
-  if (festivalQuotes.length === 0) return null;
+  if (festivalQuotes.length === 0) return quotes.length > 0 ? quotes[0] : null;
   
   return deterministicSelect(festivalQuotes, getDateString(context.date));
 }
@@ -519,6 +519,11 @@ function selectByPriority(quotes: Quote[], context: QuoteSelectionContext): Quot
   }
   
   // Fall back to priority-sorted quotes
+  const nonFestivalQuotes = sorted.filter(q => !q.festivalOnly);
+  if (nonFestivalQuotes.length > 0) {
+    return deterministicSelect(nonFestivalQuotes, getDateString(context.date));
+  }
+
   if (sorted.length > 0) {
     return deterministicSelect(sorted, getDateString(context.date));
   }
