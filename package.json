@@ -23,7 +23,9 @@
     "generate:aaradhane": "npx tsx scripts/generate-aaradhane.ts",
     "seed:guru-parampara": "npx tsx scripts/seed-guru-parampara.ts",
     "generate:proof-report": "npx ts-node --project tsconfig.scripts.json scripts/generate-proof-report.ts",
-    "save:report": "npx tsx scripts/save-report.ts"
+    "save:report": "npx tsx scripts/save-report.ts",
+    "firestore:dump": "bash scripts/dump-firestore-configs.sh",
+    "firestore:convert": "tsx scripts/convert-firestore-export.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
