@@ -89,7 +89,7 @@ describe("Knowledge Base", () => {
     it("should return articles without IDs", () => {
       const articles = getSeedArticlesForFirebase();
       articles.forEach((article) => {
-        // expect((article as Record<string, unknown>).id).toBeUndefined();
+        expect((article as Record<string, unknown>).id).toBeUndefined();
       });
     });
 
