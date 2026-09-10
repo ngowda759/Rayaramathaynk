@@ -442,3 +442,9 @@ Before contributing, read these docs:
 ---
 
 > ✅ **Provide this completion report when marking a task as complete.**
+
+## Firestore dump / Supabase migration tooling (added 2026-09-10(
+
+- `npm run firestore:dump` = `tsx scripts/dump-firestore-live.ts` — live REST v1 dump (service account `.firebase-adminsdk.json`, JWT via google-auth-library datastore scope(,, paginated, excludes users/profiles/bookmarks/sessions (auth-owned(,, writes NDJSON wire + decoded JSON + MANIFEST classification (present / expected-known-missing / intentionallyExcluded / unexpected / failed(.
+- `npm run firestore:dump:cli` = legacy `bash scripts/dump-firestore-configs.sh` (Firebase CLI export path(; `npm run firestore:convert` = TS CLI-to-decoded converter` Convert helper: `scripts/lib/firestore-values.ts`.
+- Quirk: Firestore free tier ~50k reads/day; `page_views` ~47k docs, so one full dump/day; REST gets 429 RESOURCE_EXHAUSTED; the live dumper retries 48x discovery +  5x/collection with backoff; leave it parked until quota resets. Auth migrates separately via Supabase Auth..

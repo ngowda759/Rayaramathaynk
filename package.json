@@ -23,7 +23,11 @@
     "generate:aaradhane": "npx tsx scripts/generate-aaradhane.ts",
     "seed:guru-parampara": "npx tsx scripts/seed-guru-parampara.ts",
     "generate:proof-report": "npx ts-node --project tsconfig.scripts.json scripts/generate-proof-report.ts",
-    "save:report": "npx tsx scripts/save-report.ts"
+    "save:report": "npx tsx scripts/save-report.ts",
+    "firestore:dump": "tsx scripts/dump-firestore-live.ts",
+    "firestore:convert": "tsx scripts/convert-firestore-export.ts",
+    "firestore:dump:cli": "bash scripts/dump-firestore-configs.sh",
+    "firestore:dump:convert": "tsx scripts/convert-firestore-export.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -45,7 +49,6 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.15.0",
-    "firebase-tools": "^15.24.0",
     "framer-motion": "^12.42.0",
     "google-auth-library": "^10.9.0",
     "lucide-react": "^1.21.0",
@@ -83,6 +86,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.2.9",
     "firebase-admin": "^14.1.0",
+    "firebase-tools": "^15.30.0",
     "jest": "^29.7.0",
     "playwright": "^1.61.1",
     "tailwindcss": "^4",
