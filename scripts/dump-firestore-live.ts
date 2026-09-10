@@ -78,14 +78,13 @@ async function listAll( col: string ): Promise< FirestoreWireDoc[] > {
       } catch ( e ) {
         const m = e instanceof Error ? ( e.name === "AbortError" ? "timeout after 90s" : String( e ) ) : String( e );
         if ( attempt === 4 ) {
-          console.error( "  FAILED " + col + ": " + m ); failed.push( col ); ok = true;
-          process.exit( 1 );
+          console.error( "  FAILED " + col + ": " + m ); failed.set( col,m ); ok = true;
         }
         console.log( "  " + col + " attempt " + attempt + " failed: " + m + " retrying" );
         await new Promise( ( r ) => setTimeout( r, 5000 * ( attempt + 1 ) ) );
       }
     }
-    if ( body === null ) { process.exit( 1 ); }
+    if ( body === null ) { failed.set( col,"pagination exhausted before completion" ); break; }
     guard++;
   }
   return out;
@@ -95,11 +94,11 @@ fs.mkdirSync( ED, { recursive: true } );
 fs.mkdirSync( DD, { recursive: true } );
 
 const present = new Map< string, number >();
-const failed: Array< string > = [];
+const failed = new Map< string, string >();
 for ( const c of ids ) {
   if ( EXCLUDED.includes( c ) ) { console.log( "SKIP excluded " + c ); continue; }
   const docs = await listAll( c );
-  if ( failed.includes( c ) ) { continue; }
+  if ( failed.has( c ) ) { continue; }
   if ( docs.length === 0 && !EXPECTED.includes( c ) ) { console.log( "SKIP empty-unexpected " + c ); continue; }
   const wire = docs.map( ( d ) => JSON.stringify( d ) );
   fs.writeFileSync( path.join( ED, c + ".ndjson" ), wire.join( NL ) + ( wire.length ? NL : "" ) );
@@ -116,21 +115,29 @@ for ( const [ c, n ] of present ) {
   totalDocs += n;
 }
 const missing: Array< string > = [];
-for ( const c of EXPECTED ) if ( !present.has( c ) && !EXCLUDED.includes( c ) ) missing.push( c );
+for ( const c of EXPECTED ) if ( !present.has( c ) && !EXCLUDED.includes( c ) && !failed.has( c ) ) missing.push( c );
 for ( const c of missing ) collections.push( { collection: c, status: "expected-known-missing", docCount: 0, file: null, reason: "Known from code/rules but not live: verify empty" } );
 for ( const c of EXCLUDED ) if ( present.has( c ) ) collections.push( { collection: c, status: "intentionallyExcluded", docCount: present.get( c ), file: c + ".ndjson", reason: "Auth-related: owned by Firebase Auth, excluded from dump/migration" } );
 for ( const [ c,n ] of present ) if ( !EXPECTED.includes( c ) && !EXCLUDED.includes( c ) ) collections.push( { collection: c, status: "unexpected", docCount: n, file: c + ".ndjson", reason: "Found live but not in code/rules: verify" } );
-
-fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project: k.project_id, discoveredCollections: ids.length, totalCollections: present.size, totalDocs, collections }, null, 2 ) + NL );
+for ( const [ c,r ] of failed ) collections.push( { collection: c, status: "failed", docCount: 0, file: null, reason: r } );
 
 if ( missing.length ) {
-  console.error( "FAIL: expected-known collections missing from live: " + missing.join( ", " ) );
-  process.exitCode = 1;
+  console.warn( "WARNING: expected-known collections not found live: " + missing.join( ", " ) );
 } else {
   console.log( "All " + EXPECTED.length + " expected-known collections accounted for." );
 }
-console.log( "Live dump complete: " + present.size + " collections, " + totalDocs + " docs, " + ED + " / " + DD );
-
+if ( failed.size >  0 ) {
+  console.error( "FAILED collections (" + failed.size + "):" );
+  for ( const [ c,r ] of failed ) console.error( "  - " + c + ": " + r );
 }
-
-main();
+fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project: k.project_id, discoveredCollections: ids.length, totalCollections: present.size, totalDocs, totalFailed: failed.size, collections }, null, 2 ) + NL );
+console.log( "Live dump complete: " + present.size + " dumped, " + failed.size + " failed, " + totalDocs + " docs, " + ED + " / " + DD );
+if ( failed.size >  0 ) process.exitCode =  1;
+}
+main().catch( ( e ) => {
+  const m = e instanceof Error ? String( e ) : String( e );
+  console.error( "FATAL: " + m );
+  fs.mkdirSync( DD, { recursive: true } );
+  fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project: k.project_id, discoveredCollections: 0, totalCollections:  0, totalDocs:  0, totalFailed:  1, collections: [ { collection: "(fatal)", status: "failed", docCount:  0, file: null, reason: m } ] }, null,2 ) + NL );
+  process.exitCode =  1;
+} );
