@@ -1,98 +1,75 @@
-# Firestore Config Dump - Review & Supabase Migration
+# Firestore dump (all non-auth data)
 
-Full dump of every non-authentication Firestore config/collection for review and migration to Supabase. Produced with the Firebase CLI (firebase firestore:export) - no Admin SDK, no REST API.
+Live dump of every Firestore collection in project sri-raghavendra-mutt, except auth-owned collections.
 
-## Why this exists
+Produced by:
+- npm run firestore:dump     -> scripts/dump-firestore-live.ts (REST v1 + service-account JWT, paginated, retries until quota frees)
+- npm run firestore:dump:cli -> Firebase CLI export wrapper (legacy path)
+- npm run firestore:convert -> converts a Firebase CLI export dir into the same layout
 
-You asked for "all the configs from Firestore except authentication". Everything the app reads or writes is in the inventory below. Firebase Auth user records are NOT stored in Firestore ( they live in Firebase Auth itself), so they are intentionally excluded. Auth-related collections excluded from the dump: users, profiles, bookmarks, sessions.
+Excluded (auth-owned, not config domain): users, profiles, bookmarks, sessions. Migrate those via Supabase Auth.
 
+## Live inventory (probed 2026-09-10)
 
+27 collections discovered (raw REST v1 probe with pagination):
 
-## How to regenerate
+| collection | docs |
+|---|---|
+| aaradhane | 2 |
+| ai_settings |  1 |
+| announcements |  2 |
+| chat_sessions |  19 |
+| dailyPoojas |  26 |
+| donations |  1 |
+| eventRegistrations |  1 |
+| events |  36 |
+| feedback |  2 |
+| galleryAlbums |   4 |
+| guruParampara |   1 |
+| homepage |   1 |
+| knowledge |   5 |
+| members |   1 |
+| messages | 101 |
+| page_views |  ~47k |
+| quotes |   (pending) |
+| settings |   (pending) |
+| sevaBookings |  (pending) |
+| sevas |  (pending) |
+| test |  0 |
+| testimonials |   (pending) |
+| timings |  (pending) |
+| unknown_questions |32 (pending) |
+| users |  (excluded) |
+| volunteers |  (pending) |
+| website-settings |  (pending) |
 
-```bash
-npm install -g firebase-tools     # if not already installed
-firebase login                     # one-time (or export FIREBASE_TOKEN=... for CI)
-npm run firestore:dump            # export + convert in one shot
-```
+Note: quote/settings/sevaBookings/sevas/testimonials/timings/unknown_questions/volunteers/website-settings counts pending because the probe hit Firestore read quota 429 (RESOURCE_EXHAUSTED) after the big page_views fetch; the parked dump retries until quota resets and fills real files.
 
-Output:
-- data/firestore-export/ - raw Firebase CLI export (Firestore format)
-- data/firestore-dump/<collection>.json - human-reviewable JSON array of docs
-- data/firestore-dump/MANIFEST.json - inventory: collection -> file -> doc count
+## Code-known collections not present live (verify if empty or not yet created((
 
+receipts, receiptSevas, panchanga, temple_areas, poojas, galleryMedia, futurePlans,
+trustCommittee, trust, donationCampaigns, donation_campaigns, bills, volunteer_requests, system,
+ai_token_usage, ai_latency_records, ai_intent_distribution, ai_unknown_questions,
+chat_messages, chatTraining, chat_metrics, intent_metrics, intent_feedback, daily_page_stats,
+notifications, knowledge_articles, knowledge_categories, knowledge_workflow, knowledge_versions,
+knowledge_workflow_actions, knowledge_review_comments, knowledge_committee_approvals,
+knowledge_audit_log, knowledge_drafts, featuredContent, aaradhanes, gallery.
 
+The MANIFEST.json (written at end of each dump run( marks these as expected-known-missing.
 
-## Review layout
+## Migrating to Supabase
 
-Each <collection>.json is an array of docs:
+1. Run npm run firestore:dump until MANIFEST shows no failed/unexpected needing review.
+2. Each .json is a decoded array (Timestamps become ISO strings, Maps/GeoPoints/References decoded per scripts/lib/firestore-values.ts).
+3. Design schema: config-like collections fit JSONB columns; relational collections (sevaBookings, eventRegistrations, donations) fit normalized tables. Keep doc IDs as PKs (references stay intact).
+4. Migrate auth separately via Supabase Auth (users etc excluded here(. Mirror auth.users for FK-linked display data (e.g. donations.userId(.
+5. Insert order: parents first (settings, sevas, aaradhane, timings, announcements, events), then children (sevaBookings, eventRegistrations, donations, messages, page_views(.
+6. page_views is ~47k rows: batch insert (2k/batch( and index createdAt/doc-id.
+7. Tooling: Postgres COPY from NDJSON works well; or pg-migrate with JSONB for config-like collections.
 
-```json
-{ "id": "<document id>", "exists": true, "fields": { "fieldName": value]; ... } }
-```
+## Quota note
 
-Firestore timestamps are decoded to ISO-8601 strings, document references to full paths, and nested maps/arrays to plain JSON (the same shape you see in the Firebase Console.
+Firestore free tier is ~50k document reads/day (plus per-minute rate(. REST list counts as a read per doc; page_views alone is ~47k reads, so one big dump/day.
+The parked npm run firestore:dump retries 48x for discovery with backoff and 5x per collection, so it compleTes on its own when quota resets. Do not run parallel instances.
 
-
-
-## Collection inventory / Supabase migration map
-
-Auth-related collections (excluded from dump(: users, profiles, bookmarks, sessions
-
-| Firestore collection | What it is | Proposed Supabase table | Notes |
-|---|---|---|---|
-| settings | Site settings: about us, trust committee, finance, social | settings (key/value or single row) | Docs: config, aboutUs, socialLinks, trustCommittee, bankDetails... |
-| homepage | Homepage hero / features / carousels | homepage | Doc: config |
-| futurePlans | Future plans section | future_plans | |
-| trust | Trust committee (AI KB source) | trust_committee | |
-| announcements | Announcements / notices | announcements | Public read, admin write |
-| events | Temple events & festivals | events | Public read, admin write |
-| aaradhane, aaradhanes | Deity worship schedules | aaradhanes | Both names in code - pick one |
-| timings | Temple darshan timings | timings | |
-| sevas | Seva catalogue (also Receipt-sevas catalogue) | sevas | Already migrated (supabase/migrations/20260908120000_create_sevas_table.sql) |
-| receiptSevas | Receipt-book seva catalogue | receipt_sevas | May be empty; code re-uses sevas |
-| receipts | Receipt docs (server-only write, admin read) | receipts | Numbered via system counter |
-| system | Internal counters (receipt numbering) | system_counters | Server-only reads/writes |
-| dailyPoojas | Daily pooja schedule | daily_poojas | Already migrated (core migration SQL) |
-| poojas | Pooja catalogue | poojas | Verify whether live in prod |
-| donations | Donation records | donations | |
-| donationCampaigns; donation_campaigns | Donation campaigns | donation_campaigns | Two names in code - confirm |
-| sevaBookings | Seva bookings | seva_bookings | |
-| bills | Billing records | bills | |
-| volunteers | Volunteer records | volunteers | |
-| volunteer_requests | Volunteer request forms | volunteer_requests | |
-| members | Member records | members | |
-| gallery; galleryAlbums; galleryMedia | Gallery items / albums / media | gallery_albums; gallery_media | |
-| testimonials | Testimonials | testimonials | |
-| temple_areas | Temple Explorer areas | temple_areas | |
-| panchanga | Daily Hindu calendar | panchanga | |
-| quotes | Daily spiritual quotes | quotes | |
-| knowledge; knowledge_articles; knowledge_categories | AI knowledge base | knowledge_articles; knowledge_categories | |
-| chatTraining | AI RAG / chunk corpus | ai_training_chunks | |
-| ai_settings | AI assistant settings | ai_settings | |
-| chat_sessions; messages; chat_metrics | AI chat sessions / messages | chat_sessions; chat_messages | |
-| ai_token_usage; ai_latency_records; ai_intent_distribution; intent_metrics; intent_feedback | AI analytics | ai_token_usage; ai_latency_records; ai_intent_distribution | Ephemeral/log tables - optional |
-| unknown_questions | Unanswered AI questions | unknown_questions | |
-| page_views; daily_page_stats | Analytics | page_views | Ephemeral - optional |
-| feedback | Public feedback | feedback | |
-| notifications | Admin notifications | notifications | |
-
-
-
-## Supabase target
-
-- Existing tables: sevas, daily_poojas, events - see supabase/migrations/.
-- Full proposed schema: docs/SUPABASE_DATABASE_SCHEMA.md..
-- Migration helper: scripts/migrate-core-to-supabase.ts (sevas, daily_poojas, events) - extend it with the tables above once reviewed.
-
-
-
-## Notes & probable dead config
-
-- aaradhane vs aaradhanes - both used in code (aaradhane.service.ts) and both matched in rules. Pick one in Supabase..
-- gallery, poojas, donationCampaigns vs donation_campaigns, receiptSevas, knowledge vs knowledge_articles - code/rules reference similar names, the dump will show which are actually populated...
-- chat_metrics, intent_metrics, intent_feedback, daily_page_stats, sessions - referenced in older code,,may not exist in prod (Firestore export only emits collections that contain documents(
-
-
-
-> **Note:** this directory is generated output,,re-run npm run firestore:dump to refresh it against the live database..
+Output: data/firestore-export/*.ndjson (raw wire docs(, data/firestore-dump/<collection>.json (decoded(, MANIFEST.json (classification(.

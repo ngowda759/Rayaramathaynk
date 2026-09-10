@@ -36,3 +36,9 @@ test-results/
 data/firestore-export/
 data/firestore-dump/*
 !data/firestore-dump/README.md
+
+# Firebase service-account key (never commit!
+.firebase-adminsdk.json
+
+# Temporary live-probe scripts (never commit!
+scripts/.*.mjs

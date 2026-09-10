@@ -1,155 +1,71 @@
 #!/usr/bin/env npx tsx
 /**
- * Convert a Firebase CLI Firestore export into review-friendly JSON.
- *
- * Reads the Firestore export directory (data/firestore-export/) produced by
- * `firebase firestore:export` and writes, per collection, a JSON array of
- * plain JS objects to data/firestore-dump/<collection>.json, plus a manifest.
- *
- * Authentication/User records are NOT dumped —— theey live in Firebase Auth,
- * not Firestore. Collections whose documents only exist per-authenticated-user
- * (users, profiles, bookmarks, sessions(...( are skipped if present.
- */
-
+ * Convert a Firestore export (NDJSON one doc per line( into review-friendly JSON.
+ * Writes data/firestore-dump/<collection>.json plus MANIFEST.json. Behaves as
+ * a safety check: code-known collections that are missing fail the run. Auth
+ * collections (users/profiles/bookmarks/sessions( are excluded: Firebase Auth
+ * owns user records so they are not part of the migration. All other collections
+ * present in the export are dumped regardless of whether code knows them. */
 import * as fs from "fs";
 import * as path from "path";
+import {convertDoc,FirestoreWireDoc} from "./lib/firestore-values";
 
-const ROOT = process.cwd();
-const EXPORT_DIR = process.argv[2] || path.join(ROOT, "data", "firestore-export");
-const DUMP_DIR = process.argv[3] || path.join(ROOT, "data", "firestore-dump");
+const ROOT=process.cwd();
+const EXPECTED:ReadonlyArray<string>=[
+  "aaradhane","aaradhanes","announcements","events","gallery","galleryAlbums","galleryMedia",
+  "homepage","timings","sevas","testimonials","temple_areas","dailyPoojas","poojas",
+  "panchanga","quotes","featuredContent","settings","futurePlans","trustCommittee","trust",
+  "sevaBookings","donations","donationCampaigns","donation_campaigns","bills","receiptSevas",
+  "receipts","system","volunteers","volunteer_requests","members","ai_settings","ai_token_usage",
+  "ai_latency_records","ai_intent_distribution","ai_unknown_questions","chat_sessions","chat_messages",
+  "messages","chatTraining","chat_metrics","intent_metrics","intent_feedback","unknown_questions",
+  "page_views","daily_page_stats","feedback","notifications","knowledge","knowledge_articles",
+  "knowledge_categories","knowledge_workflow","knowledge_versions","knowledge_workflow_actions",
+  "knowledge_review_comments","knowledge_committee_approvals","knowledge_audit_log","knowledge_drafts",
+];
+const EXCLUDED:ReadonlyArray<string>=["users","profiles","bookmarks","sessions"];
 
-const AUTH_COLLECTIONS = new Set([
-  "users",
-  "profiles",
-  "bookmarks",
-  "sessions",
-]);
+function args(argv:string[]):{ed:string;dd:string;proj:string}{
+  let ed=path.join(ROOT,"data","firestore-export"),dd=path.join(ROOT,"data","firestore-dump"),proj=process.env.FIREBASE_PROJECT_ID||"sri-raghavendra-mutt";
+  for(let i=0;i<argv.length;i++){
+    if(argv[i]=="--project"){proj=argv[++i];continue;}
+    if(argv[i]=="--export-dir"){ed=argv[++i];continue;}
+    if(argv[i]=="--dump-dir"){dd=argv[++i];continue;}
+  }
+  return{ed,dd,proj};
+}
+const {ed,dd,proj}=args(process.argv.slice(2));
 
-interface FirestoreExportDoc {
-  name: string;
-  fields: Record<string, unknown>;
-  createTime?: string;
-  updateTime?: string;
+const files=fs.readdirSync(ed)||[];
+const present=new Map<string,number>();
+for(const f of files.filter((x)=>x.endsWith(".ndjson"))){
+  const lines=fs.readFileSync(path.join(ed,f),"utf8").split(String.fromCharCode(10)).filter(Boolean);
+  const docs=lines.map((l)=>convertDoc(JSON.parse(l)as FirestoreWireDoc));
+  const c=path.basename(f,".ndjson");
+  if(EXCLUDED.includes(c))continue;
+  fs.writeFileSync(path.join(dd,c+".json"),JSON.stringify(docs,null,2)+String.fromCharCode(10));
+  present.set(c,docs.length);
 }
 
-interface ConvertedDoc {
-  id: string;
-  exists: boolean;
-  fields: Record<string, unknown>;
-  createTime?: string;
-  updateTime?: string;
+const collections:any[]=[];
+let totalDocs=0;
+for(const [c,n]of present){
+  collections.push({collection:c,status:"present",docCount:n,file:c+".ndjson"});
+  totalDocs+=n;
 }
+const missing:Array<string>=[];
+for(const c of EXPECTED)if(!present.has(c)&&!EXCLUDED.includes(c))missing.push(c);
+for(const c of missing)collections.push({collection:c,status:"expected-known-missing",docCount:0,file:null,reason:"Known from code/rules but missing from export: verify empty"});
+for(const c of EXCLUDED)if(present.has(c))collections.push({collection:c,status:"intentionallyExcluded",docCount:present.get(c),file:c+".ndjson",reason:"Auth-related: handled by Firebase Auth, excluded from migration"});
+for(const [c,n]of present)if(!EXPECTED.includes(c)&&!EXCLUDED.includes(c))collections.push({collection:c,status:"unexpected",docCount:n,file:c+".ndjson",reason:"Not in code/rules: verify"});
 
-/** Undo Firestore's sentinel value encoding (serverTimestamp, geoPoint, etc.( */
-function decodeValue(value: unknown): unknown {
-  if (value === null || typeof value !== "object") return value;
-  const v = value as Record<string, unknown>;
+fs.mkdirSync(dd,{recursive:true});
+fs.writeFileSync(path.join(dd,"MANIFEST.json"),JSON.stringify({exportedAt:new Date().toISOString(),project:proj,totalCollections:present.size,totalDocs,collections},null,2)+String.fromCharCode(10));;
 
-  if ("stringValue" in v) return v.stringValue;
-  if ("integerValue" in v) {
-    const n = Number(v.integerValue);
-    return Number.isSafeInteger(n) ? n : v.integerValue;
-  }
-  if ("doubleValue" in v) {
-    const n = Number(v.doubleValue);
-    // Firestore exports NaN/Infinity as string
-    if (v.doubleValue === "NaN") return NaN;
-    if (v.doubleValue === "Infinity") return Infinity;
-    if (v.doubleValue === "-Infinity") return -Infinity;
-    return n;
-  }
-  if ("booleanValue" in v) return v.booleanValue;
-  if ("timestampValue" in v) return v.timestampValue;
-  if ("referenceValue" in v) return v.referenceValue;
-  if ("bytesValue" in v) return v.bytesValue;
-  if ("geoPointValue" in v) return v.geoPointValue;
-
-  if ("arrayValue" in v) {
-    const values = v.arrayValue && (v.arrayValue as Record<string, unknown>).values;
-    return Array.isArray(values) ? values.map((item: unknown) => decodeValue(item)) : [];
-  }
-  if ("mapValue" in v) {
-    const fields = v.mapValue && (v.mapValue as Record<string, unknown>).fields;
-    return fields && typeof fields === "object"
-      ? Object.fromEntries(
-          Object.entries(fields as Record<string, unknown>).map(([k, val]) => [k, decodeValue(val)])
-        )
-      : {};
-  }
-  if ("nullValue" in v || v === null) return null;
-  if ("value" in v && v.value === null) return null;
-  if (v.value instanceof Object) return decodeValue(v.value);
-  if (typeof v.value !== "undefined") return decodeValue(v.value);
-
-  return v;
+if(missing.length){
+  console.error("FAIL: expected-known collections missing from export: "+missing.join(", "));
+  process.exitCode=1;
+}else{
+  console.log("All "+EXPECTED.length+" expected-known collections accounted for.");
 }
-
-function docId(name: string): string {
-  return name.split("/").pop() || "";
-}
-
-function convertExportFile(file: string): { collection: string; docs: ConvertedDoc[] } {
-  const lines = fs.readFileSync(path.join(EXPORT_DIR, file), "utf8").split("\n").filter(Boolean);
-  const docs: ConvertedDoc[] = [];
-
-  for (const line of lines) {
-    const doc = JSON.parse(line) as FirestoreExportDoc;
-    docs.push({
-      id: docId(doc.name),
-      exists: Boolean(doc.fields),
-      fields: doc.fields ? (Object.fromEntries(
-        Object.entries(doc.fields).map(([k, v]) => [k, decodeValue(v)])
-      ) as Record<string, unknown>) : {},
-      createTime: doc.createTime,
-      updateTime: doc.updateTime,
-    });
-  }
-
-  const collection = path.basename(file, path.extname(file));
-  return { collection, docs };
-}
-
-function main() {
-  if (!fs.existsSync(EXPORT_DIR)) {
-
-    console.error(`Export directory not found: ${EXPORT_DIR}`);
-    console.error("Run scripts/dump-firestore-configs.sh first (or npm run firestore:dump(.");
-    process.exit(1);
-  }
-
-  fs.mkdirSync(DUMP_DIR, { recursive: true });
-
-  const exportFiles = fs.readdirSync(EXPORT_DIR).filter((f) => f.endsWith(".ndjson"));
-  const manifest: Record<string, { collection: string; docCount: number; file: string; skipped: boolean; reason?: string }> = {};
-
-  let totalDocs = 0;
-
-  for (const file of exportFiles.sort()) {
-    const { collection, docs } = convertExportFile(file);
-
-    if (AUTH_COLLECTIONS.has(collection)) {
-      manifest[collection] = { collection, docCount: docs.length, file, skipped: true, reason: "Auth-related — not migrated (Firebase Auth handle);" };
-      continue;
-    }
-
-    const outFile = path.join(DUMP_DIR, `${collection}.json`);
-    fs.writeFileSync(outFile, JSON.stringify(docs, null, 2) + "\n");
-
-    manifest[collection] = { collection, docCount: docs.length, file, skipped: false };
-    totalDocs += docs.length;
-    console.log(`${collection}: ${docs.length} doc(s) -> ${path.relative(ROOT, outFile)}`);
-  }
-
-  const manifestPath = path.join(DUMP_DIR, "MANIFEST.json");
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    exportedAt: new Date().toISOString(),
-    project: process.env.FIREBASE_PROJECT_ID || "sri-raghavendra-mutt",
-    totalCollections: exportFiles.length,
-    totalDocs,
-    collections: Object.values(manifest),
-  }, null, 2) + "\n");
-
-  console.log(`\nConverted ${exportFiles.length} collection file(s) -> ${DUMP_DIR}`, totalDocs, "documents total.");
-}
-
-main();
+console.log("Converted "+present.size+" collections, "+totalDocs+" docs, into "+dd);
