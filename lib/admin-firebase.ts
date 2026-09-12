@@ -53,7 +53,7 @@ export async function initializeAdminApp(): Promise<App> {
 
     // Try environment variables first (FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY || process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY || "invalid-key";
     
     if (clientEmail && privateKey) {
       // Replace escaped newlines in private key
@@ -61,7 +61,7 @@ export async function initializeAdminApp(): Promise<App> {
 
       const serviceAccount = {
         type: "service_account",
-        projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
         privateKey: formattedKey,
         clientEmail: clientEmail,
       };
@@ -91,6 +91,7 @@ export async function initializeAdminApp(): Promise<App> {
     try {
       adminApp = initializeApp({
         credential: applicationDefault(),
+        projectId: "demo-project",
       });
       console.log("Firebase Admin SDK initialized with Application Default Credentials");
       return adminApp;
