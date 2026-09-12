@@ -2,58 +2,58 @@
   "metadata": {
     "generator": "Rayara Panchanga Engine",
     "version": "1.0.0",
-    "generated_at": "2026-09-11T23:29:55.731996",
-    "valid_for": "2026-09-11",
+    "generated_at": "2026-09-12T01:25:49.344338",
+    "valid_for": "2026-09-12",
     "timezone": "Asia/Kolkata"
   },
-  "date": "2026-09-11",
+  "date": "2026-09-12",
   "location": {
     "latitude": 13.1005,
     "longitude": 77.5963,
     "timezone": "Asia/Kolkata"
   },
   "weekday": {
-    "english": "Friday",
-    "sanskrit": "Shukravara",
-    "number": 5
+    "english": "Saturday",
+    "sanskrit": "Shanivara",
+    "number": 6
   },
   "sun": {
-    "sunrise": "2026-09-11T06:12:06.336126+05:30",
-    "sunset": "2026-09-11T18:20:21.948203+05:30",
-    "day_duration_hours": 12.1377
+    "sunrise": "2026-09-12T06:12:06.673239+05:30",
+    "sunset": "2026-09-12T18:19:39.438838+05:30",
+    "day_duration_hours": 12.1258
   },
   "tithi": {
-    "number": 30,
-    "name": "Krishna Amavasya",
-    "paksha": "Krishna",
-    "start": "2026-09-10T10:33:50.193816+05:30",
-    "end": "2026-09-11T08:57:00.623195+05:30"
+    "number": 1,
+    "name": "Shukla Pratipada",
+    "paksha": "Shukla",
+    "start": "2026-09-11T08:57:00.960630+05:30",
+    "end": "2026-09-12T07:46:52.757224+05:30"
   },
   "nakshatra": {
-    "number": 11,
-    "name": "Purva Phalguni",
+    "number": 12,
+    "name": "Uttara Phalguni",
     "pada": 3,
-    "lord": "Venus",
-    "start": "2026-09-10T14:04:32.381249+05:30",
-    "end": "2026-09-11T13:16:10.232517+05:30"
+    "lord": "Sun",
+    "start": "2026-09-11T13:16:10.569952+05:30",
+    "end": "2026-09-12T12:55:13.733679+05:30"
   },
   "yoga": {
-    "number": 22,
-    "name": "Sadhya",
-    "start": "2026-09-10T19:17:28.455387+05:30",
-    "end": "2026-09-11T17:01:40.115275+05:30"
+    "number": 23,
+    "name": "Shubha",
+    "start": "2026-09-11T17:01:40.452711+05:30",
+    "end": "2026-09-12T15:08:52.874291+05:30"
   },
   "karana": {
-    "number": 10,
-    "name": "Nagava",
-    "start": "2026-09-10T21:42:27.869436+05:30",
-    "end": "2026-09-11T08:57:00.623195+05:30"
+    "number": 1,
+    "name": "Bava",
+    "start": "2026-09-11T20:18:15.374532+05:30",
+    "end": "2026-09-12T07:46:52.757224+05:30"
   },
   "masa": {
-    "number": 5,
-    "name": "Śrāvaṇa",
+    "number": 6,
+    "name": "Bhādrapada",
     "is_adhik": false,
-    "paksha": "Krishna"
+    "paksha": "Shukla"
   },
   "samvat": {
     "vikram": 2083,
@@ -62,26 +62,26 @@
   },
   "rahu_kalam": {
     "name": "Rahu Kalam",
-    "start": "2026-09-11T10:45:12.231115+05:30",
-    "end": "2026-09-11T12:16:14.196137+05:30",
+    "start": "2026-09-12T09:13:59.893225+05:30",
+    "end": "2026-09-12T10:44:56.503258+05:30",
     "is_auspicious": false
   },
   "yama_gandam": {
     "name": "Yama Gandam",
-    "start": "2026-09-11T07:43:08.301109+05:30",
-    "end": "2026-09-11T09:14:10.266132+05:30",
+    "start": "2026-09-12T06:12:06.673239+05:30",
+    "end": "2026-09-12T07:43:03.283232+05:30",
     "is_auspicious": false
   },
   "gulika_kalam": {
     "name": "Gulika Kalam",
-    "start": "2026-09-11T07:43:08.301109+05:30",
-    "end": "2026-09-11T09:14:10.266132+05:30",
+    "start": "2026-09-12T06:12:06.673239+05:30",
+    "end": "2026-09-12T07:43:03.283232+05:30",
     "is_auspicious": false
   },
   "abhijit_muhurat": {
     "name": "Abhijit Muhurat",
-    "start": "2026-09-11T11:51:57.672113+05:30",
-    "end": "2026-09-11T12:40:30.720122+05:30",
+    "start": "2026-09-12T11:51:38.017220+05:30",
+    "end": "2026-09-12T12:40:08.209200+05:30",
     "is_auspicious": true
   },
   "durmuhurta": [],
