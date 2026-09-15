@@ -91,6 +91,7 @@ export async function initializeAdminApp(): Promise<App> {
     try {
       adminApp = initializeApp({
         credential: applicationDefault(),
+        projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
       });
       console.log("Firebase Admin SDK initialized with Application Default Credentials");
       return adminApp;
