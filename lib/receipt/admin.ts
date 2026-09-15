@@ -74,19 +74,23 @@ export async function createReceiptWithAdmin(
 
   const sanitized = sanitizeReceiptCreateInput(input);
   const db = await getAdminFirestore();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
 
   const items: ReceiptItem[] = [];
   for (const line of sanitized.items) {
-    const sevaSnap = await db
-      .collection(RECEIPT_SEVAS_COLLECTION)
-      .doc(line.sevaId)
-      .get();
+    const { data: sevaData, error: sevaError } = await supabase.from(RECEIPT_SEVAS_COLLECTION).select("*").eq("id", line.sevaId).single();
 
-    if (!sevaSnap.exists) {
-      throw new Error(`Unknown seva: ${line.sevaId}`);
+    // Fallback to firestore if not found via uuid (might be using firestore string id)
+    let seva = sevaData;
+    if (!seva || sevaError) {
+      const { data: fData } = await supabase.from(RECEIPT_SEVAS_COLLECTION).select("*").eq("firestore_id", line.sevaId).single();
+      seva = fData;
     }
 
-    const seva = sevaSnap.data() || {};
+    if (!seva) {
+      throw new Error(`Unknown seva: ${line.sevaId}`);
+    }
     if (seva.active === false) {
       throw new Error(`Seva is disabled: ${seva.name || line.sevaId}`);
     }
@@ -135,6 +139,7 @@ export async function createReceiptWithAdmin(
     createdBy: admin.email || admin.uid,
   };
 
+  // For now keep receipt persistence in Firestore as we only map sevas to postgres
   const docRef = db.collection(RECEIPTS_COLLECTION).doc();
   await docRef.set(receiptDoc);
 

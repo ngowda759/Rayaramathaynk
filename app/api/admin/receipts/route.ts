@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = await getAdminFirestore();
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
     const url = new URL(request.url);
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
@@ -35,34 +37,36 @@ export async function GET(request: NextRequest) {
     const maxPageSize = (isExport || isReport) ? 10000 : 100;
     const pageSize = Number.isInteger(rawPageSize)?Math.min(Math.max(rawPageSize,1),maxPageSize):50;
 
-    let query = db.collection(RECEIPTS_COLLECTION)as FirebaseFirestore.Query;
-    query = query.orderBy("createdAt","desc");
+    let sbQuery = supabase.from("receipts").select("*");
 
     if (from) {
       const fromDate = new Date(from);
       if (!Number.isNaN(fromDate.getTime())) {
-        query = query.where("createdAt",">=",fromDate);
+        sbQuery = sbQuery.gte("created_at", fromDate.toISOString());
       }
     }
     if (to) {
       const toDate = new Date(to);
       toDate.setHours(23,59,999);
       if (!Number.isNaN(toDate.getTime())) {
-        query = query.where("createdAt","<=",toDate);
+        sbQuery = sbQuery.lte("created_at", toDate.toISOString());
       }
     }
     if (sevaId) {
-      query = query.where("sevaIds","array-contains",sevaId);
+      sbQuery = sbQuery.contains("sevaIds", [sevaId]);
     }
 
-    const snapshot = await query
-      .limit(pageSize)
-      .offset((page-1)*pageSize)
-      .get();
-    const receipts = snapshot.docs.map((doc)=> {
-      const data = doc.data();
-      return { id: doc.id,...data };
-    });
+    const { data: receiptsData, error } = await sbQuery
+      .order("created_at", { ascending: false })
+      .range((page - 1) * pageSize, page * pageSize - 1);
+
+    if (error) throw error;
+
+    const receipts = (receiptsData || []).map((row) => ({
+      ...row,
+      createdAt: row.created_at,
+      totalAmount: Number(row.totalAmount || row.total_amount || 0)
+    }));
 
     if (isReport) {
       const summary = {

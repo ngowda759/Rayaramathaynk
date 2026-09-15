@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { getAdminFirestore } from "@/lib/admin-firebase";
+import { createAdminClient } from "@/lib/supabase/admin";
+
 import { ReceiptSevaInput } from "@/types/receiptSeva";
 import {
   sanitizeReceiptSevaInput,
@@ -23,22 +25,21 @@ export async function GET(request: NextRequest) {
   if (!admin) return unauthorized();
 
   try {
-    const db = await getAdminFirestore();
-    const snapshot = await db.collection(RECEIPT_SEVAS_COLLECTION).get();
+    const supabase = createAdminClient();
+    const { data: snapshot, error: fetchError } = await supabase.from(RECEIPT_SEVAS_COLLECTION).select("*");
 
+    if (fetchError) throw fetchError;
 
-
-    const rawDocs = snapshot.docs.map((doc) => {
-      const data = doc.data();
+    const rawDocs = (snapshot || []).map((data) => {
       return {
-        id: doc.id,
+        id: data.firestore_id || data.id,
         name: data.name || "Unknown Seva",
         description: data.description || "",
         amount: typeof data.amount === "number" ? data.amount : (Number(data.amount) || 0),
         active: data.active !== false, // default true unless explicitly false
-        displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : 9999, // default 9999 so it goes to bottom
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
+        displayOrder: typeof data.display_order === "number" ? data.display_order : 9999, // default 9999 so it goes to bottom
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
       };
     });
 
@@ -69,13 +70,32 @@ export async function POST(request: NextRequest) {
 
   try {
     const sanitized = sanitizeReceiptSevaInput(body);
+    const supabase = createAdminClient();
+    const now = new Date().toISOString();
+    const newSeva = {
+      ...sanitized,
+      created_at: now,
+      updated_at: now,
+      duration: 30,
+      category: "Special",
+      image_url: "",
+      display_order: sanitized.displayOrder
+    };
+
+    // Using upsert/insert without generating firestore_id if not required, or we could generate a UUID.
+    const { data, error: insertError } = await supabase.from(RECEIPT_SEVAS_COLLECTION).insert([newSeva]).select().single();
+    if (insertError) throw insertError;
+
+    // Also mirror to Firestore for backward compatibility if needed, but the prompt says they come from Supabase.
     const db = await getAdminFirestore();
-    const now = new Date();
     const docRef = db.collection(RECEIPT_SEVAS_COLLECTION).doc();
+    // we can update the firestore_id in Supabase
+    await supabase.from(RECEIPT_SEVAS_COLLECTION).update({ firestore_id: docRef.id }).eq("id", data.id);
+
     await docRef.set({
       ...sanitized,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date(),
+      updatedAt: new Date(),
       duration: 30,
       category: "Special",
       imageUrl: "",
