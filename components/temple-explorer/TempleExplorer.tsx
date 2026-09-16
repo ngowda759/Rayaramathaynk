@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, Clock, Info, Navigation, Filter, 
@@ -17,7 +17,6 @@ import {
   TEMPLE_TIMINGS,
   EVENING_TIMINGS,
 } from "@/types/temple-explorer";
-import { templeAreasService } from "@/services/temple-areas.service";
 
 interface TempleExplorerProps {
   initialCategory?: TempleAreaCategory | null;
@@ -42,8 +41,13 @@ export default function TempleExplorer({ initialCategory = null }: TempleExplore
   useEffect(() => {
     async function loadAreas() {
       try {
-        const data = await templeAreasService.getPublicAreas();
-        setAreas(data);
+        const response = await fetch('/api/temple-areas');
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setAreas(data);
+        } else {
+            console.error("Invalid response format:", data);
+        }
       } catch (error) {
         console.error("Failed to load temple areas:", error);
       } finally {
@@ -53,163 +57,220 @@ export default function TempleExplorer({ initialCategory = null }: TempleExplore
     loadAreas();
   }, []);
 
-  const categories = useMemo(() => {
-    const cats = new Set(areas.map(a => a.category));
-    return Array.from(cats) as TempleAreaCategory[];
-  }, [areas]);
-
-  const filteredAreas = useMemo(() => {
-    if (selectedCategory) {
-      return areas.filter(a => a.category === selectedCategory);
-    }
-    return areas;
+  const filteredAreas = React.useMemo(() => {
+    return areas.filter(area => !selectedCategory || area.category === selectedCategory);
   }, [areas, selectedCategory]);
 
-  const handleAreaClick = (area: TempleArea) => {
-    setSelectedArea(area);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-amber-500" />
-          <p className="text-stone-500">Loading temple areas...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Category Filter */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setSelectedCategory(null)}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 font-medium transition-all ${
-            selectedCategory === null
-              ? "bg-amber-500 text-white shadow-lg"
-              : "bg-white text-stone-600 border border-stone-200 hover:border-amber-300"
-          }`}
-        >
-          All Areas
-        </button>
-        {categories.map(category => {
-          const colors = CATEGORY_COLORS[category];
-          return (
+    <div className="flex flex-col gap-8 lg:flex-row">
+      {/* Sidebar / Filters */}
+      <div className="w-full space-y-6 lg:w-80 lg:shrink-0">
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-6">
+            <Filter className="h-5 w-5 text-amber-600" />
+            <h3 className="font-semibold text-stone-900">Categories</h3>
+          </div>
+
+          <div className="space-y-2">
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 font-medium transition-all ${
-                selectedCategory === category
-                  ? "bg-amber-500 text-white shadow-lg"
-                  : "bg-white text-stone-600 border border-stone-200 hover:border-amber-300"
+              onClick={() => setSelectedCategory(null)}
+              className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm transition-all ${
+                selectedCategory === null
+                  ? "bg-amber-600 text-white shadow-md"
+                  : "hover:bg-amber-50 text-stone-600 hover:text-amber-700"
               }`}
             >
-              {CATEGORY_ICONS[category]}
-              <span className="hidden sm:inline">{CATEGORY_LABELS[category]}</span>
+              <div className="flex items-center gap-3">
+                <MapPin className="h-5 w-5" />
+                <span className="font-medium">All Areas</span>
+              </div>
+              <span className={`rounded-full px-2 py-0.5 text-xs ${
+                selectedCategory === null ? "bg-amber-500 text-white" : "bg-stone-100 text-stone-500"
+              }`}>
+                {areas.length}
+              </span>
             </button>
-          );
-        })}
+
+            {(Object.entries(CATEGORY_LABELS) as [TempleAreaCategory, string][]).map(([key, label]) => {
+              const count = areas.filter(a => a.category === key).length;
+              if (count === 0) return null;
+
+              const isSelected = selectedCategory === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedCategory(key)}
+                  className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm transition-all ${
+                    isSelected
+                      ? "bg-amber-600 text-white shadow-md"
+                      : "hover:bg-amber-50 text-stone-600 hover:text-amber-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {CATEGORY_ICONS[key]}
+                    <span className="font-medium">{label}</span>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${
+                    isSelected ? "bg-amber-500 text-white" : "bg-stone-100 text-stone-500"
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <QuickInfoPanel />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={<MapPin className="h-5 w-5" />} label="Total Areas" value={areas.length} />
-        <StatCard icon={<Sparkles className="h-5 w-5" />} label="Sanctuaries" value={areas.filter(a => a.category === "sanctum").length} />
-        <StatCard icon={<Landmark className="h-5 w-5" />} label="Halls" value={areas.filter(a => a.category === "halls").length} />
-        <StatCard icon={<Home className="h-5 w-5" />} label="Facilities" value={areas.filter(a => a.category === "facilities").length} />
-      </div>
-
-      {/* Content */}
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Areas List */}
-        <div className="lg:col-span-2">
-          {/* View Mode Toggle */}
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-stone-900">
+      {/* Main Content */}
+      <div className="flex-1 min-w-0">
+        {/* Controls */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-stone-900">
               {selectedCategory ? CATEGORY_LABELS[selectedCategory] : "All Temple Areas"}
-            </h3>
-            <div className="flex items-center gap-2">
+            </h2>
+            <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-medium text-stone-600">
+              {filteredAreas.length} results
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowMap(!showMap)}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                showMap ? "bg-amber-100 text-amber-700" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+              }`}
+            >
+              <Navigation className="h-4 w-4" />
+              {showMap ? "Hide Map" : "Show Map"}
+            </button>
+            <div className="h-8 w-px bg-stone-200 mx-2" />
+            <div className="flex rounded-lg bg-stone-100 p-1">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`rounded-lg p-2 transition-colors ${
-                  viewMode === "grid" ? "bg-amber-500 text-white" : "text-stone-600 hover:bg-stone-100"
+                className={`rounded-md p-1.5 transition-colors ${
+                  viewMode === "grid" ? "bg-white text-amber-600 shadow-sm" : "text-stone-500 hover:text-stone-700"
                 }`}
               >
                 <Grid className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`rounded-lg p-2 transition-colors ${
-                  viewMode === "list" ? "bg-amber-500 text-white" : "text-stone-600 hover:bg-stone-100"
+                className={`rounded-md p-1.5 transition-colors ${
+                  viewMode === "list" ? "bg-white text-amber-600 shadow-sm" : "text-stone-500 hover:text-stone-700"
                 }`}
               >
                 <List className="h-4 w-4" />
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Grid/List View */}
-          <div className={viewMode === "grid" ? "grid gap-4 sm:grid-cols-2" : "space-y-3"}>
-            {filteredAreas.map((area, index) => (
-              <AreaCard
-                key={area.id}
-                area={area}
-                index={index}
-                viewMode={viewMode}
-                isSelected={selectedArea?.id === area.id}
-                onClick={() => handleAreaClick(area)}
+        {/* Map View */}
+        <AnimatePresence>
+          {showMap && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mb-8 overflow-hidden rounded-3xl border border-stone-200 shadow-lg"
+            >
+              <iframe
+                src={`https://maps.google.com/maps?q=${TEMPLE_COORDINATES.latitude},${TEMPLE_COORDINATES.longitude}&z=17&output=embed`}
+                width="100%"
+                height="400"
+                style={{ border: 0 }}
+                loading="lazy"
+                allowFullScreen
+                referrerPolicy="no-referrer-when-downgrade"
+                className="bg-stone-100"
               />
-            ))}
-          </div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Detail Panel */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-4">
-            {selectedArea ? (
-              <AreaDetailPanel area={selectedArea} />
-            ) : (
-              <QuickInfoPanel />
-            )}
-          </div>
-        </div>
-      </div>
+        {loading ? (
+            <div className="flex justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+            </div>
+        ) : (
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+            {/* Grid/List */}
+            <div className={`flex-1 ${
+                viewMode === "grid"
+                ? "grid grid-cols-1 sm:grid-cols-2 gap-4"
+                : "flex flex-col gap-3"
+            }`}>
+                {filteredAreas.map((area, index) => (
+                <AreaCard
+                    key={area.id}
+                    area={area}
+                    index={index}
+                    viewMode={viewMode}
+                    isSelected={selectedArea?.id === area.id}
+                    onClick={() => setSelectedArea(area)}
+                />
+                ))}
+            </div>
 
-      {/* Map Toggle */}
-      <div className="flex justify-center">
-        <button
-          onClick={() => setShowMap(!showMap)}
-          className="flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-all hover:bg-amber-600 hover:shadow-lg"
-        >
-          <Navigation className="h-5 w-5" />
-          {showMap ? "Hide Map" : "Show Temple Location"}
-        </button>
-      </div>
-
-      {/* Embedded Map */}
-      <AnimatePresence>
-        {showMap && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden rounded-3xl shadow-2xl"
-          >
-            <iframe
-              src={`https://maps.google.com/maps?q=${TEMPLE_COORDINATES.latitude},${TEMPLE_COORDINATES.longitude}&z=17&output=embed`}
-              width="100%"
-              height="400"
-              style={{ border: 0 }}
-              loading="lazy"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-              className="rounded-3xl"
-            />
-          </motion.div>
+            {/* Desktop Detail Panel */}
+            <div className="hidden lg:block w-[400px] shrink-0 sticky top-24">
+                <AnimatePresence mode="wait">
+                {selectedArea ? (
+                    <AreaDetailPanel key={selectedArea.id} area={selectedArea} />
+                ) : (
+                    <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex h-[600px] flex-col items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center"
+                    >
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm mb-4">
+                        <MapPin className="h-8 w-8 text-stone-300" />
+                    </div>
+                    <h3 className="text-lg font-medium text-stone-900">Select an Area</h3>
+                    <p className="mt-2 text-sm text-stone-500">
+                        Click on any temple area to view detailed information, timings, and visitor guidelines.
+                    </p>
+                    </motion.div>
+                )}
+                </AnimatePresence>
+            </div>
+            </div>
         )}
-      </AnimatePresence>
+
+        {/* Mobile Detail Panel (Modal) */}
+        {selectedArea && (
+          <div className="lg:hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4 pt-20 backdrop-blur-sm" onClick={() => setSelectedArea(null)}>
+            <motion.div
+              initial={{ opacity: 0, y: "100%" }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: "100%" }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl bg-white shadow-2xl"
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between bg-white/80 p-4 backdrop-blur-md border-b border-stone-100">
+                <h3 className="font-semibold text-stone-900">Area Details</h3>
+                <button
+                  onClick={() => setSelectedArea(null)}
+                  className="rounded-full p-2 text-stone-500 hover:bg-stone-100 transition-colors"
+                >
+                  <span className="sr-only">Close</span>
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-4">
+                <AreaDetailPanel area={selectedArea} />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -275,11 +336,11 @@ function AreaCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       onClick={onClick}
-      className={`group text-left rounded-2xl border bg-white p-6 transition-all hover:shadow-lg ${
+      className={`group text-left rounded-2xl border bg-white p-6 transition-all hover:shadow-lg flex flex-col h-full ${
         isSelected ? "border-amber-400 shadow-lg ring-2 ring-amber-200" : "border-stone-200"
       }`}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between w-full">
         <span className="text-4xl">{area.icon}</span>
         <span className={`rounded-full px-2 py-1 text-xs font-medium ${colors.bg} ${colors.text}`}>
           {CATEGORY_LABELS[area.category]}
@@ -288,7 +349,7 @@ function AreaCard({
       <h4 className="mt-4 font-semibold text-stone-900 group-hover:text-amber-600 transition-colors">
         {area.name}
       </h4>
-      <p className="mt-2 line-clamp-2 text-sm text-stone-600">{area.description}</p>
+      <p className="mt-2 line-clamp-2 text-sm text-stone-600 flex-1">{area.description}</p>
       {area.bestTimeToVisit && (
         <div className="mt-4 flex items-center gap-2 text-sm text-amber-600">
           <Clock className="h-4 w-4" />
@@ -391,8 +452,14 @@ function AreaDetailPanel({ area }: { area: TempleArea }) {
 
 // Quick Info Panel
 function QuickInfoPanel() {
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
-  const todayTimings = TEMPLE_TIMINGS.find(t => t.day === today);
+  const [today, setToday] = useState<string>("");
+  const [todayTimings, setTodayTimings] = useState<any>(null);
+
+  useEffect(() => {
+    const day = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    setToday(day);
+    setTodayTimings(TEMPLE_TIMINGS.find(t => t.day === day));
+  }, []);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-lg">
