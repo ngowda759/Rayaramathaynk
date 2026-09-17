@@ -73,9 +73,9 @@ export function useOnlineStatus(): boolean {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Online status initialization
     setIsOnline(navigator.onLine);
 
-    const handleOnline = () => // eslint-disable-next-line react-hooks/set-state-in-effect -- Online status handler
+    const handleOnline = () =>
       setIsOnline(true);
-    const handleOffline = () => // eslint-disable-next-line react-hooks/set-state-in-effect -- Offline status handler
+    const handleOffline = () =>
       setIsOnline(false);
 
     window.addEventListener("online", handleOnline);
@@ -291,7 +291,7 @@ export function useConnection(): {
     });
 
     const updateConnection = () => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Network info update handler
+
       setConnection({
         supported: true,
         effectiveType: connectionInfo.effectiveType || "unknown",
