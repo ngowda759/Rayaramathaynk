@@ -46,13 +46,13 @@ export default function KnowledgeCentreClient({ initialData }: KnowledgeCentreCl
 
       const savedBookmarks = localStorage.getItem(BOOKMARKS_KEY);
       if (savedBookmarks) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
+
         setBookmarks(JSON.parse(savedBookmarks));
       }
 
       const savedRecent = localStorage.getItem(RECENTLY_VIEWED_KEY);
       if (savedRecent) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
+
         setRecentlyViewed(JSON.parse(savedRecent));
       }
     } catch {

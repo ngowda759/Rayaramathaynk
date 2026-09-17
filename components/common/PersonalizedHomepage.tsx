@@ -46,7 +46,7 @@ export function PersonalizedHomepage({ children }: { children?: React.ReactNode 
 
   useEffect(() => {
     if (user && profile) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
+
       loadPersonalizedContent();
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- State initialization
