@@ -42,17 +42,17 @@ export class TempleAreasSupabaseService {
 
       if (error) {
         console.error("[TempleAreasSupabaseService] Error fetching public areas:", error);
-        return DEFAULT_TEMPLE_AREAS;
+        return [];
       }
 
       if (!data || data.length === 0) {
-        return DEFAULT_TEMPLE_AREAS;
+        return [];
       }
 
       return this.mapToTempleAreas(data);
     } catch (error) {
       console.error("[TempleAreasSupabaseService] Exception fetching public areas:", error);
-      return DEFAULT_TEMPLE_AREAS;
+      return [];
     }
   }
 
@@ -84,13 +84,13 @@ export class TempleAreasSupabaseService {
         .single();
 
       if (error || !data) {
-        return DEFAULT_TEMPLE_AREAS.find(a => a.id === id) || null;
+        return null;
       }
 
       return this.mapToTempleArea(data);
     } catch (error) {
       console.error("[TempleAreasSupabaseService] Exception fetching public area:", error);
-      return DEFAULT_TEMPLE_AREAS.find(a => a.id === id) || null;
+      return null;
     }
   }
 

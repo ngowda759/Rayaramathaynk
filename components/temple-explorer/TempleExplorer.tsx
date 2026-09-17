@@ -196,6 +196,16 @@ export default function TempleExplorer({ initialCategory = null }: TempleExplore
             <div className="flex justify-center p-12">
                 <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
             </div>
+        ) : areas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-stone-50/50 p-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm mb-4">
+                    <Sparkles className="h-8 w-8 text-amber-500" />
+                </div>
+                <h3 className="text-xl font-medium text-stone-900">Coming Soon</h3>
+                <p className="mt-2 text-sm text-stone-500 max-w-md mx-auto">
+                    We are currently updating our temple areas information. Please check back later.
+                </p>
+            </div>
         ) : (
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
             {/* Grid/List */}
