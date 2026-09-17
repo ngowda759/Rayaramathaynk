@@ -59,7 +59,7 @@ export default function KnowledgeArticleClient({ articleData }: KnowledgeArticle
         const parsed = JSON.parse(savedBookmarks);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
         setBookmarks(parsed);
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage initialization
+
         setIsBookmarked(parsed.some((b: KnowledgeBookmark) => b.id === article.id));
       }
     } catch {

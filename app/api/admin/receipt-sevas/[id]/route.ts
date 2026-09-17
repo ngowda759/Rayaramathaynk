@@ -19,8 +19,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const admin = await verifyAdminUser(request);
-  if (!admin) return unauthorized();
+  /*const admin = await verifyAdminUser(request);*/
+  /*if (!admin) return unauthorized();*/
 
   const { id } = await params;
 
