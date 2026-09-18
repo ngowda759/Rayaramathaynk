@@ -1,10 +1,13 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Printer } from "lucide-react";
+import { Printer, MessageCircle, Mail } from "lucide-react";
 import Button from "@/components/ui/button";
 
 interface SevaReceiptProps {
+  gotra?: string;
+  nakshatra?: string;
+  raashi?: string;
   receiptNumber: string;
   date: string;
   devoteeName: string;
@@ -25,6 +28,9 @@ export default function SevaReceipt({
   sevaTitle,
   sevaAmount,
   paymentReference,
+  gotra,
+  nakshatra,
+  raashi,
   onClose,
 }: SevaReceiptProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -38,6 +44,52 @@ export default function SevaReceipt({
 
   const amountInWords = numberToWords(sevaAmount);
 
+
+  const shareWhatsApp = () => {
+    const message = `*Sri Gururaja Seva Samiti (R)*
+Seva Receipt
+
+*Receipt No:* ${receiptNumber}
+*Date:* ${date}
+*Name:* ${devoteeName}
+*Gotra:* ${gotra || "N/A"}
+*Nakshatra:* ${nakshatra || "N/A"}
+*Raashi:* ${raashi || "N/A"}
+*Seva:* ${sevaTitle}
+*Seva Date:* ${sevaDate}
+*Amount:* ₹${sevaAmount.toLocaleString("en-IN")}
+*Payment Ref:* ${paymentReference}
+
+Thank you for your generous contribution.`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = phone ? `https://wa.me/91${phone}?text=${encodedMessage}` : `https://wa.me/?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const shareEmail = () => {
+    const subject = `Seva Receipt - ${receiptNumber}`;
+    const body = `Sri Gururaja Seva Samiti (R)
+Seva Receipt
+
+Receipt No: ${receiptNumber}
+Date: ${date}
+Name: ${devoteeName}
+Gotra: ${gotra || "N/A"}
+Nakshatra: ${nakshatra || "N/A"}
+Raashi: ${raashi || "N/A"}
+Seva: ${sevaTitle}
+Seva Date: ${sevaDate}
+Amount: Rs. ${sevaAmount.toLocaleString("en-IN")}
+Payment Ref: ${paymentReference}
+
+Thank you for your generous contribution.`;
+
+    const encodedSubject = encodeURIComponent(subject);
+    const encodedBody = encodeURIComponent(body);
+    window.location.href = `mailto:?subject=${encodedSubject}&body=${encodedBody}`;
+  };
+
   function printReceipt() {
     const printContent = receiptRef.current?.innerHTML;
     const originalContent = document.body.innerHTML;
@@ -50,8 +102,8 @@ export default function SevaReceipt({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 overflow-y-auto pt-20" onClick={onClose}>
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-6 py-4 text-white text-center">
           <h2 className="text-xl font-bold">ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)</h2>
@@ -61,7 +113,7 @@ export default function SevaReceipt({
         </div>
 
         {/* Receipt Content */}
-        <div ref={receiptRef} className="p-6">
+        <div ref={receiptRef} className="p-6 overflow-y-auto flex-1">
           <div className="text-center mb-6">
             <h3 className="text-lg font-bold text-orange-800 border-b-2 border-orange-300 pb-2 inline-block">
               ಸೇವಾ ರಸೀದಿ / SEVA RECEIPT
@@ -88,14 +140,18 @@ export default function SevaReceipt({
             </div>
 
             {/* Row 3 */}
-            <div className="grid grid-cols-2 gap-4 border-b border-dotted border-stone-300 pb-2">
+            <div className="grid grid-cols-3 gap-4 border-b border-dotted border-stone-300 pb-2">
               <div>
                 <span className="text-stone-500">Gotra / ಗೋತ್ರ:</span>
-                <span className="ml-2">_________________</span>
+                <span className="ml-2 font-medium">{gotra || "_________________"}</span>
               </div>
               <div>
                 <span className="text-stone-500">Nakshatra / ನಕ್ಷತ್ರ:</span>
-                <span className="ml-2">_________________</span>
+                <span className="ml-2 font-medium">{nakshatra || "_________________"}</span>
+              </div>
+              <div>
+                <span className="text-stone-500">Raashi / ರಾಶಿ:</span>
+                <span className="ml-2 font-medium">{raashi || "_________________"}</span>
               </div>
             </div>
 
@@ -159,9 +215,18 @@ export default function SevaReceipt({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={printReceipt} className="bg-orange-600 hover:bg-orange-700">
+
+          <Button variant="outline" onClick={shareWhatsApp} className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200">
+            <MessageCircle className="w-4 h-4 mr-2" />
+            WhatsApp
+          </Button>
+          <Button variant="outline" onClick={shareEmail} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
+            <Mail className="w-4 h-4 mr-2" />
+            Email
+          </Button>
+          <Button onClick={printReceipt} className="bg-orange-600 hover:bg-orange-700 text-white">
             <Printer className="w-4 h-4 mr-2" />
-            Print Receipt
+            Print
           </Button>
         </div>
       </div>
