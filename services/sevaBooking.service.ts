@@ -15,6 +15,8 @@ function docToBooking(docSnap: any): SevaBooking {
     userName: data.userName || "",
     userEmail: data.userEmail || "",
     userPhone: data.userPhone || "",
+    gotra: data.gotra || "",
+    nakshatra: data.nakshatra || "",
     preferredDate: data.preferredDate || "",
     notes: data.notes || "",
     status: data.status || "pending",

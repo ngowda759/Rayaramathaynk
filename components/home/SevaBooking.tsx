@@ -35,6 +35,8 @@ export default function SevaBooking() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [gotra, setGotra] = useState("");
+  const [nakshatra, setNakshatra] = useState("");
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
@@ -47,6 +49,8 @@ export default function SevaBooking() {
     sevaTitle: string;
     sevaAmount: number;
     paymentReference: string;
+    gotra?: string;
+    nakshatra?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -154,6 +158,8 @@ export default function SevaBooking() {
         userName: name || profile?.name || "",
         userEmail: email || user.email || "",
         userPhone: phone,
+        gotra,
+        nakshatra,
         preferredDate,
         notes,
       });
@@ -188,6 +194,8 @@ export default function SevaBooking() {
       setReceiptData({
         receiptNumber: bookingRef,
         devoteeName: name || profile?.name || "",
+          gotra,
+          nakshatra,
         phone: phone,
         sevaDate: preferredDate,
         sevaTitle: selectedSeva?.name || "",
@@ -358,6 +366,28 @@ export default function SevaBooking() {
                 value={preferredDate}
                 onChange={(event) => setPreferredDate(event.target.value)}
               />
+
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Gotra / ಗೋತ್ರ</label>
+                  <Input
+                    type="text"
+                    value={gotra}
+                    onChange={(e) => setGotra(e.target.value)}
+                    placeholder="Enter Gotra"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Nakshatra / ನಕ್ಷತ್ರ</label>
+                  <Input
+                    type="text"
+                    value={nakshatra}
+                    onChange={(e) => setNakshatra(e.target.value)}
+                    placeholder="Enter Nakshatra"
+                  />
+                </div>
+              </div>
 
               <Textarea
                 label="Message"
@@ -634,6 +664,8 @@ export default function SevaBooking() {
         sevaTitle={receiptData.sevaTitle}
         sevaAmount={receiptData.sevaAmount}
         paymentReference={receiptData.paymentReference}
+        gotra={receiptData.gotra}
+        nakshatra={receiptData.nakshatra}
         onClose={handleReceiptClose}
       />
     )}

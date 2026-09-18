@@ -5,6 +5,8 @@ import { Printer } from "lucide-react";
 import Button from "@/components/ui/button";
 
 interface SevaReceiptProps {
+  gotra?: string;
+  nakshatra?: string;
   receiptNumber: string;
   date: string;
   devoteeName: string;
@@ -25,6 +27,8 @@ export default function SevaReceipt({
   sevaTitle,
   sevaAmount,
   paymentReference,
+  gotra,
+  nakshatra,
   onClose,
 }: SevaReceiptProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -51,7 +55,7 @@ export default function SevaReceipt({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-6 py-4 text-white text-center">
           <h2 className="text-xl font-bold">ಶ್ರೀ ಗುರುರಾಜ ಸೇವಾ ಸಮಿತಿ (ರಿ)</h2>
@@ -61,7 +65,7 @@ export default function SevaReceipt({
         </div>
 
         {/* Receipt Content */}
-        <div ref={receiptRef} className="p-6">
+        <div ref={receiptRef} className="p-6 overflow-y-auto flex-1">
           <div className="text-center mb-6">
             <h3 className="text-lg font-bold text-orange-800 border-b-2 border-orange-300 pb-2 inline-block">
               ಸೇವಾ ರಸೀದಿ / SEVA RECEIPT
@@ -91,11 +95,11 @@ export default function SevaReceipt({
             <div className="grid grid-cols-2 gap-4 border-b border-dotted border-stone-300 pb-2">
               <div>
                 <span className="text-stone-500">Gotra / ಗೋತ್ರ:</span>
-                <span className="ml-2">_________________</span>
+                <span className="ml-2 font-medium">{gotra || "_________________"}</span>
               </div>
               <div>
                 <span className="text-stone-500">Nakshatra / ನಕ್ಷತ್ರ:</span>
-                <span className="ml-2">_________________</span>
+                <span className="ml-2 font-medium">{nakshatra || "_________________"}</span>
               </div>
             </div>
 

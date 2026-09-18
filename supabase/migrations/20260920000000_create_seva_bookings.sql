@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS seva_bookings (
     user_name text NOT NULL,
     user_email text NOT NULL,
     user_phone text NOT NULL,
+    gotra text,
+    nakshatra text,
     preferred_date text NOT NULL,
     notes text NOT NULL,
     status text NOT NULL,
