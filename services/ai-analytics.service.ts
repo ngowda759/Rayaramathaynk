@@ -16,6 +16,7 @@ import {
   getCountFromServer,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { createClient } from "@/lib/supabase/client";
 import { Intent } from "@/lib/ai/intent/types";
 import type {
   TokenUsageRecord,
@@ -128,14 +129,24 @@ export async function recordLatency(
   }
 
   try {
-    const docRef = await addDoc(
-      collection(db, COLLECTIONS.LATENCY_RECORDS),
-      {
-        ...data,
-        timestamp: serverTimestamp(),
-      }
-    );
-    return docRef.id;
+    const supabase = createClient();
+    const { data: insertedData, error } = await supabase
+      .from('ai_latency_records')
+      .insert([{
+        total_latency: data.totalLatency,
+        intent_detection_time: data.intentDetectionTime,
+        retrieval_time: data.retrievalTime,
+        generation_time: data.generationTime,
+        success: data.success,
+        error_type: data.errorType,
+        model: (data as any).model || null,
+        session_id: data.sessionId,
+        timestamp: new Date().toISOString()
+      }])
+      .select('id')
+      .single();
+    if (error) throw error;
+    return insertedData.id;
   } catch (error) {
     console.error("Error recording latency:", error);
     throw error;
@@ -154,14 +165,22 @@ export async function recordIntentDistribution(
   }
 
   try {
-    const docRef = await addDoc(
-      collection(db, COLLECTIONS.INTENT_DISTRIBUTION),
-      {
-        ...data,
-        timestamp: serverTimestamp(),
-      }
-    );
-    return docRef.id;
+    const supabase = createClient();
+    const { data: insertedData, error } = await supabase
+      .from('ai_intent_distribution')
+      .insert([{
+        intent: data.intent,
+        category: data.category,
+        language: data.language,
+        confidence: data.confidence,
+        session_id: data.sessionId,
+        message_id: data.messageId,
+        timestamp: new Date().toISOString()
+      }])
+      .select('id')
+      .single();
+    if (error) throw error;
+    return insertedData.id;
   } catch (error) {
     console.error("Error recording intent distribution:", error);
     throw error;
