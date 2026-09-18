@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAdminFirestore } from "@/lib/admin-firebase";
 
 export const dynamic = "force-dynamic";
 
@@ -15,31 +15,63 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const searchQuery = search.trim();
-    const supabase = await createClient();
+    const searchQuery = search.trim().toLowerCase();
+    const db = await getAdminFirestore();
+    const receiptsRef = db.collection("sevaBookings");
 
-    // The prompt says: "should use supabase existing db schema"
-    // We're querying `seva_bookings`
-    let query = supabase.from("seva_bookings").select("*");
+    // Firestore does not support OR queries across multiple fields with substring matching well in older SDKs.
+    // However, since it's an admin API, we can fetch all and filter in memory if the dataset is small,
+    // OR we can do multiple queries if it's exact match, but this search might be partial.
+    // The previous implementation used ilike (substring).
+    // To replicate ilike on Firestore, we need to fetch all and filter, or fetch recent and filter.
+    // Let's fetch the most recent 1000 and filter in memory, taking the top 20 matches.
+    const snapshot = await receiptsRef.orderBy("createdAt", "desc").limit(1000).get();
 
-    // Attempt to match against user_phone, user_email, firestore_id, or payment_reference
-    query = query.or(`user_phone.ilike.*${searchQuery}*,user_email.ilike.*${searchQuery}*,firestore_id.ilike.*${searchQuery}*,payment_reference.ilike.*${searchQuery}*`);
+    const matchedBookings = [];
 
-    const { data: bookings, error } = await query
-      .order("created_at", { ascending: false })
-      .limit(20);
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const userPhone = String(data.userPhone || "");
+      const userEmail = String(data.userEmail || "");
+      const paymentReference = String(data.paymentReference || "");
+      const firestoreId = doc.id;
 
-    if (error) {
-      console.error("[Public Receipts API] Supabase error:", error);
-      return NextResponse.json(
-        { error: "Failed to search receipts." },
-        { status: 500 }
-      );
+      const phoneMatch = userPhone.toLowerCase().includes(searchQuery);
+      const emailMatch = userEmail.toLowerCase().includes(searchQuery);
+      const idMatch = firestoreId.toLowerCase().includes(searchQuery);
+      const refMatch = paymentReference.toLowerCase().includes(searchQuery);
+
+      if (phoneMatch || emailMatch || idMatch || refMatch) {
+        matchedBookings.push({
+          id: doc.id,
+          firestore_id: doc.id,
+          seva_id: data.sevaId,
+          seva_title: data.sevaTitle,
+          seva_amount: data.sevaAmount,
+          user_id: data.userId,
+          user_name: data.userName,
+          user_email: userEmail,
+          user_phone: userPhone,
+          preferred_date: data.preferredDate,
+          notes: data.notes,
+          status: data.status,
+          payment_reference: paymentReference,
+          payment_status: data.paymentStatus,
+          payment_date: data.paymentDate,
+          payment_method: data.paymentMethod,
+          created_at: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+          updated_at: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+        });
+      }
+
+      if (matchedBookings.length >= 20) {
+        break;
+      }
     }
 
     return NextResponse.json({
       success: true,
-      receipts: bookings,
+      receipts: matchedBookings,
     });
   } catch (error) {
     console.error("[Public Receipts API] Error:", error);
