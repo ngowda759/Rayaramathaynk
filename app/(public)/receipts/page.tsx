@@ -23,6 +23,7 @@ interface SevaBookingRecord {
   preferred_date?: string;
   gotra?: string;
   nakshatra?: string;
+  raashi?: string;
 }
 
 export default function PublicReceiptsPage() {
@@ -202,6 +203,7 @@ export default function PublicReceiptsPage() {
           paymentReference={selectedReceipt.payment_reference || "UPI"}
           gotra={selectedReceipt.gotra}
           nakshatra={selectedReceipt.nakshatra}
+          raashi={selectedReceipt.raashi}
           onClose={() => setSelectedReceipt(null)}
         />
       )}

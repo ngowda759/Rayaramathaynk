@@ -37,6 +37,7 @@ export default function SevaBooking() {
   const [phone, setPhone] = useState("");
   const [gotra, setGotra] = useState("");
   const [nakshatra, setNakshatra] = useState("");
+  const [raashi, setRaashi] = useState("");
   const [loadingSevas, setLoadingSevas] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
@@ -51,6 +52,7 @@ export default function SevaBooking() {
     paymentReference: string;
     gotra?: string;
     nakshatra?: string;
+    raashi?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -160,6 +162,7 @@ export default function SevaBooking() {
         userPhone: phone,
         gotra,
         nakshatra,
+        raashi,
         preferredDate,
         notes,
       });
@@ -196,6 +199,7 @@ export default function SevaBooking() {
         devoteeName: name || profile?.name || "",
           gotra,
           nakshatra,
+          raashi,
         phone: phone,
         sevaDate: preferredDate,
         sevaTitle: selectedSeva?.name || "",
@@ -666,6 +670,7 @@ export default function SevaBooking() {
         paymentReference={receiptData.paymentReference}
         gotra={receiptData.gotra}
         nakshatra={receiptData.nakshatra}
+        raashi={receiptData.raashi}
         onClose={handleReceiptClose}
       />
     )}

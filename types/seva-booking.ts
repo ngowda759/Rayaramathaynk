@@ -17,6 +17,7 @@ export interface SevaBooking {
   userPhone: string;
   gotra?: string;
   nakshatra?: string;
+  raashi?: string;
   preferredDate: string;
   notes: string;
   status: SevaBookingStatus;
