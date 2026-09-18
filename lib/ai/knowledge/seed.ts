@@ -826,7 +826,7 @@ For information about participating in or contributing to these services, please
  * Convert seed articles to Firestore format
  */
 export function getSeedArticlesForFirebase(): Array<Omit<KnowledgeArticle, "id">> {
-  return SEED_ARTICLES.map((article) => ({
+  return SEED_ARTICLES.map(({ id, ...article }: any) => ({
     ...article,
     createdAt: new Date(),
     updatedAt: new Date(),
