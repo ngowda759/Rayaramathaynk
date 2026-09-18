@@ -42,3 +42,6 @@ data/firestore-dump/*
 
 # Temporary live-probe scripts (never commit!
 scripts/.*.mjs
+output.xml
+log.html
+report.html
