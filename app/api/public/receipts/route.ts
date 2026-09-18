@@ -23,13 +23,7 @@ export async function GET(request: NextRequest) {
     let query = supabase.from("seva_bookings").select("*");
 
     // Attempt to match against user_phone, user_email, firestore_id, or payment_reference
-    if (searchQuery.includes("@")) {
-      query = query.ilike("user_email", `%${searchQuery}%`);
-    } else if (searchQuery.startsWith("SR") || searchQuery.startsWith("TXN") || searchQuery.length > 15) {
-      query = query.or(`firestore_id.ilike.%${searchQuery}%,payment_reference.ilike.%${searchQuery}%`);
-    } else {
-      query = query.or(`user_phone.ilike.%${searchQuery}%,firestore_id.ilike.%${searchQuery}%,payment_reference.ilike.%${searchQuery}%`);
-    }
+    query = query.or(`user_phone.ilike.%${searchQuery}%,user_email.ilike.%${searchQuery}%,firestore_id.ilike.%${searchQuery}%,payment_reference.ilike.%${searchQuery}%`);
 
     const { data: bookings, error } = await query
       .order("created_at", { ascending: false })

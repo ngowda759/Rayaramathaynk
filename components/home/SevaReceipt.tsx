@@ -54,7 +54,7 @@ export default function SevaReceipt({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 overflow-y-auto pt-20">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-orange-600 to-amber-600 px-6 py-4 text-white text-center">
