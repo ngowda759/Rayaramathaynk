@@ -376,3 +376,43 @@ This is crucial for:
 - **Low Risk**: Content-driven collections (`sevas`, `events`) are easy to migrate and mostly read-heavy.
 - **Medium Risk**: Converting Firestore Timestamps correctly during ETL scripts requires careful handling of timezones and object structures.
 - **High Risk**: Identity and Auth mapping. Misunderstanding the relationship between the Firebase Auth UID and PostgreSQL records could lead to broken access. Mitigation: Keep all DB access server-side and validate Firebase Auth tokens explicitly in the API layer before querying Supabase.
+
+### 4.14. Table: `site_settings`
+Mapped from `settings` collection (general docs). Verified against `types/settings.ts` / `services/settings.service.ts`.
+
+| Column | PostgreSQL Type | Nullable | Source Field | Notes |
+|--------|-----------------|----------|--------------|-------|
+| `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
+| `firestore_id` | `text` | Yes | document ID | Unique constraint. |
+| `temple_name` | `text` | No | `templeName` | |
+| `contact_email` | `text` | No | `contactEmail` | |
+| `contact_phone` | `text` | No | `contactPhone` | |
+| `address` | `text` | No | `address` | |
+| `footer_text` | `text` | Yes | `footerText` | |
+| `welcome_message` | `text` | Yes | `welcomeMessage` | |
+| `created_at` | `timestamptz` | Yes | N/A | Default `now()` |
+| `updated_at` | `timestamptz` | Yes | `updatedAt` | |
+
+### 4.15. Table: `social_links`
+Mapped from `settings/socialLinks` document. Verified against `types/settings.ts` / `services/settings.service.ts`.
+
+| Column | PostgreSQL Type | Nullable | Source Field | Notes |
+|--------|-----------------|----------|--------------|-------|
+| `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
+| `firestore_id` | `text` | Yes | document ID | Unique constraint. |
+| `facebook` | `text` | Yes | `facebook` | |
+| `instagram` | `text` | Yes | `instagram` | |
+| `youtube` | `text` | Yes | `youtube` | |
+| `whatsapp` | `text` | Yes | `whatsapp` | |
+| `twitter` | `text` | Yes | `twitter` | |
+| `linkedin` | `text` | Yes | `linkedin` | |
+| `map_url` | `text` | Yes | `mapUrl` | |
+| `show_facebook` | `boolean` | No | `showFacebook` | Default `true` |
+| `show_instagram`| `boolean` | No | `showInstagram`| Default `true` |
+| `show_youtube` | `boolean` | No | `showYoutube` | Default `true` |
+| `show_whatsapp` | `boolean` | No | `showWhatsapp` | Default `true` |
+| `show_twitter` | `boolean` | No | `showTwitter` | Default `false` |
+| `show_linkedin` | `boolean` | No | `showLinkedin` | Default `false` |
+| `show_map` | `boolean` | No | `showMap` | Default `true` |
+| `created_at` | `timestamptz` | Yes | N/A | Default `now()` |
+| `updated_at` | `timestamptz` | Yes | N/A | Default `now()` |
