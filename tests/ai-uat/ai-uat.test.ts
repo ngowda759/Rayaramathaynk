@@ -1,3 +1,5 @@
+import WebSocket from "ws";
+(global as any).WebSocket = WebSocket;
 /**
  * AI UAT Unit Tests
  * Comprehensive unit tests for Raya AI intent detection and response generation

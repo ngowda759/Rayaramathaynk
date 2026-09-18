@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/client";
 
 // AI Settings Repository
 // Handles Firebase operations for AI Management Center settings
@@ -385,49 +386,59 @@ export class AISettingsRepository {
     language: "en" | "kn" | "mixed",
     sessionId: string
   ): Promise<void> {
-    const docRef = doc(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION, `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
-    
-    const unknownQuestion: Omit<UnknownQuestion, "id"> = {
-      question,
-      questionLower: question.toLowerCase(),
-      detectedIntent,
-      confidence,
-      language,
-      timestamp: new Date(),
-      sessionId,
-      timesAsked: 1,
-      status: "pending",
-      assignedTo: "unassigned",
-    };
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('unknown_questions')
+      .insert([{
+        question,
+        question_lower: question.toLowerCase(),
+        detected_intent: detectedIntent,
+        confidence,
+        language,
+        session_id: sessionId,
+        times_asked: 1,
+        status: 'pending',
+        assigned_to: 'unassigned',
+        timestamp: new Date().toISOString()
+      }]);
 
-    await setDoc(docRef, {
-      ...unknownQuestion,
-      timestamp: Timestamp.fromDate(unknownQuestion.timestamp),
-    });
+    if (error) {
+      console.error("Error logging unknown question to Supabase:", error);
+    }
   }
 
   async checkAndIncrementUnknownQuestion(
     question: string
   ): Promise<{ isNew: boolean; docId?: string }> {
-    const questionsRef = collection(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION);
-    const q = query(
-      questionsRef,
-      where("questionLower", "==", question.toLowerCase()),
-      orderBy("timestamp", "desc"),
-      limit(1)
-    );
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('unknown_questions')
+        .select('id, times_asked')
+        .eq('question_lower', question.toLowerCase())
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    const snapshot = await getDocs(q);
+      if (error) throw error;
 
-    if (!snapshot.empty) {
-      const docId = snapshot.docs[0].id;
-      await updateDoc(doc(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION, docId), {
-        timesAsked: increment(1),
-      });
-      return { isNew: false, docId };
+      if (data) {
+        const { error: updateError } = await supabase
+          .from('unknown_questions')
+          .update({
+            times_asked: (data.times_asked || 0) + 1,
+            last_asked: new Date().toISOString()
+          })
+          .eq('id', data.id);
+
+        if (updateError) throw updateError;
+        return { isNew: false, docId: data.id };
+      }
+      return { isNew: true };
+    } catch (error) {
+      console.error("Error checking unknown question in Supabase:", error);
+      return { isNew: true };
     }
-
-    return { isNew: true };
   }
 
   async getUnknownQuestions(
@@ -438,32 +449,37 @@ export class AISettingsRepository {
     }
   ): Promise<UnknownQuestion[]> {
     try {
-      const q = collection(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION);
+      const supabase = createClient();
+      let queryObj = supabase.from('unknown_questions').select('*').order('timestamp', { ascending: false });
 
-      // Apply filters - build constraints array
-      const orderConstraint = orderBy("timestamp", "desc");
-      const snapshot = filters?.limit
-        ? await getDocs(query(q, orderConstraint, limit(filters.limit)))
-        : await getDocs(query(q, orderConstraint));
+      if (filters?.status) queryObj = queryObj.eq('status', filters.status);
+      if (filters?.assignedTo) queryObj = queryObj.eq('assigned_to', filters.assignedTo);
+      if (filters?.limit) queryObj = queryObj.limit(filters.limit);
 
-      let questions = snapshot.docs.map((doc) => ({
+      const { data, error } = await queryObj;
+      if (error) throw error;
+
+      return data.map((doc: any) => ({
         id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() || new Date(),
+        question: doc.question,
+        questionLower: doc.question_lower,
+        detectedIntent: doc.detected_intent,
+        confidence: doc.confidence,
+        language: doc.language,
+        timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
+        sessionId: doc.session_id,
+        timesAsked: doc.times_asked,
+        status: doc.status,
+        assignedTo: doc.assigned_to,
+        lastAsked: doc.last_asked ? new Date(doc.last_asked) : undefined,
+        reviewedBy: doc.reviewed_by,
+        reviewedAt: doc.reviewed_at ? new Date(doc.reviewed_at) : undefined,
+        response: doc.response,
+        addedToKnowledgeArticleId: doc.added_to_knowledge_article_id,
+        notes: doc.notes
       })) as UnknownQuestion[];
-
-      // Apply additional filters in memory
-      if (filters?.status) {
-        questions = questions.filter((q) => q.status === filters.status);
-      }
-      if (filters?.assignedTo) {
-        questions = questions.filter((q) => q.assignedTo === filters.assignedTo);
-      }
-
-      return questions;
     } catch (error) {
-      // Return empty array when Firebase is not configured
-      console.warn("Firebase not configured, returning empty unknown questions list");
+      console.error("Supabase Error getting unknown questions:", error);
       return [];
     }
   }
@@ -479,19 +495,36 @@ export class AISettingsRepository {
       notes: string;
     }>
   ): Promise<void> {
-    const docRef = doc(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION, questionId);
-    const updateData: Record<string, unknown> = { ...updates };
+    const supabase = createClient();
+    const updateData: any = {};
 
-    if (updates.reviewedBy || updates.status === "in_review") {
-      updateData.reviewedAt = Timestamp.now();
+    if (updates.status !== undefined) updateData.status = updates.status;
+    if (updates.assignedTo !== undefined) updateData.assigned_to = updates.assignedTo;
+    if (updates.reviewedBy !== undefined) updateData.reviewed_by = updates.reviewedBy;
+    if (updates.response !== undefined) updateData.response = updates.response;
+    if (updates.addedToKnowledgeArticleId !== undefined) updateData.added_to_knowledge_article_id = updates.addedToKnowledgeArticleId;
+    if (updates.notes !== undefined) updateData.notes = updates.notes;
+
+    if (updates.reviewedBy || updates.status === "in_review" || updates.status === "resolved") {
+      updateData.reviewed_at = new Date().toISOString();
     }
 
-    await updateDoc(docRef, updateData as Record<string, import("firebase/firestore").FieldValue | Partial<unknown>>);
+    const { error } = await supabase
+      .from('unknown_questions')
+      .update(updateData)
+      .eq('id', questionId);
+
+    if (error) throw error;
   }
 
   async deleteUnknownQuestion(questionId: string): Promise<void> {
-    const docRef = doc(this.getFirestore(), UNKNOWN_QUESTIONS_COLLECTION, questionId);
-    await deleteDoc(docRef);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('unknown_questions')
+      .delete()
+      .eq('id', questionId);
+
+    if (error) throw error;
   }
 
   // ==================== DEFAULT PROMPT ====================

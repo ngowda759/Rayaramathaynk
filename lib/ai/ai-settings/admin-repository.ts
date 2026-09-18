@@ -26,6 +26,7 @@ import {
   DEFAULT_AI_BEHAVIOR_SETTINGS,
 } from "@/types/ai-settings";
 import { FieldValue } from "firebase-admin/firestore";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const AI_SETTINGS_DOC_ID = "main";
 const AI_SETTINGS_COLLECTION = "ai_settings";
@@ -267,30 +268,34 @@ Sri Guru Raghavendraya Namaha! 🙏`;
     status?: string;
     limit?: number;
   }): Promise<UnknownQuestion[]> {
-    const db = await this.getDb();
-    const query: any = db.collection(UNKNOWN_QUESTIONS_COLLECTION);
-
-    const snapshot = await query.orderBy("timestamp", "desc").get();
+    const supabase = createAdminClient();
+    let queryObj = supabase.from('unknown_questions').select('*').order('timestamp', { ascending: false });
     
-    let questions = snapshot.docs.map((doc: any) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        timestamp: data.timestamp?.toDate?.() || new Date(),
-      };
-    }) as UnknownQuestion[];
+    if (filters?.status) queryObj = queryObj.eq('status', filters.status);
+    if (filters?.limit) queryObj = queryObj.limit(filters.limit);
 
-    // Apply filters in memory
-    if (filters?.status) {
-      questions = questions.filter((q) => q.status === filters.status);
-    }
+    const { data, error } = await queryObj;
+    if (error) throw error;
 
-    if (filters?.limit) {
-      questions = questions.slice(0, filters.limit);
-    }
-
-    return questions;
+    return data.map((doc: any) => ({
+      id: doc.id,
+      question: doc.question,
+      questionLower: doc.question_lower,
+      detectedIntent: doc.detected_intent,
+      confidence: doc.confidence,
+      language: doc.language,
+      timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
+      sessionId: doc.session_id,
+      timesAsked: doc.times_asked,
+      status: doc.status,
+      assignedTo: doc.assigned_to,
+      lastAsked: doc.last_asked ? new Date(doc.last_asked) : undefined,
+      reviewedBy: doc.reviewed_by,
+      reviewedAt: doc.reviewed_at ? new Date(doc.reviewed_at) : undefined,
+      response: doc.response,
+      addedToKnowledgeArticleId: doc.added_to_knowledge_article_id,
+      notes: doc.notes
+    })) as UnknownQuestion[];
   }
 
   async updateUnknownQuestion(
@@ -304,26 +309,36 @@ Sri Guru Raghavendraya Namaha! 🙏`;
       notes: string;
     }>
   ): Promise<void> {
-    const db = await this.getDb();
-    const docRef = db.collection(UNKNOWN_QUESTIONS_COLLECTION).doc(questionId);
+    const supabase = createAdminClient();
+    const updateData: any = {};
     
-    const updateData: Record<string, any> = { ...updates };
+    if (updates.status !== undefined) updateData.status = updates.status;
+    if (updates.assignedTo !== undefined) updateData.assigned_to = updates.assignedTo;
+    if (updates.reviewedBy !== undefined) updateData.reviewed_by = updates.reviewedBy;
+    if (updates.response !== undefined) updateData.response = updates.response;
+    if (updates.addedToKnowledgeArticleId !== undefined) updateData.added_to_knowledge_article_id = updates.addedToKnowledgeArticleId;
+    if (updates.notes !== undefined) updateData.notes = updates.notes;
 
-    if (updates.reviewedBy || updates.status === "in_review") {
-      updateData.reviewedAt = FieldValue.serverTimestamp();
+    if (updates.reviewedBy || updates.status === "in_review" || updates.status === "resolved") {
+      updateData.reviewed_at = new Date().toISOString();
     }
 
-    if (updates.status) {
-      updateData.status = updates.status;
-    }
+    const { error } = await supabase
+      .from('unknown_questions')
+      .update(updateData)
+      .eq('id', questionId);
 
-    await docRef.update(updateData);
+    if (error) throw error;
   }
 
   async deleteUnknownQuestion(questionId: string): Promise<void> {
-    const db = await this.getDb();
-    const docRef = db.collection(UNKNOWN_QUESTIONS_COLLECTION).doc(questionId);
-    await docRef.delete();
+    const supabase = createAdminClient();
+    const { error } = await supabase
+      .from('unknown_questions')
+      .delete()
+      .eq('id', questionId);
+
+    if (error) throw error;
   }
 }
 
