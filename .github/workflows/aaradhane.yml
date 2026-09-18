@@ -260,7 +260,7 @@ jobs:
 
       - name: Upload Aaradhane Data
         if: steps.check_panchanga.outputs.exists != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aaradhane-panchanga-${{ steps.year.outputs.target_year }}
           path: data/panchanga/${{ steps.year.outputs.target_year }}/
