@@ -144,7 +144,7 @@ export default function SevaBooking() {
   }
 
   async function handleBooking() {
-    if (!user || !selectedSeva) return;
+    if (!selectedSeva) return;
 
     setSubmitting(true);
 
@@ -156,9 +156,9 @@ export default function SevaBooking() {
         sevaId: selectedSeva.id,
         sevaTitle: selectedSeva.name,
         sevaAmount: selectedSeva.amount,
-        userId: user.uid,
-        userName: name || profile?.name || "",
-        userEmail: email || user.email || "",
+        userId: user?.uid || "anonymous",
+        userName: name || profile?.name || "Anonymous",
+        userEmail: email || user?.email || "anonymous@example.com",
         userPhone: phone,
         gotra,
         nakshatra,
@@ -372,7 +372,7 @@ export default function SevaBooking() {
               />
 
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1">Gotra / ಗೋತ್ರ</label>
                   <Input
@@ -391,6 +391,15 @@ export default function SevaBooking() {
                     placeholder="Enter Nakshatra"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Raashi / ರಾಶಿ</label>
+                  <Input
+                    type="text"
+                    value={raashi}
+                    onChange={(e) => setRaashi(e.target.value)}
+                    placeholder="Enter Raashi"
+                  />
+                </div>
               </div>
 
               <Textarea
@@ -405,17 +414,13 @@ export default function SevaBooking() {
                 type="button"
                 onClick={handleSubmitClick}
                 loading={submitting}
-                disabled={loading || !user}
+                disabled={loading}
                 className="w-full"
               >
                 Submit Booking Request
               </Button>
 
-              {!loading && !user ? (
-                <p className="text-sm text-stone-600">
-                  Sign in to submit a seva booking request. New devotees can register and start booking instantly.
-                </p>
-              ) : null}
+
             </div>
           </div>
 
