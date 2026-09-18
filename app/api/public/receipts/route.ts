@@ -23,15 +23,12 @@ export async function GET(request: NextRequest) {
     let query = supabase.from("seva_bookings").select("*");
 
     // Attempt to match against user_phone, user_email, firestore_id, or payment_reference
-    // If it looks like an email:
     if (searchQuery.includes("@")) {
-      query = query.eq("user_email", searchQuery);
+      query = query.ilike("user_email", `%${searchQuery}%`);
     } else if (searchQuery.startsWith("SR") || searchQuery.startsWith("TXN") || searchQuery.length > 15) {
-      // Looks like a booking ref or payment ref or firestore id
-      query = query.or(`firestore_id.eq.${searchQuery},payment_reference.eq.${searchQuery}`);
+      query = query.or(`firestore_id.ilike.%${searchQuery}%,payment_reference.ilike.%${searchQuery}%`);
     } else {
-      // Otherwise assume phone
-      query = query.eq("user_phone", searchQuery);
+      query = query.or(`user_phone.ilike.%${searchQuery}%,firestore_id.ilike.%${searchQuery}%,payment_reference.ilike.%${searchQuery}%`);
     }
 
     const { data: bookings, error } = await query
