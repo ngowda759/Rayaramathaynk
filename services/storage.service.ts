@@ -228,18 +228,20 @@ class StorageService {
   async deleteFile(urlOrPathname: string): Promise<void> {
     const supabase = this.getClient();
 
-    // Extract pathname if a URL was provided
     let pathname = urlOrPathname;
     if (urlOrPathname.startsWith('http')) {
-      // e.g. https://xyz.supabase.co/storage/v1/object/public/temple-media/gallery/videos/video.mp4
       const urlParts = urlOrPathname.split(`/object/public/${BUCKET_NAME}/`);
       if (urlParts.length > 1) {
         pathname = urlParts[1];
       }
     }
 
-    // Attempt to decode URI if it's encoded
     pathname = decodeURIComponent(pathname);
+
+    // Validate path
+    if (pathname.includes('..') || pathname.includes('%2e')) {
+      throw new Error("Invalid path traversal attempted");
+    }
 
     const { error } = await supabase.storage
       .from(BUCKET_NAME)
@@ -289,7 +291,9 @@ class StorageService {
   generateFilename(originalName: string, prefix?: string): string {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
-    const ext = originalName.split('.').pop() || 'jpg';
+    // basic sanitize original name
+    const sanitizedOriginal = originalName.replace(/[^a-zA-Z0-9.-]/g, '');
+    const ext = sanitizedOriginal.split('.').pop() || 'jpg';
     const cleanName = prefix 
       ? `${prefix}_${timestamp}_${random}`
       : `${timestamp}_${random}`;

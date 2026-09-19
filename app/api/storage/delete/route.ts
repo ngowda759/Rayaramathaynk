@@ -1,9 +1,13 @@
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { storageService } from "@/services/storage.service";
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
+  const user = await verifyAdminUser(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await request.json();
     const { url } = body;

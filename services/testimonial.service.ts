@@ -314,7 +314,7 @@ export async function submitTestimonial(
       formData.append('filename', filename);
       formData.append('folder', 'testimonials');
 
-      const response = await fetch('/api/storage/upload', {
+      const response = await fetch('/api/storage/upload-testimonial', {
         method: 'POST',
         body: formData,
       });

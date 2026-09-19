@@ -1,3 +1,4 @@
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { storageService, UploadFolder } from "@/services/storage.service";
 
@@ -7,6 +8,9 @@ export const maxDuration = 60;
 const ALLOWED_FOLDERS = ['testimonials', 'gallery', 'videos', 'aaradhane', 'events', 'profile', 'donations', 'sevas', 'reports'];
 
 export async function POST(request: NextRequest) {
+  const user = await verifyAdminUser(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const formData = await request.formData();
 
@@ -16,6 +20,13 @@ export async function POST(request: NextRequest) {
     const filename = formData.get('filename') as string | null;
     let folder = formData.get('folder') as string | null || 'gallery';
 
+    if (!folder || folder.includes('..') || folder.includes('/') || folder.includes('%2e')) {
+      return NextResponse.json(
+        { error: 'Invalid folder path.' },
+        { status: 400 }
+      );
+    }
+
     if (!ALLOWED_FOLDERS.includes(folder)) {
       return NextResponse.json(
         { error: `Invalid folder. Must be one of: ${ALLOWED_FOLDERS.join(', ')}` },
@@ -23,7 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (filename && filename.includes('..')) {
+    if (filename && (filename.includes('..') || filename.includes('/') || filename.includes('%2e') || filename.includes('\\') || filename.startsWith('.'))) {
       return NextResponse.json(
         { error: 'Path traversal is not allowed in filename.' },
         { status: 400 }
@@ -33,6 +44,20 @@ export async function POST(request: NextRequest) {
     let result;
 
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'File size exceeds 5MB limit.' },
+          { status: 413 }
+        );
+      }
+
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedMimes.includes(file.type)) {
+        return NextResponse.json(
+          { error: 'Invalid file type. Only JPEG, PNG, WEBP, and GIF are allowed.' },
+          { status: 400 }
+        );
+      }
       if (!filename) {
          return NextResponse.json(
           { error: 'filename is required when uploading a file' },
@@ -41,6 +66,14 @@ export async function POST(request: NextRequest) {
       }
       result = await storageService.uploadFile(file, filename, folder as UploadFolder);
     } else if (base64) {
+      // Rough base64 size check (Base64 string length * 3/4)
+      const estimatedSize = base64.length * 0.75;
+      if (estimatedSize > 5 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'Image size exceeds 5MB limit.' },
+          { status: 413 }
+        );
+      }
       if (!filename) {
          return NextResponse.json(
           { error: 'filename is required when uploading base64' },

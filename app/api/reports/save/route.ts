@@ -1,3 +1,4 @@
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { storageService, ReportFileType } from "@/services/storage.service";
 
@@ -25,6 +26,9 @@ interface SaveReportRequest {
  * }
  */
 export async function POST(request: NextRequest) {
+  const user = await verifyAdminUser(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const body: SaveReportRequest = await request.json();
     const { type, name, content, contentType, metadata } = body;

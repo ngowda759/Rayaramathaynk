@@ -1,3 +1,4 @@
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { storageService } from "@/services/storage.service";
 
@@ -5,6 +6,9 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
+  const user = await verifyAdminUser(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -17,7 +21,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (filename && filename.includes('..')) {
+    if (filename && (filename.includes('..') || filename.includes('/') || filename.includes('%2e') || filename.includes('\\') || filename.startsWith('.'))) {
       return NextResponse.json(
         { error: 'Path traversal is not allowed in filename.' },
         { status: 400 }
@@ -25,11 +29,18 @@ export async function POST(request: NextRequest) {
     }
 
     const fileType = file.type;
+    if (file.size > 100 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'Video size exceeds 100MB limit.' },
+        { status: 413 }
+      );
+    }
+
     const validVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/ogg'];
 
     // Always allow octet-stream for generic files if the client doesn't know,
     // but ideally we only want videos here.
-    if (!validVideoTypes.includes(fileType) && fileType !== 'application/octet-stream' && !fileType.startsWith('video/')) {
+    if (!validVideoTypes.includes(fileType)) {
        return NextResponse.json(
         { error: 'Invalid video mime type.' },
         { status: 400 }
