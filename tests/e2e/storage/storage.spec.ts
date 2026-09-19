@@ -63,7 +63,7 @@ test.describe('Firebase Storage Module', () => {
       await page.waitForTimeout(2000);
       
       const uploadButton = page.locator('button:has-text("Upload"), input[type="file"]');
-      await uploadButton.count();
+      const count = await uploadButton.count();
       // Should have upload functionality
     });
 
@@ -94,7 +94,7 @@ test.describe('Firebase Storage Module', () => {
   });
 
   test.describe('Storage Security', () => {
-    test('STORAGE-020: Storage rules prevent unauthorized access', async ({}) => {
+    test('STORAGE-020: Storage rules prevent unauthorized access', async ({ page }) => {
       // This tests that storage is properly configured
       // Actual rule testing would require Firebase Admin SDK
     });
@@ -148,13 +148,13 @@ test.describe('Firebase Storage Module', () => {
       const images = page.locator('img');
       const count = await images.count();
       
-      const thumbnailCount = 0;
+      let thumbnailCount = 0;
       for (let i = 0; i < Math.min(count, 5); i++) {
         const img = images.nth(i);
         const src = await img.getAttribute('src');
         
         if (src && (src.includes('thumb') || src.includes('/thumb'))) {
-
+          thumbnailCount++;
         }
       }
       
