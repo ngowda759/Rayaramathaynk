@@ -21,6 +21,9 @@ import {
 import { db } from "@/lib/firebase";
 import {
   AISettings,
+  AIGeneralSettings,
+  AISafetySettings,
+  AIExtendedBehaviorSettings,
   TempleInformation,
   VisitorInformation,
   TemplePolicies,
@@ -29,6 +32,9 @@ import {
   PromptSettings,
   IntentSettings,
   UnknownQuestion,
+  DEFAULT_AI_GENERAL_SETTINGS,
+  DEFAULT_AI_SAFETY_SETTINGS,
+  DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
   DEFAULT_TEMPLE_INFORMATION,
   DEFAULT_TEMPLE_TIMINGS,
   DEFAULT_TEMPLE_CONTACT,
@@ -77,6 +83,9 @@ export class AISettingsRepository {
   async createDefaultSettings(userId: string): Promise<AISettings> {
     const settings: AISettings = {
       id: AI_SETTINGS_DOC_ID,
+      general: DEFAULT_AI_GENERAL_SETTINGS,
+      safety: DEFAULT_AI_SAFETY_SETTINGS,
+      extendedBehavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
       templeInformation: {
         timings: DEFAULT_TEMPLE_TIMINGS,
         contact: DEFAULT_TEMPLE_CONTACT,

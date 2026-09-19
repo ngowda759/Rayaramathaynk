@@ -7,6 +7,9 @@ export { AISettingsService, aiSettingsService } from "./service";
 
 // Re-export types for convenience
 export type {
+  AIGeneralSettings,
+  AISafetySettings,
+  AIExtendedBehaviorSettings,
   TempleInformation,
   VisitorInformation,
   TemplePolicies,
@@ -28,6 +31,9 @@ export type {
 } from "@/types/ai-settings";
 
 export {
+  DEFAULT_AI_GENERAL_SETTINGS,
+  DEFAULT_AI_SAFETY_SETTINGS,
+  DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
   DEFAULT_TEMPLE_INFORMATION,
   DEFAULT_TEMPLE_TIMINGS,
   DEFAULT_TEMPLE_CONTACT,

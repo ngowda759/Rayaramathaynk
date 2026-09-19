@@ -35,6 +35,19 @@ export async function POST(request: NextRequest) {
     }
 
     switch (action) {
+
+      case "updateGeneralSettings":
+        await aiSettingsService.updateGeneralSettings(data, userId);
+        break;
+
+      case "updateSafetySettings":
+        await aiSettingsService.updateSafetySettings(data, userId);
+        break;
+
+      case "updateExtendedBehaviorSettings":
+        await aiSettingsService.updateExtendedBehaviorSettings(data, userId);
+        break;
+
       case "updateTempleInformation":
         await aiSettingsService.updateTempleInformation(data, userId);
         break;
