@@ -277,15 +277,76 @@ export const INTENT_STATUS_DISPLAY: Record<IntentStatus, string> = {
 // Legacy alias for backwards compatibility
 export const DEFAULT_AI_RESPONSE_TEMPLATES = DEFAULT_AI_RESPONSES;
 
+// ==================== NEW CENTRALIZED SETTINGS ====================
+
+export interface AIGeneralSettings {
+  enabled: boolean;
+  botName: string;
+  botSubtitle: string;
+  welcomeMessage: string;
+  closingMessage: string;
+  defaultLanguage: AISettingsLanguage;
+  supportedLanguages: AISettingsLanguage[];
+}
+
+export interface AISafetySettings {
+  retrievalRequired: boolean;
+  allowLLMOnlyResponse: boolean;
+  requireSourceForFacts: boolean;
+  unknownQuestionBehaviour: "fallback" | "escalate" | "silent";
+  outOfScopeBehaviour: "fallback" | "strict" | "silent";
+}
+
+export const DEFAULT_AI_GENERAL_SETTINGS: AIGeneralSettings = {
+  enabled: true,
+  botName: "Raya AI",
+  botSubtitle: "Official Temple Assistant",
+  welcomeMessage: "🙏 Namaskara! Welcome to Sri Raghavendra Swamy Matha. How may I help you?",
+  closingMessage: "🙏 Sri Guru Raghavendraya Namaha! Thank you for visiting.",
+  defaultLanguage: "en",
+  supportedLanguages: ["en", "kn", "mixed"],
+};
+
+export const DEFAULT_AI_SAFETY_SETTINGS: AISafetySettings = {
+  retrievalRequired: true,
+  allowLLMOnlyResponse: false,
+  requireSourceForFacts: true,
+  unknownQuestionBehaviour: "fallback",
+  outOfScopeBehaviour: "fallback",
+};
+
+// Update existing AIBehaviorSettings to include the new fields from the prompt
+export interface AIExtendedBehaviorSettings extends AIBehaviorSettings {
+  enableFollowUpContext: boolean;
+  enableSuggestedQuestions: boolean;
+  enableDebugMode: boolean;
+  enableAnalytics: boolean;
+  enableUnknownQuestionLogging: boolean;
+  maxKnowledgeResults: number;
+}
+
+export const DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS: AIExtendedBehaviorSettings = {
+  ...DEFAULT_AI_BEHAVIOR_SETTINGS,
+  enableFollowUpContext: true,
+  enableSuggestedQuestions: true,
+  enableDebugMode: false,
+  enableAnalytics: true,
+  enableUnknownQuestionLogging: true,
+  maxKnowledgeResults: 3,
+};
+
 // ==================== COMPLETE SETTINGS ====================
 
 export interface AISettings {
   id: string;
+  general: AIGeneralSettings;
+  safety: AISafetySettings;
+  extendedBehavior: AIExtendedBehaviorSettings;
   templeInformation: TempleInformation;
   visitorInformation: VisitorInformation;
   templePolicies: TemplePolicies;
   aiResponses: AIResponses;
-  aiBehavior: AIBehaviorSettings;
+  aiBehavior: AIBehaviorSettings; // Legacy
   prompt: PromptSettings;
   intents: IntentSettings;
   updatedAt: Date;

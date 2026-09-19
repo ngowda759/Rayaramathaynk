@@ -5,6 +5,9 @@ import { aiSettingsRepository } from "./repository";
 import { aiAdminRepository } from "./admin-repository";
 import {
   AISettings,
+  AIGeneralSettings,
+  AISafetySettings,
+  AIExtendedBehaviorSettings,
   TempleInformation,
   VisitorInformation,
   TemplePolicies,
@@ -15,6 +18,9 @@ import {
   IntentSettings,
   IntentMetadata,
   UnknownQuestion,
+  DEFAULT_AI_GENERAL_SETTINGS,
+  DEFAULT_AI_SAFETY_SETTINGS,
+  DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
   DEFAULT_AI_BEHAVIOR_SETTINGS,
   DEFAULT_AI_RESPONSES,
   DEFAULT_TEMPLE_INFORMATION,
@@ -45,6 +51,9 @@ export class AISettingsService {
       // Return default settings when Firebase is not available
       return {
         id: "main",
+        general: DEFAULT_AI_GENERAL_SETTINGS,
+        safety: DEFAULT_AI_SAFETY_SETTINGS,
+        extendedBehavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
         templeInformation: DEFAULT_TEMPLE_INFORMATION,
         visitorInformation: DEFAULT_VISITOR_INFORMATION,
         templePolicies: DEFAULT_TEMPLE_POLICIES,
@@ -72,6 +81,21 @@ export class AISettingsService {
     }
 
     return settings;
+  }
+
+
+  // ==================== NEW SETTINGS ====================
+
+  async updateGeneralSettings(general: AIGeneralSettings, userId: string): Promise<void> {
+    await aiSettingsRepository.updateSettings({ general }, userId);
+  }
+
+  async updateSafetySettings(safety: AISafetySettings, userId: string): Promise<void> {
+    await aiSettingsRepository.updateSettings({ safety }, userId);
+  }
+
+  async updateExtendedBehaviorSettings(extendedBehavior: AIExtendedBehaviorSettings, userId: string): Promise<void> {
+    await aiSettingsRepository.updateSettings({ extendedBehavior }, userId);
   }
 
   // ==================== TEMPLE INFORMATION ====================

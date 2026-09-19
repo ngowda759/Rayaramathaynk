@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { galleryService } from "@/services/gallery.service";
-
+import { storageService } from "@/services/storage.service";
 
 import GalleryStats from "./GalleryStats";
 import GalleryToolbar from "./GalleryToolbar";
@@ -49,7 +49,7 @@ export default function GalleryDashboard() {
         await Promise.all([
           galleryService.getAlbums(),
           galleryService.getMedia(),
-          fetch("/api/storage/videos").then(r => r.json()).then(d => d.videos).catch(() => []),
+          storageService.listVideos().catch(() => []),
         ]);
 
       console.log("Gallery data loaded:", { albums: albumData.length, media: mediaData.length, blobVideos: blobVideoData.length });
