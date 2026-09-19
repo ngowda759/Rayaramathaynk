@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Video, Trash2, ExternalLink, RefreshCw, Upload, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { storageService } from "@/services/storage.service";
+
 
 interface BlobVideo {
   url: string;
@@ -34,7 +34,7 @@ export default function VideosManager({ videos, onRefresh }: Props) {
 
     setDeleting(video.url);
     try {
-      await storageService.deleteFile(video.url);
+      await fetch("/api/storage/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: video.url }) });
       onRefresh();
     } catch (error) {
       console.error("Failed to delete video:", error);

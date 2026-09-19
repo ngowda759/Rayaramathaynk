@@ -5,7 +5,6 @@ import { Upload, X, Loader2, Video, Play, FileVideo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { storageService } from "@/services/storage.service";
 
 interface VideoUploaderProps {
   value: string;
@@ -28,48 +27,66 @@ export default function VideoUploader({
   const [uploadProgress, setUploadProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const sizeClasses = {
+  const previewDimensions = {
     sm: "h-32",
     md: "h-48",
     lg: "h-64",
   };
 
-  const handleFile = async (file: File) => {
-    // Validate file type
-    if (!file.type.startsWith("video/")) {
-      setError("Please select a video file");
-      return;
-    }
-
-    // Validate file size
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      setError(`File size must be less than ${maxSizeMB}MB`);
-      return;
-    }
-
+  const handleUpload = async (file: File) => {
     setError(null);
-    setUploading(true);
-    setUploadProgress(0);
+
+    // Validate size
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setError(`File must be less than ${maxSizeMB}MB`);
+      return;
+    }
+
+    // Validate type (basic check, server will also validate)
+    const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/ogg'];
+    if (!validTypes.includes(file.type) && !file.type.startsWith('video/')) {
+      setError(`File must be a supported video format. Try MP4 or WebM.`);
+      return;
+    }
 
     try {
-      // Simulate progress for better UX
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + 10, 90));
-      }, 200);
+      setUploading(true);
+      setUploadProgress(10); // Initial progress
 
-      // Upload to Supabase Storage
-      const result = await storageService.uploadVideo(file);
+      // Simulate progress since we can't easily track native fetch upload progress without XHR
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + 5;
+        });
+      }, 500);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('filename', file.name);
+
+      const response = await fetch('/api/storage/upload-video', {
+        method: 'POST',
+        body: formData,
+      });
 
       clearInterval(progressInterval);
-      setUploadProgress(100);
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload video');
+      }
+
+      setUploadProgress(100);
+      const result = await response.json();
       onChange(result.url);
-    } catch (err) {
-      console.error("Upload failed:", err);
-      setError("Upload failed. Please try again.");
+
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setError(err.message || "Failed to upload video. Please try again.");
     } finally {
       setUploading(false);
-      setUploadProgress(0);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
@@ -77,148 +94,134 @@ export default function VideoUploader({
     e.preventDefault();
     setDragOver(false);
 
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
-  };
-
-  const clearVideo = () => {
-    onChange("");
-    if (inputRef.current) {
-      inputRef.current.value = "";
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleUpload(e.dataTransfer.files[0]);
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  // Helper to get filename from URL
+  const getFilename = (url: string) => {
+    try {
+      return url.split('/').pop() || "Video File";
+    } catch (e) {
+      return "Video File";
+    }
   };
 
   return (
     <div className="space-y-2">
-      {label && <Label>{label}</Label>}
+      <Label>{label}</Label>
 
-      <div
-        className={`relative rounded-lg border-2 border-dashed transition-colors ${
-          dragOver
-            ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-muted-foreground/50"
-        }`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-      >
-        {value ? (
-          // Show video preview
-          <div className={`relative ${sizeClasses[previewSize]} overflow-hidden rounded-lg bg-black`}>
-            <video
-              src={value}
-              controls
-              className="h-full w-full object-contain"
-              preload="metadata"
-            />
-            <button
-              type="button"
-              onClick={clearVideo}
-              className="absolute right-2 top-2 rounded-full bg-destructive p-1.5 text-destructive-foreground hover:bg-destructive/90"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
-              <span className="flex items-center gap-1">
-                <Play className="h-3 w-3" />
-                Video uploaded
-              </span>
-            </div>
-          </div>
-        ) : (
-          // Show upload area
-          <div className="flex flex-col items-center justify-center p-6">
-            {uploading ? (
-              <div className="w-full max-w-xs">
-                <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
-                <div className="mt-4">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-center text-sm text-muted-foreground">
-                    Uploading... {uploadProgress}%
-                  </p>
-                </div>
-              </div>
+      {value ? (
+        <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-50 group">
+          <div className={`${previewDimensions[previewSize]} relative flex flex-col items-center justify-center p-4`}>
+
+            {/* Show simple video preview if it's an mp4 or webm, otherwise generic icon */}
+            {(value.endsWith('.mp4') || value.endsWith('.webm')) ? (
+              <video
+                src={value}
+                controls
+                className="h-full w-full object-contain rounded bg-black/5"
+                controlsList="nodownload"
+                preload="metadata"
+              />
             ) : (
-              <>
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                  <FileVideo className="h-8 w-8 text-primary" />
+              <div className="flex flex-col items-center justify-center space-y-3">
+                <div className="rounded-full bg-blue-50 p-4">
+                  <Play className="h-8 w-8 text-blue-500 ml-1" />
                 </div>
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Drag & drop a video file here, or click to browse
+                <p className="text-sm font-medium text-stone-600 truncate max-w-[200px]">
+                  {getFilename(value)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Max {maxSizeMB}MB • MP4, WebM, MOV
-                </p>
-              </>
+                <a
+                  href={value}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Open in new tab
+                </a>
+              </div>
             )}
-            <Input
-              ref={inputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleInputChange}
-              disabled={uploading}
-              className="hidden"
-            />
+
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading}
+              variant="destructive"
+              size="icon"
+              className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => onChange("")}
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Choose Video
+              <X className="h-4 w-4" />
             </Button>
           </div>
-        )}
-      </div>
-
-      {error && (
-        <p className="text-xs text-destructive">{error}</p>
-      )}
-
-      {/* URL input for external video URLs */}
-      {previewSize === "md" && (
-        <div className="mt-2">
+        </div>
+      ) : (
+        <div
+          className={`relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+            dragOver
+              ? "border-blue-500 bg-blue-50/50"
+              : "border-stone-200 hover:bg-stone-50"
+          } ${error ? "border-red-500 bg-red-50" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+        >
           <Input
-            placeholder="Or paste video URL (Supabase Storage, YouTube, etc.)"
-            value={value.startsWith("http") ? value : ""}
+            ref={inputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
             onChange={(e) => {
-              if (e.target.value.startsWith("http")) {
-                onChange(e.target.value);
+              if (e.target.files && e.target.files[0]) {
+                handleUpload(e.target.files[0]);
               }
             }}
           />
+
+          <div className="flex flex-col items-center space-y-3 text-stone-500 text-center">
+            {uploading ? (
+              <div className="flex flex-col items-center w-full max-w-xs space-y-4">
+                <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+                <div className="w-full">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="font-medium">Uploading video...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-stone-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-stone-400">Please wait, this may take a moment</p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-full bg-stone-100 p-4 transition-transform group-hover:scale-110">
+                  <FileVideo className="h-8 w-8 text-stone-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-stone-700">Click or drag video to upload</p>
+                  <p className="text-xs text-stone-400 mt-1">
+                    MP4, WebM up to {maxSizeMB}MB
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="mt-2">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Select File
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Info about Supabase Storage */}
-      {previewSize === "md" && !value && (
-        <p className="text-xs text-muted-foreground">
-          Videos uploaded here will be stored in Supabase Storage at gallery/videos/
-        </p>
-      )}
+      {error && <p className="text-sm text-red-500 font-medium">{error}</p>}
     </div>
   );
 }

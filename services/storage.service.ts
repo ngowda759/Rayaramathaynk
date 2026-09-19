@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Supabase Storage Service
  * Handles all file uploads to Supabase Storage, replacing Vercel Blob

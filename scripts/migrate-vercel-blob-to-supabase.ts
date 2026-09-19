@@ -16,7 +16,6 @@
 
 import { list } from '@vercel/blob';
 import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch'; // May need to install node-fetch or use native fetch in Node 18+
 
 const VERCEL_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
