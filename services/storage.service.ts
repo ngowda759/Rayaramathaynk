@@ -72,7 +72,7 @@ class StorageService {
       ? pathnameOrFilename 
       : `${folder || 'testimonials'}/${pathnameOrFilename}`;
     
-    console.log(`[Storage] Uploading ${buffer.length} bytes (${mimeType}) to ${pathname}`);
+    console.log("[Storage] Uploading", buffer.length, "bytes", mimeType, "to", pathname);
     
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
@@ -83,7 +83,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] Upload error:`, error);
+      console.error("[Storage] Upload error:", error);
       throw error;
     }
 
@@ -91,7 +91,7 @@ class StorageService {
       .from(BUCKET_NAME)
       .getPublicUrl(pathname);
 
-    console.log(`[Storage] Uploaded to: ${publicUrlData.publicUrl}`);
+    console.log("[Storage] Uploaded to:", publicUrlData.publicUrl);
     
     return {
       url: publicUrlData.publicUrl,
@@ -122,7 +122,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] Upload file error:`, error);
+      console.error("[Storage] Upload file error:", error);
       throw error;
     }
 
@@ -130,7 +130,7 @@ class StorageService {
       .from(BUCKET_NAME)
       .getPublicUrl(pathname);
 
-    console.log(`[Storage] Uploaded to: ${publicUrlData.publicUrl}`);
+    console.log("[Storage] Uploaded to:", publicUrlData.publicUrl);
     
     return {
       url: publicUrlData.publicUrl,
@@ -158,9 +158,9 @@ class StorageService {
     const contentType = file instanceof File ? file.type : 'video/mp4';
     
     const supabase = this.getClient();
-
-    console.log(`[Storage] Uploading video (${(file instanceof File ? file.size : 0) / (1024 * 1024)} MB) to ${pathname}`);
     
+    console.log("[Storage] Uploading video", ((file instanceof File ? file.size : 0) / (1024 * 1024)), "MB to", pathname);
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -172,7 +172,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] Upload video error:`, error);
+      console.error("[Storage] Upload video error:", error);
       throw error;
     }
 
@@ -180,7 +180,7 @@ class StorageService {
       .from(BUCKET_NAME)
       .getPublicUrl(pathname);
 
-    console.log(`[Storage] Video uploaded to: ${publicUrlData.publicUrl}`);
+    console.log("[Storage] Video uploaded to:", publicUrlData.publicUrl);
     
     return {
       url: publicUrlData.publicUrl,
@@ -204,7 +204,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] List videos error:`, error);
+      console.error("[Storage] List videos error:", error);
       return [];
     }
 
@@ -246,10 +246,10 @@ class StorageService {
       .remove([pathname]);
 
     if (error) {
-      console.error(`[Storage] Delete error for ${pathname}:`, error);
+      console.error("[Storage] Delete error for", pathname, ":", error);
       throw error;
     }
-    console.log(`[Storage] Deleted: ${pathname}`);
+    console.log("[Storage] Deleted:", pathname);
   }
 
   /**
@@ -267,7 +267,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] List files error for ${folder}:`, error);
+      console.error("[Storage] List files error for", folder, ":", error);
       return [];
     }
 
@@ -334,7 +334,7 @@ class StorageService {
     // Ensure filename starts with reports/
     const pathname = filename.startsWith('reports/') ? filename : `reports/${filename}`;
     
-    console.log(`[Storage] Saving report (${contentType}) to ${pathname}`);
+    console.log("[Storage] Saving report", contentType, "to", pathname);
     
     // Convert content to Buffer if needed
     let buffer: Buffer;
@@ -347,7 +347,7 @@ class StorageService {
       buffer = Buffer.from(arrayBuffer);
     }
     
-    console.log(`[Storage] Report size: ${buffer.length} bytes`);
+    console.log("[Storage] Report size:", buffer.length, "bytes");
     
     const supabase = this.getClient();
     const { data, error } = await supabase.storage
@@ -358,7 +358,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] Save report error:`, error);
+      console.error("[Storage] Save report error:", error);
       throw error;
     }
 
@@ -366,7 +366,7 @@ class StorageService {
       .from(BUCKET_NAME)
       .getPublicUrl(pathname);
 
-    console.log(`[Storage] Report saved to: ${publicUrlData.publicUrl}`);
+    console.log("[Storage] Report saved to:", publicUrlData.publicUrl);
     
     return {
       url: publicUrlData.publicUrl,
@@ -441,7 +441,7 @@ class StorageService {
       });
 
     if (error) {
-      console.error(`[Storage] List reports error:`, error);
+      console.error("[Storage] List reports error:", error);
       return [];
     }
 
