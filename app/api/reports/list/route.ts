@@ -4,7 +4,7 @@ import { storageService } from "@/services/storage.service";
 export const runtime = 'nodejs';
 
 /**
- * List all reports in Vercel Blob storage
+ * List all reports in Supabase storage
  * 
  * GET /api/reports/list?prefix=screenshot
  */

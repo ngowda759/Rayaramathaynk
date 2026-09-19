@@ -1,9 +1,9 @@
 /**
- * Vercel Blob Storage Service
- * Handles all file uploads to Vercel Blob Storage
+ * Supabase Storage Service
+ * Handles all file uploads to Supabase Storage, replacing Vercel Blob
  */
 
-import { put, del, list } from '@vercel/blob';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export type UploadFolder = 'testimonials' | 'gallery' | 'videos' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas' | 'reports';
 
@@ -22,11 +22,21 @@ interface UploadResult {
   pathname: string;
 }
 
+const BUCKET_NAME = 'temple-media';
+
 class StorageService {
   /**
-   * Upload a base64 image to Vercel Blob Storage
+   * Get the singleton Supabase admin client instances
+   * We initialize it on demand to avoid errors during build/client initialization if env vars are missing
+   */
+  private getClient() {
+    return createAdminClient();
+  }
+
+  /**
+   * Upload a base64 image to Supabase Storage
    * @param base64Data - Base64 encoded image data
-   * @param pathname - Full pathname including folder (e.g., 'images/testimonials/filename.jpg')
+   * @param pathnameOrFilename - Full pathname including folder (e.g., 'images/testimonials/filename.jpg')
    * @param folder - Optional folder for backward compatibility (ignored if pathname is full path)
    */
   async uploadBase64Image(
@@ -34,6 +44,8 @@ class StorageService {
     pathnameOrFilename: string,
     folder?: UploadFolder
   ): Promise<UploadResult> {
+    const supabase = this.getClient();
+
     // Extract base64 content - handle both raw base64 and data URL format
     let base64Content = base64Data;
     let mimeType = 'image/jpeg';
@@ -50,33 +62,38 @@ class StorageService {
       }
     }
     
-    // Decode base64 to binary
-    const binaryString = atob(base64Content);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: mimeType });
+    // Decode base64 to binary buffer for Node.js upload
+    const buffer = Buffer.from(base64Content, 'base64');
 
     // Determine pathname - use full path if it contains '/', otherwise prepend folder
     const pathname = pathnameOrFilename.includes('/') 
       ? pathnameOrFilename 
       : `${folder || 'testimonials'}/${pathnameOrFilename}`;
     
-    console.log(`[Storage] Uploading ${blob.size} bytes (${mimeType}) to ${pathname}`);
+    console.log(`[Storage] Uploading ${buffer.length} bytes (${mimeType}) to ${pathname}`);
     
-    // Upload to Vercel Blob
-    const uploadedBlob = await put(pathname, blob, {
-      access: 'public',
-      contentType: mimeType,
-      addRandomSuffix: false,
-    });
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(pathname, buffer, {
+        contentType: mimeType,
+        upsert: true,
+      });
 
-    console.log(`[Storage] Uploaded to: ${uploadedBlob.url}`);
+    if (error) {
+      console.error(`[Storage] Upload error:`, error);
+      throw error;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(pathname);
+
+    console.log(`[Storage] Uploaded to: ${publicUrlData.publicUrl}`);
     
     return {
-      url: uploadedBlob.url,
-      pathname: uploadedBlob.pathname,
+      url: publicUrlData.publicUrl,
+      pathname: pathname,
     };
   }
 
@@ -88,41 +105,46 @@ class StorageService {
     filename: string,
     folder: UploadFolder = 'gallery'
   ): Promise<UploadResult> {
+    const supabase = this.getClient();
     const pathname = `${folder}/${filename}`;
     
-    const uploadedBlob = await put(pathname, file, {
-      access: 'public',
-      contentType: file.type,
-      addRandomSuffix: false,
-    });
+    // Convert Blob/File to Buffer for reliable server-side upload
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    console.log(`[Storage] Uploaded to: ${uploadedBlob.url}`);
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(pathname, buffer, {
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error(`[Storage] Upload file error:`, error);
+      throw error;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(pathname);
+
+    console.log(`[Storage] Uploaded to: ${publicUrlData.publicUrl}`);
     
     return {
-      url: uploadedBlob.url,
-      pathname: uploadedBlob.pathname,
+      url: publicUrlData.publicUrl,
+      pathname: pathname,
     };
   }
 
   /**
-   * Upload a video file to Vercel Blob Storage
+   * Upload a video file to Supabase Storage
    * Videos are stored under gallery/videos/{filename} for gallery media
-   * @param file - Video file (mp4, webm, mov, etc.)
-   * @param filename - Optional custom filename, will be auto-generated if not provided
-   * @returns Upload result with URL and pathname
    */
   async uploadVideo(
     file: File | Blob,
     filename?: string
   ): Promise<UploadResult> {
-    // Validate video file type
-    const validVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/ogg'];
     const fileType = file instanceof File ? file.type : 'video/mp4';
-    
-    if (!validVideoTypes.includes(fileType) && fileType !== 'video/mp4') {
-      // Allow all video types since File.type may not cover all formats
-      console.log(`[Storage] Uploading video with type: ${fileType}`);
-    }
     
     // Generate filename if not provided
     const finalFilename = filename || this.generateFilename(
@@ -130,24 +152,37 @@ class StorageService {
       'video'
     );
     
-    // Store videos under gallery/videos/ path as per project convention
     const pathname = `gallery/videos/${finalFilename}`;
-    
     const contentType = file instanceof File ? file.type : 'video/mp4';
     
+    const supabase = this.getClient();
+
     console.log(`[Storage] Uploading video (${(file instanceof File ? file.size : 0) / (1024 * 1024)} MB) to ${pathname}`);
     
-    const uploadedBlob = await put(pathname, file, {
-      access: 'public',
-      contentType: contentType,
-      addRandomSuffix: false,
-    });
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    console.log(`[Storage] Video uploaded to: ${uploadedBlob.url}`);
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(pathname, buffer, {
+        contentType: contentType,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error(`[Storage] Upload video error:`, error);
+      throw error;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(pathname);
+
+    console.log(`[Storage] Video uploaded to: ${publicUrlData.publicUrl}`);
     
     return {
-      url: uploadedBlob.url,
-      pathname: uploadedBlob.pathname,
+      url: publicUrlData.publicUrl,
+      pathname: pathname,
     };
   }
 
@@ -155,37 +190,95 @@ class StorageService {
    * List all videos in gallery/videos folder
    */
   async listVideos(): Promise<{ url: string; pathname: string; size: number }[]> {
-    const { blobs } = await list({
-      prefix: 'gallery/videos/',
-    });
+    const supabase = this.getClient();
     
-    return blobs.map(blob => ({
-      url: blob.url,
-      pathname: blob.pathname,
-      size: blob.size,
-    }));
+    // List files in the prefix directory
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .list('gallery/videos', {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'name', order: 'asc' },
+      });
+
+    if (error) {
+      console.error(`[Storage] List videos error:`, error);
+      return [];
+    }
+
+    // Map to result, ignoring the empty placeholder if present
+    return data
+      .filter(file => file.name !== '.emptyFolderPlaceholder')
+      .map(file => {
+        const pathname = `gallery/videos/${file.name}`;
+        const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(pathname);
+        return {
+          url: urlData.publicUrl,
+          pathname: pathname,
+          size: file.metadata?.size || 0,
+        };
+      });
   }
 
   /**
-   * Delete a file from Vercel Blob
+   * Delete a file from Storage
    */
-  async deleteFile(url: string): Promise<void> {
-    await del(url);
-    console.log(`[Storage] Deleted: ${url}`);
+  async deleteFile(urlOrPathname: string): Promise<void> {
+    const supabase = this.getClient();
+
+    // Extract pathname if a URL was provided
+    let pathname = urlOrPathname;
+    if (urlOrPathname.startsWith('http')) {
+      // e.g. https://xyz.supabase.co/storage/v1/object/public/temple-media/gallery/videos/video.mp4
+      const urlParts = urlOrPathname.split(`/object/public/${BUCKET_NAME}/`);
+      if (urlParts.length > 1) {
+        pathname = urlParts[1];
+      }
+    }
+
+    // Attempt to decode URI if it's encoded
+    pathname = decodeURIComponent(pathname);
+
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([pathname]);
+
+    if (error) {
+      console.error(`[Storage] Delete error for ${pathname}:`, error);
+      throw error;
+    }
+    console.log(`[Storage] Deleted: ${pathname}`);
   }
 
   /**
    * List files in a folder
    */
   async listFiles(folder: UploadFolder): Promise<{ url: string; pathname: string }[]> {
-    const { blobs } = await list({
-      prefix: `${folder}/`,
-    });
+    const supabase = this.getClient();
     
-    return blobs.map(blob => ({
-      url: blob.url,
-      pathname: blob.pathname,
-    }));
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .list(folder, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'name', order: 'asc' },
+      });
+
+    if (error) {
+      console.error(`[Storage] List files error for ${folder}:`, error);
+      return [];
+    }
+
+    return data
+      .filter(file => file.name !== '.emptyFolderPlaceholder')
+      .map(file => {
+        const pathname = `${folder}/${file.name}`;
+        const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(pathname);
+        return {
+          url: urlData.publicUrl,
+          pathname: pathname,
+        };
+      });
   }
 
   /**
@@ -231,7 +324,7 @@ class StorageService {
   }
 
   /**
-   * Save a report file (screenshot, PDF, etc.) to Vercel Blob storage
+   * Save a report file (screenshot, PDF, etc.) to Storage
    */
   async saveReport(options: SaveReportOptions): Promise<UploadResult> {
     const { filename, content, contentType, metadata } = options;
@@ -241,36 +334,46 @@ class StorageService {
     
     console.log(`[Storage] Saving report (${contentType}) to ${pathname}`);
     
-    // Convert content to Blob if needed
-    let blob: Blob;
+    // Convert content to Buffer if needed
+    let buffer: Buffer;
     if (typeof content === 'string') {
-      blob = new Blob([content], { type: contentType });
+      buffer = Buffer.from(content, 'utf-8');
     } else if (Buffer.isBuffer(content)) {
-      // Convert Buffer to Uint8Array for Blob compatibility
-      blob = new Blob([new Uint8Array(content)], { type: contentType });
+      buffer = content;
     } else {
-      blob = content;
+      const arrayBuffer = await content.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
     }
     
-    console.log(`[Storage] Report size: ${blob.size} bytes`);
+    console.log(`[Storage] Report size: ${buffer.length} bytes`);
     
-    // Upload to Vercel Blob
-    const uploadedBlob = await put(pathname, blob, {
-      access: 'public',
-      contentType: contentType,
-      addRandomSuffix: false,
-    });
+    const supabase = this.getClient();
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(pathname, buffer, {
+        contentType: contentType,
+        upsert: true,
+      });
 
-    console.log(`[Storage] Report saved to: ${uploadedBlob.url}`);
+    if (error) {
+      console.error(`[Storage] Save report error:`, error);
+      throw error;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(pathname);
+
+    console.log(`[Storage] Report saved to: ${publicUrlData.publicUrl}`);
     
     return {
-      url: uploadedBlob.url,
-      pathname: uploadedBlob.pathname,
+      url: publicUrlData.publicUrl,
+      pathname: pathname,
     };
   }
 
   /**
-   * Save a screenshot to Vercel Blob storage
+   * Save a screenshot to Storage
    */
   async saveScreenshot(
     screenshotData: string,
@@ -283,19 +386,12 @@ class StorageService {
       base64Content = screenshotData.split(',')[1];
     }
     
-    // Decode base64 to binary
-    const binaryString = atob(base64Content);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: 'image/png' });
-    
+    const buffer = Buffer.from(base64Content, 'base64');
     const filename = this.generateReportFilename('screenshot', pageName);
     
     return this.saveReport({
       filename,
-      content: blob,
+      content: buffer,
       contentType: 'image/png',
       fileType: 'screenshot',
       metadata,
@@ -303,7 +399,7 @@ class StorageService {
   }
 
   /**
-   * Save a PDF to Vercel Blob storage
+   * Save a PDF to Storage
    */
   async savePdf(
     pdfData: Buffer | Blob | string,
@@ -325,14 +421,39 @@ class StorageService {
    * List all reports
    */
   async listReports(prefix?: string): Promise<{ url: string; pathname: string }[]> {
-    const { blobs } = await list({
-      prefix: `reports/${prefix || ''}`,
-    });
+    const supabase = this.getClient();
+
+    const folder = prefix ? `reports/${prefix}` : 'reports';
     
-    return blobs.map(blob => ({
-      url: blob.url,
-      pathname: blob.pathname,
-    }));
+    // In Supabase, list is flat within a folder prefix. If there are subfolders,
+    // they are returned without metadata. We might need to iterate or just query the exact folder.
+    // Assuming reports are flat per prefix like 'reports/screenshot'.
+    const searchPath = folder;
+
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .list(searchPath, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'name', order: 'desc' },
+      });
+
+    if (error) {
+      console.error(`[Storage] List reports error:`, error);
+      return [];
+    }
+
+    return data
+      .filter(file => file.name !== '.emptyFolderPlaceholder')
+      .map(file => {
+        // Need to correctly compose pathname
+        const pathname = `${searchPath}/${file.name}`;
+        const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(pathname);
+        return {
+          url: urlData.publicUrl,
+          pathname: pathname,
+        };
+      });
   }
 }
 

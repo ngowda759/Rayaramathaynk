@@ -13,7 +13,7 @@ interface SaveReportRequest {
 }
 
 /**
- * Save a report file (screenshot or PDF) to Vercel Blob storage
+ * Save a report file (screenshot or PDF) to Supabase storage
  * 
  * POST /api/reports/save
  * Body: {

@@ -57,7 +57,7 @@ export default function VideoUploader({
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 200);
 
-      // Upload to Vercel Blob Storage
+      // Upload to Supabase Storage
       const result = await storageService.uploadVideo(file);
 
       clearInterval(progressInterval);
@@ -202,7 +202,7 @@ export default function VideoUploader({
       {previewSize === "md" && (
         <div className="mt-2">
           <Input
-            placeholder="Or paste video URL (Vercel Blob, YouTube, etc.)"
+            placeholder="Or paste video URL (Supabase Storage, YouTube, etc.)"
             value={value.startsWith("http") ? value : ""}
             onChange={(e) => {
               if (e.target.value.startsWith("http")) {
@@ -213,10 +213,10 @@ export default function VideoUploader({
         </div>
       )}
 
-      {/* Info about Vercel Blob */}
+      {/* Info about Supabase Storage */}
       {previewSize === "md" && !value && (
         <p className="text-xs text-muted-foreground">
-          Videos uploaded here will be stored in Vercel Blob at gallery/videos/
+          Videos uploaded here will be stored in Supabase Storage at gallery/videos/
         </p>
       )}
     </div>

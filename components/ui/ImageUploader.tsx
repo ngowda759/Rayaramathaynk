@@ -63,7 +63,7 @@ export default function ImageUploader({
         folder
       );
 
-      // Upload to Vercel Blob
+      // Upload to Supabase Storage
       const result = await storageService.uploadBase64Image(
         base64,
         filename,
