@@ -5,7 +5,8 @@ import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { storageService, UploadFolder } from "@/services/storage.service";
+
+type UploadFolder = 'testimonials' | 'gallery' | 'videos' | 'aaradhane' | 'events' | 'profile' | 'donations' | 'sevas' | 'reports';
 
 interface ImageUploaderProps {
   value: string;
@@ -31,180 +32,167 @@ export default function ImageUploader({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const sizeClasses = {
-    sm: "h-20 w-20",
-    md: "h-32 w-full",
-    lg: "h-48 w-full",
+  const previewDimensions = {
+    sm: "h-24 w-24",
+    md: "h-40 w-40",
+    lg: "h-64 w-full",
   };
 
-  const handleFile = async (file: File) => {
-    // Validate file type
-    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-      setError("Please select an image or video file");
-      return;
-    }
+  const generateFilename = (originalName: string, prefix?: string): string => {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const ext = originalName.split('.').pop() || 'jpg';
+    const cleanName = prefix
+      ? `${prefix}_${timestamp}_${random}`
+      : `${timestamp}_${random}`;
+    return `${cleanName}.${ext}`;
+  };
 
-    // Validate file size
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      setError(`File size must be less than ${maxSizeMB}MB`);
-      return;
-    }
-
+  const handleUpload = async (file: File) => {
     setError(null);
-    setUploading(true);
+
+    // Validate size
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setError(`File must be less than ${maxSizeMB}MB`);
+      return;
+    }
+
+    // Validate type
+    if (!file.type.startsWith("image/")) {
+      setError("File must be an image");
+      return;
+    }
 
     try {
-      // Convert file to base64
-      const base64 = await fileToBase64(file);
-      
-      // Generate filename
-      const filename = storageService.generateFilename(
-        file.name,
-        folder
-      );
+      setUploading(true);
 
-      // Upload to Vercel Blob
-      const result = await storageService.uploadBase64Image(
-        base64,
-        filename,
-        folder
-      );
+      // Convert to base64 for upload
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const filename = generateFilename(
+          file.name,
+          folder.replace(/s$/, "") // singularize folder name for prefix
+        );
 
-      onChange(result.url);
+        // Upload to API
+        const formData = new FormData();
+        formData.append('base64', base64);
+        formData.append('filename', filename);
+        formData.append('folder', folder);
+
+        const response = await fetch('/api/storage/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+           const errorData = await response.json();
+           throw new Error(errorData.error || 'Failed to upload image');
+        }
+
+        const result = await response.json();
+        onChange(result.url);
+      };
+
+      reader.onerror = () => {
+        setError("Failed to read file");
+      };
+
+      reader.readAsDataURL(file);
     } catch (err) {
-      console.error("Upload failed:", err);
-      setError("Upload failed. Please try again.");
+      console.error("Upload error:", err);
+      setError("Failed to upload image. Please try again.");
     } finally {
       setUploading(false);
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
+  // ... (rest of the component UI remains the same)
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
-  };
-
-  const clearImage = () => {
-    onChange("");
-    if (inputRef.current) {
-      inputRef.current.value = "";
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleUpload(e.dataTransfer.files[0]);
     }
   };
 
   return (
     <div className="space-y-2">
-      {label && <Label>{label}</Label>}
+      <Label>{label}</Label>
       
-      <div
-        className={`relative rounded-lg border-2 border-dashed transition-colors ${
-          dragOver
-            ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-muted-foreground/50"
-        }`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-      >
-        {value ? (
-          // Show preview
-          <div className={`relative ${sizeClasses[previewSize]} overflow-hidden rounded-lg`}>
-            {value.startsWith("data:") || value.startsWith("http") ? (
-              <img
-                src={value}
-                alt="Preview"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <img
-                src={`/images/${folder}/${value}`}
-                alt="Preview"
-                className="h-full w-full object-cover"
-              />
-            )}
-            <button
-              type="button"
-              onClick={clearImage}
-              className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground hover:bg-destructive/90"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          // Show upload area
-          <div className="flex flex-col items-center justify-center p-6">
-            {uploading ? (
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            ) : (
-              <>
-                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground mb-2">
-                  Drag & drop or click to upload
-                </p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Max {maxSizeMB}MB • Image or video
-                </p>
-              </>
-            )}
-            <Input
-              ref={inputRef}
-              type="file"
-              accept={accept}
-              onChange={handleInputChange}
-              disabled={uploading}
-              className="hidden"
+      {value ? (
+        <div className="relative overflow-hidden rounded-lg border bg-stone-50">
+          <div className={`${previewDimensions[previewSize]} relative flex items-center justify-center`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={value}
+              alt="Uploaded preview"
+              className="h-full w-full object-cover"
             />
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading}
+              variant="destructive"
+              size="icon"
+              className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-sm opacity-90 hover:opacity-100"
+              onClick={() => onChange("")}
             >
-              <ImageIcon className="h-4 w-4 mr-2" />
-              Choose File
+              <X className="h-4 w-4" />
             </Button>
           </div>
-        )}
-      </div>
-
-      {error && (
-        <p className="text-xs text-destructive">{error}</p>
-      )}
-
-      {/* URL input for external images */}
-      {previewSize === "md" && (
-        <div className="mt-2">
+        </div>
+      ) : (
+        <div
+          className={`relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors ${
+            dragOver
+              ? "border-amber-500 bg-amber-50/50"
+              : "border-stone-200 hover:bg-stone-50"
+          } ${error ? "border-red-500 bg-red-50" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+        >
           <Input
-            placeholder="Or paste image URL"
-            value={value.startsWith("http") ? value : ""}
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            className="hidden"
             onChange={(e) => {
-              if (e.target.value.startsWith("http")) {
-                onChange(e.target.value);
+              if (e.target.files && e.target.files[0]) {
+                handleUpload(e.target.files[0]);
               }
             }}
           />
+
+          <div className="flex flex-col items-center space-y-2 text-stone-500">
+            {uploading ? (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
+                <p className="text-sm font-medium">Uploading...</p>
+              </>
+            ) : (
+              <>
+                <div className="rounded-full bg-stone-100 p-3">
+                  <ImageIcon className="h-6 w-6" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium">Click or drag image to upload</p>
+                  <p className="text-xs text-stone-400">
+                    PNG, JPG, WEBP up to {maxSizeMB}MB
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   );
 }

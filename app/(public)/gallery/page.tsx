@@ -5,7 +5,6 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import GalleryGrid from "@/components/home/FullGallery";
-import { list } from "@vercel/blob";
 import { DEFAULT_GALLERY_IMAGES } from "@/services/gallery.service";
 
 type GalleryItem = {
@@ -28,7 +27,6 @@ const LOCAL_IMAGES: GalleryItem[] = [
   { id: "local-7", type: "image", src: "/images/temple/Tapas.jpg", alt: "Tapas", title: "Tapas" },
 ];
 
-// This component runs on client to properly fetch blob videos
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +34,16 @@ export default function GalleryPage() {
   useEffect(() => {
     async function fetchGalleryItems() {
       try {
-        // Fetch blob videos from Vercel
-        const { blobs } = await list({ prefix: "gallery/videos/" });
-        const blobVideos: GalleryItem[] = blobs.map((video, index) => {
+        // Fetch videos from the API instead of relying on client-side secret keys
+        const response = await fetch('/api/storage/videos');
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch videos');
+        }
+
+        const data = await response.json();
+
+        const blobVideos: GalleryItem[] = (data.videos || []).map((video: any, index: number) => {
           const filename = video.pathname.split("/").pop() || `video-${index + 1}`;
           const label = filename
             .replace(/\.[^.]+$/, "") // Remove extension
@@ -59,7 +64,7 @@ export default function GalleryPage() {
           };
         });
 
-        // Combine local images with blob videos
+        // Combine local images with fetched videos
         setItems([...LOCAL_IMAGES, ...blobVideos]);
       } catch (error) {
         console.error("[Gallery] Error fetching items:", error);
