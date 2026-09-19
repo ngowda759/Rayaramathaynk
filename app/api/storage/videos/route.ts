@@ -3,7 +3,7 @@ import { storageService } from "@/services/storage.service";
 
 /**
  * GET /api/storage/videos
- * List all videos stored in Vercel Blob at gallery/videos/
+ * List all videos stored in Supabase at gallery/videos/
  */
 export async function GET() {
   try {
