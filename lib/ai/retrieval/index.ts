@@ -78,6 +78,7 @@ import {
 
 import { Intent, RetrievalType } from "../intent/types";
 import { IntentRetrievalMapping } from "./types";
+import { aiSettingsService } from "../ai-settings";
 
 /**
  * Intent to retrieval mapping
@@ -98,6 +99,26 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
   },
   {
     intent: Intent.ADDRESS,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.OFFICE_HOURS,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.VISITOR_GUIDELINES,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.DRESS_CODE,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.PHOTOGRAPHY,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.PARKING,
     retrievers: [{ name: "settings", priority: 1 }],
   },
   {
@@ -124,6 +145,10 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
     retrievers: [{ name: "sevas", priority: 1 }],
   },
   {
+    intent: Intent.SEVA_BOOKING,
+    retrievers: [{ name: "sevas", priority: 1 }],
+  },
+  {
     intent: Intent.DONATION,
     retrievers: [{ name: "donations", priority: 1 }],
   },
@@ -143,41 +168,24 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
     intent: Intent.PANCHANGA,
     retrievers: [{ name: "panchanga", priority: 1 }],
   },
-  {
-    intent: Intent.VISITOR_GUIDELINES,
-    retrievers: [{ name: "settings", priority: 1 }],
-  },
-  {
-    intent: Intent.DRESS_CODE,
-    retrievers: [{ name: "settings", priority: 1 }],
-  },
 ];
 
 /**
  * Get context data for hybrid AI response based on intent
  */
-import { RetrievalAuthority } from "./types";
-
 export async function getContextForIntent(
   intent: Intent
 ): Promise<{
   context: AIResponseContext;
   sources: RetrievalType[];
-  authority: RetrievalAuthority;
 }> {
   const sources = new Set<RetrievalType>();
-  let bestAuthority: RetrievalAuthority = "FALLBACK";
-
-  const updateAuthority = (newAuthority: RetrievalAuthority) => {
-    if (newAuthority === "AUTHORITATIVE") bestAuthority = "AUTHORITATIVE";
-    else if (newAuthority === "CACHED_AUTHORITATIVE" && bestAuthority === "FALLBACK") bestAuthority = "CACHED_AUTHORITATIVE";
-  };
 
   // Get mapping for this intent
   const mapping = INTENT_RETRIEVAL_MAP.find((m) => m.intent === intent);
   
   if (!mapping) {
-    return { context: {}, sources: [], authority: "FALLBACK" };
+    return { context: {}, sources: [] };
   }
 
   const context: AIResponseContext = {};
@@ -186,12 +194,25 @@ export async function getContextForIntent(
   for (const retriever of mapping.retrievers.sort((a, b) => a.priority - b.priority)) {
     switch (retriever.name) {
       case "settings":
-        const settings = await getTempleSettings();
-        if (settings.data) {
-          context.templeSettings = settings.data;
-          sources.add(settings.source);
-          updateAuthority(settings.authority);
-        }
+        const aiSettings = await aiSettingsService.getAISettings();
+        const templeSettings: TempleSettings = {
+           name: "Sri Raghavendra Swamy Matha",
+           address: aiSettings.templeInformation.contact.address,
+           phone: aiSettings.templeInformation.contact.phone,
+           email: aiSettings.templeInformation.contact.email,
+           timings: {
+              morningOpen: aiSettings.templeInformation.timings.morningOpen,
+              morningClose: aiSettings.templeInformation.timings.morningClose,
+              eveningOpen: aiSettings.templeInformation.timings.eveningOpen,
+              eveningClose: aiSettings.templeInformation.timings.eveningClose
+           },
+           contact: aiSettings.templeInformation.contact,
+           officeHours: aiSettings.templeInformation.officeHours,
+           visitorInfo: aiSettings.visitorInformation
+        } as unknown as TempleSettings; // TempleSettings in retrieval/types.ts is a bit different, but let's map it cleanly
+
+        context.templeSettings = templeSettings;
+        sources.add(RetrievalType.REPOSITORY);
         break;
         
       case "events":
@@ -199,7 +220,6 @@ export async function getContextForIntent(
         if (events.data) {
           context.upcomingEvents = events.data;
           sources.add(events.source);
-          updateAuthority(events.authority);
         }
         break;
         
@@ -208,7 +228,6 @@ export async function getContextForIntent(
         if (sevas.data) {
           context.availableSevas = sevas.data;
           sources.add(sevas.source);
-          updateAuthority(sevas.authority);
         }
         break;
         
@@ -217,7 +236,6 @@ export async function getContextForIntent(
         if (announcements.data) {
           context.currentAnnouncements = announcements.data;
           sources.add(announcements.source);
-          updateAuthority(announcements.authority);
         }
         break;
         
@@ -226,7 +244,6 @@ export async function getContextForIntent(
         if (panchanga.data) {
           context.todayPanchanga = panchanga.data;
           sources.add(panchanga.source);
-          updateAuthority(panchanga.authority);
         }
         break;
         
@@ -235,7 +252,6 @@ export async function getContextForIntent(
         if (donationInfo.data) {
           context.donationInfo = donationInfo.data;
           sources.add(donationInfo.source);
-          updateAuthority(donationInfo.authority);
         }
         break;
         
@@ -244,13 +260,12 @@ export async function getContextForIntent(
         if (nextAaradhane.data) {
           context.nextAaradhane = nextAaradhane.data;
           sources.add(nextAaradhane.source);
-          updateAuthority(nextAaradhane.authority);
         }
         break;
     }
   }
 
-  return { context, sources: Array.from(sources), authority: bestAuthority };
+  return { context, sources: Array.from(sources) };
 }
 
 /**
@@ -265,15 +280,3 @@ export function clearAllCaches(): void {
   clearDonationInfoCache();
   clearAaradhaneCache();
 }
-
-// Re-export all types
-export type {
-  TempleSettings,
-  TempleEvent,
-  TempleSeva,
-  TempleAnnouncement,
-  PanchangaData,
-  AaradhaneEvent,
-  DonationInfo,
-  AIResponseContext,
-};

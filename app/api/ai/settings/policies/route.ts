@@ -3,10 +3,13 @@
 // PUT /api/ai/settings/policies - Update temple policies
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const admin = await verifyAdminUser(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const templePolicies = await aiSettingsService.getTemplePolicies();
     return NextResponse.json(templePolicies);
@@ -21,11 +24,11 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const body = await request.json();
     const { section, data } = body;
 

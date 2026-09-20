@@ -5,11 +5,14 @@
 // DELETE /api/ai/settings/intents - Remove intent
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { IntentMetadata } from "@/types/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
+  const admin = await verifyAdminUser(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { searchParams } = new URL(request.url);
     const enabledOnly = searchParams.get("enabledOnly") === "true";
@@ -36,11 +39,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const body = await request.json();
 
     if (!body.name) {
@@ -82,11 +85,11 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const body = await request.json();
     const { intentId, ...updates } = body;
 
@@ -113,11 +116,11 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const { searchParams } = new URL(request.url);
     const intentId = searchParams.get("intentId");
 

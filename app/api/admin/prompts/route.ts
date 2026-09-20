@@ -2,8 +2,8 @@
 // Proxies to /api/ai/settings/prompts with admin wrapper
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 // Environment variable for admin API key (optional additional auth)
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
@@ -23,7 +23,7 @@ function verifyAdmin(request: Request): boolean {
  * GET /api/admin/prompts
  * Get all prompt versions and current prompt
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const body = await request.json();
     const { content, name, changeNotes, status } = body;
 
@@ -110,11 +110,11 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const body = await request.json();
     const { versionId, action, ...updates } = body;
 
