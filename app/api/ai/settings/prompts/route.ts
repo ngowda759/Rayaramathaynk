@@ -4,6 +4,7 @@
 // PUT /api/ai/settings/prompts - Update prompt version
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
@@ -31,11 +32,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
+    const adminUser = await verifyAdminUser(request);
+    if (!adminUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = admin.uid;
+    const userId = adminUser.uid;
     const body = await request.json();
     const { name, content, status, changeNotes } = body;
 
@@ -71,11 +72,11 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
+    const adminUser = await verifyAdminUser(request);
+    if (!adminUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = admin.uid;
+    const userId = adminUser.uid;
     const body = await request.json();
     const { versionId, action, ...updates } = body;
 

@@ -210,12 +210,7 @@ describe("Combined Response Generation", () => {
     const results = {
       settings: {
         source: "settings" as DataSource,
-        data: {
-          settings: {
-            name: "Sri Raghavendra Swamy Temple",
-            address: "Mantralaya, Karnataka",
-          },
-        },
+        data: { name: "Sri Raghavendra Swamy Temple", address: "Mantralaya, Karnataka" },
         retrieved: true,
         confidence: 100,
         retrievedAt: Date.now(),

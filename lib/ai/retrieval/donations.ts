@@ -39,6 +39,7 @@ export async function getDonationInfo(): Promise<RetrievedData<DonationInfo>> {
       confidence: 95,
       retrievedAt: lastFetchTime,
       fromCache: true,
+      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -60,6 +61,7 @@ export async function getDonationInfo(): Promise<RetrievedData<DonationInfo>> {
       confidence: 90,
       retrievedAt: now,
       fromCache: false,
+      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Donations Retrieval] Error:", error);
@@ -69,6 +71,7 @@ export async function getDonationInfo(): Promise<RetrievedData<DonationInfo>> {
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "FALLBACK",
     };
   }
 }

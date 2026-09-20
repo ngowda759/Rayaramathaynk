@@ -7,7 +7,13 @@ import { VisitorInformation, TempleOfficeHours, TempleContact } from "../ai-sett
 /**
  * Base interface for all retrieved data
  */
+export type RetrievalAuthority = "AUTHORITATIVE" | "CACHED_AUTHORITATIVE" | "FALLBACK";
+
+/**
+ * Base interface for all retrieved data
+ */
 export interface RetrievedData<T = unknown> {
+  authority: RetrievalAuthority;
   data: T | null;
   source: RetrievalType;
   confidence: number;

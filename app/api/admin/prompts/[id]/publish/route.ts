@@ -2,6 +2,7 @@
 // POST /api/admin/prompts/:id/publish - Publish a prompt version
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
@@ -15,11 +16,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
+    const adminUser = await verifyAdminUser(request);
+    if (!adminUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = admin.uid;
+    const userId = adminUser.uid;
 
     // Verify the prompt version exists
     const promptVersions = await aiSettingsService.getPromptVersions();
