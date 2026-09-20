@@ -3,7 +3,10 @@ import { getContextForIntent } from "./index";
 import { searchArticles } from "@/lib/ai/knowledge/repository";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 
+import { RetrievalAuthority } from "./types";
+
 export interface RetrievalResult {
+  authority: RetrievalAuthority;
   source: RetrievalType;
   data: any;
   knowledgeArticles?: any[];
@@ -23,7 +26,7 @@ export async function retrieve(
   const behaviorSettings = settings.extendedBehavior;
 
   // 1. Try structured repositories first
-  const { context: structuredData, sources } = await getContextForIntent(intent);
+  const { context: structuredData, sources, authority } = await getContextForIntent(intent);
 
   let primarySource = sources.length > 0 ? sources[0] : RetrievalType.FALLBACK;
   let knowledgeArticles: any[] = [];
@@ -53,6 +56,7 @@ export async function retrieve(
 
   return {
     source: primarySource,
+    authority,
     data: structuredData,
     knowledgeArticles,
     sources

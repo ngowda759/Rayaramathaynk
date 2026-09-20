@@ -160,6 +160,7 @@ export async function getActiveSevas(): Promise<RetrievedData<TempleSeva[]>> {
       confidence: 95,
       retrievedAt: lastFetchTime,
       fromCache: true,
+      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -174,6 +175,7 @@ export async function getActiveSevas(): Promise<RetrievedData<TempleSeva[]>> {
       confidence: 95,
       retrievedAt: now,
       fromCache: false,
+      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Sevas Retrieval] Error:", error);
@@ -183,6 +185,7 @@ export async function getActiveSevas(): Promise<RetrievedData<TempleSeva[]>> {
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "FALLBACK",
     };
   }
 }
@@ -205,6 +208,7 @@ export async function getSevasByCategory(
     confidence: filtered.length > 0 ? 90 : 0,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
+    authority: result.authority,
   };
 }
 
@@ -236,6 +240,7 @@ export async function getSevaCategories(): Promise<RetrievedData<string[]>> {
     confidence: categories.length > 0 ? 90 : 0,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
+    authority: result.authority,
   };
 }
 
