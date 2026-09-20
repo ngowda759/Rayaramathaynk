@@ -5,8 +5,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { AIBehaviorSettings } from "@/types/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const admin = await verifyAdminUser(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const aiBehavior = await aiSettingsService.getAIBehavior();
     return NextResponse.json(aiBehavior);
@@ -21,7 +25,11 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = admin.uid;
     const body = await request.json();
     const { setting, value } = body;
 

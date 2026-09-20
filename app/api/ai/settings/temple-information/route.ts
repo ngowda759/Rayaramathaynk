@@ -4,10 +4,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 export const revalidate = 3600;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const admin = await verifyAdminUser(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const templeInformation = await aiSettingsService.getTempleInformation();
     return NextResponse.json(templeInformation, {
@@ -27,7 +31,11 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   try {
     // Get user ID from header or use "admin" as default
-    const userId = request.headers.get("x-user-id") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = admin.uid;
 
     const body = await request.json();
     const { section, data } = body;

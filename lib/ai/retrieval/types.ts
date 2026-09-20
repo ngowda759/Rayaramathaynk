@@ -2,6 +2,7 @@
 // Types for the hybrid AI retrieval system
 
 import { RetrievalType, Intent } from "../intent/types";
+import { VisitorInformation, TempleOfficeHours, TempleContact } from "../ai-settings";
 
 /**
  * Base interface for all retrieved data
@@ -23,15 +24,14 @@ export interface TempleSettings {
   phone: string;
   email: string;
   timings: {
-    morning: {
-      open: string;
-      close: string;
-    };
-    evening: {
-      open: string;
-      close: string;
-    };
+    morningOpen: string;
+    morningClose: string;
+    eveningOpen: string;
+    eveningClose: string;
   };
+  contact: TempleContact;
+  officeHours: TempleOfficeHours;
+  visitorInfo: VisitorInformation;
   googleMapsUrl?: string;
 }
 
@@ -115,20 +115,11 @@ export interface DonationInfo {
   has80G: boolean;
   paymentMethods: string[];
   websiteUrl: string;
-}
-
-/**
- * Response context for hybrid AI
- */
-export interface AIResponseContext {
-  templeSettings?: TempleSettings;
-  upcomingEvents?: TempleEvent[];
-  currentAnnouncements?: TempleAnnouncement[];
-  availableSevas?: TempleSeva[];
-  todayPanchanga?: PanchangaData;
-  nextAaradhane?: AaradhaneEvent;
-  donationInfo?: DonationInfo;
-  knowledgeArticles?: KnowledgeArticle[];
+  bankDetails?: {
+    bankName: string;
+    accountNumber: string;
+    ifscCode: string;
+  };
 }
 
 /**
@@ -146,6 +137,20 @@ export interface KnowledgeArticle {
   approved: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Response context for hybrid AI
+ */
+export interface AIResponseContext {
+  templeSettings?: TempleSettings;
+  upcomingEvents?: TempleEvent[];
+  currentAnnouncements?: TempleAnnouncement[];
+  availableSevas?: TempleSeva[];
+  todayPanchanga?: PanchangaData;
+  nextAaradhane?: AaradhaneEvent;
+  donationInfo?: DonationInfo;
+  knowledgeArticles?: KnowledgeArticle[];
 }
 
 /**

@@ -21,7 +21,7 @@ export interface AIResponseResult {
   source: RetrievalType;
   usesLLM: boolean;
   language: "en" | "kn" | "mixed";
-  debugInfo?: any;
+  debugInfo?: Record<string, unknown>;
 }
 
 /**
@@ -67,15 +67,19 @@ export async function generateResponse(
 
     console.log(`[AI Generator] Low confidence (${intentResult.confidence}%), redirecting to FAQ`);
     
-    // Log unknown question
+    // Log unknown question safely
     if (behavior.enableUnknownQuestionLogging) {
-       await logUnknownQuestion({
-         question: message,
-         detectedIntent: intentResult.intent,
-         confidence: intentResult.confidence,
-         sessionId,
-         language,
-       });
+       try {
+         await logUnknownQuestion({
+           question: message,
+           detectedIntent: intentResult.intent,
+           confidence: intentResult.confidence,
+           sessionId,
+           language,
+         });
+       } catch (error) {
+         console.error("[AI Generator] Failed to log unknown question (analytics non-blocking):", error);
+       }
     }
 
     return {
@@ -122,6 +126,24 @@ export async function generateResponse(
   // 2. Perform Authoritative Retrieval
   const retrievalResult = await retrieve(intentResult.intent, message);
 
+  // Enforce Retrieval-First Safety
+  const requiresSource = safety.requireSourceForFacts;
+  const hasAuthoritativeSource =
+    retrievalResult.source !== RetrievalType.FALLBACK &&
+    (Object.keys(retrievalResult.data).length > 0 || retrievalResult.knowledgeArticles?.length);
+
+  if (requiresSource && !hasAuthoritativeSource) {
+     console.log(`[AI Generator] Enforcing safety: No authoritative source found for ${intentResult.intent}`);
+     return {
+         content: settings.aiResponses.unknownQuestion,
+         intent: intentResult.intent,
+         confidence: intentResult.confidence,
+         source: RetrievalType.FALLBACK,
+         usesLLM: false,
+         language
+     };
+  }
+
   // 3. Compose Response
   const composerOutput = await responseComposer.compose({
       intent: intentResult.intent,
@@ -129,6 +151,31 @@ export async function generateResponse(
       language,
       retrievalResult
   });
+
+  // Enforce LLM limits
+  if (!safety.allowLLMOnlyResponse && composerOutput.usesLLM && !hasAuthoritativeSource) {
+      console.log(`[AI Generator] Enforcing safety: LLM-only response blocked by settings`);
+      return {
+          content: settings.aiResponses.unknownQuestion,
+          intent: intentResult.intent,
+          confidence: intentResult.confidence,
+          source: RetrievalType.FALLBACK,
+          usesLLM: false,
+          language
+      };
+  }
+
+  // Clean debug info
+  if (composerOutput.debugInfo) {
+      // Create a shallow copy just to be safe
+      const cleanDebugInfo = { ...composerOutput.debugInfo };
+      // Delete any potential secrets if they accidentally get in
+      delete cleanDebugInfo.keys;
+      delete cleanDebugInfo.tokens;
+      delete cleanDebugInfo.credentials;
+      delete cleanDebugInfo.auth;
+      composerOutput.debugInfo = cleanDebugInfo;
+  }
 
   return composerOutput;
 }

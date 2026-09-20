@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 // Environment variable for admin API key (optional additional auth)
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
@@ -22,7 +23,7 @@ function verifyAdmin(request: Request): boolean {
  * GET /api/admin/prompts
  * Get all prompt versions and current prompt
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -53,13 +54,17 @@ export async function GET(request: Request) {
  * Create a new prompt version
  * Body: { content, name?, changeNotes?, status? }
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const userId = request.headers.get("x-user-id") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = admin.uid;
     const body = await request.json();
     const { content, name, changeNotes, status } = body;
 
@@ -99,13 +104,17 @@ export async function POST(request: Request) {
  * Update or publish prompt versions
  * Body: { versionId, action: "update" | "publish" | "rollback", ...updates }
  */
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   if (!verifyAdmin(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const userId = request.headers.get("x-user-id") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = admin.uid;
     const body = await request.json();
     const { versionId, action, ...updates } = body;
 

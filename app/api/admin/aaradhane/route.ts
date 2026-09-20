@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aaradhaneService } from "@/services/aaradhane.service";
 import { Aaradhane } from "@/types/aaradhane";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 /**
  * GET /api/admin/aaradhane
  * Get all aaradhanes from Firestore
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const admin = await verifyAdminUser(request);
+  if (!admin) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const aaradhanes = await aaradhaneService.getAaradhanes();
     return NextResponse.json({
@@ -30,7 +34,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const userEmail = request.headers.get("x-user-email") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const userEmail = admin.email;
     
     const id = await aaradhaneService.createAaradhane(
       body as Omit<Aaradhane, "id" | "createdAt" | "createdBy">,

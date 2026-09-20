@@ -34,7 +34,7 @@ interface TestResult {
   response?: string;
 }
 
-interface CategoryResult {
+interface CategoryResult { skipped: number;
   category: string;
   total: number;
   passed: number;
@@ -64,7 +64,7 @@ Object.values(TestCategory).forEach((category) => {
     category,
     total: 0,
     passed: 0,
-    failed: 0,
+    failed: 0, skipped: 0,
     passRate: 0,
     tests: [],
   };

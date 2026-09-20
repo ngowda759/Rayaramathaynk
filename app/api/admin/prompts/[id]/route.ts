@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 /**
  * GET /api/admin/prompts/:id
@@ -48,7 +49,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const userId = request.headers.get("x-user-id") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = admin.uid;
 
     // Get all versions to find the one to delete
     const promptVersions = await aiSettingsService.getPromptVersions();

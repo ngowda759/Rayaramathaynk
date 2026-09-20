@@ -20,15 +20,36 @@ const DEFAULT_SETTINGS: TempleSettings = {
   phone: "+91 80 2847 1234",
   email: "info@sriraghavendra.org",
   timings: {
-    morning: {
-      open: "6:00 AM",
-      close: "12:00 PM",
-    },
-    evening: {
-      open: "5:00 PM",
-      close: "8:30 PM",
-    },
+      morningOpen: "6:00 AM",
+      morningClose: "12:00 PM",
+      eveningOpen: "5:00 PM",
+      eveningClose: "8:30 PM",
   },
+  contact: {
+    phone: "+91 80 2847 1234",
+    email: "info@sriraghavendra.org",
+    address: "Yelahanka New Town, Bengaluru, Karnataka, India"
+  },
+  officeHours: {
+    weekday: "9:00 AM - 5:00 PM",
+    weekend: "10:00 AM - 4:00 PM"
+  },
+  visitorInfo: {
+    guidelines: "Please maintain silence.",
+    dressCode: "Traditional wear requested.",
+    photographyPolicy: "Not allowed inside sanctum.",
+    parking: "Available outside.",
+    facilities: "Restrooms and drinking water available.",
+    wheelchairAccess: "Available.",
+    drinkingWater: "Available.",
+    restrooms: "Available.",
+    prasada: "Available after daily pooja.",
+    annadanam: "Available on special occasions.",
+    accommodation: "Not available.",
+    volunteerInfo: "Contact office.",
+    testimonials: "Available on website.",
+    contact: "+91 80 2847 1234"
+  }
 };
 
 /**
@@ -58,15 +79,14 @@ async function fetchFromFirebase(): Promise<TempleSettings> {
       phone: data.contactPhone || data.phone || DEFAULT_SETTINGS.phone,
       email: data.contactEmail || data.email || DEFAULT_SETTINGS.email,
       timings: {
-        morning: {
-          open: data.morningOpen || DEFAULT_SETTINGS.timings.morning.open,
-          close: data.morningClose || DEFAULT_SETTINGS.timings.morning.close,
-        },
-        evening: {
-          open: data.eveningOpen || DEFAULT_SETTINGS.timings.evening.open,
-          close: data.eveningClose || DEFAULT_SETTINGS.timings.evening.close,
-        },
+        morningOpen: data.morningOpen || DEFAULT_SETTINGS.timings.morningOpen,
+        morningClose: data.morningClose || DEFAULT_SETTINGS.timings.morningClose,
+        eveningOpen: data.eveningOpen || DEFAULT_SETTINGS.timings.eveningOpen,
+        eveningClose: data.eveningClose || DEFAULT_SETTINGS.timings.eveningClose,
       },
+      contact: DEFAULT_SETTINGS.contact,
+      officeHours: DEFAULT_SETTINGS.officeHours,
+      visitorInfo: DEFAULT_SETTINGS.visitorInfo,
       googleMapsUrl: data.googleMapsUrl,
     };
   } catch (error) {
@@ -92,14 +112,10 @@ async function fetchTimingsFromFirebase(): Promise<TempleSettings["timings"] | n
 
     const data = snapshot.docs[0].data();
     return {
-      morning: {
-        open: data.morningOpen || data.open || DEFAULT_SETTINGS.timings.morning.open,
-        close: data.morningClose || data.close || DEFAULT_SETTINGS.timings.morning.close,
-      },
-      evening: {
-        open: data.eveningOpen || DEFAULT_SETTINGS.timings.evening.open,
-        close: data.eveningClose || DEFAULT_SETTINGS.timings.evening.close,
-      },
+      morningOpen: data.morningOpen || data.open || DEFAULT_SETTINGS.timings.morningOpen,
+      morningClose: data.morningClose || data.close || DEFAULT_SETTINGS.timings.morningClose,
+      eveningOpen: data.eveningOpen || DEFAULT_SETTINGS.timings.eveningOpen,
+      eveningClose: data.eveningClose || DEFAULT_SETTINGS.timings.eveningClose,
     };
   } catch (error) {
     console.error("[Settings Retrieval] Error fetching timings:", error);

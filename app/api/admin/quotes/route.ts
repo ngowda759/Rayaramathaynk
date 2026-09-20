@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.service";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 // GET /api/admin/quotes - List all quotes with optional filters
 export async function GET(request: NextRequest) {
@@ -43,7 +44,11 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/quotes - Create a new quote
 export async function POST(request: NextRequest) {
   try {
-    const userEmail = request.headers.get("x-user-email") || "admin";
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const userEmail = admin.email;
 
     const body = await request.json();
 

@@ -78,6 +78,7 @@ import {
 
 import { Intent, RetrievalType } from "../intent/types";
 import { IntentRetrievalMapping } from "./types";
+import { aiSettingsService } from "../ai-settings";
 
 /**
  * Intent to retrieval mapping
@@ -98,6 +99,26 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
   },
   {
     intent: Intent.ADDRESS,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.OFFICE_HOURS,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.VISITOR_GUIDELINES,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.DRESS_CODE,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.PHOTOGRAPHY,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
+  {
+    intent: Intent.PARKING,
     retrievers: [{ name: "settings", priority: 1 }],
   },
   {
@@ -124,6 +145,10 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
     retrievers: [{ name: "sevas", priority: 1 }],
   },
   {
+    intent: Intent.SEVA_BOOKING,
+    retrievers: [{ name: "sevas", priority: 1 }],
+  },
+  {
     intent: Intent.DONATION,
     retrievers: [{ name: "donations", priority: 1 }],
   },
@@ -142,14 +167,6 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
   {
     intent: Intent.PANCHANGA,
     retrievers: [{ name: "panchanga", priority: 1 }],
-  },
-  {
-    intent: Intent.VISITOR_GUIDELINES,
-    retrievers: [{ name: "settings", priority: 1 }],
-  },
-  {
-    intent: Intent.DRESS_CODE,
-    retrievers: [{ name: "settings", priority: 1 }],
   },
 ];
 
@@ -177,11 +194,25 @@ export async function getContextForIntent(
   for (const retriever of mapping.retrievers.sort((a, b) => a.priority - b.priority)) {
     switch (retriever.name) {
       case "settings":
-        const settings = await getTempleSettings();
-        if (settings.data) {
-          context.templeSettings = settings.data;
-          sources.add(settings.source);
-        }
+        const aiSettings = await aiSettingsService.getAISettings();
+        const templeSettings: TempleSettings = {
+           name: "Sri Raghavendra Swamy Matha",
+           address: aiSettings.templeInformation.contact.address,
+           phone: aiSettings.templeInformation.contact.phone,
+           email: aiSettings.templeInformation.contact.email,
+           timings: {
+              morningOpen: aiSettings.templeInformation.timings.morningOpen,
+              morningClose: aiSettings.templeInformation.timings.morningClose,
+              eveningOpen: aiSettings.templeInformation.timings.eveningOpen,
+              eveningClose: aiSettings.templeInformation.timings.eveningClose
+           },
+           contact: aiSettings.templeInformation.contact,
+           officeHours: aiSettings.templeInformation.officeHours,
+           visitorInfo: aiSettings.visitorInformation
+        } as unknown as TempleSettings; // TempleSettings in retrieval/types.ts is a bit different, but let's map it cleanly
+
+        context.templeSettings = templeSettings;
+        sources.add(RetrievalType.REPOSITORY);
         break;
         
       case "events":
@@ -249,15 +280,3 @@ export function clearAllCaches(): void {
   clearDonationInfoCache();
   clearAaradhaneCache();
 }
-
-// Re-export all types
-export type {
-  TempleSettings,
-  TempleEvent,
-  TempleSeva,
-  TempleAnnouncement,
-  PanchangaData,
-  AaradhaneEvent,
-  DonationInfo,
-  AIResponseContext,
-};
