@@ -3,6 +3,7 @@
 // PUT /api/ai/settings/ai-responses - Update AI response templates
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { AIResponses, AIResponseTemplates } from "@/types/ai-settings";
 
@@ -21,7 +22,11 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id") || "admin";
+    const adminUser = await verifyAdminUser(request);
+    if (!adminUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = adminUser.uid;
     const body = await request.json();
     const { templateKey, template } = body;
 

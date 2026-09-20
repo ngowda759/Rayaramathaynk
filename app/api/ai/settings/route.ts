@@ -3,6 +3,7 @@
 // POST /api/ai/settings - Create/update AI settings
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 
 export async function GET() {
@@ -22,7 +23,11 @@ export async function POST(request: NextRequest) {
   try {
     // For now, get user ID from header or use "admin" as default
     // TODO: Add proper admin authentication
-    const userId = request.headers.get("x-user-id") || "admin";
+    const adminUser = await verifyAdminUser(request);
+    if (!adminUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = adminUser.uid;
 
     const body = await request.json();
     const { action, data } = body;

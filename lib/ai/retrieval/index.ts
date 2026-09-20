@@ -156,19 +156,28 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
 /**
  * Get context data for hybrid AI response based on intent
  */
+import { RetrievalAuthority } from "./types";
+
 export async function getContextForIntent(
   intent: Intent
 ): Promise<{
   context: AIResponseContext;
   sources: RetrievalType[];
+  authority: RetrievalAuthority;
 }> {
   const sources = new Set<RetrievalType>();
+  let bestAuthority: RetrievalAuthority = "FALLBACK";
+
+  const updateAuthority = (newAuthority: RetrievalAuthority) => {
+    if (newAuthority === "AUTHORITATIVE") bestAuthority = "AUTHORITATIVE";
+    else if (newAuthority === "CACHED_AUTHORITATIVE" && bestAuthority === "FALLBACK") bestAuthority = "CACHED_AUTHORITATIVE";
+  };
 
   // Get mapping for this intent
   const mapping = INTENT_RETRIEVAL_MAP.find((m) => m.intent === intent);
   
   if (!mapping) {
-    return { context: {}, sources: [] };
+    return { context: {}, sources: [], authority: "FALLBACK" };
   }
 
   const context: AIResponseContext = {};
@@ -181,6 +190,7 @@ export async function getContextForIntent(
         if (settings.data) {
           context.templeSettings = settings.data;
           sources.add(settings.source);
+          updateAuthority(settings.authority);
         }
         break;
         
@@ -189,6 +199,7 @@ export async function getContextForIntent(
         if (events.data) {
           context.upcomingEvents = events.data;
           sources.add(events.source);
+          updateAuthority(events.authority);
         }
         break;
         
@@ -197,6 +208,7 @@ export async function getContextForIntent(
         if (sevas.data) {
           context.availableSevas = sevas.data;
           sources.add(sevas.source);
+          updateAuthority(sevas.authority);
         }
         break;
         
@@ -205,6 +217,7 @@ export async function getContextForIntent(
         if (announcements.data) {
           context.currentAnnouncements = announcements.data;
           sources.add(announcements.source);
+          updateAuthority(announcements.authority);
         }
         break;
         
@@ -213,6 +226,7 @@ export async function getContextForIntent(
         if (panchanga.data) {
           context.todayPanchanga = panchanga.data;
           sources.add(panchanga.source);
+          updateAuthority(panchanga.authority);
         }
         break;
         
@@ -221,6 +235,7 @@ export async function getContextForIntent(
         if (donationInfo.data) {
           context.donationInfo = donationInfo.data;
           sources.add(donationInfo.source);
+          updateAuthority(donationInfo.authority);
         }
         break;
         
@@ -229,12 +244,13 @@ export async function getContextForIntent(
         if (nextAaradhane.data) {
           context.nextAaradhane = nextAaradhane.data;
           sources.add(nextAaradhane.source);
+          updateAuthority(nextAaradhane.authority);
         }
         break;
     }
   }
 
-  return { context, sources: Array.from(sources) };
+  return { context, sources: Array.from(sources), authority: bestAuthority };
 }
 
 /**

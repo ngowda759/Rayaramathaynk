@@ -15,7 +15,15 @@ export interface ServerAdminUser {
   role: string;
 }
 
-const BLOCKED_ROLES = new Set(["devotee", "volunteer"]);
+// Explicit allowlist of administrative roles
+const ADMIN_ROLES = new Set([
+  "super_admin",
+  "admin",
+  "temple_admin",
+  "priest",
+  "staff",
+  "office_staff",
+]);
 
 function normalizeRole(role: unknown): string {
   return String(role || "").toLowerCase().replace(/\s+/g, "_");
@@ -58,8 +66,8 @@ export async function verifyAdminUser(
     }
 
     const role = normalizeRole(data.role);
-    if (BLOCKED_ROLES.has(role)) {
-      console.warn(`[verifyAdminUser] User ${decoded.uid} has blocked role ${role}`);
+    if (!ADMIN_ROLES.has(role)) {
+      console.warn(`[verifyAdminUser] User ${decoded.uid} has unauthorized role ${role}`);
       return null;
     }
 

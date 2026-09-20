@@ -97,6 +97,7 @@ export async function getAaradhanes(): Promise<RetrievedData<AaradhaneEvent[]>> 
       confidence: 95,
       retrievedAt: lastFetchTime,
       fromCache: true,
+      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -111,6 +112,7 @@ export async function getAaradhanes(): Promise<RetrievedData<AaradhaneEvent[]>> 
       confidence: 95,
       retrievedAt: now,
       fromCache: false,
+      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Aaradhane Retrieval] Error:", error);
@@ -120,6 +122,7 @@ export async function getAaradhanes(): Promise<RetrievedData<AaradhaneEvent[]>> 
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "FALLBACK",
     };
   }
 }
@@ -138,6 +141,7 @@ export async function getUpcomingAaradhanes(): Promise<RetrievedData<AaradhaneEv
     confidence: result.confidence,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
+    authority: result.authority,
   };
 }
 
@@ -155,6 +159,7 @@ export async function getNextAaradhane(): Promise<RetrievedData<AaradhaneEvent |
     confidence: next ? 95 : 0,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
+    authority: result.authority,
   };
 }
 

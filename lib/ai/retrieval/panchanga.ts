@@ -90,6 +90,7 @@ export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>>
       confidence: 100,
       retrievedAt: now,
       fromCache: true,
+      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -112,6 +113,7 @@ export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>>
       confidence: panchanga.tithi !== "—" ? 95 : 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Panchanga Retrieval] Error:", error);
@@ -125,6 +127,7 @@ export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>>
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "FALLBACK",
     };
   }
 }
@@ -146,6 +149,7 @@ export async function getPanchangaForDate(
       confidence: 100,
       retrievedAt: now,
       fromCache: true,
+      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -166,6 +170,7 @@ export async function getPanchangaForDate(
       confidence: panchanga.tithi !== "—" ? 95 : 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Panchanga Retrieval] Error:", error);
@@ -176,6 +181,7 @@ export async function getPanchangaForDate(
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
+      authority: "FALLBACK",
     };
   }
 }

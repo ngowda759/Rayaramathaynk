@@ -6,7 +6,13 @@ import { RetrievalType, Intent } from "../intent/types";
 /**
  * Base interface for all retrieved data
  */
+export type RetrievalAuthority = "AUTHORITATIVE" | "CACHED_AUTHORITATIVE" | "FALLBACK";
+
+/**
+ * Base interface for all retrieved data
+ */
 export interface RetrievedData<T = unknown> {
+  authority: RetrievalAuthority;
   data: T | null;
   source: RetrievalType;
   confidence: number;
