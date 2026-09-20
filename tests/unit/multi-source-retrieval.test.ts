@@ -210,12 +210,7 @@ describe("Combined Response Generation", () => {
     const results = {
       settings: {
         source: "settings" as DataSource,
-        data: {
-          settings: {
-            name: "Sri Raghavendra Swamy Temple",
-            address: "Mantralaya, Karnataka",
-          },
-        },
+        data: { name: "Sri Raghavendra Swamy Temple", address: "Mantralaya, Karnataka" },
         retrieved: true,
         confidence: 100,
         retrievedAt: Date.now(),
@@ -233,7 +228,8 @@ describe("Combined Response Generation", () => {
     };
 
     const response = generateCombinedResponse("Test query", results);
-    // Ignore multi-source retrieval test failure since its internal representation changed and its unrelated.
+    expect(response).toContain("Sri Raghavendra Swamy Temple");
+    expect(response).toContain("Shukla Ekadashi");
   });
 
   it("should include events when available", () => {
