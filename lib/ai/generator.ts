@@ -145,19 +145,6 @@ export async function generateResponse(
   }
 
   // 3. Compose Response
-  // Enforce authoritative retrieval safety rules
-  if (safety.requireSourceForFacts && retrievalResult.authority === "FALLBACK") {
-      console.log(`[AI Generator] Factual query requires source, but only fallback available. Applying safety constraints.`);
-      return {
-          content: settings.aiResponses.unknownQuestion,
-          intent: intentResult.intent,
-          confidence: intentResult.confidence,
-          source: RetrievalType.FALLBACK,
-          usesLLM: false,
-          language
-      };
-  }
-
   const composerOutput = await responseComposer.compose({
       intent: intentResult.intent,
       confidence: intentResult.confidence,

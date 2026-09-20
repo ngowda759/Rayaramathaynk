@@ -103,7 +103,6 @@ export async function getUpcomingEvents(maxEvents = 5): Promise<RetrievedData<Te
       confidence: 95,
       retrievedAt: lastFetchTime,
       fromCache: true,
-      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -120,7 +119,6 @@ export async function getUpcomingEvents(maxEvents = 5): Promise<RetrievedData<Te
       confidence: 95,
       retrievedAt: now,
       fromCache: false,
-      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Events Retrieval] Error:", error);
@@ -130,7 +128,6 @@ export async function getUpcomingEvents(maxEvents = 5): Promise<RetrievedData<Te
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
-      authority: "FALLBACK",
     };
   }
 }
@@ -149,7 +146,6 @@ export async function getFeaturedEvent(): Promise<RetrievedData<TempleEvent | nu
     confidence: featured ? 95 : 0,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
-    authority: result.authority,
   };
 }
 
@@ -172,7 +168,6 @@ export async function getEventsByCategory(
     confidence: filtered.length > 0 ? 90 : 0,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
-    authority: result.authority,
   };
 }
 

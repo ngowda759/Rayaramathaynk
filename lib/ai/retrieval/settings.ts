@@ -137,7 +137,6 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
       confidence: 100,
       retrievedAt: lastFetchTime,
       fromCache: true,
-      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -162,7 +161,6 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
       confidence: 95, // Slightly less than 100 due to potential defaults
       retrievedAt: now,
       fromCache: false,
-      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Settings Retrieval] Error:", error);
@@ -172,7 +170,6 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
-      authority: "FALLBACK",
     };
   }
 }
@@ -189,7 +186,6 @@ export async function getTempleTimings(): Promise<RetrievedData<TempleSettings["
     confidence: result.confidence,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
-    authority: result.authority,
   };
 }
 
@@ -213,7 +209,6 @@ export async function getContactInfo(): Promise<RetrievedData<{
     confidence: result.confidence,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
-    authority: result.authority,
   };
 }
 

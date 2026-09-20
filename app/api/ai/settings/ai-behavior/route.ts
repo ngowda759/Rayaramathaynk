@@ -3,7 +3,6 @@
 // PUT /api/ai/settings/ai-behavior - Update AI behavior settings
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { AIBehaviorSettings } from "@/types/ai-settings";
 import { verifyAdminUser } from "@/lib/auth/admin-auth";
@@ -26,11 +25,11 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const adminUser = await verifyAdminUser(request);
-    if (!adminUser) {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = adminUser.uid;
+    const userId = admin.uid;
     const body = await request.json();
     const { setting, value } = body;
 

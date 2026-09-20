@@ -91,7 +91,6 @@ export async function getActiveAnnouncements(): Promise<RetrievedData<TempleAnno
       confidence: 95,
       retrievedAt: lastFetchTime,
       fromCache: true,
-      authority: "CACHED_AUTHORITATIVE",
     };
   }
 
@@ -106,7 +105,6 @@ export async function getActiveAnnouncements(): Promise<RetrievedData<TempleAnno
       confidence: 95,
       retrievedAt: now,
       fromCache: false,
-      authority: "AUTHORITATIVE",
     };
   } catch (error) {
     console.error("[Announcements Retrieval] Error:", error);
@@ -116,7 +114,6 @@ export async function getActiveAnnouncements(): Promise<RetrievedData<TempleAnno
       confidence: 50,
       retrievedAt: now,
       fromCache: false,
-      authority: "FALLBACK",
     };
   }
 }
@@ -135,7 +132,6 @@ export async function getLatestAnnouncements(
     confidence: result.confidence,
     retrievedAt: result.retrievedAt,
     fromCache: result.fromCache,
-    authority: result.authority,
   };
 }
 
