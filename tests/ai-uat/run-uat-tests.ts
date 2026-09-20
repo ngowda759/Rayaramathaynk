@@ -133,33 +133,47 @@ function extractIntentFromResponse(response: string): Intent | null {
 // Run a single test
 async function runTest(testCase: UATTestCase): Promise<TestResult> {
   const startTime = Date.now();
-  const detector = new IntentDetector();
   
   try {
-    const detectionResult = detector.detect(testCase.question);
+    const responseResult = await generateResponse(testCase.question);
     
-    // For unit tests, we primarily check intent detection
+    // Check intent match
     const intentMatch = 
-      detectionResult.intent === testCase.expectedIntent ||
+      responseResult.intent === testCase.expectedIntent ||
       testCase.validationCriteria.checkIntent === false;
     
+    // Check language match - ACTUAL LANGUAGE
+    const actualLanguage = responseResult.language;
     const languageMatch = 
       testCase.expectedLanguage === "mixed" ||
-      testCase.expectedLanguage === testCase.expectedLanguage; // Language check
+      testCase.expectedLanguage === actualLanguage;
+
+    // Check if response exists and is non-empty
+    const hasContent = responseResult.content && responseResult.content.trim().length > 0;
     
-    const passed = intentMatch && detectionResult.confidence > 0;
+    const passed = intentMatch && languageMatch && hasContent;
+
+    let errorMsg;
+    if (!intentMatch) {
+      errorMsg = `Intent mismatch: expected ${testCase.expectedIntent}, got ${responseResult.intent}`;
+    } else if (!languageMatch) {
+      errorMsg = `Language mismatch: expected ${testCase.expectedLanguage}, got ${actualLanguage}`;
+    } else if (!hasContent) {
+      errorMsg = `Empty response generated`;
+    }
     
     return {
       id: testCase.id,
       question: testCase.question,
       expectedIntent: testCase.expectedIntent,
-      detectedIntent: detectionResult.intent,
+      detectedIntent: responseResult.intent,
       expectedLanguage: testCase.expectedLanguage,
-      detectedLanguage: testCase.expectedLanguage,
+      detectedLanguage: actualLanguage,
       expectedRepository: testCase.expectedRepository,
       status: passed ? "passed" : "failed",
       responseTime: Date.now() - startTime,
-      error: !passed ? `Intent mismatch: expected ${testCase.expectedIntent}, got ${detectionResult.intent}` : undefined,
+      error: errorMsg,
+      response: responseResult.content,
     };
   } catch (error) {
     return {
