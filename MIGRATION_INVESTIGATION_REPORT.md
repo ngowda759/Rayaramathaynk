@@ -6,37 +6,29 @@
 
 What evidence exists about what it represents?
 
-The remote migration has the timestamp `20260918143124`.
-
-The output from `supabase migration list` reveals the name of this migration remotely:
-```
-20260918143124 | create_content_tables
-```
-
-However, in our local repository, there is a migration named `20261001000000_create_content_tables.sql`. Looking at the repository commit history, this file was added in the commit `3a1dc9760226cab8ef5288ef507be698b13b78cb` (`chore: add remaining content tables and report migration blocked`) which occurred on "Fri Sep 18 14:46:59 2026 +0000".
-
-This heavily suggests that the developer created the migration `create_content_tables` on Sep 18 (generating the timestamp `20260918143124`) and applied it to the remote Supabase project. Then, before committing the code to the repository, they manually renamed the migration file to `20261001000000_create_content_tables.sql` (perhaps to enforce a specific execution order in the future, as they did with other migrations like `20261002` and `20261010`), and pushed that to the repository.
-
-As a result, the database has `20260918143124` in its `supabase_migrations.schema_migrations` table, but the codebase expects `20261001000000` to create those tables.
+- The remote migration is named `create_content_tables`.
+- The repository contains `20261001000000_create_content_tables.sql`.
+- The repository commit `3a1dc9760226cab8ef5288ef507be698b13b78cb` introduced that migration on September 18, 2026.
+- The remote migration timestamp `20260918143124` falls immediately before that commit.
+- The available evidence strongly supports that the migration was renamed/re-versioned before repository commit.
 
 ### 2. Remote schema differences
 
-List every relevant remote schema object that is not represented by local migrations.
-
-There are no schema objects present remotely that are not represented by local migrations, because the local migration `20261001000000_create_content_tables.sql` contains the exact same schema changes (creating users, profiles, donations, etc.) that the remote migration `20260918143124_create_content_tables` applied. The schema is identical; only the migration tracker version number differs.
+It is important to explicitly distinguish between schema equivalence/correspondence, migration-history equivalence, and exact SQL identity. While we cannot prove exact SQL identity without the original remote SQL file, the remote schema objects correspond directly to the local schema objects defined in `20261001000000_create_content_tables.sql` (e.g., users, profiles, donations, etc.). There is schema correspondence, but the migration-history is not equivalent (the ledger entries differ).
 
 ### 3. Repository correlation
 
-Identify which repository commit/PR appears related, if any.
-
 The commit `3a1dc9760226cab8ef5288ef507be698b13b78cb` ("chore: add remaining content tables and report migration blocked").
 
-This commit occurred on September 18, 2026 (matching the remote timestamp `20260918`) and introduced the file `supabase/migrations/20261001000000_create_content_tables.sql`.
+This commit occurred on September 18, 2026, which directly correlates with the timestamp of the remote migration (`20260918143124`) prior to it being locally renamed to `20261001000000_create_content_tables.sql`.
 
-### 4. Recommended action
+### 4. Final Validation
 
-Choose exactly one of these factual conclusions:
+- `supabase migration list` reveals the presence of `20260918143124 | create_content_tables` only in the remote ledger.
+- Local migration inventory shows `20261001000000_create_content_tables.sql` mapping to the same conceptual domain, added on September 18, 2026.
+- Subsequent migrations (e.g., `20261002000000_align_content_firestore_ids.sql`) depend on the tables created in the content tables migration, confirming the schema is applied.
+- Current tests and linters report failures, but these are pre-existing issues (e.g., AI Intent test fallbacks and unused variables in Playwright tests). No changes in this PR affect or cause these failures.
 
-C. Repair the stale remote migration-history entry.
+### 5. Recommended action
 
-The schemas are already perfectly aligned. The only difference is the version number recorded in the remote `schema_migrations` table. Therefore, the correct action is to repair the migration history to align it with the local files. We need to mark the remote-only migration `20260918143124` as reverted (or deleted) and mark the local migration `20261001000000` as applied, using `supabase migration repair`.
+Based on the available evidence, the repository does not appear to be missing a schema migration. The mismatch appears to be migration-history drift. The next operational step is to repair the stale remote migration-history entry, but that operation should be performed separately and only after recording the migration-list evidence. Note that `supabase migration repair` changes the migration-history ledger; it does not delete the schema objects created by the migration.
