@@ -27,7 +27,19 @@
     "firestore:dump": "tsx scripts/dump-firestore-live.ts",
     "firestore:convert": "tsx scripts/convert-firestore-export.ts",
     "firestore:dump:cli": "bash scripts/dump-firestore-configs.sh",
-    "firestore:dump:convert": "tsx scripts/convert-firestore-export.ts"
+    "firestore:dump:convert": "tsx scripts/convert-firestore-export.ts",
+    "migrate:core": "npx tsx scripts/migrate-core-to-supabase.ts",
+    "migrate:content": "npx tsx scripts/migrate-content-to-supabase.ts",
+    "migrate:ai": "npx tsx scripts/migrate-ai-to-supabase.ts",
+    "migrate:sevas": "npx tsx scripts/migrate-sevas.ts",
+    "migrate:daily-poojas": "npx tsx scripts/migrate-daily-poojas.ts",
+    "migrate:seva-bookings": "npx tsx scripts/migrate-seva-bookings-to-supabase.ts",
+    "migrate:settings": "npx tsx scripts/migrate-settings.ts",
+    "migrate:events-from-json": "npx tsx scripts/migrate-events-to-supabase-from-json.ts",
+    "seed:supabase-sevas": "npx tsx scripts/seed-supabase-sevas.ts",
+    "verify:supabase-migrations": "npx tsx scripts/verify-supabase-migrations.ts",
+    "verify:supabase-migrations:static": "npx tsx scripts/verify-supabase-migrations.ts --static",
+    "verify:supabase-migrations:json": "npx tsx scripts/verify-supabase-migrations.ts --json"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

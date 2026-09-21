@@ -53,8 +53,10 @@ The existing Firestore collections can be logically grouped into the following a
 ### Ephemeral / Logging
 *   `chat_sessions`, `chat_messages`, `unknown_questions`, `ai_intent_distribution`, `ai_latency_records`
 
-### Legacy / Not Required
-*   Settings collections might be migrated to a generic key-value table or dedicated single-row tables.
+### Settings
+*   `settings/socialLinks` → `social_links` (normalized).
+*   The site-settings document → `site_settings` (normalized).
+*   Every other `settings` document (e.g. `financeSettings`, `poojaSchedule`, `festivalCalendar`, `aboutUs`, `trustCommittee`, `guruParampara`) → `settings_documents`, preserving the complete document as JSONB keyed by `document_key`. See section 7.
 
 ## 4. Detailed Schema Proposals
 
@@ -169,7 +171,7 @@ Mapped from `donations` collection. Verified against `types/donation.ts`.
 | `address` | `text` | No | `address` | |
 | `amount` | `numeric(10,2)` | No | `amount` | |
 | `purpose` | `text` | No | `purpose` | |
-| `campaign_id` | `uuid` | No | `campaignId` | Requires validation. (It points to donation campaigns conceptually, but it might just be stored as string ID). |
+| `campaign_id` | `text` | Yes | `campaignId` | Firestore document ID copied verbatim, never coerced to a UUID. The source field is optional. Widened from `uuid` by migration `20261002000000_align_content_firestore_ids.sql`. |
 | `message` | `text` | No | `message` | |
 | `payment_mode` | `text` | No | `paymentMode` | |
 | `status` | `text` | No | `status` | |
@@ -219,7 +221,7 @@ Mapped from `galleryMedia` collection. Verified against `types/gallery.ts`.
 |--------|-----------------|----------|--------------|-------|
 | `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
 | `firestore_id` | `text` | Yes | document ID | Unique constraint. |
-| `album_id` | `uuid` | No | `albumId` | Foreign Key to `gallery_albums.id`. Verified by query patterns and TS types. |
+| `album_id` | `text` | Yes | `albumId` | Firestore document ID of the parent album, copied verbatim. The source field is optional (standalone media has none). Widened from `uuid` by migration `20261002000000_align_content_firestore_ids.sql`. |
 | `title` | `text` | No | `title` | |
 | `description` | `text` | No | `description` | |
 | `category` | `text` | No | `category` | Matches `GalleryCategory` |
@@ -280,7 +282,7 @@ Mapped from `sevaBookings` collection. Verified against `types/seva-booking.ts`.
 |--------|-----------------|----------|--------------|-------|
 | `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
 | `firestore_id` | `text` | Yes | document ID | Unique constraint. |
-| `seva_id` | `uuid` | No | `sevaId` | Foreign Key pointing to `sevas.id` (conceptually, requires validation) |
+| `seva_id` | `text` | No | `sevaId` | Loose reference to the Firestore seva document ID. Stored as `text`, not `uuid`: Firestore IDs are arbitrary strings and the application types (`types/seva-booking.ts`) use `string`. See migration `20260921000000_align_seva_bookings_seva_id.sql`. |
 | `seva_title` | `text` | No | `sevaTitle` | |
 | `seva_amount` | `numeric(10,2)` | No | `sevaAmount` | |
 | `user_id` | `text` | No | `userId` | Loose reference to Firebase Auth UIDs |
@@ -325,12 +327,29 @@ Mapped from `volunteer_requests` collection. Verified against `types/volunteer.t
 
 - Most Firestore relationships are loose (e.g., storing a string `userId` or `albumId`).
 - When migrating to PostgreSQL:
-  - `gallery_media.album_id` should become a Foreign Key pointing to `gallery_albums.id`. *(Verified usage in `types/gallery.ts`)*
-  - `sevaBookings.sevaId` should become a Foreign Key pointing to `sevas.id`. *(Requires Validation - stored as text but corresponds conceptually to `sevas`)*
-  - `donations.campaign_id` should become a Foreign Key pointing to `donation_campaigns.id`. *(Requires Validation - stored as text but corresponds conceptually to `donation_campaigns`)*
+  - `gallery_media.album_id` and `donations.campaign_id` hold Firestore document IDs and are stored as `text`, copied verbatim. A future Foreign Key to `gallery_albums.id` / `donation_campaigns.id` is possible only once every source value is guaranteed to resolve, which is not true today (both source fields are optional).
+  - `sevaBookings.sevaId` is stored as `text` for the same reason. *(See migration `20260921000000_align_seva_bookings_seva_id.sql`)*
   - `users.uid` / `profiles.uid` / `sevaBookings.userId` should loosely point to Firebase Auth UIDs. Since we are NOT migrating Firebase Auth to Supabase Auth yet, this should remain a loose `text` reference to the Firebase UID, NOT a PostgreSQL foreign key to a Supabase `auth.users` table. *(Verified in code that `userId` or `uid` relies on `firebase-admin`)*
 
-## 7. RLS / Security Considerations
+## 7. Settings Documents
+
+The Firestore `settings` collection holds several unrelated documents keyed by name.
+Two have dedicated normalized tables because application code already reads those shapes:
+
+| Firestore document | Destination |
+|--------------------|-------------|
+| `settings/socialLinks` | `social_links` |
+| the site-settings document (identified by `templeName` / `contactEmail`) | `site_settings` |
+
+Every other settings document (`financeSettings`, `poojaSchedule`, `festivalCalendar`,
+`aboutUs`, `trustCommittee`, `guruParampara`, and any future one such as `facilities`,
+`futurePlans`, `ai`, `device`, `config`) is preserved **in full** in
+`settings_documents.data` (JSONB), keyed by `document_key`. These documents are deeply
+nested and contain arrays of objects with no stable relational shape, so normalising them
+would risk dropping fields. The complete original document is stored instead, and
+`source_field_count` records how many top-level fields it carried.
+
+## 8. RLS / Security Considerations
 
 **CRITICAL:** Firebase Authentication remains the active auth provider. We are NOT migrating to Supabase Auth in this phase.
 
@@ -340,7 +359,7 @@ Because the PostgreSQL database will not have direct knowledge of the Firebase A
 - **Access Strategy**: All database interactions will occur Server-Side, where the backend validates the Firebase Auth ID Token (via `firebase-admin`) before performing SQL operations.
 - Do NOT implement unsafe public-write policies. Supabase Anon keys must only have read access to public, non-sensitive data (like `events` or `sevas`) if absolutely necessary, but preferably, all data flows through the Next.js server to guarantee unified Firebase Auth checks.
 
-## 8. Firestore ID Strategy (Traceability)
+## 9. Firestore ID Strategy (Traceability)
 
 Every migrated table must contain:
 `firestore_id text UNIQUE`
@@ -351,7 +370,7 @@ This is crucial for:
 3. Tracing records back to Firestore for rollback/debugging support during migration.
 4. Legacy URL support: Redirecting old URLs that use Firestore IDs to the new PostgreSQL UUIDs.
 
-## 9. Indexes & Constraints
+## 10. Indexes & Constraints
 
 - **Primary Keys**: `uuid` using `gen_random_uuid()`.
 - **Unique Constraints**: `firestore_id` must be unique.
@@ -364,7 +383,7 @@ This is crucial for:
   - `gallery_albums(display_order)`
   - `donation_campaigns(display_order)`
 
-## 10. Migration Order & Risk Assessment
+## 11. Migration Order & Risk Assessment
 
 **Recommended Migration Order (Based on actual dependencies):**
 1. Core/reference data (`sevas`, `daily_poojas`, `events`). (LOW RISK)
