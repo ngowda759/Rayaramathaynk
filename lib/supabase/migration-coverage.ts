@@ -252,12 +252,6 @@ export interface MigrationLedgerReport {
   note: string;
 }
 
-
-/** Check if a migration filename matches the canonical 14-digit format. */
-export function isCanonicalMigration(filename: string): boolean {
-  return /^\d{14}_/.test(filename);
-}
-
 /** Extract the version prefix (the leading digits) from a migration filename. */
 export function migrationVersionFromFilename(filename: string): string {
   const match = filename.match(/^(\d+)/);
@@ -278,7 +272,6 @@ export function diffMigrationLedger(
 
   const applied = new Set(appliedVersions.map((v) => String(v)));
   return migrationFiles
-    .filter(isCanonicalMigration)
     .map(migrationVersionFromFilename)
     .filter((version) => !applied.has(version))
     .sort();

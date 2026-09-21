@@ -69,10 +69,14 @@ function assignOptionalTimestamp(
 
 export const CONTENT_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
   users: {
-    mapped: ["email", "displayName", "phoneNumber", "photoUrl", "role", "active", "name", "phone", "profileImage", "isActive"],
+    mapped: ["email", "displayName", "phoneNumber", "photoUrl", "role", "active"],
     transformed: ["createdAt", "updatedAt"],
     intentionallyExcluded: [
+      { field: "name", why: "Legacy alias of displayName." },
+      { field: "phone", why: "Legacy alias of phoneNumber." },
+      { field: "profileImage", why: "Legacy alias of photoUrl." },
       { field: "uid", why: "Equals the document id, stored as firestore_id." },
+      { field: "isActive", why: "Legacy alias of active." },
       { field: "templeId", why: "Single-temple deployment; not in the users schema." },
       { field: "isApproved", why: "Not present in the users schema." },
       { field: "emailVerified", why: "Not present in the users schema." },

@@ -5,7 +5,7 @@ import {
   auditFieldCoverage,
   ValidationError,
 } from "@/lib/supabase/migration-helpers";
-import { migrationVersionFromFilename, diffMigrationLedger, isCanonicalMigration } from "@/lib/supabase/migration-coverage";
+import { migrationVersionFromFilename, diffMigrationLedger } from "@/lib/supabase/migration-coverage";
 
 /**
  * Fixture helpers modelling the Firestore wire shapes the migrators consume.
@@ -162,31 +162,6 @@ describe("migration ledger (I)", () => {
       ["20260907112632"]
     );
     expect(pending).toEqual(["20260922000000"]);
-  });
-
-  it("recognizes 14-digit migration files as canonical", () => {
-    expect(isCanonicalMigration("20260922000000_create_settings_documents.sql")).toBe(true);
-    expect(isCanonicalMigration("20261002000000_align_content_firestore_ids.sql")).toBe(true);
-  });
-
-  it("recognizes legacy 8-digit migration files as noncanonical", () => {
-    expect(isCanonicalMigration("20240915_create_temple_areas.sql")).toBe(false);
-  });
-
-  it("does NOT report a pending canonical migration when a legacy file is missing from the ledger", () => {
-    const pending = diffMigrationLedger(
-      ["20260922000000_a.sql", "20240915_b.sql"],
-      ["20260922000000"]
-    );
-    expect(pending).toEqual([]);
-  });
-
-  it("DOES report pending when a genuinely missing 14-digit migration is absent from the ledger", () => {
-    const pending = diffMigrationLedger(
-      ["20260922000000_a.sql", "20261002000000_b.sql"],
-      ["20260922000000"]
-    );
-    expect(pending).toEqual(["20261002000000"]);
   });
 
   it("returns null when the ledger is unreadable, so no false success is claimed", () => {

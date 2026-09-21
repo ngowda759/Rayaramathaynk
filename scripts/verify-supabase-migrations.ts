@@ -28,7 +28,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildStaticSchemaReport,
   diffTableCoverage,
-  isCanonicalMigration,
   migrationVersionFromFilename,
 } from "@/lib/supabase/migration-coverage";
 
@@ -55,12 +54,9 @@ async function readMigrationFiles(): Promise<{ files: string[]; contents: string
   return { files, contents };
 }
 
-function printStaticReport(report: ReturnType<typeof buildStaticSchemaReport>, files: string[], legacyFiles: string[] = []) {
+function printStaticReport(report: ReturnType<typeof buildStaticSchemaReport>, files: string[]) {
   console.log("=== STATIC SCHEMA EXPECTATIONS (from migrations, no credentials needed) ===");
   console.log(`Migration files scanned:        ${files.length}`);
-  if (legacyFiles.length > 0) {
-    console.log(`Legacy/noncanonical migration files: ${legacyFiles.join(", ")}`);
-  }
   console.log(`Tables declared:                ${report.tables.length}`);
   console.log(`Column declarations parsed:     ${report.columns.length}`);
   console.log(`Tables with RLS enabled:        ${report.rlsEnabledTables.length}`);
@@ -96,7 +92,6 @@ async function checkMigrationLedger(supabase: any, files: string[]) {
       const applied = (data || []).map((row: any) => String(row.version));
       const appliedSet = new Set(applied);
       const pending = files
-        .filter(isCanonicalMigration)
         .map(migrationVersionFromFilename)
         .filter((v) => !appliedSet.has(v))
         .sort();
@@ -174,8 +169,6 @@ async function run() {
   const staticOnly = process.argv.includes("--static");
 
   const { files, contents } = await readMigrationFiles();
-  const canonicalFiles = files.filter(isCanonicalMigration);
-  const legacyFiles = files.filter(f => !isCanonicalMigration(f));
   const staticReport = buildStaticSchemaReport(contents);
 
   const hasLiveCredentials = Boolean(
@@ -199,8 +192,6 @@ async function run() {
         {
           static: {
             migrationFiles: files,
-            canonicalFiles,
-            legacyFiles,
             tables: staticReport.tables,
             rlsEnabledTables: staticReport.rlsEnabledTables,
             tablesMissingRls: staticReport.tablesMissingRls,
@@ -218,7 +209,7 @@ async function run() {
       )
     );
   } else {
-    printStaticReport(staticReport, files, legacyFiles);
+    printStaticReport(staticReport, files);
 
     console.log("\n=== LIVE DATABASE VERIFICATION ===");
     if (staticOnly) {
