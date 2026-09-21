@@ -235,7 +235,9 @@ async function run() {
       fieldMismatches.forEach(f => console.log(` - ${f.id}: ${f.reason}`));
     }
 
-    if (!isClean && !isDryRun) {
+    // A failed dry-run must also signal failure so pre-flight validation stops
+    // before the live migration is attempted.
+    if (!isClean) {
       process.exit(1);
     }
   } catch (error: any) {

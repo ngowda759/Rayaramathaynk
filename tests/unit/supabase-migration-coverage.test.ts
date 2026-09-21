@@ -3,6 +3,9 @@ import path from "path";
 import {
   extractDeclaredTables,
   diffTableCoverage,
+  buildStaticSchemaReport,
+  extractDeclaredColumns,
+  extractRlsEnabledTables,
 } from "@/lib/supabase/migration-coverage";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "supabase", "migrations");
@@ -96,5 +99,82 @@ describe("declared table set", () => {
     for (const table of documented) {
       expect(tables).toContain(table);
     }
+  });
+
+  it("declares the settings_documents table used for lossless settings storage", () => {
+    expect(extractDeclaredTables(readMigrations())).toContain("settings_documents");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Static schema expectations (no credentials required)
+// ---------------------------------------------------------------------------
+
+describe("static schema expectations (I)", () => {
+  const report = buildStaticSchemaReport(readMigrations());
+
+  it("enables RLS on every declared table", () => {
+    expect(report.tablesMissingRls).toEqual([]);
+  });
+
+  it("declares the key columns of the settings_documents table", () => {
+    const columns = extractDeclaredColumns(readMigrations()).filter(
+      (c) => c.table === "settings_documents"
+    );
+    const names = columns.map((c) => c.column);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "firestore_id",
+        "document_key",
+        "data",
+        "created_at",
+        "updated_at",
+      ])
+    );
+  });
+
+  it("resolves donations.campaign_id and gallery_media.album_id to text after ALTERs", () => {
+    const columns = report.effectiveColumns;
+
+    const campaign = columns.find(
+      (c) => c.table === "donations" && c.column === "campaign_id"
+    );
+    const album = columns.find(
+      (c) => c.table === "gallery_media" && c.column === "album_id"
+    );
+
+    expect(campaign).toBeDefined();
+    expect(album).toBeDefined();
+    expect(campaign!.type).toBe("text");
+    expect(album!.type).toBe("text");
+  });
+
+  it("resolves seva_bookings.seva_id to text after the alignment migration", () => {
+    const sevaId = report.effectiveColumns.find(
+      (c) => c.table === "seva_bookings" && c.column === "seva_id"
+    );
+    expect(sevaId).toBeDefined();
+    expect(sevaId!.type).toBe("text");
+
+    const files = fs.readdirSync(MIGRATIONS_DIR);
+    expect(files.some((f) => f.includes("align_seva_bookings_seva_id"))).toBe(true);
+  });
+
+  it("keeps genuine uuid primary keys as uuid", () => {
+    const id = report.effectiveColumns.find((c) => c.table === "sevas" && c.column === "id");
+    expect(id).toBeDefined();
+    expect(id!.type).toBe("uuid");
+  });
+
+  it("marks firestore_id NOT NULL-free but unique-indexed per table", () => {
+    const sql = readMigrations().join("\n");
+    expect(sql).toMatch(/firestore_id\s+text\s+UNIQUE/i);
+  });
+
+  it("exposes RLS helper for expected tables", () => {
+    const rls = extractRlsEnabledTables(readMigrations());
+    expect(rls).toContain("settings_documents");
+    expect(rls).toContain("sevas");
+    expect(rls).toContain("donations");
   });
 });
