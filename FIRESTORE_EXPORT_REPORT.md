@@ -2,7 +2,7 @@
 
 ## Export Environment
 - Firebase project: Not fully identified as credentials were unavailable.
-- Export timestamp: 2024-05-23T00:00:00Z (Dummy value as actual export could not be performed)
+- Export timestamp: NOT AVAILABLE
 - Export command: `npm run firestore:dump` (Attempted but blocked by missing credentials)
 - Authentication method description: Requires `.firebase-adminsdk.json` service account key file or `FIREBASE_SERVICE_ACCOUNT` environment variable for REST API export, OR requires `firebase login` and running `npm run firestore:dump:cli` for CLI wrapper based export. No credentials were provided in the Jules execution environment.
 
