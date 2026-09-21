@@ -12,7 +12,7 @@ DELETE FROM supabase_migrations.schema_migrations WHERE version = '2026091814312
 ```
 
 ## 3. Migration state after repair
-The `20260918143124` record was successfully deleted from the remote `supabase_migrations.schema_migrations` table.
+The `20260918143124` record was successfully deleted (reverted) from the remote `supabase_migrations.schema_migrations` table.
 The current migrations in the remote ledger are:
 - `20240523000000` (create_temple_areas)
 - `20240915` (create_temple_areas)
@@ -27,7 +27,9 @@ However, conceptually, a dry-run *would* list `20261001000000_create_content_tab
 
 ## 5. Whether `20261001000000_create_content_tables.sql` is considered pending
 Yes, it is considered pending.
-**Explanation**: Because we reverted the old ledger entry (`20260918143124`), the remote database no longer tracks any application of `create_content_tables`. When the CLI compares local files against the remote ledger, it will see `20261001000000_create_content_tables.sql` as a new file that has not been recorded in `schema_migrations`, even though its structural tables actually exist in the remote database. Applying it via `supabase db push` would fail or behave unexpectedly if not handled carefully, since the schema objects already exist.
+**Explanation**: Because we reverted the old ledger entry (`20260918143124`), the remote database no longer tracks any application of `create_content_tables`. When the CLI compares local files against the remote ledger, it will see `20261001000000_create_content_tables.sql` as a new file that has not been recorded in `schema_migrations`.
+
+However, `20261001000000_create_content_tables.sql` appears to correspond to the already-existing remote schema. An authenticated `supabase migration list` and `supabase db push --dry-run` must be run from the operator's properly linked environment before deciding whether `20261001000000` should be marked as applied. The previous Jules environment could not perform that validation because Supabase CLI authentication/project linkage was unavailable.
 
 ## 6. Static/verifier results
 - `npm run verify:supabase-migrations:static` passed:
@@ -37,14 +39,18 @@ Yes, it is considered pending.
   - 22 Tables with RLS enabled
 - `npm run verify:supabase-migrations` similarly passed its static checks but accurately reported `SKIPPED: no Supabase credentials in this environment.`
 
-## 7. Whether any database schema/data was modified
-No database schema objects (tables, views, etc.) or application data were modified. Only the `supabase_migrations.schema_migrations` ledger was updated to revert the stale record.
+## 7. Modifications performed
+- **No application tables were modified.**
+- **No application data was modified.**
+- **Only migration-history state was changed** (the stale remote migration-history entry `20260918143124` was removed).
+- **No second migration-history repair was performed.**
 
 ## 8. Exact recommended next action
-Because the schema for `20261001000000_create_content_tables.sql` already exists remotely, running `supabase db push` will attempt to re-create existing tables and likely fail or cause conflicts.
-**Recommended next action:**
-Execute a "fake" push (marking the migration as applied without running its SQL) to synchronize the ledger for the content tables migration, followed by any remaining legitimately pending migrations.
+Run the following from an authenticated and linked operator environment:
+
 ```bash
-supabase migration repair 20261001000000 --status applied
+supabase migration list
+supabase db push --dry-run
 ```
-Once the ledger is synced for `20261001000000`, evaluate whether the subsequent migrations (like `20261002000000`) also need to be repaired or if they can safely be pushed.
+
+Review the actual pending migrations before performing any additional migration-history repair. Do not run `supabase db push` or mark `20261001000000` as applied until the dry-run confirms that the corresponding schema already exists and that no required migration SQL would be skipped.
