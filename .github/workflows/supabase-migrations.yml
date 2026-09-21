@@ -11,7 +11,7 @@ jobs:
 
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
     steps:
       - name: Checkout repository
@@ -31,8 +31,20 @@ jobs:
         with:
           version: '1.200.0'
 
+      - name: Validate Supabase project ref
+        shell: bash
+        run: |
+          echo "Project ref length: ${#SUPABASE_PROJECT_REF}"
+
+          if [[ ! "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "ERROR: SUPABASE_PROJECT_REF is not a valid 20-character Supabase project ref."
+            exit 1
+          fi
+
+          echo "Project ref format is valid."
+
       - name: Link Supabase project
-        run: supabase link --project-ref $PROJECT_ID
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Run Supabase migration dry-run
         run: npm run supabase:migrations:dry-run
