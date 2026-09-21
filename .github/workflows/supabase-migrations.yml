@@ -48,9 +48,13 @@ jobs:
 
       - name: Run Supabase migration dry-run
         run: npm run supabase:migrations:dry-run
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Apply Supabase migrations
         run: npm run supabase:migrations:push
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Verify Supabase migrations
         run: npm run verify:supabase-migrations
