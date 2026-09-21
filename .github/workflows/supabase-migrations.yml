@@ -52,6 +52,11 @@ jobs:
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
+      - name: Diagnostic migration list
+        run: supabase migration list
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
       - name: Run Supabase migration dry-run
         run: npm run supabase:migrations:dry-run
         env:
