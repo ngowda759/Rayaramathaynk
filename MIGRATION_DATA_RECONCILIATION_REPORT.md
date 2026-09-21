@@ -4,7 +4,7 @@
 
 A read-only, production-safe reconciliation was performed against the live Supabase PostgreSQL database to audit the fidelity and completeness of the Firestore-to-Supabase data migration. 
 
-he available evidence shows that almost all Supabase destination tables are currently empty. Because the complete production Firestore export is unavailable, production migration completeness cannot be established for the majority of collections.
+The available evidence shows that almost all Supabase destination tables are currently empty. Because the complete production Firestore export is unavailable, production migration completeness cannot be established for the majority of collections.
 
 Because the `data/firestore-export/` and `data/firestore-dump/` directories (which are expected by the `npm run firestore:dump` scripts) do not contain any `*.ndjson` or `*.json` collection dumps (other than the `events` export test data), the audit is blocked by missing source data. Additionally, the Supabase database itself is empty for almost all migrated collections.
 
