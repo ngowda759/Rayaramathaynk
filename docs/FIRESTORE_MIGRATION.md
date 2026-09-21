@@ -46,6 +46,37 @@ Once you have verified the mappings and counts in the dry-run output, execute th
 npx tsx scripts/migrate-core-to-supabase.ts
 ```
 
+### Other Migrations
+
+The other collections each have a dedicated script. All of them accept
+`--dry-run` and perform independent source/target reconciliation:
+
+```bash
+npx tsx scripts/migrate-content-to-supabase.ts   # users, profiles, donations, gallery, testimonials, aaradhanes, volunteer_requests
+npx tsx scripts/migrate-ai-to-supabase.ts        # chat_sessions, chat_messages, unknown_questions, AI analytics
+npx tsx scripts/migrate-seva-bookings-to-supabase.ts
+npx tsx scripts/migrate-settings.ts
+```
+
+Equivalent npm aliases exist: `npm run migrate:core`, `migrate:content`,
+`migrate:ai`, `migrate:seva-bookings`, `migrate:settings`.
+
+### Verifying which migrations have been applied
+
+`scripts/verify-supabase-migrations.ts` reads every file in
+`supabase/migrations/`, extracts the tables they declare, and compares that set
+with the tables that actually exist in the target database. It is strictly
+read-only — it never creates, alters, or drops anything.
+
+```bash
+npm run verify:supabase-migrations          # human-readable report
+npm run verify:supabase-migrations -- --json # machine-readable output
+```
+
+Exit code `0` means every declared table exists; `1` means at least one is
+missing.
+
+
 ## Expected Output & Reconciliation
 
 The script will produce a comprehensive report at the end of each collection run detailing exactly what was skipped and why:

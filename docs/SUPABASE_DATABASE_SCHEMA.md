@@ -280,7 +280,7 @@ Mapped from `sevaBookings` collection. Verified against `types/seva-booking.ts`.
 |--------|-----------------|----------|--------------|-------|
 | `id` | `uuid` | No | N/A | Primary Key, default `gen_random_uuid()` |
 | `firestore_id` | `text` | Yes | document ID | Unique constraint. |
-| `seva_id` | `uuid` | No | `sevaId` | Foreign Key pointing to `sevas.id` (conceptually, requires validation) |
+| `seva_id` | `text` | No | `sevaId` | Loose reference to the Firestore seva document ID. Stored as `text`, not `uuid`: Firestore IDs are arbitrary strings and the application types (`types/seva-booking.ts`) use `string`. See migration `20260921000000_align_seva_bookings_seva_id.sql`. |
 | `seva_title` | `text` | No | `sevaTitle` | |
 | `seva_amount` | `numeric(10,2)` | No | `sevaAmount` | |
 | `user_id` | `text` | No | `userId` | Loose reference to Firebase Auth UIDs |
