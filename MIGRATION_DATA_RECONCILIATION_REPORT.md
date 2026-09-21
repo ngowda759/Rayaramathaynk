@@ -4,7 +4,7 @@
 
 A read-only, production-safe reconciliation was performed against the live Supabase PostgreSQL database to audit the fidelity and completeness of the Firestore-to-Supabase data migration. 
 
-The investigation revealed that **no Firestore data exists in the Supabase destination tables (except for the `events` and `sevas` tables, which appear partially or manually populated, and they do not correspond to a complete Firestore export).** The source evidence (Firestore exports) is unavailable in the repository, making it impossible to perform a document-by-document reconciliation for the vast majority of the schema.
+he available evidence shows that almost all Supabase destination tables are currently empty. Because the complete production Firestore export is unavailable, production migration completeness cannot be established for the majority of collections.
 
 Because the `data/firestore-export/` and `data/firestore-dump/` directories (which are expected by the `npm run firestore:dump` scripts) do not contain any `*.ndjson` or `*.json` collection dumps (other than the `events` export test data), the audit is blocked by missing source data. Additionally, the Supabase database itself is empty for almost all migrated collections.
 
@@ -44,7 +44,7 @@ A live query against the remote Supabase database confirms that almost all desti
 
 | Collection | Firestore count | Supabase count | Difference | Status |
 | ---------- | --------------: | -------------: | ---------: | --------- |
-| events | 38 (from test json) | 38 | 0 | PASS |
+| events | 38 (from test json) | 38 | 0 | PASS (available test export only) |
 | sevas | UNAVAILABLE | 10 | N/A | NOT VERIFIABLE |
 | users | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
 | profiles | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
@@ -55,7 +55,7 @@ A live query against the remote Supabase database confirms that almost all desti
 | gallery_albums | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
 | gallery_media | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
 | testimonials | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
-| aaradhanes | 19 (from test json) | 0 | -19 | FAIL |
+| aaradhanes | 19 (from test json) | 0 | -19 | FAIL (available source JSON only) |
 | volunteer_requests | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
 | seva_bookings | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
 | social_links | UNAVAILABLE | 0 | N/A | NOT VERIFIABLE |
@@ -103,7 +103,7 @@ Cannot be performed. Source evidence unavailable.
 
 ### A. Confirmed migration defect
 
-- The migration of `aaradhanes` has failed. There are source JSON files available, but the Supabase table contains 0 rows.
+- The available `aaradhanes` source JSON contains 19 documents, while the Supabase `aaradhanes` table contains 0 rows. This confirms a migration gap for the available `aaradhanes` dataset; production-wide completeness cannot be established without the full Firestore export.
 
 ### E. Insufficient evidence
 
