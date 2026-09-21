@@ -178,3 +178,15 @@ describe("static schema expectations (I)", () => {
     expect(rls).toContain("donations");
   });
 });
+
+describe("migrationVersionFromFilename", () => {
+  const { migrationVersionFromFilename } = require("../../lib/supabase/migration-coverage"); // eslint-disable-line @typescript-eslint/no-require-imports
+
+  it("extracts the 14-digit version prefix from a canonical filename", () => {
+    expect(migrationVersionFromFilename("20260907112632_create_core_tables.sql")).toBe("20260907112632");
+  });
+
+  it("returns null for non-canonical (e.g., 8-digit) legacy filenames", () => {
+    expect(migrationVersionFromFilename("20240915_create_temple_areas.sql")).toBeNull();
+  });
+});

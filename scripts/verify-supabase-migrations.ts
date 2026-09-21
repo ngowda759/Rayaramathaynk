@@ -93,7 +93,7 @@ async function checkMigrationLedger(supabase: any, files: string[]) {
       const appliedSet = new Set(applied);
       const pending = files
         .map(migrationVersionFromFilename)
-        .filter((v) => !appliedSet.has(v))
+        .filter((v): v is string => v !== null && !appliedSet.has(v))
         .sort();
 
       return {

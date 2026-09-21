@@ -252,10 +252,10 @@ export interface MigrationLedgerReport {
   note: string;
 }
 
-/** Extract the version prefix (the leading digits) from a migration filename. */
-export function migrationVersionFromFilename(filename: string): string {
-  const match = filename.match(/^(\d+)/);
-  return match ? match[1] : filename.replace(/\.sql$/i, "");
+/** Extract the version prefix (the leading digits) from a migration filename. Returns null for non-canonical (e.g. 8-digit) legacy filenames. */
+export function migrationVersionFromFilename(filename: string): string | null {
+  const match = filename.match(/^(\d{14})_/);
+  return match ? match[1] : null;
 }
 
 /**
@@ -273,6 +273,6 @@ export function diffMigrationLedger(
   const applied = new Set(appliedVersions.map((v) => String(v)));
   return migrationFiles
     .map(migrationVersionFromFilename)
-    .filter((version) => !applied.has(version))
+    .filter((version): version is string => version !== null && !applied.has(version))
     .sort();
 }

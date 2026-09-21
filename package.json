@@ -39,7 +39,9 @@
     "seed:supabase-sevas": "npx tsx scripts/seed-supabase-sevas.ts",
     "verify:supabase-migrations": "npx tsx scripts/verify-supabase-migrations.ts",
     "verify:supabase-migrations:static": "npx tsx scripts/verify-supabase-migrations.ts --static",
-    "verify:supabase-migrations:json": "npx tsx scripts/verify-supabase-migrations.ts --json"
+    "verify:supabase-migrations:json": "npx tsx scripts/verify-supabase-migrations.ts --json",
+    "supabase:migrations:dry-run": "supabase db push --dry-run",
+    "supabase:migrations:push": "supabase db push"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
