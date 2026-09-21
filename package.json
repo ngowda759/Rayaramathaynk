@@ -51,7 +51,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/extension-image": "^3.28.0",
     "@tiptap/extension-link": "^3.28.0",
-    "@tiptap/extension-placeholder": "^3.28.0",
+    "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
     "@types/uuid": "^10.0.0",
