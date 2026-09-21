@@ -31,9 +31,15 @@ jobs:
         with:
           version: '1.200.0'
 
-      - name: Validate Supabase project ref
+      - name: Validate Supabase project ref and secrets
+        env:
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         shell: bash
         run: |
+          if [ -z "$DB_PASSWORD" ]; then
+            echo "ERROR: SUPABASE_DB_PASSWORD secret is not available."
+            exit 1
+          fi
           echo "Project ref length: ${#SUPABASE_PROJECT_REF}"
 
           if [[ ! "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
@@ -49,12 +55,12 @@ jobs:
       - name: Run Supabase migration dry-run
         run: npm run supabase:migrations:dry-run
         env:
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Apply Supabase migrations
         run: npm run supabase:migrations:push
         env:
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Verify Supabase migrations
         run: npm run verify:supabase-migrations
