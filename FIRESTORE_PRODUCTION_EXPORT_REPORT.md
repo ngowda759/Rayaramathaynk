@@ -6,7 +6,7 @@ BLOCKED: Production export could not be performed because the required Firebase 
 
 - **Export status**: BLOCKED
 - **Export timestamp**: NOT AVAILABLE — production export was not performed
-- **Repository commit SHA**: $(git rev-parse HEAD 2>/dev/null || echo "Unknown")
+- **Repository commit SHA**: a372a75d5a43932d4f0a50835de744ba99277253
 - **Export command used**: `npm run firestore:dump` (which maps to `tsx scripts/dump-firestore-live.ts`)
 - **Credential mechanism used**: Google Application Credentials/Service Account (missing. Looked for `FIREBASE_SERVICE_ACCOUNT` environment variable and `.firebase-adminsdk.json` file).
 - **Output directory**: NOT AVAILABLE
