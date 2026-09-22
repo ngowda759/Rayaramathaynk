@@ -13,69 +13,64 @@ const { privateKey } = crypto.generateKeyPairSync('rsa', {
 
 describe('JWT Private Key Validation', () => {
 
-    // Helper function to test JWT initialization and crypto parsing
-    async function testJwtParsing(keyString: string): Promise<boolean> {
+    // Helper function to test JWT initialization and local crypto parsing
+    function testKeyLocally(keyString: string): boolean {
         try {
-            const client = new JWT({
+            // 1. Validate that Node.js native crypto can parse it
+            crypto.createPrivateKey(keyString);
+
+            // 2. Validate that it can be constructed with JWT
+            new JWT({
                 email: 'test@example.com',
                 key: keyString,
                 scopes: ['https://www.googleapis.com/auth/datastore']
             });
 
-            // Trigger actual crypto usage by attempting to sign a JWT
-            // GoogleAuthLibrary uses this internally before sending the network request
-            const token = await client.authorize();
+            // We do NOT call authorize() to avoid network requests.
+            // Construction and createPrivateKey are sufficient to prove valid PEM.
             return true;
-        } catch (e: any) {
-            // If we get an unsupported decoder error, the key parsing failed.
-            if (e.message && e.message.includes('unsupported')) {
-                return false;
-            }
-            // Other errors (like network/account not found) mean the key was successfully parsed!
-            if (e.message && e.message.includes('account not found')) {
-                return true;
-            }
-            throw e;
+        } catch {
+            return false;
         }
     }
 
-    it('sanity check: raw escaped string FAILS', async () => {
+    it('sanity check: raw escaped string FAILS', () => {
         const escapedKey = privateKey.replace(/\n/g, '\\n');
-        const isValid = await testJwtParsing(escapedKey);
+        const isValid = testKeyLocally(escapedKey);
         expect(isValid).toBe(false);
     });
 
-    it('accepts normalized escaped newline private key', async () => {
+    it('accepts normalized escaped newline private key', () => {
         const escapedKey = privateKey.replace(/\n/g, '\\n');
         const creds = resolveCredentials('proj', 'email', escapedKey, mockKeyPath);
 
-        const isValid = await testJwtParsing(creds.private_key);
+        const isValid = testKeyLocally(creds.private_key);
         expect(isValid).toBe(true);
     });
 
-    it('accepts normalized CRLF private key', async () => {
+    it('accepts normalized CRLF private key', () => {
         const crlfKey = privateKey.replace(/\n/g, '\r\n');
         const creds = resolveCredentials('proj', 'email', crlfKey, mockKeyPath);
 
-        const isValid = await testJwtParsing(creds.private_key);
+        const isValid = testKeyLocally(creds.private_key);
         expect(isValid).toBe(true);
     });
 
-    it('accepts normalized surrounding whitespace key', async () => {
+    it('accepts normalized surrounding whitespace key', () => {
         const wsKey = `   \n\t  ${privateKey}   \n\t  `;
         const creds = resolveCredentials('proj', 'email', wsKey, mockKeyPath);
 
-        const isValid = await testJwtParsing(creds.private_key);
+        const isValid = testKeyLocally(creds.private_key);
         expect(isValid).toBe(true);
     });
 
-    it('accepts normalized inconsistent header whitespace key', async () => {
+    it('accepts normalized inconsistent header whitespace key', () => {
         let badHeaderKey = privateKey.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----   \n  \n');
         badHeaderKey = badHeaderKey.replace('-----END PRIVATE KEY-----', '\n  \n-----END PRIVATE KEY-----');
 
         const creds = resolveCredentials('proj', 'email', badHeaderKey, mockKeyPath);
 
-        const isValid = await testJwtParsing(creds.private_key);
+        const isValid = testKeyLocally(creds.private_key);
         expect(isValid).toBe(true);
     });
 });
