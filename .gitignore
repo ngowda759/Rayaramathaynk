@@ -42,3 +42,7 @@ data/firestore-dump/*
 
 # Temporary live-probe scripts (never commit!
 scripts/.*.mjs
+
+
+# TypeScript build artifacts
+*.tsbuildinfo
