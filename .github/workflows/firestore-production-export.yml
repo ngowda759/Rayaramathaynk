@@ -53,11 +53,11 @@ jobs:
             exit 1
           fi
 
-- name: Diagnose Firebase private key format
+      - name: Diagnose Firebase private key format
         env:
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
         run: |
-          node -e "
+          node <<'NODE'
             const crypto = require('crypto');
             const key = process.env.FIREBASE_PRIVATE_KEY || '';
             console.log('FIREBASE_PRIVATE_KEY present:', key.length > 0);
@@ -97,7 +97,7 @@ jobs:
               normFailed = true;
             }
             console.log('Normalized crypto parse:', normFailed ? 'FAILED' : 'SUCCESS');
-          "
+          NODE
 
       - name: Run Firestore export
         if: false
@@ -113,7 +113,7 @@ jobs:
         run: |
           echo "Validating Firestore export..."
 
-          node -e "
+          node <<'NODE'
             const fs = require('fs');
             const path = require('path');
 
@@ -246,7 +246,7 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_OUTPUT || '', 'total_docs=' + totalDocs + '\n');
 
             console.log('Validation complete: ' + totalCollections + ' collections, ' + totalDocs + ' total docs.');
-          "
+          NODE
 
       - name: Generate Action Summary
         if: false
