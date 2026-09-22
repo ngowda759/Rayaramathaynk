@@ -1,8 +1,8 @@
 # Firestore Production Export Report
 
 ## Metadata
-- **Export Timestamp:** 2023-10-25T00:00:00.000Z (Attempted)
-- **Firebase Project ID:** N/A (Missing from environment)
+- **Export Timestamp:** NOT AVAILABLE — export was not performed because required credentials were unavailable.
+- **Firebase Project ID:** N/A — missing from environment.
 
 ## Status: BLOCKED
 The production Firestore export could not be performed due to missing required environment credentials.
@@ -13,10 +13,13 @@ The production Firestore export could not be performed due to missing required e
 - `FIREBASE_PRIVATE_KEY` is missing or empty.
 
 ## Compliance Confirmations
-- **Read-only execution:** Yes. (No script execution occurred due to missing credentials; the database was untouched).
-- **Supabase unmodified:** Yes.
-- **No credentials written to disk:** Yes. No service-account JSON or related files were created.
-- **No secrets committed:** Yes.
+- **Production export was not executed:** Yes.
+- **No Firestore data was read:** Yes. (No script execution occurred due to missing credentials).
+- **No Firestore data was modified:** Yes.
+- **No Supabase data was modified:** Yes.
+- **No credentials were written to disk:** Yes. No service-account JSON or related files were created.
+- **No secrets were committed:** Yes.
+- **No production export files were generated:** Yes.
 
 ## Error Details
 ```
