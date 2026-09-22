@@ -23,9 +23,37 @@ const EXPECTED: ReadonlyArray< string > = [
 const EXCLUDED: ReadonlyArray< string > = [ "users","profiles","bookmarks","sessions" ];
 
 const NL = String.fromCharCode( 10 );
-const k = JSON.parse( fs.readFileSync( KEY, "utf8" ) );
-const client = new JWT( { email: k.client_email, key: k.private_key, scopes: [ "https://www.googleapis.com/auth/datastore" ] } );
-const base = "https://firestore.googleapis.com/v1/projects/" + k.project_id + "/databases/(default)/documents";
+let k: { client_email: string; private_key: string; project_id: string };
+
+const envProjectId = process.env.FIREBASE_PROJECT_ID;
+const envClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const envPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+let client: JWT;
+let base: string;
+
+try {
+  if (envProjectId && envClientEmail && envPrivateKey) {
+    k = {
+      project_id: envProjectId,
+      client_email: envClientEmail,
+      private_key: envPrivateKey.replace(/\\n/g, "\n"),
+    };
+  } else if (fs.existsSync(KEY)) {
+    k = JSON.parse( fs.readFileSync( KEY, "utf8" ) );
+  } else {
+    throw new Error("Missing Firebase credentials. Please provide FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or a valid service account file.");
+  }
+
+  client = new JWT( { email: k.client_email, key: k.private_key, scopes: [ "https://www.googleapis.com/auth/datastore" ] } );
+  base = "https://firestore.googleapis.com/v1/projects/" + k.project_id + "/databases/(default)/documents";
+} catch (e) {
+  const m = e instanceof Error ? String( e ) : String( e );
+  console.error( "FATAL: " + m );
+  fs.mkdirSync( DD, { recursive: true } );
+  fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project: k ? k.project_id : 'unknown', discoveredCollections: 0, totalCollections:  0, totalDocs:  0, totalFailed:  1, collections: [ { collection: "(fatal)", status: "failed", docCount:  0, file: null, reason: m } ] }, null,2 ) + NL );
+  process.exit(1);
+}
 
 async function main() {
   const tok = await client.getAccessToken();
@@ -138,6 +166,6 @@ main().catch( ( e ) => {
   const m = e instanceof Error ? String( e ) : String( e );
   console.error( "FATAL: " + m );
   fs.mkdirSync( DD, { recursive: true } );
-  fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project: k.project_id, discoveredCollections: 0, totalCollections:  0, totalDocs:  0, totalFailed:  1, collections: [ { collection: "(fatal)", status: "failed", docCount:  0, file: null, reason: m } ] }, null,2 ) + NL );
+  fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project: k ? k.project_id : 'unknown', discoveredCollections: 0, totalCollections:  0, totalDocs:  0, totalFailed:  1, collections: [ { collection: "(fatal)", status: "failed", docCount:  0, file: null, reason: m } ] }, null,2 ) + NL );
   process.exitCode =  1;
 } );
