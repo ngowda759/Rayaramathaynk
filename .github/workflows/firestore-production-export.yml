@@ -1,0 +1,245 @@
+name: Firestore Production Export
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify credentials existence
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          echo "Verifying required secrets..."
+          if [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "::error::FIREBASE_PROJECT_ID secret is missing or empty"
+            exit_code=1
+          else
+            echo "FIREBASE_PROJECT_ID is present."
+          fi
+
+          if [ -z "$FIREBASE_CLIENT_EMAIL" ]; then
+            echo "::error::FIREBASE_CLIENT_EMAIL secret is missing or empty"
+            exit_code=1
+          else
+            echo "FIREBASE_CLIENT_EMAIL is present."
+          fi
+
+          if [ -z "$FIREBASE_PRIVATE_KEY" ]; then
+            echo "::error::FIREBASE_PRIVATE_KEY secret is missing or empty"
+            exit_code=1
+          else
+            echo "FIREBASE_PRIVATE_KEY is present."
+          fi
+
+          if [ "${exit_code:-0}" -eq 1 ]; then
+            exit 1
+          fi
+
+      - name: Run Firestore export
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: npm run firestore:dump
+
+      - name: Validate generated export
+        id: validate
+        run: |
+          echo "Validating Firestore export..."
+
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+
+            const EXPORT_DIR = 'data/firestore-export';
+            const DUMP_DIR = 'data/firestore-dump';
+            const MANIFEST_PATH = path.join(DUMP_DIR, 'MANIFEST.json');
+
+            if (!fs.existsSync(EXPORT_DIR)) {
+              console.error('::error::Export directory not found at ' + EXPORT_DIR);
+              process.exitCode = 1;
+              return;
+            }
+            if (!fs.existsSync(MANIFEST_PATH)) {
+              console.error('::error::MANIFEST.json not found at ' + MANIFEST_PATH);
+              process.exitCode = 1;
+              return;
+            }
+
+            let manifest;
+            try {
+              manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+            } catch (e) {
+              console.error('::error::MANIFEST.json is not valid JSON');
+              process.exitCode = 1;
+              return;
+            }
+
+            if (manifest.totalFailed > 0) {
+              console.error('::error::Export completed but reported ' + manifest.totalFailed + ' failed collections in MANIFEST.');
+              process.exitCode = 1;
+              return;
+            }
+
+            let totalDocs = 0;
+            let totalCollections = 0;
+            const seenCollections = new Set();
+
+            for (const c of manifest.collections) {
+              if (!c.file || (c.status !== 'present' && c.status !== 'unexpected' && c.status !== 'intentionallyExcluded')) continue;
+
+              seenCollections.add(c.collection);
+              totalCollections++;
+
+              const ndjsonPath = path.join(EXPORT_DIR, c.file);
+              if (!fs.existsSync(ndjsonPath)) {
+                console.error('::error::Missing expected export file: ' + c.file);
+                process.exitCode = 1;
+                return;
+              }
+
+              const content = fs.readFileSync(ndjsonPath, 'utf8');
+              const lines = content.split('\n').filter(l => l.trim() !== '');
+
+              if (c.docCount > 0 && lines.length === 0) {
+                console.error('::error::File ' + c.file + ' is unexpectedly empty despite docCount ' + c.docCount);
+                process.exitCode = 1;
+                return;
+              }
+
+              const seenIds = new Set();
+              let docCount = 0;
+
+              for (let i = 0; i < lines.length; i++) {
+                try {
+                  const doc = JSON.parse(lines[i]);
+                  if (!doc.name) {
+                    console.error('::error::Document missing name in ' + c.file + ' at line ' + (i+1));
+                    process.exitCode = 1;
+                    return;
+                  }
+
+                  if (seenIds.has(doc.name)) {
+                    console.error('::error::Duplicate document ID detected: ' + doc.name + ' in ' + c.file);
+                    process.exitCode = 1;
+                    return;
+                  }
+                  seenIds.add(doc.name);
+                  docCount++;
+                  totalDocs++;
+                } catch (e) {
+                  console.error('::error::Malformed JSON in ' + c.file + ' at line ' + (i+1));
+                  process.exitCode = 1;
+                  return;
+                }
+              }
+
+              if (docCount !== c.docCount) {
+                 console.error('::error::Document count mismatch for ' + c.collection + '. Expected ' + c.docCount + ', found ' + docCount);
+                 process.exitCode = 1;
+                 return;
+              }
+
+              console.log('Validated ' + c.collection + ': ' + docCount + ' docs');
+            }
+
+            if (totalCollections !== manifest.totalCollections) {
+               console.error('::error::totalCollections mismatch. Expected ' + manifest.totalCollections + ', found ' + totalCollections);
+               process.exitCode = 1;
+               return;
+            }
+
+            if (totalDocs !== manifest.totalDocs) {
+               console.error('::error::totalDocs mismatch. Expected ' + manifest.totalDocs + ', found ' + totalDocs);
+               process.exitCode = 1;
+               return;
+            }
+
+            const exportFiles = fs.readdirSync(EXPORT_DIR).filter(f => f.endsWith('.ndjson'));
+            for (const f of exportFiles) {
+               const collectionName = f.replace('.ndjson', '');
+               if (!seenCollections.has(collectionName)) {
+                  console.error('::error::Unexpected export file not in MANIFEST: ' + f);
+                  process.exitCode = 1;
+                  return;
+               }
+            }
+
+            const dumpFiles = fs.readdirSync(DUMP_DIR).filter(f => f.endsWith('.json') && f !== 'MANIFEST.json');
+            for (const f of dumpFiles) {
+               try {
+                 JSON.parse(fs.readFileSync(path.join(DUMP_DIR, f), 'utf8'));
+               } catch (e) {
+                 console.error('::error::Malformed JSON in dump file: ' + f);
+                 process.exitCode = 1;
+                 return;
+               }
+            }
+
+            fs.appendFileSync(process.env.GITHUB_OUTPUT || '', 'collection_count=' + totalCollections + '\n');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT || '', 'total_docs=' + totalDocs + '\n');
+
+            console.log('Validation complete: ' + totalCollections + ' collections, ' + totalDocs + ' total docs.');
+          "
+
+      - name: Generate Action Summary
+        if: always()
+        run: |
+          DUMP_DIR="data/firestore-dump"
+          MANIFEST="$DUMP_DIR/MANIFEST.json"
+
+          echo "## Firestore Export Summary" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "$MANIFEST" ]; then
+            TOTAL_DOCS=$(jq -r '.totalDocs // "0"' "$MANIFEST")
+            TOTAL_COLLECTIONS=$(jq -r '.totalCollections // "0"' "$MANIFEST")
+            TOTAL_FAILED=$(jq -r '.totalFailed // "0"' "$MANIFEST")
+
+            echo "- **Status:** ✅ Export Generated" >> $GITHUB_STEP_SUMMARY
+            echo "- **Collection Count:** $TOTAL_COLLECTIONS" >> $GITHUB_STEP_SUMMARY
+            echo "- **Total Document Count:** $TOTAL_DOCS" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$TOTAL_FAILED" -gt 0 ]; then
+              echo "- **Failed Collections:** ❌ $TOTAL_FAILED" >> $GITHUB_STEP_SUMMARY
+            fi
+
+          else
+            echo "- **Status:** ❌ Export Failed (MANIFEST not found)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "- **Artifact Name:** firestore-production-export" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload export artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: firestore-production-export
+          path: |
+            data/firestore-export/
+            data/firestore-dump/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Clean up export files
+        if: always()
+        run: |
+          rm -rf data/firestore-export data/firestore-dump
+          echo "Cleaned up export files from workspace to prevent accidental commits."
