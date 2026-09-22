@@ -40,7 +40,12 @@ export function resolveCredentials(
     return {
       project_id: envProjectId,
       client_email: envClientEmail,
-      private_key: envPrivateKey.replace(/\\n/g, "\n"),
+      private_key: envPrivateKey
+        .replace(/\\n/g, "\n")
+        .replace(/\r\n/g, "\n")
+        .replace(/^\s+|\s+$/g, "")
+        .replace(/-----BEGIN PRIVATE KEY-----\s*/, "-----BEGIN PRIVATE KEY-----\n")
+        .replace(/\s*-----END PRIVATE KEY-----/, "\n-----END PRIVATE KEY-----"),
     };
   } else if (keyFilePath && fs.existsSync(keyFilePath)) {
     return JSON.parse( fs.readFileSync( keyFilePath, "utf8" ) );

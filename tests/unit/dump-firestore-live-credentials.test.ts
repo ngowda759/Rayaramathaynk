@@ -14,7 +14,7 @@ describe('dump-firestore-live credentials', () => {
     expect(creds.project_id).toBe('fake-project');
     expect(creds.client_email).toBe('fake@example.com');
     // Ensure escaped newlines are converted to actual newlines
-    expect(creds.private_key).toBe('-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n');
+    expect(creds.private_key).toBe('-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----');
   });
 
   it('handles actual newlines in private key', () => {
@@ -27,7 +27,7 @@ describe('dump-firestore-live credentials', () => {
 
     expect(creds.project_id).toBe('fake-project');
     expect(creds.client_email).toBe('fake@example.com');
-    expect(creds.private_key).toBe('-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n');
+    expect(creds.private_key).toBe('-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----');
   });
 
   it('falls back to service account file if environment variables are missing', () => {
