@@ -3,6 +3,9 @@ name: Firestore Production Export
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   export:
     runs-on: ubuntu-latest
