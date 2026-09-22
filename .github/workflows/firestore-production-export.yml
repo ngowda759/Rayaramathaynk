@@ -53,7 +53,87 @@ jobs:
             exit 1
           fi
 
+      - name: Diagnose Firebase private key format
+        env:
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          node <<'NODE'
+          const crypto = require('crypto');
+
+          const key = process.env.FIREBASE_PRIVATE_KEY || '';
+
+          console.log('FIREBASE_PRIVATE_KEY present:', key.length > 0);
+
+          if (!key) {
+            process.exit(0);
+          }
+
+          console.log('Length:', key.length);
+          console.log(
+            'Contains BEGIN PRIVATE KEY:',
+            key.includes('BEGIN PRIVATE KEY')
+          );
+          console.log(
+            'Contains END PRIVATE KEY:',
+            key.includes('END PRIVATE KEY')
+          );
+
+          const actualNewlines = (key.match(/\n/g) || []).length;
+          const literalNewlines = (key.match(/\\n/g) || []).length;
+
+          console.log('Actual newline count:', actualNewlines);
+          console.log('Literal \\n count:', literalNewlines);
+
+          const trimmed = key.trim();
+
+          console.log(
+            'Starts with PEM header:',
+            trimmed.startsWith('-----BEGIN PRIVATE KEY-----')
+          );
+          console.log(
+            'Ends with PEM footer:',
+            trimmed.endsWith('-----END PRIVATE KEY-----')
+          );
+
+          let rawParse = 'FAILED';
+
+          try {
+            crypto.createPrivateKey(key);
+            rawParse = 'SUCCESS';
+          } catch {
+            // Intentionally do not print the exception because it could expose
+            // sensitive key parsing details.
+          }
+
+          console.log('Raw crypto parse:', rawParse);
+
+          const normalized = key
+            .replace(/\\n/g, '\n')
+            .replace(/\r\n/g, '\n')
+            .trim()
+            .replace(
+              /-----BEGIN PRIVATE KEY-----\s*/,
+              '-----BEGIN PRIVATE KEY-----\n'
+            )
+            .replace(
+              /\s*-----END PRIVATE KEY-----/,
+              '\n-----END PRIVATE KEY-----'
+            );
+
+          let normalizedParse = 'FAILED';
+
+          try {
+            crypto.createPrivateKey(normalized);
+            normalizedParse = 'SUCCESS';
+          } catch {
+            // Intentionally do not print the exception.
+          }
+
+          console.log('Normalized crypto parse:', normalizedParse);
+          NODE
+
       - name: Run Firestore export
+        if: false
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
@@ -61,6 +141,7 @@ jobs:
         run: npm run firestore:dump
 
       - name: Validate generated export
+        if: false
         id: validate
         run: |
           echo "Validating Firestore export..."
@@ -201,7 +282,7 @@ jobs:
           "
 
       - name: Generate Action Summary
-        if: always()
+        if: false
         run: |
           DUMP_DIR="data/firestore-dump"
           MANIFEST="$DUMP_DIR/MANIFEST.json"
@@ -229,7 +310,7 @@ jobs:
 
       - name: Upload export artifact
         uses: actions/upload-artifact@v4
-        if: always()
+        if: false
         with:
           name: firestore-production-export
           path: |
@@ -239,7 +320,7 @@ jobs:
           if-no-files-found: error
 
       - name: Clean up export files
-        if: always()
+        if: false
         run: |
           rm -rf data/firestore-export data/firestore-dump
           echo "Cleaned up export files from workspace to prevent accidental commits."
