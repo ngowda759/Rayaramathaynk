@@ -65,63 +65,140 @@ jobs:
         run: |
           echo "Validating Firestore export..."
 
-          EXPORT_DIR="data/firestore-export"
-          DUMP_DIR="data/firestore-dump"
-          MANIFEST="$DUMP_DIR/MANIFEST.json"
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
 
-          exit_code=0
+            const EXPORT_DIR = 'data/firestore-export';
+            const DUMP_DIR = 'data/firestore-dump';
+            const MANIFEST_PATH = path.join(DUMP_DIR, 'MANIFEST.json');
 
-          if [ ! -d "$EXPORT_DIR" ]; then
-            echo "::error::Export directory not found at $EXPORT_DIR"
-            exit_code=1
-          fi
+            if (!fs.existsSync(EXPORT_DIR)) {
+              console.error('::error::Export directory not found at ' + EXPORT_DIR);
+              process.exitCode = 1;
+              return;
+            }
+            if (!fs.existsSync(MANIFEST_PATH)) {
+              console.error('::error::MANIFEST.json not found at ' + MANIFEST_PATH);
+              process.exitCode = 1;
+              return;
+            }
 
-          if [ ! -f "$MANIFEST" ]; then
-            echo "::error::MANIFEST.json not found at $MANIFEST"
-            exit_code=1
-          fi
+            let manifest;
+            try {
+              manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+            } catch (e) {
+              console.error('::error::MANIFEST.json is not valid JSON');
+              process.exitCode = 1;
+              return;
+            }
 
-          if [ "$exit_code" -eq 1 ]; then
-            exit 1
-          fi
+            if (manifest.totalFailed > 0) {
+              console.error('::error::Export completed but reported ' + manifest.totalFailed + ' failed collections in MANIFEST.');
+              process.exitCode = 1;
+              return;
+            }
 
-          # Check valid JSON of manifest
-          if ! jq -e . "$MANIFEST" >/dev/null 2>&1; then
-             echo "::error::MANIFEST.json is not valid JSON"
-             exit 1
-          fi
+            let totalDocs = 0;
+            let totalCollections = 0;
+            const seenCollections = new Set();
 
-          # Basic manifest validation
-          TOTAL_DOCS=$(jq '.totalDocs' "$MANIFEST")
-          TOTAL_COLLECTIONS=$(jq '.totalCollections' "$MANIFEST")
-          TOTAL_FAILED=$(jq '.totalFailed' "$MANIFEST")
+            for (const c of manifest.collections) {
+              if (!c.file || (c.status !== 'present' && c.status !== 'unexpected' && c.status !== 'intentionallyExcluded')) continue;
 
-          if [ "$TOTAL_FAILED" -gt 0 ]; then
-            echo "::error::Export completed but reported $TOTAL_FAILED failed collections in MANIFEST."
-            exit 1
-          fi
+              seenCollections.add(c.collection);
+              totalCollections++;
 
-          echo "collection_count=$TOTAL_COLLECTIONS" >> $GITHUB_OUTPUT
-          echo "total_docs=$TOTAL_DOCS" >> $GITHUB_OUTPUT
+              const ndjsonPath = path.join(EXPORT_DIR, c.file);
+              if (!fs.existsSync(ndjsonPath)) {
+                console.error('::error::Missing expected export file: ' + c.file);
+                process.exitCode = 1;
+                return;
+              }
 
-          # Check for empty files
-          for file in "$EXPORT_DIR"/*.ndjson; do
-             if [ -f "$file" ]; then
-               # Basic sanity check
-               if ! grep -q '^{' "$file"; then
-                 echo "Warning: File $file is empty or invalid"
-               fi
-             fi
-          done
+              const content = fs.readFileSync(ndjsonPath, 'utf8');
+              const lines = content.split('\n').filter(l => l.trim() !== '');
 
-          for file in "$DUMP_DIR"/*.json; do
-             if [ -f "$file" ] && [ "$file" != "$MANIFEST" ]; then
-               if ! jq -e . "$file" >/dev/null 2>&1; then
-                 echo "::error::File $file is not valid JSON"
-                 exit 1
-               fi
-             fi
-          done
+              if (c.docCount > 0 && lines.length === 0) {
+                console.error('::error::File ' + c.file + ' is unexpectedly empty despite docCount ' + c.docCount);
+                process.exitCode = 1;
+                return;
+              }
+
+              const seenIds = new Set();
+              let docCount = 0;
+
+              for (let i = 0; i < lines.length; i++) {
+                try {
+                  const doc = JSON.parse(lines[i]);
+                  if (!doc.name) {
+                    console.error('::error::Document missing name in ' + c.file + ' at line ' + (i+1));
+                    process.exitCode = 1;
+                    return;
+                  }
+
+                  if (seenIds.has(doc.name)) {
+                    console.error('::error::Duplicate document ID detected: ' + doc.name + ' in ' + c.file);
+                    process.exitCode = 1;
+                    return;
+                  }
+                  seenIds.add(doc.name);
+                  docCount++;
+                  totalDocs++;
+                } catch (e) {
+                  console.error('::error::Malformed JSON in ' + c.file + ' at line ' + (i+1));
+                  process.exitCode = 1;
+                  return;
+                }
+              }
+
+              if (docCount !== c.docCount) {
+                 console.error('::error::Document count mismatch for ' + c.collection + '. Expected ' + c.docCount + ', found ' + docCount);
+                 process.exitCode = 1;
+                 return;
+              }
+
+              console.log('Validated ' + c.collection + ': ' + docCount + ' docs');
+            }
+
+            if (totalCollections !== manifest.totalCollections) {
+               console.error('::error::totalCollections mismatch. Expected ' + manifest.totalCollections + ', found ' + totalCollections);
+               process.exitCode = 1;
+               return;
+            }
+
+            if (totalDocs !== manifest.totalDocs) {
+               console.error('::error::totalDocs mismatch. Expected ' + manifest.totalDocs + ', found ' + totalDocs);
+               process.exitCode = 1;
+               return;
+            }
+
+            const exportFiles = fs.readdirSync(EXPORT_DIR).filter(f => f.endsWith('.ndjson'));
+            for (const f of exportFiles) {
+               const collectionName = f.replace('.ndjson', '');
+               if (!seenCollections.has(collectionName)) {
+                  console.error('::error::Unexpected export file not in MANIFEST: ' + f);
+                  process.exitCode = 1;
+                  return;
+               }
+            }
+
+            const dumpFiles = fs.readdirSync(DUMP_DIR).filter(f => f.endsWith('.json') && f !== 'MANIFEST.json');
+            for (const f of dumpFiles) {
+               try {
+                 JSON.parse(fs.readFileSync(path.join(DUMP_DIR, f), 'utf8'));
+               } catch (e) {
+                 console.error('::error::Malformed JSON in dump file: ' + f);
+                 process.exitCode = 1;
+                 return;
+               }
+            }
+
+            fs.appendFileSync(process.env.GITHUB_OUTPUT || '', 'collection_count=' + totalCollections + '\n');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT || '', 'total_docs=' + totalDocs + '\n');
+
+            console.log('Validation complete: ' + totalCollections + ' collections, ' + totalDocs + ' total docs.');
+          "
 
       - name: Generate Action Summary
         if: always()
