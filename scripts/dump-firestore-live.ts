@@ -3,6 +3,73 @@ import * as fs from "fs";
 import * as path from "path";
 import { convertDoc, FirestoreWireDoc } from "./lib/firestore-values";
 
+
+export async function fetchCollectionListAll(col: string, base: string, H: Record<string, string>, failed: Map<string, string>): Promise<FirestoreWireDoc[]> {
+  const out: Array<FirestoreWireDoc> = [];
+  const seen = new Set<string>();
+  let url = base + "/" + encodeURIComponent(col) + "?pageSize=300";
+  let guard = 0;
+  while (url && guard < 1000) {
+    let body: { documents?: FirestoreWireDoc[]; nextPageToken?: string; } | null = null;
+    let ok = false;
+    for (let attempt = 0; attempt < 5 && !ok; attempt++) {
+      try {
+        const ac = new AbortController();
+        const tm = setTimeout(() => ac.abort(), 90000);
+        const rr = await fetch(url, { headers: H, signal: ac.signal });
+        clearTimeout(tm);
+
+        if (rr.status === 429) {
+          const retryAfter = rr.headers.get("Retry-After");
+          const delayStr = retryAfter ? parseInt(retryAfter, 10) : NaN;
+          const wait = !isNaN(delayStr) ? delayStr * 1000 : 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+          console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
+          await new Promise((r) => setTimeout(r, wait));
+          continue;
+        }
+
+        if (rr.status >= 500) {
+          const wait = 2000 * Math.pow(2, attempt);
+          console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
+          await new Promise((r) => setTimeout(r, wait));
+          continue;
+        }
+
+        if (rr.status >= 400 && rr.status < 500 && rr.status !== 429) {
+          failed.set(col, "permanent HTTP " + rr.status);
+          throw new Error(col + " list failed permanently: " + rr.status + " " + await rr.text());
+        }
+
+        if (!rr.ok) throw new Error(col + " list failed: " + rr.status + " " + await rr.text());
+
+        const jj = await rr.json() as { documents?: FirestoreWireDoc[]; nextPageToken?: string };
+        for (const d of (jj.documents || [])) {
+          if (seen.has(d.name)) continue;
+          seen.add(d.name);
+          out.push(d);
+        }
+        url = jj.nextPageToken ? base + "/" + encodeURIComponent(col) + "?pageSize=300&pageToken=" + encodeURIComponent(jj.nextPageToken) : "";
+        body = jj;
+        ok = true;
+      } catch (e) {
+        const m = e instanceof Error ? (e.name === "AbortError" ? "timeout after 90s" : String(e)) : String(e);
+        if (attempt === 4 || m.includes("failed permanently")) {
+          console.error("  FAILED " + col + ": " + m);
+          if (!failed.has(col)) failed.set(col, m);
+          ok = true;
+        } else {
+          console.log("  " + col + " attempt " + attempt + " failed: " + m + " retrying");
+          await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+        }
+      }
+    }
+    if (body === null) { if (!failed.has(col)) failed.set(col, "pagination exhausted before completion"); break; }
+    guard++;
+  }
+  return out;
+}
+
+
 const ROOT = process.cwd();
 const KEY = process.env.FIREBASE_SERVICE_ACCOUNT || path.join( ROOT, ".firebase-adminsdk.json" );
 const ED = path.join( ROOT, "data", "firestore-export" );
@@ -95,48 +162,7 @@ async function runDump() {
   }
 
   async function listAll( col: string ): Promise< FirestoreWireDoc[] > {
-    const out: Array< FirestoreWireDoc > = [];
-    const seen = new Set< string >();
-    let url = base + "/" + encodeURIComponent( col ) + "?pageSize=300";
-    let guard = 0;
-    while ( url && guard < 1000 ) {
-      let body: { documents?: FirestoreWireDoc[]; nextPageToken?: string; } | null = null;
-      let ok = false;
-      for ( let attempt = 0; attempt < 5 && !ok; attempt++ ) {
-        try {
-          const ac = new AbortController();
-          const tm = setTimeout( ( ) => ac.abort(), 90000 );
-          const rr = await fetch( url, { headers: H, signal: ac.signal } );
-          clearTimeout( tm );
-          if ( rr.status === 429 || rr.status >= 500 ) {
-            const wait = 2000 * Math.pow( 2, attempt );
-            console.log( "  " + col + " HTTP " + rr.status + " retry in " + wait/1000 + "s" );
-            await new Promise( ( r ) => setTimeout( r, wait ) );
-            continue;
-          }
-          if ( !rr.ok ) throw new Error( col + " list failed: " + rr.status + " " + await rr.text() );
-          const jj = await rr.json() as { documents?: FirestoreWireDoc[]; nextPageToken?: string };
-          for ( const d of ( jj.documents || [] ) ) {
-            if ( seen.has( d.name ) ) continue;
-            seen.add( d.name );
-            out.push( d );
-          }
-          url = jj.nextPageToken ? base + "/" + encodeURIComponent( col ) + "?pageSize=300&pageToken=" + encodeURIComponent( jj.nextPageToken ) : "0";
-          body = jj;
-          ok = true;
-        } catch ( e ) {
-          const m = e instanceof Error ? ( e.name === "AbortError" ? "timeout after 90s" : String( e ) ) : String( e );
-          if ( attempt === 4 ) {
-            console.error( "  FAILED " + col + ": " + m ); failed.set( col,m ); ok = true;
-          }
-          console.log( "  " + col + " attempt " + attempt + " failed: " + m + " retrying" );
-          await new Promise( ( r ) => setTimeout( r, 5000 * ( attempt + 1 ) ) );
-        }
-      }
-      if ( body === null ) { failed.set( col,"pagination exhausted before completion" ); break; }
-      guard++;
-    }
-    return out;
+    return await fetchCollectionListAll(col, base, H as Record<string, string>, failed);
   }
   const ids = ( await collectionIds() ).sort();
   fs.mkdirSync( ED, { recursive: true } );
@@ -190,7 +216,7 @@ if (process.argv[1] === __filename || process.argv[1].endsWith('dump-firestore-l
     console.error( "FATAL: " + m );
     fs.mkdirSync( DD, { recursive: true } );
     let project = 'unknown';
-    try { project = resolveCredentials(process.env.FIREBASE_PROJECT_ID, process.env.FIREBASE_CLIENT_EMAIL, process.env.FIREBASE_PRIVATE_KEY, KEY).project_id; } catch (err) { /* ignore */ }
+    try { project = resolveCredentials(process.env.FIREBASE_PROJECT_ID, process.env.FIREBASE_CLIENT_EMAIL, process.env.FIREBASE_PRIVATE_KEY, KEY).project_id; } catch { /* ignore */ }
     fs.writeFileSync( path.join( DD,"MANIFEST.json" ), JSON.stringify( { exportedAt: new Date().toISOString(), project, discoveredCollections: 0, totalCollections:  0, totalDocs:  0, totalFailed:  1, collections: [ { collection: "(fatal)", status: "failed", docCount:  0, file: null, reason: m } ] }, null,2 ) + NL );
     process.exitCode =  1;
   } );
