@@ -13,7 +13,7 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
   while (url && guard < 1000) {
     let body: { documents?: FirestoreWireDoc[]; nextPageToken?: string; } | null = null;
     let ok = false;
-    for (let attempt = 0; attempt < 5 && !ok; attempt++) {
+    for (let attempt = 0; attempt < 10 && !ok; attempt++) {
       try {
         const ac = new AbortController();
         const tm = setTimeout(() => ac.abort(), 90000);
@@ -40,9 +40,10 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
           }
           if (isNaN(wait)) {
             wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+            wait = Math.min(wait, 60000);
           }
-          if (attempt === 4) {
-            throw new Error("HTTP 429 after 5 attempts");
+          if (attempt === 9) {
+            throw new Error("HTTP 429 after 10 attempts");
           }
           console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
           await new Promise((r) => setTimeout(r, wait));
@@ -75,9 +76,12 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
         url = jj.nextPageToken ? base + "/" + encodeURIComponent(col) + "?pageSize=300&pageToken=" + encodeURIComponent(jj.nextPageToken) : "";
         body = jj;
         ok = true;
+        if (url) {
+          await new Promise(r => setTimeout(r, 250));
+        }
       } catch (e) {
         const m = e instanceof Error ? (e.name === "AbortError" ? "timeout after 90s" : String(e)) : String(e);
-        if (attempt === 4 || m.includes("failed permanently")) {
+        if (attempt === 9 || m.includes("failed permanently")) {
           console.error("  FAILED " + col + ": " + m);
           if (!failed.has(col)) failed.set(col, m);
           ok = true;
