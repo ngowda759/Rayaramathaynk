@@ -5,7 +5,7 @@
 | Firestore Collection | Defined/Discovered From | Source Data Available? | Known Document Count | Current Application Usage | Supabase Destination | Migration Status |
 |---|---|---|---|---|---|---|
 | aaradhane | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | aaradhanes | WAIT_FOR_FIRESTORE_EXPORT |
-| aaradhanes | EXPECTED | NO | 19 (Historical check) | ACTIVE (API/Migrate) | aaradhanes | WAIT_FOR_FIRESTORE_EXPORT |
+| aaradhanes | EXPECTED | NO | 19 (HISTORICAL/REPOSITORY evidence) | ACTIVE (API/Migrate) | aaradhanes | WAIT_FOR_FIRESTORE_EXPORT |
 | ai_intent_distribution | EXPECTED | NO | Unknown | ACTIVE (Admin) | ai_intent_distribution | WAIT_FOR_FIRESTORE_EXPORT |
 | ai_latency_records | EXPECTED | NO | Unknown | ACTIVE (Admin) | ai_latency_records | WAIT_FOR_FIRESTORE_EXPORT |
 | ai_settings | EXPECTED | NO | Unknown | ACTIVE (AI/Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
@@ -18,23 +18,23 @@
 | chatTraining | EXPECTED | NO | Unknown | ACTIVE (AI Training) | chatTraining | WAIT_FOR_FIRESTORE_EXPORT |
 | chat_messages | EXPECTED | NO | Unknown | ACTIVE (AI Chat) | chat_messages | WAIT_FOR_FIRESTORE_EXPORT |
 | chat_metrics | EXPECTED | NO | Unknown | ACTIVE (Admin) | chat_metrics | WAIT_FOR_FIRESTORE_EXPORT |
-| chat_sessions | EXPECTED | NO | 19 | ACTIVE (AI Chat) | chat_sessions | WAIT_FOR_FIRESTORE_EXPORT |
-| dailyPoojas | EXPECTED | NO | 26 | ACTIVE (UI/Admin) | daily_poojas | WAIT_FOR_FIRESTORE_EXPORT |
+| chat_sessions | EXPECTED | NO | 19 (HISTORICAL/REPOSITORY evidence) | ACTIVE (AI Chat) | chat_sessions | WAIT_FOR_FIRESTORE_EXPORT |
+| dailyPoojas | EXPECTED | NO | 26 (HISTORICAL/REPOSITORY evidence) | ACTIVE (UI/Admin) | daily_poojas | WAIT_FOR_FIRESTORE_EXPORT |
 | daily_page_stats | EXPECTED | NO | Unknown | ACTIVE (Analytics) | daily_page_stats | WAIT_FOR_FIRESTORE_EXPORT |
 | donationCampaigns | EXPECTED | NO | Unknown | ACTIVE (Admin) | donation_campaigns | WAIT_FOR_FIRESTORE_EXPORT |
 | donation_campaigns | EXPECTED | NO | Unknown | ACTIVE (UI) | donation_campaigns | WAIT_FOR_FIRESTORE_EXPORT |
-| donations | EXPECTED | NO | 1 | ACTIVE (UI/Admin) | donations | WAIT_FOR_FIRESTORE_EXPORT |
-| events | EXPECTED | NO | 36 (Historical check) | ACTIVE (UI/Admin) | events | WAIT_FOR_FIRESTORE_EXPORT |
+| donations | EXPECTED | NO | 1 (HISTORICAL/REPOSITORY evidence) | ACTIVE (UI/Admin) | donations | WAIT_FOR_FIRESTORE_EXPORT |
+| events | EXPECTED | NO | 36 (HISTORICAL/REPOSITORY evidence) | ACTIVE (UI/Admin) | events | WAIT_FOR_FIRESTORE_EXPORT |
 | featuredContent | EXPECTED | NO | Unknown | ACTIVE (Admin) | featured_content | WAIT_FOR_FIRESTORE_EXPORT |
-| feedback | EXPECTED | NO | 2 | ACTIVE (Admin) | feedback | WAIT_FOR_FIRESTORE_EXPORT |
+| feedback | EXPECTED | NO | 2 (HISTORICAL/REPOSITORY evidence) | ACTIVE (Admin) | feedback | WAIT_FOR_FIRESTORE_EXPORT |
 | futurePlans | EXPECTED | NO | Unknown | ACTIVE (Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
 | gallery | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | gallery_media | WAIT_FOR_FIRESTORE_EXPORT |
-| galleryAlbums | EXPECTED | NO | 4 | ACTIVE (UI/Admin) | gallery_albums | WAIT_FOR_FIRESTORE_EXPORT |
+| galleryAlbums | EXPECTED | NO | 4 (HISTORICAL/REPOSITORY evidence) | ACTIVE (UI/Admin) | gallery_albums | WAIT_FOR_FIRESTORE_EXPORT |
 | galleryMedia | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | gallery_media | WAIT_FOR_FIRESTORE_EXPORT |
-| homepage | EXPECTED | NO | 1 | ACTIVE (UI/Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
+| homepage | EXPECTED | NO | 1 (HISTORICAL/REPOSITORY evidence) | ACTIVE (UI/Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
 | intent_feedback | EXPECTED | NO | Unknown | ACTIVE (Admin) | intent_feedback | WAIT_FOR_FIRESTORE_EXPORT |
 | intent_metrics | EXPECTED | NO | Unknown | ACTIVE (Admin) | intent_metrics | WAIT_FOR_FIRESTORE_EXPORT |
-| knowledge | EXPECTED | NO | 5 | ACTIVE (UI/Admin) | knowledge | WAIT_FOR_FIRESTORE_EXPORT |
+| knowledge | EXPECTED | NO | 5 (HISTORICAL/REPOSITORY evidence) | ACTIVE (UI/Admin) | knowledge | WAIT_FOR_FIRESTORE_EXPORT |
 | knowledge_articles | EXPECTED | NO | Unknown | ACTIVE (Knowledge) | knowledge | WAIT_FOR_FIRESTORE_EXPORT |
 | knowledge_audit_log | EXPECTED | NO | Unknown | ACTIVE (Knowledge) | knowledge_audit_log | WAIT_FOR_FIRESTORE_EXPORT |
 | knowledge_categories | EXPECTED | NO | Unknown | ACTIVE (Knowledge) | knowledge_categories | WAIT_FOR_FIRESTORE_EXPORT |
@@ -44,10 +44,10 @@
 | knowledge_versions | EXPECTED | NO | Unknown | ACTIVE (Knowledge) | knowledge_versions | WAIT_FOR_FIRESTORE_EXPORT |
 | knowledge_workflow | EXPECTED | NO | Unknown | ACTIVE (Knowledge) | knowledge_workflow | WAIT_FOR_FIRESTORE_EXPORT |
 | knowledge_workflow_actions | EXPECTED | NO | Unknown | ACTIVE (Knowledge) | knowledge_workflow_actions | WAIT_FOR_FIRESTORE_EXPORT |
-| members | EXPECTED | NO | 1 | ACTIVE (Admin) | users/profiles | WAIT_FOR_FIRESTORE_EXPORT |
-| messages | EXPECTED | NO | 101 | ACTIVE (AI Chat) | chat_messages | WAIT_FOR_FIRESTORE_EXPORT |
+| members | EXPECTED | NO | 1 (HISTORICAL/REPOSITORY evidence) | ACTIVE (Admin) | users/profiles | WAIT_FOR_FIRESTORE_EXPORT |
+| messages | EXPECTED | NO | 101 (HISTORICAL/REPOSITORY evidence) | ACTIVE (AI Chat) | chat_messages | WAIT_FOR_FIRESTORE_EXPORT |
 | notifications | EXPECTED | NO | Unknown | ACTIVE (System) | notifications | WAIT_FOR_FIRESTORE_EXPORT |
-| page_views | EXPECTED | NO | ~47k | ACTIVE (Analytics) | page_views | WAIT_FOR_FIRESTORE_EXPORT |
+| page_views | EXPECTED | NO | ~47k (HISTORICAL/REPOSITORY evidence) | ACTIVE (Analytics) | page_views | WAIT_FOR_FIRESTORE_EXPORT |
 | panchanga | EXPECTED | NO | Unknown | ACTIVE (UI) | panchanga | WAIT_FOR_FIRESTORE_EXPORT |
 | poojas | EXPECTED | NO | Unknown | ACTIVE (Admin) | daily_poojas | WAIT_FOR_FIRESTORE_EXPORT |
 | profiles | EXCLUDED | NO | 0 | NOT_REQUIRED | profiles | NOT_REQUIRED |
@@ -64,7 +64,7 @@
 | timings | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
 | trust | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
 | trustCommittee | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | site_settings (JSON) | WAIT_FOR_FIRESTORE_EXPORT |
-| unknown_questions | EXPECTED | NO | 32 | ACTIVE (Admin) | unknown_questions | WAIT_FOR_FIRESTORE_EXPORT |
+| unknown_questions | EXPECTED | NO | 32 (HISTORICAL/REPOSITORY evidence) | ACTIVE (Admin) | unknown_questions | WAIT_FOR_FIRESTORE_EXPORT |
 | users | EXCLUDED | NO | 0 | NOT_REQUIRED | users | NOT_REQUIRED |
 | volunteer_requests | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | volunteer_requests | WAIT_FOR_FIRESTORE_EXPORT |
 | volunteers | EXPECTED | NO | Unknown | ACTIVE (UI/Admin) | volunteers | WAIT_FOR_FIRESTORE_EXPORT |
@@ -92,7 +92,7 @@ The directory `data/firestore-dump/` contains a `README.md` and some historical 
 | `sevaBookings` | `seva_bookings` | `id` (uuid) | Yes (`firestore_id`) | |
 | `settings` | `site_settings` | `id` (uuid) | Yes (`firestore_id`) | Document-style mapping to JSONB |
 
-*No destination table flagged:* `receipts`, `bills`, `chat_sessions`, `chat_messages`.
+*Destination table confirmed absent from schema:* `receipts`, `bills`.
 
 ## 4. APPLICATION USAGE
 
