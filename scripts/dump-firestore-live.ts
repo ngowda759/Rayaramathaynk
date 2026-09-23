@@ -25,8 +25,12 @@ class FirestorePacer {
     this.nextRequestTime = Date.now() + this.currentDelayMs;
   }
 
+  scheduleRetry(waitMs: number): void {
+    this.nextRequestTime = Math.max(this.nextRequestTime, Date.now() + waitMs);
+  }
+
   record429(waitMs: number): void {
-    this.nextRequestTime = Date.now() + waitMs;
+    this.scheduleRetry(waitMs);
     // Increase global delay to slow down hammering
     this.currentDelayMs = Math.min(5000, this.currentDelayMs + 500);
   }
@@ -99,7 +103,7 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
           let wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
           wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
           console.log("  " + col + " HTTP " + rr.status + " retry " + (attempt + 1) + "/" + FIRESTORE_MAX_RETRIES + " in " + Math.round(wait / 1000) + "s");
-          await new Promise((r) => setTimeout(r, wait));
+          globalPacer.scheduleRetry(wait);
           continue;
         }
 
@@ -131,7 +135,7 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
           console.log("  " + col + " attempt " + (attempt + 1) + " failed: " + m + " retrying");
           let wait = 5000 * (attempt + 1) + Math.random() * 1000;
           wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
-          await new Promise((r) => setTimeout(r, wait));
+          globalPacer.scheduleRetry(wait);
         }
       }
     }
@@ -272,7 +276,7 @@ async function runDump() {
           let wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
           wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
           console.log("listCollectionIds HTTP " + r.status + " retry " + (attempt + 1) + "/" + FIRESTORE_MAX_RETRIES + " in " + Math.round(wait/1000) + "s");
-          await new Promise((r2) => setTimeout(r2, wait));
+          globalPacer.scheduleRetry(wait);
           continue;
         }
 
@@ -288,7 +292,7 @@ async function runDump() {
            console.log("listCollectionIds attempt " + (attempt + 1) + " failed: " + m + " retrying");
            let wait = 5000 * (attempt + 1) + Math.random() * 1000;
            wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
-           await new Promise((r2) => setTimeout(r2, wait));
+           globalPacer.scheduleRetry(wait);
         }
       }
     }
