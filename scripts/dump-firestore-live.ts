@@ -3,25 +3,70 @@ import * as fs from "fs";
 import * as path from "path";
 import { convertDoc, FirestoreWireDoc } from "./lib/firestore-values";
 
+export const FIRESTORE_PAGE_SIZE = 100;
+export const FIRESTORE_MIN_REQUEST_INTERVAL_MS = 500;
+export const FIRESTORE_MAX_RETRIES = 10;
+export const FIRESTORE_MAX_BACKOFF_MS = 120000;
+
+class FirestorePacer {
+  private nextRequestTime = 0;
+  private currentDelayMs = FIRESTORE_MIN_REQUEST_INTERVAL_MS;
+
+  async throttle(): Promise<void> {
+    const now = Date.now();
+    if (this.nextRequestTime > now) {
+      const delay = this.nextRequestTime - now;
+      console.log(`global request delay: ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+
+  afterRequest(): void {
+    this.nextRequestTime = Date.now() + this.currentDelayMs;
+  }
+
+  scheduleRetry(waitMs: number): void {
+    this.nextRequestTime = Math.max(this.nextRequestTime, Date.now() + waitMs);
+  }
+
+  record429(waitMs: number): void {
+    this.scheduleRetry(waitMs);
+    // Increase global delay to slow down hammering
+    this.currentDelayMs = Math.min(5000, this.currentDelayMs + 500);
+  }
+
+  async fetch(url: string, init?: RequestInit): Promise<Response> {
+    await this.throttle();
+    const result = await fetch(url, init);
+    this.afterRequest();
+    return result;
+  }
+}
+
+export const globalPacer = new FirestorePacer();
+
+
 
 
 export async function fetchCollectionListAll(col: string, base: string, H: Record<string, string>, failed: Map<string, string>): Promise<FirestoreWireDoc[]> {
   const out: Array<FirestoreWireDoc> = [];
   const seen = new Set<string>();
-  let url = base + "/" + encodeURIComponent(col) + "?pageSize=300";
+  let url = base + "/" + encodeURIComponent(col) + "?pageSize=" + FIRESTORE_PAGE_SIZE;
   let guard = 0;
+
   while (url && guard < 1000) {
     let body: { documents?: FirestoreWireDoc[]; nextPageToken?: string; } | null = null;
     let ok = false;
-    for (let attempt = 0; attempt < 10 && !ok; attempt++) {
+    for (let attempt = 0; attempt < FIRESTORE_MAX_RETRIES && !ok; attempt++) {
+      let tm: NodeJS.Timeout | undefined;
       try {
         const ac = new AbortController();
-        const tm = setTimeout(() => ac.abort(), 90000);
+        tm = setTimeout(() => ac.abort(), 90000);
         let rr: Response;
         try {
-          rr = await fetch(url, { headers: H, signal: ac.signal });
+          rr = await globalPacer.fetch(url, { headers: H, signal: ac.signal });
         } finally {
-          clearTimeout(tm);
+          if (tm) clearTimeout(tm);
         }
 
         if (rr.status === 429) {
@@ -40,29 +85,32 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
           }
           if (isNaN(wait)) {
             wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
-            wait = Math.min(wait, 60000);
+            wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
           }
-          if (attempt === 9) {
+          if (attempt === FIRESTORE_MAX_RETRIES - 1) {
             throw new Error("HTTP 429 after 10 attempts");
           }
-          console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
-          await new Promise((r) => setTimeout(r, wait));
+
+          console.log("  " + col + " HTTP " + rr.status + " retry " + (attempt + 1) + "/" + FIRESTORE_MAX_RETRIES + " in " + Math.round(wait / 1000) + "s");
+          globalPacer.record429(wait);
           continue;
         }
 
         if (rr.status >= 500) {
-          if (attempt === 4) {
-             throw new Error("HTTP " + rr.status + " after 5 attempts");
+          if (attempt === FIRESTORE_MAX_RETRIES - 1) {
+             throw new Error("HTTP " + rr.status + " after " + FIRESTORE_MAX_RETRIES + " attempts");
           }
-          const wait = 2000 * Math.pow(2, attempt);
-          console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
-          await new Promise((r) => setTimeout(r, wait));
+          let wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+          wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
+          console.log("  " + col + " HTTP " + rr.status + " retry " + (attempt + 1) + "/" + FIRESTORE_MAX_RETRIES + " in " + Math.round(wait / 1000) + "s");
+          globalPacer.scheduleRetry(wait);
           continue;
         }
 
         if (rr.status >= 400 && rr.status < 500 && rr.status !== 429) {
+          const errText = await rr.text();
           failed.set(col, "permanent HTTP " + rr.status);
-          throw new Error(col + " list failed permanently: " + rr.status + " " + await rr.text());
+          throw new Error(col + " list failed permanently: " + rr.status + " " + errText);
         }
 
         if (!rr.ok) throw new Error(col + " list failed: " + rr.status + " " + await rr.text());
@@ -73,26 +121,35 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
           seen.add(d.name);
           out.push(d);
         }
-        url = jj.nextPageToken ? base + "/" + encodeURIComponent(col) + "?pageSize=300&pageToken=" + encodeURIComponent(jj.nextPageToken) : "";
+        url = jj.nextPageToken ? base + "/" + encodeURIComponent(col) + "?pageSize=" + FIRESTORE_PAGE_SIZE + "&pageToken=" + encodeURIComponent(jj.nextPageToken) : "";
         body = jj;
         ok = true;
-        if (url) {
-          await new Promise(r => setTimeout(r, 250));
-        }
       } catch (e) {
         const m = e instanceof Error ? (e.name === "AbortError" ? "timeout after 90s" : String(e)) : String(e);
-        if (attempt === 9 || m.includes("failed permanently")) {
+        if (attempt === FIRESTORE_MAX_RETRIES - 1 || m.includes("failed permanently")) {
           console.error("  FAILED " + col + ": " + m);
           if (!failed.has(col)) failed.set(col, m);
-          ok = true;
+          // Don't keep retrying pagination if this failed completely
+          break;
         } else {
-          console.log("  " + col + " attempt " + attempt + " failed: " + m + " retrying");
-          await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+          console.log("  " + col + " attempt " + (attempt + 1) + " failed: " + m + " retrying");
+          let wait = 5000 * (attempt + 1) + Math.random() * 1000;
+          wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
+          globalPacer.scheduleRetry(wait);
         }
       }
     }
-    if (body === null) { if (!failed.has(col)) failed.set(col, "pagination exhausted before completion"); break; }
+    if (body === null) {
+      if (!failed.has(col)) failed.set(col, "pagination exhausted before completion");
+      break;
+    }
+    if (failed.has(col)) {
+      break;
+    }
     guard++;
+  }
+  if (!failed.has(col)) {
+    console.log(`collection completed: ${out.length} docs`);
   }
   return out;
 }
@@ -177,12 +234,67 @@ async function runDump() {
 
   async function collectionIds(): Promise< string[] > {
     let jj2 = null;
-    for ( let attempt = 0; attempt < 48; attempt++ ) {
-      const r = await fetch( base + ":listCollectionIds", { method: "POST", headers: H } );
-      if ( r.ok ) { jj2 = await r.json(); break; }
-      const wait = 3000 * ( attempt + 1 );
-      console.log( "listCollectionIds HTTP " + r.status + " retry in " + wait/1000 + "s" );
-      await new Promise( ( r2 ) => setTimeout( r2, wait ) );
+    let ok = false;
+    for ( let attempt = 0; attempt < FIRESTORE_MAX_RETRIES && !ok; attempt++ ) {
+      try {
+        const ac = new AbortController();
+        const tm = setTimeout(() => ac.abort(), 90000);
+        let r: Response;
+        try {
+          r = await globalPacer.fetch( base + ":listCollectionIds", { method: "POST", headers: H, signal: ac.signal } );
+        } finally {
+          clearTimeout(tm);
+        }
+
+        if ( r.ok ) {
+          jj2 = await r.json();
+          ok = true;
+          break;
+        }
+
+        if (r.status === 429) {
+          const retryAfter = r.headers.get("Retry-After");
+          let wait = NaN;
+          if (retryAfter) {
+            const delayStr = parseInt(retryAfter, 10);
+            if (!isNaN(delayStr)) wait = delayStr * 1000;
+            else {
+              const parsedDate = Date.parse(retryAfter);
+              if (!isNaN(parsedDate)) wait = Math.max(0, parsedDate - Date.now());
+            }
+          }
+          if (isNaN(wait)) {
+            wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+            wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
+          }
+          console.log("listCollectionIds HTTP " + r.status + " retry " + (attempt + 1) + "/" + FIRESTORE_MAX_RETRIES + " in " + Math.round(wait/1000) + "s");
+          globalPacer.record429(wait);
+          continue;
+        }
+
+        if (r.status >= 500) {
+          let wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+          wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
+          console.log("listCollectionIds HTTP " + r.status + " retry " + (attempt + 1) + "/" + FIRESTORE_MAX_RETRIES + " in " + Math.round(wait/1000) + "s");
+          globalPacer.scheduleRetry(wait);
+          continue;
+        }
+
+        if (r.status >= 400 && r.status < 500 && r.status !== 429) {
+          throw new Error("listCollectionIds failed permanently: " + r.status + " " + await r.text());
+        }
+
+      } catch (e) {
+        const m = e instanceof Error ? (e.name === "AbortError" ? "timeout after 90s" : String(e)) : String(e);
+        if (attempt === FIRESTORE_MAX_RETRIES - 1 || m.includes("failed permanently")) {
+           throw new Error("listCollectionIds failed: " + m);
+        } else {
+           console.log("listCollectionIds attempt " + (attempt + 1) + " failed: " + m + " retrying");
+           let wait = 5000 * (attempt + 1) + Math.random() * 1000;
+           wait = Math.min(wait, FIRESTORE_MAX_BACKOFF_MS);
+           globalPacer.scheduleRetry(wait);
+        }
+      }
     }
     if ( jj2 === null ) throw new Error( "listCollectionIds failed after retries" );
     const j = jj2 as { collectionIds?: string[] };
