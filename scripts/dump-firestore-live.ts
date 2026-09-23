@@ -4,6 +4,7 @@ import * as path from "path";
 import { convertDoc, FirestoreWireDoc } from "./lib/firestore-values";
 
 
+
 export async function fetchCollectionListAll(col: string, base: string, H: Record<string, string>, failed: Map<string, string>): Promise<FirestoreWireDoc[]> {
   const out: Array<FirestoreWireDoc> = [];
   const seen = new Set<string>();
@@ -12,7 +13,7 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
   while (url && guard < 1000) {
     let body: { documents?: FirestoreWireDoc[]; nextPageToken?: string; } | null = null;
     let ok = false;
-    for (let attempt = 0; attempt < 5 && !ok; attempt++) {
+        for (let attempt = 0; attempt < 5 && !ok; attempt++) {
       try {
         const ac = new AbortController();
         const tm = setTimeout(() => ac.abort(), 90000);
@@ -21,14 +22,33 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
 
         if (rr.status === 429) {
           const retryAfter = rr.headers.get("Retry-After");
-          const delayStr = retryAfter ? parseInt(retryAfter, 10) : NaN;
-          const wait = !isNaN(delayStr) ? delayStr * 1000 : 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+          let wait = NaN;
+          if (retryAfter) {
+            const delayStr = parseInt(retryAfter, 10);
+            if (!isNaN(delayStr)) {
+              wait = delayStr * 1000;
+            } else {
+              const parsedDate = Date.parse(retryAfter);
+              if (!isNaN(parsedDate)) {
+                wait = Math.max(0, parsedDate - Date.now());
+              }
+            }
+          }
+          if (isNaN(wait)) {
+            wait = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
+          }
+          if (attempt === 4) {
+            throw new Error("HTTP 429 after 5 attempts");
+          }
           console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
           await new Promise((r) => setTimeout(r, wait));
           continue;
         }
 
         if (rr.status >= 500) {
+          if (attempt === 4) {
+             throw new Error("HTTP " + rr.status + " after 5 attempts");
+          }
           const wait = 2000 * Math.pow(2, attempt);
           console.log("  " + col + " HTTP " + rr.status + " retry in " + wait / 1000 + "s");
           await new Promise((r) => setTimeout(r, wait));

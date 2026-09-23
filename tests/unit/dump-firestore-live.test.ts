@@ -1,4 +1,4 @@
-import { resolveCredentials } from '../../scripts/dump-firestore-live';
+import { resolveCredentials, fetchCollectionListAll } from '../../scripts/dump-firestore-live';
 
 const mockKeyPath = './non-existent-key.json';
 
@@ -109,6 +109,7 @@ describe('fetchCollectionListAll pagination', () => {
     });
 });
 
+
 describe('fetchCollectionListAll retries', () => {
     let originalFetch: typeof global.fetch;
     let failed: Map<string, string>;
@@ -116,10 +117,12 @@ describe('fetchCollectionListAll retries', () => {
     beforeEach(() => {
         originalFetch = global.fetch;
         failed = new Map<string, string>();
+        jest.useFakeTimers();
     });
 
     afterEach(() => {
         global.fetch = originalFetch;
+        jest.useRealTimers();
         jest.clearAllMocks();
     });
 
@@ -141,13 +144,20 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        await Promise.resolve(); // trigger fetch
+        for (let i = 0; i < 3; i++) {
+            await Promise.resolve();
+            jest.advanceTimersByTime(2000);
+            await Promise.resolve();
+        }
 
-        const result = await fetchCollectionListAll('myCol', 'base', {}, failed);
+        const result = await promise;
         expect(result).toEqual([]);
         expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
-    it('honors Retry-After when supplied on HTTP 429', async () => {
+    it('honors Retry-After when supplied as seconds on HTTP 429', async () => {
         let calls = 0;
         global.fetch = jest.fn().mockImplementation(async () => {
             calls++;
@@ -165,16 +175,63 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        await Promise.resolve(); // 1st fetch
+        await Promise.resolve(); // catch block processing
 
-        const start = Date.now();
-        await fetchCollectionListAll('myCol', 'base', {}, failed);
-        const elapsed = Date.now() - start;
+        expect(global.fetch).toHaveBeenCalledTimes(1);
 
-        expect(elapsed).toBeGreaterThanOrEqual(1000); // at least 1s wait
+        jest.advanceTimersByTime(999);
+        await Promise.resolve();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+
+        const result = await promise;
         expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(result).toEqual([]);
     });
 
-    it('fails clearly on persistent HTTP 429', async () => {
+    it('honors Retry-After when supplied as HTTP-date on HTTP 429', async () => {
+        let calls = 0;
+        jest.setSystemTime(new Date('2025-01-01T00:00:00Z'));
+        const targetDate = new Date('2025-01-01T00:00:05Z');
+        global.fetch = jest.fn().mockImplementation(async () => {
+            calls++;
+            if (calls === 1) {
+                return {
+                    ok: false,
+                    status: 429,
+                    headers: { get: () => targetDate.toUTCString() }
+                };
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: jest.fn().mockResolvedValue({ documents: [] }),
+            };
+        });
+
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(4999);
+        await Promise.resolve();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+
+        const result = await promise;
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(result).toEqual([]);
+    });
+
+    it('fails clearly on persistent HTTP 429 with exhaustion message', async () => {
         global.fetch = jest.fn().mockImplementation(async () => {
             return {
                 ok: false,
@@ -183,11 +240,18 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
 
-        await fetchCollectionListAll('myCol', 'base', {}, failed);
-        expect(global.fetch).toHaveBeenCalledTimes(5); // 5 attempts limit
+        for (let i = 0; i < 6; i++) {
+            await Promise.resolve();
+            jest.advanceTimersByTime(5000);
+            await Promise.resolve();
+        }
+
+        await promise;
+        expect(global.fetch).toHaveBeenCalledTimes(5);
         expect(failed.has('myCol')).toBe(true);
-        expect(failed.get('myCol')).toContain('pagination exhausted before completion');
+        expect(failed.get('myCol')).toContain('HTTP 429 after 5 attempts');
     });
 
     it('fails immediately without inappropriate retries on permanent 4xx', async () => {
@@ -199,9 +263,12 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        await Promise.resolve();
+        await Promise.resolve();
+        await promise;
 
-        await fetchCollectionListAll('myCol', 'base', {}, failed);
-        expect(global.fetch).toHaveBeenCalledTimes(1); // 1 attempt, fails permanently
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(failed.has('myCol')).toBe(true);
         expect(failed.get('myCol')).toContain('permanent HTTP 403');
     });
