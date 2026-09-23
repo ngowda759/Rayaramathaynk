@@ -55,6 +55,8 @@ describe('fetchCollectionListAll pagination', () => {
 
         const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
         await Promise.resolve();
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
         const result = await promise;
 
         expect(result).toHaveLength(1);
@@ -68,7 +70,7 @@ describe('fetchCollectionListAll pagination', () => {
         const page2 = { documents: [{ name: 'doc2' }] }; // no nextPageToken
         let calls = 0;
 
-        global.fetch = jest.fn().mockImplementation(async (url) => {
+        global.fetch = jest.fn().mockImplementation(async () => {
             calls++;
             return {
                 ok: true,
@@ -79,8 +81,19 @@ describe('fetchCollectionListAll pagination', () => {
 
 
         const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+
+        let result;
+        promise.then(r => result = r);
+
+        // Wait for first fetch
         await Promise.resolve();
-        const result = await promise;
+        await Promise.resolve();
+        // Advance timer for 250ms delay
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        await promise;
 
         expect(result).toHaveLength(2);
         expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -242,16 +255,16 @@ describe('fetchCollectionListAll retries', () => {
 
         const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
 
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 11; i++) {
             await Promise.resolve();
             jest.advanceTimersByTime(5000);
             await Promise.resolve();
         }
 
         await promise;
-        expect(global.fetch).toHaveBeenCalledTimes(5);
+        expect(global.fetch).toHaveBeenCalledTimes(10);
         expect(failed.has('myCol')).toBe(true);
-        expect(failed.get('myCol')).toContain('HTTP 429 after 5 attempts');
+        expect(failed.get('myCol')).toContain('HTTP 429 after 10 attempts');
     });
 
     it('fails immediately without inappropriate retries on permanent 4xx', async () => {
@@ -272,4 +285,64 @@ describe('fetchCollectionListAll retries', () => {
         expect(failed.has('myCol')).toBe(true);
         expect(failed.get('myCol')).toContain('permanent HTTP 403');
     });
+
+    it('retries on 5xx server errors and eventually succeeds', async () => {
+        let calls = 0;
+        global.fetch = jest.fn().mockImplementation(async () => {
+            calls++;
+            if (calls < 3) {
+                return {
+                    ok: false,
+                    status: 503,
+                    text: jest.fn().mockResolvedValue('Service Unavailable')
+                };
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: jest.fn().mockResolvedValue({ documents: [] }),
+            };
+        });
+
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        await Promise.resolve();
+        for (let i = 0; i < 3; i++) {
+            await Promise.resolve();
+            jest.advanceTimersByTime(5000 * (i + 1));
+            await Promise.resolve();
+        }
+
+        const result = await promise;
+        expect(result).toEqual([]);
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+    });
+
+
+    it('retries on network or timeout errors and eventually succeeds', async () => {
+        let calls = 0;
+        global.fetch = jest.fn().mockImplementation(async () => {
+            calls++;
+            if (calls < 3) {
+                throw new Error('Network error');
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: jest.fn().mockResolvedValue({ documents: [] }),
+            };
+        });
+
+        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        await Promise.resolve();
+        for (let i = 0; i < 3; i++) {
+            await Promise.resolve();
+            jest.advanceTimersByTime(5000 * (i + 1));
+            await Promise.resolve();
+        }
+
+        const result = await promise;
+        expect(result).toEqual([]);
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+    });
+
 });
