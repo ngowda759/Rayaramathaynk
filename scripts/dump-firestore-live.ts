@@ -13,12 +13,16 @@ export async function fetchCollectionListAll(col: string, base: string, H: Recor
   while (url && guard < 1000) {
     let body: { documents?: FirestoreWireDoc[]; nextPageToken?: string; } | null = null;
     let ok = false;
-        for (let attempt = 0; attempt < 5 && !ok; attempt++) {
+    for (let attempt = 0; attempt < 5 && !ok; attempt++) {
       try {
         const ac = new AbortController();
         const tm = setTimeout(() => ac.abort(), 90000);
-        const rr = await fetch(url, { headers: H, signal: ac.signal });
-        clearTimeout(tm);
+        let rr: Response;
+        try {
+          rr = await fetch(url, { headers: H, signal: ac.signal });
+        } finally {
+          clearTimeout(tm);
+        }
 
         if (rr.status === 429) {
           const retryAfter = rr.headers.get("Retry-After");
