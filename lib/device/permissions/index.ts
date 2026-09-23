@@ -225,7 +225,7 @@ export async function hasPermission(type: PermissionType): Promise<boolean> {
  */
 export class PermissionManager {
   private listeners: Map<PermissionType, Set<(state: PermissionState) => void>> = new Map();
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: any = null;
 
   constructor() {
     if (typeof window !== "undefined") {
