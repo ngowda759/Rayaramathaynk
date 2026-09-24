@@ -1,3 +1,11 @@
+
+// Mock getAuthHeader everywhere
+import { globalPacer } from '../../scripts/dump-firestore-live';
+globalPacer.getAuthHeader = jest.fn().mockResolvedValue({ Authorization: 'Bearer test-token' }) as any;
+
+// MOCK THROTTLE TO AVOID TIMER HANGS
+import { globalPacer } from '../../scripts/dump-firestore-live';
+globalPacer.throttle = jest.fn().mockResolvedValue(undefined);
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { resolveCredentials, fetchCollectionListAll, globalPacer } from '../../scripts/dump-firestore-live';
 
@@ -30,20 +38,20 @@ describe('resolveCredentials', () => {
 });
 
 describe('fetchCollectionListAll pagination', () => {
-    let originalFetch: typeof globalPacer.fetch;
+    let originalFetch: typeof global.fetch;
     let fetchMock: jest.Mock;
     let failed: Map<string, string>;
 
     beforeEach(() => {
-        originalFetch = globalPacer.fetch;
+        originalFetch = global.fetch;
         fetchMock = jest.fn();
-        globalPacer.fetch = fetchMock as any;
+        global.fetch = fetchMock as any;
         failed = new Map<string, string>();
         jest.useFakeTimers();
     });
 
     afterEach(() => {
-        globalPacer.fetch = originalFetch;
+        global.fetch = originalFetch;
         jest.useRealTimers();
         jest.clearAllMocks();
     });
@@ -57,7 +65,7 @@ describe('fetchCollectionListAll pagination', () => {
         });
 
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve();
         jest.advanceTimersByTime(250);
         await Promise.resolve();
@@ -84,7 +92,7 @@ describe('fetchCollectionListAll pagination', () => {
         });
 
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
 
         let result;
         promise.then(r => result = r);
@@ -117,7 +125,7 @@ describe('fetchCollectionListAll pagination', () => {
         });
 
 
-        await fetchCollectionListAll('myCol', 'base', {}, failed);
+        await fetchCollectionListAll('myCol', 'base', failed);
 
         const fetchCalls = fetchMock.mock.calls;
         for (const call of fetchCalls) {
@@ -128,20 +136,20 @@ describe('fetchCollectionListAll pagination', () => {
 
 
 describe('fetchCollectionListAll retries', () => {
-    let originalFetch: typeof globalPacer.fetch;
+    let originalFetch: typeof global.fetch;
     let fetchMock: jest.Mock;
     let failed: Map<string, string>;
 
     beforeEach(() => {
-        originalFetch = globalPacer.fetch;
+        originalFetch = global.fetch;
         fetchMock = jest.fn();
-        globalPacer.fetch = fetchMock as any;
+        global.fetch = fetchMock as any;
         failed = new Map<string, string>();
         jest.useFakeTimers();
     });
 
     afterEach(() => {
-        globalPacer.fetch = originalFetch;
+        global.fetch = originalFetch;
         jest.useRealTimers();
         jest.clearAllMocks();
     });
@@ -164,7 +172,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve(); // trigger fetch
         for (let i = 0; i < 3; i++) {
             await Promise.resolve();
@@ -195,7 +203,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve(); // 1st fetch
         // In JS with multiple layers of async (globalPacer.fetch inside try/catch inside for loop)
         // jest timer advancing requires flush
@@ -230,7 +238,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve();
         await Promise.resolve();
 
@@ -254,7 +262,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
 
         for (let i = 0; i < 11; i++) {
             await Promise.resolve();
@@ -277,7 +285,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve();
         await Promise.resolve();
         await promise;
@@ -305,7 +313,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve();
         for (let i = 0; i < 3; i++) {
             await Promise.resolve();
@@ -333,7 +341,7 @@ describe('fetchCollectionListAll retries', () => {
             };
         });
 
-        const promise = fetchCollectionListAll('myCol', 'base', {}, failed);
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
         await Promise.resolve();
         for (let i = 0; i < 3; i++) {
             await Promise.resolve();
@@ -346,4 +354,97 @@ describe('fetchCollectionListAll retries', () => {
         expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
+});
+
+describe('fetchCollectionListAll token refresh', () => {
+    let originalFetch: typeof global.fetch;
+    let fetchMock: jest.Mock;
+    let failed: Map<string, string>;
+    let originalGetAuthHeader: typeof globalPacer.getAuthHeader;
+    let authHeaderMock: jest.Mock;
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+        fetchMock = jest.fn();
+        global.fetch = fetchMock as any;
+        failed = new Map<string, string>();
+
+        originalGetAuthHeader = globalPacer.getAuthHeader;
+        authHeaderMock = jest.fn().mockResolvedValue({ Authorization: 'Bearer test-token' });
+        globalPacer.getAuthHeader = authHeaderMock as any;
+
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+        globalPacer.getAuthHeader = originalGetAuthHeader;
+        jest.useRealTimers();
+        jest.clearAllMocks();
+    });
+
+    it('refreshes token on 401 and succeeds', async () => {
+        let calls = 0;
+        fetchMock.mockImplementation(async (url, init) => {
+            calls++;
+            if (calls === 1) {
+                // Return 401 the first time, simulating expired token
+                return {
+                    ok: false,
+                    status: 401,
+                    text: jest.fn().mockResolvedValue('Unauthorized')
+                };
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: jest.fn().mockResolvedValue({ documents: [{ name: 'doc1' }] }),
+            };
+        });
+
+        // Mock invalidateToken
+        const invalidateMock = jest.fn();
+        const origInvalidate = globalPacer.invalidateToken;
+        globalPacer.invalidateToken = invalidateMock;
+
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
+
+        // Let it execute
+        await Promise.resolve();
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+
+        const result = await promise;
+
+        expect(result).toHaveLength(1);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(invalidateMock).toHaveBeenCalledTimes(1);
+        expect(failed.has('myCol')).toBe(false);
+
+        globalPacer.invalidateToken = origInvalidate;
+    });
+
+    it('fails after refresh if 401 persists', async () => {
+        fetchMock.mockImplementation(async () => {
+            return {
+                ok: false,
+                status: 401,
+                text: jest.fn().mockResolvedValue('Unauthorized')
+            };
+        });
+
+        // Need to restore real invalidateToken or mock it so it doesn't infinite loop, but our code only retries once.
+        const promise = fetchCollectionListAll('myCol', 'base', failed);
+
+        await Promise.resolve();
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+
+        await promise;
+
+        // One initial try, gets 401, invalidates, tries again, gets 401 again -> permanent failure
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(failed.has('myCol')).toBe(true);
+        expect(failed.get('myCol')).toContain('permanent HTTP 401');
+    });
 });
