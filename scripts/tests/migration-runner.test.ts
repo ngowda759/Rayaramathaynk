@@ -28,6 +28,22 @@ describe("Migrate All Batched Orchestration", () => {
     expect(() => buildExecutionPlan(args, null)).toThrow(/authentication collection/);
   });
 
+  it("handles system exclusion", () => {
+    const args = parseArgs(["--collections", "system"]);
+    expect(() => buildExecutionPlan(args, null)).toThrow(/system collection/);
+  });
+
+  it("rejects REVIEW collections", () => {
+    const args = parseArgs(["--collections", "profiles"]);
+    expect(() => buildExecutionPlan(args, null)).toThrow(/marked for REVIEW/);
+  });
+
+  it("empty arguments return an empty plan to abort migration execution", () => {
+    const args = parseArgs([]);
+    const plan = buildExecutionPlan(args, null);
+    expect(plan.collectionsToRun.length).toBe(0);
+  });
+
   it("retries failed collections only", () => {
     const mockManifest = {
       runId: "123",
@@ -68,7 +84,7 @@ describe("Migrate All Batched Orchestration", () => {
       }
     };
 
-    const args = parseArgs(["--retry-failed"]);
+    const args = parseArgs(["--batch", "1", "--retry-failed"]);
     const plan = buildExecutionPlan(args, mockManifest);
 
     expect(plan.collectionsToRun.find(c => c.item.collection === "sevas")).toBeUndefined();

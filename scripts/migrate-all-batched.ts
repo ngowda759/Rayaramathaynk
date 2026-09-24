@@ -108,8 +108,14 @@ export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest:
       if (inventoryItem.classification === "EXCLUDE_AUTH") {
         throw new Error(`Collection ${col} is an authentication collection and MUST NOT be migrated.`);
       }
+      if (inventoryItem.classification === "EXCLUDE_SYSTEM") {
+        throw new Error(`Collection ${col} is a system collection and MUST NOT be migrated.`);
+      }
+      if (inventoryItem.classification === "REVIEW") {
+        throw new Error(`Collection ${col} is marked for REVIEW. Its destination mapping must be approved first before it can be migrated.`);
+      }
       if (inventoryItem.classification !== "MIGRATE") {
-        console.warn(`Warning: Collection ${col} has classification ${inventoryItem.classification}, but continuing as explicitly requested.`);
+        throw new Error(`Collection ${col} has classification ${inventoryItem.classification} and cannot be migrated.`);
       }
 
       let batchIndex = 1;
@@ -128,10 +134,10 @@ export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest:
     }
     const batchItems = allBatches[args.batch - 1];
     collectionsToRun = batchItems.map(item => ({ item, batchIndex: args.batch }));
-  } else {
-    allBatches.forEach((batch, idx) => {
-      batch.forEach(item => collectionsToRun.push({ item, batchIndex: idx + 1 }));
-    });
+  } else if (!args.retryFailed || args.collections.length === 0) {
+    // If no batch is specified, no collections are explicitly requested, and we aren't retrying all
+    // Then we do NOT execute all batches by default.
+    collectionsToRun = [];
   }
 
   if (args.retryFailed && manifest) {
@@ -335,6 +341,19 @@ if (require.main === module) {
       existingManifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
     }
     const plan = buildExecutionPlan(args, existingManifest);
+
+    if (plan.collectionsToRun.length === 0 && args.collections.length === 0 && args.batch === -1 && !args.retryFailed) {
+      console.log("No execution parameters provided. Migration aborted.");
+      console.log("Available batches:");
+      const allBatches = getBatchedMigratableCollections(args.batchSize);
+      allBatches.forEach((batch, idx) => {
+        console.log(`\nBatch ${idx + 1}:`);
+        batch.forEach(b => console.log(`  - ${b.collection} -> ${b.destinationTable}`));
+      });
+      console.log("\nUse --batch <number> or --collections <comma_separated> to execute.");
+      process.exit(0);
+    }
+
     console.log(`Plan: ${plan.collectionsToRun.length} collections to run.`);
     if (plan.collectionsToRun.length > 0) {
       const finalManifest = await executePlan(plan, args);

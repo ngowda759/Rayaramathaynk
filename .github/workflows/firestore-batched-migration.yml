@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       batch:
-        description: "Batch Number to execute (leave empty to execute all available batches)"
+        description: "Batch Number to execute"
         required: false
         type: string
         default: ""

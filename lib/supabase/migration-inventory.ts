@@ -7,11 +7,11 @@ export interface InventoryItem {
   reason?: string;
 }
 
-export const EXCLUDED_AUTH_COLLECTIONS = ["users", "profiles", "bookmarks", "sessions"];
+// Strictly authentication data
+export const EXCLUDED_AUTH_COLLECTIONS = ["users", "sessions"];
 
-// Inventory built combining EXPECTED collections from export scripts and schema documentation
 export const MIGRATION_INVENTORY: InventoryItem[] = [
-  // EXCLUDE_AUTH (Must never be migrated as application data)
+  // EXCLUDE_AUTH
   ...EXCLUDED_AUTH_COLLECTIONS.map(col => ({
     collection: col,
     classification: "EXCLUDE_AUTH" as MigrationClassification,
@@ -22,31 +22,33 @@ export const MIGRATION_INVENTORY: InventoryItem[] = [
   { collection: "system", classification: "EXCLUDE_SYSTEM", reason: "System metadata" },
   { collection: "chatTraining", classification: "EXCLUDE_SYSTEM", reason: "Internal AI training data" },
 
-  // MIGRATE (Core / First)
+  // MIGRATE
   { collection: "sevas", classification: "MIGRATE", destinationTable: "sevas" },
   { collection: "dailyPoojas", classification: "MIGRATE", destinationTable: "daily_poojas" },
   { collection: "events", classification: "MIGRATE", destinationTable: "events" },
-
-  // MIGRATE (Later / Others based on documentation and mappers)
-  { collection: "donations", classification: "MIGRATE", destinationTable: "donations" },
-  { collection: "donationCampaigns", classification: "MIGRATE", destinationTable: "donation_campaigns" },
-  { collection: "donation_campaigns", classification: "MIGRATE", destinationTable: "donation_campaigns" },
   { collection: "galleryAlbums", classification: "MIGRATE", destinationTable: "gallery_albums" },
   { collection: "galleryMedia", classification: "MIGRATE", destinationTable: "gallery_media" },
   { collection: "testimonials", classification: "MIGRATE", destinationTable: "testimonials" },
   { collection: "aaradhane", classification: "MIGRATE", destinationTable: "aaradhanes" },
   { collection: "aaradhanes", classification: "MIGRATE", destinationTable: "aaradhanes" },
-  { collection: "sevaBookings", classification: "MIGRATE", destinationTable: "seva_bookings" },
   { collection: "volunteer_requests", classification: "MIGRATE", destinationTable: "volunteer_requests" },
   { collection: "chat_sessions", classification: "MIGRATE", destinationTable: "chat_sessions" },
   { collection: "chat_messages", classification: "MIGRATE", destinationTable: "chat_messages" },
   { collection: "unknown_questions", classification: "MIGRATE", destinationTable: "unknown_questions" },
   { collection: "ai_intent_distribution", classification: "MIGRATE", destinationTable: "ai_intent_distribution" },
   { collection: "ai_latency_records", classification: "MIGRATE", destinationTable: "ai_latency_records" },
-  { collection: "settings", classification: "MIGRATE", destinationTable: "settings" },
-  { collection: "homepage", classification: "MIGRATE", destinationTable: "settings" },
 
-  // REVIEW (Present in export EXPECTED but missing from explicit mappers/destination tables in docs)
+  // REVIEW (Legacy/Removed modules or require explicit approval before migration)
+  { collection: "donations", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+  { collection: "donationCampaigns", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+  { collection: "donation_campaigns", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+  { collection: "sevaBookings", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+  { collection: "profiles", classification: "REVIEW", reason: "Application data linked to auth but not strictly auth credentials. Confirm migration necessity." },
+  { collection: "bookmarks", classification: "REVIEW", reason: "Application data linked to auth but not strictly auth credentials. Confirm migration necessity." },
+  { collection: "settings", classification: "REVIEW", reason: "Requires conflict/mapping verification with homepage" },
+  { collection: "homepage", classification: "REVIEW", reason: "Requires conflict/mapping verification with settings" },
+
+  // REVIEW (Other)
   { collection: "announcements", classification: "REVIEW", reason: "No destination model explicitly defined" },
   { collection: "gallery", classification: "REVIEW", reason: "Legacy gallery? Replaced by galleryAlbums?" },
   { collection: "timings", classification: "REVIEW", reason: "No destination model explicitly defined" },
