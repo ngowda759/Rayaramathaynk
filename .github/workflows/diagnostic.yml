@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - diagnose-firestore-rate-limit
+  workflow_dispatch:
 
 permissions:
   contents: read
