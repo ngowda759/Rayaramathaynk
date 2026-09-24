@@ -27,7 +27,7 @@ jest.mock("@/lib/ai/retrieval/announcements", () => ({
 
 describe("Multi-source Retrieval Types", () => {
   describe("DataSource enum", () => {
-    it.skip("should have all required data sources", () => {
+    it("should have all required data sources", () => {
       const sources: DataSource[] = [
         "settings",
         "panchanga",
@@ -46,7 +46,7 @@ describe("Multi-source Retrieval Types", () => {
   });
 
   describe("MultiSourceQuery", () => {
-    it.skip("should create valid query object", () => {
+    it("should create valid query object", () => {
       const query: MultiSourceQuery = {
         query: "Get temple overview",
         intent: Intent.TEMPLE_TIMINGS,
@@ -68,7 +68,7 @@ describe("Multi-source Retrieval Types", () => {
       expect(query.maxResults?.events).toBe(10);
     });
 
-    it.skip("should support default sources", () => {
+    it("should support default sources", () => {
       const query: MultiSourceQuery = {
         query: "Quick query",
       };
@@ -78,7 +78,7 @@ describe("Multi-source Retrieval Types", () => {
   });
 
   describe("SourceResult", () => {
-    it.skip("should track successful retrieval", () => {
+    it("should track successful retrieval", () => {
       const result: SourceResult<Record<string, string>> = {
         source: "settings",
         data: { name: "Temple" },
@@ -91,7 +91,7 @@ describe("Multi-source Retrieval Types", () => {
       expect(result.confidence).toBe(95);
     });
 
-    it.skip("should track failed retrieval with error", () => {
+    it("should track failed retrieval with error", () => {
       const result: SourceResult<null> = {
         source: "events",
         data: null,
@@ -133,7 +133,7 @@ describe("Quick Queries", () => {
     },
   ];
 
-  it.skip("should have valid quick query structure", () => {
+  it("should have valid quick query structure", () => {
     QUICK_QUERIES.forEach((q) => {
       expect(q.id).toBeDefined();
       expect(q.label).toBeDefined();
@@ -142,18 +142,18 @@ describe("Quick Queries", () => {
     });
   });
 
-  it.skip("should support Kannada labels", () => {
+  it("should support Kannada labels", () => {
     const templeOverview = QUICK_QUERIES.find((q) => q.id === "temple-overview");
     expect(templeOverview?.labelKn).toBe("ದೇವಸ್ಥಾನ ಅವಲೋಕನ");
   });
 
-  it.skip("should have unique IDs", () => {
+  it("should have unique IDs", () => {
     const ids = QUICK_QUERIES.map((q) => q.id);
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(ids.length);
   });
 
-  it.skip("should have at least one source for each query", () => {
+  it("should have at least one source for each query", () => {
     QUICK_QUERIES.forEach((q) => {
       const hasSource = Object.values(q.sources).some((v) => v === true);
       expect(hasSource).toBe(true);
@@ -176,7 +176,7 @@ describe("Combined Response Generation", () => {
     const parts: string[] = [];
 
     if (results.settings?.data) {
-      const data = results.settings.data as TempleSettings;
+      const data = (results.settings.data as any).settings as TempleSettings;
       parts.push(`Temple: ${data.name}`);
       parts.push(`Address: ${data.address}`);
     }
@@ -206,7 +206,7 @@ describe("Combined Response Generation", () => {
     return parts.join("\n\n");
   };
 
-  it.skip("should combine settings and panchanga data", () => {
+  it("should combine settings and panchanga data", () => {
     const results = {
       settings: {
         source: "settings" as DataSource,
@@ -237,7 +237,7 @@ describe("Combined Response Generation", () => {
     expect(response).toContain("Shukla Ekadashi");
   });
 
-  it.skip("should include events when available", () => {
+  it("should include events when available", () => {
     const results = {
       events: {
         source: "events" as DataSource,
@@ -256,13 +256,13 @@ describe("Combined Response Generation", () => {
     expect(response).toContain("Panchanga Seva");
   });
 
-  it.skip("should handle empty results gracefully", () => {
+  it("should handle empty results gracefully", () => {
     const results = {};
     const response = generateCombinedResponse("Test query", results);
     expect(response).toBe("Unable to retrieve temple information.");
   });
 
-  it.skip("should limit events to 3", () => {
+  it("should limit events to 3", () => {
     const results = {
       events: {
         source: "events" as DataSource,
@@ -286,7 +286,7 @@ describe("Combined Response Generation", () => {
     expect(response).not.toContain("Event 5");
   });
 
-  it.skip("should limit sevas to 5", () => {
+  it("should limit sevas to 5", () => {
     const results = {
       sevas: {
         source: "sevas" as DataSource,
@@ -305,7 +305,7 @@ describe("Combined Response Generation", () => {
 });
 
 describe("Query Source Filtering", () => {
-  it.skip("should filter sources correctly", () => {
+  it("should filter sources correctly", () => {
     const query: MultiSourceQuery = {
       query: "Events only",
       sources: {
@@ -324,7 +324,7 @@ describe("Query Source Filtering", () => {
     expect(activeSources).toEqual(["events"]);
   });
 
-  it.skip("should allow all sources by default", () => {
+  it("should allow all sources by default", () => {
     const query: MultiSourceQuery = {
       query: "All sources",
       sources: {
@@ -372,7 +372,7 @@ describe("Retrieval Statistics", () => {
     },
   });
 
-  it.skip("should track successful query", () => {
+  it("should track successful query", () => {
     const stats = createEmptyStats();
     
     stats.totalQueries++;
@@ -387,7 +387,7 @@ describe("Retrieval Statistics", () => {
     expect(stats.bySource.settings.successes).toBe(1);
   });
 
-  it.skip("should track failed query", () => {
+  it("should track failed query", () => {
     const stats = createEmptyStats();
     
     stats.totalQueries++;
@@ -400,7 +400,7 @@ describe("Retrieval Statistics", () => {
     expect(stats.bySource.events.failures).toBe(1);
   });
 
-  it.skip("should calculate success rate", () => {
+  it("should calculate success rate", () => {
     const stats = createEmptyStats();
     stats.totalQueries = 100;
     stats.successfulQueries = 95;
@@ -410,7 +410,7 @@ describe("Retrieval Statistics", () => {
     expect(successRate).toBe(95);
   });
 
-  it.skip("should track per-source statistics", () => {
+  it("should track per-source statistics", () => {
     const stats = createEmptyStats();
     
     stats.bySource.settings.requests = 50;
@@ -427,7 +427,7 @@ describe("Retrieval Statistics", () => {
     expect(panchangaSuccessRate).toBe(100);
   });
 
-  it.skip("should calculate rolling average retrieval time", () => {
+  it("should calculate rolling average retrieval time", () => {
     const stats = createEmptyStats();
     
     // First query - 100ms
@@ -458,21 +458,21 @@ describe("Data Freshness", () => {
     return elapsed < cacheExpiry ? "fresh" : "stale";
   };
 
-  it.skip("should mark recently updated data as fresh", () => {
+  it("should mark recently updated data as fresh", () => {
     const recentTime = Date.now() - 1 * 60 * 1000; // 1 minute ago
     expect(getFreshnessScore(recentTime)).toBe("fresh");
   });
 
-  it.skip("should mark old data as stale", () => {
+  it("should mark old data as stale", () => {
     const oldTime = Date.now() - 10 * 60 * 1000; // 10 minutes ago
     expect(getFreshnessScore(oldTime)).toBe("stale");
   });
 
-  it.skip("should mark never-updated data as unknown", () => {
+  it("should mark never-updated data as unknown", () => {
     expect(getFreshnessScore(0)).toBe("unknown");
   });
 
-  it.skip("should use custom cache expiry", () => {
+  it("should use custom cache expiry", () => {
     const time = Date.now() - 3 * 60 * 1000; // 3 minutes ago
     expect(getFreshnessScore(time, 2 * 60 * 1000)).toBe("stale"); // 2 min expiry
     expect(getFreshnessScore(time, 5 * 60 * 1000)).toBe("fresh"); // 5 min expiry
@@ -510,7 +510,7 @@ describe("Query History", () => {
     queryHistory.length = 0;
   });
 
-  it.skip("should add entries to history", () => {
+  it("should add entries to history", () => {
     addToHistory({
       query: "Test query",
       sources: ["settings", "panchanga"],
@@ -522,7 +522,7 @@ describe("Query History", () => {
     expect(queryHistory[0].query).toBe("Test query");
   });
 
-  it.skip("should maintain chronological order", () => {
+  it("should maintain chronological order", () => {
     addToHistory({ query: "Query 1", sources: ["settings"], responseTime: 100, successful: true });
     addToHistory({ query: "Query 2", sources: ["events"], responseTime: 150, successful: true });
     addToHistory({ query: "Query 3", sources: ["sevas"], responseTime: 200, successful: true });
@@ -531,7 +531,7 @@ describe("Query History", () => {
     expect(queryHistory[2].query).toBe("Query 1");
   });
 
-  it.skip("should limit history size", () => {
+  it("should limit history size", () => {
     for (let i = 0; i < 105; i++) {
       addToHistory({
         query: `Query ${i}`,
@@ -547,7 +547,7 @@ describe("Query History", () => {
     expect(queryHistory[99].query).toBe("Query 5");
   });
 
-  it.skip("should track successful and failed queries", () => {
+  it("should track successful and failed queries", () => {
     addToHistory({ query: "Success", sources: ["settings"], responseTime: 100, successful: true });
     addToHistory({ query: "Failure", sources: ["events"], responseTime: 50, successful: false });
 
@@ -569,29 +569,29 @@ describe("Intent to Source Mapping", () => {
     { intent: Intent.CONTACT_INFORMATION, sources: ["settings"] as DataSource[] },
   ];
 
-  it.skip("should map TEMPLE_TIMINGS to settings source", () => {
+  it("should map TEMPLE_TIMINGS to settings source", () => {
     const mapping = INTENT_SOURCE_MAP.find((m) => m.intent === Intent.TEMPLE_TIMINGS);
     expect(mapping?.sources).toContain("settings");
     expect(mapping?.sources).toHaveLength(1);
   });
 
-  it.skip("should map PANCHANGA to panchanga and settings sources", () => {
+  it("should map PANCHANGA to panchanga and settings sources", () => {
     const mapping = INTENT_SOURCE_MAP.find((m) => m.intent === Intent.PANCHANGA);
     expect(mapping?.sources).toContain("panchanga");
     expect(mapping?.sources).toContain("settings");
   });
 
-  it.skip("should map EVENTS to events source", () => {
+  it("should map EVENTS to events source", () => {
     const mapping = INTENT_SOURCE_MAP.find((m) => m.intent === Intent.UPCOMING_EVENTS);
     expect(mapping?.sources).toEqual(["events"]);
   });
 
-  it.skip("should map SEVAS to sevas source", () => {
+  it("should map SEVAS to sevas source", () => {
     const mapping = INTENT_SOURCE_MAP.find((m) => m.intent === Intent.SPECIAL_SEVAS);
     expect(mapping?.sources).toEqual(["sevas"]);
   });
 
-  it.skip("should have all required intents mapped", () => {
+  it("should have all required intents mapped", () => {
     const mappedIntents = INTENT_SOURCE_MAP.map((m) => m.intent);
     const requiredIntents = [
       Intent.TEMPLE_TIMINGS,

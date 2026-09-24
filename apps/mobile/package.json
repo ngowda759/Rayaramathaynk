@@ -41,9 +41,11 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "babel-preset-expo": "^57.0.12",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
     "prettier": "^3.9.9",
+    "react-native-worklets": "^0.13.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -52,7 +54,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build": "npx expo export -p ios"
   },
   "private": true,
   "eslintConfig": {

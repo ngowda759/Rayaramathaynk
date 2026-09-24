@@ -13,11 +13,11 @@ import {
 
 describe("Guru Aaradhane Dataset", () => {
   describe("GURU_AARADHANES", () => {
-    it.skip("should contain 19 Guru Aaradhanes", () => {
+    it("should contain 19 Guru Aaradhanes", () => {
       expect(GURU_AARADHANES.length).toBe(19);
     });
 
-    it.skip("should have all required fields for each guru", () => {
+    it("should have all required fields for each guru", () => {
       for (const guru of GURU_AARADHANES) {
         expect(guru.id).toBeDefined();
         expect(guru.guruName).toBeDefined();
@@ -32,11 +32,11 @@ describe("Guru Aaradhane Dataset", () => {
       }
     });
 
-    it.skip("should have valid lunar month values", () => {
+    it("should have valid lunar month values", () => {
       const validMonths = [
-        "Chaitra", "Vaishakha", "Jyeṣṭha", "Āṣāḍha",
-        "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārtika",
-        "Mārghaśīrṣa", "Pauṣa", "Māgha", "Phālguna"
+        "Caitra", "Vaiśākha", "Jyeṣṭha", "Āṣāḍha",
+        "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārttika",
+        "Mārgaśīrṣa", "Pauṣa", "Māgha", "Phālguna"
       ];
       
       for (const guru of GURU_AARADHANES) {
@@ -44,7 +44,7 @@ describe("Guru Aaradhane Dataset", () => {
       }
     });
 
-    it.skip("should have valid paksha values", () => {
+    it("should have valid paksha values", () => {
       const validPaksha = ["Shukla", "Krishna"];
       
       for (const guru of GURU_AARADHANES) {
@@ -52,27 +52,27 @@ describe("Guru Aaradhane Dataset", () => {
       }
     });
 
-    it.skip("should have tithi numbers between 1 and 30", () => {
+    it("should have tithi numbers between 1 and 30", () => {
       for (const guru of GURU_AARADHANES) {
         expect(guru.tithiNumber).toBeGreaterThanOrEqual(1);
         expect(guru.tithiNumber).toBeLessThanOrEqual(30);
       }
     });
 
-    it.skip("should have duration days between 1 and 3", () => {
+    it("should have duration days between 1 and 3", () => {
       for (const guru of GURU_AARADHANES) {
         expect(guru.durationDays).toBeGreaterThanOrEqual(1);
         expect(guru.durationDays).toBeLessThanOrEqual(3);
       }
     });
 
-    it.skip("should have unique IDs for all Gurus", () => {
+    it("should have unique IDs for all Gurus", () => {
       const ids = GURU_AARADHANES.map(g => g.id);
       const uniqueIds = new Set(ids);
       expect(uniqueIds.size).toBe(ids.length);
     });
 
-    it.skip("should have correct parampara numbers from 1 to 17", () => {
+    it("should have correct parampara numbers from 1 to 17", () => {
       const numbers = GURU_AARADHANES.map(g => g.paramparaNumber);
       const uniqueNumbers = [...new Set(numbers)];
       
@@ -86,12 +86,12 @@ describe("Guru Aaradhane Dataset", () => {
   });
 
   describe("Sri Raghavendra Swamy", () => {
-    it.skip("should have exactly 3 Aaradhanes (Poorva, Madhya, Uttara)", () => {
+    it("should have exactly 3 Aaradhanes (Poorva, Madhya, Uttara)", () => {
       const raghavendraAaradhanes = getRaghavendraAaradhanes();
       expect(raghavendraAaradhanes.length).toBe(3);
     });
 
-    it.skip("should have Poorva, Madhya, and Uttara phases", () => {
+    it("should have Poorva, Madhya, and Uttara phases", () => {
       const raghavendraAaradhanes = getRaghavendraAaradhanes();
       const phases = raghavendraAaradhanes
         .map(a => a.raghavendraPhase)
@@ -102,16 +102,16 @@ describe("Guru Aaradhane Dataset", () => {
       expect(phases).toContain("Uttara");
     });
 
-    it.skip("should have Poorva Aaradhane in Vaishakha Krishna Trayodashi", () => {
+    it("should have Poorva Aaradhane in Vaishakha Krishna Trayodashi", () => {
       const poorva = GURU_AARADHANE_BY_ID.get("raghavendra-poorva");
       expect(poorva).toBeDefined();
-      expect(poorva?.lunarMonth).toBe("Vaishakha");
+      expect(poorva?.lunarMonth).toBe("Vaiśākha");
       expect(poorva?.paksha).toBe("Krishna");
       expect(poorva?.tithiNumber).toBe(13);
       expect(poorva?.tithi).toBe("Trayodashi");
     });
 
-    it.skip("should have Madhya Aaradhane in Jyeṣṭha Shukla Ekadashi", () => {
+    it("should have Madhya Aaradhane in Jyeṣṭha Shukla Ekadashi", () => {
       const madhya = GURU_AARADHANE_BY_ID.get("raghavendra-madhya");
       expect(madhya).toBeDefined();
       expect(madhya?.lunarMonth).toBe("Jyeṣṭha");
@@ -120,7 +120,7 @@ describe("Guru Aaradhane Dataset", () => {
       expect(madhya?.tithi).toBe("Ekadashi");
     });
 
-    it.skip("should have Uttara Aaradhane in Māgha Krishna Ekadashi", () => {
+    it("should have Uttara Aaradhane in Māgha Krishna Ekadashi", () => {
       const uttara = GURU_AARADHANE_BY_ID.get("raghavendra-uttara");
       expect(uttara).toBeDefined();
       expect(uttara?.lunarMonth).toBe("Māgha");
@@ -129,7 +129,7 @@ describe("Guru Aaradhane Dataset", () => {
       expect(uttara?.tithi).toBe("Ekadashi");
     });
 
-    it.skip("all Raghavendra Aaradhanes should have 3-day duration", () => {
+    it("all Raghavendra Aaradhanes should have 3-day duration", () => {
       const raghavendraAaradhanes = getRaghavendraAaradhanes();
       for (const aaradhane of raghavendraAaradhanes) {
         expect(aaradhane.durationDays).toBe(3);
@@ -138,29 +138,29 @@ describe("Guru Aaradhane Dataset", () => {
   });
 
   describe("Major Importance Gurus", () => {
-    it.skip("should include Sri Madhvacharya as major importance", () => {
+    it("should include Sri Madhvacharya as major importance", () => {
       const madhvacharya = GURU_AARADHANE_BY_ID.get("madhvacharya");
       expect(madhvacharya?.importance).toBe("major");
     });
 
-    it.skip("should include Sri Jayateertha as major importance", () => {
+    it("should include Sri Jayateertha as major importance", () => {
       const jayateertha = GURU_AARADHANE_BY_ID.get("jayateertha");
       expect(jayateertha?.importance).toBe("major");
     });
 
-    it.skip("should include Sri Vidyadhiraja as major importance", () => {
+    it("should include Sri Vidyadhiraja as major importance", () => {
       const vidyadhiraaja = GURU_AARADHANE_BY_ID.get("vidyadhiraaja");
       expect(vidyadhiraaja?.importance).toBe("major");
     });
 
-    it.skip("should have at least 8 major importance Gurus", () => {
+    it("should have at least 8 major importance Gurus", () => {
       const majorAaradhanes = getMajorAaradhanes();
       expect(majorAaradhanes.length).toBeGreaterThanOrEqual(8);
     });
   });
 
   describe("GURU_AARADHANE_BY_ID lookup", () => {
-    it.skip("should find all Gurus by ID", () => {
+    it("should find all Gurus by ID", () => {
       for (const guru of GURU_AARADHANES) {
         const found = GURU_AARADHANE_BY_ID.get(guru.id);
         expect(found).toBeDefined();
@@ -168,14 +168,14 @@ describe("Guru Aaradhane Dataset", () => {
       }
     });
 
-    it.skip("should return undefined for non-existent ID", () => {
+    it("should return undefined for non-existent ID", () => {
       const found = GURU_AARADHANE_BY_ID.get("non-existent-guru");
       expect(found).toBeUndefined();
     });
   });
 
   describe("Helper Functions", () => {
-    it.skip("getAaradhanaesForGuru should return correct count for each guru", () => {
+    it("getAaradhanaesForGuru should return correct count for each guru", () => {
       // Most Gurus have 1 Aaradhane
       const raghavendra = getAaradhanaesForGuru("Sri Raghavendra Swamy");
       expect(raghavendra.length).toBe(3);
@@ -185,7 +185,7 @@ describe("Guru Aaradhane Dataset", () => {
       expect(madhvacharya.length).toBe(1);
     });
 
-    it.skip("getMajorAaradhanes should return only major importance", () => {
+    it("getMajorAaradhanes should return only major importance", () => {
       const majorAaradhanes = getMajorAaradhanes();
       for (const aaradhane of majorAaradhanes) {
         expect(aaradhane.importance).toBe("major");
@@ -194,11 +194,11 @@ describe("Guru Aaradhane Dataset", () => {
   });
 
   describe("AARADHANE_COUNT", () => {
-    it.skip("should equal the length of GURU_AARADHANES", () => {
+    it("should equal the length of GURU_AARADHANES", () => {
       expect(AARADHANE_COUNT).toBe(GURU_AARADHANES.length);
     });
 
-    it.skip("should be 19", () => {
+    it("should be 19", () => {
       expect(AARADHANE_COUNT).toBe(19);
     });
   });

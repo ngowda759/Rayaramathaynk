@@ -32,7 +32,7 @@ jest.mock("firebase/firestore", () => ({
 
 describe("Quote Service - Rotation Logic", () => {
   describe("Deterministic Selection", () => {
-    it.skip("should return the same quote for the same date", () => {
+    it("should return the same quote for the same date", () => {
       const quotes: Quote[] = [
         createMockQuote({ id: "1", title: "Quote 1" }),
         createMockQuote({ id: "2", title: "Quote 2" }),
@@ -50,7 +50,7 @@ describe("Quote Service - Rotation Logic", () => {
       expect(result2?.id).toBe(result3?.id);
     });
 
-    it.skip("should return different quotes for different dates", () => {
+    it("should return different quotes for different dates", () => {
       const quotes: Quote[] = [
         createMockQuote({ id: "1", title: "Quote 1" }),
         createMockQuote({ id: "2", title: "Quote 2" }),
@@ -73,7 +73,7 @@ describe("Quote Service - Rotation Logic", () => {
       expect(uniqueIds.length).toBeLessThanOrEqual(3);
     });
 
-    it.skip("should prefer featured quotes when available", () => {
+    it("should prefer featured quotes when available", () => {
       const quotes: Quote[] = [
         createMockQuote({ id: "1", title: "Non-featured" }),
         createMockQuote({ id: "2", title: "Featured Quote", featured: true }),
@@ -86,7 +86,7 @@ describe("Quote Service - Rotation Logic", () => {
       expect(result?.id).toBe("2");
     });
 
-    it.skip("should handle empty quotes array", () => {
+    it("should handle empty quotes array", () => {
       const quotes: Quote[] = [];
       const result = deterministicSelect(quotes, "2026-07-21");
       expect(result).toBeNull();
@@ -94,14 +94,14 @@ describe("Quote Service - Rotation Logic", () => {
   });
 
   describe("Date-based Index Calculation", () => {
-    it.skip("should calculate consistent index for same date", () => {
+    it("should calculate consistent index for same date", () => {
       const date = "2026-07-21";
       const index1 = calculateDateIndex(date, 10);
       const index2 = calculateDateIndex(date, 10);
       expect(index1).toBe(index2);
     });
 
-    it.skip("should distribute quotes evenly", () => {
+    it("should distribute quotes evenly", () => {
       const quotes: Quote[] = Array.from({ length: 10 }, (_, i) =>
         createMockQuote({ id: String(i + 1) })
       );
@@ -122,29 +122,29 @@ describe("Quote Service - Rotation Logic", () => {
 
 describe("Quote Service - Festival Selection", () => {
   describe("Festival Name Matching", () => {
-    it.skip("should match raghavendra aradhana", () => {
+    it("should match raghavendra aradhana", () => {
       expect(matchFestival("Sri Raghavendra Aradhana 2026")).toBe("raghavendra_aradhana");
       expect(matchFestival("Raghavendra Aradhana Festival")).toBe("raghavendra_aradhana");
     });
 
-    it.skip("should match guru purnima", () => {
+    it("should match guru purnima", () => {
       expect(matchFestival("Guru Purnima 2026")).toBe("guru_purnima");
       expect(matchFestival("Guru Purnima Day")).toBe("guru_purnima");
     });
 
-    it.skip("should match navaratri", () => {
+    it("should match navaratri", () => {
       expect(matchFestival("Navaratri 2026")).toBe("navaratri");
       expect(matchFestival("Navratri Festival")).toBe("navaratri");
     });
 
-    it.skip("should return null for unknown festivals", () => {
+    it("should return null for unknown festivals", () => {
       expect(matchFestival("Random Festival")).toBeNull();
       expect(matchFestival("Birthday Party")).toBeNull();
     });
   });
 
   describe("Festival Quote Selection", () => {
-    it.skip("should select festival quotes when festival is active", () => {
+    it("should select festival quotes when festival is active", () => {
       const context = createMockContext({
         isFestival: true,
         festivalName: "Sri Raghavendra Aradhana",
@@ -167,7 +167,7 @@ describe("Quote Service - Festival Selection", () => {
       expect(result?.id).toBe("1");
     });
 
-    it.skip("should fallback to default when no festival quotes", () => {
+    it("should fallback to default when no festival quotes", () => {
       const context = createMockContext({
         isFestival: true,
         festivalName: "Some Festival",
@@ -212,7 +212,7 @@ describe("Quote Service - Weekday Selection", () => {
   });
 
   describe("Thursday Selection", () => {
-    it.skip("should prefer guru_vandana on Thursday", () => {
+    it("should prefer guru_vandana on Thursday", () => {
       const context = createMockContext({
         dayOfWeek: 4 as Weekday, // Thursday
       });
@@ -237,7 +237,7 @@ describe("Quote Service - Weekday Selection", () => {
 
 describe("Quote Service - Priority Rules", () => {
   describe("Priority Ordering", () => {
-    it.skip("should respect priority order for selection", () => {
+    it("should respect priority order for selection", () => {
       const quotes: Quote[] = [
         createMockQuote({ id: "1", priority: 8 }),
         createMockQuote({ id: "2", priority: 5 }),
@@ -252,7 +252,7 @@ describe("Quote Service - Priority Rules", () => {
       expect(result?.priority).toBeLessThanOrEqual(quotes[0].priority);
     });
 
-    it.skip("should handle mixed priority and festival rules", () => {
+    it("should handle mixed priority and festival rules", () => {
       const quotes: Quote[] = [
         createMockQuote({ 
           id: "1", 
@@ -285,7 +285,7 @@ describe("Quote Service - Priority Rules", () => {
 
 describe("Quote Service - Panchanga Rules", () => {
   describe("Tithi-based Selection", () => {
-    it.skip("should match quotes by tithi", () => {
+    it("should match quotes by tithi", () => {
       const quote = createMockQuote({
         panchangaRules: {
           tithis: ["ekadashi", "dwadashi"],
@@ -296,7 +296,7 @@ describe("Quote Service - Panchanga Rules", () => {
       expect(matchesPanchangaRules(quote, { tithis: ["purnima"] })).toBe(false);
     });
 
-    it.skip("should match quotes by nakshatra", () => {
+    it("should match quotes by nakshatra", () => {
       const quote = createMockQuote({
         panchangaRules: {
           nakshatras: ["Rohini", "Pushya"],
@@ -307,7 +307,7 @@ describe("Quote Service - Panchanga Rules", () => {
       expect(matchesPanchangaRules(quote, { nakshatras: ["Aswini"] })).toBe(false);
     });
 
-    it.skip("should match quotes by weekday", () => {
+    it("should match quotes by weekday", () => {
       const quote = createMockQuote({
         panchangaRules: {
           weekdays: [4], // Thursday
@@ -318,7 +318,7 @@ describe("Quote Service - Panchanga Rules", () => {
       expect(matchesPanchangaRules(quote, { weekdays: [1] })).toBe(false);
     });
 
-    it.skip("should handle empty panchanga rules", () => {
+    it("should handle empty panchanga rules", () => {
       const quote = createMockQuote({});
       expect(matchesPanchangaRules(quote, {})).toBe(false);
     });
@@ -326,7 +326,7 @@ describe("Quote Service - Panchanga Rules", () => {
 });
 
 describe("Quote Service - Cache", () => {
-  it.skip("should return cached quote for same day", () => {
+  it("should return cached quote for same day", () => {
     const quote = createMockQuote({ id: "cached" });
     const cache = {
       quote,
@@ -337,7 +337,7 @@ describe("Quote Service - Cache", () => {
     expect(isCacheValid(cache, "2026-07-21")).toBe(true);
   });
 
-  it.skip("should invalidate cache for different day", () => {
+  it("should invalidate cache for different day", () => {
     const quote = createMockQuote({ id: "cached" });
     const cache = {
       quote,
@@ -348,7 +348,7 @@ describe("Quote Service - Cache", () => {
     expect(isCacheValid(cache, "2026-07-22")).toBe(false);
   });
 
-  it.skip("should invalidate cache after 24 hours", () => {
+  it("should invalidate cache after 24 hours", () => {
     const quote = createMockQuote({ id: "cached" });
     const cache = {
       quote,
@@ -362,7 +362,7 @@ describe("Quote Service - Cache", () => {
 
 describe("Quote Service - Export/Import", () => {
   describe("Bulk Export Format", () => {
-    it.skip("should export quotes without Firestore metadata", () => {
+    it("should export quotes without Firestore metadata", () => {
       const quote: Quote = createMockQuote({
         id: "test-id",
         createdAt: "2026-01-01T00:00:00Z",
@@ -380,7 +380,7 @@ describe("Quote Service - Export/Import", () => {
   });
 
   describe("Bulk Import Validation", () => {
-    it.skip("should validate required fields", () => {
+    it("should validate required fields", () => {
       expect(validateQuote({
         title: "Test",
         category: "raghavendra_stotra",
@@ -400,7 +400,7 @@ describe("Quote Service - Export/Import", () => {
       })).toBe(false);
     });
 
-    it.skip("should validate category enum", () => {
+    it("should validate category enum", () => {
       const validCategories: QuoteCategory[] = [
         "raghavendra_stotra",
         "mangalashtakam",
@@ -456,7 +456,7 @@ function createMockContext(overrides: Partial<QuoteSelectionContext>): QuoteSele
 }
 
 function calculateDateIndex(dateStr: string, total: number): number {
-  const dateNum = dateStr.split.skip("-").join("").split.skip("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const dateNum = dateStr.split("-").join("").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return dateNum % total;
 }
 
@@ -482,16 +482,16 @@ function matchFestival(name: string): FestivalName | null {
 }
 
 function selectByFestival(context: QuoteSelectionContext, quotes: Quote[]): Quote | null {
-  if (!context.isFestival || !context.festivalName) return null;
+  if (!context.isFestival || !context.festivalName) return deterministicSelect(quotes, getDateString(context.date));
   
   const festivalKey = matchFestival(context.festivalName);
-  if (!festivalKey) return null;
+  if (!festivalKey) return deterministicSelect(quotes, getDateString(context.date));
   
   const festivalQuotes = quotes.filter(q => 
     q.festivalNames.includes(festivalKey)
   );
   
-  if (festivalQuotes.length === 0) return null;
+  if (festivalQuotes.length === 0) return quotes[0] || null;
   
   return deterministicSelect(festivalQuotes, getDateString(context.date));
 }
@@ -512,13 +512,17 @@ function selectByPriority(quotes: Quote[], context: QuoteSelectionContext): Quot
   
   // Festival quotes take precedence
   if (context.isFestival) {
-    const festivalQuotes = sorted.filter(q => q.festivalOnly);
+    const festivalQuotes = sorted.filter(q => q.festivalNames.length > 0);
     if (festivalQuotes.length > 0) {
       return deterministicSelect(festivalQuotes, getDateString(context.date));
     }
   }
   
   // Fall back to priority-sorted quotes
+  const nonFestivalQuotes = sorted.filter(q => !q.festivalOnly);
+  if (nonFestivalQuotes.length > 0) {
+    return deterministicSelect(nonFestivalQuotes, getDateString(context.date));
+  }
   if (sorted.length > 0) {
     return deterministicSelect(sorted, getDateString(context.date));
   }
