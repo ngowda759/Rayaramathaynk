@@ -1,0 +1,103 @@
+name: Diagnostic Firestore
+on:
+  push:
+    branches:
+      - diagnose-firestore-rate-limit
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install google-auth-library
+      - name: Run diagnostic
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          node -e "
+            const { getAuth } = require('google-auth-library');
+            async function run() {
+              const projectId = process.env.FIREBASE_PROJECT_ID;
+              const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+              const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\\\n/g, '\n').replace(/\\\\r/g, '\r');
+
+              if (!projectId || !clientEmail || !privateKey) {
+                console.error('Missing Firebase credentials.');
+                process.exit(1);
+              }
+
+              console.log('Project:', projectId.substring(0, 5) + '...');
+
+              const auth = new getAuth.GoogleAuth({
+                credentials: { client_email: clientEmail, private_key: privateKey, project_id: projectId },
+                scopes: ['https://www.googleapis.com/auth/datastore']
+              });
+
+              const client = await auth.getClient();
+              const tokenResponse = await client.getAccessToken();
+              const token = tokenResponse.token;
+
+              const listUrl = \`https://firestore.googleapis.com/v1/projects/\${projectId}/databases/(default)/documents:listCollectionIds\`;
+              const t1Start = Date.now();
+              const r1 = await fetch(listUrl, {
+                method: 'POST',
+                headers: { 'Authorization': \`Bearer \${token}\`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+              });
+              const t1End = Date.now();
+
+              console.log('\n--- TEST 1 ---');
+              console.log('Status:', r1.status);
+              console.log('Duration:', t1End - t1Start, 'ms');
+              console.log('Retry-After:', r1.headers.get('retry-after') || 'none');
+
+              const eventsUrl = \`https://firestore.googleapis.com/v1/projects/\${projectId}/databases/(default)/documents/events?pageSize=1\`;
+              const t2Start = Date.now();
+              const r2 = await fetch(eventsUrl, {
+                method: 'GET',
+                headers: { 'Authorization': \`Bearer \${token}\` }
+              });
+              const t2End = Date.now();
+
+              console.log('\n--- TEST 2 ---');
+              console.log('Status:', r2.status);
+              console.log('Duration:', t2End - t2Start, 'ms');
+              console.log('Retry-After:', r2.headers.get('retry-after') || 'none');
+
+              let r3;
+              if (r1.status === 200 || r2.status === 200) {
+                  const settingsUrl = \`https://firestore.googleapis.com/v1/projects/\${projectId}/databases/(default)/documents/settings?pageSize=1\`;
+                  const t3Start = Date.now();
+                  r3 = await fetch(settingsUrl, {
+                    method: 'GET',
+                    headers: { 'Authorization': \`Bearer \${token}\` }
+                  });
+                  const t3End = Date.now();
+
+                  console.log('\n--- TEST 3 ---');
+                  console.log('Status:', r3.status);
+                  console.log('Duration:', t3End - t3Start, 'ms');
+                  console.log('Retry-After:', r3.headers.get('retry-after') || 'none');
+              }
+
+              const fs = require('fs');
+              fs.writeFileSync('diagnostic_results.json', JSON.stringify({
+                 test1: { status: r1.status, duration: t1End - t1Start, retryAfter: r1.headers.get('retry-after') },
+                 test2: { status: r2.status, duration: t2End - t2Start, retryAfter: r2.headers.get('retry-after') },
+                 test3: r3 ? { status: r3.status, duration: (Date.now() - t2End), retryAfter: r3.headers.get('retry-after') } : null
+              }));
+            }
+            run().catch(console.error);
+          "
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-results
+          path: diagnostic_results.json
