@@ -1,0 +1,105 @@
+name: Batched Firestore to Supabase Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: "Batch Number to execute (leave empty to execute all available batches)"
+        required: false
+        type: string
+        default: ""
+      batch_size:
+        description: "Number of collections per batch"
+        required: false
+        type: string
+        default: "10"
+      collections:
+        description: "Comma-separated list of explicit collections to migrate (overrides batch)"
+        required: false
+        type: string
+        default: ""
+      retry_failed:
+        description: "Retry only collections that previously failed"
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: "Dry Run (Validate without writing data)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify credentials existence
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Check variables
+          test -n "$FIREBASE_PROJECT_ID" || (echo "::error::Missing FIREBASE_PROJECT_ID" && false)
+          test -n "$FIREBASE_CLIENT_EMAIL" || (echo "::error::Missing FIREBASE_CLIENT_EMAIL" && false)
+          test -n "$FIREBASE_PRIVATE_KEY" || (echo "::error::Missing FIREBASE_PRIVATE_KEY" && false)
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
+
+      - name: Execute Batched Migration
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.batch }}" ]; then
+            ARGS="$ARGS --batch ${{ github.event.inputs.batch }}"
+          fi
+          if [ -n "${{ github.event.inputs.batch_size }}" ]; then
+            ARGS="$ARGS --batch-size ${{ github.event.inputs.batch_size }}"
+          fi
+          if [ -n "${{ github.event.inputs.collections }}" ]; then
+            ARGS="$ARGS --collections ${{ github.event.inputs.collections }}"
+          fi
+          if [ "${{ github.event.inputs.retry_failed }}" == "true" ]; then
+            ARGS="$ARGS --retry-failed"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          echo "Executing migration with args: $ARGS"
+          npx tsx scripts/migrate-all-batched.ts $ARGS
+
+      - name: Upload Migration Manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-manifest
+          path: data/migration-manifest.json
+          if-no-files-found: ignore
+
+      - name: Upload Migration Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-report
+          path: docs/FIRESTORE_SUPABASE_MIGRATION_STATUS.md
+          if-no-files-found: ignore
