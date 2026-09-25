@@ -31,9 +31,74 @@ export interface Manifest {
   runId: string;
   overallStatus: "RUNNING" | "SUCCESS" | "FAILED" | "PARTIAL";
   inventoryVersion: string;
+  migrationType: "production" | "dry-run";
+  batchSize: number;
+  checkpointVersion: string;
+  checkpointSourceRunId?: string;
+  checkpointSourceBranch?: string;
   excludedCollections: string[];
   reviewedCollections: string[];
   records: Record<string, ManifestRecord>;
+}
+
+export interface ExpectedMetadata {
+  migrationType: "production" | "dry-run";
+  inventoryVersion: string;
+  batchSize: number;
+  checkpointVersion: string;
+}
+
+export function validateMigrationCheckpoint(manifest: any, expected: ExpectedMetadata): manifest is Manifest {
+  if (!manifest || typeof manifest !== 'object') {
+    console.warn("Checkpoint rejected: manifest is not a valid object.");
+    return false;
+  }
+  if (!manifest.runId || typeof manifest.runId !== 'string') {
+    console.warn("Checkpoint rejected: missing runId.");
+    return false;
+  }
+  if (manifest.migrationType !== expected.migrationType) {
+    console.warn(`Checkpoint rejected: migrationType mismatch (expected ${expected.migrationType}, got ${manifest.migrationType}).`);
+    return false;
+  }
+  if (!manifest.inventoryVersion) {
+    console.warn("Checkpoint rejected: missing inventoryVersion.");
+    return false;
+  }
+  if (manifest.inventoryVersion !== expected.inventoryVersion) {
+    console.warn(`Checkpoint rejected: incompatible migration inventory (expected ${expected.inventoryVersion}, got ${manifest.inventoryVersion}).`);
+    return false;
+  }
+  if (manifest.batchSize !== expected.batchSize) {
+    console.warn(`Checkpoint rejected: incompatible batchSize (expected ${expected.batchSize}, got ${manifest.batchSize}).`);
+    return false;
+  }
+  if (!manifest.checkpointVersion) {
+    console.warn("Checkpoint rejected: missing checkpointVersion.");
+    return false;
+  }
+  if (manifest.checkpointVersion !== expected.checkpointVersion) {
+    console.warn(`Checkpoint rejected: incompatible checkpointVersion (expected ${expected.checkpointVersion}, got ${manifest.checkpointVersion}).`);
+    return false;
+  }
+  if (!manifest.records || typeof manifest.records !== "object") {
+    console.warn("Checkpoint rejected: malformed records.");
+    return false;
+  }
+  // Validate basic record structure without parsing every field
+  for (const key of Object.keys(manifest.records)) {
+    const record = manifest.records[key];
+    if (!record || typeof record !== "object" || !record.collection || !record.status) {
+      console.warn("Checkpoint rejected: structurally invalid migration records.");
+      return false;
+    }
+  }
+  if (manifest.checkpointSourceRunId !== undefined && typeof manifest.checkpointSourceRunId !== "string") {
+    console.warn("Checkpoint rejected: checkpointSourceRunId is structurally invalid.");
+    return false;
+  }
+
+  return true;
 }
 
 export function getMapperFn(collection: string): ((id: string, data: any) => any) | null {
@@ -96,6 +161,21 @@ export function parseArgs(argv: string[]) {
 }
 
 export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest: Manifest | null) {
+  const expectedMetadata: ExpectedMetadata = {
+    migrationType: args.dryRun ? "dry-run" : "production",
+    inventoryVersion: "1.0",
+    batchSize: args.batchSize,
+    checkpointVersion: "1.0"
+  };
+
+  if (manifest && !validateMigrationCheckpoint(manifest, expectedMetadata)) {
+    manifest = null;
+  }
+
+  if (args.retryFailed && args.collections.length === 0 && args.batch <= 0) {
+    throw new Error("retry-failed requires either --batch or --collections to be specified.");
+  }
+
   const allBatches = getBatchedMigratableCollections(args.batchSize);
   let collectionsToRun: { item: InventoryItem, batchIndex: number }[] = [];
 
@@ -134,8 +214,8 @@ export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest:
     }
     const batchItems = allBatches[args.batch - 1];
     collectionsToRun = batchItems.map(item => ({ item, batchIndex: args.batch }));
-  } else if (!args.retryFailed || args.collections.length === 0) {
-    // If no batch is specified, no collections are explicitly requested, and we aren't retrying all
+  } else {
+    // If no batch is specified, no collections are explicitly requested
     // Then we do NOT execute all batches by default.
     collectionsToRun = [];
   }
@@ -163,18 +243,52 @@ export async function executePlan(
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  let manifest: Manifest;
+  const expectedMetadata: ExpectedMetadata = {
+    migrationType: args.dryRun ? "dry-run" : "production",
+    inventoryVersion: "1.0",
+    batchSize: args.batchSize,
+    checkpointVersion: "1.0"
+  };
+
+  let manifest: Manifest | null = null;
   if (fs.existsSync(manifestPath)) {
-    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-  } else {
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    } catch {
+      manifest = null;
+    }
+  }
+
+  if (manifest && !validateMigrationCheckpoint(manifest, expectedMetadata)) {
+    manifest = null;
+  }
+
+  if (!manifest) {
     manifest = {
-      runId: new Date().toISOString(),
+      runId: process.env.GITHUB_RUN_ID || new Date().toISOString(),
       overallStatus: "RUNNING",
       inventoryVersion: "1.0",
+      migrationType: args.dryRun ? "dry-run" : "production",
+      batchSize: args.batchSize,
+      checkpointVersion: "1.0",
+      checkpointSourceRunId: process.env.CHECKPOINT_SOURCE_RUN_ID || undefined,
+      checkpointSourceBranch: process.env.CHECKPOINT_SOURCE_BRANCH || undefined,
       excludedCollections: EXCLUDED_AUTH_COLLECTIONS,
       reviewedCollections: MIGRATION_INVENTORY.filter(i => i.classification === "REVIEW").map(i => i.collection),
       records: {}
     };
+  } else {
+    // Overwrite with the current GitHub Run ID or timestamp
+    manifest.runId = process.env.GITHUB_RUN_ID || new Date().toISOString();
+    // Preserve initial run checkpoint origins or overwrite with current
+    manifest.migrationType = args.dryRun ? "dry-run" : "production";
+    manifest.batchSize = args.batchSize;
+    if (process.env.CHECKPOINT_SOURCE_RUN_ID) {
+       manifest.checkpointSourceRunId = process.env.CHECKPOINT_SOURCE_RUN_ID;
+    }
+    if (process.env.CHECKPOINT_SOURCE_BRANCH) {
+       manifest.checkpointSourceBranch = process.env.CHECKPOINT_SOURCE_BRANCH;
+    }
   }
 
   let overallSuccess = true;

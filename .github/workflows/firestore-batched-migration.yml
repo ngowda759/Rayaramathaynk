@@ -30,7 +30,8 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
 
 jobs:
   migrate:
@@ -62,9 +63,24 @@ jobs:
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
 
+      - name: Download Previous Migration Manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.batch_size }}" ]; then
+            ARGS="$ARGS --batch-size ${{ github.event.inputs.batch_size }}"
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          npx tsx scripts/fetch-checkpoint.ts $ARGS
+
       - name: Execute Batched Migration
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          CHECKPOINT_SOURCE_RUN_ID: ${{ env.CHECKPOINT_SOURCE_RUN_ID }}
+          CHECKPOINT_SOURCE_BRANCH: ${{ env.CHECKPOINT_SOURCE_BRANCH }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
