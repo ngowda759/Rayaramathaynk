@@ -67,49 +67,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Attempting to download latest deterministic migration-manifest artifact..."
-
-          # Find completed runs on main branch first, then any branch
-          RUNS=$(gh run list --workflow=firestore-batched-migration.yml --status completed --branch main --json databaseId,headBranch --jq '.[] | "\(.databaseId) \(.headBranch)"')
-          if [ -z "$RUNS" ]; then
-            RUNS=$(gh run list --workflow=firestore-batched-migration.yml --status completed --json databaseId,headBranch --jq '.[] | "\(.databaseId) \(.headBranch)"')
+          ARGS=""
+          if [ -n "${{ github.event.inputs.batch_size }}" ]; then
+            ARGS="$ARGS --batch-size ${{ github.event.inputs.batch_size }}"
           fi
-
-          LATEST_RUN=""
-          LATEST_BRANCH=""
-
-          # Iterate to find the first run that actually has the artifact
-          while IFS= read -r line; do
-            if [ -z "$line" ]; then continue; fi
-            RUN_ID=$(echo "$line" | awk '{print $1}')
-            BRANCH=$(echo "$line" | awk '{print $2}')
-
-            # Check if artifact exists for this run
-            HAS_ARTIFACT=$(gh api repos/{owner}/{repo}/actions/runs/$RUN_ID/artifacts --jq '.artifacts[] | select(.name == "migration-manifest") | .id' || true)
-
-            if [ -n "$HAS_ARTIFACT" ]; then
-              LATEST_RUN=$RUN_ID
-              LATEST_BRANCH=$BRANCH
-              break
-            fi
-          done <<< "$RUNS"
-
-          if [ -n "$LATEST_RUN" ]; then
-            echo "Restoring checkpoint from run ID: $LATEST_RUN on branch: $LATEST_BRANCH"
-            set +e
-            gh run download $LATEST_RUN -n migration-manifest --dir data
-            DOWNLOAD_STATUS=$?
-            set -e
-            if [ $DOWNLOAD_STATUS -ne 0 ]; then
-              echo "::error::Failed to download valid artifact from run $LATEST_RUN. Aborting."
-              sh -c "exit 1"
-            else
-              echo "CHECKPOINT_SOURCE_RUN_ID=$LATEST_RUN" >> $GITHUB_ENV
-              echo "CHECKPOINT_SOURCE_BRANCH=$LATEST_BRANCH" >> $GITHUB_ENV
-            fi
-          else
-            echo "No previous valid migration checkpoint found. Starting fresh."
+          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            ARGS="$ARGS --dry-run"
           fi
+          npx tsx scripts/fetch-checkpoint.ts $ARGS
 
       - name: Execute Batched Migration
         env:

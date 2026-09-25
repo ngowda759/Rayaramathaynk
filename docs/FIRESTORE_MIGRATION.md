@@ -66,7 +66,15 @@ Equivalent npm aliases exist: `npm run migrate:core`, `migrate:content`,
 Every migrator shares the same rules, enforced by
 `lib/supabase/migration-runner.ts` and `lib/supabase/migration-mappers.ts`:
 
-- **Persistent Checkpoints.** The batched migration workflow (`firestore-batched-migration.yml`) saves the `data/migration-manifest.json` state across GitHub Actions workflow runs by preserving and downloading the workflow artifact using the GitHub CLI (`gh run download`). This ensures that `--retry-failed` knows exactly which collections previously succeeded (so they are skipped) and which failed or were unattempted.
+- **Deterministic Persistent Checkpoints.** The batched migration workflow (`firestore-batched-migration.yml`) safely saves the `data/migration-manifest.json` state across GitHub Actions workflow runs by preserving and downloading the workflow artifact using a safe and strict deterministic lookup via the GitHub CLI.
+  - **Metadata Requirements:** Only checkpoints marking themselves as `production` runs with a matching `inventoryVersion` and compatible `batchSize` are restored. Dry-run checkpoints are immediately discarded for a live run.
+  - **Scoped Retry:** Resuming a failed migration securely requires an explicit scope (e.g. `--batch 1 --retry-failed` or `--collections events --retry-failed`). It is explicitly impossible to accidentally resume an unscoped retry against the entire database.
+
+  **Lifecycle Example:**
+  1. **Run Batch 1 production** (creates valid live manifest artifact)
+  2. **Run Batch 1 --retry-failed** (restores latest VALID production checkpoint from step 1)
+  3. Validate metadata → Skip SUCCESS → Retry FAILED/unattempted
+  4. Generate new manifest artifact.
 - **No synthetic data.** A missing timestamp is never replaced with `new Date()`;
   a missing latency measurement is never replaced with `0`; an unrecorded
   `success` flag is never assumed `true`. Where a destination column is

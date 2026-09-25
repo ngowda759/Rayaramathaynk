@@ -24,6 +24,7 @@ describe("Batched Migration Execution Plan", () => {
     inventoryVersion: "1.0",
     migrationType: "production",
     batchSize: 10,
+    checkpointVersion: "1.0",
     excludedCollections: [],
     reviewedCollections: [],
     records: {
@@ -113,6 +114,31 @@ describe("Batched Migration Execution Plan", () => {
     expect(sevasInPlan).toBeDefined();
   });
 
+  it("should discard checkpoint with incompatible inventory version", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest, inventoryVersion: "0.1" };
+
+    const plan = buildExecutionPlan(args, invalidManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+  it("should discard checkpoint with missing or invalid records structure", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest, records: null } as unknown as Manifest;
+
+    const plan = buildExecutionPlan(args, invalidManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+  it("should select explicitly chosen collections and ignore others when --collections is used with --retry-failed", () => {
+    const args = parseArgs(["--retry-failed", "--collections", "dailyPoojas"]);
+    const plan = buildExecutionPlan(args, mockManifest);
+
+    expect(plan.collectionsToRun.length).toBe(1);
+    expect(plan.collectionsToRun[0].item.collection).toBe("dailyPoojas");
+  });
   it("should return empty execution plan by default if no arguments are provided", () => {
     const args = parseArgs([]);
     const plan = buildExecutionPlan(args, null);

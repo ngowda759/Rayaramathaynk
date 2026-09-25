@@ -33,11 +33,43 @@ export interface Manifest {
   inventoryVersion: string;
   migrationType: "production" | "dry-run";
   batchSize: number;
+  checkpointVersion?: string;
   checkpointSourceRunId?: string;
   checkpointSourceBranch?: string;
   excludedCollections: string[];
   reviewedCollections: string[];
   records: Record<string, ManifestRecord>;
+}
+
+export function validateMigrationCheckpoint(manifest: Manifest | null, args: ReturnType<typeof parseArgs>): boolean {
+  if (!manifest) return false;
+
+  if (!manifest.migrationType) {
+    console.warn("Discarding checkpoint: Missing migrationType metadata.");
+    return false;
+  }
+
+  if (manifest.migrationType === "dry-run" && !args.dryRun) {
+    console.warn("Discarding checkpoint: Cannot use dry-run checkpoint for live migration run.");
+    return false;
+  }
+
+  if (manifest.inventoryVersion !== "1.0") {
+    console.warn(`Discarding checkpoint: Incompatible inventoryVersion ${manifest.inventoryVersion}.`);
+    return false;
+  }
+
+  if (manifest.batchSize !== args.batchSize && manifest.batchSize !== undefined) {
+    console.warn(`Discarding checkpoint: Batch size mismatch (checkpoint: ${manifest.batchSize}, current: ${args.batchSize}).`);
+    return false;
+  }
+
+  if (!manifest.records || typeof manifest.records !== "object") {
+    console.warn("Discarding checkpoint: Invalid or missing records structure.");
+    return false;
+  }
+
+  return true;
 }
 
 export function getMapperFn(collection: string): ((id: string, data: any) => any) | null {
@@ -100,19 +132,8 @@ export function parseArgs(argv: string[]) {
 }
 
 export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest: Manifest | null) {
-  // Validate checkpoint metadata
-  if (manifest) {
-    // Treat legacy manifests missing migrationType as invalid for safety
-    if (!manifest.migrationType) {
-      console.warn("Discarding checkpoint: Missing migrationType metadata.");
-      manifest = null;
-    } else if (manifest.migrationType === "dry-run" && !args.dryRun) {
-      console.warn("Discarding checkpoint: Cannot use dry-run checkpoint for live migration run.");
-      manifest = null;
-    } else if (manifest.batchSize !== args.batchSize && manifest.batchSize !== undefined) {
-      console.warn(`Discarding checkpoint: Batch size mismatch (checkpoint: ${manifest.batchSize}, current: ${args.batchSize}).`);
-      manifest = null;
-    }
+  if (!validateMigrationCheckpoint(manifest, args)) {
+    manifest = null;
   }
 
   if (args.retryFailed && args.collections.length === 0 && args.batch <= 0) {
@@ -191,17 +212,8 @@ export async function executePlan(
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
   }
 
-  if (manifest) {
-    if (!manifest.migrationType) {
-      console.warn("Discarding checkpoint: Missing migrationType metadata.");
-      manifest = null;
-    } else if (manifest.migrationType === "dry-run" && !args.dryRun) {
-      console.warn("Discarding checkpoint: Cannot use dry-run checkpoint for live migration run.");
-      manifest = null;
-    } else if (manifest.batchSize !== args.batchSize && manifest.batchSize !== undefined) {
-      console.warn(`Discarding checkpoint: Batch size mismatch (checkpoint: ${manifest.batchSize}, current: ${args.batchSize}).`);
-      manifest = null;
-    }
+  if (!validateMigrationCheckpoint(manifest, args)) {
+    manifest = null;
   }
 
   if (!manifest) {
@@ -211,6 +223,7 @@ export async function executePlan(
       inventoryVersion: "1.0",
       migrationType: args.dryRun ? "dry-run" : "production",
       batchSize: args.batchSize,
+      checkpointVersion: "1.0",
       checkpointSourceRunId: process.env.CHECKPOINT_SOURCE_RUN_ID || undefined,
       checkpointSourceBranch: process.env.CHECKPOINT_SOURCE_BRANCH || undefined,
       excludedCollections: EXCLUDED_AUTH_COLLECTIONS,
