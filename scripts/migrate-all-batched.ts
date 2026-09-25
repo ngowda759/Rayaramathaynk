@@ -31,6 +31,9 @@ export interface Manifest {
   runId: string;
   overallStatus: "RUNNING" | "SUCCESS" | "FAILED" | "PARTIAL";
   inventoryVersion: string;
+  isDryRun: boolean;
+  checkpointSourceRunId?: string;
+  checkpointSourceBranch?: string;
   excludedCollections: string[];
   reviewedCollections: string[];
   records: Record<string, ManifestRecord>;
@@ -96,6 +99,12 @@ export function parseArgs(argv: string[]) {
 }
 
 export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest: Manifest | null) {
+  // Never reuse a dry-run manifest for a live migration execution
+  if (manifest && manifest.isDryRun && !args.dryRun) {
+    console.warn("Discarding previous dry-run checkpoint for a live migration run.");
+    manifest = null;
+  }
+
   const allBatches = getBatchedMigratableCollections(args.batchSize);
   let collectionsToRun: { item: InventoryItem, batchIndex: number }[] = [];
 
@@ -169,18 +178,37 @@ export async function executePlan(
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  let manifest: Manifest;
+  let manifest: Manifest | null = null;
   if (fs.existsSync(manifestPath)) {
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-  } else {
+  }
+
+  if (manifest && manifest.isDryRun && !args.dryRun) {
+    console.warn("Discarding previous dry-run checkpoint for a live migration run.");
+    manifest = null;
+  }
+
+  if (!manifest) {
     manifest = {
       runId: new Date().toISOString(),
       overallStatus: "RUNNING",
       inventoryVersion: "1.0",
+      isDryRun: args.dryRun,
+      checkpointSourceRunId: process.env.CHECKPOINT_SOURCE_RUN_ID || undefined,
+      checkpointSourceBranch: process.env.CHECKPOINT_SOURCE_BRANCH || undefined,
       excludedCollections: EXCLUDED_AUTH_COLLECTIONS,
       reviewedCollections: MIGRATION_INVENTORY.filter(i => i.classification === "REVIEW").map(i => i.collection),
       records: {}
     };
+  } else {
+    // Preserve initial run checkpoint origins or overwrite with current
+    manifest.isDryRun = args.dryRun;
+    if (process.env.CHECKPOINT_SOURCE_RUN_ID) {
+       manifest.checkpointSourceRunId = process.env.CHECKPOINT_SOURCE_RUN_ID;
+    }
+    if (process.env.CHECKPOINT_SOURCE_BRANCH) {
+       manifest.checkpointSourceBranch = process.env.CHECKPOINT_SOURCE_BRANCH;
+    }
   }
 
   let overallSuccess = true;

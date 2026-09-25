@@ -22,6 +22,7 @@ describe("Batched Migration Execution Plan", () => {
     runId: "test-run",
     overallStatus: "RUNNING",
     inventoryVersion: "1.0",
+    isDryRun: false,
     excludedCollections: [],
     reviewedCollections: [],
     records: {
@@ -93,5 +94,17 @@ describe("Batched Migration Execution Plan", () => {
 
     expect(plan.collectionsToRun.length).toBeGreaterThan(0);
     expect(plan.collectionsToRun.every(c => c.batchIndex === 1)).toBe(true);
+  });
+
+  it("should discard dry-run checkpoint on a live migration run", () => {
+    const args = parseArgs(["--retry-failed"]);
+    const dryRunManifest = { ...mockManifest, isDryRun: true };
+
+    // Live migration (args.dryRun = false) + dry-run manifest = discard manifest
+    const plan = buildExecutionPlan(args, dryRunManifest);
+
+    // Without manifest, it includes ALL collections (because no "SUCCESS" records exist to filter)
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
   });
 });
