@@ -134,7 +134,13 @@ export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest:
     }
     const batchItems = allBatches[args.batch - 1];
     collectionsToRun = batchItems.map(item => ({ item, batchIndex: args.batch }));
-  } else if (!args.retryFailed || args.collections.length === 0) {
+  } else if (args.retryFailed) {
+    allBatches.forEach((batchItems, index) => {
+      batchItems.forEach(item => {
+        collectionsToRun.push({ item, batchIndex: index + 1 });
+      });
+    });
+  } else {
     // If no batch is specified, no collections are explicitly requested, and we aren't retrying all
     // Then we do NOT execute all batches by default.
     collectionsToRun = [];

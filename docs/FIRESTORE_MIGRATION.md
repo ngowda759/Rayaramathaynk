@@ -66,6 +66,7 @@ Equivalent npm aliases exist: `npm run migrate:core`, `migrate:content`,
 Every migrator shares the same rules, enforced by
 `lib/supabase/migration-runner.ts` and `lib/supabase/migration-mappers.ts`:
 
+- **Persistent Checkpoints.** The batched migration workflow (`firestore-batched-migration.yml`) saves the `data/migration-manifest.json` state across GitHub Actions workflow runs using `actions/cache`. This ensures that `--retry-failed` knows exactly which collections previously succeeded (so they are skipped) and which failed or were unattempted.
 - **No synthetic data.** A missing timestamp is never replaced with `new Date()`;
   a missing latency measurement is never replaced with `0`; an unrecorded
   `success` flag is never assumed `true`. Where a destination column is

@@ -30,7 +30,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   migrate:
@@ -62,6 +62,14 @@ jobs:
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
 
+      - name: Restore Migration Checkpoint
+        uses: actions/cache/restore@v4
+        with:
+          path: data/migration-manifest.json
+          key: migration-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            migration-checkpoint-
+
       - name: Execute Batched Migration
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -89,6 +97,13 @@ jobs:
 
           echo "Executing migration with args: $ARGS"
           npx tsx scripts/migrate-all-batched.ts $ARGS
+
+      - name: Save Migration Checkpoint
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/migration-manifest.json
+          key: migration-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload Migration Manifest
         uses: actions/upload-artifact@v4
