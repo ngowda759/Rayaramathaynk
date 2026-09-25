@@ -71,7 +71,7 @@ test.describe('Chaos Engineering Tests - Sprint 5', () => {
       const response = await page.request.get('http://this-domain-definitely-does-not-exist-12345.com');
       
       // Should return error, not crash
-      expect([0, 'failed']).toContain(response.status() as any);
+      expect([0, 'failed']).toContain(response.status() as number);
     });
   });
 
@@ -321,7 +321,7 @@ test.describe('Chaos Engineering Tests - Sprint 5', () => {
       // Check memory if available
       const memoryInfo = await page.evaluate(() => {
         if ('memory' in performance) {
-          const mem = (performance as any).memory;
+          const mem = (performance as number).memory;
           return {
             usedJSHeapSize: mem.usedJSHeapSize,
             totalJSHeapSize: mem.totalJSHeapSize,

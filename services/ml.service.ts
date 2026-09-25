@@ -221,8 +221,6 @@ const TYPO_CORRECTIONS: Record<string, string> = {
   'donate': 'donate',
   'donat': 'donate',
   'donatton': 'donation',
-  'annadana': 'annadana',
-  'located': 'located',
   'aradhana': 'aaradhane',
   'aaradhana': 'aaradhane',
   'aradhane': 'aaradhane',

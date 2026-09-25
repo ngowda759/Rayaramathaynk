@@ -1,25 +1,47 @@
 {
   "expo": {
-    "name": "Sri Raghavendra Mutt YNK",
-    "slug": "sri-raghavendra-mutt-ynk",
+    "name": "Sri Raghavendra Swamy Temple",
+    "slug": "rayara-matha-ynk",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/images/logos/ynk_matha_logo.png",
+    "scheme": "rayaramathaynk",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/logos/ynk_matha_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#800000"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.rayaramathaynk.app"
+      "bundleIdentifier": "com.rayaramathaynk.mobile"
     },
     "android": {
-      "package": "in.rayaramathaynk.app"
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logos/ynk_matha_logo.png",
+        "backgroundColor": "#800000"
+      },
+      "package": "com.rayaramathaynk.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logos/ynk_matha_logo.png"
     },
     "plugins": [
       "expo-router",
+      "expo-font",
+      "expo-secure-store",
       [
-        "expo-av",
+        "expo-notifications",
         {
-          "microphonePermission": "Allow Sri Raghavendra Mutt to access your microphone for video playback."
+          "icon": "./assets/images/logos/ynk_matha_logo.png",
+          "color": "#800000"
         }
       ]
-    ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

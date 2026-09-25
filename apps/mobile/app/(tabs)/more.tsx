@@ -11,8 +11,8 @@ export default function MoreScreen() {
       await Share.share({
         message: 'Download the Sri Raghavendra Swamy Temple app: https://www.srsmathaynk.com',
       });
-    } catch (error: any) {
-      console.error(error.message);
+    } catch (error: unknown) {
+      console.error(error instanceof Error ? error.message : String(error));
     }
   };
 

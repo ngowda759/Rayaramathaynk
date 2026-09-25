@@ -562,7 +562,7 @@ function exportQuote(quote: Quote): Omit<Quote, "id" | "createdAt" | "updatedAt"
   return rest;
 }
 
-function validateQuote(data: any): boolean {
+function validateQuote(data: Record<string, unknown>): boolean {
   if (!data.title || !data.category || !data.source) return false;
   if (!validateCategory(data.category)) return false;
   return true;

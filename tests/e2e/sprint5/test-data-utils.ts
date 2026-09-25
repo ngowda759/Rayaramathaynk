@@ -188,7 +188,7 @@ export class TestDataCleanup {
     this.createdItems.push({ collection, id });
   }
 
-  async cleanup(apiClient: any): Promise<void> {
+  async cleanup(apiClient: unknown): Promise<void> {
     console.log(`Cleaning up ${this.createdItems.length} test items...`);
     
     for (const item of this.createdItems) {
@@ -254,18 +254,18 @@ export class MockDataHelper {
 
 export interface TestFixture {
   name: string;
-  data: any;
+  data: unknown;
   cleanup?: () => Promise<void>;
 }
 
 export class TestFixtureManager {
   private fixtures: Map<string, TestFixture> = new Map();
 
-  register(name: string, data: any, cleanup?: () => Promise<void>): void {
+  register(name: string, data: unknown, cleanup?: () => Promise<void>): void {
     this.fixtures.set(name, { name, data, cleanup });
   }
 
-  get(name: string): any {
+  get(name: string): unknown {
     const fixture = this.fixtures.get(name);
     return fixture?.data;
   }

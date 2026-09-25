@@ -1,71 +1,65 @@
 import { Tabs } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
+        tabBarActiveTintColor: '#D4AF37',
+        tabBarInactiveTintColor: 'gray',
         headerStyle: {
-          backgroundColor: COLORS.primary,
+          backgroundColor: '#800000',
         },
-        headerTintColor: COLORS.surface,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.text.secondary,
-        tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
-        },
-      }}
-    >
+        headerTintColor: '#FFFDD0',
+      }}>
       <Tabs.Screen
-        name="home/index"
+        name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="home" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="temple/index"
+        name="temple"
         options={{
           title: 'Temple',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="temple-hindu" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="business" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="sevas/index"
+        name="sevas"
         options={{
           title: 'Sevas',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="hands-pray" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="flower" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="events/index"
+        name="events"
         options={{
           title: 'Events',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="calendar-month" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="gallery/index"
+        name="gallery"
         options={{
           title: 'Gallery',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="image-multiple" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="images" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="ai/index"
+        name="ai"
         options={{
           title: 'Raya AI',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="robot" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="chatbubbles" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="more/index"
+        name="more"
         options={{
           title: 'More',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="menu" size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="menu" size={24} color={color} />,
         }}
       />
     </Tabs>
