@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { validateMigrationCheckpoint, ExpectedMetadata } from "./migrate-all-batched";
 
-function runGh(command: string): any {
+export function runGh(command: string): any {
   const result = execSync(`gh ${command}`, { encoding: "utf-8" });
   try {
     return JSON.parse(result);
@@ -12,7 +12,7 @@ function runGh(command: string): any {
   }
 }
 
-function fetchLatestValidCheckpoint(isDryRun: boolean, expectedBatchSize: number) {
+export function fetchLatestValidCheckpoint(isDryRun: boolean, expectedBatchSize: number) {
   const workflowName = "firestore-batched-migration.yml";
 
   console.log(`Searching for latest completed runs of ${workflowName}...`);
@@ -24,17 +24,26 @@ function fetchLatestValidCheckpoint(isDryRun: boolean, expectedBatchSize: number
     checkpointVersion: "1.0"
   };
 
-  // List newest completed runs
-  const runs = runGh(`run list --workflow=${workflowName} --status completed --json databaseId,headBranch --limit 20`);
+  // List completed runs, sorting inherently by newest via GH CLI default behavior, grabbing createdAt and workflow info
+  const runs = runGh(`run list --workflow=${workflowName} --status completed --json databaseId,headBranch,createdAt,name --limit 20`);
 
-  if (!runs || runs.length === 0) {
+  if (!runs || !Array.isArray(runs) || runs.length === 0) {
     console.log("No valid previous migration checkpoint found. Starting fresh.");
     return null;
   }
 
+  // Ensure deterministic descending order by createdAt
+  runs.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   for (const run of runs) {
     const runId = run.databaseId;
     const branch = run.headBranch;
+
+    // Validate workflow identity
+    if (!run.name || run.name !== "Batched Firestore to Supabase Migration") {
+       console.warn(`Run ${runId} has wrong workflow name identity (expected 'Batched Firestore to Supabase Migration', got '${run.name}'). Skipping.`);
+       continue;
+    }
 
     // Check if artifact exists
     let artifacts;
@@ -79,6 +88,13 @@ function fetchLatestValidCheckpoint(isDryRun: boolean, expectedBatchSize: number
     }
 
     if (!validateMigrationCheckpoint(manifest, expectedMetadata)) {
+      continue;
+    }
+
+    // Verify manifest runId matches the artifact's originating workflow run
+    // Using string interpolation for safety against types
+    if (String(manifest.runId) !== String(runId)) {
+      console.warn(`Manifest from run ${runId} claims invalid runId ${manifest.runId}. Skipping copied/invalid manifest.`);
       continue;
     }
 

@@ -265,7 +265,7 @@ export async function executePlan(
 
   if (!manifest) {
     manifest = {
-      runId: new Date().toISOString(),
+      runId: process.env.GITHUB_RUN_ID || new Date().toISOString(),
       overallStatus: "RUNNING",
       inventoryVersion: "1.0",
       migrationType: args.dryRun ? "dry-run" : "production",
@@ -278,6 +278,8 @@ export async function executePlan(
       records: {}
     };
   } else {
+    // Overwrite with the current GitHub Run ID or timestamp
+    manifest.runId = process.env.GITHUB_RUN_ID || new Date().toISOString();
     // Preserve initial run checkpoint origins or overwrite with current
     manifest.migrationType = args.dryRun ? "dry-run" : "production";
     manifest.batchSize = args.batchSize;
