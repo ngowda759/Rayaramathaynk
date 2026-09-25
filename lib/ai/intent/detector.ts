@@ -477,13 +477,9 @@ export class IntentDetector {
     keywordResult: IntentDetectionResult,
     semanticResult: IntentDetectionResult
   ): IntentDetectionResult {
-    // If semantic detection found a direct domain keyword match (100% confidence),
-    // it should override keyword detection to ensure specific terms win
     if (semanticResult.confidence === 100 && semanticResult.source === RetrievalType.SEMANTIC_MATCH) {
       return semanticResult;
     }
-
-    // If both agree, boost confidence
     if (keywordResult.intent === semanticResult.intent) {
       return {
         ...keywordResult,
@@ -492,21 +488,48 @@ export class IntentDetector {
       };
     }
 
-    // If semantic has higher confidence, prefer it
-    // This handles cases like typo corrections where semantic does better
+    // Explicit override list for difficult edge cases where generic semantic ML swallows strong keyword domain signal.
+    // 1. "Can I take photos inside?" / "camera" -> semantic thinks it's FAQ, keyword matched PHOTOGRAPHY
+    // 2. "Office hours" -> semantic thinks TEMPLE_TIMINGS, keyword matched OFFICE_HOURS
+    // 3. "Raghavendra quote" -> semantic SRI_RAGHAVENDRA, keyword matched DAILY_QUOTE
+    // 4. "Stotra" / "ಸ್ತೋತ್ರ" -> semantic PANCHANGA, keyword matched DAILY_QUOTE
+    // 5. "What can I wear" -> semantic FAQ, keyword matched DRESS_CODE
+
+    // We boost priority for certain intents when they have keyword matches
+    const HIGH_PRIORITY_INTENTS = [
+      Intent.PHOTOGRAPHY,
+      Intent.OFFICE_HOURS,
+      Intent.DAILY_QUOTE,
+      Intent.DRESS_CODE,
+      Intent.COMMITTEE,
+      Intent.UPCOMING_EVENTS,
+      Intent.CONTACT_INFORMATION,
+      Intent.PRASADA
+    ];
+
+    if (keywordResult.matchedKeywords.length > 0) {
+       if (HIGH_PRIORITY_INTENTS.includes(keywordResult.intent) && keywordResult.confidence >= 35) {
+          return keywordResult;
+       }
+       if (keywordResult.confidence >= 35 && (
+      semanticResult.intent === Intent.FAQ ||
+      semanticResult.intent === Intent.UNKNOWN ||
+      semanticResult.intent === Intent.VISITOR_GUIDELINES ||
+      semanticResult.intent === Intent.TEMPLE_TIMINGS ||
+      semanticResult.intent === Intent.SRI_RAGHAVENDRA
+   )) {
+          return keywordResult;
+       }
+    }
+
     if (semanticResult.confidence > keywordResult.confidence) {
       return semanticResult;
     }
 
-    // If keyword detection has matched keywords, prioritize it
-    // This prevents generic words like "about", "tell" from overriding domain matches
     if (keywordResult.matchedKeywords.length > 0) {
-      if (keywordResult.confidence >= 25) {
-        return keywordResult;
-      }
+      return keywordResult;
     }
 
-    // Take higher confidence
     return keywordResult.confidence >= semanticResult.confidence
       ? keywordResult
       : semanticResult;

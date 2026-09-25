@@ -1,34 +1,45 @@
-# Rayara Math Mobile App
+# Rayara Matha Yelahanka New Town Mobile App
 
-This is the mobile application for the Rayara Math Temple built using Expo, React Native, and Expo Router.
+The official mobile app for Sri Raghavendra Swamy Mutt, Yelahanka New Town.
+Built using React Native, Expo, and Supabase.
 
-## Getting Started
+## Setup
 
-### Local Development
+1. Install dependencies:
+\`\`\`bash
+npm install --legacy-peer-deps
+\`\`\`
 
-1. Run `npm install` inside the `apps/mobile` directory.
-2. Ensure environment variables are configured. Create an `.env` file with:
-   ```
-   EXPO_PUBLIC_SUPABASE_URL="your-supabase-url"
-   EXPO_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
-   EXPO_PUBLIC_API_URL="https://www.srsmathaynk.com" # Or your local backend proxy
-   ```
-3. Run `npm start` to open the Expo development server.
+2. Configure environment variables in an \`.env\` file in this directory (or the root if using Expo configuration):
+\`\`\`
+EXPO_PUBLIC_SUPABASE_URL="YOUR_SUPABASE_URL"
+EXPO_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+\`\`\`
 
-### Directory Structure
+3. Start development server:
+\`\`\`bash
+npx expo start
+\`\`\`
 
-* `app/`: Contains the Expo Router screen definitions (`_layout.tsx`, `(tabs)/*`).
-* `assets/`: Contains images, icons, fonts, and the temple logos.
-* `lib/`: Contains backend configuration including `supabase.ts` and data fetching logic in `api.ts`.
-* `components/`: UI components (if separated in future).
+## Build for Production
 
-### Push Notifications
-The app uses `expo-notifications`. Configuration is added in `app.json`. To fully enable:
-1. Ensure Firebase/APNs keys are registered in the Expo project dashboard.
-2. Request permissions on app load (to be implemented in `_layout.tsx` when needed).
+This application uses Expo.
 
-### iOS & Android Build
-To build for production, we use EAS (Expo Application Services):
-- Ensure `eas-cli` is installed (`npm install -g eas-cli`).
-- Run `eas build --platform ios`
-- Run `eas build --platform android`
+### iOS
+\`\`\`bash
+npm run build
+# OR via EAS
+eas build --platform ios
+\`\`\`
+
+### Android
+\`\`\`bash
+npm run build -- -p android
+# OR via EAS
+eas build --platform android
+\`\`\`
+
+## Architecture
+
+- **Supabase Integration:** Hooks into the exact same \`sevas\`, \`events\`, \`announcements\`, and \`gallery_media\` backend as the Next.js website.
+- **Raya AI Integration:** Directly interfaces with the \`/api/chat\` endpoint from the root Next.js app to preserve structured knowledge retrieval and server-side safety boundaries.

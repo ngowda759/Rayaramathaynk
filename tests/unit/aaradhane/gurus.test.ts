@@ -34,9 +34,9 @@ describe("Guru Aaradhane Dataset", () => {
 
     it("should have valid lunar month values", () => {
       const validMonths = [
-        "Caitra", "Vaiśākha", "Jyeṣṭha", "Āṣāḍha",
-        "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārttika",
-        "Mārgaśīrṣa", "Pauṣa", "Māgha", "Phālguna"
+        "Chaitra", "Vaishakha", "Jyeṣṭha", "Āṣāḍha",
+        "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārtika",
+        "Mārghaśīrṣa", "Pauṣa", "Māgha", "Phālguna"
       ];
       
       for (const guru of GURU_AARADHANES) {
@@ -105,7 +105,7 @@ describe("Guru Aaradhane Dataset", () => {
     it("should have Poorva Aaradhane in Vaishakha Krishna Trayodashi", () => {
       const poorva = GURU_AARADHANE_BY_ID.get("raghavendra-poorva");
       expect(poorva).toBeDefined();
-      expect(poorva?.lunarMonth).toBe("Vaiśākha");
+      expect(poorva?.lunarMonth).toBe("Vaishakha");
       expect(poorva?.paksha).toBe("Krishna");
       expect(poorva?.tithiNumber).toBe(13);
       expect(poorva?.tithi).toBe("Trayodashi");

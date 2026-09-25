@@ -1,47 +1,37 @@
 {
   "expo": {
-    "name": "Sri Raghavendra Swamy Temple",
-    "slug": "rayara-matha-ynk",
+    "name": "Sri Raghavendra Mutt YNK",
+    "slug": "sri-raghavendra-mutt-ynk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logos/ynk_matha_logo.png",
-    "scheme": "rayaramathaynk",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/logos/ynk_matha_logo.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#800000"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rayaramathaynk.mobile"
+      "bundleIdentifier": "com.sriraghavendramuttynk.app"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logos/ynk_matha_logo.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#800000"
       },
-      "package": "com.rayaramathaynk.mobile"
+      "package": "com.sriraghavendramuttynk.app"
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/logos/ynk_matha_logo.png"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router",
-      "expo-font",
-      "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/logos/ynk_matha_logo.png",
-          "color": "#800000"
-        }
-      ]
+      "expo-router"
     ],
-    "experiments": {
-      "typedRoutes": true
+    "extra": {
+      "eas": {
+        "projectId": "YOUR-EAS-PROJECT-ID"
+      }
     }
   }
 }
