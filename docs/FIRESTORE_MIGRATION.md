@@ -71,10 +71,16 @@ Every migrator shares the same rules, enforced by
   - **Scoped Retry:** Resuming a failed migration securely requires an explicit scope (e.g. `--batch 1 --retry-failed` or `--collections events --retry-failed`). It is explicitly impossible to accidentally resume an unscoped retry against the entire database.
 
   **Lifecycle Example:**
-  1. **Run Batch 1 production** (creates valid live manifest artifact)
-  2. **Run Batch 1 --retry-failed** (restores latest VALID production checkpoint from step 1)
-  3. Validate metadata → Skip SUCCESS → Retry FAILED/unattempted
-  4. Generate new manifest artifact.
+  1. **Production Batch 1** → produces `migration-manifest.json` → GitHub Actions artifact.
+  2. **Next Batch 1 --retry-failed** → triggers search for completed workflow runs.
+  3. Inspect `migration-manifest` artifacts in deterministic newest-first order.
+  4. Validate checkpoint metadata (`migrationType`, `inventoryVersion`, `checkpointVersion`, `batchSize`).
+  5. Reject invalid / dry-run / incompatible checkpoints.
+  6. Select newest **VALID** production checkpoint and restore it.
+  7. Skip `SUCCESS` records; Retry `FAILED`/unattempted records in requested scope.
+  8. Write new manifest → Upload new artifact.
+
+  *Note: `--retry-failed` without explicit `--batch <n>` or `--collections <c>` scope is intentionally rejected.*
 - **No synthetic data.** A missing timestamp is never replaced with `new Date()`;
   a missing latency measurement is never replaced with `0`; an unrecorded
   `success` flag is never assumed `true`. Where a destination column is

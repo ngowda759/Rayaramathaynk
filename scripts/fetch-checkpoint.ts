@@ -1,6 +1,7 @@
 import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { validateMigrationCheckpoint, ExpectedMetadata } from "./migrate-all-batched";
 
 function runGh(command: string): any {
   const result = execSync(`gh ${command}`, { encoding: "utf-8" });
@@ -16,14 +17,18 @@ function fetchLatestValidCheckpoint(isDryRun: boolean, expectedBatchSize: number
 
   console.log(`Searching for latest completed runs of ${workflowName}...`);
 
-  // Try main branch first
-  let runs = runGh(`run list --workflow=${workflowName} --status completed --branch main --json databaseId,headBranch`);
-  if (!runs || runs.length === 0) {
-    runs = runGh(`run list --workflow=${workflowName} --status completed --json databaseId,headBranch`);
-  }
+  const expectedMetadata: ExpectedMetadata = {
+    migrationType: isDryRun ? "dry-run" : "production",
+    inventoryVersion: "1.0",
+    batchSize: expectedBatchSize,
+    checkpointVersion: "1.0"
+  };
+
+  // List newest completed runs
+  const runs = runGh(`run list --workflow=${workflowName} --status completed --json databaseId,headBranch --limit 20`);
 
   if (!runs || runs.length === 0) {
-    console.log("No completed workflow runs found.");
+    console.log("No valid previous migration checkpoint found. Starting fresh.");
     return null;
   }
 
@@ -73,25 +78,7 @@ function fetchLatestValidCheckpoint(isDryRun: boolean, expectedBatchSize: number
       continue;
     }
 
-    // Validation
-    const isManifestDryRun = manifest.migrationType === "dry-run";
-    if (isManifestDryRun !== isDryRun) {
-      console.warn(`Manifest from run ${runId} has migrationType=${manifest.migrationType}, but current run requires ${isDryRun ? "dry-run" : "production"}. Skipping.`);
-      continue;
-    }
-
-    if (manifest.inventoryVersion !== "1.0") {
-      console.warn(`Manifest from run ${runId} has incompatible inventoryVersion ${manifest.inventoryVersion}. Skipping.`);
-      continue;
-    }
-
-    if (manifest.batchSize !== expectedBatchSize && manifest.batchSize !== undefined) {
-      console.warn(`Manifest from run ${runId} has mismatched batchSize ${manifest.batchSize} (expected ${expectedBatchSize}). Skipping.`);
-      continue;
-    }
-
-    if (!manifest.records || typeof manifest.records !== 'object') {
-      console.warn(`Manifest from run ${runId} has invalid records structure. Skipping.`);
+    if (!validateMigrationCheckpoint(manifest, expectedMetadata)) {
       continue;
     }
 

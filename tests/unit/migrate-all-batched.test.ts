@@ -25,6 +25,7 @@ describe("Batched Migration Execution Plan", () => {
     migrationType: "production",
     batchSize: 10,
     checkpointVersion: "1.0",
+    checkpointSourceRunId: "test-run-0",
     excludedCollections: [],
     reviewedCollections: [],
     records: {
@@ -110,6 +111,44 @@ describe("Batched Migration Execution Plan", () => {
     const sizeMismatchManifest = { ...mockManifest, batchSize: 500 };
 
     const plan = buildExecutionPlan(args, sizeMismatchManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+    it("should discard checkpoint with missing checkpointVersion", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest };
+    delete (invalidManifest as any).checkpointVersion;
+
+    const plan = buildExecutionPlan(args, invalidManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined(); // If discarded, defaults to whole batch 1
+  });
+
+  it("should discard checkpoint with incompatible checkpointVersion", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest, checkpointVersion: "0.1" };
+
+    const plan = buildExecutionPlan(args, invalidManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+  it("should discard checkpoint with missing runId", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest };
+    delete (invalidManifest as any).runId;
+
+    const plan = buildExecutionPlan(args, invalidManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+  it("should discard checkpoint with invalid checkpointSourceRunId structure", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest, checkpointSourceRunId: 12345 as any };
+
+    const plan = buildExecutionPlan(args, invalidManifest);
     const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
     expect(sevasInPlan).toBeDefined();
   });
