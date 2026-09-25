@@ -5,7 +5,15 @@ jest.mock("../../lib/supabase/migration-inventory", () => {
   const original = jest.requireActual("../../lib/supabase/migration-inventory");
   return {
     ...original,
-    getBatchedMigratableCollections: jest.fn(original.getBatchedMigratableCollections)
+    getBatchedMigratableCollections: jest.fn().mockReturnValue([
+      [
+        { collection: "sevas", destinationTable: "sevas", classification: "MIGRATE" },
+        { collection: "dailyPoojas", destinationTable: "daily_poojas", classification: "MIGRATE" }
+      ],
+      [
+        { collection: "events", destinationTable: "events", classification: "MIGRATE" }
+      ]
+    ])
   };
 });
 
@@ -54,7 +62,7 @@ describe("Batched Migration Execution Plan", () => {
   });
 
   it("should populate all collections when --retry-failed is passed with no other filters", () => {
-    const args = parseArgs(["node", "script.js", "--retry-failed"]);
+    const args = parseArgs(["--retry-failed"]);
     const plan = buildExecutionPlan(args, mockManifest);
 
     // Total batches
@@ -73,14 +81,14 @@ describe("Batched Migration Execution Plan", () => {
   });
 
   it("should return empty execution plan by default if no arguments are provided", () => {
-    const args = parseArgs(["node", "script.js"]);
+    const args = parseArgs([]);
     const plan = buildExecutionPlan(args, null);
 
     expect(plan.collectionsToRun.length).toBe(0);
   });
 
   it("should select specific batch if --batch is provided", () => {
-    const args = parseArgs(["node", "script.js", "--batch", "1"]);
+    const args = parseArgs(["--batch", "1"]);
     const plan = buildExecutionPlan(args, null);
 
     expect(plan.collectionsToRun.length).toBeGreaterThan(0);

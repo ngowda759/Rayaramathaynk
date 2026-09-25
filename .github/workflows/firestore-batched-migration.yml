@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   migrate:
@@ -62,13 +63,20 @@ jobs:
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
 
-      - name: Restore Migration Checkpoint
-        uses: actions/cache/restore@v4
-        with:
-          path: data/migration-manifest.json
-          key: migration-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            migration-checkpoint-
+      - name: Download Previous Migration Manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Attempting to download latest migration-manifest artifact..."
+          # Find the latest successful or failed run of this workflow that produced an artifact
+          LATEST_RUN=$(gh run list --workflow=firestore-batched-migration.yml --status completed --json databaseId --jq '.[0].databaseId')
+          if [ -n "$LATEST_RUN" ]; then
+            echo "Latest run ID: $LATEST_RUN"
+            # Download the artifact if it exists. Ignore failures if not found.
+            gh run download $LATEST_RUN -n migration-manifest --dir data || echo "No previous manifest artifact found."
+          else
+            echo "No previous runs found."
+          fi
 
       - name: Execute Batched Migration
         env:
@@ -97,13 +105,6 @@ jobs:
 
           echo "Executing migration with args: $ARGS"
           npx tsx scripts/migrate-all-batched.ts $ARGS
-
-      - name: Save Migration Checkpoint
-        uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: data/migration-manifest.json
-          key: migration-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload Migration Manifest
         uses: actions/upload-artifact@v4
