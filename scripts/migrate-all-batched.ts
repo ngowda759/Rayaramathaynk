@@ -31,7 +31,8 @@ export interface Manifest {
   runId: string;
   overallStatus: "RUNNING" | "SUCCESS" | "FAILED" | "PARTIAL";
   inventoryVersion: string;
-  isDryRun: boolean;
+  migrationType: "production" | "dry-run";
+  batchSize: number;
   checkpointSourceRunId?: string;
   checkpointSourceBranch?: string;
   excludedCollections: string[];
@@ -99,10 +100,23 @@ export function parseArgs(argv: string[]) {
 }
 
 export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest: Manifest | null) {
-  // Never reuse a dry-run manifest for a live migration execution
-  if (manifest && manifest.isDryRun && !args.dryRun) {
-    console.warn("Discarding previous dry-run checkpoint for a live migration run.");
-    manifest = null;
+  // Validate checkpoint metadata
+  if (manifest) {
+    // Treat legacy manifests missing migrationType as invalid for safety
+    if (!manifest.migrationType) {
+      console.warn("Discarding checkpoint: Missing migrationType metadata.");
+      manifest = null;
+    } else if (manifest.migrationType === "dry-run" && !args.dryRun) {
+      console.warn("Discarding checkpoint: Cannot use dry-run checkpoint for live migration run.");
+      manifest = null;
+    } else if (manifest.batchSize !== args.batchSize && manifest.batchSize !== undefined) {
+      console.warn(`Discarding checkpoint: Batch size mismatch (checkpoint: ${manifest.batchSize}, current: ${args.batchSize}).`);
+      manifest = null;
+    }
+  }
+
+  if (args.retryFailed && args.collections.length === 0 && args.batch <= 0) {
+    throw new Error("retry-failed requires either --batch or --collections to be specified.");
   }
 
   const allBatches = getBatchedMigratableCollections(args.batchSize);
@@ -143,14 +157,8 @@ export function buildExecutionPlan(args: ReturnType<typeof parseArgs>, manifest:
     }
     const batchItems = allBatches[args.batch - 1];
     collectionsToRun = batchItems.map(item => ({ item, batchIndex: args.batch }));
-  } else if (args.retryFailed) {
-    allBatches.forEach((batchItems, index) => {
-      batchItems.forEach(item => {
-        collectionsToRun.push({ item, batchIndex: index + 1 });
-      });
-    });
   } else {
-    // If no batch is specified, no collections are explicitly requested, and we aren't retrying all
+    // If no batch is specified, no collections are explicitly requested
     // Then we do NOT execute all batches by default.
     collectionsToRun = [];
   }
@@ -183,9 +191,17 @@ export async function executePlan(
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
   }
 
-  if (manifest && manifest.isDryRun && !args.dryRun) {
-    console.warn("Discarding previous dry-run checkpoint for a live migration run.");
-    manifest = null;
+  if (manifest) {
+    if (!manifest.migrationType) {
+      console.warn("Discarding checkpoint: Missing migrationType metadata.");
+      manifest = null;
+    } else if (manifest.migrationType === "dry-run" && !args.dryRun) {
+      console.warn("Discarding checkpoint: Cannot use dry-run checkpoint for live migration run.");
+      manifest = null;
+    } else if (manifest.batchSize !== args.batchSize && manifest.batchSize !== undefined) {
+      console.warn(`Discarding checkpoint: Batch size mismatch (checkpoint: ${manifest.batchSize}, current: ${args.batchSize}).`);
+      manifest = null;
+    }
   }
 
   if (!manifest) {
@@ -193,7 +209,8 @@ export async function executePlan(
       runId: new Date().toISOString(),
       overallStatus: "RUNNING",
       inventoryVersion: "1.0",
-      isDryRun: args.dryRun,
+      migrationType: args.dryRun ? "dry-run" : "production",
+      batchSize: args.batchSize,
       checkpointSourceRunId: process.env.CHECKPOINT_SOURCE_RUN_ID || undefined,
       checkpointSourceBranch: process.env.CHECKPOINT_SOURCE_BRANCH || undefined,
       excludedCollections: EXCLUDED_AUTH_COLLECTIONS,
@@ -202,7 +219,8 @@ export async function executePlan(
     };
   } else {
     // Preserve initial run checkpoint origins or overwrite with current
-    manifest.isDryRun = args.dryRun;
+    manifest.migrationType = args.dryRun ? "dry-run" : "production";
+    manifest.batchSize = args.batchSize;
     if (process.env.CHECKPOINT_SOURCE_RUN_ID) {
        manifest.checkpointSourceRunId = process.env.CHECKPOINT_SOURCE_RUN_ID;
     }

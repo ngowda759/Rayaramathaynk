@@ -22,7 +22,8 @@ describe("Batched Migration Execution Plan", () => {
     runId: "test-run",
     overallStatus: "RUNNING",
     inventoryVersion: "1.0",
-    isDryRun: false,
+    migrationType: "production",
+    batchSize: 10,
     excludedCollections: [],
     reviewedCollections: [],
     records: {
@@ -62,11 +63,15 @@ describe("Batched Migration Execution Plan", () => {
     jest.clearAllMocks();
   });
 
-  it("should populate all collections when --retry-failed is passed with no other filters", () => {
+  it("should throw error when --retry-failed is passed without scope", () => {
     const args = parseArgs(["--retry-failed"]);
+    expect(() => buildExecutionPlan(args, mockManifest)).toThrow("retry-failed requires either --batch or --collections to be specified.");
+  });
+
+  it("should populate failed and unattempted collections when --retry-failed and --batch is passed", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
     const plan = buildExecutionPlan(args, mockManifest);
 
-    // Total batches
     expect(plan.allBatchesCount).toBeGreaterThan(0);
 
     // It should include dailyPoojas (which failed) but EXCLUDE sevas (which succeeded)
@@ -75,10 +80,37 @@ describe("Batched Migration Execution Plan", () => {
 
     expect(sevasInPlan).toBeUndefined();
     expect(poojasInPlan).toBeDefined();
+  });
 
-    // It should also include collections not present in the manifest (unattempted)
-    const eventsInPlan = plan.collectionsToRun.find(c => c.item.collection === "events");
-    expect(eventsInPlan).toBeDefined();
+  it("should discard dry-run checkpoint on a live migration run", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const dryRunManifest = { ...mockManifest, migrationType: "dry-run" as const };
+
+    // Live migration (args.dryRun = false) + dry-run manifest = discard manifest
+    const plan = buildExecutionPlan(args, dryRunManifest);
+
+    // Without manifest, it includes ALL collections from batch 1 (because no "SUCCESS" records exist to filter)
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+  it("should discard checkpoint with missing migrationType metadata", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const invalidManifest = { ...mockManifest };
+    delete (invalidManifest as any).migrationType;
+
+    const plan = buildExecutionPlan(args, invalidManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
+  });
+
+  it("should discard checkpoint if batch size mismatches", () => {
+    const args = parseArgs(["--retry-failed", "--batch", "1"]);
+    const sizeMismatchManifest = { ...mockManifest, batchSize: 500 };
+
+    const plan = buildExecutionPlan(args, sizeMismatchManifest);
+    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
+    expect(sevasInPlan).toBeDefined();
   });
 
   it("should return empty execution plan by default if no arguments are provided", () => {
@@ -94,17 +126,5 @@ describe("Batched Migration Execution Plan", () => {
 
     expect(plan.collectionsToRun.length).toBeGreaterThan(0);
     expect(plan.collectionsToRun.every(c => c.batchIndex === 1)).toBe(true);
-  });
-
-  it("should discard dry-run checkpoint on a live migration run", () => {
-    const args = parseArgs(["--retry-failed"]);
-    const dryRunManifest = { ...mockManifest, isDryRun: true };
-
-    // Live migration (args.dryRun = false) + dry-run manifest = discard manifest
-    const plan = buildExecutionPlan(args, dryRunManifest);
-
-    // Without manifest, it includes ALL collections (because no "SUCCESS" records exist to filter)
-    const sevasInPlan = plan.collectionsToRun.find(c => c.item.collection === "sevas");
-    expect(sevasInPlan).toBeDefined();
   });
 });
