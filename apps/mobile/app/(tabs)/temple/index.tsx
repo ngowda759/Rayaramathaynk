@@ -1,19 +1,48 @@
-import { ScrollView, View, Text, StyleSheet, Linking, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Linking, TouchableOpacity, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../../constants/theme';
 import { Card } from '../../../components/shared/Card';
+import { useDataFetch } from '../../../hooks/useDataFetch';
+import { getSiteSettings, getSettingsDocument } from '../../../services/settings.service';
+import { LoadingState } from '../../../components/shared/LoadingState';
+import { ErrorState } from '../../../components/shared/ErrorState';
 
 export default function TempleScreen() {
-  const openMap = () => {
-    Linking.openURL('https://maps.google.com/?q=Sri+Raghavendra+Swamy+Mutt+Yelahanka+New+Town');
+  const { data: siteSettings, loading: sLoading, error: sError, refetch: refetchS } = useDataFetch(getSiteSettings);
+  const { data: aboutUs, loading: aLoading, refetch: refetchA } = useDataFetch(() => getSettingsDocument('aboutUs'));
+  const { data: guruParampara, loading: gLoading, refetch: refetchG } = useDataFetch(() => getSettingsDocument('guruParampara'));
+
+  const loading = sLoading || aLoading || gLoading;
+
+  const onRefresh = () => {
+    refetchS();
+    refetchA();
+    refetchG();
   };
 
-  const callPhone = () => {
-    Linking.openURL('tel:+918028460677'); // Example placeholder, modify if real exists
+  if (loading && !siteSettings) return <LoadingState />;
+  if (sError) return <ErrorState message="Failed to load Temple info" onRetry={onRefresh} />;
+
+  const address = siteSettings?.address || 'Yelahanka New Town, Bengaluru, Karnataka';
+  const phone = siteSettings?.contact_phone || '+918028460677';
+  const email = siteSettings?.contact_email;
+  const mapsLink = siteSettings?.google_maps_link || "https://maps.google.com/?q=" + encodeURIComponent(address);
+
+  const openMap = () => Linking.openURL(mapsLink);
+  const callPhone = () => Linking.openURL("tel:" + phone.replace(/[^0-9+]/g, ''));
+  const sendEmail = () => email && Linking.openURL("mailto:" + email);
+
+  const renderDescription = (text: string | undefined, defaultText: string) => {
+    if (!text) return defaultText;
+    // Basic clean up of HTML tags if the backend sends rich text
+    return text.replace(/<[^>]*>?/gm, '');
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}
+    >
       <View style={styles.hero}>
         <MaterialCommunityIcons name="temple-hindu" size={64} color={COLORS.secondary} />
         <Text style={styles.title}>About the Temple</Text>
@@ -22,7 +51,7 @@ export default function TempleScreen() {
       <View style={styles.content}>
         <Card style={styles.infoCard}>
           <Text style={styles.description}>
-            Sri Raghavendra Swamy Mutt, Yelahanka New Town is a spiritual center dedicated to Sri Raghavendra Swamy. It serves the local community with daily poojas, special sevas, and spiritual guidance based on Madhwa philosophy.
+            {renderDescription(aboutUs?.content, 'Sri Raghavendra Swamy Mutt is a spiritual center dedicated to Sri Raghavendra Swamy.')}
           </Text>
         </Card>
 
@@ -31,8 +60,8 @@ export default function TempleScreen() {
           <View style={styles.contactRow}>
             <MaterialCommunityIcons name="map-marker" size={24} color={COLORS.primary} />
             <View style={styles.contactDetails}>
-              <Text style={styles.contactText}>Sri Raghavendra Swamy Mutt</Text>
-              <Text style={styles.contactSubText}>Yelahanka New Town, Bengaluru, Karnataka</Text>
+              <Text style={styles.contactText}>{siteSettings?.temple_name || "Sri Raghavendra Swamy Mutt"}</Text>
+              <Text style={styles.contactSubText}>{address}</Text>
             </View>
           </View>
 
@@ -44,17 +73,27 @@ export default function TempleScreen() {
 
             <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={callPhone}>
               <MaterialCommunityIcons name="phone" size={20} color={COLORS.primary} />
-              <Text style={[styles.buttonText, { color: COLORS.primary }]}>Call Us</Text>
+              <Text style={[styles.buttonText, { color: COLORS.primary }]}>Call</Text>
             </TouchableOpacity>
+
+            {email ? (
+              <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={sendEmail}>
+                <MaterialCommunityIcons name="email" size={20} color={COLORS.primary} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </Card>
 
-        <Text style={styles.sectionTitle}>Guru Parampara</Text>
-        <Card>
-          <Text style={styles.description}>
-            The mutt strictly follows the lineage of Sri Madhwacharya and the illustrious Guru Parampara leading to Sri Raghavendra Swamiji, maintaining authentic traditional practices.
-          </Text>
-        </Card>
+        {guruParampara ? (
+          <View>
+            <Text style={styles.sectionTitle}>Guru Parampara</Text>
+            <Card>
+              <Text style={styles.description}>
+                {renderDescription(guruParampara.content || guruParampara.description, 'The mutt follows the lineage of Sri Madhwacharya and Sri Raghavendra Swamy.')}
+              </Text>
+            </Card>
+          </View>
+        ) : null}
 
         <View style={{ height: SPACING.xl }} />
       </View>

@@ -14,6 +14,7 @@ export default function AIScreen() {
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', role: 'assistant', content: 'Namaskara! I am Raya AI, your guide to Sri Raghavendra Swamy Mutt. How can I help you today?' }
   ]);
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
@@ -33,15 +34,32 @@ export default function AIScreen() {
 
     try {
       // Use existing API chat endpoint
-      const response = await apiClient.post('/api/chat', {
-        messages: [{ role: 'user', content: userMessage.content }],
-        language: 'en' // Defaulting to English, AI backend can auto-detect Kannada based on user input
-      });
+      // The backend expects: { messages: AIMessage[], sessionId?: string, language?: string }
+      // AIMessage needs id, role, content, timestamp
+      // Response returns: { message: { id, role, content, timestamp, detectedLanguage }, sessionId }
+
+      const payload = {
+        messages: messages.concat(userMessage).map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: parseInt(m.id, 10)
+        })),
+        sessionId,
+      };
+
+      const response = await apiClient.post('/api/chat', payload);
+
+      if (response.data?.sessionId) {
+        setSessionId(response.data.sessionId);
+      }
+
+      const responseMessage = response.data?.message;
 
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: responseMessage?.id || (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.data?.answer || "I apologize, but I couldn't process your request at the moment.",
+        content: responseMessage?.content || "I apologize, but I couldn't process your request at the moment.",
       };
 
       setMessages(prev => [...prev, assistantMessage]);

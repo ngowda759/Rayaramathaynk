@@ -61,6 +61,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialCommunityIcons name="robot" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="more/index"
+        options={{
+          title: 'More',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="menu" size={24} color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

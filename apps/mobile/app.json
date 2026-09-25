@@ -4,34 +4,22 @@
     "slug": "sri-raghavendra-mutt-ynk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#800000"
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sriraghavendramuttynk.app"
+      "bundleIdentifier": "in.rayaramathaynk.app"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#800000"
-      },
-      "package": "com.sriraghavendramuttynk.app"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "package": "in.rayaramathaynk.app"
     },
     "plugins": [
-      "expo-router"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "YOUR-EAS-PROJECT-ID"
-      }
-    }
+      "expo-router",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Sri Raghavendra Mutt to access your microphone for video playback."
+        }
+      ]
+    ]
   }
 }

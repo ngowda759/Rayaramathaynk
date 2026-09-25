@@ -2,30 +2,58 @@ import { apiClient } from '../lib/api/client';
 
 export interface PanchangaData {
   date: string;
-  tithi: string;
-  paksha: string;
-  nakshatra: string;
-  yoga: string;
-  karana: string;
-  sunrise: string;
-  sunset: string;
+  tithi?: string;
+  paksha?: string;
+  nakshatra?: string;
+  yoga?: string;
+  karana?: string;
+  sunrise?: string;
+  sunset?: string;
+  moonrise?: string;
+  moonset?: string;
+  rahuKalam?: string;
+  yamaganda?: string;
+  gulika?: string;
 }
 
 export const getTodayPanchanga = async (): Promise<PanchangaData | null> => {
   try {
-    // In the real app we hit the web backend API, or if we have a direct Supabase route, we use it.
-    // The web app fetches panchanga via some API or static config.
-    // Assuming the Next.js API /api/public/stats or a custom one returns this, we'll implement a fallback mock or fetch.
-    // The actual system gets it via `services/panchanga.service.ts` locally. We need to hit an endpoint.
+    // The backend exposes `/api/dashboard/daily-spiritual` which provides:
+    // { templeStatus, quote, featuredEvent, announcements, announcement2 }
+    // It DOES NOT expose panchanga in `daily-spiritual`!
+    // But Raya AI has a multi-source endpoint.
+    // The actual Next.js backend generates it internally using `public/data/panchanga/current.json`
+    // Wait, the client is mobile, it cannot read `public/data/panchanga/current.json` directly from the filesystem!
+    // But it CAN fetch it over HTTP since it's in the Next.js `public` directory.
+    // Let's fetch it from `CONFIG.API_URL + '/data/panchanga/current.json'` !
 
-    // For now, let's setup the signature. We'll refine the implementation based on available APIs.
-    // We can use Supabase to fetch from `daily_poojas` or `panchanga` if those exist.
-    // Wait, the Next.js app has a dedicated panchanga generator or gets it from Firestore.
-    // Let's implement a robust fetch wrapper.
-    const response = await apiClient.get('/api/dashboard/daily-spiritual');
-    return response.data?.panchanga || null;
+    const response = await apiClient.get('/data/panchanga/current.json');
+    const data = response.data;
+
+    if (data) {
+       return {
+         date: data.date,
+         tithi: data.tithi?.name || "—",
+         nakshatra: data.nakshatra?.name ? `${data.nakshatra.name} (Pada ${data.nakshatra.pada})` : "—",
+         yoga: data.yoga?.name || "—",
+         karana: data.karana?.name || "—",
+         sunrise: formatTime(data.sun?.sunrise),
+         sunset: formatTime(data.sun?.sunset),
+       };
+    }
+    return null;
   } catch (error) {
-    console.error('Failed to fetch Panchanga:', error);
+    console.warn('Failed to fetch Panchanga from public json:', error);
     return null;
   }
+};
+
+const formatTime = (isoString: string | undefined) => {
+  if (!isoString) return "—";
+  const d = new Date(isoString);
+  return d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 };

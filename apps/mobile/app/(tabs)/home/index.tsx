@@ -3,19 +3,26 @@ import { COLORS, SPACING } from '../../../constants/theme';
 import { useDataFetch } from '../../../hooks/useDataFetch';
 import { getTodayPanchanga } from '../../../services/panchanga.service';
 import { getActiveAnnouncements } from '../../../services/announcements.service';
+import { getSiteSettings, getSettingsDocument } from '../../../services/settings.service';
 import { Card } from '../../../components/shared/Card';
 import { LoadingState } from '../../../components/shared/LoadingState';
 
 export default function HomeScreen() {
   const { data: panchanga, loading: pLoading, refetch: refetchP } = useDataFetch(getTodayPanchanga);
   const { data: announcements, loading: aLoading, refetch: refetchA } = useDataFetch(getActiveAnnouncements);
+  const { data: siteSettings, loading: sLoading, refetch: refetchS } = useDataFetch(getSiteSettings);
+  const { data: poojaSchedule, loading: psLoading, refetch: refetchPS } = useDataFetch(() => getSettingsDocument('poojaSchedule'));
 
-  const refreshing = pLoading || aLoading;
+  const refreshing = pLoading || aLoading || sLoading || psLoading;
 
   const onRefresh = () => {
     refetchP();
     refetchA();
+    refetchS();
+    refetchPS();
   };
+
+  const scheduleText = poojaSchedule?.schedule || poojaSchedule?.description || "Morning & Evening Darshan available";
 
   return (
     <ScrollView
@@ -23,7 +30,7 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Sri Raghavendra Swamy Mutt</Text>
+        <Text style={styles.title}>{siteSettings?.temple_name || "Sri Raghavendra Swamy Mutt"}</Text>
         <Text style={styles.subtitle}>Yelahanka New Town</Text>
       </View>
 
@@ -47,22 +54,21 @@ export default function HomeScreen() {
           <LoadingState />
         ) : panchanga ? (
           <Card>
-            <View style={styles.row}><Text style={styles.label}>Tithi:</Text><Text style={styles.value}>{panchanga.tithi}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Nakshatra:</Text><Text style={styles.value}>{panchanga.nakshatra}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Yoga:</Text><Text style={styles.value}>{panchanga.yoga}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Sunrise:</Text><Text style={styles.value}>{panchanga.sunrise}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Sunset:</Text><Text style={styles.value}>{panchanga.sunset}</Text></View>
+            {panchanga.tithi && <View style={styles.row}><Text style={styles.label}>Tithi:</Text><Text style={styles.value}>{panchanga.tithi}</Text></View>}
+            {panchanga.nakshatra && <View style={styles.row}><Text style={styles.label}>Nakshatra:</Text><Text style={styles.value}>{panchanga.nakshatra}</Text></View>}
+            {panchanga.yoga && <View style={styles.row}><Text style={styles.label}>Yoga:</Text><Text style={styles.value}>{panchanga.yoga}</Text></View>}
+            {panchanga.sunrise && <View style={styles.row}><Text style={styles.label}>Sunrise:</Text><Text style={styles.value}>{panchanga.sunrise}</Text></View>}
+            {panchanga.sunset && <View style={styles.row}><Text style={styles.label}>Sunset:</Text><Text style={styles.value}>{panchanga.sunset}</Text></View>}
           </Card>
         ) : (
-          <Card><Text style={styles.emptyText}>Panchanga details will be updated shortly.</Text></Card>
+          <Card><Text style={styles.emptyText}>Panchanga details are currently unavailable.</Text></Card>
         )}
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Temple Timings</Text>
         <Card>
-          <View style={styles.row}><Text style={styles.label}>Morning:</Text><Text style={styles.value}>7:00 AM - 12:30 PM</Text></View>
-          <View style={styles.row}><Text style={styles.label}>Evening:</Text><Text style={styles.value}>5:30 PM - 8:30 PM</Text></View>
+          <Text style={styles.description}>{scheduleText}</Text>
         </Card>
       </View>
 
@@ -127,6 +133,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: COLORS.text.secondary,
     fontStyle: 'italic',
+  },
+  description: {
+    fontSize: 16,
+    color: COLORS.text.primary,
+    lineHeight: 24,
   },
   announcementCard: {
     borderLeftWidth: 4,

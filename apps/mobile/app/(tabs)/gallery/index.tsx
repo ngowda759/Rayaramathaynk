@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, Image, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { COLORS, SPACING } from '../../../constants/theme';
 import { useDataFetch } from '../../../hooks/useDataFetch';
 import { getGalleryMedia, GalleryMedia } from '../../../services/gallery.service';
@@ -54,8 +55,18 @@ export default function GalleryScreen() {
           <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedMedia(null)}>
             <MaterialCommunityIcons name="close" size={32} color={COLORS.surface} />
           </TouchableOpacity>
-          {selectedMedia && (
-            <Image source={{ uri: selectedMedia.url }} style={styles.fullScreenImage} resizeMode="contain" />
+          {selectedMedia && selectedMedia.type === 'image' && (
+            <Image source={{ uri: selectedMedia.url }} style={styles.fullScreenMedia} resizeMode="contain" />
+          )}
+          {selectedMedia && selectedMedia.type === 'video' && (
+            <Video
+              source={{ uri: selectedMedia.url }}
+              style={styles.fullScreenMedia}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping
+              shouldPlay
+            />
           )}
         </View>
       </Modal>
@@ -110,7 +121,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: SPACING.sm,
   },
-  fullScreenImage: {
+  fullScreenMedia: {
     width: '100%',
     height: '80%',
   }
