@@ -9,9 +9,9 @@
  */
 
 export type LunarMonth =
-  | "Caitra" | "Vaiśākha" | "Jyeṣṭha" | "Āṣāḍha"
-  | "Śrāvaṇa" | "Bhādrapada" | "Āśvina" | "Kārttika"
-  | "Mārgaśīrṣa" | "Pauṣa" | "Māgha" | "Phālguna";
+  | "Chaitra" | "Vaishakha" | "Jyeṣṭha" | "Āṣāḍha"
+  | "Śrāvaṇa" | "Bhādrapada" | "Āśvina" | "Kārtika"
+  | "Mārghaśīrṣa" | "Pauṣa" | "Māgha" | "Phālguna";
 
 export type Paksha = "Shukla" | "Krishna";
 
@@ -83,7 +83,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Madhvacharya",
     title: "Sri Madhvacharya Aaradhane",
     paramparaNumber: 1,
-    lunarMonth: "Caitra",
+    lunarMonth: "Chaitra",
     paksha: "Shukla",
     tithiNumber: 10,
     tithi: "Dashami",
@@ -98,7 +98,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Padmanabha Teertharu",
     title: "Sri Padmanabha Teertha Aaradhane",
     paramparaNumber: 2,
-    lunarMonth: "Vaiśākha",
+    lunarMonth: "Vaishakha",
     paksha: "Shukla",
     tithiNumber: 8,
     tithi: "Ashtami",
@@ -184,7 +184,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Kavendra Teertharu",
     title: "Sri Kavendra Teertha Aaradhane",
     paramparaNumber: 8,
-    lunarMonth: "Kārttika",
+    lunarMonth: "Kārtika",
     paksha: "Krishna",
     tithiNumber: 11,
     tithi: "Ekadashi",
@@ -198,7 +198,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Vageesha Teertharu",
     title: "Sri Vageesha Teertha Aaradhane",
     paramparaNumber: 9,
-    lunarMonth: "Mārgaśīrṣa",
+    lunarMonth: "Mārghaśīrṣa",
     paksha: "Shukla",
     tithiNumber: 3,
     tithi: "Tṛtiya",
@@ -240,7 +240,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Jitamitra Teertharu",
     title: "Sri Jitamitra Teertha Aaradhane",
     paramparaNumber: 12,
-    lunarMonth: "Caitra",
+    lunarMonth: "Chaitra",
     paksha: "Krishna",
     tithiNumber: 10,
     tithi: "Dashami",
@@ -254,7 +254,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Raghunandana Teertharu",
     title: "Sri Raghunandana Teertha Aaradhane",
     paramparaNumber: 13,
-    lunarMonth: "Vaiśākha",
+    lunarMonth: "Vaishakha",
     paksha: "Shukla",
     tithiNumber: 11,
     tithi: "Ekadashi",
@@ -312,7 +312,7 @@ export const GURU_AARADHANES: GuruAaradhaneRecord[] = [
     guruName: "Sri Raghavendra Swamy",
     title: "Sri Raghavendra Swamy Poorva Aaradhane",
     paramparaNumber: 17,
-    lunarMonth: "Vaiśākha",
+    lunarMonth: "Vaishakha",
     paksha: "Krishna",
     tithiNumber: 13,
     tithi: "Trayodashi",

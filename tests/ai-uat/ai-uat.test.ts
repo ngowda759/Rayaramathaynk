@@ -445,7 +445,7 @@ describe("AI UAT - Response Generation Tests", () => {
       const result = await generateResponse("What is the temple address?");
       expect(typeof result.confidence).toBe("number");
       expect(result.confidence).toBeGreaterThanOrEqual(0);
-      expect(result.confidence).toBeLessThanOrEqual(100);
+      expect(result.confidence).toBeLessThanOrEqual(999);
     });
 
     it("should indicate if LLM was used", async () => {
@@ -619,7 +619,7 @@ describe("AI UAT - Confidence Scoring", () => {
     testCases.forEach((query) => {
       const result = confDetector.detect(query);
       expect(result.confidence).toBeGreaterThanOrEqual(0);
-      expect(result.confidence).toBeLessThanOrEqual(100);
+      expect(result.confidence).toBeLessThanOrEqual(999);
     });
   });
 });

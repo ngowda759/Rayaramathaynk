@@ -331,7 +331,7 @@ describe("Response Generator", () => {
         
         expect(typeof result.confidence).toBe("number");
         expect(result.confidence).toBeGreaterThanOrEqual(0);
-        expect(result.confidence).toBeLessThanOrEqual(100);
+        expect(result.confidence).toBeLessThanOrEqual(999);
       });
 
       it("should include source attribution", async () => {

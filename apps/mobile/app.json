@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Sri Raghavendra Swamy Temple",
+    "slug": "rayara-matha-ynk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logos/ynk_matha_logo.png",
+    "scheme": "rayaramathaynk",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/logos/ynk_matha_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#800000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rayaramathaynk.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logos/ynk_matha_logo.png",
+        "backgroundColor": "#800000"
+      },
+      "package": "com.rayaramathaynk.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logos/ynk_matha_logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logos/ynk_matha_logo.png",
+          "color": "#800000"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

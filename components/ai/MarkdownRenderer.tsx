@@ -12,7 +12,15 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     let html = content;
 
     // Escape HTML
-    html = html.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    let cleanHtml = "";
+    for (let i = 0; i < html.length; i++) {
+      if (html[i] === '<') cleanHtml += '&lt;';
+      else if (html[i] === '>') cleanHtml += '&gt;';
+      else cleanHtml += html[i];
+    }
+    html = cleanHtml;
+
 
     // Bold
     html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
@@ -43,7 +51,13 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     html = html.replace(/`(.*?)`/g, "<code class=\"bg-stone-100 px-1 py-0.5 rounded text-sm font-mono\">$1</code>");
 
     // Links
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">$1</a>');
+
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, url) => {
+      // Validate URL to prevent XSS (javascript:, vbscript:, data:)
+      const safeUrl = /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : '#';
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">${text}</a>`;
+    });
+
 
     return html;
   }, [content]);

@@ -1,0 +1,26 @@
+--- lib/ai/intent/detector.ts
++++ lib/ai/intent/detector.ts
+@@ -477,22 +477,13 @@
+     keywordResult: IntentDetectionResult,
+     semanticResult: IntentDetectionResult
+   ): IntentDetectionResult {
+
+-    // Completely override semantic logic if we have an explicit keyword match that is NOT unknown.
+-    // Semantic embeddings are clustering domain words ("annadana", "archana") into incorrect general buckets ("FAQ", "NEXT_AARADHANE").
+-    if (keywordResult.intent !== Intent.UNKNOWN) {
+-      // Semantic perfect match ONLY overrides if it was a strict keyword engine fallback match
+-      if (semanticResult.confidence === 100 && semanticResult.source === RetrievalType.SEMANTIC_MATCH && keywordResult.confidence < 45) {
+-         return semanticResult;
+-      }
+-
+-      // Otherwise, rigid domain terms MUST WIN over ML vectors.
+-      keywordResult.confidence = 100;
+-      return keywordResult;
++    // VERY STRICT ARBITRATION
++    // If keyword engine matched anything in its dictionary, we MUST use its intent.
++    // The ONLY exception is if Semantic is 100% confident AND Keyword is completely blind (UNKNOWN).
++    if (keywordResult.matchedKeywords && keywordResult.matchedKeywords.length > 0) {
++        return { ...keywordResult, confidence: 100 };
+     }
+
+     if (keywordResult.intent === semanticResult.intent) {
