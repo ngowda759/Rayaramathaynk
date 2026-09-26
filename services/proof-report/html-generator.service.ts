@@ -845,11 +845,7 @@ export class HtmlGeneratorService {
 
   private escapeHtml(text: string): string {
     return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;')
+      .replace(/&/g, '&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#039;')
       .replace(/\n/g, '<br>');
   }
 }

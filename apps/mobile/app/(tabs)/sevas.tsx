@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { fetchSevas } from '../../lib/api';
@@ -31,7 +30,7 @@ export default function SevasScreen() {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search sevas..."
+          placeholder="Search poojas and sevas..."
           value={search}
           onChangeText={setSearch}
         />

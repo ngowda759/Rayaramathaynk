@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { fetchEvents } from '../../lib/api';

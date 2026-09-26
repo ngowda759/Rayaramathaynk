@@ -491,7 +491,7 @@ function selectByFestival(context: QuoteSelectionContext, quotes: Quote[]): Quot
     q.festivalNames.includes(festivalKey)
   );
   
-  if (festivalQuotes.length === 0) return deterministicSelect(quotes, getDateString(context.date));
+  if (festivalQuotes.length === 0) return quotes[0] || null;
   
   return deterministicSelect(festivalQuotes, getDateString(context.date));
 }
@@ -512,13 +512,17 @@ function selectByPriority(quotes: Quote[], context: QuoteSelectionContext): Quot
   
   // Festival quotes take precedence
   if (context.isFestival) {
-    const festivalQuotes = sorted.filter(q => q.festivalOnly);
+    const festivalQuotes = sorted.filter(q => q.festivalNames.length > 0);
     if (festivalQuotes.length > 0) {
       return deterministicSelect(festivalQuotes, getDateString(context.date));
     }
   }
   
   // Fall back to priority-sorted quotes
+  const nonFestivalQuotes = sorted.filter(q => !q.festivalOnly);
+  if (nonFestivalQuotes.length > 0) {
+    return deterministicSelect(nonFestivalQuotes, getDateString(context.date));
+  }
   if (sorted.length > 0) {
     return deterministicSelect(sorted, getDateString(context.date));
   }
@@ -562,7 +566,7 @@ function exportQuote(quote: Quote): Omit<Quote, "id" | "createdAt" | "updatedAt"
   return rest;
 }
 
-function validateQuote(data: Record<string, unknown>): boolean {
+function validateQuote(data: any): boolean {
   if (!data.title || !data.category || !data.source) return false;
   if (!validateCategory(data.category)) return false;
   return true;

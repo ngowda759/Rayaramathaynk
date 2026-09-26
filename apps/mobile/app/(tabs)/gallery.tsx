@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useState, useEffect } from 'react';

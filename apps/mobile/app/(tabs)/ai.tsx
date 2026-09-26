@@ -88,7 +88,7 @@ export default function AIScreen() {
       <View style={styles.inputArea}>
         <TextInput
           style={styles.input}
-          placeholder="Ask a question..."
+          placeholder="Om Sri Raghavendraya Namaha..."
           value={input}
           onChangeText={setInput}
           onSubmitEditing={sendMessage}

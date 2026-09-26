@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import { fetchDailyPoojas } from '../../lib/api';
