@@ -204,12 +204,12 @@ async function loadLogoBytes(options?: ReceiptPdfOptions): Promise<PDFImage | nu
 
   try {
     // Next.js/Vercel tracing needs static string literals inside path.join
-    const primaryPath = path.join(process.cwd(), "public", "images", "logos", "ynk_matha_logo.png");
+    const primaryPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logos", "ynk_matha_logo.png");
     const bytes = await readFile(primaryPath);
     return embedFromBytes(bytes);
   } catch (e) {
     try {
-      const fallbackPath = path.join(process.cwd(), "public", "images", "logo.png");
+      const fallbackPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logo.png");
       const bytes = await readFile(fallbackPath);
       return embedFromBytes(bytes);
     } catch (e2) {
