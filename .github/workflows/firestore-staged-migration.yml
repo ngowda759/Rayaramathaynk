@@ -1,0 +1,85 @@
+name: Staged Phase 1 Firestore Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      collections:
+        description: "Space-separated list of explicit collections to dump/migrate (Phase 1 supports ONLY settings and events)"
+        required: true
+        type: string
+        default: "settings events"
+      dry_run:
+        description: "Dry Run (Validate without writing data)"
+        required: true
+        type: boolean
+        default: true
+      confirm_production:
+        description: "Execute Production Migration (Must uncheck Dry Run and explicitly check this)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  migrate-phase1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify credentials existence
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          test -n "$FIREBASE_PROJECT_ID" || (echo "::error::Missing FIREBASE_PROJECT_ID" && false)
+          test -n "$FIREBASE_CLIENT_EMAIL" || (echo "::error::Missing FIREBASE_CLIENT_EMAIL" && false)
+          test -n "$FIREBASE_PRIVATE_KEY" || (echo "::error::Missing FIREBASE_PRIVATE_KEY" && false)
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
+
+      - name: Execute Staged Dump
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          echo "Executing dump for collections: ${{ github.event.inputs.collections }}"
+          npx tsx scripts/dump-firestore-staged.ts ${{ github.event.inputs.collections }}
+
+      - name: Execute Phase 1 Migration
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ "${{ github.event.inputs.confirm_production }}" == "true" ]; then
+            ARGS="$ARGS --confirm-production"
+          fi
+
+          echo "Executing migration with args: $ARGS"
+          npx tsx scripts/migrate-staged-phase1.ts $ARGS
+
+      - name: Upload Migration Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-phase1-report
+          path: MIGRATION_PHASE_1_REPORT.md
+          if-no-files-found: ignore
