@@ -31,9 +31,10 @@ async function loadAdminModule(): Promise<AdminModule> {
 /**
  * Initialize Firebase Admin SDK
  * Tries multiple methods:
- * 1. Environment variables (FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) - for Vercel deployment
- * 2. Service account JSON file (firebase-admin.json)
- * 3. Application Default Credentials (ADC) - for GCP, Cloud Run, etc.
+ * 1. FIREBASE_SERVICE_ACCOUNT_JSON (Highest priority)
+ * 2. Environment variables (FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) - for Vercel deployment
+ * 3. Service account JSON file (firebase-admin.json)
+ * 4. Application Default Credentials (ADC) - for GCP, Cloud Run, etc.
  */
 export async function initializeAdminApp(): Promise<App> {
   if (adminApp) {
@@ -52,7 +53,40 @@ export async function initializeAdminApp(): Promise<App> {
       return adminApp;
     }
 
-    // Try environment variables first (FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
+    // Try FIREBASE_SERVICE_ACCOUNT_JSON first
+    const serviceAccountJsonStr = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (serviceAccountJsonStr) {
+      try {
+        const serviceAccount = JSON.parse(serviceAccountJsonStr);
+
+        // Validate required fields
+        const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
+        for (const field of requiredFields) {
+          if (!serviceAccount[field]) {
+            throw new Error(`Invalid FIREBASE_SERVICE_ACCOUNT_JSON: missing required field.`);
+          }
+        }
+
+        // Validate project ID if FIREBASE_PROJECT_ID is provided
+        const expectedProjectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        if (expectedProjectId && expectedProjectId !== serviceAccount.project_id) {
+            throw new Error("Project ID mismatch between FIREBASE_PROJECT_ID and service account.");
+        }
+
+        adminApp = initializeApp({
+          credential: cert(serviceAccount),
+        });
+        console.log("Firebase Admin SDK initialized with FIREBASE_SERVICE_ACCOUNT_JSON");
+        return adminApp;
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("Invalid FIREBASE_SERVICE_ACCOUNT_JSON") || e.message.includes("Project ID mismatch"))) {
+            throw e;
+        }
+        throw new Error("Failed to parse or initialize with FIREBASE_SERVICE_ACCOUNT_JSON.");
+      }
+    }
+
+    // Try environment variables next (FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY || process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY || "invalid-key";
     
