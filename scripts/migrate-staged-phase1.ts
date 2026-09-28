@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
+import * as crypto from "crypto";
 
 dotenv.config({ path: ".env.local" });
 
@@ -41,8 +42,6 @@ async function run() {
     console.log("=== PRODUCTION MODE: data will be written to Supabase ===");
   }
 
-  const supabase = createAdminClient();
-
   const manifestFile = path.join(process.cwd(), "data", "firestore-dump", "manifest.json");
   if (!fs.existsSync(manifestFile)) {
     console.error(`FATAL: Missing source manifest: ${manifestFile}`);
@@ -80,7 +79,13 @@ async function run() {
 
   let settingsData: any[];
   try {
-    const parsed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    const fileContent = fs.readFileSync(settingsFile, "utf8");
+    const hash = crypto.createHash("sha256").update(fileContent).digest("hex");
+    if (hash !== manifest.collections.settings.hash) {
+      console.error(`FATAL: Settings file hash mismatch. Expected ${manifest.collections.settings.hash}, got ${hash}`);
+      process.exit(1);
+    }
+    const parsed = JSON.parse(fileContent);
     if (!Array.isArray(parsed)) throw new Error("Settings dump is not an array");
     settingsData = parsed;
     console.log(`Found ${settingsData.length} settings documents in export.`);
@@ -178,7 +183,13 @@ async function run() {
 
   let eventsData: any[];
   try {
-    const parsed = JSON.parse(fs.readFileSync(eventsFile, "utf8"));
+    const fileContent = fs.readFileSync(eventsFile, "utf8");
+    const hash = crypto.createHash("sha256").update(fileContent).digest("hex");
+    if (hash !== manifest.collections.events.hash) {
+      console.error(`FATAL: Events file hash mismatch. Expected ${manifest.collections.events.hash}, got ${hash}`);
+      process.exit(1);
+    }
+    const parsed = JSON.parse(fileContent);
     if (!Array.isArray(parsed)) throw new Error("Events dump is not an array");
     eventsData = parsed;
     console.log(`Found ${eventsData.length} events documents in export.`);
@@ -186,6 +197,9 @@ async function run() {
     console.error(`FATAL: Malformed export file ${eventsFile}: ${err.message}`);
     process.exit(1);
   }
+
+  // Ensure Admin client initialization only occurs if all file and manifest validations pass
+  const supabase = createAdminClient();
 
   const { data: existingEventsData, count: existingEventsCount, error: existingEventsError } = await supabase.from('events').select('firestore_id', { count: 'exact' });
   if (existingEventsError) {
@@ -333,7 +347,11 @@ async function run() {
   }
 }
 
-run().catch((err) => {
-  console.error("FATAL: Unhandled exception during migration:", err);
-  process.exit(1);
-});
+export { run };
+
+if (process.argv[1] && (process.argv[1] === __filename || process.argv[1].endsWith('migrate-staged-phase1.ts'))) {
+  run().catch((err) => {
+    console.error("FATAL: Unhandled exception during migration:", err);
+    process.exit(1);
+  });
+}
