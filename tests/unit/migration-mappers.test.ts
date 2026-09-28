@@ -416,9 +416,11 @@ describe("settings document preservation (A)", () => {
 
   it("identifies the site settings document by signature and others as generic", () => {
     expect(isSiteSettingsDoc({ templeName: "Temple", contactEmail: "a@b.org" })).toBe(true);
-    expect(isSiteSettingsDoc({ templeName: "Temple" })).toBe(true);
+    expect(isSiteSettingsDoc({ templeName: "Temple" })).toBe(false);
     expect(isSiteSettingsDoc(financeSettings)).toBe(false);
     expect(isSiteSettingsDoc({ heading: "About" })).toBe(false);
+    expect(isSiteSettingsDoc({ heading: "About Us", contactEmail: "missing-templeName@example.com" })).toBe(false);
+    expect(isSiteSettingsDoc({ templeName: "Missing Contact Email", footerText: "Footer" })).toBe(false);
   });
 
   it("toJsonSafe walks nested arrays and objects recursively", () => {
@@ -556,6 +558,21 @@ describe("core mapper output shapes (F)", () => {
     });
     expect(row.start_date).toBe(new Date(1710500000 * 1000).toISOString());
     expect(row.end_date).toBe(new Date(1710586400 * 1000).toISOString());
+    expect(row.description).toBe("Annual");
+    expect(row.location).toBe("Yelahanka");
+    expect(row.status).toBe("published");
+  });
+
+  it("maps an event with missing optional fields (description, location, status) properly", () => {
+    const row = mapEvent("e2", {
+      title: "Aaradhane Missing Fields",
+      startDate: ts(1710500000),
+      endDate: ts(1710586400),
+    });
+    expect(row.title).toBe("Aaradhane Missing Fields");
+    expect(row.description).toBeNull();
+    expect(row.location).toBeNull();
+    expect(row.status).toBeNull();
   });
 
   it("maps a valid daily pooja preserving the days array", () => {

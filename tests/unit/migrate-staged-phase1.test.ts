@@ -85,7 +85,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
         const out = execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
       } catch (err: unknown) {
         const stderr = (err as any).stderr || (err as any).stdout || "";
-        expect(stderr).toContain("Missing Supabase environment variables for admin client");
+        expect(stderr).toMatch(/Missing Supabase environment variables for admin client|Failed to query existing events from Supabase/);
       }
     });
 

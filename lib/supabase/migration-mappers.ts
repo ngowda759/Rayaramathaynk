@@ -601,15 +601,15 @@ export function mapEvent(id: string, data: any): Record<string, any> {
   const row: Record<string, any> = {
     firestore_id: id,
     title: requireString(data.title, "title"),
-    description: requireString(data.description, "description"),
-    location: requireString(data.location, "location"),
+    description: optionalString(data.description),
+    location: optionalString(data.location),
     start_date: startDate,
     end_date: endDate,
     start_time: optionalString(data.startTime),
     end_time: optionalString(data.endTime),
     category: optionalString(data.category),
     image_url: optionalString(data.imageUrl),
-    status: requireString(data.status, "status"),
+    status: optionalString(data.status),
   };
   if (typeof data.featured === "boolean") row.featured = data.featured;
   if (typeof data.published === "boolean") row.published = data.published;
@@ -652,7 +652,7 @@ export function toJsonSafe(value: any): any {
 export const SITE_SETTINGS_SIGNATURES = ["templeName", "contactEmail"];
 
 export function isSiteSettingsDoc(data: Record<string, any>): boolean {
-  return SITE_SETTINGS_SIGNATURES.some((field) => {
+  return SITE_SETTINGS_SIGNATURES.every((field) => {
     const value = data[field];
     return typeof value === "string" && value.length > 0;
   });
