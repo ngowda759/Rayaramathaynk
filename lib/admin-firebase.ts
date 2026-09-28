@@ -10,6 +10,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { cert, getApps, initializeApp, getApps as getAppList, App, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { parseFirebasePrivateKey } from "./utils/firebase-key-parser";
 
 type AdminModule = typeof import("firebase-admin");
 
@@ -56,12 +57,19 @@ export async function initializeAdminApp(): Promise<App> {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY || process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY || "invalid-key";
     
     if (clientEmail && privateKey) {
-      // Replace escaped newlines in private key
-      const formattedKey = privateKey.replace(/\\n/g, '\n');
+      // Use centralized key parser
+      const formattedKey = parseFirebasePrivateKey(privateKey);
+
+      // Explicitly get project ID, avoid demo-project override if not specified
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+      if (!projectId) {
+        throw new Error("FIREBASE_PROJECT_ID is required when using FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY.");
+      }
 
       const serviceAccount = {
         type: "service_account",
-        projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
+        projectId: projectId,
         privateKey: formattedKey,
         clientEmail: clientEmail,
       };
