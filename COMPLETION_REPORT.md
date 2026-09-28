@@ -18,7 +18,7 @@ This PR completes the end-to-end implementation of the React Native Expo mobile 
 
 ### 3. CodeQL HTML Injection Vulnerability
 * Completely eliminated the unsafe regex from the codebase.
-* Hardened adjacent text sanitizers by refactoring `components/ai/MarkdownRenderer.tsx` and `services/proof-report/html-generator.service.ts`. Safe `.split().join()` logic and strict structural URL verification for markdown links now secure the HTML renderer against cross-site scripting (XSS).
+* Hardened adjacent text sanitizers by refactoring `components/ai/MarkdownRenderer.tsx` and `services/proof-report/html-generator.service.ts`. Removed `dangerouslySetInnerHTML` entirely from `MarkdownRenderer.tsx`. Safely parses strings into an array of React elements, processing bold, italics, headers, lists, and safe URL links natively within the component, fully remediating the XSS and ReDoS CodeQL findings.
 
 ### 4. Push Notifications Status
 * `expo-notifications` has been integrated into the `apps/mobile/app.json` plugins.
