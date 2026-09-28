@@ -10,9 +10,14 @@ on:
         default: "settings events"
       dry_run:
         description: "Dry Run (Validate without writing data)"
-        required: false
+        required: true
         type: boolean
         default: true
+      confirm_production:
+        description: "Execute Production Migration (Must uncheck Dry Run and explicitly check this)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -63,8 +68,12 @@ jobs:
         run: |
           ARGS=""
           if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
-            ARGS="--dry-run"
+            ARGS="$ARGS --dry-run"
           fi
+          if [ "${{ github.event.inputs.confirm_production }}" == "true" ]; then
+            ARGS="$ARGS --confirm-production"
+          fi
+
           echo "Executing migration with args: $ARGS"
           npx tsx scripts/migrate-staged-phase1.ts $ARGS
 

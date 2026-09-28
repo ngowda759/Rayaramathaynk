@@ -22,33 +22,71 @@ interface FailureRecord {
 
 async function run() {
   const isDryRun = process.argv.includes("--dry-run");
+  const confirmProduction = process.argv.includes("--confirm-production");
+
+  if (!isDryRun && !confirmProduction) {
+    console.error("FATAL: You must specify either --dry-run or --confirm-production");
+    process.exit(1);
+  }
+
+  if (isDryRun && confirmProduction) {
+    console.error("FATAL: Cannot specify both --dry-run and --confirm-production");
+    process.exit(1);
+  }
 
   console.log("=== PHASE 1 MIGRATION (settings & events) ===");
   if (isDryRun) {
     console.log("=== DRY-RUN MODE: no data will be written ===");
+  } else {
+    console.log("=== PRODUCTION MODE: data will be written to Supabase ===");
   }
 
   const supabase = createAdminClient();
 
+  const manifestFile = path.join(process.cwd(), "data", "firestore-dump", "manifest.json");
+  if (!fs.existsSync(manifestFile)) {
+    console.error(`FATAL: Missing source manifest: ${manifestFile}`);
+    process.exit(1);
+  }
+
+  let manifest: any;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+  } catch (err: any) {
+    console.error(`FATAL: Malformed manifest file: ${err.message}`);
+    process.exit(1);
+  }
+
+  if (!manifest.success) {
+    console.error("FATAL: Source manifest indicates the dump was not entirely successful.");
+    process.exit(1);
+  }
+
+  const requiredCollections = ["settings", "events"];
+  for (const req of requiredCollections) {
+    if (!manifest.collections || !manifest.collections[req] || manifest.collections[req].status !== "success") {
+      console.error(`FATAL: Source manifest is missing a successful dump for required collection: ${req}`);
+      process.exit(1);
+    }
+  }
+
   // 1. Settings
   console.log("\n--- Processing 'settings' collection ---");
   const settingsFile = path.join(process.cwd(), "data", "firestore-dump", "settings.json");
-  let settingsData: any[] = [];
-  let settingsCount = 0;
   if (!fs.existsSync(settingsFile)) {
-    console.error(`FATAL: Missing export file: ${settingsFile}.`);
+    console.error(`FATAL: Missing export file: ${settingsFile}`);
     process.exit(1);
-  } else {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
-      if (!Array.isArray(parsed)) throw new Error("Settings dump is not an array");
-      settingsData = parsed;
-      settingsCount = settingsData.length;
-      console.log(`Found ${settingsCount} settings documents in export.`);
-    } catch (err: any) {
-      console.error(`FATAL: Malformed export file ${settingsFile}: ${err.message}`);
-      process.exit(1);
-    }
+  }
+
+  let settingsData: any[];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    if (!Array.isArray(parsed)) throw new Error("Settings dump is not an array");
+    settingsData = parsed;
+    console.log(`Found ${settingsData.length} settings documents in export.`);
+  } catch (err: any) {
+    console.error(`FATAL: Malformed export file ${settingsFile}: ${err.message}`);
+    process.exit(1);
   }
 
   const settingsFailures: FailureRecord[] = [];
@@ -57,9 +95,12 @@ async function run() {
   const settingsDocumentRows: Record<string, any>[] = [];
 
   for (const doc of settingsData) {
-    const id = doc.id || doc.name?.split("/").pop();
-    const data = doc;
-    delete data.id;
+    if (!doc.id && !doc.name) {
+      settingsFailures.push({ id: "unknown", reason: "Missing document ID", type: "validation" });
+      continue;
+    }
+    const id = doc.id || doc.name.split("/").pop();
+    const { id: _id, ...data } = doc; // Do not mutate doc
 
     try {
       if (id === SOCIAL_LINKS_DOC) {
@@ -130,22 +171,20 @@ async function run() {
   // 2. Events
   console.log("\n--- Processing 'events' collection ---");
   const eventsFile = path.join(process.cwd(), "data", "firestore-dump", "events.json");
-  let eventsData: any[] = [];
-  let eventsCount = 0;
   if (!fs.existsSync(eventsFile)) {
-    console.error(`FATAL: Missing export file: ${eventsFile}.`);
+    console.error(`FATAL: Missing export file: ${eventsFile}`);
     process.exit(1);
-  } else {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(eventsFile, "utf8"));
-      if (!Array.isArray(parsed)) throw new Error("Events dump is not an array");
-      eventsData = parsed;
-      eventsCount = eventsData.length;
-      console.log(`Found ${eventsCount} events documents in export.`);
-    } catch (err: any) {
-      console.error(`FATAL: Malformed export file ${eventsFile}: ${err.message}`);
-      process.exit(1);
-    }
+  }
+
+  let eventsData: any[];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(eventsFile, "utf8"));
+    if (!Array.isArray(parsed)) throw new Error("Events dump is not an array");
+    eventsData = parsed;
+    console.log(`Found ${eventsData.length} events documents in export.`);
+  } catch (err: any) {
+    console.error(`FATAL: Malformed export file ${eventsFile}: ${err.message}`);
+    process.exit(1);
   }
 
   const { data: existingEventsData, count: existingEventsCount, error: existingEventsError } = await supabase.from('events').select('firestore_id', { count: 'exact' });
@@ -159,15 +198,25 @@ async function run() {
   const eventRows: Record<string, any>[] = [];
 
   for (const doc of eventsData) {
-    const id = doc.id || doc.name?.split("/").pop();
-    const data = doc;
-    delete data.id;
+    if (!doc.id && !doc.name) {
+      eventsFailures.push({ id: "unknown", reason: "Missing document ID", type: "validation" });
+      continue;
+    }
+    const id = doc.id || doc.name.split("/").pop();
+    const { id: _id, ...data } = doc; // Do not mutate doc
 
     try {
       eventRows.push(mapEvent(id, data));
     } catch (err: any) {
       eventsFailures.push({ id, reason: err?.message || "Validation error", type: "validation" });
     }
+  }
+
+  const totalValidationFailures = settingsFailures.length + eventsFailures.length;
+  if (totalValidationFailures > 0) {
+    console.error(`FATAL: Encountered ${totalValidationFailures} validation failures during mapping.`);
+    [...settingsFailures, ...eventsFailures].forEach((f) => console.error(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`));
+    process.exit(1);
   }
 
   // Apply changes or dry run
@@ -236,30 +285,30 @@ async function run() {
     }
   }
 
-  const totalValidationFailures = settingsFailures.length + eventsFailures.length;
-
   console.log("\n=== FINAL REPORT ===");
-  console.log(`Source documents:      ${settingsCount + eventsCount} (settings: ${settingsCount}, events: ${eventsCount})`);
+  console.log(`Source timestamp:      ${manifest.exportedAt}`);
+  console.log(`Firebase project:      ${manifest.projectId}`);
+  console.log(`Source documents:      ${settingsData.length + eventsData.length} (settings: ${settingsData.length}, events: ${eventsData.length})`);
+  console.log(`Supabase existing events: ${existingEventsCount || 0}`);
+  console.log(`Checksums:             settings: ${manifest.collections.settings.hash}`);
+  console.log(`                       events: ${manifest.collections.events.hash}`);
   console.log(`Planned inserts:       ${inserts}`);
   console.log(`Planned updates:       ${updates}`);
   console.log(`Validation failures:   ${totalValidationFailures}`);
   console.log(`Write failures:        ${writeFailures.length}`);
-
-  const allFailures = [...settingsFailures, ...eventsFailures, ...writeFailures];
-  if (allFailures.length > 0) {
-    console.log("\nFailure details:");
-    allFailures.forEach((f) => console.log(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`));
-  }
 
   const modeStatus = isDryRun ? "DRY-RUN MODE" : "PRODUCTION MODE";
 
   const report = `# Phase 1 Migration Report
 
 ## Source
-* Firestore export timestamp: ${new Date().toISOString()}
-* Firebase project: sri-raghavendra-mutt
+* Firebase Project: ${manifest.projectId}
+* Firestore export timestamp: ${manifest.exportedAt}
 * Collections: \`settings\`, \`events\`
-* Document count: Settings (${settingsCount}), Events (${eventsCount})
+* Document count: Settings (${settingsData.length}), Events (${eventsData.length})
+* Checksums:
+  * settings: \`${manifest.collections.settings.hash}\`
+  * events: \`${manifest.collections.events.hash}\`
 
 ## Before
 * Supabase events row count: ${existingEventsCount || 0}
@@ -271,23 +320,20 @@ async function run() {
 * Write Failures: ${writeFailures.length}
 
 ## After
-* Migration completed ${allFailures.length === 0 ? "successfully" : "with failures"} in ${modeStatus}.
+* Migration completed ${writeFailures.length === 0 ? "successfully" : "with failures"} in ${modeStatus}.
 `;
 
   fs.writeFileSync(path.join(process.cwd(), "MIGRATION_PHASE_1_REPORT.md"), report);
+  console.log("\nRESULT: PASS. Wrote MIGRATION_PHASE_1_REPORT.md");
 
-  if (isDryRun) {
-     console.log(`\nDRY RUN COMPLETE. ${allFailures.length > 0 ? "ERRORS ENCOUNTERED" : "SUCCESS"}`);
-     if (allFailures.length > 0) process.exit(1);
-     return;
-  }
-
-  if (allFailures.length > 0) {
-    console.log("\nRESULT: COMPLETED WITH ERRORS");
+  if (writeFailures.length > 0) {
+    console.error(`FATAL: Encountered ${writeFailures.length} write failures.`);
+    writeFailures.forEach((f) => console.error(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`));
     process.exit(1);
   }
-
-  console.log("\nRESULT: PASS. Wrote MIGRATION_PHASE_1_REPORT.md");
 }
 
-run();
+run().catch((err) => {
+  console.error("FATAL: Unhandled exception during migration:", err);
+  process.exit(1);
+});
