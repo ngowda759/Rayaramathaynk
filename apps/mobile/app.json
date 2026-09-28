@@ -7,11 +7,6 @@
     "icon": "./assets/images/logos/ynk_matha_logo.png",
     "scheme": "rayaramathaynk",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/images/logos/ynk_matha_logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#800000"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rayaramathaynk.mobile"

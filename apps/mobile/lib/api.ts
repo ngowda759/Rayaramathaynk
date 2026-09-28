@@ -43,3 +43,14 @@ export async function fetchGalleryAlbums() {
   if (error) throw error;
   return data;
 }
+
+export async function fetchWebsiteSettings() {
+  const { data, error } = await supabase
+    .from('website_settings')
+    .select('*')
+    .eq('key', 'temple_information')
+    .single();
+
+  if (error) throw error;
+  return data?.value;
+}

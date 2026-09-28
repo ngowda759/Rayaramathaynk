@@ -88,7 +88,7 @@ describe("Intent Detection", () => {
     it("should detect festival queries", () => {
       const result = detector.detect("When is the next festival?");
       // Festival might be detected as FESTIVAL_INFO
-      expect([Intent.UPCOMING_EVENTS, Intent.FESTIVAL_INFO]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.UPCOMING_EVENTS);
     });
   });
 
@@ -169,13 +169,13 @@ describe("Intent Detection", () => {
   describe("SEVAS intent", () => {
     it("should detect seva queries", () => {
       const result = detector.detect("What sevas are available?");
-      expect([Intent.SPECIAL_SEVAS, Intent.DAILY_POOJA]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.SPECIAL_SEVAS);
     });
 
     it("should detect archana queries", () => {
       const result = detector.detect("How do I book archana?");
       // Archana could be SPECIAL_SEVAS or SEVA_BOOKING
-      expect([Intent.SPECIAL_SEVAS, Intent.SEVA_BOOKING]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.SEVA_BOOKING);
     });
   });
 
@@ -194,14 +194,14 @@ describe("Intent Detection", () => {
   describe("LOCATION intent", () => {
     it("should detect location queries", () => {
       const result = detector.detect("Where is the temple located?");
-      expect([Intent.LOCATION, Intent.ADDRESS]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.LOCATION);
     });
 
     it("should detect address queries", () => {
       // Note: "What is the address" may detect as TEMPLE_TIMINGS due to semantic matching
       // The API routes this correctly through the generator
       const result = detector.detect("temple address");
-      expect([Intent.LOCATION, Intent.ADDRESS]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.LOCATION);
     });
   });
 
@@ -247,24 +247,24 @@ describe("Intent Detection", () => {
     it("should detect share experience queries in English", () => {
       const result = detector.detect("I want to share my experience");
       // Can detect as SHARE_EXPERIENCE or TESTIMONIAL (both are valid for this query)
-      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.SHARE_EXPERIENCE);
     });
 
     it("should detect share experience queries in Kannada", () => {
       const result = detector.detect("ಅನುಭವ ಹಂಚಿಕೊಳ್ಳಿ");
       // Kannada phrase can detect as SHARE_EXPERIENCE or TESTIMONIAL
-      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.TESTIMONIAL);
     });
 
     it("should detect mixed language share experience", () => {
       const result = detector.detect("share my experience");
-      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.SHARE_EXPERIENCE);
     });
 
     it("should detect testimonial queries as related intent", () => {
       const result = detector.detect("Write a testimonial about my visit");
       // Testimonial is a valid related intent
-      expect([Intent.SHARE_EXPERIENCE, Intent.TESTIMONIAL]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.SHARE_EXPERIENCE);
     });
 
     it("should not classify as OUT_OF_SCOPE", () => {

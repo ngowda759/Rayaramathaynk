@@ -1,16 +1,21 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
-import { fetchDailyPoojas } from '../../lib/api';
+import { fetchDailyPoojas, fetchWebsiteSettings } from '../../lib/api';
 
 export default function HomeScreen() {
   const [poojas, setPoojas] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await fetchDailyPoojas();
-        setPoojas(data || []);
+        const [poojasData, settingsData] = await Promise.all([
+            fetchDailyPoojas(),
+            fetchWebsiteSettings()
+        ]);
+        setPoojas(poojasData || []);
+        setSettings(settingsData);
       } catch (err) {
         console.error(err);
       } finally {
@@ -23,8 +28,8 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Sri Raghavendra Swamy Temple</Text>
-        <Text style={styles.heroSubtitle}>Yelahanka New Town</Text>
+        <Text style={styles.heroTitle}>{settings?.templeName || 'Sri Raghavendra Swamy Temple'}</Text>
+        <Text style={styles.heroSubtitle}>{settings?.address?.split(',')[0] || 'Yelahanka New Town'}</Text>
       </View>
 
       <View style={styles.section}>
@@ -43,8 +48,8 @@ export default function HomeScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Darshan Timings</Text>
-        <Text style={styles.text}>Morning: 6:00 AM - 12:30 PM</Text>
-        <Text style={styles.text}>Evening: 5:00 PM - 8:30 PM</Text>
+        <Text style={styles.text}>Morning: {settings?.timings?.morning || '6:00 AM - 12:30 PM'}</Text>
+        <Text style={styles.text}>Evening: {settings?.timings?.evening || '5:00 PM - 8:30 PM'}</Text>
       </View>
     </ScrollView>
   );

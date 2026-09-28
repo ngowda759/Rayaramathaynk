@@ -8,56 +8,60 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const renderedContent = useMemo(() => {
-    // Simple markdown-like rendering
-    let html = content;
+    if (!content) return "";
 
-    // Escape HTML
+    // 1. Escape ALL HTML fully using structural string split/join to prevent regex bypasses.
+    let html = content
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;')
+      .split("'").join('&#039;');
 
-    let cleanHtml = "";
-    for (let i = 0; i < html.length; i++) {
-      if (html[i] === '<') cleanHtml += '&lt;';
-      else if (html[i] === '>') cleanHtml += '&gt;';
-      else cleanHtml += html[i];
-    }
-    html = cleanHtml;
+    // 2. Safe URL handler
+    const safeUrl = (url: string) => {
+        // Only allow safe protocols
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')) {
+            return url;
+        }
+        return '#';
+    };
 
+    // 3. Process links first so their internal tokens aren't broken by other formatting
+    // Pattern: [text](url) -> safe replace
+    // We'll use a safe loop to find markdown links since Regex might be vulnerable to ReDoS if not careful.
+    // Or we can use a strict, safe regex that only matches exact structures without backtracking.
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, url) => {
+        return `<a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">${text}</a>`;
+    });
 
-    // Bold
+    // 4. Bold
     html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     
-    // Italic
+    // 5. Italic
     html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
     
-    // Headers
+    // 6. Headers
     html = html.replace(/^### (.*$)/gim, "<h4 class=\"text-base font-semibold mt-3 mb-1\">$1</h4>");
     html = html.replace(/^## (.*$)/gim, "<h3 class=\"text-lg font-semibold mt-3 mb-1\">$1</h3>");
     html = html.replace(/^# (.*$)/gim, "<h2 class=\"text-xl font-semibold mt-4 mb-2\">$1</h2>");
 
-    // Lists
+    // 7. Lists
     html = html.replace(/^\- (.*$)/gim, "<li class=\"ml-4\">$1</li>");
     html = html.replace(/^(\d+)\. (.*$)/gim, "<li class=\"ml-4 list-decimal\">$2</li>");
     
-    // Line breaks
+    // 8. Line breaks
     html = html.replace(/\n\n/g, "</p><p class=\"mb-2\">");
     html = html.replace(/\n/g, "<br/>");
 
-    // Wrap in paragraph
-    html = `<p class=\"mb-2\">${html}</p>`;
+    // 9. Wrap in paragraph
+    html = `<p class="mb-2">${html}</p>`;
     
-    // Clean up empty paragraphs
+    // 10. Clean up empty paragraphs
     html = html.replace(/<p class="mb-2"><\/p>/g, "");
 
-    // Inline code
+    // 11. Inline code
     html = html.replace(/`(.*?)`/g, "<code class=\"bg-stone-100 px-1 py-0.5 rounded text-sm font-mono\">$1</code>");
-
-    // Links
-
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, text, url) => {
-      // Validate URL to prevent XSS (javascript:, vbscript:, data:)
-      const safeUrl = /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : '#';
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">${text}</a>`;
-    });
-
 
     return html;
   }, [content]);
