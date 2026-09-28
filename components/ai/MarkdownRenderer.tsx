@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+"use client";
+
+import { useMemo } from "react";
 
 interface MarkdownRendererProps {
   content: string;
@@ -6,77 +8,50 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const renderedContent = useMemo(() => {
-    if (!content) return [];
+    // Simple markdown-like rendering
+    let html = content;
 
-    // Safe structure replacement
-    let safeContent = content
-      .split('&').join('&amp;')
-      .split('<').join('&lt;')
-      .split('>').join('&gt;');
+    // Escape HTML
+    html = html.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    const lines = safeContent.split('\n');
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
-    return lines.map((line, lineIndex) => {
-      if (!line.trim()) return <br key={`br-${lineIndex}`} />;
+    // Italic
+    html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
 
-      let elements: React.ReactNode[] = [];
+    // Headers
+    html = html.replace(/^### (.*$)/gim, "<h4 class=\"text-base font-semibold mt-3 mb-1\">$1</h4>");
+    html = html.replace(/^## (.*$)/gim, "<h3 class=\"text-lg font-semibold mt-3 mb-1\">$1</h3>");
+    html = html.replace(/^# (.*$)/gim, "<h2 class=\"text-xl font-semibold mt-4 mb-2\">$1</h2>");
 
-      // Parse links, bold, italic
-      const tokenRegex = /(\[(.*?)\]\((https?:\/\/[^\s"']+|mailto:[^\s"']+|tel:[^\s"']+)\))|(\*\*(.*?)\*\*)|(_(.*?)_)|(`(.*?)`)/g;
+    // Lists
+    html = html.replace(/^\- (.*$)/gim, "<li class=\"ml-4\">$1</li>");
+    html = html.replace(/^(\d+)\. (.*$)/gim, "<li class=\"ml-4 list-decimal\">$2</li>");
 
-      let match;
-      let lastIndex = 0;
-      let elementKey = 0;
+    // Line breaks
+    html = html.replace(/\n\n/g, "</p><p class=\"mb-2\">");
+    html = html.replace(/\n/g, "<br/>");
 
-      while ((match = tokenRegex.exec(line)) !== null) {
-        if (match.index > lastIndex) {
-          elements.push(<span key={elementKey++}>{line.substring(lastIndex, match.index)}</span>);
-        }
+    // Wrap in paragraph
+    html = `<p class=\"mb-2\">${html}</p>`;
 
-        if (match[1]) {
-          // Link: match[2] is text, match[3] is url
-          elements.push(
-            <a key={elementKey++} href={match[3]} target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:text-amber-700 underline">
-              {match[2]}
-            </a>
-          );
-        } else if (match[4]) {
-          // Bold: match[5] is text
-          elements.push(<strong key={elementKey++}>{match[5]}</strong>);
-        } else if (match[6]) {
-          // Italic: match[7] is text
-          elements.push(<em key={elementKey++}>{match[7]}</em>);
-        } else if (match[8]) {
-          // Code: match[9] is text
-          elements.push(<code key={elementKey++} className="bg-stone-100 px-1 py-0.5 rounded text-sm font-mono">{match[9]}</code>);
-        }
+    // Clean up empty paragraphs
+    html = html.replace(/<p class="mb-2"><\/p>/g, "");
 
-        lastIndex = match.index + match[0].length;
-      }
+    // Inline code
+    html = html.replace(/`(.*?)`/g, "<code class=\"bg-stone-100 px-1 py-0.5 rounded text-sm font-mono\">$1</code>");
 
-      if (lastIndex < line.length) {
-        elements.push(<span key={elementKey++}>{line.substring(lastIndex)}</span>);
-      }
+    // Links
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-amber-600 hover:text-amber-700 underline">$1</a>');
 
-      if (line.startsWith('### ')) {
-         return <h4 key={lineIndex} className="text-base font-semibold mt-3 mb-1">{elements.slice(1)}</h4>;
-      } else if (line.startsWith('## ')) {
-         return <h3 key={lineIndex} className="text-lg font-semibold mt-3 mb-1">{elements.slice(1)}</h3>;
-      } else if (line.startsWith('# ')) {
-         return <h2 key={lineIndex} className="text-xl font-semibold mt-4 mb-2">{elements.slice(1)}</h2>;
-      } else if (line.startsWith('- ')) {
-         return <li key={lineIndex} className="ml-4">{elements.slice(1)}</li>;
-      } else if (/^\d+\.\s/.test(line)) {
-         return <li key={lineIndex} className="ml-4 list-decimal">{elements}</li>;
-      }
-
-      return <p key={lineIndex} className="mb-2">{elements}</p>;
-    });
+    return html;
   }, [content]);
 
   return (
-    <div className="text-sm leading-relaxed">
-      {renderedContent}
-    </div>
+    <div
+      className="text-sm leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: renderedContent }}
+    />
   );
 }

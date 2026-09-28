@@ -2,11 +2,9 @@ import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Activity
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { Message } from '../../lib/types';
+
+
 
 export default function AIScreen() {
   const [messages, setMessages] = useState<Message[]>([
@@ -39,9 +37,13 @@ export default function AIScreen() {
         body: JSON.stringify({ messages: apiMessages })
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
-      if (data.message && data.message.content) {
+      if (data && typeof data === 'object' && data.message && data.message.content) {
         setMessages(prev => [...prev, {
           id: data.message.id || Date.now().toString(),
           role: 'assistant',

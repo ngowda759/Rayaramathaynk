@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
+import { Album } from '../../lib/types';
 import { useState, useEffect } from 'react';
 import { fetchGalleryAlbums } from '../../lib/api';
 

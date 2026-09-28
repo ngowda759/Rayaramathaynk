@@ -1,10 +1,11 @@
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { WebsiteSettings } from '../../lib/types';
 import { useState, useEffect } from 'react';
 import { fetchWebsiteSettings } from '../../lib/api';
 
 export default function TempleScreen() {
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<WebsiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,16 +22,32 @@ export default function TempleScreen() {
     load();
   }, []);
 
-  const openMap = () => {
+  const openMap = async () => {
     if (!settings?.coordinates) return;
-    const scheme = Platform.select({ ios: 'maps://0,0?q=', android: 'geo:0,0?q=' });
-    const latLng = settings.coordinates;
-    const label = settings.templeName || 'Temple';
-    const url = Platform.select({
-      ios: `${scheme}${label}@${latLng}`,
-      android: `${scheme}${latLng}(${label})`
-    });
-    if (url) Linking.openURL(url);
+
+    // Strict coordinate validation: expecting format like "13.0991,77.5878"
+    const coordRegex = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
+    if (!coordRegex.test(settings.coordinates)) return;
+
+    const latLng = encodeURIComponent(settings.coordinates);
+    const label = encodeURIComponent(settings.templeName || 'Temple');
+
+    const iosUrl = `maps://0,0?q=${label}@${latLng}`;
+    const androidUrl = `geo:0,0?q=${latLng}(${label})`;
+    const webFallbackUrl = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+
+    try {
+      const url = Platform.OS === 'ios' ? iosUrl : androidUrl;
+      const supported = await Linking.canOpenURL(url);
+
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(webFallbackUrl);
+      }
+    } catch (e) {
+      console.error('Error opening map:', e);
+    }
   };
 
   if (loading) {

@@ -2,20 +2,22 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking, Share } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 
+const WEBSITE_URL = 'https://www.srsmathaynk.com';
+const PRIVACY_URL = `${WEBSITE_URL}/privacy-policy`;
+
 export default function MoreScreen() {
-  const openWeb = () => Linking.openURL('https://www.srsmathaynk.com');
-  const openPrivacy = () => Linking.openURL('https://www.srsmathaynk.com/privacy-policy');
+  const openWeb = () => Linking.openURL(WEBSITE_URL);
+  const openPrivacy = () => Linking.openURL(PRIVACY_URL);
 
   const shareApp = async () => {
     try {
       await Share.share({
-        message: 'Download the Sri Raghavendra Swamy Temple app: https://www.srsmathaynk.com',
+        message: `Download the Sri Raghavendra Swamy Temple app: ${WEBSITE_URL}`,
       });
     } catch (error: unknown) {
       console.error(error instanceof Error ? error.message : String(error));
     }
   };
-
   return (
     <View style={styles.container}>
       <View style={styles.section}>

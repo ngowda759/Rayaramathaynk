@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { Event } from '../../lib/types';
 import { useState, useEffect } from 'react';
 import { fetchEvents } from '../../lib/api';
 import { format } from 'date-fns';
