@@ -5,7 +5,7 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { createAdminClient } from "../lib/supabase/admin";
-import { toIsoString, reconcileCounts } from "../lib/supabase/migration-helpers";
+import { toIsoString } from "../lib/supabase/migration-helpers";
 import {
   mapSettingsDocument,
   isSiteSettingsDoc,
@@ -33,14 +33,22 @@ async function run() {
   // 1. Settings
   console.log("\n--- Processing 'settings' collection ---");
   const settingsFile = path.join(process.cwd(), "data", "firestore-dump", "settings.json");
-  let settingsData = [];
+  let settingsData: any[] = [];
   let settingsCount = 0;
   if (!fs.existsSync(settingsFile)) {
-    console.error(`Missing export file: ${settingsFile}. We will assume 0 records for now to allow testing.`);
+    console.error(`FATAL: Missing export file: ${settingsFile}.`);
+    process.exit(1);
   } else {
-    settingsData = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
-    settingsCount = settingsData.length;
-    console.log(`Found ${settingsCount} settings documents in export.`);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+      if (!Array.isArray(parsed)) throw new Error("Settings dump is not an array");
+      settingsData = parsed;
+      settingsCount = settingsData.length;
+      console.log(`Found ${settingsCount} settings documents in export.`);
+    } catch (err: any) {
+      console.error(`FATAL: Malformed export file ${settingsFile}: ${err.message}`);
+      process.exit(1);
+    }
   }
 
   const settingsFailures: FailureRecord[] = [];
@@ -122,17 +130,29 @@ async function run() {
   // 2. Events
   console.log("\n--- Processing 'events' collection ---");
   const eventsFile = path.join(process.cwd(), "data", "firestore-dump", "events.json");
-  let eventsData = [];
+  let eventsData: any[] = [];
   let eventsCount = 0;
   if (!fs.existsSync(eventsFile)) {
-    console.error(`Missing export file: ${eventsFile}. We will assume 0 records for now to allow testing.`);
+    console.error(`FATAL: Missing export file: ${eventsFile}.`);
+    process.exit(1);
   } else {
-    eventsData = JSON.parse(fs.readFileSync(eventsFile, "utf8"));
-    eventsCount = eventsData.length;
-    console.log(`Found ${eventsCount} events documents in export.`);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(eventsFile, "utf8"));
+      if (!Array.isArray(parsed)) throw new Error("Events dump is not an array");
+      eventsData = parsed;
+      eventsCount = eventsData.length;
+      console.log(`Found ${eventsCount} events documents in export.`);
+    } catch (err: any) {
+      console.error(`FATAL: Malformed export file ${eventsFile}: ${err.message}`);
+      process.exit(1);
+    }
   }
 
-  const { data: existingEventsData, count: existingEventsCount } = await supabase.from('events').select('firestore_id', { count: 'exact' });
+  const { data: existingEventsData, count: existingEventsCount, error: existingEventsError } = await supabase.from('events').select('firestore_id', { count: 'exact' });
+  if (existingEventsError) {
+     console.error(`FATAL: Failed to query existing events from Supabase: ${existingEventsError.message}`);
+     process.exit(1);
+  }
   console.log(`Supabase existing events: ${existingEventsCount || 0}`);
 
   const eventsFailures: FailureRecord[] = [];
@@ -175,8 +195,8 @@ async function run() {
       );
 
     if (error) {
-      console.error(`Failed to read from ${table}: ${error.message}`);
-      if (!isDryRun) process.exit(1);
+      console.error(`FATAL: Failed to read from ${table}: ${error.message}`);
+      process.exit(1);
     }
 
     const existingIds = new Set((existing || []).map((r: any) => r.firestore_id));
@@ -225,15 +245,41 @@ async function run() {
   console.log(`Validation failures:   ${totalValidationFailures}`);
   console.log(`Write failures:        ${writeFailures.length}`);
 
-  if (isDryRun) {
-     console.log("\nDRY RUN COMPLETE");
-     return;
-  }
-
   const allFailures = [...settingsFailures, ...eventsFailures, ...writeFailures];
   if (allFailures.length > 0) {
     console.log("\nFailure details:");
     allFailures.forEach((f) => console.log(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`));
+  }
+
+  const modeStatus = isDryRun ? "DRY-RUN MODE" : "PRODUCTION MODE";
+
+  const report = `# Phase 1 Migration Report
+
+## Source
+* Firestore export timestamp: ${new Date().toISOString()}
+* Firebase project: sri-raghavendra-mutt
+* Collections: \`settings\`, \`events\`
+* Document count: Settings (${settingsCount}), Events (${eventsCount})
+
+## Before
+* Supabase events row count: ${existingEventsCount || 0}
+
+## Migration (${modeStatus})
+* Planned Inserts: ${inserts}
+* Planned Updates: ${updates}
+* Validation Failures: ${totalValidationFailures}
+* Write Failures: ${writeFailures.length}
+
+## After
+* Migration completed ${allFailures.length === 0 ? "successfully" : "with failures"} in ${modeStatus}.
+`;
+
+  fs.writeFileSync(path.join(process.cwd(), "MIGRATION_PHASE_1_REPORT.md"), report);
+
+  if (isDryRun) {
+     console.log(`\nDRY RUN COMPLETE. ${allFailures.length > 0 ? "ERRORS ENCOUNTERED" : "SUCCESS"}`);
+     if (allFailures.length > 0) process.exit(1);
+     return;
   }
 
   if (allFailures.length > 0) {
@@ -241,29 +287,6 @@ async function run() {
     process.exit(1);
   }
 
-  // Generate MIGRATION_PHASE_1_REPORT.md
-  const report = `# Phase 1 Migration Report
-
-## Source
-* Firestore CLI export timestamp: ${new Date().toISOString()}
-* Firebase project: (local export)
-* Collections: \`settings\`, \`events\`
-* Document count: Settings (${settingsCount}), Events (${eventsCount})
-
-## Before
-* Supabase events row count: ${existingEventsCount || 0}
-
-## Migration
-* Inserted: ${inserts}
-* Updated: ${updates}
-* Validation Failures: ${totalValidationFailures}
-* Write Failures: ${writeFailures.length}
-
-## After
-* Migration completed successfully.
-`;
-
-  fs.writeFileSync(path.join(process.cwd(), "MIGRATION_PHASE_1_REPORT.md"), report);
   console.log("\nRESULT: PASS. Wrote MIGRATION_PHASE_1_REPORT.md");
 }
 
