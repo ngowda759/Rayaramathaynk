@@ -32,3 +32,5 @@ This PR completes the end-to-end implementation of the React Native Expo mobile 
 * `npx expo-doctor`: Passed for mobile app.
 
 The codebase is clean, tests are entirely strict and native, and the mobile project is successfully integrated into the monorepo.
+
+*Note regarding Mobile Compilation*: Both `npx expo export -p ios` and `npx expo export -p android` passed successfully confirming clean JavaScript bundle compilation. A full native build execution (via Xcode/Android Studio or EAS) is not performed as native SDK toolchains are not available in this test environment.
