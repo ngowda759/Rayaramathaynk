@@ -40,20 +40,17 @@ jobs:
 
       - name: Verify credentials existence
         env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          test -n "$FIREBASE_PROJECT_ID" || (echo "::error::Missing FIREBASE_PROJECT_ID" && false)
-          test -n "$FIREBASE_CLIENT_EMAIL" || (echo "::error::Missing FIREBASE_CLIENT_EMAIL" && false)
-          test -n "$FIREBASE_PRIVATE_KEY" || (echo "::error::Missing FIREBASE_PRIVATE_KEY" && false)
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || (echo "::error::Missing FIREBASE_SERVICE_ACCOUNT_JSON" && false)
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
 
       - name: Execute Staged Dump
         env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
@@ -63,6 +60,7 @@ jobs:
 
       - name: Execute Phase 1 Migration
         env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
