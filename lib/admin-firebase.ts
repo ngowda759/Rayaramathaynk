@@ -56,8 +56,25 @@ export async function initializeAdminApp(): Promise<App> {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY || process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY || "invalid-key";
     
     if (clientEmail && privateKey) {
-      // Replace escaped newlines in private key
-      const formattedKey = privateKey.replace(/\\n/g, '\n');
+      // Safely format the private key handling varied newline encodings and quotes
+      let formattedKey = privateKey;
+
+      // Strip accidentally surrounding quotes
+      if ((formattedKey.startsWith('"') && formattedKey.endsWith('"')) ||
+          (formattedKey.startsWith("'") && formattedKey.endsWith("'"))) {
+        formattedKey = formattedKey.slice(1, -1);
+      }
+
+      // Normalize escaped newlines, Windows CRLF to standard LF
+      formattedKey = formattedKey
+        .replace(/\\n/g, '\n')
+        .replace(/\r\n/g, '\n')
+        .replace(/^\s+|\s+$/g, '');
+
+      // Ensure PEM structural integrity
+      formattedKey = formattedKey
+        .replace(/-----BEGIN PRIVATE KEY-----\s*/, "-----BEGIN PRIVATE KEY-----\n")
+        .replace(/\s*-----END PRIVATE KEY-----/, "\n-----END PRIVATE KEY-----");
 
       const serviceAccount = {
         type: "service_account",
