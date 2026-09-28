@@ -28,8 +28,8 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.heroTitle}>{settings?.templeName || 'Sri Raghavendra Swamy Temple'}</Text>
-        <Text style={styles.heroSubtitle}>{settings?.address?.split(',')[0] || 'Yelahanka New Town'}</Text>
+        <Text style={styles.heroTitle}>{settings?.templeName || 'Temple Information Unavailable'}</Text>
+        <Text style={styles.heroSubtitle}>{settings?.address?.split(',')[0] || 'Location Unavailable'}</Text>
       </View>
 
       <View style={styles.section}>
@@ -48,8 +48,8 @@ export default function HomeScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Darshan Timings</Text>
-        <Text style={styles.text}>Morning: {settings?.timings?.morning || '6:00 AM - 12:30 PM'}</Text>
-        <Text style={styles.text}>Evening: {settings?.timings?.evening || '5:00 PM - 8:30 PM'}</Text>
+        <Text style={styles.text}>Morning: {settings?.timings?.morning || 'Unavailable'}</Text>
+        <Text style={styles.text}>Evening: {settings?.timings?.evening || 'Unavailable'}</Text>
       </View>
     </ScrollView>
   );

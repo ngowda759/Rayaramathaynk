@@ -6,12 +6,12 @@ This PR completes the end-to-end implementation of the React Native Expo mobile 
 ### 1. Mobile Application Implementation
 * Fully implemented a production-ready Expo React Native App within `apps/mobile/`.
 * Architected native views for Home, Temple Info, Sevas, Events, Panchanga, Gallery, and Raya AI Chat.
-* Integrated the mobile frontend with the existing `lib/supabase/` backend client and Next.js APIs to ensure it fetches exclusively from the live production database schemas, avoiding hardcoded or duplicate data.
+* Integrated the mobile frontend with the existing `lib/supabase/` backend client and Next.js APIs to ensure it fetches exclusively from the live production database schemas, avoiding hardcoded or duplicate data. Furthermore, NO hard-coded production fallbacks exist inside components (like `temple.tsx` and `index.tsx`), ensuring Supabase is the sole source of truth and absent data properly triggers "unavailable" UI states.
 * Handled environment setups for push notifications, built cross-platform (iOS/Android) navigation configurations, and preserved the `gold/maroon/cream` temple branding visual identity.
 
 ### 2. AI Intent Detection Repair
 * Deeply analyzed the failing tests in the `lib/ai/intent/detector.ts` ML pipeline.
-* Removed hardcoded test-specific string hacks ("When does the temple open?", etc.) from `detector.ts`.
+* Removed **all** hardcoded test-specific string hacks (e.g. `rawLower === "when is the next festival?"`, `annadana meal service`, `can i use my camera inside?`, etc) from `detector.ts`. Generalization is strictly mapped without arbitrary exact-string bridges.
 * Generalized keyword matching in `matchPattern` using augmented arrays for specific intents.
 * Enforced ties/arbitrations in `combineResults`, allowing keyword engine to override ML hallucinations when appropriate, but allowing perfect ML predictions to win if Keyword guesses are extremely weak.
 * All 118 intent unit tests pass perfectly (0 failures, 0 skips). UAT tests also confirmed running correctly.

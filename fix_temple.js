@@ -1,4 +1,10 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking, Platform, ActivityIndicator } from 'react-native';
+const fs = require('fs');
+
+const path = 'apps/mobile/app/(tabs)/temple.tsx';
+let code = fs.readFileSync(path, 'utf8');
+
+// Replace hardcoded production fallbacks with empty states / unavailable markers.
+const fixedTemple = `import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { fetchWebsiteSettings } from '../../lib/api';
@@ -27,8 +33,8 @@ export default function TempleScreen() {
     const latLng = settings.coordinates;
     const label = settings.templeName || 'Temple';
     const url = Platform.select({
-      ios: `${scheme}${label}@${latLng}`,
-      android: `${scheme}${latLng}(${label})`
+      ios: \`\${scheme}\${label}@\${latLng}\`,
+      android: \`\${scheme}\${latLng}(\${label})\`
     });
     if (url) Linking.openURL(url);
   };
@@ -132,4 +138,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 10,
   }
-});
+});`;
+
+fs.writeFileSync(path, fixedTemple, 'utf8');
+
+const indexCode = fs.readFileSync('apps/mobile/app/(tabs)/index.tsx', 'utf8');
+
+const fixedIndex = indexCode
+    .replace(/'Sri Raghavendra Swamy Temple'/g, "'Temple Information Unavailable'")
+    .replace(/'Yelahanka New Town'/g, "'Location Unavailable'")
+    .replace(/'6:00 AM - 12:30 PM'/g, "'Unavailable'")
+    .replace(/'5:00 PM - 8:30 PM'/g, "'Unavailable'");
+
+fs.writeFileSync('apps/mobile/app/(tabs)/index.tsx', fixedIndex, 'utf8');
