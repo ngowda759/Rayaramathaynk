@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as adminAppMod from "firebase-admin/app";
 
 // Mock dependencies
@@ -15,6 +16,22 @@ jest.mock("fs", () => ({
 }));
 
 // Mock the getApps to be empty so initializeApp is called
+
+function generateSyntheticPem() {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: {
+      type: 'spki',
+      format: 'pem'
+    },
+    privateKeyEncoding: {
+      type: 'pkcs8',
+      format: 'pem'
+    }
+  });
+  return privateKey;
+}
+
 describe("Firebase Admin Initialization", () => {
   const originalEnv = process.env;
 
@@ -61,11 +78,12 @@ describe("Firebase Admin Initialization", () => {
     return result;
   };
 
-  it("should initialize successfully with valid FIREBASE_SERVICE_ACCOUNT_JSON", async () => {
+  it("should initialize successfully with valid FIREBASE_SERVICE_ACCOUNT_JSON containing a structural PEM", async () => {
+    const syntheticPem = generateSyntheticPem();
     const validServiceAccount = {
       type: "service_account",
       project_id: "test-project-json",
-      private_key: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+      private_key: syntheticPem,
       client_email: "test@test-project-json.iam.gserviceaccount.com"
     };
 
