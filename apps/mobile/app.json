@@ -38,7 +38,8 @@
           "icon": "./assets/images/logos/ynk_matha_logo.png",
           "color": "#800000"
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

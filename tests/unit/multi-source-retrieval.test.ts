@@ -206,15 +206,13 @@ describe("Combined Response Generation", () => {
     return parts.join("\n\n");
   };
 
-  it.skip("should combine settings and panchanga data", () => {
+  it("should combine settings and panchanga data", () => {
     const results = {
       settings: {
         source: "settings" as DataSource,
         data: {
-          settings: {
-            name: "Sri Raghavendra Swamy Temple",
-            address: "Mantralaya, Karnataka",
-          },
+          name: "Sri Raghavendra Swamy Temple",
+          address: "Mantralaya, Karnataka",
         },
         retrieved: true,
         confidence: 100,
