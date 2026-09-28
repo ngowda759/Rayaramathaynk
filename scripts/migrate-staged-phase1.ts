@@ -80,7 +80,7 @@ async function run() {
   let settingsData: any[];
   try {
     const fileContent = fs.readFileSync(settingsFile, "utf8");
-    const hash = crypto.createHash("sha256").update(fileContent).digest("hex");
+    const hash = crypto.createHash("sha256").update(fileContent, "utf8").digest("hex");
     if (hash !== manifest.collections.settings.hash) {
       console.error(`FATAL: Settings file hash mismatch. Expected ${manifest.collections.settings.hash}, got ${hash}`);
       process.exit(1);
@@ -88,6 +88,11 @@ async function run() {
     const parsed = JSON.parse(fileContent);
     if (!Array.isArray(parsed)) throw new Error("Settings dump is not an array");
     settingsData = parsed;
+
+    if (settingsData.length !== manifest.collections.settings.docCount) {
+       console.error(`FATAL: Settings doc count mismatch. Manifest: ${manifest.collections.settings.docCount}, File: ${settingsData.length}`);
+       process.exit(1);
+    }
     console.log(`Found ${settingsData.length} settings documents in export.`);
   } catch (err: any) {
     console.error(`FATAL: Malformed export file ${settingsFile}: ${err.message}`);
@@ -184,7 +189,7 @@ async function run() {
   let eventsData: any[];
   try {
     const fileContent = fs.readFileSync(eventsFile, "utf8");
-    const hash = crypto.createHash("sha256").update(fileContent).digest("hex");
+    const hash = crypto.createHash("sha256").update(fileContent, "utf8").digest("hex");
     if (hash !== manifest.collections.events.hash) {
       console.error(`FATAL: Events file hash mismatch. Expected ${manifest.collections.events.hash}, got ${hash}`);
       process.exit(1);
@@ -192,6 +197,11 @@ async function run() {
     const parsed = JSON.parse(fileContent);
     if (!Array.isArray(parsed)) throw new Error("Events dump is not an array");
     eventsData = parsed;
+
+    if (eventsData.length !== manifest.collections.events.docCount) {
+       console.error(`FATAL: Events doc count mismatch. Manifest: ${manifest.collections.events.docCount}, File: ${eventsData.length}`);
+       process.exit(1);
+    }
     console.log(`Found ${eventsData.length} events documents in export.`);
   } catch (err: any) {
     console.error(`FATAL: Malformed export file ${eventsFile}: ${err.message}`);

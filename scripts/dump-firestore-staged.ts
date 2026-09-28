@@ -70,10 +70,10 @@ async function runDumpStaged() {
          console.warn(`WARNING: Collection ${c} is empty.`);
       }
 
-      const jsonContent = JSON.stringify(docs, null, 2);
-      const hash = crypto.createHash('sha256').update(jsonContent).digest('hex');
+      const jsonContent = JSON.stringify(docs, null, 2) + NL;
+      const hash = crypto.createHash('sha256').update(jsonContent, "utf8").digest('hex');
 
-      fs.writeFileSync( path.join( DD, c + ".json" ), jsonContent + NL );
+      fs.writeFileSync( path.join( DD, c + ".json" ), jsonContent );
       console.log( `DUMPED ${c}: ${docs.length} docs (SHA-256: ${hash})` );
 
       manifest.collections[c] = {
