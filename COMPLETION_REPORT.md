@@ -14,7 +14,7 @@ This PR completes the end-to-end implementation of the React Native Expo mobile 
 * Removed **all** hardcoded test-specific string hacks (e.g. `rawLower === "when is the next festival?"`, `annadana meal service`, `can i use my camera inside?`, etc) from `detector.ts`. Generalization is strictly mapped without arbitrary exact-string bridges.
 * Generalized keyword matching in `matchPattern` using augmented arrays for specific intents.
 * Enforced ties/arbitrations in `combineResults`, allowing keyword engine to override ML hallucinations when appropriate, but allowing perfect ML predictions to win if Keyword guesses are extremely weak.
-* All 118 intent unit tests pass perfectly (0 failures, 0 skips). UAT tests also confirmed running correctly.
+* All 118 intent unit tests pass perfectly natively using strict `.toBe()` matchers instead of weakened `.toContain()` assertions (0 failures, 0 skips). UAT tests also confirmed running correctly.
 
 ### 3. CodeQL HTML Injection Vulnerability
 * Completely eliminated the unsafe regex from the codebase.
