@@ -10,6 +10,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { cert, getApps, initializeApp, getApps as getAppList, App, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { parseFirebasePrivateKey } from "./utils/firebase-key-parser";
 
 type AdminModule = typeof import("firebase-admin");
 
@@ -30,9 +31,10 @@ async function loadAdminModule(): Promise<AdminModule> {
 /**
  * Initialize Firebase Admin SDK
  * Tries multiple methods:
- * 1. Environment variables (FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) - for Vercel deployment
- * 2. Service account JSON file (firebase-admin.json)
- * 3. Application Default Credentials (ADC) - for GCP, Cloud Run, etc.
+ * 1. FIREBASE_SERVICE_ACCOUNT_JSON (Highest priority)
+ * 2. Environment variables (FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) - for Vercel deployment
+ * 3. Service account JSON file (firebase-admin.json)
+ * 4. Application Default Credentials (ADC) - for GCP, Cloud Run, etc.
  */
 export async function initializeAdminApp(): Promise<App> {
   if (adminApp) {
@@ -51,17 +53,57 @@ export async function initializeAdminApp(): Promise<App> {
       return adminApp;
     }
 
-    // Try environment variables first (FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
+    // Try FIREBASE_SERVICE_ACCOUNT_JSON first
+    const serviceAccountJsonStr = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (serviceAccountJsonStr) {
+      try {
+        const serviceAccount = JSON.parse(serviceAccountJsonStr);
+
+        // Validate required fields
+        const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
+        for (const field of requiredFields) {
+          if (!serviceAccount[field]) {
+            throw new Error(`Invalid FIREBASE_SERVICE_ACCOUNT_JSON: missing required field.`);
+          }
+        }
+
+        // Validate project ID if FIREBASE_PROJECT_ID is provided
+        const expectedProjectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        if (expectedProjectId && expectedProjectId !== serviceAccount.project_id) {
+            throw new Error("Project ID mismatch between FIREBASE_PROJECT_ID and service account.");
+        }
+
+        adminApp = initializeApp({
+          credential: cert(serviceAccount),
+        });
+        console.log("Firebase Admin SDK initialized with FIREBASE_SERVICE_ACCOUNT_JSON");
+        return adminApp;
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("Invalid FIREBASE_SERVICE_ACCOUNT_JSON") || e.message.includes("Project ID mismatch"))) {
+            throw e;
+        }
+        throw new Error("Failed to parse or initialize with FIREBASE_SERVICE_ACCOUNT_JSON.");
+      }
+    }
+
+    // Try environment variables next (FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY || process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY || "invalid-key";
     
     if (clientEmail && privateKey) {
-      // Replace escaped newlines in private key
-      const formattedKey = privateKey.replace(/\\n/g, '\n');
+      // Use centralized key parser
+      const formattedKey = parseFirebasePrivateKey(privateKey);
+
+      // Explicitly get project ID, avoid demo-project override if not specified
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+      if (!projectId) {
+        throw new Error("FIREBASE_PROJECT_ID is required when using FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY.");
+      }
 
       const serviceAccount = {
         type: "service_account",
-        projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-project",
+        projectId: projectId,
         privateKey: formattedKey,
         clientEmail: clientEmail,
       };
