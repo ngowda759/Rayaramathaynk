@@ -3,7 +3,8 @@ import {
   mapProfile,
   mapDonation,
   mapGalleryMedia,
-  mapAaradhane, mapGalleryAlbum,
+  mapAaradhane,
+  mapGalleryAlbum,
   mapTestimonial,
   mapEvent,
   mapSeva,
@@ -652,28 +653,27 @@ describe("core mapper output shapes (F)", () => {
   });
 });
 
-
-  describe("aaradhane and gallery albums fallbacks", () => {
-    it("maps an aaradhane with missing significance", () => {
-      const row = mapAaradhane("a1", {
-        title: "T",
-        guruName: "G",
-        dates: ["2026-01-01"],
-        description: "D",
-        rituals: [],
-        offerings: [],
-        imageUrl: "a.jpg",
-        createdBy: "admin",
-      });
-      expect(row.significance).toBe("");
+describe("aaradhane and gallery albums fallbacks", () => {
+  it("maps an aaradhane with missing significance", () => {
+    const row = mapAaradhane("a1", {
+      title: "T",
+      guruName: "G",
+      dates: ["2026-01-01"],
+      description: "D",
+      rituals: [],
+      offerings: [],
+      imageUrl: "a.jpg",
+      createdBy: "admin",
     });
-
-    it("maps a gallery album with missing slug", () => {
-      const row = mapGalleryAlbum("g1", {
-        title: "T",
-        description: "D",
-        coverImage: "c.jpg",
-      });
-      expect(row.slug).toBe("");
-    });
+    expect(row.significance).toBe("");
   });
+
+  it("maps a gallery album with missing slug", () => {
+    const row = mapGalleryAlbum("g1", {
+      title: "T",
+      description: "D",
+      coverImage: "c.jpg",
+    });
+    expect(row.slug).toBe("");
+  });
+});

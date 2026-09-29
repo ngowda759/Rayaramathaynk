@@ -33,7 +33,7 @@ export class ResponseComposer {
     const meetsThreshold = confidence >= behavior.confidenceThreshold * 100;
 
     let content = "";
-    let usesLLM = false;
+    const usesLLM = false;
     let finalSource = retrievalResult.source;
 
     if (!meetsThreshold) {
