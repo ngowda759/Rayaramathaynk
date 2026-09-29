@@ -3,6 +3,11 @@ name: Batched Firestore to Supabase Migration
 on:
   workflow_dispatch:
     inputs:
+      target_ref:
+        description: "Git Ref (branch, tag, or SHA) to test"
+        required: false
+        type: string
+        default: ""
       batch:
         description: "Batch Number to execute"
         required: false
@@ -39,6 +44,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_ref || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
