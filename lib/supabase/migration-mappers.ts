@@ -303,7 +303,7 @@ export function mapGalleryAlbum(id: string, data: any): Record<string, any> {
     firestore_id: id,
     title: requireString(data.title, "title"),
     slug: requireString(data.slug, "slug"),
-    description: requireString(data.description, "description"),
+    description: typeof data.description === "string" ? data.description : "",
     cover_image: requireString(data.coverImage, "coverImage"),
   };
   if (typeof data.active === "boolean") row.active = data.active;
@@ -366,7 +366,7 @@ export function mapAaradhane(id: string, data: any): Record<string, any> {
     significance: requireString(data.significance, "significance"),
     rituals: Array.isArray(data.rituals) ? data.rituals.map(String) : [],
     offerings: Array.isArray(data.offerings) ? data.offerings.map(String) : [],
-    image_url: requireString(data.imageUrl, "imageUrl"),
+    image_url: typeof data.imageUrl === "string" ? data.imageUrl : "",
     seva_details: data.sevaDetails ?? [],
     created_by: requireString(data.createdBy, "createdBy"),
   };
