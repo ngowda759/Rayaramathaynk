@@ -86,12 +86,12 @@ export default function TempleScreen() {
 
       <View style={styles.card}>
         <Text style={styles.title}>Location & Contact</Text>
-        <Text style={styles.text}>{settings.templeName || 'Temple Name Unavailable'}</Text>
+        <Text style={styles.text}>{settings.temple_name || 'Temple Name Unavailable'}</Text>
         <Text style={styles.text}>{settings.address || 'Address Unavailable'}</Text>
-        {settings.contactPhone && <Text style={styles.text}>Phone: {settings.contactPhone}</Text>}
-        {settings.contactEmail && <Text style={styles.text}>Email: {settings.contactEmail}</Text>}
+        {settings.contact_phone && <Text style={styles.text}>Phone: {settings.contact_phone}</Text>}
+        {settings.contact_email && <Text style={styles.text}>Email: {settings.contact_email}</Text>}
 
-        {settings.coordinates && (
+        {settings.location_lat && settings.location_lng && (
           <TouchableOpacity style={styles.mapButton} onPress={openMap}>
             <Ionicons name="map" size={20} color="white" />
             <Text style={styles.mapButtonText}>Get Directions</Text>

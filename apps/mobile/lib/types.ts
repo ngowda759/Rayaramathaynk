@@ -1,10 +1,4 @@
 export interface WebsiteSettings {
-  templeName?: string;
-  timings?: { morning: string; evening: string };
-  contactPhone?: string;
-  contactEmail?: string;
-  coordinates?: string;
-  aboutText?: string;
   id: string;
   temple_name?: string;
   description?: string;
@@ -15,6 +9,8 @@ export interface WebsiteSettings {
   location_lng?: number;
   opening_time?: string;
   closing_time?: string;
+  timings?: { morning: string; evening: string };
+  aboutText?: string;
 }
 
 export interface Seva {

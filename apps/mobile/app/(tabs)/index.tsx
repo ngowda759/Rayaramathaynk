@@ -29,7 +29,7 @@ export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.heroTitle}>{settings?.templeName || 'Temple Information Unavailable'}</Text>
+        <Text style={styles.heroTitle}>{settings?.temple_name || 'Temple Information Unavailable'}</Text>
         <Text style={styles.heroSubtitle}>{settings?.address?.split(',')[0] || 'Location Unavailable'}</Text>
       </View>
 
