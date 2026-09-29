@@ -28,7 +28,7 @@ No other fields, defaults, or schemas were altered. PRs #279 and #280 remain unt
 ## Test Results
 - Unit tests (`npm run test tests/unit/migration-mappers.test.ts`): **PASSED** (40/40 tests)
 - TypeScript typecheck (`npm run typecheck`): **PASSED**
-- Lint (`npm run lint`): **PASSED** (no new regressions introduced)
+- Lint (`npm run lint`): **FAILED** with 836 pre-existing problems (84 errors, 752 warnings). **No new regressions were introduced** by the changes in this PR.
 
 ## REQUIRED Human Operator Actions
 Jules does not have access to the repository's valid `$GITHUB_TOKEN` to trigger GitHub Actions directly in this environment.
