@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
-import { Event, Seva, Pooja, Album, WebsiteSettings } from './types';
 
-export async function fetchSevas(): Promise<Seva[]> {
+export async function fetchSevas() {
   const { data, error } = await supabase
     .from('sevas')
     .select('*')
@@ -9,64 +8,49 @@ export async function fetchSevas(): Promise<Seva[]> {
     .gt('amount', 0)
     .order('display_order');
 
-  if (error) {
-    console.error('Error fetching sevas:', error);
-    return [];
-  }
-  return data as Seva[];
+  if (error) throw error;
+  return data;
 }
 
-export async function fetchEvents(): Promise<Event[]> {
+export async function fetchEvents() {
   const { data, error } = await supabase
     .from('events')
     .select('*')
     .eq('published', true)
     .order('start_date', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching events:', error);
-    return [];
-  }
-  return data as Event[];
+  if (error) throw error;
+  return data;
 }
 
-export async function fetchDailyPoojas(): Promise<Pooja[]> {
+export async function fetchDailyPoojas() {
     const { data, error } = await supabase
       .from('daily_poojas')
       .select('*')
       .eq('is_active', true)
       .order('display_order');
 
-    if (error) {
-        console.error('Error fetching daily poojas:', error);
-        return [];
-    }
-    return data as Pooja[];
+    if (error) throw error;
+    return data;
 }
 
-export async function fetchGalleryAlbums(): Promise<Album[]> {
+export async function fetchGalleryAlbums() {
   const { data, error } = await supabase
     .from('gallery_albums')
     .select('*, gallery_media(*)')
     .order('display_order');
 
-  if (error) {
-    console.error('Error fetching gallery albums:', error);
-    return [];
-  }
-  return data as Album[];
+  if (error) throw error;
+  return data;
 }
 
-export async function fetchWebsiteSettings(): Promise<WebsiteSettings | null> {
+export async function fetchWebsiteSettings() {
   const { data, error } = await supabase
     .from('website_settings')
     .select('*')
     .eq('key', 'temple_information')
     .single();
 
-  if (error) {
-      console.error('Error fetching website settings:', error);
-      return null;
-  }
-  return data?.value as WebsiteSettings;
+  if (error) throw error;
+  return data?.value;
 }

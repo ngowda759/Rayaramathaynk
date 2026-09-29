@@ -36,14 +36,14 @@ describe("Panchanga Utilities", () => {
     
     data.set("2026-01-20", {
       date: "2026-01-20",
-      tithi: { number: 26, name: "Krishna Ekadashi", paksha: "Krishna", start: "", end: "" },
+      tithi: { number: 11, name: "Krishna Ekadashi", paksha: "Krishna", start: "", end: "" },
       masa: { number: 10, name: "Pauṣa", is_adhik: false, paksha: "Krishna" },
       nakshatra: { number: 2, name: "Bharani", pada: 1, lord: "Venus", start: "", end: "" },
     });
     
     data.set("2026-02-14", {
       date: "2026-02-14",
-      tithi: { number: 28, name: "Krishna Trayodashi", paksha: "Krishna", start: "", end: "" },
+      tithi: { number: 13, name: "Krishna Trayodashi", paksha: "Krishna", start: "", end: "" },
       masa: { number: 11, name: "Māgha", is_adhik: false, paksha: "Krishna" },
       nakshatra: { number: 3, name: "Krittika", pada: 1, lord: "Sun", start: "", end: "" },
     });

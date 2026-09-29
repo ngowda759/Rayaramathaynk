@@ -1,34 +1,34 @@
-# Sri Raghavendra Swamy Temple App
+# Rayara Math Mobile App
 
-This directory contains the cross-platform Expo React Native application for Sri Raghavendra Swamy Temple, Yelahanka New Town.
+This is the mobile application for the Rayara Math Temple built using Expo, React Native, and Expo Router.
 
-## Architecture
+## Getting Started
 
-* **Framework**: React Native + Expo
-* **Navigation**: Expo Router (File-based routing via `app/`)
-* **Styling**: Tailwind CSS via NativeWind
-* **Backend**: Supabase PostgreSQL + Next.js API Routes
-* **Authentication**: Currently restricted to unauthenticated public queries only for temple information.
+### Local Development
 
-## Current Limitations
-* **Push Notifications**: UI scaffolding is in place via `expo-notifications`, however, actual backend push notification delivery and device-token persistence are NOT implemented. This requires an EAS (Expo Application Services) account setup with APNs/FCM credentials to complete.
-* **Native Builds**: Javascript bundles export correctly, but to produce physical `.apk`/`.aab` or `.ipa` files, you must run `eas build` with active Apple Developer and Google Play Console certificates.
+1. Run `npm install` inside the `apps/mobile` directory.
+2. Ensure environment variables are configured. Create an `.env` file with:
+   ```
+   EXPO_PUBLIC_SUPABASE_URL="your-supabase-url"
+   EXPO_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
+   EXPO_PUBLIC_API_URL="https://www.srsmathaynk.com" # Or your local backend proxy
+   ```
+3. Run `npm start` to open the Expo development server.
 
-## Environment Setup
-Create a \`.env\` file in \`apps/mobile/\` modeled off the repository root's environment.
+### Directory Structure
 
-\`\`\`env
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-EXPO_PUBLIC_API_URL=https://www.srsmathaynk.com
-\`\`\`
-*Warning: NEVER use the Supabase Service Role key inside the mobile directory!*
+* `app/`: Contains the Expo Router screen definitions (`_layout.tsx`, `(tabs)/*`).
+* `assets/`: Contains images, icons, fonts, and the temple logos.
+* `lib/`: Contains backend configuration including `supabase.ts` and data fetching logic in `api.ts`.
+* `components/`: UI components (if separated in future).
 
-## Local Development
-Run the expo command to begin:
-\`npx expo start\`
+### Push Notifications
+The app uses `expo-notifications`. Configuration is added in `app.json`. To fully enable:
+1. Ensure Firebase/APNs keys are registered in the Expo project dashboard.
+2. Request permissions on app load (to be implemented in `_layout.tsx` when needed).
 
-## Production Build
-To check the JavaScript export configuration:
-\`npx expo export -p ios\`
-\`npx expo export -p android\`
+### iOS & Android Build
+To build for production, we use EAS (Expo Application Services):
+- Ensure `eas-cli` is installed (`npm install -g eas-cli`).
+- Run `eas build --platform ios`
+- Run `eas build --platform android`

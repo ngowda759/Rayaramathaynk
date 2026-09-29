@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
-import { Seva } from '../../lib/types';
 import { useState, useEffect } from 'react';
 import { fetchSevas } from '../../lib/api';
 

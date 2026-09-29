@@ -1,11 +1,10 @@
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
-import { Pooja, WebsiteSettings } from '../../lib/types';
 import { useState, useEffect } from 'react';
 import { fetchDailyPoojas, fetchWebsiteSettings } from '../../lib/api';
 
 export default function HomeScreen() {
-  const [poojas, setPoojas] = useState<Pooja[]>([]);
-  const [settings, setSettings] = useState<WebsiteSettings | null>(null);
+  const [poojas, setPoojas] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function HomeScreen() {
         {loading ? (
           <ActivityIndicator size="small" color="#800000" />
         ) : (
-          poojas.map((pooja: Pooja) => (
+          poojas.map((pooja: any) => (
             <View key={pooja.id} style={styles.poojaRow}>
               <Text style={styles.poojaTime}>{pooja.time}</Text>
               <Text style={styles.poojaName}>{pooja.title}</Text>

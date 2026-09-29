@@ -8,9 +8,9 @@
 import type { Timestamp } from "firebase/firestore";
 
 export type LunarMonth =
-  | "Chaitra" | "Vaishakha" | "Jyeṣṭha" | "Āṣāḍha"
-  | "Śrāvaṇa" | "Bhādrapada" | "Āśvina" | "Kārtika"
-  | "Mārghaśīrṣa" | "Pauṣa" | "Māgha" | "Phālguna";
+  | "Caitra" | "Vaiśākha" | "Jyeṣṭha" | "Āṣāḍha"
+  | "Śrāvaṇa" | "Bhādrapada" | "Āśvina" | "Kārttika"
+  | "Mārgaśīrṣa" | "Pauṣa" | "Māgha" | "Phālguna";
 
 export type Paksha = "Shukla" | "Krishna";
 

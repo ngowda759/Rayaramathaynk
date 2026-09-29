@@ -201,33 +201,7 @@ export class IntentDetector {
   /**
    * Detect intent using hybrid approach (keyword + semantic)
    */
-  public detect(message: string): IntentDetectionResult {
-    const result = this._detect(message);
-    // Explicitly limit max confidence for downstream bounds
-    if (result.confidence > 100) result.confidence = 100;
-    return result;
-  }
-
-  private _detect(message: string): IntentDetectionResult {
-
-    const rawLower = message.toLowerCase().trim();
-    if (rawLower === "when is the next festival?") return { intent: Intent.UPCOMING_EVENTS, category: IntentCategory.EVENTS, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["festival"], requiresStructuredData: true };
-    if (rawLower === "annadana meal service") return { intent: Intent.ANNADANA, category: IntentCategory.SEVAS, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["annadana", "meal"], requiresStructuredData: true };
-    if (rawLower === "can i use my camera inside?") return { intent: Intent.PHOTOGRAPHY, category: IntentCategory.VISITOR, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["camera"], requiresStructuredData: false };
-    if (rawLower === "ಏನು ಉಡುಗೆ ಹಾಕಬೇಕು?") return { intent: Intent.DRESS_CODE, category: IntentCategory.VISITOR, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["ಉಡುಗೆ"], requiresStructuredData: false };
-    if (rawLower === "what can i wear to temple") return { intent: Intent.DRESS_CODE, category: IntentCategory.VISITOR, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["wear"], requiresStructuredData: false };
-    if (rawLower === "ಸಮಿತಿ ಸದಸ್ಯರು ಯಾರು?") return { intent: Intent.COMMITTEE, category: IntentCategory.WEBSITE_NAVIGATION, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["ಸಮಿತಿ"], requiresStructuredData: false };
-    if (rawLower === "what are the office hours?") return { intent: Intent.OFFICE_HOURS, category: IntentCategory.TEMPLE_INFO, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["office hours"], requiresStructuredData: true };
-    if (rawLower === "where is the temple located?") return { intent: Intent.LOCATION, category: IntentCategory.TEMPLE_INFO, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["located"], requiresStructuredData: true };
-    if (rawLower === "annadana free meals" || rawLower === "annadana") return { intent: Intent.ANNADANA, category: IntentCategory.SEVAS, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["annadana"], requiresStructuredData: true };
-    if (rawLower === "ಪ್ರಸಾದ") return { intent: Intent.PRASADA, category: IntentCategory.SEVAS, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["ಪ್ರಸಾದ"], requiresStructuredData: false };
-    if (rawLower === "dress code for temple") return { intent: Intent.DRESS_CODE, category: IntentCategory.VISITOR, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["dress code"], requiresStructuredData: false };
-    if (rawLower === "raghavendra quote") return { intent: Intent.DAILY_QUOTE, category: IntentCategory.DEVOTIONAL, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["quote"], requiresStructuredData: true };
-    if (rawLower === "how do i book archana?") return { intent: Intent.SEVA_BOOKING, category: IntentCategory.SEVAS, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["archana"], requiresStructuredData: true };
-    if (rawLower === "email the temple") return { intent: Intent.CONTACT_INFORMATION, category: IntentCategory.TEMPLE_INFO, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["email"], requiresStructuredData: true };
-    if (rawLower === "stotra" || rawLower === "ಸ್ತೋತ್ರ") return { intent: Intent.DAILY_QUOTE, category: IntentCategory.DEVOTIONAL, confidence: 100, source: RetrievalType.KEYWORD_MATCH, matchedKeywords: ["stotra"], requiresStructuredData: true };
-
-
+  detect(message: string): IntentDetectionResult {
     // Enhance message with transliteration if Romanized Kannada detected
     const { original, transliterated, isTransliterated } = enhanceWithTransliteration(message);
     const enhancedMessage = isTransliterated ? `${original} ${transliterated}` : original;

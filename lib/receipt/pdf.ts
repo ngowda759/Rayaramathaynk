@@ -200,22 +200,22 @@ export function formatPdfAmount(amount: number): string {
 }
 
 async function loadLogoBytes(options?: ReceiptPdfOptions): Promise<PDFImage | null> {
+  const files: string[] = [
+    options?.logoFallbackPath as string,
+    options?.logoFallbackOrigin as string,
+    path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logos", "ynk_matha_logo.png") as string,
+    path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logo.png") as string,
+  ];
   if (options?.logoBytes) return embedFromBytes(options.logoBytes);
-
-  try {
-    // Next.js/Vercel tracing needs static string literals inside path.join
-    const primaryPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logos", "ynk_matha_logo.png");
-    const bytes = await readFile(primaryPath);
-    return embedFromBytes(bytes);
-  } catch (e) {
+  for (const file of files) {
     try {
-      const fallbackPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "images", "logo.png");
-      const bytes = await readFile(fallbackPath);
+      const bytes = await readFile(file);
       return embedFromBytes(bytes);
-    } catch (e2) {
-      return null;
+    } catch {
+      // try next
     }
   }
+  return null;
 }
 
 async function embedFromBytes(bytes: Uint8Array | Buffer): Promise<PDFImage> {

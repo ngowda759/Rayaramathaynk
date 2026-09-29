@@ -85,7 +85,7 @@ export const GURU_BIOGRAPHIES: GuruBiography[] = [
       "Anu Vyakhya"
     ],
     aaradhane: {
-      month: "Chaitra",
+      month: "Caitra",
       paksha: "Shukla",
       tithi: "Dashami",
       duration: 3
