@@ -1,10 +1,11 @@
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
+import { WebsiteSettings, Seva, Pooja, Event, Album } from '../../lib/types';
 import { fetchWebsiteSettings } from '../../lib/api';
 
 export default function TempleScreen() {
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<WebsiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,15 +23,36 @@ export default function TempleScreen() {
   }, []);
 
   const openMap = () => {
-    if (!settings?.coordinates) return;
-    const scheme = Platform.select({ ios: 'maps://0,0?q=', android: 'geo:0,0?q=' });
-    const latLng = settings.coordinates;
-    const label = settings.templeName || 'Temple';
+    if (!settings?.location_lat || !settings?.location_lng) return;
+
+    const lat = Number(settings.location_lat);
+    const lng = Number(settings.location_lng);
+
+    // Strict coordinate bounds validation
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.warn('Invalid coordinates provided for map fallback');
+      return;
+    }
+
+    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+    const latLng = `${lat},${lng}`;
+    const label = encodeURIComponent(settings.temple_name || 'Sri Raghavendra Swamy Temple');
+
     const url = Platform.select({
       ios: `${scheme}${label}@${latLng}`,
       android: `${scheme}${latLng}(${label})`
     });
-    if (url) Linking.openURL(url);
+
+    if (url) {
+      Linking.canOpenURL(url).then(supported => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          // Safe fallback to web browser Google Maps
+          Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latLng}`);
+        }
+      });
+    }
   };
 
   if (loading) {

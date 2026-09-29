@@ -1,10 +1,11 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
+import { WebsiteSettings, Seva, Pooja, Event, Album } from '../../lib/types';
 import { fetchEvents } from '../../lib/api';
 import { format } from 'date-fns';
 
 export default function EventsScreen() {
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -1,10 +1,11 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useState, useEffect } from 'react';
+import { WebsiteSettings, Seva, Pooja, Event, Album } from '../../lib/types';
 import { fetchGalleryAlbums } from '../../lib/api';
 
 export default function GalleryScreen() {
-  const [albums, setAlbums] = useState<any[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function GalleryScreen() {
               <FlatList
                 horizontal
                 data={item.gallery_media}
-                keyExtractor={(media) => media.id}
+                keyExtractor={(media) => media.id || Math.random().toString()}
                 showsHorizontalScrollIndicator={false}
                 renderItem={({item: media}) => (
                   <Image

@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
+import { WebsiteSettings, Seva, Pooja, Event, Album } from '../../lib/types';
 import { fetchSevas } from '../../lib/api';
 
 export default function SevasScreen() {
-  const [sevas, setSevas] = useState<any[]>([]);
+  const [sevas, setSevas] = useState<Seva[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
