@@ -1,4 +1,3 @@
-import fs from "fs";
 import { getAdminFirestore, initializeAdminApp } from "../lib/admin-firebase";
 
 async function run() {
@@ -8,14 +7,14 @@ async function run() {
   console.log("=== CHECKING COLLISIONS ===");
 
   const aSnap = await db.collection("aaradhane").get();
-  const aDocs = aSnap.docs.map(d => d.id);
+  const aDocs = aSnap.docs.map((d) => d.id);
   console.log(`aaradhane count: ${aDocs.length}`);
 
   const asSnap = await db.collection("aaradhanes").get();
-  const asDocs = asSnap.docs.map(d => d.id);
+  const asDocs = asSnap.docs.map((d) => d.id);
   console.log(`aaradhanes count: ${asDocs.length}`);
 
-  const collisions = aDocs.filter(id => asDocs.includes(id));
+  const collisions = aDocs.filter((id) => asDocs.includes(id));
   console.log(`Collisions found: ${collisions.length}`);
   if (collisions.length > 0) {
     console.log("Collision IDs:", collisions);

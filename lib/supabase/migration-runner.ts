@@ -47,16 +47,14 @@ const BATCH_SIZE = 200;
  * `mapFn` must throw on invalid source data rather than invent values; thrown
  * errors are recorded as validation failures.
  */
-export async function migrateSupabaseCollection<
-  T extends { firestore_id: string },
->(
+export async function migrateSupabaseCollection<T extends { firestore_id: string }>(
   db: any,
   supabase: any,
   collectionName: string,
   tableName: string,
   mapFn: (id: string, data: any) => T,
   isDryRun: boolean,
-  fieldSpec?: FieldCoverageSpec,
+  fieldSpec?: FieldCoverageSpec
 ): Promise<MigrationStats> {
   console.log(`\n--- ${collectionName} -> ${tableName} ---`);
 
@@ -68,9 +66,7 @@ export async function migrateSupabaseCollection<
     sourceCount = countSnap.data().count;
     console.log(`Firestore documents: ${sourceCount}`);
   } catch {
-    console.warn(
-      `Could not read count for ${collectionName}; counting as we page.`,
-    );
+    console.warn(`Could not read count for ${collectionName}; counting as we page.`);
   }
 
   let processed = 0;
@@ -125,9 +121,7 @@ export async function migrateSupabaseCollection<
           });
         }
       } else {
-        const existingIds = new Set<string>(
-          (existing || []).map((r: any) => r.firestore_id),
-        );
+        const existingIds = new Set<string>((existing || []).map((r: any) => r.firestore_id));
         existingRecords += existingIds.size;
 
         if (isDryRun) {
@@ -146,9 +140,7 @@ export async function migrateSupabaseCollection<
               else inserts++;
             }
           } else {
-            console.warn(
-              `Batch upsert into ${tableName} failed; retrying row by row.`,
-            );
+            console.warn(`Batch upsert into ${tableName} failed; retrying row by row.`);
             for (const record of records) {
               const { error: rowError } = await supabase
                 .from(tableName)
@@ -173,10 +165,7 @@ export async function migrateSupabaseCollection<
 
     processed += batchDocs.length;
     const lastVisible = batchDocs[batchDocs.length - 1];
-    query = colRef
-      .orderBy("__name__")
-      .startAfter(lastVisible)
-      .limit(BATCH_SIZE);
+    query = colRef.orderBy("__name__").startAfter(lastVisible).limit(BATCH_SIZE);
   }
 
   // When the count API is unavailable, fall back to what we actually paged.
@@ -192,11 +181,7 @@ export async function migrateSupabaseCollection<
 
   let fieldCoverage: FieldCoverageResult | undefined;
   if (fieldSpec) {
-    fieldCoverage = auditFieldCoverage(
-      collectionName,
-      observedFields,
-      fieldSpec,
-    );
+    fieldCoverage = auditFieldCoverage(collectionName, observedFields, fieldSpec);
   }
 
   // Destination-side comparison (only meaningful against a reachable target).
@@ -220,29 +205,25 @@ export async function migrateSupabaseCollection<
   console.log(`Write failures:          ${writeFailures}`);
   console.log(`Total successful:        ${inserts + updates}`);
   console.log(
-    `Destination records:     ${destinationRecords === null ? "unknown" : destinationRecords}`,
+    `Destination records:     ${destinationRecords === null ? "unknown" : destinationRecords}`
   );
   if (destinationRecords !== null) {
     const missingInDestination = Math.max(0, sourceCount - destinationRecords);
     const extraInDestination = Math.max(0, destinationRecords - sourceCount);
-    console.log(
-      `${isDryRun ? "Would be m" : "M"}issing in destination:  ${missingInDestination}`,
-    );
+    console.log(`Missing in destination:  ${missingInDestination}`);
     console.log(`Extra in destination:    ${extraInDestination}`);
   }
-  console.log(
-    `Reconciliation:          ${reconciliation.ok ? "PASS" : "FAIL"}`,
-  );
+  console.log(`Reconciliation:          ${reconciliation.ok ? "PASS" : "FAIL"}`);
   if (!reconciliation.ok) {
     console.error(
-      `  ${reconciliation.missing} document(s) unaccounted for. ${reconciliation.details}`,
+      `  ${reconciliation.missing} document(s) unaccounted for. ${reconciliation.details}`
     );
   }
 
   if (fieldCoverage) {
     if (fieldCoverage.unmapped.length > 0) {
       console.error(
-        `Field coverage:          FAIL - unmapped source fields: ${fieldCoverage.unmapped.join(", ")}`,
+        `Field coverage:          FAIL - unmapped source fields: ${fieldCoverage.unmapped.join(", ")}`
       );
     } else {
       console.log(`Field coverage:          PASS (no unmapped source fields)`);
@@ -281,21 +262,17 @@ export function reportMigrationOutcome(stats: MigrationStats[]): void {
 
   for (const s of stats) {
     if (!s.reconciliation.ok) {
-      problems.push(
-        `${s.collection}: ${s.reconciliation.missing} unaccounted document(s)`,
-      );
+      problems.push(`${s.collection}: ${s.reconciliation.missing} unaccounted document(s)`);
     }
     if (s.validationFailures > 0) {
-      problems.push(
-        `${s.collection}: ${s.validationFailures} validation failure(s)`,
-      );
+      problems.push(`${s.collection}: ${s.validationFailures} validation failure(s)`);
     }
     if (s.writeFailures > 0) {
       problems.push(`${s.collection}: ${s.writeFailures} write failure(s)`);
     }
     if (s.fieldCoverage && s.fieldCoverage.unmapped.length > 0) {
       problems.push(
-        `${s.collection}: unmapped fields (${s.fieldCoverage.unmapped.join(", ")})`,
+        `${s.collection}: unmapped fields (${s.fieldCoverage.unmapped.join(", ")})`
       );
     }
   }
@@ -309,7 +286,7 @@ export function reportMigrationOutcome(stats: MigrationStats[]): void {
       acc.write += s.writeFailures;
       return acc;
     },
-    { source: 0, inserts: 0, updates: 0, validation: 0, write: 0 },
+    { source: 0, inserts: 0, updates: 0, validation: 0, write: 0 }
   );
 
   console.log("\n=== OVERALL SUMMARY ===");
