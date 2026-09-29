@@ -66,6 +66,22 @@ Equivalent npm aliases exist: `npm run migrate:core`, `migrate:content`,
 Every migrator shares the same rules, enforced by
 `lib/supabase/migration-runner.ts` and `lib/supabase/migration-mappers.ts`:
 
+- **Deterministic Persistent Checkpoints.** The batched migration workflow (`firestore-batched-migration.yml`) safely saves the `data/migration-manifest.json` state across GitHub Actions workflow runs by preserving and downloading the workflow artifact using a safe and strict deterministic lookup via the GitHub CLI.
+  - **Metadata Requirements:** Only checkpoints marking themselves as `production` runs with a matching `inventoryVersion` and compatible `batchSize` are restored. Dry-run checkpoints are immediately discarded for a live run.
+  - **Scoped Retry:** Resuming a failed migration securely requires an explicit scope (e.g. `--batch 1 --retry-failed` or `--collections events --retry-failed`). It is explicitly impossible to accidentally resume an unscoped retry against the entire database.
+
+  **Lifecycle Example:**
+  1. **Production Batch 1** → produces `migration-manifest.json` → uploaded as `migration-manifest` artifact.
+  2. **Next Batch 1 --retry-failed** → workflow triggers `fetch-checkpoint.ts`.
+  3. Find completed workflow runs of `firestore-batched-migration.yml`.
+  4. Inspect `migration-manifest` artifacts in deterministic newest-first order based on run creation date.
+  5. Validate complete checkpoint metadata (`migrationType`, `inventoryVersion`, `batchSize`, `checkpointVersion`, `runId`, `records`).
+  6. Reject invalid, dry-run (if live), or incompatible checkpoints and continue searching older candidates.
+  7. Select newest **VALID** production checkpoint from the expected migration lineage and restore it.
+  8. Skip `SUCCESS` records; Retry `FAILED`/unattempted records explicitly within the requested scope.
+  9. Write new manifest (recording source run ID) → Upload new artifact.
+
+  *Note: `--retry-failed` without explicit `--batch <n>` or `--collections <c>` scope is intentionally rejected and blocked safely.*
 - **No synthetic data.** A missing timestamp is never replaced with `new Date()`;
   a missing latency measurement is never replaced with `0`; an unrecorded
   `success` flag is never assumed `true`. Where a destination column is
