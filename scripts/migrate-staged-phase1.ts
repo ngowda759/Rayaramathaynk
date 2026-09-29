@@ -26,12 +26,16 @@ async function run() {
   const confirmProduction = process.argv.includes("--confirm-production");
 
   if (!isDryRun && !confirmProduction) {
-    console.error("FATAL: You must specify either --dry-run or --confirm-production");
+    console.error(
+      "FATAL: You must specify either --dry-run or --confirm-production",
+    );
     process.exit(1);
   }
 
   if (isDryRun && confirmProduction) {
-    console.error("FATAL: Cannot specify both --dry-run and --confirm-production");
+    console.error(
+      "FATAL: Cannot specify both --dry-run and --confirm-production",
+    );
     process.exit(1);
   }
 
@@ -42,7 +46,12 @@ async function run() {
     console.log("=== PRODUCTION MODE: data will be written to Supabase ===");
   }
 
-  const manifestFile = path.join(process.cwd(), "data", "firestore-dump", "manifest.json");
+  const manifestFile = path.join(
+    process.cwd(),
+    "data",
+    "firestore-dump",
+    "manifest.json",
+  );
   if (!fs.existsSync(manifestFile)) {
     console.error(`FATAL: Missing source manifest: ${manifestFile}`);
     process.exit(1);
@@ -57,21 +66,34 @@ async function run() {
   }
 
   if (!manifest.success) {
-    console.error("FATAL: Source manifest indicates the dump was not entirely successful.");
+    console.error(
+      "FATAL: Source manifest indicates the dump was not entirely successful.",
+    );
     process.exit(1);
   }
 
   const requiredCollections = ["settings", "events"];
   for (const req of requiredCollections) {
-    if (!manifest.collections || !manifest.collections[req] || manifest.collections[req].status !== "success") {
-      console.error(`FATAL: Source manifest is missing a successful dump for required collection: ${req}`);
+    if (
+      !manifest.collections ||
+      !manifest.collections[req] ||
+      manifest.collections[req].status !== "success"
+    ) {
+      console.error(
+        `FATAL: Source manifest is missing a successful dump for required collection: ${req}`,
+      );
       process.exit(1);
     }
   }
 
   // 1. Settings
   console.log("\n--- Processing 'settings' collection ---");
-  const settingsFile = path.join(process.cwd(), "data", "firestore-dump", "settings.json");
+  const settingsFile = path.join(
+    process.cwd(),
+    "data",
+    "firestore-dump",
+    "settings.json",
+  );
   if (!fs.existsSync(settingsFile)) {
     console.error(`FATAL: Missing export file: ${settingsFile}`);
     process.exit(1);
@@ -80,22 +102,32 @@ async function run() {
   let settingsData: any[];
   try {
     const fileContent = fs.readFileSync(settingsFile, "utf8");
-    const hash = crypto.createHash("sha256").update(fileContent, "utf8").digest("hex");
+    const hash = crypto
+      .createHash("sha256")
+      .update(fileContent, "utf8")
+      .digest("hex");
     if (hash !== manifest.collections.settings.hash) {
-      console.error(`FATAL: Settings file hash mismatch. Expected ${manifest.collections.settings.hash}, got ${hash}`);
+      console.error(
+        `FATAL: Settings file hash mismatch. Expected ${manifest.collections.settings.hash}, got ${hash}`,
+      );
       process.exit(1);
     }
     const parsed = JSON.parse(fileContent);
-    if (!Array.isArray(parsed)) throw new Error("Settings dump is not an array");
+    if (!Array.isArray(parsed))
+      throw new Error("Settings dump is not an array");
     settingsData = parsed;
 
     if (settingsData.length !== manifest.collections.settings.docCount) {
-       console.error(`FATAL: Settings doc count mismatch. Manifest: ${manifest.collections.settings.docCount}, File: ${settingsData.length}`);
-       process.exit(1);
+      console.error(
+        `FATAL: Settings doc count mismatch. Manifest: ${manifest.collections.settings.docCount}, File: ${settingsData.length}`,
+      );
+      process.exit(1);
     }
     console.log(`Found ${settingsData.length} settings documents in export.`);
   } catch (err: any) {
-    console.error(`FATAL: Malformed export file ${settingsFile}: ${err.message}`);
+    console.error(
+      `FATAL: Malformed export file ${settingsFile}: ${err.message}`,
+    );
     process.exit(1);
   }
 
@@ -106,7 +138,11 @@ async function run() {
 
   for (const doc of settingsData) {
     if (!doc.id && !doc.name) {
-      settingsFailures.push({ id: "unknown", reason: "Missing document ID", type: "validation" });
+      settingsFailures.push({
+        id: "unknown",
+        reason: "Missing document ID",
+        type: "validation",
+      });
       continue;
     }
     const id = doc.id || doc.name.split("/").pop();
@@ -144,7 +180,10 @@ async function run() {
         if (typeof data.templeName !== "string" || !data.templeName.trim()) {
           throw new Error("Missing required field: templeName");
         }
-        if (typeof data.contactEmail !== "string" || !data.contactEmail.trim()) {
+        if (
+          typeof data.contactEmail !== "string" ||
+          !data.contactEmail.trim()
+        ) {
           throw new Error("Missing required field: contactEmail");
         }
 
@@ -174,13 +213,22 @@ async function run() {
 
       settingsDocumentRows.push(mapSettingsDocument(id, data));
     } catch (err: any) {
-      settingsFailures.push({ id, reason: err?.message || "Validation error", type: "validation" });
+      settingsFailures.push({
+        id,
+        reason: err?.message || "Validation error",
+        type: "validation",
+      });
     }
   }
 
   // 2. Events
   console.log("\n--- Processing 'events' collection ---");
-  const eventsFile = path.join(process.cwd(), "data", "firestore-dump", "events.json");
+  const eventsFile = path.join(
+    process.cwd(),
+    "data",
+    "firestore-dump",
+    "events.json",
+  );
   if (!fs.existsSync(eventsFile)) {
     console.error(`FATAL: Missing export file: ${eventsFile}`);
     process.exit(1);
@@ -189,9 +237,14 @@ async function run() {
   let eventsData: any[];
   try {
     const fileContent = fs.readFileSync(eventsFile, "utf8");
-    const hash = crypto.createHash("sha256").update(fileContent, "utf8").digest("hex");
+    const hash = crypto
+      .createHash("sha256")
+      .update(fileContent, "utf8")
+      .digest("hex");
     if (hash !== manifest.collections.events.hash) {
-      console.error(`FATAL: Events file hash mismatch. Expected ${manifest.collections.events.hash}, got ${hash}`);
+      console.error(
+        `FATAL: Events file hash mismatch. Expected ${manifest.collections.events.hash}, got ${hash}`,
+      );
       process.exit(1);
     }
     const parsed = JSON.parse(fileContent);
@@ -199,8 +252,10 @@ async function run() {
     eventsData = parsed;
 
     if (eventsData.length !== manifest.collections.events.docCount) {
-       console.error(`FATAL: Events doc count mismatch. Manifest: ${manifest.collections.events.docCount}, File: ${eventsData.length}`);
-       process.exit(1);
+      console.error(
+        `FATAL: Events doc count mismatch. Manifest: ${manifest.collections.events.docCount}, File: ${eventsData.length}`,
+      );
+      process.exit(1);
     }
     console.log(`Found ${eventsData.length} events documents in export.`);
   } catch (err: any) {
@@ -211,10 +266,16 @@ async function run() {
   // Ensure Admin client initialization only occurs if all file and manifest validations pass
   const supabase = createAdminClient();
 
-  const { data: existingEventsData, count: existingEventsCount, error: existingEventsError } = await supabase.from('events').select('firestore_id', { count: 'exact' });
+  const {
+    data: existingEventsData,
+    count: existingEventsCount,
+    error: existingEventsError,
+  } = await supabase.from("events").select("firestore_id", { count: "exact" });
   if (existingEventsError) {
-     console.error(`FATAL: Failed to query existing events from Supabase: ${existingEventsError.message}`);
-     process.exit(1);
+    console.error(
+      `FATAL: Failed to query existing events from Supabase: ${existingEventsError.message}`,
+    );
+    process.exit(1);
   }
   console.log(`Supabase existing events: ${existingEventsCount || 0}`);
 
@@ -223,7 +284,11 @@ async function run() {
 
   for (const doc of eventsData) {
     if (!doc.id && !doc.name) {
-      eventsFailures.push({ id: "unknown", reason: "Missing document ID", type: "validation" });
+      eventsFailures.push({
+        id: "unknown",
+        reason: "Missing document ID",
+        type: "validation",
+      });
       continue;
     }
     const id = doc.id || doc.name.split("/").pop();
@@ -232,14 +297,23 @@ async function run() {
     try {
       eventRows.push(mapEvent(id, data));
     } catch (err: any) {
-      eventsFailures.push({ id, reason: err?.message || "Validation error", type: "validation" });
+      eventsFailures.push({
+        id,
+        reason: err?.message || "Validation error",
+        type: "validation",
+      });
     }
   }
 
-  const totalValidationFailures = settingsFailures.length + eventsFailures.length;
+  const totalValidationFailures =
+    settingsFailures.length + eventsFailures.length;
   if (totalValidationFailures > 0) {
-    console.error(`FATAL: Encountered ${totalValidationFailures} validation failures during mapping.`);
-    [...settingsFailures, ...eventsFailures].forEach((f) => console.error(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`));
+    console.error(
+      `FATAL: Encountered ${totalValidationFailures} validation failures during mapping.`,
+    );
+    [...settingsFailures, ...eventsFailures].forEach((f) =>
+      console.error(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`),
+    );
     process.exit(1);
   }
 
@@ -264,7 +338,7 @@ async function run() {
       .select("firestore_id")
       .in(
         "firestore_id",
-        rows.map((r) => r.firestore_id)
+        rows.map((r) => r.firestore_id),
       );
 
     if (error) {
@@ -272,7 +346,9 @@ async function run() {
       process.exit(1);
     }
 
-    const existingIds = new Set((existing || []).map((r: any) => r.firestore_id));
+    const existingIds = new Set(
+      (existing || []).map((r: any) => r.firestore_id),
+    );
 
     let tableInserts = 0;
     let tableUpdates = 0;
@@ -289,21 +365,31 @@ async function run() {
     updates += tableUpdates;
 
     if (isDryRun) {
-      console.log(`  [DRY RUN] Would insert: ${tableInserts}, update: ${tableUpdates}`);
+      console.log(
+        `  [DRY RUN] Would insert: ${tableInserts}, update: ${tableUpdates}`,
+      );
       continue;
     }
 
     console.log(`  Inserting: ${tableInserts}, Updating: ${tableUpdates}...`);
-    const { error: upsertError } = await supabase.from(table).upsert(rows, { onConflict: "firestore_id" });
+    const { error: upsertError } = await supabase
+      .from(table)
+      .upsert(rows, { onConflict: "firestore_id" });
 
     if (upsertError) {
-      console.warn(`Batch upsert into ${table} failed (${upsertError.message}); retrying row by row.`);
+      console.warn(
+        `Batch upsert into ${table} failed (${upsertError.message}); retrying row by row.`,
+      );
       for (const row of rows) {
         const { error: rowError } = await supabase
           .from(table)
           .upsert(row, { onConflict: "firestore_id" });
         if (rowError) {
-          writeFailures.push({ id: row.firestore_id, reason: rowError.message, type: "write" });
+          writeFailures.push({
+            id: row.firestore_id,
+            reason: rowError.message,
+            type: "write",
+          });
         }
       }
     }
@@ -312,10 +398,16 @@ async function run() {
   console.log("\n=== FINAL REPORT ===");
   console.log(`Source timestamp:      ${manifest.exportedAt}`);
   console.log(`Firebase project:      ${manifest.projectId}`);
-  console.log(`Source documents:      ${settingsData.length + eventsData.length} (settings: ${settingsData.length}, events: ${eventsData.length})`);
+  console.log(
+    `Source documents:      ${settingsData.length + eventsData.length} (settings: ${settingsData.length}, events: ${eventsData.length})`,
+  );
   console.log(`Supabase existing events: ${existingEventsCount || 0}`);
-  console.log(`Checksums:             settings: ${manifest.collections.settings.hash}`);
-  console.log(`                       events: ${manifest.collections.events.hash}`);
+  console.log(
+    `Checksums:             settings: ${manifest.collections.settings.hash}`,
+  );
+  console.log(
+    `                       events: ${manifest.collections.events.hash}`,
+  );
   console.log(`Planned inserts:       ${inserts}`);
   console.log(`Planned updates:       ${updates}`);
   console.log(`Validation failures:   ${totalValidationFailures}`);
@@ -347,19 +439,31 @@ async function run() {
 * Migration completed ${writeFailures.length === 0 ? "successfully" : "with failures"} in ${modeStatus}.
 `;
 
-  fs.writeFileSync(path.join(process.cwd(), "MIGRATION_PHASE_1_REPORT.md"), report);
-  console.log("\nRESULT: PASS. Wrote MIGRATION_PHASE_1_REPORT.md");
+  fs.writeFileSync(
+    path.join(process.cwd(), "MIGRATION_PHASE_1_REPORT.md"),
+    report,
+  );
+
+  if (writeFailures.length === 0) {
+    console.log("\nRESULT: PASS. Wrote MIGRATION_PHASE_1_REPORT.md");
+  }
 
   if (writeFailures.length > 0) {
     console.error(`FATAL: Encountered ${writeFailures.length} write failures.`);
-    writeFailures.forEach((f) => console.error(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`));
+    writeFailures.forEach((f) =>
+      console.error(` - [${f.type.toUpperCase()}] ${f.id}: ${f.reason}`),
+    );
     process.exit(1);
   }
 }
 
 export { run };
 
-if (process.argv[1] && (process.argv[1] === __filename || process.argv[1].endsWith('migrate-staged-phase1.ts'))) {
+if (
+  process.argv[1] &&
+  (process.argv[1] === __filename ||
+    process.argv[1].endsWith("migrate-staged-phase1.ts"))
+) {
   run().catch((err) => {
     console.error("FATAL: Unhandled exception during migration:", err);
     process.exit(1);
