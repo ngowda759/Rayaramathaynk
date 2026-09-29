@@ -12,11 +12,7 @@
  *  - copy Firestore document IDs verbatim (they are arbitrary strings).
  */
 
-import {
-  FieldCoverageSpec,
-  ValidationError,
-  toIsoString,
-} from "./migration-helpers";
+import { FieldCoverageSpec, ValidationError, toIsoString } from "./migration-helpers";
 
 function requireString(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) {
@@ -39,9 +35,7 @@ function requireStringArray(value: unknown, field: string): string[] {
 
 function requireNumber(value: unknown, field: string): number {
   if (typeof value !== "number" || Number.isNaN(value)) {
-    throw new ValidationError(
-      `Missing or invalid required numeric field: ${field}`,
-    );
+    throw new ValidationError(`Missing or invalid required numeric field: ${field}`);
   }
   return value;
 }
@@ -49,9 +43,7 @@ function requireNumber(value: unknown, field: string): number {
 function requireTimestamp(value: unknown, field: string): string {
   const iso = toIsoString(value);
   if (!iso) {
-    throw new ValidationError(
-      `Missing or invalid required timestamp: ${field}`,
-    );
+    throw new ValidationError(`Missing or invalid required timestamp: ${field}`);
   }
   return iso;
 }
@@ -61,14 +53,12 @@ function assignOptionalTimestamp(
   row: Record<string, any>,
   column: string,
   source: unknown,
-  sourceField: string,
+  sourceField: string
 ): void {
   if (source === undefined || source === null) return;
   const iso = toIsoString(source);
   if (!iso) {
-    throw new ValidationError(
-      `Invalid timestamp for ${sourceField}: ${String(source)}`,
-    );
+    throw new ValidationError(`Invalid timestamp for ${sourceField}: ${String(source)}`);
   }
   row[column] = iso;
 }
@@ -79,14 +69,7 @@ function assignOptionalTimestamp(
 
 export const CONTENT_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
   users: {
-    mapped: [
-      "email",
-      "displayName",
-      "phoneNumber",
-      "photoUrl",
-      "role",
-      "active",
-    ],
+    mapped: ["email", "displayName", "phoneNumber", "photoUrl", "role", "active"],
     transformed: ["createdAt", "updatedAt"],
     intentionallyExcluded: [
       { field: "name", why: "Legacy alias of displayName." },
@@ -94,10 +77,7 @@ export const CONTENT_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
       { field: "profileImage", why: "Legacy alias of photoUrl." },
       { field: "uid", why: "Equals the document id, stored as firestore_id." },
       { field: "isActive", why: "Legacy alias of active." },
-      {
-        field: "templeId",
-        why: "Single-temple deployment; not in the users schema.",
-      },
+      { field: "templeId", why: "Single-temple deployment; not in the users schema." },
       { field: "isApproved", why: "Not present in the users schema." },
       { field: "emailVerified", why: "Not present in the users schema." },
       { field: "lastLogin", why: "Not present in the users schema." },
@@ -121,14 +101,7 @@ export const CONTENT_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
     transformed: ["createdAt", "updatedAt"],
   },
   donation_campaigns: {
-    mapped: [
-      "title",
-      "description",
-      "imageUrl",
-      "suggestedAmount",
-      "active",
-      "displayOrder",
-    ],
+    mapped: ["title", "description", "imageUrl", "suggestedAmount", "active", "displayOrder"],
     transformed: ["createdAt", "updatedAt"],
   },
   donations: {
@@ -150,14 +123,7 @@ export const CONTENT_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
     transformed: ["collectedAt", "createdAt", "updatedAt"],
   },
   galleryAlbums: {
-    mapped: [
-      "title",
-      "slug",
-      "description",
-      "coverImage",
-      "active",
-      "displayOrder",
-    ],
+    mapped: ["title", "slug", "description", "coverImage", "active", "displayOrder"],
     transformed: ["createdAt", "updatedAt"],
   },
   galleryMedia: {
@@ -245,9 +211,7 @@ export function mapProfile(id: string, data: any): Record<string, any> {
     nakshatra: optionalString(data.nakshatra),
     preferences: data.preferences ?? {},
     favorites: Array.isArray(data.favorites) ? data.favorites : [],
-    recently_viewed: Array.isArray(data.recentlyViewed)
-      ? data.recentlyViewed
-      : [],
+    recently_viewed: Array.isArray(data.recentlyViewed) ? data.recentlyViewed : [],
     bookmarks: Array.isArray(data.bookmarks) ? data.bookmarks : [],
   };
 
@@ -256,10 +220,7 @@ export function mapProfile(id: string, data: any): Record<string, any> {
   return row;
 }
 
-export function mapDonationCampaign(
-  id: string,
-  data: any,
-): Record<string, any> {
+export function mapDonationCampaign(id: string, data: any): Record<string, any> {
   const row: Record<string, any> = {
     firestore_id: id,
     title: requireString(data.title, "title"),
@@ -268,8 +229,7 @@ export function mapDonationCampaign(
     suggested_amount: requireNumber(data.suggestedAmount, "suggestedAmount"),
   };
   if (typeof data.active === "boolean") row.active = data.active;
-  if (typeof data.displayOrder === "number")
-    row.display_order = data.displayOrder;
+  if (typeof data.displayOrder === "number") row.display_order = data.displayOrder;
 
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
@@ -291,8 +251,7 @@ export function mapDonation(id: string, data: any): Record<string, any> {
     payment_mode: requireString(data.paymentMode, "paymentMode"),
     status: requireString(data.status, "status"),
     receipt_number: requireString(data.receiptNumber, "receiptNumber"),
-    admin_remarks:
-      typeof data.adminRemarks === "string" ? data.adminRemarks : "",
+    admin_remarks: typeof data.adminRemarks === "string" ? data.adminRemarks : "",
     collected_by: requireString(data.collectedBy, "collectedBy"),
     collected_at: toIsoString(data.collectedAt),
   };
@@ -307,8 +266,7 @@ export function mapGalleryAlbum(id: string, data: any): Record<string, any> {
     cover_image: requireString(data.coverImage, "coverImage"),
   };
   if (typeof data.active === "boolean") row.active = data.active;
-  if (typeof data.displayOrder === "number")
-    row.display_order = data.displayOrder;
+  if (typeof data.displayOrder === "number") row.display_order = data.displayOrder;
 
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
@@ -328,8 +286,7 @@ export function mapGalleryMedia(id: string, data: any): Record<string, any> {
     video_url: optionalString(data.videoUrl),
     alt_text: typeof data.altText === "string" ? data.altText : "",
     is_featured: typeof data.isFeatured === "boolean" ? data.isFeatured : false,
-    display_order:
-      typeof data.displayOrder === "number" ? data.displayOrder : 0,
+    display_order: typeof data.displayOrder === "number" ? data.displayOrder : 0,
     tags: Array.isArray(data.tags) ? data.tags : [],
     uploaded_by: requireString(data.uploadedBy, "uploadedBy"),
     uploaded_at: toIsoString(data.uploadedAt),
@@ -371,17 +328,13 @@ export function mapAaradhane(id: string, data: any): Record<string, any> {
     created_by: requireString(data.createdBy, "createdBy"),
   };
   if (typeof data.isUpcoming === "boolean") row.is_upcoming = data.isUpcoming;
-  if (typeof data.displayOrder === "number")
-    row.display_order = data.displayOrder;
+  if (typeof data.displayOrder === "number") row.display_order = data.displayOrder;
 
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   return row;
 }
 
-export function mapVolunteerRequest(
-  id: string,
-  data: any,
-): Record<string, any> {
+export function mapVolunteerRequest(id: string, data: any): Record<string, any> {
   const row: Record<string, any> = {
     firestore_id: id,
     volunteer_id: requireString(data.volunteerId, "volunteerId"),
@@ -406,33 +359,14 @@ export const AI_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
     mapped: ["userId", "messageCount", "lastMessage", "detectedLanguage"],
     transformed: ["createdAt", "updatedAt"],
     intentionallyExcluded: [
-      {
-        field: "messages",
-        why: "Session summary; messages migrate from the messages collection.",
-      },
-      {
-        field: "lastIntent",
-        why: "Conversational state not in the Supabase session schema.",
-      },
-      {
-        field: "lastTopic",
-        why: "Conversational state not in the Supabase session schema.",
-      },
-      {
-        field: "preferredLanguage",
-        why: "Conversational state not in the Supabase session schema.",
-      },
+      { field: "messages", why: "Session summary; messages migrate from the messages collection." },
+      { field: "lastIntent", why: "Conversational state not in the Supabase session schema." },
+      { field: "lastTopic", why: "Conversational state not in the Supabase session schema." },
+      { field: "preferredLanguage", why: "Conversational state not in the Supabase session schema." },
     ],
   },
   messages: {
-    mapped: [
-      "sessionId",
-      "role",
-      "content",
-      "model",
-      "latency",
-      "detectedLanguage",
-    ],
+    mapped: ["sessionId", "role", "content", "model", "latency", "detectedLanguage"],
     transformed: ["timestamp"],
   },
   unknown_questions: {
@@ -454,38 +388,16 @@ export const AI_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
     ],
     transformed: ["timestamp", "lastAsked", "reviewedAt"],
     intentionallyExcluded: [
-      {
-        field: "userAgent",
-        why: "Not present in the Supabase unknown_questions schema.",
-      },
-      {
-        field: "ip",
-        why: "Not present in the schema; personal data stays in Firestore.",
-      },
-      {
-        field: "expectedIntent",
-        why: "Not present in the Supabase unknown_questions schema.",
-      },
-      {
-        field: "error",
-        why: "Not present in the Supabase unknown_questions schema.",
-      },
+      { field: "userAgent", why: "Not present in the Supabase unknown_questions schema." },
+      { field: "ip", why: "Not present in the schema; personal data stays in Firestore." },
+      { field: "expectedIntent", why: "Not present in the Supabase unknown_questions schema." },
+      { field: "error", why: "Not present in the Supabase unknown_questions schema." },
       { field: "reviewed", why: "Superseded by the status column." },
-      {
-        field: "addedToKnowledge",
-        why: "Superseded by added_to_knowledge_article_id.",
-      },
+      { field: "addedToKnowledge", why: "Superseded by added_to_knowledge_article_id." },
     ],
   },
   ai_intent_distribution: {
-    mapped: [
-      "intent",
-      "category",
-      "language",
-      "confidence",
-      "sessionId",
-      "messageId",
-    ],
+    mapped: ["intent", "category", "language", "confidence", "sessionId", "messageId"],
     transformed: ["timestamp"],
   },
   ai_latency_records: {
@@ -501,10 +413,7 @@ export const AI_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
     ],
     transformed: ["timestamp"],
     intentionallyExcluded: [
-      {
-        field: "messageId",
-        why: "Not present in the ai_latency_records schema.",
-      },
+      { field: "messageId", why: "Not present in the ai_latency_records schema." },
       { field: "intent", why: "Not present in the ai_latency_records schema." },
     ],
   },
@@ -515,8 +424,7 @@ export function mapChatSession(id: string, data: any): Record<string, any> {
     firestore_id: id,
     user_id: optionalString(data.userId),
     // Domain default: a session with no recorded count has zero messages.
-    message_count:
-      typeof data.messageCount === "number" ? data.messageCount : 0,
+    message_count: typeof data.messageCount === "number" ? data.messageCount : 0,
     last_message: optionalString(data.lastMessage),
     detected_language: optionalString(data.detectedLanguage),
   };
@@ -544,8 +452,7 @@ export function mapUnknownQuestion(id: string, data: any): Record<string, any> {
   return {
     firestore_id: id,
     question,
-    question_lower:
-      optionalString(data.questionLower) ?? question.toLowerCase(),
+    question_lower: optionalString(data.questionLower) ?? question.toLowerCase(),
     detected_intent: optionalString(data.detectedIntent ?? data.intent),
     confidence: typeof data.confidence === "number" ? data.confidence : null,
     language: optionalString(data.language),
@@ -554,27 +461,19 @@ export function mapUnknownQuestion(id: string, data: any): Record<string, any> {
     session_id: optionalString(data.sessionId),
     // Domain default: first sighting of a question.
     times_asked: typeof data.timesAsked === "number" ? data.timesAsked : 1,
-    status:
-      typeof data.status === "string" && data.status ? data.status : "pending",
+    status: typeof data.status === "string" && data.status ? data.status : "pending",
     assigned_to:
-      typeof data.assignedTo === "string" && data.assignedTo
-        ? data.assignedTo
-        : "unassigned",
+      typeof data.assignedTo === "string" && data.assignedTo ? data.assignedTo : "unassigned",
     last_asked: toIsoString(data.lastAsked),
     reviewed_by: optionalString(data.reviewedBy),
     reviewed_at: toIsoString(data.reviewedAt),
     response: optionalString(data.response),
-    added_to_knowledge_article_id: optionalString(
-      data.addedToKnowledgeArticleId,
-    ),
+    added_to_knowledge_article_id: optionalString(data.addedToKnowledgeArticleId),
     notes: optionalString(data.notes),
   };
 }
 
-export function mapIntentDistribution(
-  id: string,
-  data: any,
-): Record<string, any> {
+export function mapIntentDistribution(id: string, data: any): Record<string, any> {
   return {
     firestore_id: id,
     intent: requireString(data.intent, "intent"),
@@ -595,10 +494,7 @@ export function mapLatencyRecord(id: string, data: any): Record<string, any> {
     firestore_id: id,
     total_latency: requireNumber(data.totalLatency, "totalLatency"),
     // Each component is required; 0 would fabricate a measurement.
-    intent_detection_time: requireNumber(
-      data.intentDetectionTime,
-      "intentDetectionTime",
-    ),
+    intent_detection_time: requireNumber(data.intentDetectionTime, "intentDetectionTime"),
     retrieval_time: requireNumber(data.retrievalTime, "retrievalTime"),
     generation_time: requireNumber(data.generationTime, "generationTime"),
     timestamp: requireTimestamp(data.timestamp, "timestamp"),
@@ -615,16 +511,7 @@ export function mapLatencyRecord(id: string, data: any): Record<string, any> {
 
 export const CORE_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
   sevas: {
-    mapped: [
-      "name",
-      "description",
-      "category",
-      "amount",
-      "duration",
-      "imageUrl",
-      "active",
-      "displayOrder",
-    ],
+    mapped: ["name", "description", "category", "amount", "duration", "imageUrl", "active", "displayOrder"],
     transformed: ["createdAt", "updatedAt"],
   },
   dailyPoojas: {
@@ -671,8 +558,7 @@ export function mapSeva(id: string, data: any): Record<string, any> {
     image_url: optionalString(data.imageUrl),
   };
   if (typeof data.active === "boolean") row.active = data.active;
-  if (typeof data.displayOrder === "number")
-    row.display_order = data.displayOrder;
+  if (typeof data.displayOrder === "number") row.display_order = data.displayOrder;
 
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
@@ -696,8 +582,7 @@ export function mapDailyPooja(id: string, data: any): Record<string, any> {
     created_by: optionalString(data.createdBy),
   };
   if (typeof data.isActive === "boolean") row.is_active = data.isActive;
-  if (typeof data.displayOrder === "number")
-    row.display_order = data.displayOrder;
+  if (typeof data.displayOrder === "number") row.display_order = data.displayOrder;
 
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   return row;
@@ -716,18 +601,18 @@ export function mapEvent(id: string, data: any): Record<string, any> {
   const row: Record<string, any> = {
     firestore_id: id,
     title: requireString(data.title, "title"),
-    description: optionalString(data.description),
-    location: optionalString(data.location),
+    description: requireString(data.description, "description"),
+    location: requireString(data.location, "location"),
     start_date: startDate,
     end_date: endDate,
     start_time: optionalString(data.startTime),
     end_time: optionalString(data.endTime),
     category: optionalString(data.category),
     image_url: optionalString(data.imageUrl),
-    status: optionalString(data.status),
+    status: requireString(data.status, "status"),
   };
-  row.featured = typeof data.featured === "boolean" ? data.featured : false;
-  row.published = typeof data.published === "boolean" ? data.published : false;
+  if (typeof data.featured === "boolean") row.featured = data.featured;
+  if (typeof data.published === "boolean") row.published = data.published;
 
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
@@ -748,10 +633,7 @@ export function toJsonSafe(value: any): any {
 
   if (typeof value === "object") {
     if (typeof value.toDate === "function") return value.toDate().toISOString();
-    if (
-      typeof value._seconds === "number" &&
-      typeof value._nanoseconds === "number"
-    ) {
+    if (typeof value._seconds === "number" && typeof value._nanoseconds === "number") {
       return new Date(value._seconds * 1000).toISOString();
     }
     if (Array.isArray(value)) return value.map(toJsonSafe);
@@ -770,7 +652,7 @@ export function toJsonSafe(value: any): any {
 export const SITE_SETTINGS_SIGNATURES = ["templeName", "contactEmail"];
 
 export function isSiteSettingsDoc(data: Record<string, any>): boolean {
-  return SITE_SETTINGS_SIGNATURES.every((field) => {
+  return SITE_SETTINGS_SIGNATURES.some((field) => {
     const value = data[field];
     return typeof value === "string" && value.length > 0;
   });
@@ -780,10 +662,7 @@ export function isSiteSettingsDoc(data: Record<string, any>): boolean {
  * Build a lossless settings_documents row: the entire source document is kept
  * in `data`, so no nested object or array can be dropped by normalisation.
  */
-export function mapSettingsDocument(
-  id: string,
-  data: Record<string, any>,
-): Record<string, any> {
+export function mapSettingsDocument(id: string, data: Record<string, any>): Record<string, any> {
   const row: Record<string, any> = {
     firestore_id: id,
     document_key: id,

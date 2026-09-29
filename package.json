@@ -35,8 +35,6 @@
     "migrate:daily-poojas": "npx tsx scripts/migrate-daily-poojas.ts",
     "migrate:seva-bookings": "npx tsx scripts/migrate-seva-bookings-to-supabase.ts",
     "migrate:settings": "npx tsx scripts/migrate-settings.ts",
-    "migrate:phase1": "npx tsx scripts/migrate-staged-phase1.ts",
-    "dump:staged": "npx tsx scripts/dump-firestore-staged.ts",
     "migrate:events-from-json": "npx tsx scripts/migrate-events-to-supabase-from-json.ts",
     "seed:supabase-sevas": "npx tsx scripts/seed-supabase-sevas.ts",
     "verify:supabase-migrations": "npx tsx scripts/verify-supabase-migrations.ts",

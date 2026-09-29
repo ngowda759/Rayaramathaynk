@@ -9,38 +9,6 @@ export const FIRESTORE_MAX_RETRIES = 10;
 export const FIRESTORE_MAX_BACKOFF_MS = 120000;
 
 class FirestorePacer {
-  private _client: import("google-auth-library").JWT | null = null;
-  private _cachedToken: string | null = null;
-  private _tokenExpiry: number = 0;
-
-  setClient(client: import("google-auth-library").JWT) {
-    this._client = client;
-  }
-
-  async getAuthHeader(): Promise<Record<string, string>> {
-    if (!this._client) throw new Error("Auth client not configured");
-    const now = Date.now();
-    // Refresh token if missing or expiring within 5 minutes (300000ms)
-    if (!this._cachedToken || this._tokenExpiry < now + 300000) {
-      console.log("Fetching new Firebase access token...");
-      const tok = await this._client.getAccessToken();
-      if (!tok.token) throw new Error("Failed to obtain access token");
-      this._cachedToken = tok.token;
-      // Assume typical 1 hour expiry if not provided, but usually tokens are valid for ~1hr. We'll set expiry conservatively.
-      // Wait, getAccessToken returns { token, res? } not sure about expiry time. We'll just refresh if 401.
-      // Actually google-auth-library tokens often have an expiry date, but it's not strongly typed here.
-      // We'll rely on the 401 retry to force a refresh if we guess wrong.
-      this._tokenExpiry = now + 3600 * 1000;
-    }
-    return { Authorization: "Bearer " + this._cachedToken };
-  }
-
-  invalidateToken() {
-    console.log("Invalidating cached access token...");
-    this._cachedToken = null;
-    this._tokenExpiry = 0;
-  }
-
   private nextRequestTime = 0;
   private currentDelayMs = FIRESTORE_MIN_REQUEST_INTERVAL_MS;
 
@@ -69,17 +37,7 @@ class FirestorePacer {
 
   async fetch(url: string, init?: RequestInit): Promise<Response> {
     await this.throttle();
-    let headers = { ...(init?.headers || {}), ...(await this.getAuthHeader()) };
-    let result = await fetch(url, { ...init, headers });
-
-    // Check for 401 (token expiration)
-    if (result.status === 401) {
-      this.invalidateToken();
-      // Retry once immediately after invalidating
-      headers = { ...(init?.headers || {}), ...(await this.getAuthHeader()) };
-      result = await fetch(url, { ...init, headers });
-    }
-
+    const result = await fetch(url, init);
     this.afterRequest();
     return result;
   }
@@ -90,7 +48,7 @@ export const globalPacer = new FirestorePacer();
 
 
 
-export async function fetchCollectionListAll(col: string, base: string, failed: Map<string, string>): Promise<FirestoreWireDoc[]> {
+export async function fetchCollectionListAll(col: string, base: string, H: Record<string, string>, failed: Map<string, string>): Promise<FirestoreWireDoc[]> {
   const out: Array<FirestoreWireDoc> = [];
   const seen = new Set<string>();
   let url = base + "/" + encodeURIComponent(col) + "?pageSize=" + FIRESTORE_PAGE_SIZE;
@@ -106,7 +64,7 @@ export async function fetchCollectionListAll(col: string, base: string, failed: 
         tm = setTimeout(() => ac.abort(), 90000);
         let rr: Response;
         try {
-          rr = await globalPacer.fetch(url, { signal: ac.signal });
+          rr = await globalPacer.fetch(url, { headers: H, signal: ac.signal });
         } finally {
           if (tm) clearTimeout(tm);
         }
@@ -262,7 +220,6 @@ async function runDump() {
     );
 
     client = new JWT( { email: k.client_email, key: k.private_key, scopes: [ "https://www.googleapis.com/auth/datastore" ] } );
-    globalPacer.setClient(client);
     base = "https://firestore.googleapis.com/v1/projects/" + k.project_id + "/databases/(default)/documents";
   } catch (e) {
     const m = e instanceof Error ? String( e ) : String( e );
@@ -272,7 +229,8 @@ async function runDump() {
     process.exit(1);
   }
 
-  // Token fetching handled dynamically by FirestorePacer
+  const tok = await client.getAccessToken();
+  const H = { Authorization: "Bearer " + tok.token };
 
   async function collectionIds(): Promise< string[] > {
     let jj2 = null;
@@ -283,7 +241,7 @@ async function runDump() {
         const tm = setTimeout(() => ac.abort(), 90000);
         let r: Response;
         try {
-          r = await globalPacer.fetch( base + ":listCollectionIds", { method: "POST", signal: ac.signal } );
+          r = await globalPacer.fetch( base + ":listCollectionIds", { method: "POST", headers: H, signal: ac.signal } );
         } finally {
           clearTimeout(tm);
         }
@@ -344,7 +302,7 @@ async function runDump() {
   }
 
   async function listAll( col: string ): Promise< FirestoreWireDoc[] > {
-    return await fetchCollectionListAll(col, base, failed);
+    return await fetchCollectionListAll(col, base, H as Record<string, string>, failed);
   }
   const ids = ( await collectionIds() ).sort();
   fs.mkdirSync( ED, { recursive: true } );
