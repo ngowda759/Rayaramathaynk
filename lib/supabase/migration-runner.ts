@@ -210,7 +210,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
   if (destinationRecords !== null) {
     const missingInDestination = Math.max(0, sourceCount - destinationRecords);
     const extraInDestination = Math.max(0, destinationRecords - sourceCount);
-    console.log(`Missing in destination:  ${missingInDestination}`);
+    console.log(`${isDryRun ? "Would be m" : "M"}issing in destination:  ${missingInDestination}`);
     console.log(`Extra in destination:    ${extraInDestination}`);
   }
   console.log(`Reconciliation:          ${reconciliation.ok ? "PASS" : "FAIL"}`);
