@@ -4,6 +4,7 @@ import {
   mapDonation,
   mapGalleryMedia,
   mapGalleryAlbum,
+  mapAaradhane,
   mapTestimonial,
   mapEvent,
   mapSeva,
@@ -30,6 +31,34 @@ const ts = (seconds: number) => ({ _seconds: seconds, _nanoseconds: 0 });
 // ---------------------------------------------------------------------------
 // B. Arbitrary Firestore IDs in seva_id / campaign_id / album_id
 // ---------------------------------------------------------------------------
+
+
+describe("missing string fallbacks", () => {
+  it("maps a missing description in galleryAlbum to an empty string", () => {
+    const doc = {
+      title: "Album",
+      slug: "album",
+      coverImage: "img.jpg",
+      active: true,
+      displayOrder: 1,
+    };
+    const result = mapGalleryAlbum("album_1", doc);
+    expect(result.description).toBe("");
+  });
+
+  it("maps a missing imageUrl in aaradhane to an empty string", () => {
+    const doc = {
+      title: "Aaradhane",
+      guruName: "Guru",
+      dates: ["2026-01-01"],
+      description: "Desc",
+      significance: "Sig",
+      createdBy: "user",
+    };
+    const result = mapAaradhane("a_1", doc);
+    expect(result.image_url).toBe("");
+  });
+});
 
 describe("arbitrary Firestore document IDs (B)", () => {
   it("preserves a non-UUID campaignId verbatim in donations", () => {
@@ -651,3 +680,29 @@ describe("core mapper output shapes (F)", () => {
     expect(row.days).toEqual(["Mon", "Tue"]);
   });
 });
+
+
+  describe("aaradhane and gallery albums fallbacks", () => {
+    it("maps an aaradhane with missing significance", () => {
+      const row = mapAaradhane("a1", {
+        title: "T",
+        guruName: "G",
+        dates: ["2026-01-01"],
+        description: "D",
+        rituals: [],
+        offerings: [],
+        imageUrl: "a.jpg",
+        createdBy: "admin",
+      });
+      expect(row.significance).toBe("");
+    });
+
+    it("maps a gallery album with missing slug", () => {
+      const row = mapGalleryAlbum("g1", {
+        title: "T",
+        description: "D",
+        coverImage: "c.jpg",
+      });
+      expect(row.slug).toBe("");
+    });
+  });
