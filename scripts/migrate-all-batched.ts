@@ -23,7 +23,7 @@ export interface ManifestRecord {
   failedCount: number;
   startedAt: string;
   completedAt: string;
-  verificationStatus: "PASS" | "FAIL" | "UNKNOWN";
+  verificationStatus: "PASS" | "PASS (DRY RUN)" | "FAIL" | "UNKNOWN";
   failureReason?: string;
 }
 
@@ -356,7 +356,7 @@ export async function executePlan(
         failedCount: stats.validationFailures + stats.writeFailures,
         startedAt,
         completedAt: new Date().toISOString(),
-        verificationStatus: stats.reconciliation.ok ? "PASS" : "FAIL",
+        verificationStatus: stats.reconciliation.ok ? (args.dryRun ? "PASS (DRY RUN)" : "PASS") : "FAIL",
         failureReason: isSuccess ? undefined : `${stats.validationFailures} validation failures, ${stats.writeFailures} write failures. ${stats.reconciliation.details}`
       };
     } catch (err: any) {
