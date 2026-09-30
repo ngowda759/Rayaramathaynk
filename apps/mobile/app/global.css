@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --temple-gold: #D4AF37;
+    --temple-maroon: #800000;
+  }
+}
