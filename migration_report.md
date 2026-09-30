@@ -27,14 +27,14 @@ Based on the investigation into `lib/supabase/migration-inventory.ts` and `scrip
    - **Batch 2 (4 items):** `sevas`, `testimonials`, `unknown_questions`, `volunteer_requests`
 
 3. **Verify whether Batch 1 and Batch 2 together cover ALL intended Firestore collections:**
-   Yes, Batch 1 and Batch 2 cover 100% of the 14 collections explicitly configured with `classification: "MIGRATE"`.
+   Yes, Batch 1 and Batch 2 cover 100% of the currently approved `MIGRATE` scope (the 14 collections explicitly configured with `classification: "MIGRATE"`). However, this does not mean the entire Firebase → Supabase migration is complete, as there are other collections awaiting review.
 
 4. **Compare this against the authoritative migration inventory/configuration:**
    `docs/SUPABASE_DATABASE_SCHEMA.md` shows that other tables exist and are mapped (e.g. `settings_documents`, `social_links`, `site_settings`, `seva_bookings`, `donations`, `donation_campaigns`).
-   However, in `lib/supabase/migration-inventory.ts`, the corresponding Firestore collections are currently marked as **`REVIEW`** rather than `MIGRATE`. Collections marked as `REVIEW` are actively filtered out by the batching logic (`item.classification === "MIGRATE"`).
+   In `lib/supabase/migration-inventory.ts`, the corresponding Firestore collections are currently marked as **`REVIEW`** rather than `MIGRATE`. Collections marked as `REVIEW` are actively, intentionally excluded by the migration planner and require separate investigation/approval before migration.
 
 5. **Confirm whether any collections are missing from the inventory:**
-   Yes. From the schema, we can see `donations`, `donationCampaigns`, `sevaBookings`, `profiles`, `settings` are valid collections with defined database mappings, but they are flagged as `REVIEW` in `migration-inventory.ts`. Since they are `REVIEW`, the batch script does not consider them migratable, keeping the total migratable count at 14 (which perfectly fits into 2 batches of 10).
+   No collections are missing from the inventory itself. The inventory in `migration-inventory.ts` accurately tracks all known collections. However, several collections (such as `donations`, `donationCampaigns`, `sevaBookings`, `profiles`, `settings`) are classified as `REVIEW`. Since they are `REVIEW`, the batch script intentionally excludes them from the migratable total, keeping the migratable count at 14 (which perfectly fits into 2 batches of 10).
 
 6. **Verify that the successful Batch 1 and Batch 2 checkpoints/manifests account for all intended collections:**
    Batch 1 and Batch 2 perfectly account for the 14 currently active `MIGRATE` items in the codebase.
@@ -49,9 +49,9 @@ Based on the investigation into `lib/supabase/migration-inventory.ts` and `scrip
    Understood.
 
 ### Conclusion and Safest Minimal Fix
-The error `Error: Batch 3 requested, but only 2 batches available` is accurate because there are only 14 collections configured for migration.
+The error `Error: Batch 3 requested, but only 2 batches available` is accurate because there are only 14 collections currently configured for migration.
 **No Batch 3 is required** based on the *current* `MIGRATE` classification.
 
-If the missing collections (`donations`, `donationCampaigns`, `sevaBookings`, `settings`, `profiles`) are now approved for migration, the safest minimal fix is to change their `classification` from `"REVIEW"` to `"MIGRATE"` in `lib/supabase/migration-inventory.ts` and add the `destinationTable` property to each. This will increase the total migratable collections beyond 20, naturally spawning a Batch 3.
+If the collections currently in `REVIEW` (`donations`, `donationCampaigns`, `sevaBookings`, `settings`, `profiles`) are later approved for migration, the safest minimal fix will be to change their `classification` from `"REVIEW"` to `"MIGRATE"` in `lib/supabase/migration-inventory.ts` and add the `destinationTable` property to each. This will increase the total migratable collections beyond 20, naturally spawning a Batch 3.
 
-No code changes have been made as per instructions.
+No code changes have been made to logic, schemas, or inventory classifications as per instructions.
