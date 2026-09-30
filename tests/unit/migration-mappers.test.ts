@@ -264,6 +264,34 @@ describe("synthetic default rejection (E)", () => {
     ).toThrow(/timestamp/);
   });
 
+  describe("mapUnknownQuestion missing field fallback", () => {
+    it("should fallback to empty string for missing question", () => {
+      const row = mapUnknownQuestion("q-missing", {
+        timestamp: "2026-10-01T12:00:00Z",
+      });
+      expect(row.question).toBe("");
+      expect(row.question_lower).toBe("");
+    });
+
+    it("should fallback to empty string for empty question", () => {
+      const row = mapUnknownQuestion("q-empty", {
+        question: "",
+        timestamp: "2026-10-01T12:00:00Z",
+      });
+      expect(row.question).toBe("");
+      expect(row.question_lower).toBe("");
+    });
+
+    it("should preserve a valid question", () => {
+      const row = mapUnknownQuestion("q-valid", {
+        question: "Who is Rayaru?",
+        timestamp: "2026-10-01T12:00:00Z",
+      });
+      expect(row.question).toBe("Who is Rayaru?");
+      expect(row.question_lower).toBe("who is rayaru?");
+    });
+  });
+
   it("rejects an unknown question without a timestamp", () => {
     expect(() =>
       mapUnknownQuestion("q1", { question: "Who is Rayaru?" }),
