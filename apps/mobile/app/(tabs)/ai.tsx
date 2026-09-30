@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -74,9 +74,9 @@ export default function AIScreen() {
       } else {
         throw new Error('Received an empty response from the server.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      const errorMessage = err.message || 'Sorry, I am having trouble connecting to the temple servers right now.';
+      const errorMessage = (err instanceof Error ? err.message : undefined) || 'Sorry, I am having trouble connecting to the temple servers right now.';
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
