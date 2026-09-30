@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import { WebsiteSettings, Seva, Pooja, Event, Album } from '../../lib/types';
 import { fetchSevas } from '../../lib/api';
 
@@ -7,6 +8,7 @@ export default function SevasScreen() {
   const [sevas, setSevas] = useState<Seva[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     async function load() {
@@ -44,11 +46,14 @@ export default function SevasScreen() {
           data={filtered}
           keyExtractor={(item) => item.id}
           renderItem={({item}) => (
-            <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => router.push(`/sevas/${item.id}`)}
+            >
               <Text style={styles.title}>{item.title}</Text>
-              {item.description && <Text style={styles.desc}>{item.description}</Text>}
+              {item.description && <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>}
               <Text style={styles.amount}>₹{item.amount}</Text>
-            </View>
+            </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.empty}>No sevas found</Text>}
           contentContainerStyle={styles.list}

@@ -49,7 +49,7 @@ export async function fetchWebsiteSettings() {
     .from('website_settings')
     .select('*')
     .eq('key', 'temple_information')
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
   return data?.value;

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -6,6 +6,14 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface ChatResponse {
+  message?: {
+    id?: string;
+    content?: string;
+  };
+  error?: string;
 }
 
 export default function AIScreen() {
@@ -39,23 +47,40 @@ export default function AIScreen() {
         body: JSON.stringify({ messages: apiMessages })
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('You have sent too many messages. Please wait a moment before trying again.');
+        } else if (response.status === 400) {
+          throw new Error('Invalid request. Please try rephrasing your question.');
+        } else {
+          throw new Error('The temple server is currently unavailable. Please try again later.');
+        }
+      }
+
+      const text = await response.text();
+      let data: ChatResponse;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('Received an unexpected response from the server.');
+      }
 
       if (data.message && data.message.content) {
         setMessages(prev => [...prev, {
-          id: data.message.id || Date.now().toString(),
+          id: data.message!.id || Date.now().toString(),
           role: 'assistant',
-          content: data.message.content
+          content: data.message!.content!
         }]);
       } else {
-        throw new Error('Invalid response format');
+        throw new Error('Received an empty response from the server.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      const errorMessage = err.message || 'Sorry, I am having trouble connecting to the temple servers right now.';
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
-        content: 'Sorry, I am having trouble connecting to the temple servers right now.'
+        content: errorMessage
       }]);
     } finally {
       setLoading(false);
