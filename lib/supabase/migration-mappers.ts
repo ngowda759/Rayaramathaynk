@@ -263,7 +263,7 @@ export function mapDonationCampaign(
   const row: Record<string, any> = {
     firestore_id: id,
     title: requireString(data.title, "title"),
-    description: requireString(data.description, "description"),
+    description: optionalString(data.description) ?? "",
     image_url: requireString(data.imageUrl, "imageUrl"),
     suggested_amount: requireNumber(data.suggestedAmount, "suggestedAmount"),
   };
@@ -664,7 +664,7 @@ export function mapSeva(id: string, data: any): Record<string, any> {
   const row: Record<string, any> = {
     firestore_id: id,
     name: requireString(data.name, "name"),
-    description: requireString(data.description, "description"),
+    description: optionalString(data.description) ?? "",
     category: requireString(data.category, "category"),
     amount: requireNumber(data.amount, "amount"),
     duration: requireNumber(data.duration, "duration"),

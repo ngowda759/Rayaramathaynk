@@ -705,4 +705,41 @@ describe("core mapper output shapes (F)", () => {
       });
       expect(row.slug).toBe("");
     });
+
+  describe("mapSeva", () => {
+    it("should allow missing description and fallback to empty string", () => {
+      const data = {
+        name: "Test Seva",
+        category: "Test Category",
+        amount: 100,
+        duration: 30
+      };
+      const row = mapSeva("test-id", data);
+      expect(row.description).toBe("");
+    });
+
+    it("should allow empty string description and fallback to empty string", () => {
+      const data = {
+        name: "Test Seva",
+        description: "",
+        category: "Test Category",
+        amount: 100,
+        duration: 30
+      };
+      const row = mapSeva("test-id", data);
+      expect(row.description).toBe("");
+    });
+
+    it("should map valid description correctly", () => {
+      const data = {
+        name: "Test Seva",
+        description: "Valid description",
+        category: "Test Category",
+        amount: 100,
+        duration: 30
+      };
+      const row = mapSeva("test-id", data);
+      expect(row.description).toBe("Valid description");
+    });
   });
+});
