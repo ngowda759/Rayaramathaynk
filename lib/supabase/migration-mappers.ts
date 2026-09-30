@@ -540,7 +540,7 @@ export function mapChatMessage(id: string, data: any): Record<string, any> {
 }
 
 export function mapUnknownQuestion(id: string, data: any): Record<string, any> {
-  const question = requireString(data.question, "question");
+  const question = optionalString(data.question) ?? "";
   return {
     firestore_id: id,
     question,
