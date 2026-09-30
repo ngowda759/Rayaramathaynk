@@ -263,7 +263,7 @@ export function mapDonationCampaign(
   const row: Record<string, any> = {
     firestore_id: id,
     title: requireString(data.title, "title"),
-    description: optionalString(data.description) ?? "",
+    description: requireString(data.description, "description"),
     image_url: requireString(data.imageUrl, "imageUrl"),
     suggested_amount: requireNumber(data.suggestedAmount, "suggestedAmount"),
   };
