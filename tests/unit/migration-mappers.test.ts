@@ -9,6 +9,7 @@ import {
   mapEvent,
   mapSeva,
   mapDailyPooja,
+  mapSevaBooking,
   mapChatSession,
   mapChatMessage,
   mapUnknownQuestion,
@@ -734,7 +735,74 @@ describe("core mapper output shapes (F)", () => {
       expect(row.slug).toBe("");
     });
 
-  describe("mapSeva", () => {
+
+  describe("mapSevaBooking", () => {
+    const validBooking = {
+      sevaId: "seva-1",
+      sevaTitle: "Pooja",
+      sevaAmount: 50,
+      userId: "user-1",
+      userName: "John",
+      userEmail: "john@example.com",
+      userPhone: "1234567890",
+      preferredDate: "2023-10-10",
+      notes: "Some notes",
+      status: "pending",
+      paymentReference: "ref-1",
+      paymentStatus: "completed",
+      paymentDate: "2023-10-10",
+      paymentMethod: "UPI",
+      createdAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") },
+      updatedAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") }
+    };
+
+    it("maps a valid booking correctly", () => {
+      const res = mapSevaBooking("b1", validBooking);
+      expect(res.firestore_id).toBe("b1");
+      expect(res.seva_id).toBe("seva-1");
+      expect(res.seva_amount).toBe(50);
+      expect(res.gotra).toBeNull();
+      expect(res.created_at).toBe("2023-10-01T10:00:00.000Z");
+    });
+
+    it("handles optional fields correctly", () => {
+      const res = mapSevaBooking("b2", {
+        ...validBooking,
+        gotra: "G1",
+        nakshatra: "N1",
+        raashi: "R1"
+      });
+      expect(res.gotra).toBe("G1");
+      expect(res.nakshatra).toBe("N1");
+      expect(res.raashi).toBe("R1");
+    });
+
+    it("throws ValidationError for malformed required data", () => {
+      expect(() => {
+        mapSevaBooking("b3", { ...validBooking, sevaId: null });
+      }).toThrow(/Missing required field/);
+    });
+
+    it("maps empty notes string to empty string", () => {
+      const res = mapSevaBooking("b4", { ...validBooking, notes: "" });
+      expect(res.notes).toBe("");
+    });
+
+    it("maps missing notes to empty string", () => {
+      const { notes, ...withoutNotes } = validBooking;
+      const res = mapSevaBooking("b5", withoutNotes);
+      expect(res.notes).toBe("");
+    });
+
+    it("handles missing timestamps correctly", () => {
+      const { createdAt, updatedAt, ...noTimestamps } = validBooking;
+      const res = mapSevaBooking("b6", noTimestamps);
+      expect(res.created_at).toBeUndefined();
+      expect(res.updated_at).toBeUndefined();
+    });
+  });
+
+describe("mapSeva", () => {
     it("should allow missing description and fallback to empty string", () => {
       const data = {
         name: "Test Seva",

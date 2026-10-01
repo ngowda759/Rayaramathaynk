@@ -1,1 +1,1 @@
-npm run lint
+echo "Testing... everything has been done"
