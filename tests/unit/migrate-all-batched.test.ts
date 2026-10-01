@@ -18,6 +18,13 @@ jest.mock("../../lib/supabase/migration-inventory", () => {
 });
 
 describe("Batched Migration Execution Plan", () => {
+  it("should return mapChatMessage for messages collection", () => {
+    const { getMapperFn } = require("../../scripts/migrate-all-batched");
+    const fn = getMapperFn("messages");
+    expect(fn).toBeDefined();
+    expect(fn.name).toBe("mapChatMessage");
+  });
+
   const mockManifest: Manifest = {
     runId: "test-run",
     overallStatus: "RUNNING",

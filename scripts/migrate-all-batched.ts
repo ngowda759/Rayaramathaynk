@@ -117,7 +117,7 @@ export function getMapperFn(collection: string): ((id: string, data: any) => any
     "sevaBookings": "mapSevaBooking",
     "volunteer_requests": "mapVolunteerRequest",
     "chat_sessions": "mapChatSession",
-    "chat_messages": "mapChatMessage",
+    "messages": "mapChatMessage",
     "unknown_questions": "mapUnknownQuestion",
     "ai_intent_distribution": "mapIntentDistribution",
     "ai_latency_records": "mapLatencyRecord",

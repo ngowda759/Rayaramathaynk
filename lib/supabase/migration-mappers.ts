@@ -679,6 +679,33 @@ export function mapSeva(id: string, data: any): Record<string, any> {
   return row;
 }
 
+
+export function mapSevaBooking(id: string, data: any): Record<string, any> {
+  const row: Record<string, any> = {
+    firestore_id: id,
+    seva_id: requireString(data.sevaId, "sevaId"),
+    seva_title: requireString(data.sevaTitle, "sevaTitle"),
+    seva_amount: requireNumber(data.sevaAmount, "sevaAmount"),
+    user_id: requireString(data.userId, "userId"),
+    user_name: requireString(data.userName, "userName"),
+    user_email: requireString(data.userEmail, "userEmail"),
+    user_phone: requireString(data.userPhone, "userPhone"),
+    gotra: optionalString(data.gotra),
+    nakshatra: optionalString(data.nakshatra),
+    raashi: optionalString(data.raashi),
+    preferred_date: requireString(data.preferredDate, "preferredDate"),
+    notes: typeof data.notes === "string" ? data.notes : "",
+    status: requireString(data.status, "status"),
+    payment_reference: requireString(data.paymentReference, "paymentReference"),
+    payment_status: requireString(data.paymentStatus, "paymentStatus"),
+    payment_date: requireString(data.paymentDate, "paymentDate"),
+    payment_method: requireString(data.paymentMethod, "paymentMethod"),
+  };
+  assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
+  assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
+  return row;
+}
+
 export function mapDailyPooja(id: string, data: any): Record<string, any> {
   if (!Array.isArray(data.days)) {
     throw new ValidationError("Missing or invalid required field: days");

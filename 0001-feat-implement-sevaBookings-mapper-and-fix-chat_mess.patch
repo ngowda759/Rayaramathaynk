@@ -1,0 +1,191 @@
+From 0edc7e16c45b7e835fe6484eee353b54a4188bf2 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 08:26:34 +0000
+Subject: [PATCH] feat: implement sevaBookings mapper and fix chat_messages
+ mapping
+
+No production migration was executed.
+No database schema was changed.
+Tests run:
+- npm run test tests/unit/migration-mappers.test.ts (PASS)
+- npm run test tests/unit/migrate-all-batched.test.ts (PASS)
+- npm run typecheck (PASS)
+---
+ lib/supabase/migration-inventory.ts  |  5 +-
+ lib/supabase/migration-mappers.ts    | 27 +++++++++++
+ scripts/migrate-all-batched.ts       |  2 +-
+ tests/unit/migration-mappers.test.ts | 70 +++++++++++++++++++++++++++-
+ 4 files changed, 99 insertions(+), 5 deletions(-)
+
+diff --git a/lib/supabase/migration-inventory.ts b/lib/supabase/migration-inventory.ts
+index 2dee0d4..5c0639f 100644
+--- a/lib/supabase/migration-inventory.ts
++++ b/lib/supabase/migration-inventory.ts
+@@ -33,7 +33,7 @@ export const MIGRATION_INVENTORY: InventoryItem[] = [
+   { collection: "aaradhanes", classification: "MIGRATE", destinationTable: "aaradhanes" },
+   { collection: "volunteer_requests", classification: "MIGRATE", destinationTable: "volunteer_requests" },
+   { collection: "chat_sessions", classification: "MIGRATE", destinationTable: "chat_sessions" },
+-  { collection: "chat_messages", classification: "MIGRATE", destinationTable: "chat_messages" },
++  { collection: "messages", classification: "REVIEW", destinationTable: "chat_messages" },
+   { collection: "unknown_questions", classification: "MIGRATE", destinationTable: "unknown_questions" },
+   { collection: "ai_intent_distribution", classification: "MIGRATE", destinationTable: "ai_intent_distribution" },
+   { collection: "ai_latency_records", classification: "MIGRATE", destinationTable: "ai_latency_records" },
+@@ -42,7 +42,7 @@ export const MIGRATION_INVENTORY: InventoryItem[] = [
+   { collection: "donations", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+   { collection: "donationCampaigns", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+   { collection: "donation_campaigns", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
+-  { collection: "sevaBookings", classification: "REVIEW", reason: "Investigate if still used in active application/schema" },
++  { collection: "sevaBookings", classification: "MIGRATE", destinationTable: "seva_bookings" },
+   { collection: "profiles", classification: "REVIEW", reason: "Application data linked to auth but not strictly auth credentials. Confirm migration necessity." },
+   { collection: "bookmarks", classification: "REVIEW", reason: "Application data linked to auth but not strictly auth credentials. Confirm migration necessity." },
+   { collection: "settings", classification: "REVIEW", reason: "Requires conflict/mapping verification with homepage" },
+@@ -67,7 +67,6 @@ export const MIGRATION_INVENTORY: InventoryItem[] = [
+   { collection: "members", classification: "REVIEW", reason: "No destination model explicitly defined" },
+   { collection: "ai_settings", classification: "REVIEW", reason: "No destination model explicitly defined" },
+   { collection: "ai_token_usage", classification: "REVIEW", reason: "No destination model explicitly defined" },
+-  { collection: "messages", classification: "REVIEW", reason: "Legacy messages?" },
+   { collection: "chat_metrics", classification: "REVIEW", reason: "No destination model explicitly defined" },
+   { collection: "intent_metrics", classification: "REVIEW", reason: "No destination model explicitly defined" },
+   { collection: "intent_feedback", classification: "REVIEW", reason: "No destination model explicitly defined" },
+diff --git a/lib/supabase/migration-mappers.ts b/lib/supabase/migration-mappers.ts
+index a237fb2..6343bbc 100644
+--- a/lib/supabase/migration-mappers.ts
++++ b/lib/supabase/migration-mappers.ts
+@@ -679,6 +679,33 @@ export function mapSeva(id: string, data: any): Record<string, any> {
+   return row;
+ }
+
++
++export function mapSevaBooking(id: string, data: any): Record<string, any> {
++  const row: Record<string, any> = {
++    firestore_id: id,
++    seva_id: requireString(data.sevaId, "sevaId"),
++    seva_title: requireString(data.sevaTitle, "sevaTitle"),
++    seva_amount: requireNumber(data.sevaAmount, "sevaAmount"),
++    user_id: requireString(data.userId, "userId"),
++    user_name: requireString(data.userName, "userName"),
++    user_email: requireString(data.userEmail, "userEmail"),
++    user_phone: requireString(data.userPhone, "userPhone"),
++    gotra: optionalString(data.gotra),
++    nakshatra: optionalString(data.nakshatra),
++    raashi: optionalString(data.raashi),
++    preferred_date: requireString(data.preferredDate, "preferredDate"),
++    notes: typeof data.notes === "string" ? data.notes : "",
++    status: requireString(data.status, "status"),
++    payment_reference: requireString(data.paymentReference, "paymentReference"),
++    payment_status: requireString(data.paymentStatus, "paymentStatus"),
++    payment_date: requireString(data.paymentDate, "paymentDate"),
++    payment_method: requireString(data.paymentMethod, "paymentMethod"),
++  };
++  assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
++  assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
++  return row;
++}
++
+ export function mapDailyPooja(id: string, data: any): Record<string, any> {
+   if (!Array.isArray(data.days)) {
+     throw new ValidationError("Missing or invalid required field: days");
+diff --git a/scripts/migrate-all-batched.ts b/scripts/migrate-all-batched.ts
+index 901c92c..b198855 100644
+--- a/scripts/migrate-all-batched.ts
++++ b/scripts/migrate-all-batched.ts
+@@ -117,7 +117,7 @@ export function getMapperFn(collection: string): ((id: string, data: any) => any
+     "sevaBookings": "mapSevaBooking",
+     "volunteer_requests": "mapVolunteerRequest",
+     "chat_sessions": "mapChatSession",
+-    "chat_messages": "mapChatMessage",
++    "messages": "mapChatMessage",
+     "unknown_questions": "mapUnknownQuestion",
+     "ai_intent_distribution": "mapIntentDistribution",
+     "ai_latency_records": "mapLatencyRecord",
+diff --git a/tests/unit/migration-mappers.test.ts b/tests/unit/migration-mappers.test.ts
+index 61127ee..c60a950 100644
+--- a/tests/unit/migration-mappers.test.ts
++++ b/tests/unit/migration-mappers.test.ts
+@@ -9,6 +9,7 @@ import {
+   mapEvent,
+   mapSeva,
+   mapDailyPooja,
++  mapSevaBooking,
+   mapChatSession,
+   mapChatMessage,
+   mapUnknownQuestion,
+@@ -734,7 +735,74 @@ describe("core mapper output shapes (F)", () => {
+       expect(row.slug).toBe("");
+     });
+
+-  describe("mapSeva", () => {
++
++  describe("mapSevaBooking", () => {
++    const validBooking = {
++      sevaId: "seva-1",
++      sevaTitle: "Pooja",
++      sevaAmount: 50,
++      userId: "user-1",
++      userName: "John",
++      userEmail: "john@example.com",
++      userPhone: "1234567890",
++      preferredDate: "2023-10-10",
++      notes: "Some notes",
++      status: "pending",
++      paymentReference: "ref-1",
++      paymentStatus: "completed",
++      paymentDate: "2023-10-10",
++      paymentMethod: "UPI",
++      createdAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") },
++      updatedAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") }
++    };
++
++    it("maps a valid booking correctly", () => {
++      const res = mapSevaBooking("b1", validBooking);
++      expect(res.firestore_id).toBe("b1");
++      expect(res.seva_id).toBe("seva-1");
++      expect(res.seva_amount).toBe(50);
++      expect(res.gotra).toBeNull();
++      expect(res.created_at).toBe("2023-10-01T10:00:00.000Z");
++    });
++
++    it("handles optional fields correctly", () => {
++      const res = mapSevaBooking("b2", {
++        ...validBooking,
++        gotra: "G1",
++        nakshatra: "N1",
++        raashi: "R1"
++      });
++      expect(res.gotra).toBe("G1");
++      expect(res.nakshatra).toBe("N1");
++      expect(res.raashi).toBe("R1");
++    });
++
++    it("throws ValidationError for malformed required data", () => {
++      expect(() => {
++        mapSevaBooking("b3", { ...validBooking, sevaId: null });
++      }).toThrow(/Missing required field/);
++    });
++
++    it("maps empty notes string to empty string", () => {
++      const res = mapSevaBooking("b4", { ...validBooking, notes: "" });
++      expect(res.notes).toBe("");
++    });
++
++    it("maps missing notes to empty string", () => {
++      const { notes, ...withoutNotes } = validBooking;
++      const res = mapSevaBooking("b5", withoutNotes);
++      expect(res.notes).toBe("");
++    });
++
++    it("handles missing timestamps correctly", () => {
++      const { createdAt, updatedAt, ...noTimestamps } = validBooking;
++      const res = mapSevaBooking("b6", noTimestamps);
++      expect(res.created_at).toBeUndefined();
++      expect(res.updated_at).toBeUndefined();
++    });
++  });
++
++describe("mapSeva", () => {
+     it("should allow missing description and fallback to empty string", () => {
+       const data = {
+         name: "Test Seva",
+--
+2.53.0
