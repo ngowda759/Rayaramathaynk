@@ -777,6 +777,32 @@ describe("core mapper output shapes (F)", () => {
       expect(res.raashi).toBe("R1");
     });
 
+
+    it("throws ValidationError when required string is missing or empty", () => {
+      expect(() => mapSevaBooking("b", { ...validBooking, sevaTitle: undefined })).toThrow(/Missing required field: sevaTitle/);
+      expect(() => mapSevaBooking("b", { ...validBooking, userId: "" })).toThrow(/Missing required field: userId/);
+      expect(() => mapSevaBooking("b", { ...validBooking, userName: null })).toThrow(/Missing required field: userName/);
+      expect(() => mapSevaBooking("b", { ...validBooking, status: "   " })).toThrow(/Missing required field: status/);
+    });
+
+    it("throws ValidationError when required number is missing or invalid", () => {
+      expect(() => mapSevaBooking("b", { ...validBooking, sevaAmount: undefined })).toThrow(/Missing or invalid required numeric field: sevaAmount/);
+      expect(() => mapSevaBooking("b", { ...validBooking, sevaAmount: "50" })).toThrow(/Missing or invalid required numeric field: sevaAmount/);
+      expect(() => mapSevaBooking("b", { ...validBooking, sevaAmount: null })).toThrow(/Missing or invalid required numeric field: sevaAmount/);
+    });
+
+    it("verifies the output schema exactly matches the expected table structure", () => {
+      const res = mapSevaBooking("b1", validBooking);
+      const expectedKeys = [
+        "firestore_id", "seva_id", "seva_title", "seva_amount",
+        "user_id", "user_name", "user_email", "user_phone",
+        "gotra", "nakshatra", "raashi", "preferred_date",
+        "notes", "status", "payment_reference", "payment_status",
+        "payment_date", "payment_method", "created_at", "updated_at"
+      ];
+      expect(Object.keys(res).sort()).toEqual(expectedKeys.sort());
+    });
+
     it("throws ValidationError for malformed required data", () => {
       expect(() => {
         mapSevaBooking("b3", { ...validBooking, sevaId: null });
