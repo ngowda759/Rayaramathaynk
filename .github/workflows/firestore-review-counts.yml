@@ -3,6 +3,9 @@ name: Read-Only Firestore Counts
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   count-firestore:
     runs-on: ubuntu-latest
