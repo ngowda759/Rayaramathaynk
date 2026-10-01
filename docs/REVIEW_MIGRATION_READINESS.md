@@ -26,9 +26,9 @@ For each collection, we analysed:
 - **Firestore Count:** 8
 - **Code Usage:** Used in `app/admin/seva-bookings` and public booking flows. Tracked in `types/seva-booking.ts`.
 - **Destination Model:** `seva_bookings` (Exists in `supabase/migrations/20260920000000_create_seva_bookings.sql`)
-- **Required Mapper:** Likely needed (script `migrate:seva-bookings` mentioned in `FIRESTORE_MIGRATION.md`).
-- **Risks:** Loose references to `userId` (Firebase Auth UID) and `sevaId`. `firestore_id` based idempotency is supported.
-- **Classification:** `MIGRATE`
+- **Required Mapper:** **Missing.** The string `mapSevaBooking` is loosely referenced in `scripts/migrate-all-batched.ts` mappings, but the actual `mapSevaBooking` function does not exist in `lib/supabase/migration-mappers.ts`, nor is it wired into `scripts/migrate-content-to-supabase.ts`.
+- **Risks:** Loose references to `userId` (Firebase Auth UID) and `sevaId`. `firestore_id` based idempotency is supported by the schema.
+- **Classification:** `DEFER` (Schema exists, but mapper and script wire-up is missing).
 
 ### 3. `announcements`
 - **Firestore Count:** 2
@@ -59,8 +59,9 @@ For each collection, we analysed:
 ### 7. `homepage`
 - **Firestore Count:** 1
 - **Code Usage:** Holds homepage specific configs (e.g., hero banners, layout toggles).
-- **Destination Model:** None explicitly defined as a dedicated table.
-- **Classification:** `SPECIAL MIGRATION` (Should be routed to `settings_documents` JSONB table using the settings logic, but currently missing from the settings migration script).
+- **Destination Model:** Currently not targeted by any migration script.
+- **Required Mapper:** Recommended to use the `settings_documents` architecture, but currently missing from `scripts/migrate-settings.ts`.
+- **Classification:** `DEFER` (Requires explicit integration into the settings migration script or a dedicated migration script using the JSONB schema).
 
 ### 8. `feedback`
 - **Firestore Count:** 2
@@ -88,9 +89,33 @@ For each collection, we analysed:
 
 ### 12. `messages`
 - **Firestore Count:** 103
-- **Code Usage:** Used heavily for AI chat history. Note: `chat_messages` is the target for `messages` (per `scripts/migrate-ai-to-supabase.ts`), but `messages` itself was held in REVIEW.
+- **Code Usage:** Used heavily for AI chat history.
 - **Destination Model:** `chat_messages` (mapped via `mapChatMessage`).
-- **Classification:** `MIGRATE` (Script and mapper already exist for this mapping).
+- **Required Mapper:** Exists in `scripts/migrate-ai-to-supabase.ts` via `mapChatMessage`.
+- **Migration Architecture Status:** The Firestore collection `messages` is successfully alias-mapped to the `chat_messages` table in `scripts/migrate-ai-to-supabase.ts`. However, the batched inventory (`lib/supabase/migration-inventory.ts`) lists `chat_messages` as the collection name, which will cause `scripts/migrate-all-batched.ts` to query `chat_messages` on Firestore instead of `messages`.
+- **Classification:** `DEFER` (Requires fixing the inventory alias to map the Firestore `messages` collection to the `chat_messages` table in the batched inventory, similar to the direct AI script).
+
+---
+
+## Verified vs Proposed
+
+### Confirmed by Current Code (Ready to Batch)
+- **`donations`**: Mapper `mapDonation` exists, table `donations` exists, script `migrate-content-to-supabase.ts` wired.
+- **`settings`**: Custom migration script `migrate-settings.ts` is fully implemented to route to `site_settings`, `social_links`, and `settings_documents`. (Execute standalone, not in batches).
+
+### Requires Implementation Before Migration
+- **`messages`**: While `mapChatMessage` and `migrate-ai-to-supabase.ts` are wired for the standalone script, the batched inventory `MIGRATION_INVENTORY` incorrectly lists `chat_messages` as the Firestore collection. This must be corrected to use an alias (e.g. `messages` -> `chat_messages`) for batched processing.
+- **`sevaBookings`**: The destination schema `seva_bookings` exists, but `mapSevaBooking` is entirely missing from `lib/supabase/migration-mappers.ts` and the main content migration script.
+- **`homepage`**: Recommended to reuse the `settings_documents` JSONB architecture, but the `migrate-settings.ts` script currently strictly reads the `settings` collection. A code change is needed to include it.
+
+### Requires Architectural Decision (Missing Schema)
+- `announcements`
+- `volunteers`
+- `members`
+- `feedback`
+- `quotes`
+- `timings`
+- `ai_settings`
 
 ---
 
@@ -99,10 +124,10 @@ For each collection, we analysed:
 | Collection | Firestore Count | Code Usage | Destination | Classification | Mapper Needed | Schema Change Needed | Risk | Recommendation |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `donations` | 1 | High (`/admin/donations`, UI) | `donations` | MIGRATE | Exists (`mapDonation`) | No | Low | Include in batch |
-| `sevaBookings` | 8 | High (`/admin/seva-bookings`, UI) | `seva_bookings` | MIGRATE | Yes | No | Low | Include in batch |
 | `settings` | 10 | High (`settings.service.ts`) | Split (`site_settings`, etc) | SPECIAL MIGRATION | Exists (`migrate-settings`) | No | Medium | Execute standalone |
-| `messages` | 103 | High (AI Chat history) | `chat_messages` | MIGRATE | Exists (`mapChatMessage`) | No | Low | Include in batch |
-| `homepage` | 1 | Med (UI configs) | `settings_documents`? | SPECIAL MIGRATION | Yes | No | Low | Update settings script to handle |
+| `messages` | 103 | High (AI Chat history) | `chat_messages` | DEFER | Exists (`mapChatMessage`) | No | Low | Fix inventory alias |
+| `sevaBookings` | 8 | High (`/admin/seva-bookings`, UI) | `seva_bookings` | DEFER | Yes | No | Low | Write mapper |
+| `homepage` | 1 | Med (UI configs) | `settings_documents`? | DEFER | Yes | No | Low | Update settings script to handle |
 | `announcements` | 2 | High (UI, Admin) | None | DEFER | Yes | Yes | High | Create schema & mapper first |
 | `quotes` | 35 | High (`/admin/quotes`, UI) | None | DEFER | Yes | Yes | High | Create schema & mapper first |
 | `timings` | 1 | High (AI, UI) | None | DEFER | Yes | Yes | High | Create schema & mapper first |
