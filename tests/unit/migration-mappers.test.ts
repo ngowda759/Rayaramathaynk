@@ -24,7 +24,7 @@ import {
 } from "@/lib/supabase/migration-mappers";
 import {
   auditFieldCoverage,
-  ValidationError,
+  ValidationError, ExcludeDocumentError,
 } from "@/lib/supabase/migration-helpers";
 
 const ts = (seconds: number) => ({ _seconds: seconds, _nanoseconds: 0 });
@@ -196,7 +196,7 @@ describe("content mapper timestamp handling (C + D)", () => {
   it("rejects a present-but-unparseable timestamp rather than dropping it", () => {
     expect(() =>
       mapUser("u3", { email: "a@b.org", createdAt: "not-a-date" }),
-    ).toThrow(ValidationError);
+    ).toThrow(ValidationError, ExcludeDocumentError);
   });
 
   it("leaves nullable collected_at/uploaded_at as null when absent", () => {
@@ -756,6 +756,19 @@ describe("core mapper output shapes (F)", () => {
       updatedAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") }
     };
 
+
+    it("excludes the known malformed admin document in sevaBookings", () => {
+      expect(() => {
+        mapSevaBooking("Ce6SDXl3HL9ReOgHZZis", { name: "admin" });
+      }).toThrowError(ExcludeDocumentError);
+    });
+
+    it("does not exclude a different document also named admin", () => {
+      expect(() => {
+        mapSevaBooking("AnotherId", { name: "admin", sevaId: "s1", sevaTitle: "t1", sevaAmount: 1, userId: "u1", userName: "un1", userEmail: "e1", userPhone: "p1", preferredDate: "d1", status: "s", paymentReference: "pr1", paymentStatus: "ps", paymentDate: "pd", paymentMethod: "pm" });
+      }).not.toThrowError(ExcludeDocumentError);
+    });
+
     it("maps a valid booking correctly", () => {
       const res = mapSevaBooking("b1", validBooking);
       expect(res.firestore_id).toBe("b1");
@@ -778,14 +791,14 @@ describe("core mapper output shapes (F)", () => {
     });
 
 
-    it("throws ValidationError when required string is missing or empty", () => {
+    it("throws ValidationError, ExcludeDocumentError when required string is missing or empty", () => {
       expect(() => mapSevaBooking("b", { ...validBooking, sevaTitle: undefined })).toThrow(/Missing required field: sevaTitle/);
       expect(() => mapSevaBooking("b", { ...validBooking, userId: "" })).toThrow(/Missing required field: userId/);
       expect(() => mapSevaBooking("b", { ...validBooking, userName: null })).toThrow(/Missing required field: userName/);
       expect(() => mapSevaBooking("b", { ...validBooking, status: "   " })).toThrow(/Missing required field: status/);
     });
 
-    it("throws ValidationError when required number is missing or invalid", () => {
+    it("throws ValidationError, ExcludeDocumentError when required number is missing or invalid", () => {
       expect(() => mapSevaBooking("b", { ...validBooking, sevaAmount: undefined })).toThrow(/Missing or invalid required numeric field: sevaAmount/);
       expect(() => mapSevaBooking("b", { ...validBooking, sevaAmount: "50" })).toThrow(/Missing or invalid required numeric field: sevaAmount/);
       expect(() => mapSevaBooking("b", { ...validBooking, sevaAmount: null })).toThrow(/Missing or invalid required numeric field: sevaAmount/);
@@ -803,7 +816,7 @@ describe("core mapper output shapes (F)", () => {
       expect(Object.keys(res).sort()).toEqual(expectedKeys.sort());
     });
 
-    it("throws ValidationError for malformed required data", () => {
+    it("throws ValidationError, ExcludeDocumentError for malformed required data", () => {
       expect(() => {
         mapSevaBooking("b3", { ...validBooking, sevaId: null });
       }).toThrow(/Missing required field/);
