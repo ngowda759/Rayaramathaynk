@@ -76,7 +76,7 @@ jobs:
           npx tsx scripts/migrate-staged-phase1.ts $ARGS
 
       - name: Upload Migration Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: migration-phase1-report
           path: MIGRATION_PHASE_1_REPORT.md
