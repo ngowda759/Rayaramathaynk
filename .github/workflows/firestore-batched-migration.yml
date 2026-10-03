@@ -108,14 +108,14 @@ jobs:
           npx tsx scripts/migrate-all-batched.ts $ARGS
 
       - name: Upload Migration Manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: migration-manifest
           path: data/migration-manifest.json
           if-no-files-found: ignore
 
       - name: Upload Migration Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: migration-report
           path: docs/FIRESTORE_SUPABASE_MIGRATION_STATUS.md

@@ -50,7 +50,7 @@ jobs:
         run: npm run test:ai-uat:jest
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: uat-test-results
@@ -85,7 +85,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Playwright Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
