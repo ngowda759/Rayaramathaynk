@@ -1,0 +1,151 @@
+From b52ec28f59e574845b82ee1a2d3ef31ef6f354f6 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Sat, 3 Oct 2026 13:40:43 +0000
+Subject: [PATCH] fix: complete malformed seva booking handling
+
+---
+ lib/supabase/migration-runner.ts     | 28 +++++++++++++++++++++-------
+ scripts/migrate-all-batched.ts       |  8 +++++++-
+ tests/unit/migration-mappers.test.ts | 19 +++++++++++++++++++
+ 3 files changed, 47 insertions(+), 8 deletions(-)
+
+diff --git a/lib/supabase/migration-runner.ts b/lib/supabase/migration-runner.ts
+index c34f110..024ba6c 100644
+--- a/lib/supabase/migration-runner.ts
++++ b/lib/supabase/migration-runner.ts
+@@ -15,6 +15,7 @@ import {
+   auditFieldCoverage,
+   FieldCoverageSpec,
+   FieldCoverageResult,
++  ExcludeDocumentError,
+ } from "./migration-helpers";
+
+ export interface MigrationStats {
+@@ -25,6 +26,7 @@ export interface MigrationStats {
+   updates: number;
+   validationFailures: number;
+   writeFailures: number;
++  excludedMalformed: number;
+   /** Rows already present in the destination before this run. */
+   existingRecords: number;
+   /** Destination rows for this collection after the run. */
+@@ -36,7 +38,7 @@ export interface MigrationStats {
+ export interface FailureRecord {
+   id: string;
+   reason: string;
+-  type: "validation" | "write" | "lookup";
++  type: "validation" | "write" | "lookup" | "excluded";
+ }
+
+ const BATCH_SIZE = 200;
+@@ -74,6 +76,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
+   let updates = 0;
+   let validationFailures = 0;
+   let writeFailures = 0;
++  let excludedMalformed = 0;
+   const failures: FailureRecord[] = [];
+   const observedFields = new Set<string>();
+   let existingRecords = 0;
+@@ -95,12 +98,21 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
+       try {
+         records.push(mapFn(doc.id, raw));
+       } catch (err: any) {
+-        validationFailures++;
+-        failures.push({
+-          id: doc.id,
+-          reason: err?.message || "Validation error",
+-          type: "validation",
+-        });
++        if (err instanceof ExcludeDocumentError) {
++          excludedMalformed++;
++          failures.push({
++            id: doc.id,
++            reason: err?.message || "Excluded explicitly",
++            type: "excluded",
++          });
++        } else {
++          validationFailures++;
++          failures.push({
++            id: doc.id,
++            reason: err?.message || "Validation error",
++            type: "validation",
++          });
++        }
+       }
+     }
+
+@@ -177,6 +189,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
+     updates,
+     validationFailures,
+     writeFailures,
++    excludedMalformed,
+   });
+
+   let fieldCoverage: FieldCoverageResult | undefined;
+@@ -245,6 +258,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
+     updates,
+     validationFailures,
+     writeFailures,
++    excludedMalformed,
+     existingRecords,
+     destinationRecords,
+     reconciliation,
+diff --git a/scripts/migrate-all-batched.ts b/scripts/migrate-all-batched.ts
+index b198855..0489e99 100644
+--- a/scripts/migrate-all-batched.ts
++++ b/scripts/migrate-all-batched.ts
+@@ -339,6 +339,12 @@ export async function executePlan(
+
+       const isSuccess = stats.reconciliation.ok && stats.validationFailures === 0 && stats.writeFailures === 0;
+
++      if (stats.excludedMalformed > 0) {
++        console.log(
++          `Excluded ${stats.excludedMalformed} malformed document(s).`
++        );
++      }
++
+       if (!isSuccess) {
+         overallSuccess = false;
+         partial = true;
+@@ -352,7 +358,7 @@ export async function executePlan(
+         sourceCount: stats.sourceCount,
+         destinationCount: stats.destinationRecords,
+         migratedCount: stats.inserts + stats.updates,
+-        skippedCount: stats.existingRecords - stats.updates,
++        skippedCount: stats.excludedMalformed || 0,
+         failedCount: stats.validationFailures + stats.writeFailures,
+         startedAt,
+         completedAt: new Date().toISOString(),
+diff --git a/tests/unit/migration-mappers.test.ts b/tests/unit/migration-mappers.test.ts
+index 97e0d46..1af450b 100644
+--- a/tests/unit/migration-mappers.test.ts
++++ b/tests/unit/migration-mappers.test.ts
+@@ -737,6 +737,25 @@ describe("core mapper output shapes (F)", () => {
+
+
+   describe("mapSevaBooking", () => {
++
++  it("throws ExcludeDocumentError for explicitly malformed 'admin' test document Ce6SDXl3HL9ReOgHZZis", () => {
++    let error;
++    try {
++      mapSevaBooking("Ce6SDXl3HL9ReOgHZZis", { name: "admin" });
++    } catch (err) {
++      error = err;
++    }
++
++    expect(error).toBeDefined();
++    expect(error.name).toBe("ExcludeDocumentError");
++  });
++
++  it("throws ValidationError for another document with name 'admin' (not excluded)", () => {
++    expect(() => {
++      mapSevaBooking("other_document_id", { name: "admin" });
++    }).toThrow(/Missing required field/);
++  });
++
+     const validBooking = {
+       sevaId: "seva-1",
+       sevaTitle: "Pooja",
+--
+2.53.0

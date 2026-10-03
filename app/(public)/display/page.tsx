@@ -264,7 +264,7 @@ export default function DigitalSignagePage() {
           <div className="flex-1 overflow-hidden rounded-2xl bg-stone-800 p-6">
             <div className="mb-4 flex items-center gap-2">
               <Sun className="h-6 w-6 text-amber-400" />
-              <h2 className="text-xl font-semibold text-white">Today&apos;s Panchanga</h2>
+              <h2 className="text-xl font-semibold text-white">Today's Panchanga</h2>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
@@ -380,7 +380,7 @@ export default function DigitalSignagePage() {
               <h2 className="text-xl font-semibold text-white">Daily Quote</h2>
             </div>
             <blockquote className="font-serif text-2xl leading-relaxed text-white">
-              &quot;{currentQuote.text}&quot;
+              "{currentQuote.text}"
             </blockquote>
             <p className="mt-4 text-sm italic text-purple-200">
               {currentQuote.explanation}

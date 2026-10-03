@@ -1,6 +1,3 @@
-permissions:
-  contents: read
-
 name: Check Firestore Collisions
 
 on:

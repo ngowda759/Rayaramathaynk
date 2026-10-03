@@ -80,7 +80,7 @@ export interface ReconciliationInput {
   updates: number;
   validationFailures: number;
   writeFailures: number;
-  excludedMalformed: number;
+  excludedMalformed?: number;
 }
 
 export interface ReconciliationResult {
@@ -88,7 +88,6 @@ export interface ReconciliationResult {
   accountedFor: number;
   missing: number;
   details: string;
-  excludedMalformed: number;
 }
 
 /**
@@ -101,15 +100,19 @@ export interface ReconciliationResult {
  */
 export function reconcileCounts(input: ReconciliationInput): ReconciliationResult {
   const accountedFor =
-    input.inserts + input.updates + input.validationFailures + input.writeFailures + input.excludedMalformed;
+    input.inserts +
+    input.updates +
+    input.validationFailures +
+    input.writeFailures +
+    (input.excludedMalformed || 0);
   const missing = input.sourceCount - accountedFor;
 
   const details =
     `source=${input.sourceCount}, inserts=${input.inserts}, updates=${input.updates}, ` +
     `validationFailures=${input.validationFailures}, writeFailures=${input.writeFailures}, ` +
-    `excludedMalformed=${input.excludedMalformed}, accountedFor=${accountedFor}`;
+    `excludedMalformed=${input.excludedMalformed || 0}, accountedFor=${accountedFor}`;
 
-  return { ok: missing === 0, accountedFor, missing, details, excludedMalformed: input.excludedMalformed };
+  return { ok: missing === 0, accountedFor, missing, details };
 }
 
 /**
@@ -123,10 +126,6 @@ export class ExcludeDocumentError extends Error {
   }
 }
 
-/**
- * A mapper rejected a document that cannot be migrated without inventing data
- * or that violates a NOT NULL destination constraint.
- */
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);

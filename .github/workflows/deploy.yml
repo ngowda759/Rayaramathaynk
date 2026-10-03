@@ -1,6 +1,3 @@
-permissions:
-  contents: read
-
 name: Deploy to Vercel
 
 on:

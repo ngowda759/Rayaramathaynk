@@ -339,6 +339,12 @@ export async function executePlan(
 
       const isSuccess = stats.reconciliation.ok && stats.validationFailures === 0 && stats.writeFailures === 0;
 
+      if (stats.excludedMalformed > 0) {
+        console.log(
+          `Excluded ${stats.excludedMalformed} malformed document(s).`
+        );
+      }
+
       if (!isSuccess) {
         overallSuccess = false;
         partial = true;
@@ -352,7 +358,7 @@ export async function executePlan(
         sourceCount: stats.sourceCount,
         destinationCount: stats.destinationRecords,
         migratedCount: stats.inserts + stats.updates,
-        skippedCount: stats.existingRecords - stats.updates + stats.excludedMalformed,
+        skippedCount: stats.excludedMalformed || 0,
         failedCount: stats.validationFailures + stats.writeFailures,
         startedAt,
         completedAt: new Date().toISOString(),

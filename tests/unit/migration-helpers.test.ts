@@ -78,7 +78,6 @@ describe("reconciliation calculations (H)", () => {
       updates: 2,
       validationFailures: 1,
       writeFailures: 1,
-      excludedMalformed: 0,
     });
     expect(result.ok).toBe(true);
     expect(result.missing).toBe(0);
@@ -92,7 +91,6 @@ describe("reconciliation calculations (H)", () => {
       updates: 0,
       validationFailures: 0,
       writeFailures: 0,
-      excludedMalformed: 0,
     });
     expect(result.ok).toBe(false);
     expect(result.missing).toBe(6);
@@ -105,7 +103,6 @@ describe("reconciliation calculations (H)", () => {
       updates: 0,
       validationFailures: 0,
       writeFailures: 0,
-      excludedMalformed: 0,
     });
     expect(result.ok).toBe(false);
     expect(result.missing).toBe(-3);
@@ -118,7 +115,6 @@ describe("reconciliation calculations (H)", () => {
       updates: 0,
       validationFailures: 0,
       writeFailures: 0,
-      excludedMalformed: 0,
     });
     expect(result.ok).toBe(true);
   });
