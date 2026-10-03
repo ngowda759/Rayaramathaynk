@@ -228,11 +228,14 @@ function reconcileMerge({ pr, prNumber, state, queue }) {
   // straight to `completed` would be refused as an illegal transition. A state
   // that has already reached `merging` (a re-run) is not re-recorded.
   const statusBeforeComplete = state.status;
-  if (statusBeforeComplete === 'ready-to-merge') {
+  if (statusBeforeComplete === 'idle') {
+    log('recovering idle state to next-task before completion');
+    runState(['recover', '--note', 'bootstrap recovery before completion']);
+  } else if (statusBeforeComplete === 'ready-to-merge') {
     runState(['set', '--status', 'merging', '--note', `PR #${prNumber} merged`]);
   }
   runState(['complete', '--task', taskId, '--note', `PR #${prNumber} merged`]);
-  runState(['set', '--status', 'next-task', '--note', 'advancing to next-task generation']);
+  runState(['set', '--status', 'next-task', '--task', 'none', '--clear-pr', '--note', 'advancing to next-task generation']);
   log('the loop is ready to generate the next task.');
   return 'advanced';
 }

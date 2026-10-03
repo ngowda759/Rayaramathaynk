@@ -424,3 +424,218 @@ describe('Merge Gate behavior', () => {
     // Let's rely on that.
   });
 });
+
+describe('advance-after-merge', () => {
+  let scratch;
+  const root = resolve(process.cwd());
+
+  beforeEach(() => {
+    scratch = mkdtempSync(join(tmpdir(), 'rayaramathaynk-loop-'));
+    cpSync(resolve(root, '.ai'), join(scratch, '.ai'), { recursive: true });
+    writeFileSync(
+      join(scratch, '.ai/state/task-queue.json'),
+      JSON.stringify({
+        version: 1,
+        updatedAt: '2026-01-01T00:00:00Z',
+        tasks: [
+          {
+            id: 'AI-001',
+            title: 'Establish the autonomous AI development loop',
+            phase: 'infrastructure',
+            status: 'in-progress',
+            summary: 'loop infrastructure',
+            acceptanceCriteria: ['validates'],
+            outOfScope: [],
+            humanApproval: false,
+            dependsOn: [],
+            createdAt: '2026-01-01T00:00:00Z',
+            pr: 291,
+            branch: 'automation/ai-development-loop',
+          },
+        ],
+      }, null, 2)
+    );
+  });
+
+  afterEach(() => {
+    rmSync(scratch, { recursive: true, force: true });
+  });
+
+  function runAdvance(env) {
+    const { spawnSync } = require('child_process');
+    const result = spawnSync('node', [resolve(root, '.ai/scripts/advance-after-merge.mjs')], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        AI_LOOP_ROOT: scratch,
+        GITHUB_REPOSITORY: 'ngowda759/Rayaramathaynk',
+        ...env,
+      },
+    });
+    return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
+  }
+
+  function readScratchState() {
+    return JSON.parse(readFileSync(join(scratch, '.ai/state/loop-state.json'), 'utf8'));
+  }
+
+  function readScratchQueue() {
+    return JSON.parse(readFileSync(join(scratch, '.ai/state/task-queue.json'), 'utf8'));
+  }
+
+  function setScratchState(stateUpdates) {
+    stateUpdates = { version: 1, loopId: 'AI-12345', updatedAt: '2026-01-01T00:00:00Z', history: [], round: 1, completedTasks: [], lastVerdict: null, lastCiStatus: null, reviewedHeadSha: null, blockedReason: null, ...stateUpdates };
+    const state = readScratchState();
+    writeFileSync(
+      join(scratch, '.ai/state/loop-state.json'),
+      JSON.stringify({ ...state, ...stateUpdates }, null, 2)
+    );
+  }
+
+  function setTaskQueue(queueUpdates) {
+    writeFileSync(
+      join(scratch, '.ai/state/task-queue.json'),
+      JSON.stringify(queueUpdates, null, 2)
+    );
+  }
+
+  it('Case 1 — bootstrap merge with idle state', () => {
+    const mockGh = "console.log(JSON.stringify({number: 291, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', headRefName: 'automation/ai-development-loop', labels: [{name: 'ai-loop: AI-001'}], comments: []}))";
+    writeFileSync(join(scratch, 'gh-mock.js'), mockGh);
+    writeFileSync(join(scratch, 'gh'), "#!/bin/bash\nnode " + join(scratch, 'gh-mock.js'));
+    const { chmodSync } = require('fs');
+    chmodSync(join(scratch, 'gh'), 0o755);
+
+    setScratchState({
+      status: 'idle',
+      currentTaskId: null,
+      currentPr: null,
+    });
+
+    const { status, stdout, stderr } = runAdvance({
+      PATH: scratch + ':' + process.env.PATH,
+      MERGED_PR: '291'
+    });
+
+
+    expect(status).toBe(0);
+    const state = readScratchState();
+    expect(state.status).toBe('next-task');
+    expect(state.currentTaskId).toBeNull();
+    expect(state.currentPr).toBeNull();
+    expect(state.completedTasks).toContain('AI-001');
+
+    const queue = readScratchQueue();
+    expect(queue.tasks[0].status).toBe('done');
+  });
+
+  it('Case 2 — already reconciled', () => {
+    const mockGh = "console.log(JSON.stringify([{number: 291, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', headRefName: 'automation/ai-development-loop', labels: [{name: 'ai-loop: AI-001'}], comments: []}]))";
+    writeFileSync(join(scratch, 'gh-mock2.js'), mockGh);
+    writeFileSync(join(scratch, 'gh'), "#!/bin/bash\nnode " + join(scratch, 'gh-mock2.js'));
+    const { chmodSync } = require('fs');
+    chmodSync(join(scratch, 'gh'), 0o755);
+
+    setScratchState({
+      status: 'next-task',
+      currentTaskId: null,
+      currentPr: null,
+      completedTasks: ['AI-001']
+    });
+    const queue = readScratchQueue();
+    queue.tasks[0].status = 'done';
+    setTaskQueue(queue);
+
+    const { status, stdout, stderr } = runAdvance({
+      PATH: scratch + ':' + process.env.PATH,
+      EVENT_NAME: 'workflow_dispatch',
+    });
+
+
+    expect(status).toBe(0);
+    const state = readScratchState();
+    expect(state.status).toBe('next-task');
+    expect(stdout).toMatch(/already recorded as done|recoverable next-task state/);
+  });
+
+  it('Case 3 — normal merge', () => {
+    const mockGh = "console.log(JSON.stringify({number: 291, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', headRefName: 'automation/ai-development-loop', labels: [{name: 'ai-loop: AI-001'}], comments: []}))";
+    writeFileSync(join(scratch, 'gh-mock3.js'), mockGh);
+    writeFileSync(join(scratch, 'gh'), "#!/bin/bash\nnode " + join(scratch, 'gh-mock3.js'));
+    const { chmodSync } = require('fs');
+    chmodSync(join(scratch, 'gh'), 0o755);
+
+    setScratchState({
+      status: 'ready-to-merge',
+      currentTaskId: 'AI-001',
+      currentPr: { number: 291, branch: 'automation/ai-development-loop', headSha: 'abcdef1' },
+    });
+
+    const { status, stdout, stderr } = runAdvance({
+      PATH: scratch + ':' + process.env.PATH,
+      MERGED_PR: '291'
+    });
+
+
+    expect(status).toBe(0);
+    const state = readScratchState();
+    expect(state.status).toBe('next-task');
+    expect(state.currentTaskId).toBeNull();
+    expect(state.currentPr).toBeNull();
+    expect(state.completedTasks).toContain('AI-001');
+
+    const queue = readScratchQueue();
+    expect(queue.tasks[0].status).toBe('done');
+  });
+
+  it('Case 4 — unrelated merged PR', () => {
+    const mockGh = "console.log(JSON.stringify({number: 999, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', headRefName: 'feat/something-else', labels: [], comments: []}))";
+    writeFileSync(join(scratch, 'gh-mock4.js'), mockGh);
+    writeFileSync(join(scratch, 'gh'), "#!/bin/bash\nnode " + join(scratch, 'gh-mock4.js'));
+    const { chmodSync } = require('fs');
+    chmodSync(join(scratch, 'gh'), 0o755);
+
+    setScratchState({
+      status: 'idle',
+      currentTaskId: null,
+      currentPr: null,
+    });
+
+    const { status, stdout, stderr } = runAdvance({
+      PATH: scratch + ':' + process.env.PATH,
+      MERGED_PR: '999'
+    });
+
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('is not an AI-managed loop pull request');
+    const state = readScratchState();
+    expect(state.status).toBe('idle');
+  });
+
+  it('Case 5 — infrastructure PR', () => {
+    const mockGh = "console.log(JSON.stringify({number: 292, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', headRefName: 'automation/ai-infra', title: '[AI-INFRA] fix loops', labels: [], comments: []}))";
+    writeFileSync(join(scratch, 'gh-mock5.js'), mockGh);
+    writeFileSync(join(scratch, 'gh'), "#!/bin/bash\nnode " + join(scratch, 'gh-mock5.js'));
+    const { chmodSync } = require('fs');
+    chmodSync(join(scratch, 'gh'), 0o755);
+
+    setScratchState({
+      status: 'reviewing',
+      currentTaskId: 'AI-001',
+      currentPr: { number: 291, branch: 'automation/ai-development-loop', headSha: 'abcdef1' },
+    });
+
+    const { status, stdout, stderr } = runAdvance({
+      PATH: scratch + ':' + process.env.PATH,
+      MERGED_PR: '292'
+    });
+
+
+    expect(status).toBe(0);
+    expect(stdout).toContain('is loop infrastructure');
+    const state = readScratchState();
+    expect(state.status).toBe('reviewing'); // unchanged
+  });
+});
