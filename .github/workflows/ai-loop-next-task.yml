@@ -118,12 +118,15 @@ jobs:
 
       - name: Persist recovered state
         if: ${{ steps.identity.outputs.managed == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ -n "$(git status --porcelain .ai/state/)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add .ai/state/loop-state.json .ai/state/task-queue.json
             git commit -m "chore: advance loop state after merge"
+            git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
             git push origin HEAD
           else
             echo "No state changes to commit."
