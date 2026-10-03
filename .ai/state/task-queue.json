@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-03T00:00:00Z",
+  "tasks": [
+    {
+      "id": "AI-001",
+      "title": "Establish the autonomous AI development loop",
+      "phase": "infrastructure",
+      "status": "in-progress",
+      "summary": "Establish the repository-owned autonomous AI development loop for Rayaramathaynk.",
+      "createdAt": "2026-10-03T00:00:00Z",
+      "acceptanceCriteria": [
+        "Development automation loop is correctly set up."
+      ],
+      "outOfScope": [
+        "Mobile implementation"
+      ],
+      "humanApproval": false,
+      "dependsOn": [],
+      "references": []
+    }
+  ]
+}
