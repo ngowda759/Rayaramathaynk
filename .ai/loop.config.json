@@ -6,7 +6,9 @@
   "branchPrefix": "automation/",
   "ciWorkflow": "CI",
   "ciWorkflowFile": ".github/workflows/ci.yml",
-  "requiredChecks": ["Lint, typecheck, test, build"],
+  "requiredChecks": [
+    "Lint, typecheck, test, build"
+  ],
   "protectedPaths": [
     "prisma/migrations/**",
     "prisma/seed.ts",
@@ -15,8 +17,14 @@
     ".env.*"
   ],
   "secrets": {
-    "required": ["OPENHANDS_API_KEY", "OPENROUTER_API_KEY"],
-    "optional": ["OPENHANDS_HOST", "OPENROUTER_REVIEW_MODEL"],
+    "required": [
+      "OPENHANDS_API_KEY",
+      "OPENROUTER_API_KEY"
+    ],
+    "optional": [
+      "OPENHANDS_HOST",
+      "OPENROUTER_REVIEW_MODEL"
+    ],
     "note": "GITHUB_TOKEN is provided by GitHub Actions and must never be committed. OPENHANDS_HOST and OPENROUTER_REVIEW_MODEL are Actions variables, not secrets. OPENROUTER_API_KEY is the reviewer credential (OpenRouter free router); OPENHANDS_API_KEY is the implementer/fixer credential."
   },
   "review": {
@@ -33,7 +41,7 @@
     "enabled": true,
     "requireCiGreen": true,
     "requireReviewPassed": true,
-    "requireHumanApproval": false
+    "requireHumanApproval": true
   },
   "reviewers": {
     "architect": "ChatGPT",
@@ -44,7 +52,7 @@
   "automation": {
     "enabled": true,
     "autoAdvanceTasks": true,
-    "autoMerge": true,
+    "autoMerge": false,
     "maxConcurrentTasks": 1,
     "nextTaskEnabled": true,
     "stopOnHumanReviewRequired": true,
@@ -55,7 +63,7 @@
     "readyLabel": "ai-ready",
     "nextTaskBranchPrefix": "automation/next-task-",
     "mergeMethod": "squash",
-    "useNativeAutoMerge": true
+    "useNativeAutoMerge": false
   },
   "limits": {
     "maxChangedFiles": 60,

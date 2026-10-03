@@ -123,11 +123,6 @@ if (config !== null && state !== null) {
   // a config that disables auto-merge or the next-task transition would silently
   // break the loop's normal path.
   if (config.automation.enabled === true) {
-    if (config.mergeGate.requireHumanApproval === true) {
-      fail(
-        'mergeGate.requireHumanApproval must be false while automation.enabled is true; a human merge gate contradicts the autonomous loop',
-      );
-    }
     if (config.automation.autoMerge === true && config.mergeGate.enabled !== true) {
       fail('automation.autoMerge requires mergeGate.enabled');
     }
