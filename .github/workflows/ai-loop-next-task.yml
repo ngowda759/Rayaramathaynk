@@ -127,7 +127,7 @@ jobs:
             git add .ai/state/loop-state.json .ai/state/task-queue.json
             git commit -m "chore: advance loop state after merge"
             git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-            git push origin HEAD
+            git push origin HEAD:main
           else
             echo "No state changes to commit."
           fi
