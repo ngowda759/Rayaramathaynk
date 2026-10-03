@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loopId": "AI-001",
-  "status": "idle",
+  "status": "next-task",
   "round": 0,
   "maxReviewRounds": 3,
   "currentTaskId": null,
@@ -10,7 +10,25 @@
   "lastCiStatus": null,
   "reviewedHeadSha": null,
   "blockedReason": null,
-  "completedTasks": [],
-  "updatedAt": "2026-10-03T00:00:00Z",
-  "history": []
+  "completedTasks": [
+    "AI-001"
+  ],
+  "updatedAt": "2026-10-03T16:23:31Z",
+  "history": [
+    {
+      "at": "2026-10-03T16:23:31Z",
+      "status": "next-task",
+      "note": "bootstrap recovery before completion"
+    },
+    {
+      "at": "2026-10-03T16:23:31Z",
+      "status": "completed",
+      "note": "task AI-001 completed"
+    },
+    {
+      "at": "2026-10-03T16:23:31Z",
+      "status": "next-task",
+      "note": "advancing to next-task generation"
+    }
+  ]
 }
