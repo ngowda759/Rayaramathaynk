@@ -581,8 +581,8 @@ describe('advance-after-merge', () => {
     expect(status).toBe(0);
     const state = readScratchState();
     expect(state.status).toBe('next-task');
-    expect(state.currentTaskId).toBe('AI-001');
-    expect(state.currentPr.number).toBe(291);
+    expect(state.currentTaskId).toBeNull();
+    expect(state.currentPr).toBeNull();
     expect(state.completedTasks).toContain('AI-001');
 
     const queue = readScratchQueue();

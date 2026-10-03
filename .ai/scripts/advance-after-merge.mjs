@@ -235,7 +235,7 @@ function reconcileMerge({ pr, prNumber, state, queue }) {
     runState(['set', '--status', 'merging', '--note', `PR #${prNumber} merged`]);
   }
   runState(['complete', '--task', taskId, '--note', `PR #${prNumber} merged`]);
-  runState(['set', '--status', 'next-task', '--note', 'advancing to next-task generation']);
+  runState(['set', '--status', 'next-task', '--task', 'none', '--clear-pr', '--note', 'advancing to next-task generation']);
   log('the loop is ready to generate the next task.');
   return 'advanced';
 }
