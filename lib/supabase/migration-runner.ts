@@ -15,6 +15,7 @@ import {
   auditFieldCoverage,
   FieldCoverageSpec,
   FieldCoverageResult,
+  ExcludeDocumentError,
 } from "./migration-helpers";
 
 export interface MigrationStats {
@@ -25,6 +26,7 @@ export interface MigrationStats {
   updates: number;
   validationFailures: number;
   writeFailures: number;
+  excludedMalformed: number;
   /** Rows already present in the destination before this run. */
   existingRecords: number;
   /** Destination rows for this collection after the run. */
@@ -36,7 +38,7 @@ export interface MigrationStats {
 export interface FailureRecord {
   id: string;
   reason: string;
-  type: "validation" | "write" | "lookup";
+  type: "validation" | "write" | "lookup" | "excluded";
 }
 
 const BATCH_SIZE = 200;
@@ -74,6 +76,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
   let updates = 0;
   let validationFailures = 0;
   let writeFailures = 0;
+  let excludedMalformed = 0;
   const failures: FailureRecord[] = [];
   const observedFields = new Set<string>();
   let existingRecords = 0;
@@ -95,12 +98,21 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
       try {
         records.push(mapFn(doc.id, raw));
       } catch (err: any) {
-        validationFailures++;
-        failures.push({
-          id: doc.id,
-          reason: err?.message || "Validation error",
-          type: "validation",
-        });
+        if (err instanceof ExcludeDocumentError) {
+          excludedMalformed++;
+          failures.push({
+            id: doc.id,
+            reason: err?.message || "Excluded explicitly",
+            type: "excluded",
+          });
+        } else {
+          validationFailures++;
+          failures.push({
+            id: doc.id,
+            reason: err?.message || "Validation error",
+            type: "validation",
+          });
+        }
       }
     }
 
@@ -177,6 +189,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
     updates,
     validationFailures,
     writeFailures,
+    excludedMalformed,
   });
 
   let fieldCoverage: FieldCoverageResult | undefined;
@@ -245,6 +258,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
     updates,
     validationFailures,
     writeFailures,
+    excludedMalformed,
     existingRecords,
     destinationRecords,
     reconciliation,

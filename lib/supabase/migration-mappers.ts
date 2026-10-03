@@ -14,6 +14,7 @@
 
 import {
   FieldCoverageSpec,
+  ExcludeDocumentError,
   ValidationError,
   toIsoString,
 } from "./migration-helpers";
@@ -681,6 +682,13 @@ export function mapSeva(id: string, data: any): Record<string, any> {
 
 
 export function mapSevaBooking(id: string, data: any): Record<string, any> {
+  // This exact Firestore record is a known malformed non-booking test record.
+  // Keep the exclusion deliberately narrow so legitimate bookings are never
+  // excluded merely because a field happens to contain "admin".
+  if (id === "Ce6SDXl3HL9ReOgHZZis" && data.name === "admin") {
+    throw new ExcludeDocumentError("Malformed non-booking source record");
+  }
+
   const row: Record<string, any> = {
     firestore_id: id,
     seva_id: requireString(data.sevaId, "sevaId"),

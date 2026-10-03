@@ -737,6 +737,25 @@ describe("core mapper output shapes (F)", () => {
 
 
   describe("mapSevaBooking", () => {
+
+  it("throws ExcludeDocumentError for explicitly malformed 'admin' test document Ce6SDXl3HL9ReOgHZZis", () => {
+    let error;
+    try {
+      mapSevaBooking("Ce6SDXl3HL9ReOgHZZis", { name: "admin" });
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeDefined();
+    expect(error.name).toBe("ExcludeDocumentError");
+  });
+
+  it("throws ValidationError for another document with name 'admin' (not excluded)", () => {
+    expect(() => {
+      mapSevaBooking("other_document_id", { name: "admin" });
+    }).toThrow(/Missing required field/);
+  });
+
     const validBooking = {
       sevaId: "seva-1",
       sevaTitle: "Pooja",

@@ -188,7 +188,7 @@ export default function QuotesPage() {
           <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 p-8 text-white shadow-xl">
             <QuoteIcon className="mb-4 h-10 w-10 opacity-50" />
             <blockquote className="font-serif text-xl leading-relaxed">
-              &quot;{quotes[featuredIndex].text}&quot;
+              "{quotes[featuredIndex].text}"
             </blockquote>
             <div className="mt-4 flex items-center justify-between">
               <cite className="text-indigo-200">— {quotes[featuredIndex].author}</cite>
@@ -253,7 +253,7 @@ export default function QuotesPage() {
                   </div>
                   <div className="flex-1">
                     <blockquote className="font-serif text-lg leading-relaxed text-stone-800">
-                      &quot;{quote.text}&quot;
+                      "{quote.text}"
                     </blockquote>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
