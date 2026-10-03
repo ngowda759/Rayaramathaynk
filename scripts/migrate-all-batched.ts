@@ -352,7 +352,7 @@ export async function executePlan(
         sourceCount: stats.sourceCount,
         destinationCount: stats.destinationRecords,
         migratedCount: stats.inserts + stats.updates,
-        skippedCount: stats.existingRecords - stats.updates,
+        skippedCount: stats.existingRecords - stats.updates + stats.excludedMalformed,
         failedCount: stats.validationFailures + stats.writeFailures,
         startedAt,
         completedAt: new Date().toISOString(),
