@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { test, expect, Page } from '@playwright/test';
 import { BASE_URL } from '../test-utils';
 

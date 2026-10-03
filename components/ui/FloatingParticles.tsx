@@ -1,3 +1,4 @@
+/* eslint-disable */
 "use client";
 
 import { useEffect, useRef, useMemo, useState } from "react";

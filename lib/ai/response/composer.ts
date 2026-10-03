@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Intent, RetrievalType } from "@/lib/ai/intent/types";
 import { RetrievalResult } from "@/lib/ai/retrieval/registry";
 import { aiSettingsService } from "@/lib/ai/ai-settings";

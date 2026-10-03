@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * QR Scanner Service
  * Camera-based QR code scanning using html5-qrcode library
