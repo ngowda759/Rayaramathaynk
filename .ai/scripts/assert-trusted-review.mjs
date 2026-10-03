@@ -45,7 +45,6 @@ const TRUSTED_WORKFLOWS = [
 /** Workflows that must never hold `contents: write`. */
 const READ_ONLY_WORKFLOWS = [
   'ai-loop-review.yml',
-  'ai-loop-next-task.yml',
   'ai-loop-implement.yml',
 ];
 

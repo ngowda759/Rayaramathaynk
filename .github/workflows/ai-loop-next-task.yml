@@ -61,7 +61,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: read
   issues: write
 
@@ -115,6 +115,20 @@ jobs:
           MERGED_SHA: ${{ github.event.pull_request.merge_commit_sha }}
           MERGED_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: node .ai/scripts/advance-after-merge.mjs
+
+      - name: Persist recovered state
+        if: ${{ steps.identity.outputs.managed == 'true' }}
+        run: |
+          if [[ -n "$(git status --porcelain .ai/state/)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .ai/state/loop-state.json .ai/state/task-queue.json
+            git commit -m "chore: advance loop state after merge"
+            git push origin HEAD
+          else
+            echo "No state changes to commit."
+          fi
+
 
       - name: Enforce exactly one active task
         if: ${{ steps.identity.outputs.managed == 'true' }}
