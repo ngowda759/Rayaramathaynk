@@ -180,7 +180,7 @@ export default function NotificationCenterPage() {
                   Browser notifications not supported
                 </h3>
                 <p className="mt-1 text-sm text-amber-700">
-                  Your browser doesn't support push notifications. You'll still receive email notifications if enabled.
+                  Your browser doesn&apos;t support push notifications. You&apos;ll still receive email notifications if enabled.
                 </p>
               </div>
             </div>

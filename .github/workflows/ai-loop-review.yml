@@ -1,0 +1,146 @@
+name: AI loop review
+
+# The AI review stage of the autonomous AI development loop.
+#
+# The reviewer is an external model provider configured in `.ai/loop.config.json`
+# (`review.provider` / `review.endpoint` / `review.model` / `review.apiKeyEnvVar`).
+# The loop's default is OpenRouter's free model router, so the review path does
+# not require a paid API key. The credential is read from the configured
+# environment variable (`OPENROUTER_API_KEY` for the OpenRouter provider), never
+# hard-coded here.
+#
+# SECURITY MODEL — read before changing this file.
+#
+# This workflow is triggered by `workflow_run`, so it runs with the *base*
+# repository's token and secrets even when the pull request came from a fork.
+# That is exactly what makes it dangerous, and the reason for every rule below:
+#
+#   1. Only the DEFAULT BRANCH is ever checked out. The pull request's head is
+#      never checked out, fetched, built, installed or sourced. The `.ai/scripts`
+#      that run here are the trusted ones from the base branch — a pull request
+#      cannot swap them for its own, because its copy is never on disk.
+#   2. `actions/checkout` is pinned to `github.event.repository.default_branch`
+#      explicitly, not left to default, so the checkout cannot drift onto the
+#      PR ref.
+#   3. No `npm ci`, no `npm install`, no `npm run *`, no lifecycle script and no
+#      shell `source` of any PR-controlled file. The reviewer's dependencies are
+#      the Node standard library only.
+#   4. The pull request is consumed as DATA through the GitHub API (`gh pr view`,
+#      `gh pr diff`, `gh pr checks`) and passed to the model as text.
+#   5. Cross-repository (fork) pull requests are refused outright rather than
+#      reviewed with a diff that cannot be verified against the base.
+#   6. Permissions are least-privilege: no repository-write permission anywhere,
+#      so this workflow cannot push, tag or merge even if it were subverted.
+#
+# `.github/workflows/ci.yml` is deliberately NOT a `workflow_run` trigger, so a
+# pull request cannot reach this job by editing the CI workflow.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+        type: string
+
+concurrency:
+  group: ai-loop-review-${{ github.event.workflow_run.head_branch || inputs.pr_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    name: AI review
+    runs-on: ubuntu-latest
+    steps:
+      # Trusted base branch only. The `ref` is explicit so this can never
+      # silently become the pull request head.
+      - name: Checkout the trusted base branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch || 'main' }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Assert the review workflow never runs PR-controlled code
+        run: node .ai/scripts/assert-trusted-review.mjs
+
+      - name: Check the reviewer credential
+        id: creds
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          # Provider-aware: the required variable is derived from the configured
+          # review provider/api-key field, never hard-coded to a paid provider.
+          REVIEW_API_KEY_ENV="$(node -e "const c=JSON.parse(require('fs').readFileSync('.ai/loop.config.json','utf8'));process.stdout.write((c.review&&c.review.apiKeyEnvVar)||'')")"
+          if [ -z "${REVIEW_API_KEY_ENV}" ]; then
+            echo "::error::.ai/loop.config.json review.apiKeyEnvVar is not set; cannot determine the reviewer credential."
+            exit 1
+          fi
+          echo "env_var=${REVIEW_API_KEY_ENV}" >> "$GITHUB_OUTPUT"
+          if [ -z "${!REVIEW_API_KEY_ENV}" ]; then
+            echo "::error::${REVIEW_API_KEY_ENV} is not configured. The review stage cannot run and will not fall back to any paid provider. Configure the secret under Settings -> Secrets and variables -> Actions and re-run."
+            exit 1
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT_PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          INPUT_PR: ${{ inputs.pr_number }}
+        run: node .ai/scripts/resolve-review-pr.mjs
+
+      - name: Validate the loop state
+        run: node .ai/scripts/validate-loop-config.mjs
+
+      - name: Wait for required CI to finish
+        if: ${{ steps.creds.outputs.available == 'true' && steps.pr.outputs.number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node .ai/scripts/wait-for-ci.mjs --pr "${{ steps.pr.outputs.number }}" --timeout-ms 900000
+
+      - name: Run the AI review
+        if: ${{ steps.creds.outputs.available == 'true' && steps.pr.outputs.number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_REVIEW_MODEL: ${{ vars.OPENROUTER_REVIEW_MODEL }}
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+          OPENHANDS_HOST: ${{ vars.OPENHANDS_HOST }}
+        run: |
+          node .ai/scripts/chatgpt-review.mjs --pr "${{ steps.pr.outputs.number }}"
+
+      - name: Report an unavailable reviewer credential
+        if: ${{ always() && steps.creds.outputs.available != 'true' }}
+        run: |
+          {
+            echo "### AI review blocked: reviewer credential unavailable"
+            echo
+            echo "The review stage could not run because its credential is not configured."
+            echo "It will not fall back to any paid provider."
+            echo
+            echo "Configure the credential named by \`review.apiKeyEnvVar\` in"
+            echo "\`.ai/loop.config.json\` under Settings -> Secrets and variables -> Actions, then re-run."
+            echo
+            echo "The loop will not merge a pull request it has not reviewed."
+          } >> "$GITHUB_STEP_SUMMARY"

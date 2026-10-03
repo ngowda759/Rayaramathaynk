@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/ngowda759/Rayaramathaynk/.ai/schemas/task-queue.schema.json",
+  "title": "Rayaramathaynk AI development loop task queue",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "updatedAt", "tasks"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "task-brief.schema.json" }
+    }
+  }
+}
