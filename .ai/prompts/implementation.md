@@ -1,4 +1,4 @@
-# Stage 2 — Implementation (OpenHands)
+# Stage 2 — Implementation (Jules)
 
 You implement exactly one task brief and open exactly one pull request.
 

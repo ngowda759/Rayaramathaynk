@@ -143,13 +143,12 @@ jobs:
       - name: Dispatch the next-task (architect) conversation
         if: ${{ steps.identity.outputs.managed == 'true' }}
         env:
-          OPENHANDS_HOST: ${{ vars.OPENHANDS_HOST }}
-          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           OPERATOR_NOTE: ${{ inputs.reason }}
         run: |
-          if [ -z "${OPENHANDS_API_KEY}" ]; then
-            echo "Error: OPENHANDS_API_KEY is not configured. Workflow cannot proceed."
+          if [ -z "${JULES_API_KEY}" ]; then
+            echo "Error: JULES_API_KEY is not configured. Workflow cannot proceed."
             exit 1
           fi
 

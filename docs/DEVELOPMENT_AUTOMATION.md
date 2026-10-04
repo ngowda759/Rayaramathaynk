@@ -8,7 +8,7 @@ The system uses a combination of AI agents and GitHub Actions to automate develo
 
 1. **ChatGPT (Architect / Designer)**
    Responsible for high-level requirements, architecture, task decomposition, and maintaining the development plan. It writes the task briefs.
-2. **Jules / OpenHands (Software Engineer)**
+2. **Jules (Software Engineer)**
    Acts as the implementer. Receives tasks, writes code, creates tests, and opens Pull Requests. Also responsible for fixing issues flagged in review.
 3. **OpenRouter (Independent Engineering Reviewer)**
    An external AI model (via OpenRouter API) that reviews the code objectively. It checks for correctness, security, architecture, and regressions. It produces a strict `PASS/FAIL` verdict.
@@ -44,6 +44,6 @@ State is persisted across runs in the `.ai/` directory:
 ## Required Secrets
 
 - `OPENROUTER_API_KEY`: For the reviewer model.
-- `OPENHANDS_API_KEY`: For the OpenHands backend, if used.
+- `JULES_API_KEY`: For the Jules backend, if used.
 
 *NOTE*: Never expose these in client-side code or logs.

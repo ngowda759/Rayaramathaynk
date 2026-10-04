@@ -18,14 +18,13 @@
   ],
   "secrets": {
     "required": [
-      "OPENHANDS_API_KEY",
+      "JULES_API_KEY",
       "OPENROUTER_API_KEY"
     ],
     "optional": [
-      "OPENHANDS_HOST",
       "OPENROUTER_REVIEW_MODEL"
     ],
-    "note": "GITHUB_TOKEN is provided by GitHub Actions and must never be committed. OPENHANDS_HOST and OPENROUTER_REVIEW_MODEL are Actions variables, not secrets. OPENROUTER_API_KEY is the reviewer credential (OpenRouter free router); OPENHANDS_API_KEY is the implementer/fixer credential."
+    "note": "GITHUB_TOKEN is provided by GitHub Actions and must never be committed. OPENROUTER_REVIEW_MODEL is an Actions variable, not secrets. OPENROUTER_API_KEY is the reviewer credential (OpenRouter free router); JULES_API_KEY is the implementer/fixer credential."
   },
   "review": {
     "provider": "openrouter",
@@ -45,7 +44,7 @@
   },
   "reviewers": {
     "architect": "ChatGPT",
-    "implementer": "OpenHands",
+    "implementer": "Jules",
     "ci": "GitHub Actions",
     "merge": "GitHub Actions"
   },

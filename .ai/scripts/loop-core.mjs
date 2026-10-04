@@ -641,7 +641,7 @@ export const HARD_STOPS = {
   'contradictory-task': 'The task brief contradicts the repository state.',
   'ambiguous-roadmap': 'The next task could not be determined unambiguously.',
   'auth-failure-github': 'GitHub authentication failed and cannot be retried.',
-  'auth-failure-openhands': 'OpenHands authentication failed and cannot be retried.',
+  'auth-failure-jules': 'Jules authentication failed and cannot be retried.',
   'auth-failure-openai': 'OpenAI authentication failed.',
   'auth-failure-openrouter': 'OpenRouter authentication or quota failed.',
   'merge-conflict': 'The pull request has a merge conflict that needs a human.',
@@ -655,7 +655,7 @@ export const HARD_STOPS = {
 
 export const NORMAL_EVENTS = {
   'changes-requested': 'The reviewer requested changes; the loop dispatches a fix.',
-  'fix-round': 'OpenHands needs another fix round on the same pull request.',
+  'fix-round': 'Jules needs another fix round on the same pull request.',
   'ci-defect': 'CI failed because of a code defect; the fix round addresses it.',
   'ci-rerun': 'CI needs another run.',
   'task-completed': 'A task completed normally.',
