@@ -2,7 +2,7 @@
 /**
  * Review stage of the AI development loop.
  *
- * An external reviewer model is the reviewer; OpenHands is the
+ * An external reviewer model is the reviewer; Jules is the
  * implementer/fixer. This script is the orchestrator between them, and it is the
  * *only* place a review verdict is produced. The provider is configuration, not
  * code: `config.review` supplies the provider, endpoint, model and credential
@@ -17,7 +17,7 @@
  *   5. records the review in `.ai/state/review-log.jsonl`;
  *   6. posts the review as a PR comment carrying the dedupe marker;
  *   7. sets the loop state and labels;
- *   8. on `changes-requested`, hands the findings to OpenHands on the SAME PR.
+ *   8. on `changes-requested`, hands the findings to Jules on the SAME PR.
  *
  * Security: the pull request is treated purely as data. Nothing from the PR is
  * executed, installed, built or sourced — the diff is read as text and sent to
@@ -37,7 +37,7 @@
  *   OPENROUTER_API_KEY      required unless --dry-run/--response-file; the
  *                           variable name comes from `config.review.apiKeyEnvVar`
  *   OPENROUTER_REVIEW_MODEL optional; defaults to the configured review model
- *   OPENHANDS_API_KEY       optional; absent means the fix dispatch skips cleanly
+ *   JULES_API_KEY       optional; absent means the fix dispatch skips cleanly
  *   OPENHANDS_HOST          optional; defaults to https://app.all-hands.dev
  *   GH_TOKEN                required for every `gh` call
  *   AI_LOOP_ROOT            overrides the repository root (tests only)
@@ -346,7 +346,7 @@ function applyLabels({ pr, add, remove }) {
 }
 
 function dispatchFix({ report, pr, contextFile }) {
-  const apiKey = process.env.OPENHANDS_API_KEY ?? '';
+  const apiKey = process.env.JULES_API_KEY ?? '';
   const command = [
     resolve(root, '.ai/scripts/dispatch-conversation.mjs'),
     '--stage',
@@ -363,7 +363,7 @@ function dispatchFix({ report, pr, contextFile }) {
 
   if (apiKey.length === 0) {
     log(
-      'OPENHANDS_API_KEY is not configured; skipping the fix dispatch (no conversation started).',
+      'JULES_API_KEY is not configured; skipping the fix dispatch (no conversation started).',
     );
     return;
   }

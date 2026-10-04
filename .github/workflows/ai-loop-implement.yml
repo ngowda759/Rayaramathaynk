@@ -36,7 +36,7 @@ permissions:
 
 jobs:
   implement:
-    name: Dispatch OpenHands implementation
+    name: Dispatch Jules implementation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the trusted base branch
@@ -83,8 +83,7 @@ jobs:
       - name: Dispatch the implementation conversation
         if: ${{ steps.task.outputs.id != '' }}
         env:
-          OPENHANDS_HOST: ${{ vars.OPENHANDS_HOST }}
-          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           node .ai/scripts/dispatch-conversation.mjs \

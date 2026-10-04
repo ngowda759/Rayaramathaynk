@@ -671,13 +671,13 @@ describe('advance-after-merge', () => {
 });
 
 describe('dispatch-conversation', () => {
-  it('fails with exit 1 if OPENHANDS_API_KEY is missing during a normal dispatch', () => {
+  it('fails with exit 1 if JULES_API_KEY is missing during a normal dispatch', () => {
     const { status, stdout } = run('dispatch-conversation.mjs', ['--stage', 'next-task']);
     expect(status).toBe(1);
     expect(stdout).not.toContain('Payload that would be sent');
   });
 
-  it('succeeds with exit 0 during a dry-run even if OPENHANDS_API_KEY is missing', () => {
+  it('succeeds with exit 0 during a dry-run even if JULES_API_KEY is missing', () => {
     const { status, stdout } = run('dispatch-conversation.mjs', ['--stage', 'next-task', '--dry-run']);
     expect(status).toBe(0);
     expect(stdout).toContain('Dry run: no conversation started');

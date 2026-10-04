@@ -8,14 +8,14 @@ inherits this contract. Stage prompts add to it; they never weaken it.
 | Role         | Actor          | Responsibility                                            |
 | ------------ | -------------- | --------------------------------------------------------- |
 | Architect    | ChatGPT        | Writes the task brief and the acceptance criteria         |
-| Implementer  | OpenHands      | Implements the brief on a branch and opens one PR         |
+| Implementer  | Jules      | Implements the brief on a branch and opens one PR         |
 | CI           | GitHub Actions | Lint, typecheck, test, build, end-to-end                  |
 | Reviewer     | External model | Reviews the diff against the brief; verdict + findings    |
-| Fixer        | OpenHands      | Fixes review findings on the **same** PR                  |
+| Fixer        | Jules      | Fixes review findings on the **same** PR                  |
 | Orchestrator | GitHub Actions | Waits for CI, runs the review, routes the verdict, merges |
 | Human        | —              | Exception handler only                                    |
 
-The reviewer and the implementer are **different actors on purpose**. OpenHands
+The reviewer and the implementer are **different actors on purpose**. Jules
 never reviews its own work: it implements, then fixes what the reviewer reports. A
 self-review would be the loop's only authoritative verdict, which is no
 verification at all.
@@ -90,7 +90,7 @@ instead of looping forever.
 
 The reviewer is an **external model** (OpenRouter's free router by default),
 driven by `.ai/scripts/chatgpt-review.mjs` from the `AI loop review` workflow. The
-fixer is **OpenHands**, dispatched on the same PR branch. A push from the fixer
+fixer is **Jules**, dispatched on the same PR branch. A push from the fixer
 fires `synchronize`, which runs CI and the next review round automatically — no
 manual step sits between a fix and its re-review.
 
@@ -104,7 +104,7 @@ Stop, record the reason, add `ai-blocked` and do **not** continue for any of:
   `.github/workflows/ci.yml` was changed;
 - a security-sensitive change needs human review;
 - the task brief contradicts the repository state, or the roadmap is ambiguous;
-- GitHub, OpenHands or the reviewer provider (OpenRouter) authentication or quota
+- GitHub, Jules or the reviewer provider (OpenRouter) authentication or quota
   failed and cannot be retried; a 429/quota failure is never retried in a loop
   because the free router has a daily request budget;
 - the pull request has a merge conflict, or branch protection blocks the merge;
@@ -118,7 +118,7 @@ Stop, record the reason, add `ai-blocked` and do **not** continue for any of:
 Never stop for these; they are the loop working normally:
 
 - the reviewer requests changes → dispatch a fix on the same PR;
-- OpenHands needs another fix round;
+- Jules needs another fix round;
 - CI fails because of a code defect, or needs another run;
 - a task completes, a next task is generated, a PR is created, a PR merges;
 - the normal transition from AI-00n to AI-00n+1.
