@@ -6,7 +6,7 @@
  * credentials.
  *
  * Contract for every mapper:
- *  - throw `ValidationError` when a NOT NULL destination column has no valid
+ *  - throw `ValidationError, ExcludeDocumentError` when a NOT NULL destination column has no valid
  *    source value;
  *  - never invent a value (no `new Date()`, no placeholder email/boolean);
  *  - copy Firestore document IDs verbatim (they are arbitrary strings).
@@ -14,8 +14,7 @@
 
 import {
   FieldCoverageSpec,
-  ExcludeDocumentError,
-  ValidationError,
+  ValidationError, ExcludeDocumentError,
   toIsoString,
 } from "./migration-helpers";
 

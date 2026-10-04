@@ -24,7 +24,7 @@ import {
 } from "@/lib/supabase/migration-mappers";
 import {
   auditFieldCoverage,
-  ValidationError,
+  ValidationError, ExcludeDocumentError,
 } from "@/lib/supabase/migration-helpers";
 
 const ts = (seconds: number) => ({ _seconds: seconds, _nanoseconds: 0 });
@@ -196,7 +196,7 @@ describe("content mapper timestamp handling (C + D)", () => {
   it("rejects a present-but-unparseable timestamp rather than dropping it", () => {
     expect(() =>
       mapUser("u3", { email: "a@b.org", createdAt: "not-a-date" }),
-    ).toThrow(ValidationError);
+    ).toThrow(ValidationError, ExcludeDocumentError);
   });
 
   it("leaves nullable collected_at/uploaded_at as null when absent", () => {
@@ -737,25 +737,6 @@ describe("core mapper output shapes (F)", () => {
 
 
   describe("mapSevaBooking", () => {
-
-  it("throws ExcludeDocumentError for explicitly malformed 'admin' test document Ce6SDXl3HL9ReOgHZZis", () => {
-    let error;
-    try {
-      mapSevaBooking("Ce6SDXl3HL9ReOgHZZis", { name: "admin" });
-    } catch (err) {
-      error = err;
-    }
-
-    expect(error).toBeDefined();
-    expect(error.name).toBe("ExcludeDocumentError");
-  });
-
-  it("throws ValidationError for another document with name 'admin' (not excluded)", () => {
-    expect(() => {
-      mapSevaBooking("other_document_id", { name: "admin" });
-    }).toThrow(/Missing required field/);
-  });
-
     const validBooking = {
       sevaId: "seva-1",
       sevaTitle: "Pooja",
@@ -774,6 +755,24 @@ describe("core mapper output shapes (F)", () => {
       createdAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") },
       updatedAt: { toDate: () => new Date("2023-10-01T10:00:00.000Z") }
     };
+
+
+    it("throws ExcludeDocumentError for explicitly malformed 'admin' test document Ce6SDXl3HL9ReOgHZZis", () => {
+      let error;
+      try {
+        mapSevaBooking("Ce6SDXl3HL9ReOgHZZis", { name: "admin" });
+      } catch (err) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error.name).toBe("ExcludeDocumentError");
+    });
+
+    it("throws ValidationError for another document with name 'admin' (not excluded)", () => {
+      expect(() => {
+        mapSevaBooking("other_document_id", { name: "admin" });
+      }).toThrow(/Missing required field/);
+    });
 
     it("maps a valid booking correctly", () => {
       const res = mapSevaBooking("b1", validBooking);

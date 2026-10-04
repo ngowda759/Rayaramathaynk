@@ -13,9 +13,9 @@ import {
   reconcileCounts,
   ReconciliationResult,
   auditFieldCoverage,
+  ExcludeDocumentError,
   FieldCoverageSpec,
   FieldCoverageResult,
-  ExcludeDocumentError,
 } from "./migration-helpers";
 
 export interface MigrationStats {
@@ -212,6 +212,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
   console.log(`Source documents:        ${sourceCount}`);
   console.log(`Valid mappings:          ${inserts + updates + writeFailures}`);
   console.log(`Validation failures:     ${validationFailures}`);
+  console.log(`Excluded malformed:      ${excludedMalformed}`);
   console.log(`Existing destination:    ${existingRecords}`);
   console.log(`Inserted:                ${inserts}`);
   console.log(`Updated:                 ${updates}`);

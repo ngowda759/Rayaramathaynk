@@ -5,16 +5,12 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
   ]),
-  // Disable @typescript-eslint/no-explicit-any for Firebase service files
-  // Firebase Firestore returns dynamic data structures where any is unavoidable
   {
     files: [
       "services/**/*.ts",
@@ -27,9 +23,12 @@ const eslintConfig = defineConfig([
       "components/**/*.tsx",
       "lib/**/*.ts",
       "lib/**/*.tsx",
+      "tests/**/*.ts",
+      "tests/**/*.tsx",
     ],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
 ]);

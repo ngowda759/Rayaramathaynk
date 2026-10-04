@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "loopId": "AI-001",
+  "maxReviewRounds": 3,
+  "baseBranch": "main",
+  "branchPrefix": "automation/",
+  "ciWorkflow": "CI",
+  "ciWorkflowFile": ".github/workflows/ci.yml",
+  "requiredChecks": [
+    "Lint, typecheck, test, build"
+  ],
+  "protectedPaths": [
+    "prisma/migrations/**",
+    "prisma/seed.ts",
+    ".github/workflows/ci.yml",
+    ".env",
+    ".env.*"
+  ],
+  "secrets": {
+    "required": [
+      "OPENHANDS_API_KEY",
+      "OPENROUTER_API_KEY"
+    ],
+    "optional": [
+      "OPENHANDS_HOST",
+      "OPENROUTER_REVIEW_MODEL"
+    ],
+    "note": "GITHUB_TOKEN is provided by GitHub Actions and must never be committed. OPENHANDS_HOST and OPENROUTER_REVIEW_MODEL are Actions variables, not secrets. OPENROUTER_API_KEY is the reviewer credential (OpenRouter free router); OPENHANDS_API_KEY is the implementer/fixer credential."
+  },
+  "review": {
+    "provider": "openrouter",
+    "endpoint": "https://openrouter.ai/api/v1",
+    "model": "openrouter/free",
+    "apiKeyEnvVar": "OPENROUTER_API_KEY",
+    "modelEnvVar": "OPENROUTER_REVIEW_MODEL",
+    "schema": ".ai/schemas/review-report.schema.json",
+    "markerName": "ai-loop-review",
+    "commentOnEveryRound": true
+  },
+  "mergeGate": {
+    "enabled": true,
+    "requireCiGreen": true,
+    "requireReviewPassed": true,
+    "requireHumanApproval": true
+  },
+  "reviewers": {
+    "architect": "ChatGPT",
+    "implementer": "OpenHands",
+    "ci": "GitHub Actions",
+    "merge": "GitHub Actions"
+  },
+  "automation": {
+    "enabled": true,
+    "autoAdvanceTasks": true,
+    "autoMerge": false,
+    "maxConcurrentTasks": 1,
+    "nextTaskEnabled": true,
+    "stopOnHumanReviewRequired": true,
+    "stopOnProtectedPath": true,
+    "triggerLabel": "ai-task",
+    "reviewLabel": "ai-review",
+    "blockedLabel": "ai-blocked",
+    "readyLabel": "ai-ready",
+    "nextTaskBranchPrefix": "automation/next-task-",
+    "mergeMethod": "squash",
+    "useNativeAutoMerge": false
+  },
+  "limits": {
+    "maxChangedFiles": 60,
+    "maxDiffLines": 2500
+  },
+  "paths": {
+    "state": ".ai/state/loop-state.json",
+    "queue": ".ai/state/task-queue.json",
+    "reviewLog": ".ai/state/review-log.jsonl",
+    "taskDocs": "docs/tasks"
+  }
+}

@@ -638,4 +638,34 @@ describe('advance-after-merge', () => {
     const state = readScratchState();
     expect(state.status).toBe('reviewing'); // unchanged
   });
+
+  it('Case 6 — manual workflow_dispatch recovery', () => {
+    const mockGh = "console.log(JSON.stringify([{number: 291, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', headRefName: 'automation/ai-development-loop', labels: [{name: 'ai-loop: AI-001'}], comments: []}]))";
+    writeFileSync(join(scratch, 'gh-mock6.js'), mockGh);
+    writeFileSync(join(scratch, 'gh'), "#!/bin/bash\nnode " + join(scratch, 'gh-mock6.js'));
+    const { chmodSync } = require('fs');
+    chmodSync(join(scratch, 'gh'), 0o755);
+
+    setScratchState({
+      status: 'ready-to-merge',
+      currentTaskId: 'AI-001',
+      currentPr: { number: 291, branch: 'automation/ai-development-loop', headSha: 'abcdef1' },
+    });
+
+    const { status, stdout, stderr } = runAdvance({
+      PATH: scratch + ':' + process.env.PATH,
+      EVENT_NAME: 'workflow_dispatch'
+    });
+
+    expect(status).toBe(0);
+    const state = readScratchState();
+    expect(state.status).toBe('next-task');
+    expect(state.currentTaskId).toBeNull();
+    expect(state.currentPr).toBeNull();
+    expect(state.completedTasks).toContain('AI-001');
+
+    const queue = readScratchQueue();
+    expect(queue.tasks[0].status).toBe('done');
+  });
+
 });

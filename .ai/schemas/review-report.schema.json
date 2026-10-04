@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/ngowda759/Rayaramathaynk/.ai/schemas/review-report.schema.json",
+  "title": "Rayaramathaynk AI development loop review report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "pr",
+    "round",
+    "headSha",
+    "verdict",
+    "ciStatus",
+    "summary",
+    "acceptanceCriteria",
+    "findings",
+    "reviewedAt"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^AI-[0-9]+(-T[0-9]+)?$"
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "headSha": {
+      "type": "string",
+      "minLength": 7
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["approved", "changes-requested", "blocked"]
+    },
+    "ciStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "success",
+        "failure",
+        "cancelled",
+        "skipped",
+        "unknown"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "criterion",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "criterion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["met", "unmet", "unverifiable"]
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "file",
+          "line",
+          "summary",
+          "suggestion"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["blocker", "major", "minor", "nit"]
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "suggestion": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "reviewedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
