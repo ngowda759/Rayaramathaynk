@@ -3,7 +3,7 @@ import { createAdminClient } from "../lib/supabase/admin";
 async function verify() {
   const supabase = createAdminClient();
 
-  const { data, error, count } = await supabase
+  const { error, count } = await supabase
     .from('sevas')
     .select('*', { count: 'exact' });
 
