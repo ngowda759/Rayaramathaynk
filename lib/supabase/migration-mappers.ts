@@ -15,6 +15,7 @@
 import {
   FieldCoverageSpec,
   ValidationError,
+  ExcludeDocumentError,
   toIsoString,
 } from "./migration-helpers";
 
@@ -681,6 +682,11 @@ export function mapSeva(id: string, data: any): Record<string, any> {
 
 
 export function mapSevaBooking(id: string, data: any): Record<string, any> {
+  // If required root-level properties are entirely missing or this doc is purely an artifact
+  if (!data.sevaId || !data.userId || !data.preferredDate) {
+    throw new ExcludeDocumentError("Malformed legacy document: missing core IDs or dates");
+  }
+
   const row: Record<string, any> = {
     firestore_id: id,
     seva_id: requireString(data.sevaId, "sevaId"),
