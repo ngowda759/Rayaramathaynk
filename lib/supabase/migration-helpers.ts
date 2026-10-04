@@ -78,6 +78,7 @@ export interface ReconciliationInput {
   sourceCount: number;
   inserts: number;
   updates: number;
+  excludedMalformed: number;
   validationFailures: number;
   writeFailures: number;
 }
@@ -99,15 +100,26 @@ export interface ReconciliationResult {
  */
 export function reconcileCounts(input: ReconciliationInput): ReconciliationResult {
   const accountedFor =
-    input.inserts + input.updates + input.validationFailures + input.writeFailures;
+    input.inserts + input.updates + (input.excludedMalformed || 0) + input.validationFailures + input.writeFailures;
   const missing = input.sourceCount - accountedFor;
 
   const details =
     `source=${input.sourceCount}, inserts=${input.inserts}, updates=${input.updates}, ` +
-    `validationFailures=${input.validationFailures}, writeFailures=${input.writeFailures}, ` +
-    `accountedFor=${accountedFor}`;
+    `excludedMalformed=${input.excludedMalformed || 0}, validationFailures=${input.validationFailures}, ` +
+    `writeFailures=${input.writeFailures}, accountedFor=${accountedFor}`;
 
   return { ok: missing === 0, accountedFor, missing, details };
+}
+
+/**
+ * A mapper rejected a document because it is malformed, but this is an expected
+ * exclusion, not a validation failure.
+ */
+export class ExcludeDocumentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExcludeDocumentError";
+  }
 }
 
 /**

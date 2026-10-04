@@ -15,6 +15,7 @@
 import {
   FieldCoverageSpec,
   ValidationError,
+  ExcludeDocumentError,
   toIsoString,
 } from "./migration-helpers";
 
@@ -681,6 +682,11 @@ export function mapSeva(id: string, data: any): Record<string, any> {
 
 
 export function mapSevaBooking(id: string, data: any): Record<string, any> {
+  // Exclude known malformed artifact
+  if (id === "Ce6SDXl3HL9ReOgHZZis" && data.name === "admin") {
+    throw new ExcludeDocumentError("Malformed non-booking source record");
+  }
+
   const row: Record<string, any> = {
     firestore_id: id,
     seva_id: requireString(data.sevaId, "sevaId"),

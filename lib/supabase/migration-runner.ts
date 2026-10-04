@@ -15,6 +15,7 @@ import {
   auditFieldCoverage,
   FieldCoverageSpec,
   FieldCoverageResult,
+  ExcludeDocumentError,
 } from "./migration-helpers";
 
 export interface MigrationStats {
@@ -23,6 +24,7 @@ export interface MigrationStats {
   sourceCount: number;
   inserts: number;
   updates: number;
+  excludedMalformed: number;
   validationFailures: number;
   writeFailures: number;
   /** Rows already present in the destination before this run. */
@@ -72,6 +74,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
   let processed = 0;
   let inserts = 0;
   let updates = 0;
+  let excludedMalformed = 0;
   let validationFailures = 0;
   let writeFailures = 0;
   const failures: FailureRecord[] = [];
@@ -95,12 +98,16 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
       try {
         records.push(mapFn(doc.id, raw));
       } catch (err: any) {
-        validationFailures++;
-        failures.push({
-          id: doc.id,
-          reason: err?.message || "Validation error",
-          type: "validation",
-        });
+        if (err instanceof ExcludeDocumentError || err?.name === "ExcludeDocumentError") {
+          excludedMalformed++;
+        } else {
+          validationFailures++;
+          failures.push({
+            id: doc.id,
+            reason: err?.message || "Validation error",
+            type: "validation",
+          });
+        }
       }
     }
 
@@ -175,6 +182,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
     sourceCount,
     inserts,
     updates,
+    excludedMalformed,
     validationFailures,
     writeFailures,
   });
@@ -198,6 +206,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
   console.log(`\nREPORT FOR: ${collectionName.toUpperCase()}`);
   console.log(`Source documents:        ${sourceCount}`);
   console.log(`Valid mappings:          ${inserts + updates + writeFailures}`);
+  console.log(`Excluded malformed:      ${excludedMalformed}`);
   console.log(`Validation failures:     ${validationFailures}`);
   console.log(`Existing destination:    ${existingRecords}`);
   console.log(`Inserted:                ${inserts}`);
@@ -243,6 +252,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
     sourceCount,
     inserts,
     updates,
+    excludedMalformed,
     validationFailures,
     writeFailures,
     existingRecords,
