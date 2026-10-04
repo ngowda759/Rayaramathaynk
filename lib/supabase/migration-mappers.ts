@@ -682,9 +682,9 @@ export function mapSeva(id: string, data: any): Record<string, any> {
 
 
 export function mapSevaBooking(id: string, data: any): Record<string, any> {
-  // If required root-level properties are entirely missing or this doc is purely an artifact
-  if (!data.sevaId || !data.userId || !data.preferredDate) {
-    throw new ExcludeDocumentError("Malformed legacy document: missing core IDs or dates");
+  // Exclude known malformed artifact
+  if (id === "Ce6SDXl3HL9ReOgHZZis" && data.name === "admin") {
+    throw new ExcludeDocumentError("Malformed non-booking source record");
   }
 
   const row: Record<string, any> = {
