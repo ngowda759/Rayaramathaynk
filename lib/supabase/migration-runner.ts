@@ -13,9 +13,9 @@ import {
   reconcileCounts,
   ReconciliationResult,
   auditFieldCoverage,
-  ExcludeDocumentError,
   FieldCoverageSpec,
   FieldCoverageResult,
+  ExcludeDocumentError,
 } from "./migration-helpers";
 
 export interface MigrationStats {

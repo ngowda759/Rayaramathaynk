@@ -196,7 +196,7 @@ describe("content mapper timestamp handling (C + D)", () => {
   it("rejects a present-but-unparseable timestamp rather than dropping it", () => {
     expect(() =>
       mapUser("u3", { email: "a@b.org", createdAt: "not-a-date" }),
-    ).toThrow(ValidationError, ExcludeDocumentError);
+    ).toThrow(ValidationError);
   });
 
   it("leaves nullable collected_at/uploaded_at as null when absent", () => {

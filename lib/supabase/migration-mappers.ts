@@ -6,7 +6,7 @@
  * credentials.
  *
  * Contract for every mapper:
- *  - throw `ValidationError, ExcludeDocumentError` when a NOT NULL destination column has no valid
+ *  - throw `ValidationError` when a NOT NULL destination column has no valid
  *    source value;
  *  - never invent a value (no `new Date()`, no placeholder email/boolean);
  *  - copy Firestore document IDs verbatim (they are arbitrary strings).
@@ -14,7 +14,8 @@
 
 import {
   FieldCoverageSpec,
-  ValidationError, ExcludeDocumentError,
+  ExcludeDocumentError,
+  ValidationError,
   toIsoString,
 } from "./migration-helpers";
 
@@ -681,9 +682,6 @@ export function mapSeva(id: string, data: any): Record<string, any> {
 
 
 export function mapSevaBooking(id: string, data: any): Record<string, any> {
-  // This exact Firestore record is a known malformed non-booking test record.
-  // Keep the exclusion deliberately narrow so legitimate bookings are never
-  // excluded merely because a field happens to contain "admin".
   if (id === "Ce6SDXl3HL9ReOgHZZis" && data.name === "admin") {
     throw new ExcludeDocumentError("Malformed non-booking source record");
   }

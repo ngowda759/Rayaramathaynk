@@ -669,3 +669,24 @@ describe('advance-after-merge', () => {
   });
 
 });
+
+describe('dispatch-conversation', () => {
+  it('fails with exit 1 if OPENHANDS_API_KEY is missing during a normal dispatch', () => {
+    const { status, stdout } = run('dispatch-conversation.mjs', ['--stage', 'next-task']);
+    expect(status).toBe(1);
+    expect(stdout).not.toContain('Payload that would be sent');
+  });
+
+  it('succeeds with exit 0 during a dry-run even if OPENHANDS_API_KEY is missing', () => {
+    const { status, stdout } = run('dispatch-conversation.mjs', ['--stage', 'next-task', '--dry-run']);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Dry run: no conversation started');
+  });
+
+  it('never prints the API key', () => {
+    // A rudimentary check to make sure the script code doesn't echo the key
+    const scriptSrc = readFileSync(resolve(root, '.ai/scripts/dispatch-conversation.mjs'), 'utf8');
+    expect(scriptSrc).not.toMatch(/console\.log\([^)]*apiKey[^)]*\)/);
+    expect(scriptSrc).not.toMatch(/console\.error\([^)]*apiKey[^)]*\)/);
+  });
+});
