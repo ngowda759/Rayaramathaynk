@@ -758,14 +758,9 @@ describe("core mapper output shapes (F)", () => {
 
 
     it("throws ExcludeDocumentError for explicitly malformed 'admin' test document Ce6SDXl3HL9ReOgHZZis", () => {
-      let error;
-      try {
+      expect(() => {
         mapSevaBooking("Ce6SDXl3HL9ReOgHZZis", { name: "admin" });
-      } catch (err) {
-        error = err;
-      }
-      expect(error).toBeDefined();
-      expect(error.name).toBe("ExcludeDocumentError");
+      }).toThrowError(ExcludeDocumentError);
     });
 
     it("throws ValidationError for another document with name 'admin' (not excluded)", () => {

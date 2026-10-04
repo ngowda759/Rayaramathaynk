@@ -98,7 +98,7 @@ export async function migrateSupabaseCollection<T extends { firestore_id: string
       try {
         records.push(mapFn(doc.id, raw));
       } catch (err: any) {
-        if (err instanceof ExcludeDocumentError) {
+        if (err instanceof ExcludeDocumentError || err?.name === 'ExcludeDocumentError') {
           excludedMalformed++;
           failures.push({
             id: doc.id,
