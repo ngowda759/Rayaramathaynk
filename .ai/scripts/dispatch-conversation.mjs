@@ -160,10 +160,17 @@ const branch =
     ? args.branch
     : (process.env.GITHUB_REF_NAME ?? config.baseBranch);
 
+// The Jules API (v1alpha) uses a flat `prompt` string and `sourceContext` object
+// instead of the legacy `source`, `branch`, and `initial_message` layout which were rejected.
+// Reference: GET https://jules.googleapis.com/$discovery/rest?version=v1alpha
 const payload = {
-  source: `sources/github/${repository}`,
-  branch: branch,
-  initial_message: { content: [{ type: "text", text: prompt }] },
+  prompt: prompt,
+  sourceContext: {
+    source: `sources/github/${repository}`,
+    githubRepoContext: {
+      startingBranch: branch,
+    },
+  },
 };
 
 // AUTO_CREATE_PR is only appropriate for a brand-new implementation task.
@@ -179,9 +186,7 @@ if (args["dry-run"] === true) {
       {
         url: "https://jules.googleapis.com/v1alpha/sessions",
         ...payload,
-        initial_message: {
-          content: [{ type: "text", text: `<${prompt.length} chars>` }],
-        },
+        prompt: `<${prompt.length} chars>`,
       },
       null,
       2,
