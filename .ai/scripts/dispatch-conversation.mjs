@@ -146,27 +146,26 @@ const payload = {
   title: `[${config.loopId}] ${STAGE_TITLES[args.stage]}${typeof args.task === 'string' ? ` — ${args.task}` : ''}`,
 };
 
-if (args['dry-run'] === true || apiKey.length === 0) {
-  if (apiKey.length === 0 && args['dry-run'] !== true) {
-    console.log(
-      'OPENHANDS_API_KEY is not configured; skipping dispatch (no conversation started).',
-    );
-  } else {
-    console.log('Dry run: no conversation started. Payload that would be sent:');
-    console.log(
-      JSON.stringify(
-        {
-          host,
-          url: `${host}/api/v1/app-conversations`,
-          ...payload,
-          initial_message: { content: [{ type: 'text', text: `<${prompt.length} chars>` }] },
-        },
-        null,
-        2,
-      ),
-    );
-  }
+if (args['dry-run'] === true) {
+  console.log('Dry run: no conversation started. Payload that would be sent:');
+  console.log(
+    JSON.stringify(
+      {
+        host,
+        url: `${host}/api/v1/app-conversations`,
+        ...payload,
+        initial_message: { content: [{ type: 'text', text: `<${prompt.length} chars>` }] },
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
+}
+
+if (apiKey.length === 0) {
+  console.error('Error: OPENHANDS_API_KEY is not configured (required for dispatch).');
+  process.exit(1);
 }
 
 const response = await fetch(`${host}/api/v1/app-conversations`, {

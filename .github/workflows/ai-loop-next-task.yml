@@ -148,6 +148,11 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           OPERATOR_NOTE: ${{ inputs.reason }}
         run: |
+          if [ -z "${OPENHANDS_API_KEY}" ]; then
+            echo "Error: OPENHANDS_API_KEY is not configured. Workflow cannot proceed."
+            exit 1
+          fi
+
           {
             echo "## Merge-gate outcome"
             echo
