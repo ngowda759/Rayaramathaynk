@@ -1,0 +1,47 @@
+Modify the autonomous AI development loop to use Google Jules.
+
+This replaces OpenHands with the Jules REST API (`https://jules.googleapis.com/v1alpha/sessions`) for the implement and fix stages. The overall state machine and review logic remain strictly preserved.
+
+### 1. Jules API Integration
+The dispatcher script `.ai/scripts/dispatch-conversation.mjs` has been rewritten to invoke the Jules `v1alpha` API. The payload uses:
+- `source: "sources/github/$GITHUB_REPOSITORY"`
+- `branch: branch_name`
+- `automationMode: "AUTO_CREATE_PR"` (for `implement` stage only)
+- `initial_message` containing the task prompt.
+
+### 2. Required Secret
+`JULES_API_KEY` is now required instead of `OPENHANDS_API_KEY`.
+
+### 3. Workflows Changed
+- `.github/workflows/ai-loop-next-task.yml`
+- `.github/workflows/ai-loop-implement.yml`
+- `.github/workflows/ai-loop-review.yml`
+All three workflows now pass `JULES_API_KEY` to the dispatch script.
+
+### 4. Implementation-stage Behavior
+For new tasks, Jules is invoked with `automationMode: "AUTO_CREATE_PR"`. It will branch from the configured `baseBranch` and create a PR correctly.
+
+### 5. Fix-stage Behavior & Limitation
+**Important limitation:** The Jules API currently lacks a guaranteed mechanism to continue work on an existing PR/branch safely using `AUTO_CREATE_PR`.
+To ensure the loop never silently creates duplicate PRs and preserves the invariant (`PR #N -> changes-requested -> fix -> same PR #N`), the dispatcher is configured to **hard-stop** when `--stage fix` is requested.
+
+### 6. Same-PR Identity Preservation
+Because the fix stage currently hard-stops with an error code (1), the loop safely blocks. It will wait for human intervention rather than allowing the AI to invent a workaround that opens a new PR, preserving state identity perfectly.
+
+### 7. What happens if Jules cannot continue an existing branch
+The loop safely stops and reports that human review is required, recording the blocker (`auth-failure-jules` / `Error: Jules same-PR fix continuation is currently unsupported`).
+
+### 8. Security Considerations
+- The API key is securely handled by GitHub Actions and passed down to `dispatch-conversation.mjs`.
+- The API key is never printed in logs or errors.
+- Tests verify dry runs work without keys.
+- `assert-trusted-review.mjs` still enforces strict permissions.
+
+### 9. Tests Executed and Results
+- Unit tests run: `npx vitest run tests/automation-loop/` (All 114 tests passing).
+- Security assertion: `node .ai/scripts/assert-trusted-review.mjs` passed.
+- Lint and typechecks run successfully.
+- Tests verify that `JULES_API_KEY` is used, and that the fix stage exits properly with an error.
+
+### 10. Confirmation
+Human merge approval remains **mandatory**. The `mergeGate.requireHumanApproval: true` configuration in `.ai/loop.config.json` was strictly preserved, along with all existing orchestrator policies.
