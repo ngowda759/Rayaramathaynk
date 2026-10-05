@@ -1,0 +1,23 @@
+{
+  "id": "AI-002",
+  "title": "Implement Interactive Temple Map Foundation",
+  "phase": "feature",
+  "status": "approved",
+  "summary": "Create the foundation for the Interactive Temple Map for the web application.",
+  "acceptanceCriteria": [
+    "A new page `app/(public)/map/page.tsx` is created and renders a 'Temple Map' header.",
+    "Running `npm run type-check` returns 0 errors.",
+    "Running `npm run lint` returns 0 errors.",
+    "A basic test in `tests/unit/map.test.tsx` passes when running `npm run test`."
+  ],
+  "outOfScope": [
+    "Mobile implementation",
+    "Detailed interactive markers"
+  ],
+  "humanApproval": false,
+  "createdAt": "2026-10-04T10:50:00.000Z",
+  "dependsOn": [],
+  "references": [
+    "docs/ROADMAP.md"
+  ]
+}
