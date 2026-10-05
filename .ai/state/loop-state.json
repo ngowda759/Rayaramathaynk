@@ -11,9 +11,10 @@
   "reviewedHeadSha": null,
   "blockedReason": null,
   "completedTasks": [
-    "AI-001"
+    "AI-001",
+    "AI-002"
   ],
-  "updatedAt": "2026-10-03T16:23:31Z",
+  "updatedAt": "2026-10-05T12:04:48Z",
   "history": [
     {
       "at": "2026-10-03T16:23:31Z",
@@ -27,6 +28,16 @@
     },
     {
       "at": "2026-10-03T16:23:31Z",
+      "status": "next-task",
+      "note": "advancing to next-task generation"
+    },
+    {
+      "at": "2026-10-05T12:04:48Z",
+      "status": "completed",
+      "note": "task AI-002 completed"
+    },
+    {
+      "at": "2026-10-05T12:04:48Z",
       "status": "next-task",
       "note": "advancing to next-task generation"
     }

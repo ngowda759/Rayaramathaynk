@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-04T10:50:34Z",
+  "updatedAt": "2026-10-05T12:04:48Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -28,7 +28,7 @@
       "id": "AI-002",
       "title": "Implement Interactive Temple Map Foundation",
       "phase": "feature",
-      "status": "approved",
+      "status": "done",
       "summary": "Create the foundation for the Interactive Temple Map for the web application.",
       "acceptanceCriteria": [
         "A new page `app/(public)/map/page.tsx` is created and renders a 'Temple Map' header.",
@@ -45,7 +45,12 @@
       "dependsOn": [],
       "references": [
         "docs/ROADMAP.md"
-      ]
+      ],
+      "pr": 301,
+      "branch": "automation-next-task-AI-002-10316481540838356229",
+      "headSha": "3ea259cca894993c464c6cc53cd0b96d5d5d69ef",
+      "mergedAt": "2026-10-05T12:04:37Z",
+      "completedAt": "2026-10-05T12:04:48.815Z"
     }
   ]
 }
