@@ -6,7 +6,7 @@
       "id": "AI-001",
       "title": "Establish the autonomous AI development loop",
       "phase": "infrastructure",
-      "status": "done",
+      "status": "in-progress",
       "summary": "Establish the repository-owned autonomous AI development loop for Rayaramathaynk.",
       "createdAt": "2026-10-03T00:00:00Z",
       "acceptanceCriteria": [
@@ -28,7 +28,7 @@
       "id": "AI-002",
       "title": "Implement Interactive Temple Map Foundation",
       "phase": "feature",
-      "status": "done",
+      "status": "in-progress",
       "summary": "Create the foundation for the Interactive Temple Map for the web application.",
       "acceptanceCriteria": [
         "A new page `app/(public)/map/page.tsx` is created and renders a 'Temple Map' header.",
