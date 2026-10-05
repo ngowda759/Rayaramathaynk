@@ -1,20 +1,24 @@
 {
   "version": 1,
   "loopId": "AI-001",
-  "status": "next-task",
+  "status": "ci-running",
   "round": 0,
   "maxReviewRounds": 3,
-  "currentTaskId": null,
-  "currentPr": null,
+  "currentTaskId": "AI-002",
+  "currentPr": {
+    "number": 100,
+    "branch": "automation/AI-002-map-foundation",
+    "headSha": "432065844ea9a33e4f49179c75e0631c67fb7a75"
+  },
   "lastVerdict": null,
   "lastCiStatus": null,
-  "reviewedHeadSha": null,
+  "reviewedHeadSha": "432065844ea9a33e4f49179c75e0631c67fb7a75",
   "blockedReason": null,
   "completedTasks": [
     "AI-001",
     "AI-002"
   ],
-  "updatedAt": "2026-10-05T12:04:48Z",
+  "updatedAt": "2026-10-05T12:31:04Z",
   "history": [
     {
       "at": "2026-10-03T16:23:31Z",
