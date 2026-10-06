@@ -102,9 +102,16 @@ export function calculateCountdown(festival: Festival): FestivalCountdown {
   const festivalDate = new Date(festival.date);
   festivalDate.setHours(0, 0, 0, 0);
   
+  // Set current time to start of day for accurate "isToday" comparison
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
   const diff = festivalDate.getTime() - now.getTime();
   
-  if (diff < 0) {
+  const isToday = festivalDate.getTime() === todayStart.getTime();
+  const isPast = diff < 0 && !isToday;
+
+  if (isPast) {
     return {
       festival,
       daysRemaining: 0,
@@ -115,6 +122,17 @@ export function calculateCountdown(festival: Festival): FestivalCountdown {
     };
   }
   
+  if (isToday) {
+    return {
+      festival,
+      daysRemaining: 0,
+      hoursRemaining: 0,
+      minutesRemaining: 0,
+      isToday: true,
+      isPast: false,
+    };
+  }
+
   const daysRemaining = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hoursRemaining = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutesRemaining = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -124,7 +142,7 @@ export function calculateCountdown(festival: Festival): FestivalCountdown {
     daysRemaining,
     hoursRemaining,
     minutesRemaining,
-    isToday: daysRemaining === 0,
+    isToday: false,
     isPast: false,
   };
 }
