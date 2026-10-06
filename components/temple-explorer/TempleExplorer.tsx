@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, Clock, Info, Navigation, Filter, 
   Grid, List, ChevronRight, Phone, Calendar,
-  Users, Home, Sparkles, Trees, Landmark, Loader2
+  Users, Home, Sparkles, Trees, Landmark, Loader2,
+  Accessibility
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -453,6 +454,47 @@ function AreaDetailPanel({ area }: { area: TempleArea }) {
                   {tip}
                 </li>
               ))}
+            </ul>
+          </div>
+        )}
+
+        {area.accessibility && (
+          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+            <h4 className="flex items-center gap-2 font-semibold text-blue-900">
+              <Accessibility className="h-4 w-4" />
+              Accessibility Information
+            </h4>
+            <ul className="mt-3 space-y-2">
+              {area.accessibility.wheelchairAccessible !== undefined && (
+                <li className="flex items-start gap-2 text-sm text-blue-800">
+                  <span className="flex-shrink-0 mt-0.5">•</span>
+                  Wheelchair Accessible: {area.accessibility.wheelchairAccessible ? "Yes" : "No"}
+                </li>
+              )}
+              {area.accessibility.rampAvailable && (
+                <li className="flex items-start gap-2 text-sm text-blue-800">
+                  <span className="flex-shrink-0 mt-0.5">•</span>
+                  Ramp Available
+                </li>
+              )}
+              {area.accessibility.elevatorAvailable && (
+                <li className="flex items-start gap-2 text-sm text-blue-800">
+                  <span className="flex-shrink-0 mt-0.5">•</span>
+                  Elevator Available
+                </li>
+              )}
+              {area.accessibility.signLanguage && (
+                <li className="flex items-start gap-2 text-sm text-blue-800">
+                  <span className="flex-shrink-0 mt-0.5">•</span>
+                  Sign Language Services
+                </li>
+              )}
+              {area.accessibility.specialAssistance && (
+                <li className="flex items-start gap-2 text-sm text-blue-800">
+                  <span className="flex-shrink-0 mt-0.5">•</span>
+                  {area.accessibility.specialAssistance}
+                </li>
+              )}
             </ul>
           </div>
         )}
