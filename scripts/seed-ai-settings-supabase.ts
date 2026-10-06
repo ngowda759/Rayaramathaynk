@@ -1,7 +1,20 @@
-// AI Settings Seed API Route (Migrated to Supabase)
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables from .env.local or .env
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Missing Supabase credentials in environment variables.");
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 import {
   DEFAULT_AI_GENERAL_SETTINGS,
@@ -12,7 +25,9 @@ import {
   DEFAULT_VISITOR_INFORMATION,
   DEFAULT_TEMPLE_POLICIES,
   DEFAULT_AI_RESPONSES,
-} from "@/types/ai-settings";
+} from "../types/ai-settings";
+
+// Note: I will copy the values from types/ai-settings.ts in the code to ensure we have valid seed data.
 
 const promptContent = `You are Raya AI, a helpful virtual assistant for Sri Raghavendra Swamy Matha, Yelahanka.
 
@@ -404,78 +419,49 @@ const DEFAULT_INTENTS = [
   },
 ];
 
-export async function POST(request: NextRequest) {
-  try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+async function seed() {
+  console.log("Seeding Supabase ai_settings...");
 
-    const supabase = createAdminClient();
+  const defaultSettings = {
+    id: "main",
+    general: DEFAULT_AI_GENERAL_SETTINGS,
+    safety: DEFAULT_AI_SAFETY_SETTINGS,
+    extended_behavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
+    temple_information: DEFAULT_TEMPLE_INFORMATION,
+    visitor_information: DEFAULT_VISITOR_INFORMATION,
+    temple_policies: DEFAULT_TEMPLE_POLICIES,
+    ai_responses: DEFAULT_AI_RESPONSES,
+    ai_behavior: DEFAULT_AI_BEHAVIOR_SETTINGS, // Using extended behavior as legacy for now
+    prompt: {
+        currentPromptId: "prompt_v1_seed",
+        versions: [{
+            id: "prompt_v1_seed",
+            name: "Prompt v1",
+            version: 1,
+            content: promptContent,
+            status: "published",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            createdBy: "system"
+        }],
+        defaultPrompt: promptContent,
+    },
+    intents: { intents: DEFAULT_INTENTS }, // Will need to get intent list if possible, but starting with empty is safe and the app relies on knowledge docs too
+    updated_at: new Date().toISOString(),
+    updated_by: "system",
+    version: 1
+  };
 
-    // Check if configuration already exists to prevent destructive overwrites
-    const { data: existingData } = await supabase
-        .from("ai_settings")
-        .select("id")
-        .eq("id", "main")
-        .maybeSingle();
+  const { data, error } = await supabase
+    .from("ai_settings")
+    .upsert(defaultSettings);
 
-    if (existingData) {
-        return NextResponse.json({
-            message: "AI settings already exist. Seed operation skipped to prevent overwriting admin changes.",
-        });
-    }
-
-    const defaultSettings = {
-      id: "main",
-      general: DEFAULT_AI_GENERAL_SETTINGS,
-      safety: DEFAULT_AI_SAFETY_SETTINGS,
-      extended_behavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
-      temple_information: DEFAULT_TEMPLE_INFORMATION,
-      visitor_information: DEFAULT_VISITOR_INFORMATION,
-      temple_policies: DEFAULT_TEMPLE_POLICIES,
-      ai_responses: DEFAULT_AI_RESPONSES,
-      ai_behavior: DEFAULT_AI_BEHAVIOR_SETTINGS,
-      prompt: {
-          currentPromptId: "prompt_v1_seed",
-          versions: [{
-              id: "prompt_v1_seed",
-              name: "Prompt v1",
-              version: 1,
-              content: promptContent,
-              status: "published",
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              createdBy: admin.uid
-          }],
-          defaultPrompt: promptContent,
-      },
-      intents: { intents: DEFAULT_INTENTS },
-      updated_at: new Date().toISOString(),
-      updated_by: admin.uid,
-      version: 1
-    };
-
-    const { error } = await supabase
-      .from("ai_settings")
-      .insert([defaultSettings]);
-
-    if (error) {
-      console.error("Error seeding AI settings in Supabase:", error);
-      return NextResponse.json(
-        { error: "Failed to seed AI settings", details: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      message: "AI settings seeded successfully to Supabase",
-    });
-  } catch (error) {
-    console.error("Seed error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  if (error) {
+    console.error("Error seeding ai_settings:", error);
+    process.exit(1);
   }
+
+  console.log("Successfully seeded ai_settings.");
 }
+
+seed().catch(console.error);
