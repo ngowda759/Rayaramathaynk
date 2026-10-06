@@ -12,7 +12,7 @@
  *  - copy Firestore document IDs verbatim (they are arbitrary strings).
  */
 
-import {
+import { auditFieldCoverage,
   FieldCoverageSpec,
   ValidationError,
   ExcludeDocumentError,
@@ -403,6 +403,25 @@ export function mapVolunteerRequest(
 // ---------------------------------------------------------------------------
 
 export const AI_FIELD_SPECS: Record<string, FieldCoverageSpec> = {
+  ai_knowledge: {
+    mapped: [
+      "slug",
+      "title",
+      "category",
+      "content",
+      "approved",
+    ],
+    transformed: [
+      "kannadaTitle",
+      "kannadaContent",
+      "keywords",
+      "language",
+      "lastReviewed",
+      "createdAt",
+      "updatedAt",
+    ],
+    intentionallyExcluded: [],
+  },
   chat_sessions: {
     mapped: ["userId", "messageCount", "lastMessage", "detectedLanguage"],
     transformed: ["createdAt", "updatedAt"],
@@ -827,4 +846,37 @@ export function mapSettingsDocument(
   assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
   assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
   return row;
+}
+
+export function mapAiKnowledge(
+  docId: string,
+  data: Record<string, unknown>
+): { firestore_id: string } & Record<string, unknown> {
+  const spec = AI_FIELD_SPECS.ai_knowledge;
+  const observedFields = new Set(Object.keys(data));
+  const coverage = auditFieldCoverage("ai_knowledge", observedFields, spec);
+
+  if (coverage.unmapped.length > 0) {
+    throw new ValidationError(
+      `Unmapped fields found in ai_knowledge document ${docId}: ${coverage.unmapped.join(
+        ", "
+      )}`
+    );
+  }
+
+  return {
+    firestore_id: docId,
+    slug: requireString(data.slug, "slug"),
+    title: requireString(data.title, "title"),
+    kannada_title: optionalString(data.kannadaTitle),
+    category: typeof data.category === 'string' ? data.category : 'general',
+    keywords: Array.isArray(data.keywords) ? data.keywords.map(String) : [],
+    content: requireString(data.content, "content"),
+    kannada_content: optionalString(data.kannadaContent),
+    language: typeof data.language === 'string' ? data.language : 'en',
+    last_reviewed: toIsoString(data.lastReviewed),
+    approved: typeof data.approved === 'boolean' ? data.approved : false,
+    created_at: requireTimestamp(data.createdAt, "createdAt"),
+    updated_at: requireTimestamp(data.updatedAt, "updatedAt"),
+  };
 }
