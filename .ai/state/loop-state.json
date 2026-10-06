@@ -1,14 +1,18 @@
 {
   "version": 1,
   "loopId": "AI-001",
-  "status": "next-task",
-  "round": 0,
+  "status": "ci-running",
+  "round": 2,
   "maxReviewRounds": 3,
-  "currentTaskId": null,
-  "currentPr": null,
+  "currentTaskId": "AI-006",
+  "currentPr": {
+    "number": 314,
+    "branch": "jules-15261422888858952515-e7f7bbfb",
+    "headSha": "523be8f7cb8bd7c85a6a023330be67a4cc30dc0a"
+  },
   "lastVerdict": null,
   "lastCiStatus": null,
-  "reviewedHeadSha": null,
+  "reviewedHeadSha": "523be8f7cb8bd7c85a6a023330be67a4cc30dc0a",
   "blockedReason": null,
   "completedTasks": [
     "AI-001",
@@ -18,7 +22,7 @@
     "AI-005",
     "AI-006"
   ],
-  "updatedAt": "2026-10-06T15:25:53Z",
+  "updatedAt": "2026-10-06T21:52:06Z",
   "history": [
     {
       "at": "2026-10-03T16:23:31Z",
@@ -99,6 +103,21 @@
       "at": "2026-10-06T15:25:53Z",
       "status": "next-task",
       "note": "advancing to next-task generation"
+    },
+    {
+      "at": "2026-10-06T21:51:45Z",
+      "status": "fixing",
+      "note": "Fix complete, pushed to CI"
+    },
+    {
+      "at": "2026-10-06T21:51:52Z",
+      "status": "ci-running",
+      "note": "Fix complete, pushed to CI"
+    },
+    {
+      "at": "2026-10-06T21:52:06Z",
+      "status": "ci-running",
+      "note": "Fix complete, pushed to CI"
     }
   ]
 }
