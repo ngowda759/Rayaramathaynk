@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-06T05:08:12Z",
+  "updatedAt": "2026-10-06T05:21:41Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -116,6 +116,32 @@
       "headSha": "f8aceda576e07ff457f7bead9d4254aa700f1504",
       "mergedAt": "2026-10-06T05:08:00Z",
       "completedAt": "2026-10-06T05:08:12.799Z"
+    },
+    {
+      "id": "AI-005",
+      "title": "Implement Festival Countdown",
+      "phase": "feature",
+      "status": "approved",
+      "summary": "Implement a festival countdown component for major upcoming temple festivals to fulfill the next milestone in the v2.0 Experience roadmap.",
+      "acceptanceCriteria": [
+        "Create a new component `FestivalCountdown` that visually displays the days, hours, and minutes until a specified upcoming festival.",
+        "Integrate the countdown component appropriately into the temple explorer or homepage.",
+        "Use static or configuration-based data for the upcoming festival date.",
+        "Running `npm run typecheck` returns 0 errors.",
+        "Running `npm run lint` returns 0 errors.",
+        "Unit tests run successfully via `npm run test` (or Vitest equivalent) to verify countdown logic."
+      ],
+      "outOfScope": [
+        "Mobile implementation",
+        "Live dynamic updating via websockets (client-side timer is sufficient)",
+        "A full dedicated festival guide page"
+      ],
+      "humanApproval": false,
+      "dependsOn": [],
+      "references": [
+        "docs/ROADMAP.md"
+      ],
+      "createdAt": "2026-10-06T06:00:00.000Z"
     }
   ]
 }
