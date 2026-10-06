@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AISettingsSchema } from "./validation";
 
 import {
@@ -31,12 +31,14 @@ const AI_SETTINGS_DOC_ID = "main";
 const UNKNOWN_QUESTIONS_COLLECTION = "unknown_questions";
 
 export class AISettingsRepository {
-  private supabase = createClient();
+  private getSupabase() {
+    return createAdminClient();
+  }
 
   // ==================== CORE SETTINGS ====================
 
   async getSettings(): Promise<AISettings | null> {
-    const { data, error } = await this.supabase
+    const { data, error } = await this.getSupabase()
       .from("ai_settings")
       .select("*")
       .eq("id", AI_SETTINGS_DOC_ID)
@@ -100,7 +102,7 @@ export class AISettingsRepository {
 
     const parsed = AISettingsSchema.parse(defaultSettings);
 
-    const { error } = await this.supabase.from("ai_settings").upsert({
+    const { error } = await this.getSupabase().from("ai_settings").upsert({
       id: AI_SETTINGS_DOC_ID,
       general: parsed.general,
       safety: parsed.safety,
@@ -139,7 +141,7 @@ export class AISettingsRepository {
     if (settings.prompt) updateData.prompt = settings.prompt;
     if (settings.intents) updateData.intents = settings.intents;
 
-    const { error } = await this.supabase
+    const { error } = await this.getSupabase()
       .from("ai_settings")
       .update(updateData)
       .eq("id", AI_SETTINGS_DOC_ID);
@@ -405,7 +407,7 @@ export class AISettingsRepository {
     language: "en" | "kn" | "mixed",
     sessionId: string
   ): Promise<void> {
-    const { error } = await this.supabase
+    const { error } = await this.getSupabase()
       .from('unknown_questions')
       .insert([{
         question,
@@ -429,7 +431,7 @@ export class AISettingsRepository {
     question: string
   ): Promise<{ isNew: boolean; docId?: string }> {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await this.getSupabase()
         .from('unknown_questions')
         .select('id, times_asked')
         .eq('question_lower', question.toLowerCase())
@@ -440,7 +442,7 @@ export class AISettingsRepository {
       if (error) throw error;
 
       if (data) {
-        const { error: updateError } = await this.supabase
+        const { error: updateError } = await this.getSupabase()
           .from('unknown_questions')
           .update({
             times_asked: (data.times_asked || 0) + 1,
@@ -466,7 +468,7 @@ export class AISettingsRepository {
     }
   ): Promise<UnknownQuestion[]> {
     try {
-      let queryObj = this.supabase.from('unknown_questions').select('*').order('timestamp', { ascending: false });
+      let queryObj = this.getSupabase().from('unknown_questions').select('*').order('timestamp', { ascending: false });
 
       if (filters?.status) queryObj = queryObj.eq('status', filters.status);
       if (filters?.assignedTo) queryObj = queryObj.eq('assigned_to', filters.assignedTo);
@@ -524,7 +526,7 @@ export class AISettingsRepository {
       updateData.reviewed_at = new Date().toISOString();
     }
 
-    const { error } = await this.supabase
+    const { error } = await this.getSupabase()
       .from('unknown_questions')
       .update(updateData)
       .eq('id', questionId);
@@ -533,7 +535,7 @@ export class AISettingsRepository {
   }
 
   async deleteUnknownQuestion(questionId: string): Promise<void> {
-    const { error } = await this.supabase
+    const { error } = await this.getSupabase()
       .from('unknown_questions')
       .delete()
       .eq('id', questionId);

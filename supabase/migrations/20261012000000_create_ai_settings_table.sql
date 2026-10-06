@@ -27,5 +27,5 @@ CREATE TRIGGER update_ai_settings_updated_at
 -- Enable RLS
 ALTER TABLE ai_settings ENABLE ROW LEVEL SECURITY;
 
--- Allow public read access to ai_settings
-CREATE POLICY "Allow public read access to ai_settings" ON ai_settings FOR SELECT TO public USING (true);
+-- Deny all public access to ai_settings
+CREATE POLICY "Deny all public access to ai_settings" ON ai_settings FOR ALL TO public USING (false);

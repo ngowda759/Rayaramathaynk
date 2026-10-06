@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { AISettingsSchema } from "./validation";
 import {
   AISettings,
   PromptSettings,
@@ -49,21 +50,28 @@ export class AIAdminRepository {
     }
 
     if (data) {
-      return {
+      const parsedData = {
         id: data.id,
-        general: data.general as AIGeneralSettings,
-        safety: data.safety as AISafetySettings,
-        extendedBehavior: data.extended_behavior as AIExtendedBehaviorSettings,
-        templeInformation: data.temple_information as TempleInformation,
-        visitorInformation: data.visitor_information as VisitorInformation,
-        templePolicies: data.temple_policies as TemplePolicies,
-        aiResponses: data.ai_responses as AIResponses,
-        aiBehavior: data.ai_behavior as AIBehaviorSettings,
-        prompt: data.prompt as PromptSettings,
-        intents: data.intents as IntentSettings,
-        updatedAt: new Date(data.updated_at),
+        general: data.general,
+        safety: data.safety,
+        extendedBehavior: data.extended_behavior,
+        templeInformation: data.temple_information,
+        visitorInformation: data.visitor_information,
+        templePolicies: data.temple_policies,
+        aiResponses: data.ai_responses,
+        aiBehavior: data.ai_behavior,
+        prompt: data.prompt,
+        intents: data.intents,
+        updatedAt: data.updated_at,
         updatedBy: data.updated_by,
       };
+
+      const parsed = AISettingsSchema.safeParse(parsedData);
+      if (!parsed.success) {
+        console.error("Invalid AI Settings found in database (Admin):", parsed.error);
+        return null;
+      }
+      return parsed.data as AISettings;
     }
 
     return null;

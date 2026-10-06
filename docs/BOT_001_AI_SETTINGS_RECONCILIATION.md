@@ -22,5 +22,5 @@ This document records the mapping from the legacy Firestore `ai_settings/main` s
 - No fields from `types/ai-settings.ts` were marked as strictly obsolete during this phase, as all properties actively correspond to typed properties within the admin interface and application runtime.
 - All data has been strongly mapped to `jsonb` columns on the `ai_settings` table where the top-level row represents the configuration.
 - Zod validation (`AISettingsSchema`) has been introduced to the `repository.ts` reads to guarantee that the `jsonb` shape from PostgreSQL matches the expected runtime interface (`AISettings`), effectively acting as a schema enforcer over the unstructured columns.
-- RLS Policy allows `public` to `SELECT` (read) the `ai_settings` table, since these settings are needed by the unauthenticated chatbot widget for proper operation. Writing is correctly restricted.
+- RLS Policy explicitly denies all public access to the `ai_settings` table. Both the runtime client and admin UI fetch settings securely via server-side API routes utilizing the Supabase service role key (`createAdminClient`), completely isolating configuration from direct client access.
 - The `test_plan.sh` is active and intact.
