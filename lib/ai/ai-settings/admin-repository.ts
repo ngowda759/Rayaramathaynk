@@ -1,11 +1,11 @@
-/**
- * Admin Firestore Repository for AI Settings
- * Uses @google-cloud/firestore to bypass security rules in server-side operations
- */
-
-import { getAdminFirestore } from "@/lib/admin-firebase";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { AISettingsSchema } from "./validation";
 import {
   AISettings,
+  PromptSettings,
+  PromptVersion,
+  UnknownQuestion,
+  UnknownQuestionStatus,
   AIGeneralSettings,
   AISafetySettings,
   AIExtendedBehaviorSettings,
@@ -14,15 +14,10 @@ import {
   TemplePolicies,
   AIResponses,
   AIBehaviorSettings,
-  PromptSettings,
   IntentSettings,
-  PromptVersion,
-  UnknownQuestion,
-  UnknownQuestionStatus,
   DEFAULT_AI_GENERAL_SETTINGS,
   DEFAULT_AI_SAFETY_SETTINGS,
   DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
-  DEFAULT_TEMPLE_INFORMATION,
   DEFAULT_TEMPLE_TIMINGS,
   DEFAULT_TEMPLE_CONTACT,
   DEFAULT_TEMPLE_OFFICE_HOURS,
@@ -31,36 +26,52 @@ import {
   DEFAULT_AI_RESPONSES,
   DEFAULT_AI_BEHAVIOR_SETTINGS,
 } from "@/types/ai-settings";
-import { FieldValue } from "firebase-admin/firestore";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const AI_SETTINGS_DOC_ID = "main";
-const AI_SETTINGS_COLLECTION = "ai_settings";
+const AI_SETTINGS_COLLECTION = "ai_settings"; // Mapped to postgres table
 const UNKNOWN_QUESTIONS_COLLECTION = "unknown_questions";
 
 export class AIAdminRepository {
-  private async getDocRef(docId: string = AI_SETTINGS_DOC_ID): Promise<any> {
-    const db = await getAdminFirestore();
-    // Enable ignoreUndefinedProperties to handle undefined values
-    return db.collection(AI_SETTINGS_COLLECTION).doc(docId);
-  }
-
-  private async getDb(): Promise<any> {
-    const db = await getAdminFirestore();
-    return db;
+  private getSupabase() {
+    return createAdminClient();
   }
 
   async getSettings(): Promise<AISettings | null> {
-    const docRef = await this.getDocRef();
-    const docSnap = await docRef.get();
+    const supabase = this.getSupabase();
+    const { data, error } = await supabase
+      .from(AI_SETTINGS_COLLECTION)
+      .select("*")
+      .eq("id", AI_SETTINGS_DOC_ID)
+      .maybeSingle();
 
-    if (docSnap.exists) {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        ...data,
-        updatedAt: data.updatedAt?.toDate?.() || new Date(),
-      } as AISettings;
+    if (error) {
+      console.error("Error fetching AI Settings from Supabase admin:", error);
+      return null;
+    }
+
+    if (data) {
+      const parsedData = {
+        id: data.id,
+        general: data.general,
+        safety: data.safety,
+        extendedBehavior: data.extended_behavior,
+        templeInformation: data.temple_information,
+        visitorInformation: data.visitor_information,
+        templePolicies: data.temple_policies,
+        aiResponses: data.ai_responses,
+        aiBehavior: data.ai_behavior,
+        prompt: data.prompt,
+        intents: data.intents,
+        updatedAt: data.updated_at,
+        updatedBy: data.updated_by,
+      };
+
+      const parsed = AISettingsSchema.safeParse(parsedData);
+      if (!parsed.success) {
+        console.error("Invalid AI Settings found in database (Admin):", parsed.error);
+        return null;
+      }
+      return parsed.data as AISettings;
     }
 
     return null;
@@ -93,22 +104,39 @@ export class AIAdminRepository {
       updatedBy: userId,
     };
 
-    const docRef = await this.getDocRef();
-    await docRef.set({
-      ...settings,
-      updatedAt: settings.updatedAt,
+    const supabase = this.getSupabase();
+    const { error } = await supabase.from(AI_SETTINGS_COLLECTION).upsert({
+      id: AI_SETTINGS_DOC_ID,
+      general: settings.general,
+      safety: settings.safety,
+      extended_behavior: settings.extendedBehavior,
+      temple_information: settings.templeInformation,
+      visitor_information: settings.visitorInformation,
+      temple_policies: settings.templePolicies,
+      ai_responses: settings.aiResponses,
+      ai_behavior: settings.aiBehavior,
+      prompt: settings.prompt,
+      intents: settings.intents,
+      updated_by: userId,
     });
+
+    if (error) {
+      console.error("Error creating default settings:", error);
+      throw error;
+    }
 
     return settings;
   }
 
   async updatePromptSettings(promptSettings: PromptSettings, userId: string): Promise<void> {
-    const docRef = await this.getDocRef();
-    await docRef.update({
-      prompt: promptSettings,
-      updatedAt: new Date(),
-      updatedBy: userId,
-    });
+    const supabase = this.getSupabase();
+    await supabase
+      .from(AI_SETTINGS_COLLECTION)
+      .update({
+        prompt: promptSettings,
+        updated_by: userId,
+      })
+      .eq("id", AI_SETTINGS_DOC_ID);
   }
 
   async createPromptVersion(
@@ -138,7 +166,7 @@ export class AIAdminRepository {
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy: userId,
-      changeNotes: changeNotes || "", // Convert undefined to empty string
+      changeNotes: changeNotes || "",
     };
 
     versions.push(newVersion);
@@ -277,8 +305,8 @@ Sri Guru Raghavendraya Namaha! 🙏`;
     status?: string;
     limit?: number;
   }): Promise<UnknownQuestion[]> {
-    const supabase = createAdminClient();
-    let queryObj = supabase.from('unknown_questions').select('*').order('timestamp', { ascending: false });
+    const supabase = this.getSupabase();
+    let queryObj = supabase.from(UNKNOWN_QUESTIONS_COLLECTION).select('*').order('timestamp', { ascending: false });
     
     if (filters?.status) queryObj = queryObj.eq('status', filters.status);
     if (filters?.limit) queryObj = queryObj.limit(filters.limit);
@@ -318,7 +346,7 @@ Sri Guru Raghavendraya Namaha! 🙏`;
       notes: string;
     }>
   ): Promise<void> {
-    const supabase = createAdminClient();
+    const supabase = this.getSupabase();
     const updateData: any = {};
     
     if (updates.status !== undefined) updateData.status = updates.status;
@@ -333,7 +361,7 @@ Sri Guru Raghavendraya Namaha! 🙏`;
     }
 
     const { error } = await supabase
-      .from('unknown_questions')
+      .from(UNKNOWN_QUESTIONS_COLLECTION)
       .update(updateData)
       .eq('id', questionId);
 
@@ -341,9 +369,9 @@ Sri Guru Raghavendraya Namaha! 🙏`;
   }
 
   async deleteUnknownQuestion(questionId: string): Promise<void> {
-    const supabase = createAdminClient();
+    const supabase = this.getSupabase();
     const { error } = await supabase
-      .from('unknown_questions')
+      .from(UNKNOWN_QUESTIONS_COLLECTION)
       .delete()
       .eq('id', questionId);
 

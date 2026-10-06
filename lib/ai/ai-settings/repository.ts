@@ -1,24 +1,6 @@
-import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { AISettingsSchema } from "./validation";
 
-// AI Settings Repository
-// Handles Firebase operations for AI Management Center settings
-
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  collection,
-  getDocs,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  increment,
-  Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import {
   AISettings,
   AIGeneralSettings,
@@ -46,51 +28,62 @@ import {
 } from "@/types/ai-settings";
 
 const AI_SETTINGS_DOC_ID = "main";
-
-const AI_SETTINGS_COLLECTION = "ai_settings";
 const UNKNOWN_QUESTIONS_COLLECTION = "unknown_questions";
 
 export class AISettingsRepository {
-  constructor() {
-    // Repository uses the db from firebase
+  private getSupabase() {
+    return createAdminClient();
   }
 
-  private getFirestore() {
-    if (!db) {
-      throw new Error("Firebase is not configured");
-    }
-    return db;
-  }
-
-  // ==================== AI SETTINGS ====================
+  // ==================== CORE SETTINGS ====================
 
   async getSettings(): Promise<AISettings | null> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    const docSnap = await getDoc(docRef);
+    const { data, error } = await this.getSupabase()
+      .from("ai_settings")
+      .select("*")
+      .eq("id", AI_SETTINGS_DOC_ID)
+      .maybeSingle();
 
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        ...data,
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-      } as AISettings;
+    if (error) {
+      console.error("Error fetching AI Settings from Supabase:", error);
+      return null;
+    }
+
+    if (data) {
+      const parsedData = {
+        id: data.id,
+        general: data.general,
+        safety: data.safety,
+        extendedBehavior: data.extended_behavior,
+        templeInformation: data.temple_information,
+        visitorInformation: data.visitor_information,
+        templePolicies: data.temple_policies,
+        aiResponses: data.ai_responses,
+        aiBehavior: data.ai_behavior,
+        prompt: data.prompt,
+        intents: data.intents,
+        updatedAt: data.updated_at,
+        updatedBy: data.updated_by,
+      };
+
+      const parsed = AISettingsSchema.safeParse(parsedData);
+      if (!parsed.success) {
+        console.error("Invalid AI Settings found in database:", parsed.error);
+        return null;
+      }
+      return parsed.data as AISettings;
     }
 
     return null;
   }
 
   async createDefaultSettings(userId: string): Promise<AISettings> {
-    const settings: AISettings = {
+    const defaultSettings: AISettings = {
       id: AI_SETTINGS_DOC_ID,
       general: DEFAULT_AI_GENERAL_SETTINGS,
       safety: DEFAULT_AI_SAFETY_SETTINGS,
       extendedBehavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
-      templeInformation: {
-        timings: DEFAULT_TEMPLE_TIMINGS,
-        contact: DEFAULT_TEMPLE_CONTACT,
-        officeHours: DEFAULT_TEMPLE_OFFICE_HOURS,
-      },
+      templeInformation: DEFAULT_TEMPLE_INFORMATION,
       visitorInformation: DEFAULT_VISITOR_INFORMATION,
       templePolicies: DEFAULT_TEMPLE_POLICIES,
       aiResponses: DEFAULT_AI_RESPONSES,
@@ -107,97 +100,122 @@ export class AISettingsRepository {
       updatedBy: userId,
     };
 
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await setDoc(docRef, {
-      ...settings,
-      updatedAt: Timestamp.fromDate(settings.updatedAt),
+    const parsed = AISettingsSchema.parse(defaultSettings);
+
+    const { error } = await this.getSupabase().from("ai_settings").upsert({
+      id: AI_SETTINGS_DOC_ID,
+      general: parsed.general,
+      safety: parsed.safety,
+      extended_behavior: parsed.extendedBehavior,
+      temple_information: parsed.templeInformation,
+      visitor_information: parsed.visitorInformation,
+      temple_policies: parsed.templePolicies,
+      ai_responses: parsed.aiResponses,
+      ai_behavior: parsed.aiBehavior,
+      prompt: parsed.prompt,
+      intents: parsed.intents,
+      updated_by: userId,
     });
 
-    return settings;
+    if (error) {
+      console.error("Error creating default settings:", error);
+      throw error;
+    }
+
+    return parsed as AISettings;
   }
 
   async updateSettings(settings: Partial<AISettings>, userId: string): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      ...settings,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    const updateData: any = {
+      updated_by: userId,
+    };
+
+    if (settings.general) updateData.general = settings.general;
+    if (settings.safety) updateData.safety = settings.safety;
+    if (settings.extendedBehavior) updateData.extended_behavior = settings.extendedBehavior;
+    if (settings.templeInformation) updateData.temple_information = settings.templeInformation;
+    if (settings.visitorInformation) updateData.visitor_information = settings.visitorInformation;
+    if (settings.templePolicies) updateData.temple_policies = settings.templePolicies;
+    if (settings.aiResponses) updateData.ai_responses = settings.aiResponses;
+    if (settings.aiBehavior) updateData.ai_behavior = settings.aiBehavior;
+    if (settings.prompt) updateData.prompt = settings.prompt;
+    if (settings.intents) updateData.intents = settings.intents;
+
+    const { error } = await this.getSupabase()
+      .from("ai_settings")
+      .update(updateData)
+      .eq("id", AI_SETTINGS_DOC_ID);
+
+    if (error) {
+      console.error("Error updating AI Settings:", error);
+      throw error;
+    }
   }
 
+  // ==================== SPECIFIC UPDATE METHODS ====================
+
   async updateTempleInformation(
-    templeInformation: TempleInformation,
+    templeInfo: Partial<{
+      timings: any;
+      contact: any;
+      officeHours: any;
+    }>,
     userId: string
   ): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      templeInformation,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    const currentSettings = await this.getSettings();
+    if (!currentSettings) throw new Error("Settings not found");
+
+    const newTempleInfo = { ...currentSettings.templeInformation, ...templeInfo };
+    await this.updateSettings({ templeInformation: newTempleInfo }, userId);
   }
 
   async updateVisitorInformation(
-    visitorInformation: VisitorInformation,
+    visitorInfo: Partial<VisitorInformation>,
     userId: string
   ): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      visitorInformation,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    const currentSettings = await this.getSettings();
+    if (!currentSettings) throw new Error("Settings not found");
+
+    const newVisitorInfo = { ...currentSettings.visitorInformation, ...visitorInfo };
+    await this.updateSettings({ visitorInformation: newVisitorInfo as VisitorInformation }, userId);
   }
 
   async updateTemplePolicies(
-    templePolicies: TemplePolicies,
+    templePolicies: Partial<TemplePolicies>,
     userId: string
   ): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      templePolicies,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    const currentSettings = await this.getSettings();
+    if (!currentSettings) throw new Error("Settings not found");
+
+    const newTemplePolicies = { ...currentSettings.templePolicies, ...templePolicies };
+    await this.updateSettings({ templePolicies: newTemplePolicies as TemplePolicies }, userId);
   }
 
   async updateAIResponses(aiResponses: AIResponses, userId: string): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      aiResponses,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    await this.updateSettings({ aiResponses }, userId);
   }
 
   async updateAIBehavior(aiBehavior: AIBehaviorSettings, userId: string): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      aiBehavior,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    await this.updateSettings({ aiBehavior }, userId);
   }
 
   // ==================== PROMPT MANAGEMENT ====================
 
   async updatePromptSettings(promptSettings: PromptSettings, userId: string): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      prompt: promptSettings,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    await this.updateSettings({ prompt: promptSettings }, userId);
   }
 
   async createPromptVersion(
     content: string,
     userId: string,
-    changeNotes?: string
+    changeNotes?: string,
+    name?: string,
+    status?: "draft" | "review" | "published" | "archived"
   ): Promise<string> {
-    const settings = await this.getSettings();
+    let settings = await this.getSettings();
+
     if (!settings) {
-      throw new Error("AI Settings not found");
+      settings = await this.createDefaultSettings(userId);
     }
 
     const versions = settings.prompt.versions || [];
@@ -207,17 +225,17 @@ export class AISettingsRepository {
 
     const newVersion = {
       id: `prompt_v${newVersionNumber}_${Date.now()}`,
-      name: `Prompt v${newVersionNumber}`,
+      name: name || `Prompt v${newVersionNumber}`,
       version: newVersionNumber,
       content,
-      status: "draft" as const,
+      status: status || "draft",
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy: userId,
-      changeNotes,
+      changeNotes: changeNotes || "",
     };
 
-    versions.push(newVersion);
+    versions.push(newVersion as any);
 
     await this.updatePromptSettings(
       {
@@ -258,7 +276,6 @@ export class AISettingsRepository {
       return v;
     });
 
-    // If publishing, set publishedAt
     if (updates.status === "published") {
       const versionIndex = versions.findIndex((v) => v.id === versionId);
       if (versionIndex !== -1) {
@@ -328,12 +345,7 @@ export class AISettingsRepository {
   // ==================== INTENT MANAGEMENT ====================
 
   async updateIntentSettings(intentSettings: IntentSettings, userId: string): Promise<void> {
-    const docRef = doc(this.getFirestore(), AI_SETTINGS_COLLECTION, AI_SETTINGS_DOC_ID);
-    await updateDoc(docRef, {
-      intents: intentSettings,
-      updatedAt: Timestamp.now(),
-      updatedBy: userId,
-    });
+    await this.updateSettings({ intents: intentSettings }, userId);
   }
 
   async updateIntent(
@@ -356,7 +368,7 @@ export class AISettingsRepository {
     }
 
     const intents = settings.intents.intents.map((i) => {
-      if (i.intentId === intentId) {
+      if (i.intentId === intentId || i.id === intentId) {
         return {
           ...i,
           ...updates,
@@ -373,7 +385,7 @@ export class AISettingsRepository {
     if (!settings) return;
 
     const intents = settings.intents.intents.map((i) => {
-      if (i.intentId === intentId) {
+      if (i.intentId === intentId || i.id === intentId) {
         return {
           ...i,
           usageCount: (i.usageCount || 0) + 1,
@@ -395,8 +407,7 @@ export class AISettingsRepository {
     language: "en" | "kn" | "mixed",
     sessionId: string
   ): Promise<void> {
-    const supabase = createClient();
-    const { error } = await supabase
+    const { error } = await this.getSupabase()
       .from('unknown_questions')
       .insert([{
         question,
@@ -420,8 +431,7 @@ export class AISettingsRepository {
     question: string
   ): Promise<{ isNew: boolean; docId?: string }> {
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
+      const { data, error } = await this.getSupabase()
         .from('unknown_questions')
         .select('id, times_asked')
         .eq('question_lower', question.toLowerCase())
@@ -432,7 +442,7 @@ export class AISettingsRepository {
       if (error) throw error;
 
       if (data) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await this.getSupabase()
           .from('unknown_questions')
           .update({
             times_asked: (data.times_asked || 0) + 1,
@@ -458,8 +468,7 @@ export class AISettingsRepository {
     }
   ): Promise<UnknownQuestion[]> {
     try {
-      const supabase = createClient();
-      let queryObj = supabase.from('unknown_questions').select('*').order('timestamp', { ascending: false });
+      let queryObj = this.getSupabase().from('unknown_questions').select('*').order('timestamp', { ascending: false });
 
       if (filters?.status) queryObj = queryObj.eq('status', filters.status);
       if (filters?.assignedTo) queryObj = queryObj.eq('assigned_to', filters.assignedTo);
@@ -504,7 +513,6 @@ export class AISettingsRepository {
       notes: string;
     }>
   ): Promise<void> {
-    const supabase = createClient();
     const updateData: any = {};
 
     if (updates.status !== undefined) updateData.status = updates.status;
@@ -518,7 +526,7 @@ export class AISettingsRepository {
       updateData.reviewed_at = new Date().toISOString();
     }
 
-    const { error } = await supabase
+    const { error } = await this.getSupabase()
       .from('unknown_questions')
       .update(updateData)
       .eq('id', questionId);
@@ -527,8 +535,7 @@ export class AISettingsRepository {
   }
 
   async deleteUnknownQuestion(questionId: string): Promise<void> {
-    const supabase = createClient();
-    const { error } = await supabase
+    const { error } = await this.getSupabase()
       .from('unknown_questions')
       .delete()
       .eq('id', questionId);

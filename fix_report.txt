@@ -1,0 +1,6 @@
+1. Added Zod validation to AIAdminRepository.
+2. Verified temple facts and updated types/ai-settings.ts to reflect authoritative parking/restroom details.
+3. RLS restricted to Deny All. Both runtime and admin repositories upgraded to rely on server-side `createAdminClient()`.
+4. Consolidated seed definitions to `lib/ai/ai-settings/seed-data.ts`.
+5. Updated reconciliation docs to accurately reflect the strict RLS design.
+6. Ran all unit tests and builds successfully.
