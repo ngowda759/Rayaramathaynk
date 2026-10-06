@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-06T10:03:13Z",
+  "updatedAt": "2026-10-06T10:15:15Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -147,6 +147,34 @@
       "headSha": "60b216f8697689d86438c768f259ed8be2e7b60e",
       "mergedAt": "2026-10-06T10:03:02Z",
       "completedAt": "2026-10-06T10:03:13.893Z"
+    },
+    {
+      "id": "AI-006",
+      "title": "Implement Festival Live Updates Component",
+      "phase": "feature",
+      "status": "approved",
+      "summary": "Implement live text/photo updates for major temple festivals to fulfill the next milestone in the v2.0 Experience roadmap.",
+      "acceptanceCriteria": [
+        "Create a new component `FestivalLiveUpdates` that displays a timeline or feed of recent text and photo updates during a festival.",
+        "Integrate the updates component appropriately into the festival experience or live page.",
+        "Use static or mock data to represent a stream of live updates (e.g., 'Abhisheka started', 'Maha Mangalarati').",
+        "Running `npm run type-check` returns 0 errors.",
+        "Running `npm run lint` returns 0 errors.",
+        "Unit tests run successfully via `npm run test` (or Vitest equivalent) to verify component rendering."
+      ],
+      "outOfScope": [
+        "Mobile implementation",
+        "Real-time pushing/websockets (a static/mocked feed component is sufficient for the foundation)",
+        "Admin UI to create the updates"
+      ],
+      "humanApproval": false,
+      "dependsOn": [
+        "AI-005"
+      ],
+      "references": [
+        "docs/ROADMAP.md"
+      ],
+      "createdAt": "2026-10-06T12:00:00Z"
     }
   ]
 }
