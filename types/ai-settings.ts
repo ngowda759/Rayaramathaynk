@@ -230,8 +230,8 @@ export const DEFAULT_TEMPLE_POLICIES: TemplePolicies = {
   information80G: "80G tax exemption available for donations. Contact office for certificate.",
   sevaBooking: "Special sevas can be booked online or at temple counter.",
   onlineServices: "Online donations, seva booking, and darshan booking available.",
-  childrenPolicy: "Children welcome. Supervised activities available during festivals.",
-  queueGuidelines: "Special queues for senior citizens and differently-abled. General darshan queue available.",
+  childrenPolicy: "TODO_MANUAL_CONFIGURATION (Children policy pending verification)",
+  queueGuidelines: "TODO_MANUAL_CONFIGURATION (Queue guidelines pending verification)",
 };
 
 export const DEFAULT_AI_RESPONSES: AIResponses = {
