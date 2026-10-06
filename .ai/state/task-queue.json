@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-05T12:04:48Z",
+  "updatedAt": "2026-10-05T17:06:12Z",
   "tasks": [
     {
       "id": "AI-001",
       "title": "Establish the autonomous AI development loop",
       "phase": "infrastructure",
-      "status": "in-progress",
+      "status": "done",
       "summary": "Establish the repository-owned autonomous AI development loop for Rayaramathaynk.",
       "createdAt": "2026-10-03T00:00:00Z",
       "acceptanceCriteria": [
@@ -28,7 +28,7 @@
       "id": "AI-002",
       "title": "Implement Interactive Temple Map Foundation",
       "phase": "feature",
-      "status": "in-progress",
+      "status": "done",
       "summary": "Create the foundation for the Interactive Temple Map for the web application.",
       "acceptanceCriteria": [
         "A new page `app/(public)/map/page.tsx` is created and renders a 'Temple Map' header.",
@@ -51,6 +51,38 @@
       "headSha": "3ea259cca894993c464c6cc53cd0b96d5d5d69ef",
       "mergedAt": "2026-10-05T12:04:37Z",
       "completedAt": "2026-10-05T12:04:48.815Z"
+    },
+    {
+      "id": "AI-003",
+      "title": "Add Points of Interest to Temple Map",
+      "phase": "feature",
+      "status": "done",
+      "summary": "Add Points of Interest support to the Interactive Temple Map for the web application to fulfill the next milestone in the v2.0 Experience roadmap.",
+      "acceptanceCriteria": [
+        "A component is implemented to visualize points of interest on the interactive map page.",
+        "Example points of interest data structure is established and rendered correctly.",
+        "Running `npm run type-check` returns 0 errors.",
+        "Running `npm run lint` returns 0 errors.",
+        "Unit tests run successfully via `npm run test`."
+      ],
+      "outOfScope": [
+        "Mobile implementation",
+        "Live dynamic point of interest location tracking"
+      ],
+      "humanApproval": false,
+      "createdAt": "2026-10-05T12:20:00.000Z",
+      "dependsOn": [
+        "AI-002"
+      ],
+      "references": [
+        "docs/ROADMAP.md",
+        "types/temple-explorer.ts"
+      ],
+      "pr": 302,
+      "branch": "automation-next-task-AI-003-7791990502908004038",
+      "headSha": "b8efff16822afaacbb80726b07b21f0bcc4508e6",
+      "mergedAt": "2026-10-05T17:06:00Z",
+      "completedAt": "2026-10-05T17:06:12.438Z"
     }
   ]
 }
