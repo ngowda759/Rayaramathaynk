@@ -3,6 +3,14 @@
  * Interactive temple map and facility information
  */
 
+export interface AccessibilityInfo {
+  wheelchairAccessible?: boolean;
+  rampAvailable?: boolean;
+  elevatorAvailable?: boolean;
+  specialAssistance?: string;
+  signLanguage?: boolean;
+}
+
 export interface TempleArea {
   id: string;
   name: string;
@@ -17,6 +25,7 @@ export interface TempleArea {
   tips?: string[];
   has360View?: boolean;
   order?: number;
+  accessibility?: AccessibilityInfo;
 }
 
 export type TempleAreaCategory = 
@@ -81,7 +90,11 @@ export const TEMPLE_AREAS: TempleArea[] = [
       "Maintain silence in the sanctum",
       "Remove footwear before entry",
       "Offerings available at the counter"
-    ]
+    ],
+    accessibility: {
+      wheelchairAccessible: false,
+      specialAssistance: "Assistance available on request"
+    }
   },
   {
     id: "navagraha-shrine",
@@ -166,7 +179,11 @@ export const TEMPLE_AREAS: TempleArea[] = [
     tips: [
       "Book at least 3 months in advance",
       "Contact office for booking"
-    ]
+    ],
+    accessibility: {
+      wheelchairAccessible: true,
+      rampAvailable: true
+    }
   },
   {
     id: "bhajan-mantapa",
@@ -186,7 +203,11 @@ export const TEMPLE_AREAS: TempleArea[] = [
     tips: [
       "Participate in the evening bhajan",
       "Devotees welcome to lead bhajans"
-    ]
+    ],
+    accessibility: {
+      wheelchairAccessible: true,
+      rampAvailable: true
+    }
   },
   {
     id: "dharma-shala",
@@ -226,7 +247,11 @@ export const TEMPLE_AREAS: TempleArea[] = [
     tips: [
       "Donations for anna daana welcome",
       "Volunteers can help in kitchen"
-    ]
+    ],
+    accessibility: {
+      wheelchairAccessible: true,
+      rampAvailable: true
+    }
   },
   {
     id: "pushkarini",
