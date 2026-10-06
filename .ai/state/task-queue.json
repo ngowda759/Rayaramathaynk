@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-05T17:12:13Z",
+  "updatedAt": "2026-10-06T05:08:12Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -88,7 +88,7 @@
       "id": "AI-004",
       "title": "Add Accessibility Info to Temple Map",
       "phase": "feature",
-      "status": "approved",
+      "status": "done",
       "summary": "Add accessibility information (e.g., wheelchair access, special facilities) to the Temple Explorer to fulfill the next milestone in the v2.0 Experience roadmap.",
       "acceptanceCriteria": [
         "Extend the temple area types to include accessibility properties (e.g. wheelchair access, ramps).",
@@ -110,7 +110,12 @@
       "references": [
         "docs/ROADMAP.md",
         "types/temple-explorer.ts"
-      ]
+      ],
+      "pr": 304,
+      "branch": "automation-next-task-AI-004-generation-4099122504123275147",
+      "headSha": "f8aceda576e07ff457f7bead9d4254aa700f1504",
+      "mergedAt": "2026-10-06T05:08:00Z",
+      "completedAt": "2026-10-06T05:08:12.799Z"
     }
   ]
 }
