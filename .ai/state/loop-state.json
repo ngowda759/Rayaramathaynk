@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loopId": "AI-001",
-  "status": "idle",
+  "status": "next-task",
   "round": 0,
   "maxReviewRounds": 3,
   "currentTaskId": null,
@@ -15,9 +15,10 @@
     "AI-002",
     "AI-003",
     "AI-004",
-    "AI-005"
+    "AI-005",
+    "AI-006"
   ],
-  "updatedAt": "2026-10-06T10:25:50Z",
+  "updatedAt": "2026-10-06T15:25:53Z",
   "history": [
     {
       "at": "2026-10-03T16:23:31Z",
@@ -83,6 +84,21 @@
       "at": "2026-10-06T10:25:50Z",
       "status": "idle",
       "note": "ready for implementation workflow"
+    },
+    {
+      "at": "2026-10-06T15:25:53Z",
+      "status": "next-task",
+      "note": "bootstrap recovery before completion"
+    },
+    {
+      "at": "2026-10-06T15:25:53Z",
+      "status": "completed",
+      "note": "task AI-006 completed"
+    },
+    {
+      "at": "2026-10-06T15:25:53Z",
+      "status": "next-task",
+      "note": "advancing to next-task generation"
     }
   ]
 }

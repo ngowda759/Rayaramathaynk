@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-06T10:15:15Z",
+  "updatedAt": "2026-10-06T15:25:53Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -152,7 +152,7 @@
       "id": "AI-006",
       "title": "Implement Festival Live Updates Component",
       "phase": "feature",
-      "status": "approved",
+      "status": "done",
       "summary": "Implement live text/photo updates for major temple festivals to fulfill the next milestone in the v2.0 Experience roadmap.",
       "acceptanceCriteria": [
         "Create a new component `FestivalLiveUpdates` that displays a timeline or feed of recent text and photo updates during a festival.",
@@ -174,7 +174,12 @@
       "references": [
         "docs/ROADMAP.md"
       ],
-      "createdAt": "2026-10-06T12:00:00Z"
+      "createdAt": "2026-10-06T12:00:00Z",
+      "pr": 314,
+      "branch": "jules-15261422888858952515-e7f7bbfb",
+      "headSha": "39c5dd51f8aaf1d3a8da6bed218c248567d0ba29",
+      "mergedAt": "2026-10-06T15:25:30Z",
+      "completedAt": "2026-10-06T15:25:53.308Z"
     }
   ]
 }
