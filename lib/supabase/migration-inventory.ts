@@ -74,7 +74,7 @@ export const MIGRATION_INVENTORY: InventoryItem[] = [
   { collection: "daily_page_stats", classification: "REVIEW", reason: "No destination model explicitly defined" },
   { collection: "feedback", classification: "REVIEW", reason: "No destination model explicitly defined" },
   { collection: "notifications", classification: "REVIEW", reason: "No destination model explicitly defined" },
-  { collection: "knowledge", classification: "REVIEW", reason: "No destination model explicitly defined" },
+  { collection: "knowledge", classification: "MIGRATE", reason: "AI Knowledge Base" },
   { collection: "knowledge_articles", classification: "REVIEW", reason: "No destination model explicitly defined" },
   { collection: "knowledge_categories", classification: "REVIEW", reason: "No destination model explicitly defined" },
   { collection: "knowledge_workflow", classification: "REVIEW", reason: "No destination model explicitly defined" },

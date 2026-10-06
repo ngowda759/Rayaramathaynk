@@ -1,20 +1,7 @@
-// Knowledge Repository - Firebase operations for knowledge base
+// Knowledge Repository - Supabase operations for knowledge base
 // Handles CRUD operations for knowledge articles
 
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  orderBy,
-  DocumentData,
-} from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   KnowledgeArticle,
   KnowledgeArticleRequest,
@@ -23,8 +10,9 @@ import {
   KnowledgeCategory,
 } from "./types";
 import { SEED_ARTICLES } from "./seed";
+import { knowledgeArticleSchema } from "./validation";
 
-const COLLECTION_NAME = "knowledge";
+const TABLE_NAME = "ai_knowledge";
 
 // Cache for knowledge articles
 let cachedArticles: KnowledgeArticle[] = [];
@@ -32,45 +20,30 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Convert Firestore doc to KnowledgeArticle
+ * Convert Supabase row to KnowledgeArticle
  */
-function docToArticle(docSnap: DocumentData): KnowledgeArticle | null {
+function rowToArticle(row: any): KnowledgeArticle | null {
   try {
-    const data = docSnap.data();
-    if (!data) return null;
-
-    let createdAt = new Date();
-    if (data.createdAt) {
-      if (typeof data.createdAt.toDate === "function") {
-        createdAt = data.createdAt.toDate();
-      } else if (data.createdAt instanceof Date) {
-        createdAt = data.createdAt;
-      }
-    }
-
-    let updatedAt = new Date();
-    if (data.updatedAt) {
-      if (typeof data.updatedAt.toDate === "function") {
-        updatedAt = data.updatedAt.toDate();
-      } else if (data.updatedAt instanceof Date) {
-        updatedAt = data.updatedAt;
-      }
-    }
-
-    return {
-      id: docSnap.id,
-      slug: data.slug || "",
-      title: data.title || "",
-      category: data.category || "general",
-      keywords: data.keywords || [],
-      content: data.content || "",
-      language: data.language || "en",
-      lastReviewed: data.lastReviewed?.toDate?.() || undefined,
-      approved: data.approved ?? true,
-      createdAt,
-      updatedAt,
+    const article = {
+      id: row.id,
+      slug: row.slug || "",
+      title: row.title || "",
+      kannadaTitle: row.kannada_title || undefined,
+      category: row.category || "general",
+      keywords: row.keywords || [],
+      content: row.content || "",
+      kannadaContent: row.kannada_content || undefined,
+      language: row.language || "en",
+      lastReviewed: row.last_reviewed ? new Date(row.last_reviewed) : undefined,
+      approved: row.approved ?? false,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
-  } catch {
+
+    // Validate with Zod
+    return knowledgeArticleSchema.parse(article);
+  } catch (err) {
+    console.error("[Knowledge Repository] Error parsing article row:", err);
     return null;
   }
 }
@@ -79,34 +52,41 @@ function docToArticle(docSnap: DocumentData): KnowledgeArticle | null {
  * Get all approved knowledge articles
  */
 export async function getKnowledgeArticles(): Promise<KnowledgeArticle[]> {
-  if (!isFirebaseConfigured() || !db) {
-    return SEED_ARTICLES as KnowledgeArticle[];
-  }
-
   const now = Date.now();
   if (cachedArticles.length > 0 && now - lastFetchTime < CACHE_DURATION) {
     return cachedArticles;
   }
 
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where("approved", "==", true),
-      orderBy("category", "asc"),
-      orderBy("title", "asc")
-    );
+    const supabase = await createAdminClient();
 
-    const snapshot = await getDocs(q);
+    // Fallback to seed data if supabase client unavailable
+    if (!supabase) {
+      return SEED_ARTICLES as KnowledgeArticle[];
+    }
+
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select("*")
+      .eq("approved", true)
+      .order("category", { ascending: true })
+      .order("title", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
     const articles: KnowledgeArticle[] = [];
-
-    snapshot.docs.forEach((doc) => {
-      const article = docToArticle(doc);
-      if (article) {
-        articles.push(article);
+    if (data) {
+      for (const row of data) {
+        const article = rowToArticle(row);
+        if (article) {
+          articles.push(article);
+        }
       }
-    });
+    }
 
-    // If no articles in Firebase, use seed data
+    // If no articles in Supabase, use seed data
     if (articles.length === 0) {
       cachedArticles = SEED_ARTICLES as KnowledgeArticle[];
     } else {
@@ -135,19 +115,21 @@ export async function getArticlesByCategory(
  * Get single article by ID
  */
 export async function getArticleById(id: string): Promise<KnowledgeArticle | null> {
-  if (!isFirebaseConfigured() || !db) {
-    return null; // Seed articles don't have IDs
-  }
-
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    const docSnap = await getDoc(docRef);
+    const supabase = await createAdminClient();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select("*")
+      .eq("id", id)
+      .single();
     
-    if (!docSnap.exists()) {
+    if (error || !data) {
       return null;
     }
     
-    return docToArticle(docSnap);
+    return rowToArticle(data);
   } catch (error) {
     console.error("[Knowledge Repository] Error fetching article:", error);
     return null;
@@ -164,6 +146,7 @@ export async function getArticleBySlug(slug: string): Promise<KnowledgeArticle |
 
 /**
  * Search knowledge articles
+ * Note: Keeps exact JS scoring algorithm as legacy implementation to preserve retrieval behavior
  */
 export async function searchArticles(
   queryText: string,
@@ -231,23 +214,38 @@ export async function searchArticles(
 export async function createArticle(
   data: KnowledgeArticleRequest
 ): Promise<string> {
-  if (!isFirebaseConfigured() || !db) {
-    throw new Error("Firebase not configured");
+  const supabase = await createAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase client not configured");
   }
 
-  const now = new Date();
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-    ...data,
+  const insertData = {
+    slug: data.slug,
+    title: data.title,
+    kannada_title: data.kannadaTitle,
+    category: data.category,
+    keywords: data.keywords,
+    content: data.content,
+    kannada_content: data.kannadaContent,
+    language: data.language,
     approved: false,
-    createdAt: now,
-    updatedAt: now,
-  });
+  };
+
+  const { data: newRow, error } = await supabase
+    .from(TABLE_NAME)
+    .insert(insertData)
+    .select("id")
+    .single();
+
+  if (error || !newRow) {
+    throw error || new Error("Failed to create article");
+  }
 
   // Clear cache
   cachedArticles = [];
   lastFetchTime = 0;
 
-  return docRef.id;
+  return newRow.id;
 }
 
 /**
@@ -257,15 +255,31 @@ export async function updateArticle(
   id: string,
   data: KnowledgeArticleUpdate
 ): Promise<void> {
-  if (!isFirebaseConfigured() || !db) {
-    throw new Error("Firebase not configured");
+  const supabase = await createAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase client not configured");
   }
 
-  const docRef = doc(db, COLLECTION_NAME, id);
-  await updateDoc(docRef, {
-    ...data,
-    updatedAt: new Date(),
-  });
+  const updateData: any = {};
+  if (data.slug !== undefined) updateData.slug = data.slug;
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.kannadaTitle !== undefined) updateData.kannada_title = data.kannadaTitle;
+  if (data.category !== undefined) updateData.category = data.category;
+  if (data.keywords !== undefined) updateData.keywords = data.keywords;
+  if (data.content !== undefined) updateData.content = data.content;
+  if (data.kannadaContent !== undefined) updateData.kannada_content = data.kannadaContent;
+  if (data.language !== undefined) updateData.language = data.language;
+  if (data.lastReviewed !== undefined) updateData.last_reviewed = data.lastReviewed?.toISOString();
+  if (data.approved !== undefined) updateData.approved = data.approved;
+
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .update(updateData)
+    .eq("id", id);
+
+  if (error) {
+    throw error;
+  }
 
   // Clear cache
   cachedArticles = [];
@@ -276,12 +290,19 @@ export async function updateArticle(
  * Delete knowledge article
  */
 export async function deleteArticle(id: string): Promise<void> {
-  if (!isFirebaseConfigured() || !db) {
-    throw new Error("Firebase not configured");
+  const supabase = await createAdminClient();
+  if (!supabase) {
+    throw new Error("Supabase client not configured");
   }
 
-  const docRef = doc(db, COLLECTION_NAME, id);
-  await deleteDoc(docRef);
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    throw error;
+  }
 
   // Clear cache
   cachedArticles = [];
@@ -306,25 +327,26 @@ export async function markAsReviewed(id: string): Promise<void> {
  * Get pending articles (not approved)
  */
 export async function getPendingArticles(): Promise<KnowledgeArticle[]> {
-  if (!isFirebaseConfigured() || !db) {
-    return [];
-  }
-
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where("approved", "==", false)
-    );
+    const supabase = await createAdminClient();
+    if (!supabase) return [];
 
-    const snapshot = await getDocs(q);
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select("*")
+      .eq("approved", false);
+
+    if (error) throw error;
+
     const articles: KnowledgeArticle[] = [];
-
-    snapshot.docs.forEach((doc) => {
-      const article = docToArticle(doc);
-      if (article) {
-        articles.push(article);
+    if (data) {
+      for (const row of data) {
+        const article = rowToArticle(row);
+        if (article) {
+          articles.push(article);
+        }
       }
-    });
+    }
 
     return articles;
   } catch (error) {
