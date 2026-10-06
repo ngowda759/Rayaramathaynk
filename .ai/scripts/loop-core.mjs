@@ -10,16 +10,22 @@
  * wire these functions to `gh`, the state files and the workflows.
  */
 
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { parseReviewMarkers } from './review-core.mjs';
+import { parseReviewMarkers } from "./review-core.mjs";
 
-export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const REPO_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 
 export function loadConfig(root = REPO_ROOT) {
-  return JSON.parse(readFileSync(resolve(root, '.ai/loop.config.json'), 'utf8'));
+  return JSON.parse(
+    readFileSync(resolve(root, ".ai/loop.config.json"), "utf8"),
+  );
 }
 
 // --- AI-managed pull request identity --------------------------------------
@@ -49,16 +55,30 @@ export function loadConfig(root = REPO_ROOT) {
  * @param {{ pr: object | null, state?: object | null, queue?: object | null, config: object, mergeCommitSha?: string }} input
  * @returns {boolean}
  */
-export function isAiManagedPullRequest({ pr, state = null, queue = null, config, mergeCommitSha }) {
-  if (pr === null || typeof pr !== 'object') return false;
+export function isAiManagedPullRequest({
+  pr,
+  state = null,
+  queue = null,
+  config,
+  mergeCommitSha,
+}) {
+  if (pr === null || typeof pr !== "object") return false;
   if (pr.isCrossRepository === true) return false;
-  if (typeof pr.baseRefName === 'string' && pr.baseRefName !== config.baseBranch) return false;
+  if (
+    typeof pr.baseRefName === "string" &&
+    pr.baseRefName !== config.baseBranch
+  )
+    return false;
 
-  const branch = typeof pr.headRefName === 'string' ? pr.headRefName : '';
+  const branch = typeof pr.headRefName === "string" ? pr.headRefName : "";
   if (branch.startsWith(config.branchPrefix)) return true;
 
   const recorded = state?.currentPr ?? null;
-  if (recorded !== null && typeof recorded.number === 'number' && recorded.number === pr.number) {
+  if (
+    recorded !== null &&
+    typeof recorded.number === "number" &&
+    recorded.number === pr.number
+  ) {
     return true;
   }
 
@@ -66,7 +86,10 @@ export function isAiManagedPullRequest({ pr, state = null, queue = null, config,
   // recorded PR number (or branch) identifies the loop's own work — this holds
   // even when the loop state has already moved on to a later task.
   const tasks = queue?.tasks ?? [];
-  if (typeof pr.number === 'number' && tasks.some((task) => task?.pr === pr.number)) {
+  if (
+    typeof pr.number === "number" &&
+    tasks.some((task) => task?.pr === pr.number)
+  ) {
     return true;
   }
   if (branch.length > 0 && tasks.some((task) => task?.branch === branch)) {
@@ -74,25 +97,32 @@ export function isAiManagedPullRequest({ pr, state = null, queue = null, config,
   }
 
   const labels = (pr.labels ?? []).map((label) =>
-    typeof label === 'string' ? label : label?.name,
+    typeof label === "string" ? label : label?.name,
   );
   if (labels.includes(config.automation.triggerLabel)) return true;
 
   const heads = [pr.headRefOid, mergeCommitSha].filter(
-    (head) => typeof head === 'string' && head.length > 0,
+    (head) => typeof head === "string" && head.length > 0,
   );
   for (const comment of pr.comments ?? []) {
-    for (const marker of parseReviewMarkers(comment?.body ?? '')) {
+    for (const marker of parseReviewMarkers(comment?.body ?? "")) {
       if (
-        heads.some((head) => head.startsWith(marker.headSha) || marker.headSha.startsWith(head))
+        heads.some(
+          (head) =>
+            head.startsWith(marker.headSha) || marker.headSha.startsWith(head),
+        )
       ) {
         return true;
       }
     }
   }
 
-  const match = /AI-\d+(?:-T\d+)?/.exec(`${pr.title ?? ''} ${branch}`);
-  if (match !== null && (queue?.tasks ?? []).some((task) => task.id === match[0])) return true;
+  const match = /AI-\d+(?:-T\d+)?/.exec(`${pr.title ?? ""} ${branch}`);
+  if (
+    match !== null &&
+    (queue?.tasks ?? []).some((task) => task.id === match[0])
+  )
+    return true;
 
   return false;
 }
@@ -128,7 +158,7 @@ export function isAiManagedPullRequest({ pr, state = null, queue = null, config,
 export function classifyMergedLoopPr({ pr, state = null, queue = null }) {
   const tasks = queue?.tasks ?? [];
   const number = pr?.number;
-  const branch = typeof pr?.headRefName === 'string' ? pr.headRefName : '';
+  const branch = typeof pr?.headRefName === "string" ? pr.headRefName : "";
 
   let task =
     tasks.find(
@@ -137,22 +167,29 @@ export function classifyMergedLoopPr({ pr, state = null, queue = null }) {
         (branch.length > 0 && candidate.branch === branch),
     ) ?? null;
 
-  if (task === null && /\[AI-INFRA\]/i.test(pr?.title ?? '')) {
-    return { kind: 'infrastructure', task: null, taskId: null };
+  if (task === null && /\[AI-INFRA\]/i.test(pr?.title ?? "")) {
+    return { kind: "infrastructure", task: null, taskId: null };
   }
 
-  if (task === null) {
-    const named = /AI-\d+(?:-T\d+)?/.exec(`${pr?.title ?? ''} ${branch}`);
-    if (named !== null) task = tasks.find((candidate) => candidate.id === named[0]) ?? null;
+  if (task === null && !branch.includes("next-task")) {
+    const named = /AI-\d+(?:-T\d+)?/.exec(`${pr?.title ?? ""} ${branch}`);
+    if (named !== null)
+      task = tasks.find((candidate) => candidate.id === named[0]) ?? null;
   }
 
-  if (task === null && typeof state?.currentTaskId === 'string' && state.currentTaskId.length > 0) {
-    const recorded = tasks.find((candidate) => candidate.id === state.currentTaskId) ?? null;
-    if (recorded !== null && recorded.pr == null && recorded.branch == null) task = recorded;
+  if (
+    task === null &&
+    typeof state?.currentTaskId === "string" &&
+    state.currentTaskId.length > 0
+  ) {
+    const recorded =
+      tasks.find((candidate) => candidate.id === state.currentTaskId) ?? null;
+    if (recorded !== null && recorded.pr == null && recorded.branch == null)
+      task = recorded;
   }
 
-  if (task !== null) return { kind: 'task', task, taskId: task.id };
-  return { kind: 'unattributable', task: null, taskId: null };
+  if (task !== null) return { kind: "task", task, taskId: task.id };
+  return { kind: "unattributable", task: null, taskId: null };
 }
 
 /**
@@ -179,17 +216,27 @@ export function classifyMergedLoopPr({ pr, state = null, queue = null }) {
  * @param {{ mergedPrs: object[], state?: object | null, queue?: object | null, config: object }} input
  * @returns {{ pr: object, task: object, taskId: string } | null}
  */
-export function selectMergedTaskPr({ mergedPrs, state = null, queue = null, config }) {
+export function selectMergedTaskPr({
+  mergedPrs,
+  state = null,
+  queue = null,
+  config,
+}) {
   const tasks = queue?.tasks ?? [];
-  const targets = new Set(tasks.filter((task) => task?.status !== 'done').map((task) => task.id));
-  if (typeof state?.currentTaskId === 'string' && state.currentTaskId.length > 0) {
+  const targets = new Set(
+    tasks.filter((task) => task?.status !== "done").map((task) => task.id),
+  );
+  if (
+    typeof state?.currentTaskId === "string" &&
+    state.currentTaskId.length > 0
+  ) {
     targets.add(state.currentTaskId);
   }
   if (targets.size === 0) return null;
 
   for (const pr of mergedPrs ?? []) {
-    if (pr === null || typeof pr !== 'object') continue;
-    if (typeof pr.mergedAt !== 'string' || pr.mergedAt.length === 0) continue;
+    if (pr === null || typeof pr !== "object") continue;
+    if (typeof pr.mergedAt !== "string" || pr.mergedAt.length === 0) continue;
     if (
       !isAiManagedPullRequest({
         pr,
@@ -203,10 +250,10 @@ export function selectMergedTaskPr({ mergedPrs, state = null, queue = null, conf
     }
     const classified = classifyMergedLoopPr({ pr, state, queue });
     if (
-      classified.kind === 'task' &&
+      classified.kind === "task" &&
       classified.taskId !== null &&
       targets.has(classified.taskId) &&
-      classified.task?.status !== 'done'
+      classified.task?.status !== "done"
     ) {
       return { pr, task: classified.task, taskId: classified.taskId };
     }
@@ -223,7 +270,7 @@ export function selectMergedTaskPr({ mergedPrs, state = null, queue = null, conf
  * @returns {number | null} the numeric part, or null when the id is malformed.
  */
 export function taskNumber(taskId) {
-  if (typeof taskId !== 'string') return null;
+  if (typeof taskId !== "string") return null;
   const match = /^AI-(\d+)(?:-T\d+)?$/.exec(taskId);
   if (match === null) return null;
   return Number.parseInt(match[1], 10);
@@ -246,8 +293,11 @@ export function sortTaskIds(ids) {
  * @returns {string} e.g. `AI-003` when AI-002 is the highest
  */
 export function resolveNextTaskId(existingIds) {
-  const highest = (existingIds ?? []).reduce((max, id) => Math.max(max, taskNumber(id) ?? 0), 0);
-  return `AI-${String(highest + 1).padStart(3, '0')}`;
+  const highest = (existingIds ?? []).reduce(
+    (max, id) => Math.max(max, taskNumber(id) ?? 0),
+    0,
+  );
+  return `AI-${String(highest + 1).padStart(3, "0")}`;
 }
 
 /**
@@ -263,17 +313,17 @@ export function validateTaskSequence(existingIds) {
   const ids = existingIds ?? [];
   const numbers = ids.map(taskNumber);
   if (numbers.some((value) => value === null)) {
-    errors.push(`task ids must match AI-<n> or AI-<n>-T<m>: ${ids.join(', ')}`);
+    errors.push(`task ids must match AI-<n> or AI-<n>-T<m>: ${ids.join(", ")}`);
     return errors;
   }
   const unique = new Set(numbers);
-  if (unique.size !== numbers.length) errors.push('task ids are not unique');
+  if (unique.size !== numbers.length) errors.push("task ids are not unique");
 
   const sorted = [...unique].sort((a, b) => a - b);
   for (let index = 0; index < sorted.length; index += 1) {
     if (sorted[index] !== index + 1) {
       errors.push(
-        `task ids must be contiguous starting at AI-001; found ${sorted.map((n) => `AI-${String(n).padStart(3, '0')}`).join(', ')}`,
+        `task ids must be contiguous starting at AI-001; found ${sorted.map((n) => `AI-${String(n).padStart(3, "0")}`).join(", ")}`,
       );
       break;
     }
@@ -295,26 +345,28 @@ export function assertSingleActiveTask({ state, queue, openPrs, config }) {
   const max = config?.automation?.maxConcurrentTasks ?? 1;
 
   const inFlight = (queue?.tasks ?? []).filter((task) =>
-    ['in-progress', 'in-review', 'blocked'].includes(task.status),
+    ["in-progress", "in-review", "blocked"].includes(task.status),
   );
-  const live = inFlight.filter((task) => task.status !== 'blocked');
+  const live = inFlight.filter((task) => task.status !== "blocked");
 
   if (live.length > max) {
     errors.push(
-      `${live.length} tasks are active (${live.map((task) => task.id).join(', ')}); maxConcurrentTasks is ${max}`,
+      `${live.length} tasks are active (${live.map((task) => task.id).join(", ")}); maxConcurrentTasks is ${max}`,
     );
   }
 
-  const automationPrs = (openPrs ?? []).filter((pr) => pr.isAutomation === true);
+  const automationPrs = (openPrs ?? []).filter(
+    (pr) => pr.isAutomation === true,
+  );
   if (automationPrs.length > max) {
     errors.push(
       `${automationPrs.length} automation pull requests are open (${automationPrs
         .map((pr) => `#${pr.number}`)
-        .join(', ')}); maxConcurrentTasks is ${max}`,
+        .join(", ")}); maxConcurrentTasks is ${max}`,
     );
   }
 
-  const stateStatus = state?.status ?? 'idle';
+  const stateStatus = state?.status ?? "idle";
   // Only the implementation statuses own an active pull request. `next-task`
   // (like `completed` and `idle`) sits *between* two tasks: the previous one
   // merged and the next brief has not been generated yet, so demanding an open
@@ -323,7 +375,9 @@ export function assertSingleActiveTask({ state, queue, openPrs, config }) {
   // it, so a finished loop was itself treated as active.
   const stateActive = ACTIVE_STATUSES.includes(stateStatus);
   if (stateActive && automationPrs.length === 0 && state?.currentPr === null) {
-    errors.push(`loop state is "${stateStatus}" but no automation pull request is open`);
+    errors.push(
+      `loop state is "${stateStatus}" but no automation pull request is open`,
+    );
   }
 
   return {
@@ -361,16 +415,20 @@ export function assertSingleActiveTask({ state, queue, openPrs, config }) {
  * @returns {boolean}
  */
 const RECOVERABLE_PENDING_STATUSES = [
-  'proposed',
-  'queued',
-  'approved',
-  'in-progress',
-  'in-review',
-  'ready-to-merge',
+  "proposed",
+  "queued",
+  "approved",
+  "in-progress",
+  "in-review",
+  "ready-to-merge",
 ];
 
 export function isRecoverableNextTaskState(state, queue = null) {
-  if (state?.status !== 'next-task' || state.currentTaskId !== null || state.currentPr !== null) {
+  if (
+    state?.status !== "next-task" ||
+    state.currentTaskId !== null ||
+    state.currentPr !== null
+  ) {
     return false;
   }
   const hasPendingTask = (queue?.tasks ?? []).some((task) =>
@@ -381,7 +439,7 @@ export function isRecoverableNextTaskState(state, queue = null) {
 
 // --- protected paths -------------------------------------------------------
 
-const DOUBLE_STAR = '__DOUBLE_STAR__';
+const DOUBLE_STAR = "__DOUBLE_STAR__";
 
 /**
  * Translate a repository glob into a regular expression.
@@ -391,11 +449,11 @@ const DOUBLE_STAR = '__DOUBLE_STAR__';
  */
 export function globToRegExp(glob) {
   const escaped = glob
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*\*/g, DOUBLE_STAR)
-    .replace(/\*/g, '[^/]*')
+    .replace(/\*/g, "[^/]*")
     .split(DOUBLE_STAR)
-    .join('.*');
+    .join(".*");
   return new RegExp(`^${escaped}$`);
 }
 
@@ -410,7 +468,9 @@ export function globToRegExp(glob) {
  */
 export function protectedPathViolations(paths, protectedPaths) {
   const patterns = (protectedPaths ?? []).map(globToRegExp);
-  const hits = (paths ?? []).filter((path) => patterns.some((pattern) => pattern.test(path)));
+  const hits = (paths ?? []).filter((path) =>
+    patterns.some((pattern) => pattern.test(path)),
+  );
   return [...new Set(hits)].sort();
 }
 
@@ -421,7 +481,13 @@ export function protectedPathViolations(paths, protectedPaths) {
  * right, so a task that needs to touch them always stops for a human even if the
  * config's `protectedPaths` is later relaxed.
  */
-export const CREDENTIAL_PATTERNS = ['.env', '.env.*', '**/*.pem', '**/*.key', '**/credentials*'];
+export const CREDENTIAL_PATTERNS = [
+  ".env",
+  ".env.*",
+  "**/*.pem",
+  "**/*.key",
+  "**/credentials*",
+];
 
 export function credentialViolations(paths) {
   return protectedPathViolations(paths, CREDENTIAL_PATTERNS);
@@ -436,35 +502,40 @@ export function credentialViolations(paths) {
  * that cannot proceed must always be allowed to stop for a human.
  */
 export const TRANSITIONS = {
-  idle: ['architecting', 'implementing'],
-  architecting: ['implementing', 'blocked'],
-  implementing: ['ci-running', 'blocked'],
-  'ci-running': ['reviewing', 'fixing', 'blocked'],
-  reviewing: ['fixing', 'ready-to-merge', 'blocked', 'human-review-required'],
-  fixing: ['ci-running', 'reviewing', 'blocked'],
-  'ready-to-merge': ['merging', 'blocked', 'human-review-required'],
-  merging: ['completed', 'blocked', 'human-review-required'],
-  completed: ['next-task'],
+  idle: ["architecting", "implementing"],
+  architecting: ["implementing", "blocked"],
+  implementing: ["ci-running", "blocked"],
+  "ci-running": ["reviewing", "fixing", "blocked"],
+  reviewing: ["fixing", "ready-to-merge", "blocked", "human-review-required"],
+  fixing: ["ci-running", "reviewing", "blocked"],
+  "ready-to-merge": ["merging", "blocked", "human-review-required"],
+  merging: ["completed", "blocked", "human-review-required"],
+  completed: ["next-task"],
   // After a merge the loop either generates the next task (`architecting`) or
   // goes straight to implementation when the brief is already queued.
-  'next-task': ['architecting', 'implementing', 'completed', 'blocked'],
-  'human-review-required': ['idle', 'implementing', 'reviewing', 'ready-to-merge'],
-  blocked: ['idle', 'implementing', 'reviewing', 'fixing', 'ready-to-merge'],
+  "next-task": ["architecting", "implementing", "completed", "blocked"],
+  "human-review-required": [
+    "idle",
+    "implementing",
+    "reviewing",
+    "ready-to-merge",
+  ],
+  blocked: ["idle", "implementing", "reviewing", "fixing", "ready-to-merge"],
 };
 
 /** Statuses in which the loop owns an active task and a pull request. */
 export const ACTIVE_STATUSES = [
-  'architecting',
-  'implementing',
-  'ci-running',
-  'reviewing',
-  'fixing',
-  'ready-to-merge',
-  'merging',
+  "architecting",
+  "implementing",
+  "ci-running",
+  "reviewing",
+  "fixing",
+  "ready-to-merge",
+  "merging",
 ];
 
 /** Statuses that mean automation has stopped and a human is needed. */
-export const STOPPED_STATUSES = ['blocked', 'human-review-required'];
+export const STOPPED_STATUSES = ["blocked", "human-review-required"];
 
 export function isTransitionAllowed(from, to) {
   if (from === to) return true;
@@ -475,33 +546,35 @@ export function isTransitionAllowed(from, to) {
 /** The task-queue status that matches a loop status. */
 export function taskStatusForLoopStatus(loopStatus) {
   switch (loopStatus) {
-    case 'architecting':
-    case 'implementing':
-      return 'in-progress';
-    case 'ci-running':
-    case 'reviewing':
-    case 'fixing':
-      return 'in-review';
-    case 'ready-to-merge':
-    case 'merging':
-      return 'ready-to-merge';
-    case 'completed':
-      return 'done';
-    case 'blocked':
-    case 'human-review-required':
-      return 'blocked';
+    case "architecting":
+    case "implementing":
+      return "in-progress";
+    case "ci-running":
+    case "reviewing":
+    case "fixing":
+      return "in-review";
+    case "ready-to-merge":
+    case "merging":
+      return "ready-to-merge";
+    case "completed":
+      return "done";
+    case "blocked":
+    case "human-review-required":
+      return "blocked";
     default:
-      return 'queued';
+      return "queued";
   }
 }
 
 /** The single task that may be implemented, or null. */
 export function selectActiveTask(queue) {
   const tasks = queue?.tasks ?? [];
-  const inFlight = tasks.filter((task) => ['in-progress', 'in-review'].includes(task.status));
+  const inFlight = tasks.filter((task) =>
+    ["in-progress", "in-review"].includes(task.status),
+  );
   if (inFlight.length > 0) return inFlight[0];
   const ready = tasks
-    .filter((task) => task.status === 'approved')
+    .filter((task) => task.status === "approved")
     .sort((a, b) => (taskNumber(a.id) ?? 0) - (taskNumber(b.id) ?? 0));
   return ready[0] ?? null;
 }
@@ -547,78 +620,121 @@ export function evaluateMergeGate({
   const recordedPr = state?.currentPr ?? null;
   const aiManaged = isAiManagedPullRequest({ pr, state, queue, config });
 
-  record('prOpen', pr?.state === 'OPEN' && pr?.merged !== true, 'the pull request is not open');
   record(
-    'correctBase',
+    "prOpen",
+    pr?.state === "OPEN" && pr?.merged !== true,
+    "the pull request is not open",
+  );
+  record(
+    "correctBase",
     pr?.baseRefName === config.baseBranch,
     `the pull request does not target ${config.baseBranch}`,
   );
-  record('sameRepository', pr?.isCrossRepository !== true, 'the pull request comes from a fork');
+  record(
+    "sameRepository",
+    pr?.isCrossRepository !== true,
+    "the pull request comes from a fork",
+  );
   // Identity is the loop's own record (state, label, review marker or a queued
   // task id), not the branch name alone — an AI task may live on `feat/*` or
   // `fix/*` just as legitimately as on `automation/*`.
   record(
-    'aiManaged',
+    "aiManaged",
     aiManaged,
-    'the pull request is not an AI-managed loop task (branch, state, label, review marker or task id)',
+    "the pull request is not an AI-managed loop task (branch, state, label, review marker or task id)",
   );
 
-  if (recordedPr !== null && typeof recordedPr.number === 'number') {
+  if (recordedPr !== null && typeof recordedPr.number === "number") {
     record(
-      'activePr',
+      "activePr",
       recordedPr.number === pr?.number,
       `PR #${pr?.number} is not the loop's recorded active pull request (#${recordedPr.number})`,
     );
     record(
-      'activeBranch',
+      "activeBranch",
       recordedPr.branch === pr?.headRefName,
-      'the pull request branch does not match the recorded active branch',
+      "the pull request branch does not match the recorded active branch",
     );
   } else {
     // No usable state: the pull request's own evidence must carry the decision,
     // and it still refuses an unrelated pull request.
-    record('activePr', aiManaged, 'the pull request is not an AI-managed loop task');
+    record(
+      "activePr",
+      aiManaged,
+      "the pull request is not an AI-managed loop task",
+    );
   }
 
   record(
-    'notBlocked',
+    "notBlocked",
     !STOPPED_STATUSES.includes(state?.status) &&
       !(pr?.labels ?? []).includes(config.automation.blockedLabel),
-    'the loop is blocked and needs a human decision',
+    "the loop is blocked and needs a human decision",
   );
   record(
-    'reviewApproved',
-    verdict === 'approved',
+    "reviewApproved",
+    verdict === "approved",
     verdict === undefined
-      ? 'no review verdict is recorded for this pull request'
+      ? "no review verdict is recorded for this pull request"
       : `the latest review verdict is "${verdict}"`,
   );
   // The approval must belong to the commit being merged. This is what makes
   // "a push after approval invalidates the approval" hold.
   record(
-    'headMatchesApproval',
+    "headMatchesApproval",
     verdictHeadSha !== undefined && verdictHeadSha === pr?.headRefOid,
     verdictHeadSha === undefined
-      ? 'the approval records no head commit'
-      : 'the head commit changed after the approval; the new commit must be reviewed',
+      ? "the approval records no head commit"
+      : "the head commit changed after the approval; the new commit must be reviewed",
   );
-  record('ciGreen', ci?.status === 'success', `required CI is ${ci?.status ?? 'unknown'}`);
-  record('mergeable', pr?.mergeable !== 'CONFLICTING', 'the pull request has merge conflicts');
+  record(
+    "ciGreen",
+    ci?.status === "success",
+    `required CI is ${ci?.status ?? "unknown"}`,
+  );
+  record(
+    "mergeable",
+    pr?.mergeable !== "CONFLICTING",
+    "the pull request has merge conflicts",
+  );
 
-  const protectedHits = protectedPathViolations(changedPaths, config.protectedPaths);
+  const protectedHits = protectedPathViolations(
+    changedPaths,
+    config.protectedPaths,
+  );
   const credentials = credentialViolations(changedPaths);
-  if (config.automation.stopOnProtectedPath === true && protectedHits.length > 0) {
-    record('noProtectedPaths', false, `protected paths changed: ${protectedHits.join(', ')}`);
+  if (
+    config.automation.stopOnProtectedPath === true &&
+    protectedHits.length > 0
+  ) {
+    record(
+      "noProtectedPaths",
+      false,
+      `protected paths changed: ${protectedHits.join(", ")}`,
+    );
   } else {
-    record('noProtectedPaths', true);
+    record("noProtectedPaths", true);
   }
-  if (config.automation.stopOnProtectedPath === true && credentials.length > 0) {
-    record('noCredentials', false, `credential files changed: ${credentials.join(', ')}`);
+  if (
+    config.automation.stopOnProtectedPath === true &&
+    credentials.length > 0
+  ) {
+    record(
+      "noCredentials",
+      false,
+      `credential files changed: ${credentials.join(", ")}`,
+    );
   } else {
-    record('noCredentials', true);
+    record("noCredentials", true);
   }
 
-  return { allowed: reasons.length === 0, reasons, checks, protectedHits, credentials };
+  return {
+    allowed: reasons.length === 0,
+    reasons,
+    checks,
+    protectedHits,
+    credentials,
+  };
 }
 
 /**
@@ -630,43 +746,47 @@ export function evaluateMergeGate({
  * normal lets the loop spin or merge something it should not.
  */
 export const HARD_STOPS = {
-  'max-rounds-exceeded':
-    'The maximum number of review rounds was reached with findings still open.',
-  'reviewer-blocked': 'The reviewer explicitly blocked the pull request.',
-  'protected-path': 'A protected path was modified.',
-  'migration-change': 'A database migration was modified.',
-  'credential-change': 'A credential or environment file was modified.',
-  'ci-workflow-change': 'The CI workflow definition was modified.',
-  'security-sensitive': 'A security-sensitive change needs human review.',
-  'contradictory-task': 'The task brief contradicts the repository state.',
-  'ambiguous-roadmap': 'The next task could not be determined unambiguously.',
-  'auth-failure-github': 'GitHub authentication failed and cannot be retried.',
-  'auth-failure-jules': 'Jules authentication failed and cannot be retried.',
-  'auth-failure-openai': 'OpenAI authentication failed.',
-  'auth-failure-openrouter': 'OpenRouter authentication or quota failed.',
-  'merge-conflict': 'The pull request has a merge conflict that needs a human.',
-  'branch-protection': 'Branch protection prevents the merge.',
-  'no-valid-next-task': 'No valid next task could be generated.',
-  'multiple-active-tasks': 'More than one implementation task is active.',
-  'state-corruption': 'The loop state is invalid or inconsistent.',
-  'unexpected-pr': 'The pull request/branch relationship is not the one the loop recorded.',
-  'head-sha-mismatch': 'The head commit changed between approval and merge.',
+  "max-rounds-exceeded":
+    "The maximum number of review rounds was reached with findings still open.",
+  "reviewer-blocked": "The reviewer explicitly blocked the pull request.",
+  "protected-path": "A protected path was modified.",
+  "migration-change": "A database migration was modified.",
+  "credential-change": "A credential or environment file was modified.",
+  "ci-workflow-change": "The CI workflow definition was modified.",
+  "security-sensitive": "A security-sensitive change needs human review.",
+  "contradictory-task": "The task brief contradicts the repository state.",
+  "ambiguous-roadmap": "The next task could not be determined unambiguously.",
+  "auth-failure-github": "GitHub authentication failed and cannot be retried.",
+  "auth-failure-jules": "Jules authentication failed and cannot be retried.",
+  "auth-failure-openai": "OpenAI authentication failed.",
+  "auth-failure-openrouter": "OpenRouter authentication or quota failed.",
+  "merge-conflict": "The pull request has a merge conflict that needs a human.",
+  "branch-protection": "Branch protection prevents the merge.",
+  "no-valid-next-task": "No valid next task could be generated.",
+  "multiple-active-tasks": "More than one implementation task is active.",
+  "state-corruption": "The loop state is invalid or inconsistent.",
+  "unexpected-pr":
+    "The pull request/branch relationship is not the one the loop recorded.",
+  "head-sha-mismatch": "The head commit changed between approval and merge.",
 };
 
 export const NORMAL_EVENTS = {
-  'changes-requested': 'The reviewer requested changes; the loop dispatches a fix.',
-  'fix-round': 'Jules needs another fix round on the same pull request.',
-  'ci-defect': 'CI failed because of a code defect; the fix round addresses it.',
-  'ci-rerun': 'CI needs another run.',
-  'task-completed': 'A task completed normally.',
-  'next-task-generated': 'A next task was generated normally.',
-  'pr-created': 'A pull request was created normally.',
-  'pr-merged': 'A pull request merged normally.',
-  approved: 'The reviewer approved; the loop proceeds to merge.',
+  "changes-requested":
+    "The reviewer requested changes; the loop dispatches a fix.",
+  "fix-round": "Jules needs another fix round on the same pull request.",
+  "ci-defect":
+    "CI failed because of a code defect; the fix round addresses it.",
+  "ci-rerun": "CI needs another run.",
+  "task-completed": "A task completed normally.",
+  "next-task-generated": "A next task was generated normally.",
+  "pr-created": "A pull request was created normally.",
+  "pr-merged": "A pull request merged normally.",
+  approved: "The reviewer approved; the loop proceeds to merge.",
 };
 
 export function classifyEvent(event) {
-  if (Object.hasOwn(HARD_STOPS, event)) return { hardStop: true, description: HARD_STOPS[event] };
+  if (Object.hasOwn(HARD_STOPS, event))
+    return { hardStop: true, description: HARD_STOPS[event] };
   if (Object.hasOwn(NORMAL_EVENTS, event))
     return { hardStop: false, description: NORMAL_EVENTS[event] };
   return { hardStop: true, description: `unrecognised event "${event}"` };
