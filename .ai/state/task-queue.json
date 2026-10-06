@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-06T15:25:53Z",
+  "updatedAt": "2026-10-06T15:36:36Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -180,6 +180,34 @@
       "headSha": "39c5dd51f8aaf1d3a8da6bed218c248567d0ba29",
       "mergedAt": "2026-10-06T15:25:30Z",
       "completedAt": "2026-10-06T15:25:53.308Z"
+    },
+    {
+      "id": "AI-007",
+      "title": "Implement Festival Photo Highlights Component",
+      "phase": "feature",
+      "status": "approved",
+      "summary": "Implement a festival photo highlights component for major temple festivals to fulfill the next milestone in the v2.0 Experience roadmap.",
+      "acceptanceCriteria": [
+        "Create a new component `FestivalPhotoHighlights` in `components/festival/FestivalPhotoHighlights.tsx`.",
+        "The component must display a grid or carousel of at least 3 static photo highlights when rendered.",
+        "Integrate the `FestivalPhotoHighlights` component into `components/festival/FestivalExperience.tsx` beneath the `SeasonGrid` section.",
+        "Running `npm run type-check` returns 0 errors.",
+        "Running `npm run lint` returns 0 errors.",
+        "A new unit test in `tests/unit/components/festival/FestivalPhotoHighlights.test.tsx` runs successfully via `npm run test` and verifies that the photo images are rendered on the page."
+      ],
+      "outOfScope": [
+        "Mobile implementation",
+        "Dynamic auto-generation of albums from backend APIs (static/mocked photos are sufficient for foundation)",
+        "Admin UI to upload the photos"
+      ],
+      "humanApproval": false,
+      "dependsOn": [
+        "AI-006"
+      ],
+      "references": [
+        "docs/ROADMAP.md"
+      ],
+      "createdAt": "2026-10-06T15:30:00Z"
     }
   ]
 }
