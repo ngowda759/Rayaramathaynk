@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-07T12:15:18Z",
+  "updatedAt": "2026-10-07T12:19:23Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -213,6 +213,34 @@
       "headSha": "444560a1ffa17cdc7a508f40176c6e4d91be88b4",
       "mergedAt": "2026-10-07T12:15:04Z",
       "completedAt": "2026-10-07T12:15:18.029Z"
+    },
+    {
+      "id": "AI-008",
+      "title": "Implement Festival Guide Component",
+      "phase": "feature",
+      "status": "approved",
+      "summary": "Implement a festival guide component outlining what to expect for major temple festivals to fulfill the next milestone in the v2.0 Experience roadmap.",
+      "acceptanceCriteria": [
+        "Create a new component `FestivalGuide` that provides an overview of what to expect during a festival (e.g., schedule, rituals, cultural programs).",
+        "Integrate the `FestivalGuide` component appropriately into the festival experience or live page.",
+        "Use static or mock data to represent a sample guide.",
+        "Running `npm run type-check` returns 0 errors.",
+        "Running `npm run lint` returns 0 errors.",
+        "Unit tests run successfully via `npm run test` (or Vitest equivalent) to verify component rendering."
+      ],
+      "outOfScope": [
+        "Mobile implementation",
+        "Dynamic fetching from backend APIs (static/mocked content is sufficient for foundation)",
+        "Admin UI to create the guide"
+      ],
+      "humanApproval": false,
+      "dependsOn": [
+        "AI-007"
+      ],
+      "references": [
+        "docs/ROADMAP.md"
+      ],
+      "createdAt": "2026-10-07T12:15:18.000Z"
     }
   ]
 }
