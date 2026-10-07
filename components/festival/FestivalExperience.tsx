@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Calendar, Star } from "lucide-react";
 import FeaturedFestival from "./FeaturedFestival";
 import FestivalGrid from "./FestivalGrid";
+import FestivalPhotoHighlights from "./FestivalPhotoHighlights";
 import { Festival, getFeaturedFestival, MONTH_NAMES } from "@/types/festival";
 
 interface FestivalExperienceProps {
@@ -70,6 +71,32 @@ export default function FestivalExperience({ festivals }: FestivalExperienceProp
       <section>
         <h2 className="mb-6 text-2xl font-bold text-stone-900">Festivals by Season</h2>
         <SeasonGrid festivals={festivals} />
+      </section>
+
+      {/* Photo Highlights */}
+      <section>
+        <FestivalPhotoHighlights
+          photos={[
+            {
+              id: '1',
+              url: 'https://images.unsplash.com/photo-1514222134-b57cbf8ce697?q=80&w=600&auto=format&fit=crop',
+              caption: 'Festival celebration 1',
+              altText: 'Festival celebration 1',
+            },
+            {
+              id: '2',
+              url: 'https://images.unsplash.com/photo-1605333166947-d5dc277c0cf5?q=80&w=600&auto=format&fit=crop',
+              caption: 'Festival celebration 2',
+              altText: 'Festival celebration 2',
+            },
+            {
+              id: '3',
+              url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=600&auto=format&fit=crop',
+              caption: 'Festival celebration 3',
+              altText: 'Festival celebration 3',
+            },
+          ]}
+        />
       </section>
     </div>
   );
