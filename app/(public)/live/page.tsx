@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import FestivalPhotoHighlights from '@/components/festival/FestivalPhotoHighlights';
 import Link from "next/link";
 import {
   Radio,
@@ -17,6 +18,7 @@ import {
   Bookmark,
   CheckCircle,
 } from "lucide-react";
+import FestivalLiveUpdates from "@/components/festival/FestivalLiveUpdates";
 
 interface Stream {
   id: string;
@@ -91,6 +93,34 @@ const SAMPLE_STREAMS: Stream[] = [
     startedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
     endedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000),
   },
+];
+
+
+const MOCK_PHOTOS = [
+  {
+    id: "1",
+    url: "https://images.unsplash.com/photo-1514222709107-a180c68d72b4?w=800&auto=format&fit=crop&q=60",
+    caption: "Deepotsava celebrations at the matha",
+    altText: "Deepotsava celebrations"
+  },
+  {
+    id: "2",
+    url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop&q=60",
+    caption: "Maha Mangalarati during Aradhana",
+    altText: "Maha Mangalarati"
+  },
+  {
+    id: "3",
+    url: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=800&auto=format&fit=crop&q=60",
+    caption: "Devotees gathered for Pallakki Utsava",
+    altText: "Pallakki Utsava"
+  },
+  {
+    id: "4",
+    url: "https://images.unsplash.com/photo-1493225457224-eda4ef0c9b0a?w=800&auto=format&fit=crop&q=60",
+    caption: "Special Alankara for Sri Raghavendra Swamy",
+    altText: "Special Alankara"
+  }
 ];
 
 export default function LiveDarshanPage() {
@@ -206,89 +236,98 @@ export default function LiveDarshanPage() {
           ))}
         </div>
 
-        {/* Live Streams */}
-        {activeTab === "live" && liveStreams.length > 0 && (
-          <div className="mb-8">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="flex h-3 w-3 items-center justify-center rounded-full bg-red-500 animate-pulse" />
-              <h2 className="text-lg font-semibold text-stone-900">Currently Live</h2>
-            </div>
-            <div className="grid gap-6 lg:grid-cols-2">
-              {liveStreams.map((stream) => (
-                <div
-                  key={stream.id}
-                  className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-lg"
-                >
-                  {/* Video Player */}
-                  <div className="relative aspect-video bg-stone-900">
-                    {stream.videoId ? (
-                      <iframe
-                        src={getYouTubeEmbedUrl(stream.videoId)}
-                        title="Temple Live Stream"
-                        className="h-full w-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <div className="text-center text-white">
-                          <Video className="mx-auto h-16 w-16 opacity-50" />
-                          <p className="mt-2">Stream starting soon...</p>
+        {/* Live Tab Content */}
+        {activeTab === "live" && (
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Live Streams (Takes up 2/3 width on large screens) */}
+            <div className="lg:col-span-2">
+              {liveStreams.length > 0 ? (
+                <div className="mb-8">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="flex h-3 w-3 items-center justify-center rounded-full bg-red-500 animate-pulse" />
+                    <h2 className="text-lg font-semibold text-stone-900">Currently Live</h2>
+                  </div>
+                  <div className="grid gap-6">
+                    {liveStreams.map((stream) => (
+                      <div
+                        key={stream.id}
+                        className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-lg"
+                      >
+                        {/* Video Player */}
+                        <div className="relative aspect-video bg-stone-900">
+                          {stream.videoId ? (
+                            <iframe
+                              src={getYouTubeEmbedUrl(stream.videoId)}
+                              title="Temple Live Stream"
+                              className="h-full w-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <div className="text-center text-white">
+                                <Video className="mx-auto h-16 w-16 opacity-50" />
+                                <p className="mt-2">Stream starting soon...</p>
+                              </div>
+                            </div>
+                          )}
+                          {stream.viewCount && (
+                            <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1 text-xs font-medium text-white">
+                              <Volume2 className="h-3 w-3" />
+                              {stream.viewCount.toLocaleString()} watching
+                            </div>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div className="p-4">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="flex h-2 w-2 items-center justify-center rounded-full bg-red-500 animate-pulse" />
+                            <span className="text-xs font-medium uppercase text-red-600">
+                              {stream.platform === "youtube" ? "YouTube" : "Facebook"} Live
+                            </span>
+                          </div>
+                          <h3 className="text-lg font-semibold text-stone-900">{stream.title}</h3>
+                          <p className="mt-1 line-clamp-2 text-sm text-stone-600">{stream.description}</p>
+                          <div className="mt-4 flex gap-2">
+                            <button
+                              onClick={() => handleShare(stream)}
+                              className="flex items-center gap-1.5 rounded-lg bg-stone-100 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-200"
+                            >
+                              <Share2 className="h-4 w-4" />
+                              Share
+                            </button>
+                            <a
+                              href={`https://youtube.com/watch?v=${stream.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              Open in {stream.platform === "youtube" ? "YouTube" : "Facebook"}
+                            </a>
+                          </div>
                         </div>
                       </div>
-                    )}
-                    {stream.viewCount && (
-                      <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1 text-xs font-medium text-white">
-                        <Volume2 className="h-3 w-3" />
-                        {stream.viewCount.toLocaleString()} watching
-                      </div>
-                    )}
-                  </div>
-                  {/* Info */}
-                  <div className="p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="flex h-2 w-2 items-center justify-center rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-xs font-medium uppercase text-red-600">
-                        {stream.platform === "youtube" ? "YouTube" : "Facebook"} Live
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-stone-900">{stream.title}</h3>
-                    <p className="mt-1 line-clamp-2 text-sm text-stone-600">{stream.description}</p>
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        onClick={() => handleShare(stream)}
-                        className="flex items-center gap-1.5 rounded-lg bg-stone-100 px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-200"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        Share
-                      </button>
-                      <a
-                        href={`https://youtube.com/watch?v=${stream.videoId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open in {stream.platform === "youtube" ? "YouTube" : "Facebook"}
-                      </a>
-                    </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+              ) : (
+                <div className="mb-8 rounded-2xl border border-stone-200 bg-white p-12 text-center h-[500px] flex flex-col justify-center items-center">
+                  <Radio className="mx-auto h-12 w-12 text-stone-300" />
+                  <h2 className="mt-4 text-lg font-semibold text-stone-900">
+                    No Live Streams Right Now
+                  </h2>
+                  <p className="mt-2 text-stone-600">
+                    Check upcoming streams or watch previous recordings.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* No Live Streams */}
-        {activeTab === "live" && liveStreams.length === 0 && (
-          <div className="mb-8 rounded-2xl border border-stone-200 bg-white p-12 text-center">
-            <Radio className="mx-auto h-12 w-12 text-stone-300" />
-            <h2 className="mt-4 text-lg font-semibold text-stone-900">
-              No Live Streams Right Now
-            </h2>
-            <p className="mt-2 text-stone-600">
-              Check upcoming streams or watch previous recordings.
-            </p>
+            {/* Live Updates Feed (Takes up 1/3 width on large screens) */}
+            <div className="lg:col-span-1">
+              <FestivalLiveUpdates />
+            </div>
           </div>
         )}
 
@@ -433,6 +472,12 @@ export default function LiveDarshanPage() {
             ))}
           </div>
         )}
+      </div>
+
+
+      {/* Festival Photo Highlights */}
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <FestivalPhotoHighlights photos={MOCK_PHOTOS} title="Recent Festival Highlights" />
       </div>
     </div>
   );
