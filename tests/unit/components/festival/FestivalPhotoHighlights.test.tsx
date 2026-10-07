@@ -1,23 +1,83 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import FestivalPhotoHighlights from '../../../../components/festival/FestivalPhotoHighlights';
+import FestivalPhotoHighlights from '@/components/festival/FestivalPhotoHighlights';
 
-describe('FestivalPhotoHighlights', () => {
-  it('renders the photo highlights component with images', () => {
-    render(<FestivalPhotoHighlights />);
+// Mock Next.js Image component
+jest.mock('next/image', () => {
+  return function MockImage({ src, alt }: { src: string; alt: string }) {
+    return <img src={src} alt={alt} data-testid="next-image" />;
+  };
+});
 
-    // Check if heading and description exist
-    expect(screen.getByRole('heading', { name: /Photo Highlights/i })).toBeInTheDocument();
-    expect(screen.getByText(/Glimpses of major festival celebrations at the Matha/i)).toBeInTheDocument();
+describe('FestivalPhotoHighlights Component', () => {
+  const mockPhotos = [
+    {
+      id: 'photo-1',
+      url: '/images/test-1.jpg',
+      caption: 'Test photo 1',
+      altText: 'Alt text 1'
+    },
+    {
+      id: 'photo-2',
+      url: '/images/test-2.jpg',
+      caption: 'Test photo 2',
+      altText: 'Alt text 2'
+    }
+  ];
 
-    // Verify at least 3 static photos are rendered
-    const images = screen.getAllByRole('img');
-    expect(images.length).toBeGreaterThanOrEqual(3);
+  it('renders the default title when no title is provided', () => {
+    render(<FestivalPhotoHighlights photos={mockPhotos} />);
 
-    // Verify alt text for images are populated based on the mocked data
-    expect(screen.getByAltText('Festival celebration 1')).toBeInTheDocument();
-    expect(screen.getByAltText('Festival celebration 2')).toBeInTheDocument();
-    expect(screen.getByAltText('Festival celebration 3')).toBeInTheDocument();
+    expect(screen.getByText('Photo Highlights')).toBeInTheDocument();
+  });
+
+  it('renders a custom title when provided', () => {
+    render(<FestivalPhotoHighlights photos={mockPhotos} title="Aradhana Highlights" />);
+
+    expect(screen.getByText('Aradhana Highlights')).toBeInTheDocument();
+  });
+
+  it('renders the correct number of images', () => {
+    render(<FestivalPhotoHighlights photos={mockPhotos} />);
+
+    const images = screen.getAllByTestId('next-image');
+    expect(images).toHaveLength(2);
+
+    expect(images[0]).toHaveAttribute('src', '/images/test-1.jpg');
+    expect(images[0]).toHaveAttribute('alt', 'Alt text 1');
+
+    expect(images[1]).toHaveAttribute('src', '/images/test-2.jpg');
+    expect(images[1]).toHaveAttribute('alt', 'Alt text 2');
+  });
+
+  it('renders captions for photos', () => {
+    render(<FestivalPhotoHighlights photos={mockPhotos} />);
+
+    expect(screen.getByText('Test photo 1')).toBeInTheDocument();
+    expect(screen.getByText('Test photo 2')).toBeInTheDocument();
+  });
+
+  it('renders an empty state message when no photos are provided', () => {
+    render(<FestivalPhotoHighlights photos={[]} />);
+
+    expect(screen.getByText('No photo highlights available for this festival yet.')).toBeInTheDocument();
+    expect(screen.queryByTestId('next-image')).not.toBeInTheDocument();
+  });
+
+  it('falls back to caption for alt text if altText is empty', () => {
+    const photosWithoutAlt = [
+      {
+        id: 'photo-3',
+        url: '/images/test-3.jpg',
+        caption: 'Fallback caption',
+        altText: ''
+      }
+    ];
+
+    render(<FestivalPhotoHighlights photos={photosWithoutAlt} />);
+
+    const image = screen.getByTestId('next-image');
+    expect(image).toHaveAttribute('alt', 'Fallback caption');
   });
 });

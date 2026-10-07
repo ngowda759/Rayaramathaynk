@@ -75,7 +75,7 @@ export default function FestivalExperience({ festivals }: FestivalExperienceProp
 
       {/* Photo Highlights */}
       <section>
-        <FestivalPhotoHighlights />
+        <FestivalPhotoHighlights photos={[]} />
       </section>
     </div>
   );

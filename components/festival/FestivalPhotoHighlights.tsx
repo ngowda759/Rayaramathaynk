@@ -1,48 +1,60 @@
 import React from 'react';
 import Image from 'next/image';
 
-const MOCK_PHOTOS = [
-  {
-    id: '1',
-    url: 'https://images.unsplash.com/photo-1514222134-b57cbf8ce697?q=80&w=600&auto=format&fit=crop',
-    alt: 'Festival celebration 1',
-  },
-  {
-    id: '2',
-    url: 'https://images.unsplash.com/photo-1605333166947-d5dc277c0cf5?q=80&w=600&auto=format&fit=crop',
-    alt: 'Festival celebration 2',
-  },
-  {
-    id: '3',
-    url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=600&auto=format&fit=crop',
-    alt: 'Festival celebration 3',
-  },
-];
+interface PhotoHighlight {
+  id: string;
+  url: string;
+  caption: string;
+  altText: string;
+}
 
-export default function FestivalPhotoHighlights() {
+interface FestivalPhotoHighlightsProps {
+  photos: PhotoHighlight[];
+  title?: string;
+}
+
+export default function FestivalPhotoHighlights({
+  photos,
+  title = 'Photo Highlights'
+}: FestivalPhotoHighlightsProps) {
+  if (!photos || photos.length === 0) {
+    return (
+      <div className="w-full p-8 text-center text-gray-500 bg-gray-50 rounded-lg">
+        <p>No photo highlights available for this festival yet.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-stone-900">Photo Highlights</h2>
-        <p className="mt-2 text-stone-600">
-          Glimpses of major festival celebrations at the Matha
-        </p>
+    <section className="w-full py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-        {MOCK_PHOTOS.map((photo) => (
-          <div key={photo.id} className="relative aspect-square overflow-hidden rounded-2xl border border-stone-200">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {photos.map((photo) => (
+          <div
+            key={photo.id}
+            className="group relative aspect-square overflow-hidden rounded-lg bg-gray-100 shadow-sm transition-all hover:shadow-md"
+          >
             <Image
               src={photo.url}
-              alt={photo.alt}
+              alt={photo.altText || photo.caption}
               fill
-              unoptimized
-              className="object-cover transition-transform duration-300 hover:scale-105"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
+
+            {photo.caption && (
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                <p className="text-sm font-medium text-white line-clamp-2">
+                  {photo.caption}
+                </p>
+              </div>
+            )}
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
