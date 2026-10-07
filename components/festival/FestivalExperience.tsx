@@ -75,7 +75,28 @@ export default function FestivalExperience({ festivals }: FestivalExperienceProp
 
       {/* Photo Highlights */}
       <section>
-        <FestivalPhotoHighlights photos={[]} />
+        <FestivalPhotoHighlights
+          photos={[
+            {
+              id: '1',
+              url: 'https://images.unsplash.com/photo-1514222134-b57cbf8ce697?q=80&w=600&auto=format&fit=crop',
+              caption: 'Festival celebration 1',
+              altText: 'Festival celebration 1',
+            },
+            {
+              id: '2',
+              url: 'https://images.unsplash.com/photo-1605333166947-d5dc277c0cf5?q=80&w=600&auto=format&fit=crop',
+              caption: 'Festival celebration 2',
+              altText: 'Festival celebration 2',
+            },
+            {
+              id: '3',
+              url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=600&auto=format&fit=crop',
+              caption: 'Festival celebration 3',
+              altText: 'Festival celebration 3',
+            },
+          ]}
+        />
       </section>
     </div>
   );
