@@ -31,7 +31,7 @@ export default function FestivalPhotoHighlights({
         <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {photos.map((photo) => (
           <div
             key={photo.id}
@@ -41,9 +41,8 @@ export default function FestivalPhotoHighlights({
               src={photo.url}
               alt={photo.altText || photo.caption}
               fill
-              unoptimized
               className="object-cover transition-transform duration-300 group-hover:scale-105"
-              sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+              sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
 
             {photo.caption && (
