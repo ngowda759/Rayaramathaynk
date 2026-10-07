@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import FestivalPhotoHighlights from '@/components/festival/FestivalPhotoHighlights';
 import Link from "next/link";
 import {
   Radio,
@@ -92,6 +93,34 @@ const SAMPLE_STREAMS: Stream[] = [
     startedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
     endedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000),
   },
+];
+
+
+const MOCK_PHOTOS = [
+  {
+    id: "1",
+    url: "https://images.unsplash.com/photo-1514222709107-a180c68d72b4?w=800&auto=format&fit=crop&q=60",
+    caption: "Deepotsava celebrations at the matha",
+    altText: "Deepotsava celebrations"
+  },
+  {
+    id: "2",
+    url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop&q=60",
+    caption: "Maha Mangalarati during Aradhana",
+    altText: "Maha Mangalarati"
+  },
+  {
+    id: "3",
+    url: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=800&auto=format&fit=crop&q=60",
+    caption: "Devotees gathered for Pallakki Utsava",
+    altText: "Pallakki Utsava"
+  },
+  {
+    id: "4",
+    url: "https://images.unsplash.com/photo-1493225457224-eda4ef0c9b0a?w=800&auto=format&fit=crop&q=60",
+    caption: "Special Alankara for Sri Raghavendra Swamy",
+    altText: "Special Alankara"
+  }
 ];
 
 export default function LiveDarshanPage() {
@@ -443,6 +472,12 @@ export default function LiveDarshanPage() {
             ))}
           </div>
         )}
+      </div>
+
+
+      {/* Festival Photo Highlights */}
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <FestivalPhotoHighlights photos={MOCK_PHOTOS} title="Recent Festival Highlights" />
       </div>
     </div>
   );
