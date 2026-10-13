@@ -55,6 +55,16 @@ describe("No Firestore dependencies in Analytics queries", () => {
     expect(contentAnalytics).toContain('added_to_knowledge_article_id: addedToKnowledge');
   });
 
+  it("should securely fetch data based on execution context (client vs server)", () => {
+    const servicePath = path.resolve(__dirname, "../../services/ai-analytics.service.ts");
+    const contentAnalytics = fs.readFileSync(servicePath, "utf-8");
+    expect(contentAnalytics).toContain("typeof window === 'undefined' ? createAdminClient() : createClient()");
+
+    const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
+    const contentLogger = fs.readFileSync(loggerPath, "utf-8");
+    expect(contentLogger).toContain("typeof window === 'undefined' ? createAdminClient() : createClient()");
+  });
+
   it("lib/ai/unknown-logger.ts should not import 'firebase/firestore'", () => {
     const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
     const content = fs.readFileSync(loggerPath, "utf-8");

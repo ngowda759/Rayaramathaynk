@@ -4,6 +4,7 @@
 import { UnknownQuestionLog } from "./retrieval/types";
 import { Intent, RetrievalType } from "./intent/types";
 import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const COLLECTION_NAME = "unknown_questions";
 
@@ -24,7 +25,7 @@ export async function logUnknownQuestion(
   }
 ): Promise<string | null> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { data: insertedData, error } = await supabase
       .from('unknown_questions')
       .insert([{
@@ -122,7 +123,7 @@ export async function getRecentUnknownQuestions(
   reviewed: boolean;
 }>> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     
     const { data: snapshot, error } = await supabase
       .from('unknown_questions')
@@ -175,7 +176,7 @@ export async function getUnknownQuestionStats(): Promise<{
   byLanguage: Record<string, number>;
 }> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     
     const { data: snapshot, error } = await supabase
       .from('unknown_questions')

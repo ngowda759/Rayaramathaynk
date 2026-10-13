@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Intent } from "@/lib/ai/intent/types";
 import type {
   TokenUsageRecord,
@@ -129,7 +130,7 @@ export async function recordLatency(
   }
 
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { data: insertedData, error } = await supabase
       .from('ai_latency_records')
       .insert([{
@@ -165,7 +166,7 @@ export async function recordIntentDistribution(
   }
 
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { data: insertedData, error } = await supabase
       .from('ai_intent_distribution')
       .insert([{
@@ -199,7 +200,7 @@ export async function recordUnknownQuestion(
   }
 
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { data: insertedData, error } = await supabase
       .from('unknown_questions')
       .insert([{
@@ -238,7 +239,7 @@ export async function markUnknownQuestionReviewed(
   knowledgeArticleId?: string
 ): Promise<void> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { error } = await supabase
       .from('unknown_questions')
       .update({
@@ -317,7 +318,7 @@ export async function getLatencyMetrics(
   params: AnalyticsQueryParams = {}
 ): Promise<LatencyResponse> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
     let queryBuilder = supabase.from('ai_latency_records').select('*');
@@ -366,7 +367,7 @@ export async function getIntentDistribution(
   params: AnalyticsQueryParams = {}
 ): Promise<IntentDistributionResponse> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { startDate, endDate, language, limit: limitCount = 100 } = params;
     
     let queryBuilder = supabase.from('ai_intent_distribution').select('*');
@@ -416,7 +417,7 @@ export async function getUnknownQuestions(
   params: AnalyticsQueryParams = {}
 ): Promise<UnknownQuestionsResponse> {
   try {
-    const supabase = createClient();
+    const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
     let queryBuilder = supabase.from('unknown_questions').select('*');
