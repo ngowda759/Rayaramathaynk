@@ -11,13 +11,12 @@ export async function GET(request: NextRequest) {
     
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const intent = searchParams.get("intent");
+    // intent is explicitly deprecated/unsupported by ai_latency_records schema
     const limit = searchParams.get("limit");
     
     const response = await getLatencyMetrics({
       startDate: startDate ? parseInt(startDate, 10) : undefined,
       endDate: endDate ? parseInt(endDate, 10) : undefined,
-      intent: intent as Intent | undefined,
       limit: limit ? parseInt(limit, 10) : 100,
     });
     

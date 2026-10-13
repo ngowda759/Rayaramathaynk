@@ -246,7 +246,8 @@ export async function markUnknownQuestionReviewed(
         status: 'reviewed',
         reviewed_by: reviewedBy,
         reviewed_at: new Date().toISOString(),
-        added_to_knowledge_article_id: addedToKnowledge ? (knowledgeArticleId || 'added') : null
+        // Only set article ID if it was actually provided, do not fabricate "added"
+        added_to_knowledge_article_id: addedToKnowledge && knowledgeArticleId ? knowledgeArticleId : null
       })
       .eq('id', questionId);
 

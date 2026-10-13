@@ -52,7 +52,7 @@ describe("No Firestore dependencies in Analytics queries", () => {
 
     expect(contentAnalytics).toContain('status: \'reviewed\'');
     expect(contentAnalytics).toContain('reviewed_by: reviewedBy');
-    expect(contentAnalytics).toContain('added_to_knowledge_article_id: addedToKnowledge');
+    expect(contentAnalytics).toContain('added_to_knowledge_article_id: addedToKnowledge && knowledgeArticleId ? knowledgeArticleId : null');
   });
 
   it("should securely fetch data based on execution context (client vs server)", () => {
