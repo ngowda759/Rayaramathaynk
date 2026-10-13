@@ -587,7 +587,7 @@ export function mapUnknownQuestion(id: string, data: any): Record<string, any> {
     reviewed_at: toIsoString(data.reviewedAt),
     response: optionalString(data.response),
     added_to_knowledge_article_id: optionalString(
-      data.addedToKnowledgeArticleId || data.knowledgeArticleId || (data.addedToKnowledge ? "added" : undefined)
+      data.addedToKnowledgeArticleId || data.knowledgeArticleId || undefined
     ),
     notes: optionalString(data.notes),
   };

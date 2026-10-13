@@ -65,6 +65,19 @@ describe("No Firestore dependencies in Analytics queries", () => {
     expect(contentLogger).toContain("typeof window === 'undefined' ? createAdminClient() : createClient()");
   });
 
+  it("should not fabricate 'added' for unknown_questions migration", () => {
+    const mappersPath = path.resolve(__dirname, "../../lib/supabase/migration-mappers.ts");
+    const contentMappers = fs.readFileSync(mappersPath, "utf-8");
+
+    // Confirms mapUnknownQuestion does not contain "added" fallback
+    const match = contentMappers.match(/export function mapUnknownQuestion([\s\S]*?)export function mapIntentDistribution/);
+    if(match){
+      expect(match[1]).not.toContain('"added"');
+    } else {
+      expect(true).toBe(false);
+    }
+  });
+
   it("lib/ai/unknown-logger.ts should not import 'firebase/firestore'", () => {
     const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
     const content = fs.readFileSync(loggerPath, "utf-8");
