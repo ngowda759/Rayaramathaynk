@@ -575,7 +575,9 @@ export function mapUnknownQuestion(id: string, data: any): Record<string, any> {
     // Domain default: first sighting of a question.
     times_asked: typeof data.timesAsked === "number" ? data.timesAsked : 1,
     status:
-      typeof data.status === "string" && data.status ? data.status : "pending",
+      typeof data.status === "string" && data.status
+        ? data.status
+        : (data.reviewed ? "reviewed" : "pending"),
     assigned_to:
       typeof data.assignedTo === "string" && data.assignedTo
         ? data.assignedTo
@@ -585,7 +587,7 @@ export function mapUnknownQuestion(id: string, data: any): Record<string, any> {
     reviewed_at: toIsoString(data.reviewedAt),
     response: optionalString(data.response),
     added_to_knowledge_article_id: optionalString(
-      data.addedToKnowledgeArticleId,
+      data.addedToKnowledgeArticleId || data.knowledgeArticleId || (data.addedToKnowledge ? "added" : undefined)
     ),
     notes: optionalString(data.notes),
   };
