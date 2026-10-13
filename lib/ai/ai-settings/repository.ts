@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/client";
 import { AISettingsSchema } from "./validation";
 
 import {
@@ -32,7 +33,7 @@ const UNKNOWN_QUESTIONS_COLLECTION = "unknown_questions";
 
 export class AISettingsRepository {
   private getSupabase() {
-    return createAdminClient();
+    return typeof window === "undefined" ? createAdminClient() : createClient();
   }
 
   // ==================== CORE SETTINGS ====================

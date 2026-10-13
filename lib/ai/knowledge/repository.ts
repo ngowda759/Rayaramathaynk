@@ -1,6 +1,7 @@
 // Knowledge Repository - Supabase operations for knowledge base
 // Handles CRUD operations for knowledge articles
 
+import { createClient } from "@/lib/supabase/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   KnowledgeArticle,
@@ -58,7 +59,7 @@ export async function getKnowledgeArticles(): Promise<KnowledgeArticle[]> {
   }
 
   try {
-    const supabase = await createAdminClient();
+    const supabase = typeof window === "undefined" ? await createAdminClient() : createClient();
 
     // Fallback to seed data if supabase client unavailable
     if (!supabase) {
@@ -116,7 +117,7 @@ export async function getArticlesByCategory(
  */
 export async function getArticleById(id: string): Promise<KnowledgeArticle | null> {
   try {
-    const supabase = await createAdminClient();
+    const supabase = typeof window === "undefined" ? await createAdminClient() : createClient();
     if (!supabase) return null;
 
     const { data, error } = await supabase
@@ -214,7 +215,7 @@ export async function searchArticles(
 export async function createArticle(
   data: KnowledgeArticleRequest
 ): Promise<string> {
-  const supabase = await createAdminClient();
+  const supabase = typeof window === "undefined" ? await createAdminClient() : createClient();
   if (!supabase) {
     throw new Error("Supabase client not configured");
   }
@@ -255,7 +256,7 @@ export async function updateArticle(
   id: string,
   data: KnowledgeArticleUpdate
 ): Promise<void> {
-  const supabase = await createAdminClient();
+  const supabase = typeof window === "undefined" ? await createAdminClient() : createClient();
   if (!supabase) {
     throw new Error("Supabase client not configured");
   }
@@ -290,7 +291,7 @@ export async function updateArticle(
  * Delete knowledge article
  */
 export async function deleteArticle(id: string): Promise<void> {
-  const supabase = await createAdminClient();
+  const supabase = typeof window === "undefined" ? await createAdminClient() : createClient();
   if (!supabase) {
     throw new Error("Supabase client not configured");
   }
@@ -328,7 +329,7 @@ export async function markAsReviewed(id: string): Promise<void> {
  */
 export async function getPendingArticles(): Promise<KnowledgeArticle[]> {
   try {
-    const supabase = await createAdminClient();
+    const supabase = typeof window === "undefined" ? await createAdminClient() : createClient();
     if (!supabase) return [];
 
     const { data, error } = await supabase
