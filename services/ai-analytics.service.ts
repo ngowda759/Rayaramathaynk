@@ -194,21 +194,34 @@ export async function recordUnknownQuestion(
   data: Omit<UnknownQuestionRecord, "id" | "timestamp" | "reviewed" | "addedToKnowledge">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackUnknownQuestions || !isFirebaseConfigured() || !db) {
+  if (!settings.enabled || !settings.trackUnknownQuestions) {
     return "";
   }
 
   try {
-    const docRef = await addDoc(
-      collection(db, COLLECTIONS.UNKNOWN_QUESTIONS),
-      {
-        ...data,
-        reviewed: false,
-        addedToKnowledge: false,
-        timestamp: serverTimestamp(),
-      }
-    );
-    return docRef.id;
+    const supabase = createClient();
+    const { data: insertedData, error } = await supabase
+      .from('unknown_questions')
+      .insert([{
+        question: data.question,
+        question_lower: data.question.toLowerCase(),
+        detected_intent: data.detectedIntent,
+        confidence: data.confidence,
+        language: data.language,
+        session_id: data.sessionId,
+        times_asked: 1,
+        status: 'pending',
+        assigned_to: 'unassigned'
+      }])
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error("Error recording unknown question in Supabase:", error);
+      throw error;
+    }
+
+    return insertedData.id;
   } catch (error) {
     console.error("Error recording unknown question:", error);
     throw error;
@@ -299,42 +312,43 @@ export async function getTokenUsage(
 export async function getLatencyMetrics(
   params: AnalyticsQueryParams = {}
 ): Promise<LatencyResponse> {
-  if (!isFirebaseConfigured() || !db) {
-    return { summary: {} as any, records: [] };
-  }
   try {
+    const supabase = createClient();
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
-    let q = query(collection(db, COLLECTIONS.LATENCY_RECORDS));
+    let queryBuilder = supabase.from('ai_latency_records').select('*');
     
-    if (startDate || endDate) {
-      const constraints = [];
-      if (startDate) {
-        constraints.push(where("timestamp", ">=", Timestamp.fromDate(new Date(startDate))));
-      }
-      if (endDate) {
-        constraints.push(where("timestamp", "<=", Timestamp.fromDate(new Date(endDate))));
-      }
-      q = query(collection(db, COLLECTIONS.LATENCY_RECORDS), ...constraints);
+    if (startDate) {
+      queryBuilder = queryBuilder.gte('timestamp', new Date(startDate).toISOString());
+    }
+    if (endDate) {
+      queryBuilder = queryBuilder.lte('timestamp', new Date(endDate).toISOString());
     }
     
-    if (intent) {
-      q = query(q, where("intent", "==", intent));
-    }
+    queryBuilder = queryBuilder.order('timestamp', { ascending: false }).limit(limitCount);
     
-    q = query(q, orderBy("timestamp", "desc"), limit(limitCount));
-    
-    const snapshot = await getDocs(q);
-    const records: LatencyRecord[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toMillis?.() || Date.now(),
-    })) as LatencyRecord[];
+    const { data: snapshot, error } = await queryBuilder;
 
-    // Calculate summary
-    const summary = calculateLatencySummary(records);
+    if (error) {
+      console.error("Error querying Supabase ai_latency_records:", error);
+      throw error;
+    }
+
+    const records: LatencyRecord[] = (snapshot || []).map((doc: any) => ({
+      id: doc.id,
+      sessionId: doc.session_id,
+      messageId: doc.message_id || "",
+      totalLatency: doc.total_latency,
+      intentDetectionTime: doc.intent_detection_time,
+      retrievalTime: doc.retrieval_time,
+      generationTime: doc.generation_time,
+      timestamp: new Date(doc.timestamp).getTime(),
+      intent: ("" as any),
+      success: doc.success,
+      errorType: doc.error_type,
+    }));
     
-    return { summary, records };
+    return { summary: calculateLatencySummary(records), records };
   } catch (error) {
     console.error("Error fetching latency metrics:", error);
     throw error;
@@ -347,42 +361,44 @@ export async function getLatencyMetrics(
 export async function getIntentDistribution(
   params: AnalyticsQueryParams = {}
 ): Promise<IntentDistributionResponse> {
-  if (!isFirebaseConfigured() || !db) {
-    return { summary: {} as any, records: [] };
-  }
   try {
+    const supabase = createClient();
     const { startDate, endDate, language, limit: limitCount = 100 } = params;
     
-    let q = query(collection(db, COLLECTIONS.INTENT_DISTRIBUTION));
+    let queryBuilder = supabase.from('ai_intent_distribution').select('*');
     
-    if (startDate || endDate) {
-      const constraints = [];
-      if (startDate) {
-        constraints.push(where("timestamp", ">=", Timestamp.fromDate(new Date(startDate))));
-      }
-      if (endDate) {
-        constraints.push(where("timestamp", "<=", Timestamp.fromDate(new Date(endDate))));
-      }
-      q = query(collection(db, COLLECTIONS.INTENT_DISTRIBUTION), ...constraints);
+    if (startDate) {
+      queryBuilder = queryBuilder.gte('timestamp', new Date(startDate).toISOString());
+    }
+    if (endDate) {
+      queryBuilder = queryBuilder.lte('timestamp', new Date(endDate).toISOString());
     }
     
     if (language) {
-      q = query(q, where("language", "==", language));
+      queryBuilder = queryBuilder.eq('language', language);
     }
     
-    q = query(q, orderBy("timestamp", "desc"), limit(limitCount));
+    queryBuilder = queryBuilder.order('timestamp', { ascending: false }).limit(limitCount);
     
-    const snapshot = await getDocs(q);
-    const records: IntentDistributionRecord[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toMillis?.() || Date.now(),
-    })) as IntentDistributionRecord[];
+    const { data: snapshot, error } = await queryBuilder;
 
-    // Calculate summary
-    const summary = calculateIntentSummary(records);
+    if (error) {
+      console.error("Error querying Supabase ai_intent_distribution:", error);
+      throw error;
+    }
+
+    const records: IntentDistributionRecord[] = (snapshot || []).map((doc: any) => ({
+      id: doc.id,
+      sessionId: doc.session_id,
+      messageId: doc.message_id || "",
+      intent: doc.intent,
+      category: doc.category,
+      language: doc.language,
+      confidence: doc.confidence,
+      timestamp: new Date(doc.timestamp).getTime(),
+    }));
     
-    return { summary, records };
+    return { summary: calculateIntentSummary(records), records };
   } catch (error) {
     console.error("Error fetching intent distribution:", error);
     throw error;
@@ -395,43 +411,48 @@ export async function getIntentDistribution(
 export async function getUnknownQuestions(
   params: AnalyticsQueryParams = {}
 ): Promise<UnknownQuestionsResponse> {
-  if (!isFirebaseConfigured() || !db) {
-    return { summary: {} as any, records: [] };
-  }
   try {
+    const supabase = createClient();
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
     
-    let q = query(collection(db, COLLECTIONS.UNKNOWN_QUESTIONS));
+    let queryBuilder = supabase.from('unknown_questions').select('*');
     
-    if (startDate || endDate) {
-      const constraints = [];
-      if (startDate) {
-        constraints.push(where("timestamp", ">=", Timestamp.fromDate(new Date(startDate))));
-      }
-      if (endDate) {
-        constraints.push(where("timestamp", "<=", Timestamp.fromDate(new Date(endDate))));
-      }
-      q = query(collection(db, COLLECTIONS.UNKNOWN_QUESTIONS), ...constraints);
+    if (startDate) {
+      queryBuilder = queryBuilder.gte('timestamp', new Date(startDate).toISOString());
+    }
+    if (endDate) {
+      queryBuilder = queryBuilder.lte('timestamp', new Date(endDate).toISOString());
     }
     
     if (intent) {
-      q = query(q, where("detectedIntent", "==", intent));
+      queryBuilder = queryBuilder.eq('detected_intent', intent);
     }
     
-    q = query(q, orderBy("timestamp", "desc"), limit(limitCount));
+    queryBuilder = queryBuilder.order('timestamp', { ascending: false }).limit(limitCount);
     
-    const snapshot = await getDocs(q);
-    const records: UnknownQuestionRecord[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toMillis?.() || Date.now(),
-      reviewedAt: doc.data().reviewedAt?.toMillis?.() || undefined,
-    })) as UnknownQuestionRecord[];
+    const { data: snapshot, error } = await queryBuilder;
 
-    // Calculate summary
-    const summary = calculateUnknownQuestionSummary(records);
+    if (error) {
+      console.error("Error querying Supabase unknown_questions:", error);
+      throw error;
+    }
+
+    const records: UnknownQuestionRecord[] = (snapshot || []).map((doc: any) => ({
+      id: doc.id,
+      sessionId: doc.session_id,
+      messageId: doc.message_id || "",
+      question: doc.question,
+      detectedIntent: doc.detected_intent,
+      confidence: doc.confidence,
+      language: doc.language,
+      timestamp: new Date(doc.timestamp).getTime(),
+      reviewed: doc.status !== 'pending' && doc.status !== 'unassigned',
+      reviewedBy: doc.reviewed_by,
+      reviewedAt: doc.reviewed_at ? new Date(doc.reviewed_at).getTime() : undefined,
+      addedToKnowledge: !!doc.added_to_knowledge_article_id,
+    }));
     
-    return { summary, records };
+    return { summary: calculateUnknownQuestionSummary(records), records };
   } catch (error) {
     console.error("Error fetching unknown questions:", error);
     throw error;
