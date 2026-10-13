@@ -87,6 +87,21 @@ describe("No Firestore dependencies in Analytics queries", () => {
     expect(contentScript).toContain('"ai_unknown_questions",');
   });
 
+  it("getLatencyMetrics removes fabricated 'intent' and 'messageId' from output and limits AnalyticsQueryParams", () => {
+    const servicePath = path.resolve(__dirname, "../../services/ai-analytics.service.ts");
+    const contentAnalytics = fs.readFileSync(servicePath, "utf-8");
+
+    const getLatencyMetricsMatch = contentAnalytics.match(/export async function getLatencyMetrics([\s\S]*?)export async function getIntentDistribution/);
+    if (getLatencyMetricsMatch) {
+      const functionBody = getLatencyMetricsMatch[1];
+      expect(functionBody).toContain("Omit<AnalyticsQueryParams, \"intent\">");
+      expect(functionBody).not.toContain("intent: (\"\" as any)");
+      expect(functionBody).not.toContain("messageId: doc.message_id || \"\"");
+    } else {
+      expect(true).toBe(false);
+    }
+  });
+
   it("lib/ai/unknown-logger.ts should not import 'firebase/firestore'", () => {
     const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
     const content = fs.readFileSync(loggerPath, "utf-8");

@@ -316,11 +316,11 @@ export async function getTokenUsage(
  * Get latency metrics summary and records
  */
 export async function getLatencyMetrics(
-  params: AnalyticsQueryParams = {}
+  params: Omit<AnalyticsQueryParams, "intent"> = {}
 ): Promise<LatencyResponse> {
   try {
     const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
-    const { startDate, endDate, intent, limit: limitCount = 100 } = params;
+    const { startDate, endDate, limit: limitCount = 100 } = params;
     
     let queryBuilder = supabase.from('ai_latency_records').select('*');
     
@@ -343,13 +343,11 @@ export async function getLatencyMetrics(
     const records: LatencyRecord[] = (snapshot || []).map((doc: any) => ({
       id: doc.id,
       sessionId: doc.session_id,
-      messageId: doc.message_id || "",
       totalLatency: doc.total_latency,
       intentDetectionTime: doc.intent_detection_time,
       retrievalTime: doc.retrieval_time,
       generationTime: doc.generation_time,
       timestamp: new Date(doc.timestamp).getTime(),
-      intent: ("" as any),
       success: doc.success,
       errorType: doc.error_type,
     }));
