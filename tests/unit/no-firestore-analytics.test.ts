@@ -78,6 +78,15 @@ describe("No Firestore dependencies in Analytics queries", () => {
     }
   });
 
+  it("scripts/migrate-ai-analytics.ts handles legacy overlap collections correctly", () => {
+    const scriptPath = path.resolve(__dirname, "../../scripts/migrate-ai-analytics.ts");
+    const contentScript = fs.readFileSync(scriptPath, "utf-8");
+
+    // Check if it executes against both 'unknown_questions' and 'ai_unknown_questions'
+    expect(contentScript).toContain('"unknown_questions",');
+    expect(contentScript).toContain('"ai_unknown_questions",');
+  });
+
   it("lib/ai/unknown-logger.ts should not import 'firebase/firestore'", () => {
     const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
     const content = fs.readFileSync(loggerPath, "utf-8");
