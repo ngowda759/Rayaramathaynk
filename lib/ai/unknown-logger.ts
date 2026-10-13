@@ -1,14 +1,9 @@
 // Unknown Question Logger
 // Logs questions that couldn't be answered for admin review
 
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { UnknownQuestionLog } from "./retrieval/types";
 import { Intent, RetrievalType } from "./intent/types";
+import { createClient } from "@/lib/supabase/client";
 
 const COLLECTION_NAME = "unknown_questions";
 
@@ -28,34 +23,33 @@ export async function logUnknownQuestion(
     error?: string;
   }
 ): Promise<string | null> {
-  if (!isFirebaseConfigured() || !db) {
-    console.log("[Unknown Question Logger] Firebase not configured, skipping log");
-    return null;
-  }
-
   try {
-    const logEntry = {
-      question: question.substring(0, 1000), // Limit length
-      questionLower: question.toLowerCase().substring(0, 500),
-      timestamp: serverTimestamp(),
-      sessionId: sessionId.substring(0, 100),
-      detectedIntent,
-      confidence,
-      language,
-      userAgent: options?.userAgent?.substring(0, 500) || null,
-      ip: options?.ip || null,
-      expectedIntent: options?.expectedIntent || null,
-      error: options?.error?.substring(0, 500) || null,
-      reviewed: false,
-      reviewedBy: null,
-      reviewedAt: null,
-      addedToKnowledge: false,
-    };
+    const supabase = createClient();
+    const { data: insertedData, error } = await supabase
+      .from('unknown_questions')
+      .insert([{
+        question: question.substring(0, 1000),
+        question_lower: question.toLowerCase().substring(0, 500),
+        detected_intent: detectedIntent,
+        confidence,
+        language,
+        session_id: sessionId.substring(0, 100),
+        times_asked: 1,
+        status: 'pending',
+        assigned_to: 'unassigned',
+        timestamp: new Date().toISOString(),
+        notes: options?.error?.substring(0, 500) || null
+      }])
+      .select('id')
+      .single();
 
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), logEntry);
+    if (error) {
+      console.error("[Unknown Question Logger] Error recording unknown question in Supabase:", error);
+      return null;
+    }
+
     console.log(`[Unknown Question Logger] Logged question: ${question.substring(0, 50)}...`);
-    
-    return docRef.id;
+    return insertedData.id;
   } catch (error) {
     console.error("[Unknown Question Logger] Error logging question:", error);
     return null;
@@ -127,20 +121,20 @@ export async function getRecentUnknownQuestions(
   language: string;
   reviewed: boolean;
 }>> {
-  if (!isFirebaseConfigured() || !db) {
-    return [];
-  }
-
   try {
-    const { getDocs, query, collection, orderBy, limit: fbLimit } = await import("firebase/firestore");
+    const supabase = createClient();
     
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy("timestamp", "desc"),
-      fbLimit(limit)
-    );
+    const { data: snapshot, error } = await supabase
+      .from('unknown_questions')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(limit);
 
-    const snapshot = await getDocs(q);
+    if (error) {
+      console.error("[Unknown Question Logger] Error fetching from Supabase:", error);
+      return [];
+    }
+
     const results: Array<{
       id: string;
       question: string;
@@ -151,16 +145,15 @@ export async function getRecentUnknownQuestions(
       reviewed: boolean;
     }> = [];
 
-    snapshot.docs.forEach((doc) => {
-      const data = doc.data();
+    (snapshot || []).forEach((doc: any) => {
       results.push({
         id: doc.id,
-        question: data.question,
-        timestamp: data.timestamp?.toDate?.() || new Date(),
-        detectedIntent: data.detectedIntent,
-        confidence: data.confidence,
-        language: data.language,
-        reviewed: data.reviewed || false,
+        question: doc.question,
+        timestamp: new Date(doc.timestamp),
+        detectedIntent: doc.detected_intent,
+        confidence: doc.confidence,
+        language: doc.language,
+        reviewed: doc.status !== 'pending' && doc.status !== 'unassigned',
       });
     });
 
@@ -181,21 +174,17 @@ export async function getUnknownQuestionStats(): Promise<{
   byIntent: Record<string, number>;
   byLanguage: Record<string, number>;
 }> {
-  if (!isFirebaseConfigured() || !db) {
-    return {
-      total: 0,
-      reviewed: 0,
-      unreviewed: 0,
-      byIntent: {},
-      byLanguage: {},
-    };
-  }
-
   try {
-    const { getDocs, query, collection } = await import("firebase/firestore");
+    const supabase = createClient();
     
-    const q = query(collection(db, COLLECTION_NAME));
-    const snapshot = await getDocs(q);
+    const { data: snapshot, error } = await supabase
+      .from('unknown_questions')
+      .select('*');
+
+    if (error) {
+      console.error("[Unknown Question Logger] Error querying stats from Supabase:", error);
+      return { total: 0, reviewed: 0, unreviewed: 0, byIntent: {}, byLanguage: {} };
+    }
 
     let total = 0;
     let reviewed = 0;
@@ -203,20 +192,20 @@ export async function getUnknownQuestionStats(): Promise<{
     const byIntent: Record<string, number> = {};
     const byLanguage: Record<string, number> = {};
 
-    snapshot.docs.forEach((doc) => {
-      const data = doc.data();
+    (snapshot || []).forEach((doc: any) => {
       total++;
       
-      if (data.reviewed) {
+      const isReviewed = doc.status !== 'pending' && doc.status !== 'unassigned';
+      if (isReviewed) {
         reviewed++;
       } else {
         unreviewed++;
       }
 
-      const intent = data.detectedIntent || "unknown";
+      const intent = doc.detected_intent || "unknown";
       byIntent[intent] = (byIntent[intent] || 0) + 1;
 
-      const lang = data.language || "en";
+      const lang = doc.language || "en";
       byLanguage[lang] = (byLanguage[lang] || 0) + 1;
     });
 

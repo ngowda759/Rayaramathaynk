@@ -124,7 +124,7 @@ export async function recordLatency(
   data: Omit<LatencyRecord, "id" | "timestamp">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackLatency || !isFirebaseConfigured() || !db) {
+  if (!settings.enabled || !settings.trackLatency) {
     return "";
   }
 
@@ -160,7 +160,7 @@ export async function recordIntentDistribution(
   data: Omit<IntentDistributionRecord, "id" | "timestamp">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackIntentDistribution || !isFirebaseConfigured() || !db) {
+  if (!settings.enabled || !settings.trackIntentDistribution) {
     return "";
   }
 
@@ -237,20 +237,24 @@ export async function markUnknownQuestionReviewed(
   addedToKnowledge: boolean = false,
   knowledgeArticleId?: string
 ): Promise<void> {
-  if (!isFirebaseConfigured() || !db) {
-    return;
-  }
   try {
-    const questionRef = doc(db, COLLECTIONS.UNKNOWN_QUESTIONS, questionId);
-    await updateDoc(questionRef, {
-      reviewed: true,
-      reviewedBy,
-      reviewedAt: Timestamp.now(),
-      addedToKnowledge,
-      knowledgeArticleId: knowledgeArticleId || null,
-    });
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('unknown_questions')
+      .update({
+        status: 'reviewed',
+        reviewed_by: reviewedBy,
+        reviewed_at: new Date().toISOString(),
+        added_to_knowledge_article_id: addedToKnowledge ? (knowledgeArticleId || 'added') : null
+      })
+      .eq('id', questionId);
+
+    if (error) {
+      console.error("Error updating Supabase unknown_question:", error);
+      throw error;
+    }
   } catch (error) {
-    console.error("Error marking question as reviewed:", error);
+    console.error("Error marking unknown question as reviewed:", error);
     throw error;
   }
 }
