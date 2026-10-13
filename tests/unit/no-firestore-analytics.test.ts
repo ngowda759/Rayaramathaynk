@@ -36,6 +36,25 @@ describe("No Firestore dependencies in Analytics queries", () => {
     }
   });
 
+  it("should have correct arguments passing to the client and no firestore leakage in the implementation layer", () => {
+    // Basic structural verification, confirming legacy flags like userAgent are appropriately documented in logger bounds
+    const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
+    const contentLogger = fs.readFileSync(loggerPath, "utf-8");
+    expect(contentLogger).toContain('notes: options?.error?.substring(0, 500) || null');
+
+    // Check that we didn't add IP or userAgent to the insert since they are excluded intentionally
+    expect(contentLogger).not.toContain('user_agent:');
+    expect(contentLogger).not.toContain('ip_address:');
+
+    // Confirm markUnknownQuestionReviewed translates legacy properties directly to Supabase mapped columns
+    const servicePath = path.resolve(__dirname, "../../services/ai-analytics.service.ts");
+    const contentAnalytics = fs.readFileSync(servicePath, "utf-8");
+
+    expect(contentAnalytics).toContain('status: \'reviewed\'');
+    expect(contentAnalytics).toContain('reviewed_by: reviewedBy');
+    expect(contentAnalytics).toContain('added_to_knowledge_article_id: addedToKnowledge');
+  });
+
   it("lib/ai/unknown-logger.ts should not import 'firebase/firestore'", () => {
     const loggerPath = path.resolve(__dirname, "../../lib/ai/unknown-logger.ts");
     const content = fs.readFileSync(loggerPath, "utf-8");

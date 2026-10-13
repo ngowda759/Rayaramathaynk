@@ -41,7 +41,9 @@ async function main() {
   );
 
   // 3. unknown_questions
-  const unknownQuestionsStats = await migrateSupabaseCollection(
+  // Based on audit, historical records may exist in both 'unknown_questions' and 'ai_unknown_questions'.
+  // We migrate both into the canonical 'unknown_questions' table.
+  const unknownQuestionsStats1 = await migrateSupabaseCollection(
     adminDb,
     supabaseAdmin,
     "unknown_questions",
@@ -51,7 +53,17 @@ async function main() {
     AI_FIELD_SPECS.unknown_questions
   );
 
-  reportMigrationOutcome([latencyStats, intentStats, unknownQuestionsStats]);
+  const unknownQuestionsStats2 = await migrateSupabaseCollection(
+    adminDb,
+    supabaseAdmin,
+    "ai_unknown_questions",
+    "unknown_questions",
+    AI_MAPPERS.unknown_questions,
+    isDryRun,
+    AI_FIELD_SPECS.unknown_questions
+  );
+
+  reportMigrationOutcome([latencyStats, intentStats, unknownQuestionsStats1, unknownQuestionsStats2]);
 
   console.log("\\n=== AI Analytics Migration Complete ===");
   process.exit(0);
