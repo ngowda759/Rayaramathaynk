@@ -880,3 +880,9 @@ export function mapAiKnowledge(
     updated_at: requireTimestamp(data.updatedAt, "updatedAt"),
   };
 }
+
+export const AI_MAPPERS = {
+  ai_latency_records: mapLatencyRecord,
+  ai_intent_distribution: mapIntentDistribution,
+  unknown_questions: mapUnknownQuestion,
+};

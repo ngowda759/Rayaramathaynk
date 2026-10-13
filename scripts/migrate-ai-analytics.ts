@@ -1,6 +1,7 @@
 import { migrateSupabaseCollection, reportMigrationOutcome } from "../lib/supabase/migration-runner";
 import { getAdminFirestore } from "../lib/admin-firebase";
-import { AI_MAPPERS } from "../lib/supabase/migration-mappers";
+import { createAdminClient } from "../lib/supabase/admin";
+import { AI_MAPPERS, AI_FIELD_SPECS } from "../lib/supabase/migration-mappers";
 
 /**
  * Migration script for AI Analytics.
@@ -10,32 +11,44 @@ import { AI_MAPPERS } from "../lib/supabase/migration-mappers";
  * - ai_unknown_questions -> unknown_questions
  */
 async function main() {
-  console.log("=== Starting AI Analytics Migration to Supabase ===");
+  const isDryRun = process.argv.includes("--dry-run");
+
+  console.log(`=== Starting AI Analytics Migration to Supabase${isDryRun ? " (DRY RUN)" : ""} ===`);
 
   const adminDb = await getAdminFirestore();
+  const supabaseAdmin = createAdminClient();
 
+  // 1. ai_latency_records
   const latencyStats = await migrateSupabaseCollection(
-    "ai_latency_records",
-    "ai_latency_records",
     adminDb,
+    supabaseAdmin,
+    "ai_latency_records",
+    "ai_latency_records",
     AI_MAPPERS.ai_latency_records,
-    { batchSize: 500, continueOnError: false }
+    isDryRun,
+    AI_FIELD_SPECS.ai_latency_records
   );
 
+  // 2. ai_intent_distribution
   const intentStats = await migrateSupabaseCollection(
-    "ai_intent_distribution",
-    "ai_intent_distribution",
     adminDb,
+    supabaseAdmin,
+    "ai_intent_distribution",
+    "ai_intent_distribution",
     AI_MAPPERS.ai_intent_distribution,
-    { batchSize: 500, continueOnError: false }
+    isDryRun,
+    AI_FIELD_SPECS.ai_intent_distribution
   );
 
+  // 3. unknown_questions
   const unknownQuestionsStats = await migrateSupabaseCollection(
-    "unknown_questions",
-    "unknown_questions",
     adminDb,
+    supabaseAdmin,
+    "unknown_questions",
+    "unknown_questions",
     AI_MAPPERS.unknown_questions,
-    { batchSize: 500, continueOnError: false }
+    isDryRun,
+    AI_FIELD_SPECS.unknown_questions
   );
 
   reportMigrationOutcome([latencyStats, intentStats, unknownQuestionsStats]);
