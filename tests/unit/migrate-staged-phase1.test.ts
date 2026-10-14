@@ -29,6 +29,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
   });
 
   describe("migrate-staged-phase1.ts", () => {
+    beforeAll(() => { process.env.NODE_ENV = "test"; });
     it("should fail if no mode flags provided", () => {
       try {
         execSync("npx tsx scripts/migrate-staged-phase1.ts", { stdio: "ignore" });
