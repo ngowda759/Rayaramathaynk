@@ -111,6 +111,15 @@ describe('Settings Server Actions Authorization', () => {
 });
 
   describe('updateSettingsAction validation', () => {
+
+    it('rejects invalid ID format', async () => {
+      mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'user123', role: 'user' });
+      mockIsUserAdmin.mockResolvedValueOnce(true);
+      await expect(updateSettingsAction('invalid-id', { templeName: 'test' }))
+        .rejects.toThrow('Invalid id');
+      expect(require('../../lib/supabase/admin').createAdminClient().update).not.toHaveBeenCalled();
+    });
+
     it('rejects empty payloads', async () => {
        mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
        await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', {}))
