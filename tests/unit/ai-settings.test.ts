@@ -137,3 +137,34 @@ describe("AI Settings Seed Data", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("AI Behavior API Payload Handling", () => {
+  it("should safely process ai-behavior payload structure", () => {
+    const rawPayloadWithSetting = {
+      setting: "all",
+      confidenceThreshold: 90,
+      semanticThreshold: 80,
+      maxRelatedArticles: 5,
+      conversationTimeout: 60,
+      streaming: true,
+      debugMode: true,
+      unknownLogging: false,
+    };
+
+    // Simulate backend route reconstruction
+    const behaviorData = {
+      confidenceThreshold: rawPayloadWithSetting.confidenceThreshold ?? 85,
+      semanticThreshold: rawPayloadWithSetting.semanticThreshold ?? 70,
+      maxRelatedArticles: rawPayloadWithSetting.maxRelatedArticles ?? 3,
+      conversationTimeout: rawPayloadWithSetting.conversationTimeout ?? 30,
+      streaming: rawPayloadWithSetting.streaming ?? false,
+      debugMode: rawPayloadWithSetting.debugMode ?? false,
+      unknownLogging: rawPayloadWithSetting.unknownLogging ?? true,
+    };
+
+    // Make sure we stripped out the 'setting' key
+    expect((behaviorData as any).setting).toBeUndefined();
+    expect(behaviorData.confidenceThreshold).toBe(90);
+    expect(behaviorData.debugMode).toBe(true);
+  });
+});

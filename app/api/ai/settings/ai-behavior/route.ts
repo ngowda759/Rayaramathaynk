@@ -44,14 +44,21 @@ export async function PUT(request: NextRequest) {
       case "streamingResponses":
         await aiSettingsService.setStreamingResponses(value, userId);
         break;
-      case "all":
-        // Support both spread body and nested data property
-        const behaviorData = body.data || body;
-        await aiSettingsService.updateAIBehavior(
-          behaviorData as AIBehaviorSettings,
-          userId,
-        );
+      case "all": {
+        // Support both spread body and nested data property, and strictly reconstruct to strip out 'setting' field
+        const rawData = body.data || body;
+        const behaviorData: AIBehaviorSettings = {
+          confidenceThreshold: rawData.confidenceThreshold ?? 85,
+          semanticThreshold: rawData.semanticThreshold ?? 70,
+          maxRelatedArticles: rawData.maxRelatedArticles ?? 3,
+          conversationTimeout: rawData.conversationTimeout ?? 30,
+          streaming: rawData.streaming ?? false,
+          debugMode: rawData.debugMode ?? false,
+          unknownLogging: rawData.unknownLogging ?? true,
+        };
+        await aiSettingsService.updateAIBehavior(behaviorData, userId);
         break;
+      }
       default:
         return NextResponse.json(
           { error: `Unknown setting: ${setting}` },
