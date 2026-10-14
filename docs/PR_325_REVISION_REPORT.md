@@ -32,3 +32,14 @@ This report addresses the requested verification points regarding the AI configu
   - Knowledge retrieval is verified inside `Response Generator -> generateResponse`.
   - Intent limits are tested in `Out of Scope` and `Unknown Questions`.
 - **Local Verification:** These tests all passed locally via `npm run test`.
+
+## 6. Regression Coverage and Additional Validation (Post-Review Update)
+- **Intent Engine Stability:** The 118 intent detector test cases in `tests/unit/intent.test.ts` thoroughly cover and enforce exact `expect(result.intent).toBe()` expectations without any relaxed fallbacks. The suite correctly validates:
+  - English inputs (e.g. "quote of the day", "annadana").
+  - Kannada inputs (e.g. "ಇಂದಿನ ಶ್ಲೋಕ", "ಮಂಗಳಾಷ್ಟಕ").
+  - Mixed language queries containing both English and Kannada scripts.
+  - Granular confidence scoring where multi-keyword matches explicitly outrank single-keyword noise.
+  - Priority overrides (e.g., separating `ANNADANA` semantics from generic `SPECIAL_SEVAS`).
+- **Endpoint Test Coverage:** Added specific unit test validation (`tests/unit/api-ai-public-settings.test.ts`) for the newly introduced `/api/ai/public-settings` Next.js route, confirming it parses standard HTTP responses and handles internal database failures gracefully without exposing environment properties.
+- **Idempotency Proof:** Added validation testing (`tests/unit/seed-ai-settings.test.ts`) mapping the CLI seed script `scripts/seed-ai-settings-supabase.ts` ensuring the Supabase Postgres client executes the insertion strictly bound with the `{ onConflict: 'id', ignoreDuplicates: true }` parameters, proving administrator UI overlays will not be silently rewritten.
+- **Final Checks:** `npm run typecheck`, `npm run lint`, and `npm run test` have all organically passed, proving safety before re-submitting for review.
