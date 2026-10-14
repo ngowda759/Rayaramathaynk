@@ -73,7 +73,16 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   useEffect(() => {
     async function loadWelcomeMessage() {
       try {
-        const msg = "Welcome to Raya AI. How can I help you today?";
+        let msg = "Welcome to Raya AI. How can I help you today?";
+        try {
+          const res = await fetch("/api/ai/settings/ai-responses");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.welcome) msg = data.welcome;
+          }
+        } catch(e) {
+          console.warn("Could not fetch welcome message, using default.", e);
+        }
         setWelcomeMessage(msg);
       } catch (err) {
         console.error("Failed to load welcome message:", err);

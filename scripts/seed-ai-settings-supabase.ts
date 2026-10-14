@@ -24,7 +24,7 @@ async function seed() {
 
   const { error } = await supabase
     .from("ai_settings")
-    .upsert(payload);
+    .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
 
   if (error) {
     console.error("Error seeding ai_settings:", error);
