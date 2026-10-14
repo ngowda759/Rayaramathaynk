@@ -232,6 +232,14 @@ const TYPO_CORRECTIONS: Record<string, string> = {
   'darshan': 'darshan',
   'darsana': 'darshan',
   'darsanam': 'darshan',
+    'aaradhane': 'aaradhane',
+  'annadana': 'annadana',
+  'annadane': 'annadana',
+  'archana': 'archana',
+  'dress': 'dress',
+  'located': 'located',
+  'address': 'address',
+  'location': 'location',
   'prashad': 'prasada',
   'prasadam': 'prasada',
   'prasada': 'prasada',
@@ -269,7 +277,7 @@ export function fuzzyMatch(word: string): FuzzyMatch {
     const distance = levenshteinDistance(lowerWord, typo);
     const similarity = distanceToSimilarity(distance, Math.max(lowerWord.length, typo.length));
     
-    if (distance < bestDistance && distance <= Math.ceil(lowerWord.length / 3)) {
+    if (distance < bestDistance && distance <= Math.ceil(lowerWord.length / 3) && distance <= 2 && !(lowerWord === 'address' && typo === 'dress')) {
       bestDistance = distance;
       bestMatch = correction;
       bestConfidence = similarity;

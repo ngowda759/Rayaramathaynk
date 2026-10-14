@@ -75,7 +75,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
       try {
         let msg = "Welcome to Raya AI. How can I help you today?";
         try {
-          const res = await fetch("/api/ai/settings/ai-responses");
+          const res = await fetch("/api/ai/public-settings");
           if (res.ok) {
             const data = await res.json();
             if (data.welcome) msg = data.welcome;

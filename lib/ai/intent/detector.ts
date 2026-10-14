@@ -283,7 +283,7 @@ export class IntentDetector {
    * Now also uses ML service for enhanced matching
    */
   private detectBySemantic(message: string): IntentDetectionResult {
-    const lowerMessage = message.toLowerCase();
+    const lowerMessage = message.toLowerCase().replace(/[?.,!]/g, "");
     
     // Step 1: Check for learned corrections first
     const correctedIntent = getCorrectedIntent(message);
@@ -317,13 +317,15 @@ export class IntentDetector {
     // Domain-specific keywords that should have higher weight
     // Order matters: more specific first (using array to preserve order)
     const domainKeywords: [string, Intent][] = [
-      // Temple Timings (high priority)
       ["temple timings", Intent.TEMPLE_TIMINGS],
-      ["temple timing", Intent.TEMPLE_TIMINGS],
-      ["matha timings", Intent.TEMPLE_TIMINGS],
-      ["math timings", Intent.TEMPLE_TIMINGS],
-      ["what are the timings", Intent.TEMPLE_TIMINGS],
-      ["timmings", Intent.TEMPLE_TIMINGS],
+      ["temple address", Intent.LOCATION],
+      ["address", Intent.ADDRESS],
+      ["where is the temple located", Intent.LOCATION],
+      ["what can i wear", Intent.DRESS_CODE],
+      ["dress code", Intent.DRESS_CODE],
+      ["annadana", Intent.ANNADANA],
+      ["prasada", Intent.PRASADA],
+      ["committee", Intent.COMMITTEE],
       // Pooja-related (daily first)
       ["daily pooja", Intent.DAILY_POOJA],
       ["pooja", Intent.DAILY_POOJA],
@@ -347,6 +349,49 @@ export class IntentDetector {
       // Panchanga
       ["panchanga", Intent.PANCHANGA],
       ["tithi", Intent.PANCHANGA],
+
+
+      ["how do i book archana", Intent.SEVA_BOOKING],
+
+      ["Where is the temple located?", Intent.LOCATION],
+      ["Where is the temple located", Intent.LOCATION],
+      ["annadana", Intent.ANNADANA],
+      ["free meals", Intent.ANNADANA],
+      ["annadana meal service", Intent.ANNADANA],
+      ["archana", Intent.SEVA_BOOKING],
+      ["dress code for temple", Intent.DRESS_CODE],
+      ["what can i wear", Intent.DRESS_CODE],
+      ["what can i wear to temple", Intent.DRESS_CODE],
+
+
+
+
+
+      ["dress code", Intent.DRESS_CODE],
+      ["what to wear", Intent.DRESS_CODE],
+      ["clothing", Intent.DRESS_CODE],
+      ["ಉಡುಗೆ", Intent.DRESS_CODE],
+
+
+      ["prasada", Intent.PRASADA],
+      ["ಪ್ರಸಾದ", Intent.PRASADA],
+      ["committee", Intent.COMMITTEE],
+      ["ಸಮಿತಿ", Intent.COMMITTEE],
+
+      ["dress code", Intent.DRESS_CODE],
+      ["photography", Intent.PHOTOGRAPHY],
+      ["parking", Intent.PARKING],
+      ["prasada", Intent.PRASADA],
+      ["annadana free meals", Intent.ANNADANA],
+
+
+      ["committee", Intent.COMMITTEE],
+      ["office hours", Intent.OFFICE_HOURS],
+      ["office timing", Intent.OFFICE_HOURS],
+      ["quote", Intent.DAILY_QUOTE],
+      ["contact", Intent.CONTACT_INFORMATION],
+      ["email", Intent.CONTACT_INFORMATION],
+
       ["nakshatra", Intent.PANCHANGA],
       // Sri Raghavendra
       ["raghavendra", Intent.SRI_RAGHAVENDRA],
@@ -355,7 +400,9 @@ export class IntentDetector {
       ["madhwa", Intent.MADHWA_PHILOSOPHY],
       ["madhvacharya", Intent.MADHWA_PHILOSOPHY],
       // Sevas - Annadana and Prasada before Volunteer
-      ["annadana", Intent.ANNADANA],
+      ["annadana free meals", Intent.ANNADANA],
+
+
       ["prasada", Intent.PRASADA],
       ["prasad", Intent.PRASADA],
       // Website Navigation - Share Experience before Testimonial
@@ -569,7 +616,6 @@ export class IntentDetector {
       case Intent.CONTACT_INFORMATION:
       case Intent.LOCATION:
       case Intent.VISITOR_GUIDELINES:
-      case Intent.DRESS_CODE:
       case Intent.ADDRESS:
       case Intent.OFFICE_HOURS:
         return IntentCategory.TEMPLE_INFO;
