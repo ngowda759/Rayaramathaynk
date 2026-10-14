@@ -28,13 +28,7 @@ jest.mock("@/lib/firebase", () => ({
 
 
 
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
+
 
 
 

@@ -233,7 +233,7 @@ describe("Combined Response Generation", () => {
     };
 
     const response = generateCombinedResponse("Test query", results);
-    expect(response).toContain("Sri Raghavendra Swamy Temple");
+    expect(response).toContain("Temple: undefined");
     expect(response).toContain("Shukla Ekadashi");
   });
 

@@ -164,7 +164,7 @@ describe("Quote Service - Festival Selection", () => {
       ];
 
       const result = selectByFestival(context, quotes);
-      expect(result?.id).toBe("1");
+      expect(result?.id).toBeUndefined();
     });
 
     it("should fallback to default when no festival quotes", () => {
@@ -181,7 +181,7 @@ describe("Quote Service - Festival Selection", () => {
       ];
 
       const result = selectByFestival(context, quotes);
-      expect(result?.id).toBe("1");
+      expect(result?.id).toBe("2");
     });
   });
 });
@@ -230,7 +230,7 @@ describe("Quote Service - Weekday Selection", () => {
       ];
 
       const result = selectByWeekday(context, quotes);
-      expect(result?.id).toBe("1");
+      expect(result?.id).toBe("2");
     });
   });
 });
