@@ -166,17 +166,17 @@ export default function AISettingsPage() {
         adminFetch("/api/ai/settings/temple-information", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(settings.temple),
+          body: JSON.stringify({ section: "all", data: settings.temple }),
         }),
         adminFetch("/api/ai/settings/visitor-information", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(settings.visitor),
+          body: JSON.stringify({ section: "all", data: settings.visitor }),
         }),
         adminFetch("/api/ai/settings/policies", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(settings.policies),
+          body: JSON.stringify({ section: "all", data: settings.policies }),
         }),
         adminFetch("/api/ai/settings/ai-responses", {
           method: "PUT",
@@ -186,7 +186,7 @@ export default function AISettingsPage() {
         adminFetch("/api/ai/settings/ai-behavior", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(settings.behavior),
+          body: JSON.stringify({ setting: "all", ...settings.behavior }),
         }),
       ]);
 
