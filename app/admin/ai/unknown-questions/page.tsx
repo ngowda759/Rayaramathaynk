@@ -2,7 +2,7 @@
 
 import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
-import { 
+import {
   Search,
   CheckCircle,
   XCircle,
@@ -22,14 +22,36 @@ import {
   Loader2,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
-import type { UnknownQuestion, UnknownQuestionStatus } from "@/types/ai-settings";
+import type {
+  UnknownQuestion,
+  UnknownQuestionStatus,
+} from "@/types/ai-settings";
 import type { KnowledgeCategory } from "@/lib/ai/knowledge/types";
 
-const STATUS_COLORS: Record<UnknownQuestionStatus, { bg: string; text: string; badge: string }> = {
-  pending: { bg: "bg-yellow-50", text: "text-yellow-700", badge: "bg-yellow-100 text-yellow-800" },
-  in_review: { bg: "bg-blue-50", text: "text-blue-700", badge: "bg-blue-100 text-blue-800" },
-  resolved: { bg: "bg-green-50", text: "text-green-700", badge: "bg-green-100 text-green-800" },
-  added_to_knowledge: { bg: "bg-purple-50", text: "text-purple-700", badge: "bg-purple-100 text-purple-800" },
+const STATUS_COLORS: Record<
+  UnknownQuestionStatus,
+  { bg: string; text: string; badge: string }
+> = {
+  pending: {
+    bg: "bg-yellow-50",
+    text: "text-yellow-700",
+    badge: "bg-yellow-100 text-yellow-800",
+  },
+  in_review: {
+    bg: "bg-blue-50",
+    text: "text-blue-700",
+    badge: "bg-blue-100 text-blue-800",
+  },
+  resolved: {
+    bg: "bg-green-50",
+    text: "text-green-700",
+    badge: "bg-green-100 text-green-800",
+  },
+  added_to_knowledge: {
+    bg: "bg-purple-50",
+    text: "text-purple-700",
+    badge: "bg-purple-100 text-purple-800",
+  },
 };
 
 const STATUS_OPTIONS: { value: UnknownQuestionStatus; label: string }[] = [
@@ -73,12 +95,18 @@ const KNOWLEDGE_CATEGORIES: { value: KnowledgeCategory; label: string }[] = [
 
 export default function UnknownQuestionsPage() {
   const adminFetch = useAdminFetch();
-const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
+  const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<UnknownQuestionStatus | "all">("all");
-  const [selectedQuestion, setSelectedQuestion] = useState<UnknownQuestion | null>(null);
+  const [statusFilter, setStatusFilter] = useState<
+    UnknownQuestionStatus | "all"
+  >("all");
+  const [selectedQuestion, setSelectedQuestion] =
+    useState<UnknownQuestion | null>(null);
 
   // Knowledge modal state
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
@@ -114,18 +142,21 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
     loadQuestions();
   }, [loadQuestions]);
 
-  const handleStatusChange = async (question: UnknownQuestion, newStatus: UnknownQuestionStatus) => {
+  const handleStatusChange = async (
+    question: UnknownQuestion,
+    newStatus: UnknownQuestionStatus,
+  ) => {
     try {
       const response = await adminFetch(`/api/ai/settings/unknown-questions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           questionId: question.id,
           action: "update",
-          status: newStatus
+          status: newStatus,
         }),
       });
-      
+
       if (response.ok) {
         showMsg("success", "Status updated successfully");
         loadQuestions();
@@ -141,12 +172,15 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
 
   const handleDelete = async (question: UnknownQuestion) => {
     if (!confirm("Delete this question?")) return;
-    
+
     try {
-      const response = await adminFetch(`/api/ai/settings/unknown-questions?questionId=${question.id}`, {
-        method: "DELETE",
-      });
-      
+      const response = await adminFetch(
+        `/api/ai/settings/unknown-questions?questionId=${question.id}`,
+        {
+          method: "DELETE",
+        },
+      );
+
       if (response.ok) {
         showMsg("success", "Question deleted");
         if (selectedQuestion?.id === question.id) {
@@ -177,7 +211,7 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
   // Save to knowledge base and mark as added
   const handleAddToKnowledge = async () => {
     if (!selectedQuestion) return;
-    
+
     if (!knowledgeForm.content.trim()) {
       showMsg("error", "Please provide an answer/content for the AI to learn");
       return;
@@ -192,7 +226,10 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
         body: JSON.stringify({
           title: knowledgeForm.title,
           content: knowledgeForm.content,
-          keywords: knowledgeForm.keywords.split(",").map(k => k.trim()).filter(Boolean),
+          keywords: knowledgeForm.keywords
+            .split(",")
+            .map((k) => k.trim())
+            .filter(Boolean),
           category: knowledgeForm.category,
           slug: `uq-${Date.now()}`,
         }),
@@ -210,7 +247,10 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
           }),
         });
 
-        showMsg("success", "Added to Knowledge Base! AI can now answer this question.");
+        showMsg(
+          "success",
+          "Added to Knowledge Base! AI can now answer this question.",
+        );
         setShowKnowledgeModal(false);
         setSelectedQuestion(null);
         loadQuestions();
@@ -226,11 +266,12 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
     }
   };
 
-  const filteredQuestions = questions.filter(q => {
-    const matchesSearch = 
+  const filteredQuestions = questions.filter((q) => {
+    const matchesSearch =
       q.question?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.intent?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || (q.status || "pending") === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" || (q.status || "pending") === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -250,7 +291,7 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
-    
+
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
@@ -273,11 +314,13 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
 
       {/* Message */}
       {message && (
-        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg ${
-          message.type === "success" 
-            ? "bg-green-50 text-green-700 border border-green-200" 
-            : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
+        <div
+          className={`flex items-center gap-2 px-4 py-3 rounded-lg ${
+            message.type === "success"
+              ? "bg-green-50 text-green-700 border border-green-200"
+              : "bg-red-50 text-red-700 border border-red-200"
+          }`}
+        >
           {message.type === "success" ? (
             <CheckCircle className="w-5 h-5" />
           ) : (
@@ -290,7 +333,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {STATUS_OPTIONS.map((status) => {
-          const count = questions.filter(q => (q.status || "pending") === status.value).length;
+          const count = questions.filter(
+            (q) => (q.status || "pending") === status.value,
+          ).length;
           const colors = STATUS_COLORS[status.value];
           return (
             <button
@@ -326,12 +371,16 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
             <Filter className="w-4 h-4 text-stone-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as UnknownQuestionStatus | "all")}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as UnknownQuestionStatus | "all")
+              }
               className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500"
             >
               <option value="all">All Status</option>
               {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
             <button
@@ -353,11 +402,13 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-4 h-4 text-stone-600" />
                 <h2 className="font-semibold text-stone-900">Questions</h2>
-                <span className="text-xs text-stone-500">({filteredQuestions.length})</span>
+                <span className="text-xs text-stone-500">
+                  ({filteredQuestions.length})
+                </span>
               </div>
             </div>
           </div>
-          
+
           <div className="divide-y divide-stone-100 max-h-[500px] overflow-y-auto">
             {filteredQuestions.length === 0 ? (
               <div className="p-8 text-center text-stone-500">
@@ -373,7 +424,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                     key={question.id}
                     onClick={() => setSelectedQuestion(question)}
                     className={`p-4 cursor-pointer transition-colors ${
-                      selectedQuestion?.id === question.id ? "bg-amber-50" : "hover:bg-stone-50"
+                      selectedQuestion?.id === question.id
+                        ? "bg-amber-50"
+                        : "hover:bg-stone-50"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -382,7 +435,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                           {question.question}
                         </p>
                         <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${colors.badge}`}>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${colors.badge}`}
+                          >
                             {questionStatus.replace("_", " ")}
                           </span>
                           {question.intent && (
@@ -401,7 +456,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                             {question.timesAsked || 1}x
                           </span>
                           {question.language && (
-                            <span className="uppercase">{question.language}</span>
+                            <span className="uppercase">
+                              {question.language}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -419,7 +476,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
             <div className="flex flex-col h-full">
               <div className="p-4 border-b border-stone-200 bg-stone-50">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-stone-900">Question Details</h2>
+                  <h2 className="font-semibold text-stone-900">
+                    Question Details
+                  </h2>
                   <button
                     onClick={() => handleDelete(selectedQuestion)}
                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
@@ -429,11 +488,13 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                   </button>
                 </div>
               </div>
-              
+
               <div className="p-4 space-y-6">
                 {/* Question */}
                 <div>
-                  <h3 className="text-sm font-medium text-stone-700 mb-2">Question</h3>
+                  <h3 className="text-sm font-medium text-stone-700 mb-2">
+                    Question
+                  </h3>
                   <p className="text-lg text-stone-900 bg-amber-50 p-4 rounded-lg border border-amber-100">
                     {selectedQuestion.question}
                   </p>
@@ -443,13 +504,17 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-stone-50 p-3 rounded-lg">
                     <p className="text-xs text-stone-500 mb-1">Status</p>
-                    <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedQuestion.status || "pending"].badge}`}>
+                    <span
+                      className={`text-sm font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedQuestion.status || "pending"].badge}`}
+                    >
                       {(selectedQuestion.status || "pending").replace("_", " ")}
                     </span>
                   </div>
                   <div className="bg-stone-50 p-3 rounded-lg">
                     <p className="text-xs text-stone-500 mb-1">Times Asked</p>
-                    <p className="text-lg font-bold text-stone-900">{selectedQuestion.timesAsked || 1}</p>
+                    <p className="text-lg font-bold text-stone-900">
+                      {selectedQuestion.timesAsked || 1}
+                    </p>
                   </div>
                   <div className="bg-stone-50 p-3 rounded-lg">
                     <p className="text-xs text-stone-500 mb-1">Language</p>
@@ -460,7 +525,7 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                   <div className="bg-stone-50 p-3 rounded-lg">
                     <p className="text-xs text-stone-500 mb-1">Confidence</p>
                     <p className="text-lg font-bold text-stone-900">
-                      {selectedQuestion.confidence !== undefined 
+                      {selectedQuestion.confidence !== undefined
                         ? `${(selectedQuestion.confidence * 100).toFixed(0)}%`
                         : "N/A"}
                     </p>
@@ -470,7 +535,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                 {/* Intent */}
                 {selectedQuestion.intent && (
                   <div>
-                    <h3 className="text-sm font-medium text-stone-700 mb-2">Detected Intent</h3>
+                    <h3 className="text-sm font-medium text-stone-700 mb-2">
+                      Detected Intent
+                    </h3>
                     <p className="text-sm text-stone-600 bg-stone-50 p-3 rounded-lg">
                       {selectedQuestion.intent}
                     </p>
@@ -500,7 +567,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-stone-200 space-y-3">
-                  <h3 className="text-sm font-medium text-stone-700">Quick Actions</h3>
+                  <h3 className="text-sm font-medium text-stone-700">
+                    Quick Actions
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {/* Add to Knowledge Button */}
                     <button
@@ -510,21 +579,29 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                       <Sparkles className="w-4 h-4" />
                       Add to Knowledge
                     </button>
-                    
+
                     {/* Status Buttons */}
-                    {STATUS_OPTIONS.filter(s => s.value !== "added_to_knowledge" && s.value !== (selectedQuestion.status || "pending")).map((status) => (
+                    {STATUS_OPTIONS.filter(
+                      (s) =>
+                        s.value !== "added_to_knowledge" &&
+                        s.value !== (selectedQuestion.status || "pending"),
+                    ).map((status) => (
                       <button
                         key={status.value}
-                        onClick={() => handleStatusChange(selectedQuestion, status.value)}
+                        onClick={() =>
+                          handleStatusChange(selectedQuestion, status.value)
+                        }
                         className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
                           status.value === "resolved"
                             ? "bg-green-100 text-green-700 hover:bg-green-200"
                             : status.value === "in_review"
-                            ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                            : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                              ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                              : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
                         }`}
                       >
-                        {status.value === "resolved" && <CheckCircle className="w-4 h-4" />}
+                        {status.value === "resolved" && (
+                          <CheckCircle className="w-4 h-4" />
+                        )}
                         Mark as {status.label}
                       </button>
                     ))}
@@ -536,7 +613,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
             <div className="flex flex-col items-center justify-center h-96 text-stone-500">
               <HelpCircle className="w-12 h-12 mb-4 text-stone-300" />
               <p className="text-lg font-medium">Select a question</p>
-              <p className="text-sm">Choose a question from the list to view details</p>
+              <p className="text-sm">
+                Choose a question from the list to view details
+              </p>
             </div>
           )}
         </div>
@@ -553,8 +632,12 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                     <Sparkles className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-stone-900">Add to Knowledge Base</h2>
-                    <p className="text-sm text-stone-500">Train the AI to answer this question</p>
+                    <h2 className="text-xl font-bold text-stone-900">
+                      Add to Knowledge Base
+                    </h2>
+                    <p className="text-sm text-stone-500">
+                      Train the AI to answer this question
+                    </p>
                   </div>
                 </div>
                 <button
@@ -569,7 +652,9 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
             <div className="p-6 space-y-4">
               {/* Question (Read-only) */}
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Question</label>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Question
+                </label>
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-stone-900">
                   {knowledgeForm.title}
                 </div>
@@ -577,14 +662,23 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Category</label>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Category
+                </label>
                 <select
                   value={knowledgeForm.category}
-                  onChange={(e) => setKnowledgeForm({ ...knowledgeForm, category: e.target.value as KnowledgeCategory })}
+                  onChange={(e) =>
+                    setKnowledgeForm({
+                      ...knowledgeForm,
+                      category: e.target.value as KnowledgeCategory,
+                    })
+                  }
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 >
                   {KNOWLEDGE_CATEGORIES.map((cat) => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -596,23 +690,36 @@ const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
                 </label>
                 <textarea
                   value={knowledgeForm.content}
-                  onChange={(e) => setKnowledgeForm({ ...knowledgeForm, content: e.target.value })}
+                  onChange={(e) =>
+                    setKnowledgeForm({
+                      ...knowledgeForm,
+                      content: e.target.value,
+                    })
+                  }
                   placeholder="Enter the answer that the AI should learn..."
                   rows={6}
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
                 <p className="text-xs text-stone-500 mt-1">
-                  This content will be used by the AI to answer similar questions in the future.
+                  This content will be used by the AI to answer similar
+                  questions in the future.
                 </p>
               </div>
 
               {/* Keywords */}
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Keywords</label>
+                <label className="block text-sm font-medium text-stone-700 mb-2">
+                  Keywords
+                </label>
                 <input
                   type="text"
                   value={knowledgeForm.keywords}
-                  onChange={(e) => setKnowledgeForm({ ...knowledgeForm, keywords: e.target.value })}
+                  onChange={(e) =>
+                    setKnowledgeForm({
+                      ...knowledgeForm,
+                      keywords: e.target.value,
+                    })
+                  }
                   placeholder="temple, pooja, timings (comma separated)"
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />

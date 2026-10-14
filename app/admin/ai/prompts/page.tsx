@@ -2,9 +2,9 @@
 
 import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
-import { 
-  Save, 
-  Plus, 
+import {
+  Save,
+  Plus,
   History,
   Eye,
   Send,
@@ -14,25 +14,49 @@ import {
   Clock,
   FileText,
   Trash2,
-  Edit
+  Edit,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import type { PromptVersion, PromptVersionStatus } from "@/types/ai-settings";
 
-const STATUS_COLORS: Record<PromptVersionStatus, { bg: string; text: string; badge: string }> = {
-  draft: { bg: "bg-stone-100", text: "text-stone-700", badge: "bg-stone-200 text-stone-800" },
-  review: { bg: "bg-yellow-100", text: "text-yellow-700", badge: "bg-yellow-200 text-yellow-800" },
-  published: { bg: "bg-green-100", text: "text-green-700", badge: "bg-green-200 text-green-800" },
-  archived: { bg: "bg-red-100", text: "text-red-700", badge: "bg-red-200 text-red-800" },
+const STATUS_COLORS: Record<
+  PromptVersionStatus,
+  { bg: string; text: string; badge: string }
+> = {
+  draft: {
+    bg: "bg-stone-100",
+    text: "text-stone-700",
+    badge: "bg-stone-200 text-stone-800",
+  },
+  review: {
+    bg: "bg-yellow-100",
+    text: "text-yellow-700",
+    badge: "bg-yellow-200 text-yellow-800",
+  },
+  published: {
+    bg: "bg-green-100",
+    text: "text-green-700",
+    badge: "bg-green-200 text-green-800",
+  },
+  archived: {
+    bg: "bg-red-100",
+    text: "text-red-700",
+    badge: "bg-red-200 text-red-800",
+  },
 };
 
 export default function PromptManagerPage() {
   const adminFetch = useAdminFetch();
-const [prompts, setPrompts] = useState<PromptVersion[]>([]);
+  const [prompts, setPrompts] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [selectedPrompt, setSelectedPrompt] = useState<PromptVersion | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<PromptVersion | null>(
+    null,
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", content: "" });
 
@@ -48,9 +72,11 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
       const data = await response.json();
       const versions = data.versions || [];
       setPrompts(versions);
-      
+
       // Auto-select published prompt
-      const published = versions.find((p: PromptVersion) => p.status === "published");
+      const published = versions.find(
+        (p: PromptVersion) => p.status === "published",
+      );
       if (published) {
         setSelectedPrompt(published);
       } else if (versions.length > 0) {
@@ -72,7 +98,7 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
   const handleCreateNew = async () => {
     const name = prompt("Enter prompt name:");
     if (!name || !name.trim()) return;
-    
+
     try {
       const response = await adminFetch("/api/ai/settings/prompts", {
         method: "POST",
@@ -83,9 +109,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
           status: "draft",
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
         showMsg("success", data.message || "Prompt created successfully");
         loadPrompts();
@@ -105,18 +131,21 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
 
   const handleSave = async () => {
     if (!selectedPrompt) return;
-    
+
     setSaving(true);
     try {
-      const response = await adminFetch(`/api/ai/settings/prompts?id=${selectedPrompt.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editForm.name,
-          content: editForm.content,
-        }),
-      });
-      
+      const response = await adminFetch(
+        `/api/ai/settings/prompts?id=${selectedPrompt.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: editForm.name,
+            content: editForm.content,
+          }),
+        },
+      );
+
       if (response.ok) {
         showMsg("success", "Prompt saved successfully");
         setIsEditing(false);
@@ -129,19 +158,36 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
     }
   };
 
-  const handleStatusChange = async (prompt: PromptVersion, newStatus: PromptVersionStatus) => {
-    if (newStatus === "published" && !confirm("Publishing will make this prompt active. Continue?")) return;
-    if (newStatus === "archived" && !confirm("Archiving will disable this prompt. Continue?")) return;
-    
+  const handleStatusChange = async (
+    prompt: PromptVersion,
+    newStatus: PromptVersionStatus,
+  ) => {
+    if (
+      newStatus === "published" &&
+      !confirm("Publishing will make this prompt active. Continue?")
+    )
+      return;
+    if (
+      newStatus === "archived" &&
+      !confirm("Archiving will disable this prompt. Continue?")
+    )
+      return;
+
     try {
-      const response = await adminFetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      
+      const response = await adminFetch(
+        `/api/ai/settings/prompts?id=${prompt.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+
       if (response.ok) {
-        showMsg("success", `Prompt ${newStatus === "published" ? "published" : newStatus === "archived" ? "archived" : "updated"} successfully`);
+        showMsg(
+          "success",
+          `Prompt ${newStatus === "published" ? "published" : newStatus === "archived" ? "archived" : "updated"} successfully`,
+        );
         loadPrompts();
       }
     } catch (error) {
@@ -150,13 +196,17 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
   };
 
   const handleDelete = async (prompt: PromptVersion) => {
-    if (!confirm(`Delete prompt "${prompt.name}"? This cannot be undone.`)) return;
-    
+    if (!confirm(`Delete prompt "${prompt.name}"? This cannot be undone.`))
+      return;
+
     try {
-      const response = await adminFetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
-        method: "DELETE",
-      });
-      
+      const response = await adminFetch(
+        `/api/ai/settings/prompts?id=${prompt.id}`,
+        {
+          method: "DELETE",
+        },
+      );
+
       if (response.ok) {
         showMsg("success", "Prompt deleted successfully");
         if (selectedPrompt?.id === prompt.id) {
@@ -171,14 +221,17 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
 
   const handleRollback = async (prompt: PromptVersion) => {
     if (!confirm(`Rollback "${prompt.name}" to this version?`)) return;
-    
+
     try {
-      const response = await adminFetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rollback" }),
-      });
-      
+      const response = await adminFetch(
+        `/api/ai/settings/prompts?id=${prompt.id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "rollback" }),
+        },
+      );
+
       if (response.ok) {
         showMsg("success", "Prompt rolled back successfully");
         loadPrompts();
@@ -214,11 +267,13 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
 
       {/* Message */}
       {message && (
-        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg ${
-          message.type === "success" 
-            ? "bg-green-50 text-green-700 border border-green-200" 
-            : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
+        <div
+          className={`flex items-center gap-2 px-4 py-3 rounded-lg ${
+            message.type === "success"
+              ? "bg-green-50 text-green-700 border border-green-200"
+              : "bg-red-50 text-red-700 border border-red-200"
+          }`}
+        >
           {message.type === "success" ? (
             <CheckCircle className="w-5 h-5" />
           ) : (
@@ -245,7 +300,7 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
               New
             </button>
           </div>
-          
+
           <div className="divide-y divide-stone-100 max-h-[600px] overflow-y-auto">
             {prompts.length === 0 ? (
               <div className="p-8 text-center text-stone-500">
@@ -259,16 +314,25 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                 return (
                   <div
                     key={prompt.id}
-                    onClick={() => { setSelectedPrompt(prompt); setIsEditing(false); }}
+                    onClick={() => {
+                      setSelectedPrompt(prompt);
+                      setIsEditing(false);
+                    }}
                     className={`p-4 cursor-pointer transition-colors ${
-                      selectedPrompt?.id === prompt.id ? "bg-amber-50" : "hover:bg-stone-50"
+                      selectedPrompt?.id === prompt.id
+                        ? "bg-amber-50"
+                        : "hover:bg-stone-50"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-stone-900 truncate">{prompt.name}</h3>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${colors.badge}`}>
+                          <h3 className="font-medium text-stone-900 truncate">
+                            {prompt.name}
+                          </h3>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${colors.badge}`}
+                          >
                             {prompt.status}
                           </span>
                         </div>
@@ -276,7 +340,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                           v{prompt.version} • {formatDate(prompt.createdAt)}
                         </p>
                         {prompt.createdBy && (
-                          <p className="text-xs text-stone-400">by {prompt.createdBy}</p>
+                          <p className="text-xs text-stone-400">
+                            by {prompt.createdBy}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -296,7 +362,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                   <input
                     type="text"
                     value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, name: e.target.value })
+                    }
                     className="text-lg font-semibold bg-transparent border-none focus:outline-none focus:ring-0"
                     placeholder="Prompt name..."
                   />
@@ -324,7 +392,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                 <div className="flex-1 p-4">
                   <textarea
                     value={editForm.content}
-                    onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, content: e.target.value })
+                    }
                     rows={20}
                     className="w-full h-full px-4 py-3 border border-stone-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
                     placeholder="Enter prompt content..."
@@ -336,8 +406,12 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                 <div className="p-4 border-b border-stone-200 bg-stone-50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <h2 className="text-lg font-semibold text-stone-900">{selectedPrompt.name}</h2>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedPrompt.status].badge}`}>
+                      <h2 className="text-lg font-semibold text-stone-900">
+                        {selectedPrompt.name}
+                      </h2>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[selectedPrompt.status].badge}`}
+                      >
                         {selectedPrompt.status}
                       </span>
                     </div>
@@ -358,24 +432,28 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                     {selectedPrompt.publishedAt && (
                       <>
                         <span>•</span>
-                        <span>Published {formatDate(selectedPrompt.publishedAt)}</span>
+                        <span>
+                          Published {formatDate(selectedPrompt.publishedAt)}
+                        </span>
                       </>
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex-1 p-4 overflow-auto">
                   <pre className="whitespace-pre-wrap font-mono text-sm text-stone-700 bg-stone-50 p-4 rounded-lg border border-stone-200">
                     {selectedPrompt.content}
                   </pre>
                 </div>
-                
+
                 {/* Actions */}
                 <div className="p-4 border-t border-stone-200 bg-stone-50">
                   <div className="flex items-center gap-2">
                     {selectedPrompt.status === "draft" && (
                       <button
-                        onClick={() => handleStatusChange(selectedPrompt, "review")}
+                        onClick={() =>
+                          handleStatusChange(selectedPrompt, "review")
+                        }
                         className="flex items-center gap-1 px-4 py-2 text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
                       >
                         <Send className="w-4 h-4" />
@@ -384,7 +462,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                     )}
                     {selectedPrompt.status === "review" && (
                       <button
-                        onClick={() => handleStatusChange(selectedPrompt, "published")}
+                        onClick={() =>
+                          handleStatusChange(selectedPrompt, "published")
+                        }
                         className="flex items-center gap-1 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
                       >
                         <CheckCircle className="w-4 h-4" />
@@ -393,7 +473,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                     )}
                     {selectedPrompt.status === "published" && (
                       <button
-                        onClick={() => handleStatusChange(selectedPrompt, "archived")}
+                        onClick={() =>
+                          handleStatusChange(selectedPrompt, "archived")
+                        }
                         className="flex items-center gap-1 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -402,7 +484,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
                     )}
                     {selectedPrompt.status === "archived" && (
                       <button
-                        onClick={() => handleStatusChange(selectedPrompt, "draft")}
+                        onClick={() =>
+                          handleStatusChange(selectedPrompt, "draft")
+                        }
                         className="flex items-center gap-1 px-4 py-2 text-sm bg-stone-600 text-white rounded-lg hover:bg-stone-700"
                       >
                         <RotateCcw className="w-4 h-4" />
@@ -417,7 +501,9 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
             <div className="flex flex-col items-center justify-center h-96 text-stone-500">
               <FileText className="w-12 h-12 mb-4 text-stone-300" />
               <p className="text-lg font-medium">Select a prompt</p>
-              <p className="text-sm">Choose a prompt from the list to view or edit</p>
+              <p className="text-sm">
+                Choose a prompt from the list to view or edit
+              </p>
             </div>
           )}
         </div>
@@ -432,16 +518,29 @@ const [prompts, setPrompts] = useState<PromptVersion[]>([]);
           </div>
           <div className="divide-y divide-stone-100">
             {prompts
-              .filter(p => p.name === selectedPrompt.name)
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              .filter((p) => p.name === selectedPrompt.name)
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime(),
+              )
               .map((prompt, index) => (
-                <div key={prompt.id} className="p-4 flex items-center justify-between">
+                <div
+                  key={prompt.id}
+                  className="p-4 flex items-center justify-between"
+                >
                   <div className="flex items-center gap-4">
-                    <div className={`w-2 h-2 rounded-full ${index === 0 ? "bg-green-500" : "bg-stone-300"}`} />
+                    <div
+                      className={`w-2 h-2 rounded-full ${index === 0 ? "bg-green-500" : "bg-stone-300"}`}
+                    />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">Version {prompt.version}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[prompt.status].badge}`}>
+                        <span className="font-medium">
+                          Version {prompt.version}
+                        </span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[prompt.status].badge}`}
+                        >
                           {prompt.status}
                         </span>
                       </div>

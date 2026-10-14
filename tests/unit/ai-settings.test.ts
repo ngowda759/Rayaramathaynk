@@ -98,3 +98,42 @@ describe("AI Settings Validation", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("AI Settings Seed Data", () => {
+  it("should contain idempotent intent definitions", () => {
+    // Import dynamically so it does not interfere if not present
+    const { SEED_DEFAULT_INTENTS } = require("../../lib/ai/ai-settings/seed-data");
+    expect(SEED_DEFAULT_INTENTS).toBeDefined();
+    expect(Array.isArray(SEED_DEFAULT_INTENTS)).toBe(true);
+    expect(SEED_DEFAULT_INTENTS.length).toBeGreaterThan(0);
+
+    // Ensure all intents have required properties for correct upsert
+    SEED_DEFAULT_INTENTS.forEach((intent: any) => {
+      expect(intent.id).toBeDefined();
+      expect(intent.intentId).toBeDefined();
+      expect(intent.status).toBeDefined();
+    });
+  });
+
+  it("should construct valid seed payload", () => {
+    const { getDefaultSeedPayload } = require("../../lib/ai/ai-settings/seed-data");
+    const payload = getDefaultSeedPayload("admin-user-123");
+    expect(payload.id).toBe("main");
+    expect(payload.updated_by).toBe("admin-user-123");
+
+    // Quick validation against schema
+    const result = AISettingsSchema.safeParse({
+        ...payload,
+        templeInformation: payload.temple_information,
+        visitorInformation: payload.visitor_information,
+        templePolicies: payload.temple_policies,
+        aiResponses: payload.ai_responses,
+        aiBehavior: payload.ai_behavior,
+        extendedBehavior: payload.extended_behavior,
+        updatedAt: payload.updated_at,
+        updatedBy: payload.updated_by,
+    });
+
+    expect(result.success).toBe(true);
+  });
+});

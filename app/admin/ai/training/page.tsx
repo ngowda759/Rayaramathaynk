@@ -1,27 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Save, 
-  X, 
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Save,
+  X,
   Search,
   Tag,
   MessageSquare,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { 
-  collection, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
   doc,
-  serverTimestamp 
+  serverTimestamp,
 } from "firebase/firestore";
 
 interface ChatTrainingData {
@@ -45,41 +45,49 @@ const CATEGORIES = [
   "Gallery",
   "Volunteer",
   "About",
-  "General"
+  "General",
 ];
 
-const DEFAULT_RESPONSES: Omit<ChatTrainingData, "id" | "createdAt" | "updatedAt">[] = [
+const DEFAULT_RESPONSES: Omit<
+  ChatTrainingData,
+  "id" | "createdAt" | "updatedAt"
+>[] = [
   {
     keywords: ["timing", "open", "hour", "morning", "evening"],
-    response: "🕐 **Temple Timings**\n\n**Morning:** 06:00 AM - 12:00 PM\n**Evening:** 05:00 PM - 08:30 PM\n\nSpecial timings apply during festivals. Please contact the temple office for details.",
+    response:
+      "🕐 **Temple Timings**\n\n**Morning:** 06:00 AM - 12:00 PM\n**Evening:** 05:00 PM - 08:30 PM\n\nSpecial timings apply during festivals. Please contact the temple office for details.",
     category: "Temple Timings",
     priority: 1,
     active: true,
   },
   {
     keywords: ["event", "festival", "upcoming", "celebration"],
-    response: "📅 **Upcoming Events**\n\nWe have several events throughout the year including:\n- Daily poojas\n- Ekadashi celebrations\n- Sri Raghavendra Jayanthi\n- Bramhotsavam\n\nFor the latest schedule, please visit our Events page.",
+    response:
+      "📅 **Upcoming Events**\n\nWe have several events throughout the year including:\n- Daily poojas\n- Ekadashi celebrations\n- Sri Raghavendra Jayanthi\n- Bramhotsavam\n\nFor the latest schedule, please visit our Events page.",
     category: "Events",
     priority: 1,
     active: true,
   },
   {
     keywords: ["seva", "service", "pooja", "archana"],
-    response: "🙏 **Temple Sevas**\n\nWe offer various sevas:\n- Daily Pooja\n- Suptharadhana\n- Maha Pooja\n- Astothram\n- Archana\n\nPlease visit the Sevas page for pricing and booking.",
+    response:
+      "🙏 **Temple Sevas**\n\nWe offer various sevas:\n- Daily Pooja\n- Suptharadhana\n- Maha Pooja\n- Astothram\n- Archana\n\nPlease visit the Sevas page for pricing and booking.",
     category: "Sevas",
     priority: 1,
     active: true,
   },
   {
     keywords: ["donat", "contribute", "support"],
-    response: "💝 **Donations**\n\nYour donations help maintain the temple. Visit our Donation page or contact the office for bank transfer details.",
+    response:
+      "💝 **Donations**\n\nYour donations help maintain the temple. Visit our Donation page or contact the office for bank transfer details.",
     category: "Donations",
     priority: 1,
     active: true,
   },
   {
     keywords: ["contact", "phone", "email", "address"],
-    response: "📞 **Contact Information**\n\n**Address:** Yelahanka New Town, Bengaluru\n**Phone:** +91 80 2332 3456\n**Email:** ngowda759@gmail.com",
+    response:
+      "📞 **Contact Information**\n\n**Address:** Yelahanka New Town, Bengaluru\n**Phone:** +91 80 2332 3456\n**Email:** ngowda759@gmail.com",
     category: "Contact",
     priority: 1,
     active: true,
@@ -94,7 +102,10 @@ export default function ChatTrainingPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [editingItem, setEditingItem] = useState<ChatTrainingData | null>(null);
   const [isNew, setIsNew] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Form state
   const [formKeywords, setFormKeywords] = useState("");
@@ -199,7 +210,10 @@ export default function ChatTrainingPage() {
       return;
     }
 
-    const keywords = formKeywords.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
+    const keywords = formKeywords
+      .split(",")
+      .map((k) => k.trim().toLowerCase())
+      .filter(Boolean);
 
     setSaving(true);
     try {
@@ -263,10 +277,11 @@ export default function ChatTrainingPage() {
 
   // Filter data
   const filteredData = trainingData.filter((item) => {
-    const matchesSearch = 
+    const matchesSearch =
       item.keywords.some((k) => k.includes(searchTerm.toLowerCase())) ||
       item.response.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
+    const matchesCategory =
+      selectedCategory === "all" || item.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -283,7 +298,9 @@ export default function ChatTrainingPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-stone-900">Chat Training Data</h1>
+          <h1 className="text-3xl font-bold text-stone-900">
+            Chat Training Data
+          </h1>
           <p className="text-stone-500 mt-1">
             Manage AI assistant responses for common queries
           </p>
@@ -316,18 +333,22 @@ export default function ChatTrainingPage() {
         >
           <option value="all">All Categories</option>
           {CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
           ))}
         </select>
       </div>
 
       {/* Message */}
       {message && (
-        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg ${
-          message.type === "success" 
-            ? "bg-green-50 text-green-700 border border-green-200" 
-            : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
+        <div
+          className={`flex items-center gap-2 px-4 py-3 rounded-lg ${
+            message.type === "success"
+              ? "bg-green-50 text-green-700 border border-green-200"
+              : "bg-red-50 text-red-700 border border-red-200"
+          }`}
+        >
           {message.type === "success" ? (
             <CheckCircle className="w-5 h-5" />
           ) : (
@@ -376,7 +397,10 @@ export default function ChatTrainingPage() {
             <tbody className="divide-y divide-stone-200">
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-stone-500">
+                  <td
+                    colSpan={5}
+                    className="px-4 py-8 text-center text-stone-500"
+                  >
                     <MessageSquare className="w-12 h-12 mx-auto text-stone-300 mb-2" />
                     <p>No training data found</p>
                     <button
@@ -389,7 +413,10 @@ export default function ChatTrainingPage() {
                 </tr>
               ) : (
                 filteredData.map((item) => (
-                  <tr key={item.id} className={!item.active ? "bg-stone-50 opacity-60" : ""}>
+                  <tr
+                    key={item.id}
+                    className={!item.active ? "bg-stone-50 opacity-60" : ""}
+                  >
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {item.keywords.map((keyword) => (
@@ -404,10 +431,14 @@ export default function ChatTrainingPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-stone-600">{item.category}</span>
+                      <span className="text-sm text-stone-600">
+                        {item.category}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-stone-600">{item.priority}</span>
+                      <span className="text-sm text-stone-600">
+                        {item.priority}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -509,7 +540,9 @@ export default function ChatTrainingPage() {
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                 >
                   {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -522,7 +555,9 @@ export default function ChatTrainingPage() {
                 <input
                   type="number"
                   value={formPriority}
-                  onChange={(e) => setFormPriority(parseInt(e.target.value) || 1)}
+                  onChange={(e) =>
+                    setFormPriority(parseInt(e.target.value) || 1)
+                  }
                   min={1}
                   max={10}
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"

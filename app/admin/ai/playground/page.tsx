@@ -2,9 +2,9 @@
 
 import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useCallback } from "react";
-import { 
-  Send, 
-  Loader2, 
+import {
+  Send,
+  Loader2,
   MessageSquare,
   Clock,
   CheckCircle,
@@ -12,7 +12,7 @@ import {
   Copy,
   Trash2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 
@@ -48,62 +48,65 @@ const SAMPLE_QUESTIONS = [
 
 export default function AIPlaygroundPage() {
   const adminFetch = useAdminFetch();
-const [question, setQuestion] = useState("");
+  const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState("en");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const runTest = useCallback(async (questionToTest?: string) => {
-    const q = questionToTest || question;
-    if (!q.trim()) return;
+  const runTest = useCallback(
+    async (questionToTest?: string) => {
+      const q = questionToTest || question;
+      if (!q.trim()) return;
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    const startTime = Date.now();
+      const startTime = Date.now();
 
-    try {
-      const response = await adminFetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: q }],
-          detectedLanguage: language,
-        }),
-      });
+      try {
+        const response = await adminFetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [{ role: "user", content: q }],
+            detectedLanguage: language,
+          }),
+        });
 
-      const data = await response.json();
-      const latency = Date.now() - startTime;
+        const data = await response.json();
+        const latency = Date.now() - startTime;
 
-      if (data.error) {
-        setError(data.error);
-        return;
+        if (data.error) {
+          setError(data.error);
+          return;
+        }
+
+        const result: TestResult = {
+          id: crypto.randomUUID(),
+          question: q,
+          language: language,
+          intent: data.intent || "UNKNOWN",
+          confidence: data.confidence || 0,
+          repository: data.knowledgeSource || data.repository || "N/A",
+          knowledge: data.knowledgeTitle || data.knowledge || "N/A",
+          latency,
+          response: data.response || data.message || "No response generated",
+          timestamp: new Date(),
+        };
+
+        setResults((prev) => [result, ...prev]);
+        setQuestion("");
+      } catch (err) {
+        setError("Failed to test question. Please try again.");
+        console.error("Test error:", err);
+      } finally {
+        setLoading(false);
       }
-
-      const result: TestResult = {
-        id: crypto.randomUUID(),
-        question: q,
-        language: language,
-        intent: data.intent || "UNKNOWN",
-        confidence: data.confidence || 0,
-        repository: data.knowledgeSource || data.repository || "N/A",
-        knowledge: data.knowledgeTitle || data.knowledge || "N/A",
-        latency,
-        response: data.response || data.message || "No response generated",
-        timestamp: new Date(),
-      };
-
-      setResults((prev) => [result, ...prev]);
-      setQuestion("");
-    } catch (err) {
-      setError("Failed to test question. Please try again.");
-      console.error("Test error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [question, language]);
+    },
+    [question, language],
+  );
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -250,7 +253,9 @@ const [question, setQuestion] = useState("");
                         &ldquo;{result.question}&rdquo;
                       </p>
                       <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <span className={`px-2 py-0.5 rounded-full font-medium ${getConfidenceColor(result.confidence)}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded-full font-medium ${getConfidenceColor(result.confidence)}`}
+                        >
                           {result.confidence}% confidence
                         </span>
                         <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
@@ -271,7 +276,11 @@ const [question, setQuestion] = useState("");
                         <Copy className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => setExpandedResult(expandedResult === result.id ? null : result.id)}
+                        onClick={() =>
+                          setExpandedResult(
+                            expandedResult === result.id ? null : result.id,
+                          )
+                        }
                         className="p-2 text-stone-500 hover:bg-stone-100 rounded-lg"
                       >
                         {expandedResult === result.id ? (
@@ -288,19 +297,27 @@ const [question, setQuestion] = useState("");
                     <div className="mt-4 pt-4 border-t border-stone-100 grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-stone-500">Intent</p>
-                        <p className="font-medium text-stone-900">{result.intent}</p>
+                        <p className="font-medium text-stone-900">
+                          {result.intent}
+                        </p>
                       </div>
                       <div>
                         <p className="text-stone-500">Repository</p>
-                        <p className="font-medium text-stone-900">{result.repository}</p>
+                        <p className="font-medium text-stone-900">
+                          {result.repository}
+                        </p>
                       </div>
                       <div className="col-span-2">
                         <p className="text-stone-500">Knowledge Source</p>
-                        <p className="font-medium text-stone-900">{result.knowledge}</p>
+                        <p className="font-medium text-stone-900">
+                          {result.knowledge}
+                        </p>
                       </div>
                       <div className="col-span-2">
                         <p className="text-stone-500">Timestamp</p>
-                        <p className="text-stone-700">{result.timestamp.toLocaleString()}</p>
+                        <p className="text-stone-700">
+                          {result.timestamp.toLocaleString()}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -310,13 +327,17 @@ const [question, setQuestion] = useState("");
                 <div className="p-4 bg-stone-50">
                   <div className="flex items-center gap-2 mb-3">
                     <MessageSquare className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-stone-700">AI Response</span>
+                    <span className="text-sm font-medium text-stone-700">
+                      AI Response
+                    </span>
                     {result.confidence >= 80 && (
                       <CheckCircle className="w-4 h-4 text-green-500" />
                     )}
                   </div>
                   <div className="prose prose-sm max-w-none">
-                    <p className="text-stone-700 whitespace-pre-wrap">{result.response}</p>
+                    <p className="text-stone-700 whitespace-pre-wrap">
+                      {result.response}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -333,7 +354,8 @@ const [question, setQuestion] = useState("");
             No tests yet
           </h3>
           <p className="text-stone-500">
-            Enter a question above and click &ldquo;Run Test&rdquo; to see the AI response
+            Enter a question above and click &ldquo;Run Test&rdquo; to see the
+            AI response
           </p>
         </div>
       )}
