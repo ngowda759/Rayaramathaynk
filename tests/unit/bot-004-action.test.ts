@@ -94,3 +94,17 @@ describe('Settings Server Actions Authorization', () => {
     });
   });
 });
+
+  describe('updateSettingsAction validation', () => {
+    it('rejects empty payloads', async () => {
+       mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
+       await expect(updateSettingsAction('test-id', {}))
+         .rejects.toThrow(/Update payload cannot be empty/);
+    });
+
+    it('rejects invalid email formats', async () => {
+       mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
+       await expect(updateSettingsAction('test-id', { contactEmail: 'not-an-email' }))
+         .rejects.toThrow(/Invalid email format/);
+    });
+  });

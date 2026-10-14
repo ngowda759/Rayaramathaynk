@@ -8,12 +8,12 @@ import { checkAdminAuth, isUserAdmin } from "@/lib/auth/admin";
 import { z } from "zod";
 
 const settingsSchema = z.object({
-  templeName: z.string().min(1, "templeName is required"),
-  contactEmail: z.string().optional(),
-  contactPhone: z.string().optional(),
-  address: z.string().optional(),
-  footerText: z.string().optional(),
-  welcomeMessage: z.string().optional()
+  templeName: z.string().min(1, "templeName is required").max(200),
+  contactEmail: z.string().email("Invalid email format").optional().or(z.literal('')),
+  contactPhone: z.string().max(50).optional(),
+  address: z.string().max(1000).optional(),
+  footerText: z.string().max(500).optional(),
+  welcomeMessage: z.string().max(2000).optional()
 });
 
 const settingsUpdateSchema = settingsSchema.partial();
@@ -78,6 +78,10 @@ export async function updateSettingsAction(id: string, payload: Partial<SiteSett
       throw new Error(`Invalid payload: ${parseResult.error.message}`);
   }
   const validatedPayload = parseResult.data;
+
+  if (Object.keys(validatedPayload).length === 0) {
+      throw new Error("Invalid payload: Update payload cannot be empty");
+  }
 
   const supabase = createAdminClient();
   const updates: any = {};
