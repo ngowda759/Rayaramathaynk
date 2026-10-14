@@ -27,13 +27,13 @@ export interface TokenUsageRecord {
 export interface LatencyRecord {
   id: string;
   sessionId: string;
-  messageId: string;
+  messageId?: string; // Deprecated/Removed in Supabase schema
   totalLatency: number; // Total response time in ms
   intentDetectionTime: number; // Time for intent detection in ms
   retrievalTime: number; // Time for data retrieval in ms
   generationTime: number; // Time for LLM generation in ms
   timestamp: number;
-  intent: Intent;
+  intent?: Intent; // Deprecated/Removed in Supabase schema
   success: boolean;
   errorType?: "timeout" | "rate_limit" | "api_error" | "retrieval_error";
 }

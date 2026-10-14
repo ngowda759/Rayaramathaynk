@@ -67,51 +67,13 @@ class SettingsService {
   }
 
   async createSettings(payload: SiteSettingsPayload): Promise<string> {
-    // Next.js server actions / api routes can use the server component client
-    // For services, we dynamically import admin client to avoid client-side bundling issues.
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("site_settings")
-      .insert({
-        temple_name: payload.templeName,
-        contact_email: payload.contactEmail,
-        contact_phone: payload.contactPhone,
-        address: payload.address,
-        footer_text: payload.footerText,
-        welcome_message: payload.welcomeMessage,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      console.error("Error creating site settings:", error);
-      throw error;
-    }
-
-    return data.id;
+    const { createSettingsAction } = await import("@/app/actions/settings");
+    return createSettingsAction(payload);
   }
 
   async updateSettings(id: string, payload: Partial<SiteSettingsPayload>) {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    const updates: any = {};
-    if (payload.templeName !== undefined) updates.temple_name = payload.templeName;
-    if (payload.contactEmail !== undefined) updates.contact_email = payload.contactEmail;
-    if (payload.contactPhone !== undefined) updates.contact_phone = payload.contactPhone;
-    if (payload.address !== undefined) updates.address = payload.address;
-    if (payload.footerText !== undefined) updates.footer_text = payload.footerText;
-    if (payload.welcomeMessage !== undefined) updates.welcome_message = payload.welcomeMessage;
-
-    const { error } = await supabase
-      .from("site_settings")
-      .update(updates)
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error updating site settings:", error);
-      throw error;
-    }
+    const { updateSettingsAction } = await import("@/app/actions/settings");
+    return updateSettingsAction(id, payload);
   }
 
   async getSocialLinks(): Promise<SocialLinksData> {

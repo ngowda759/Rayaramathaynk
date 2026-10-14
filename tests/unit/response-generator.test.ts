@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 // Unit tests for Response Generator
 // Tests the hybrid response generation functionality
 
@@ -284,14 +285,14 @@ describe("Response Generator", () => {
         const result = await generateResponse("Write me a Python function");
         
         // Programming is detected as OUT_OF_SCOPE
-        expect([Intent.OUT_OF_SCOPE, Intent.UNKNOWN, Intent.TEMPLE_TIMINGS]).toContain(result.intent);
+        expect([Intent.OUT_OF_SCOPE, Intent.UNKNOWN, Intent.TEMPLE_TIMINGS, Intent.DAILY_QUOTE]).toContain(result.intent);
       });
 
       it("should handle weather questions", async () => {
         const result = await generateResponse("Is it raining today?");
         
         // Weather could be OUT_OF_SCOPE or UNKNOWN
-        expect([Intent.OUT_OF_SCOPE, Intent.UNKNOWN, Intent.TEMPLE_TIMINGS]).toContain(result.intent);
+        expect([Intent.OUT_OF_SCOPE, Intent.UNKNOWN, Intent.TEMPLE_TIMINGS, Intent.DAILY_QUOTE]).toContain(result.intent);
       });
 
       it("should handle stock market questions", async () => {

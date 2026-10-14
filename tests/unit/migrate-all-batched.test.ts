@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { buildExecutionPlan, parseArgs, Manifest } from "../../scripts/migrate-all-batched";
 import { getBatchedMigratableCollections } from "../../lib/supabase/migration-inventory";
 
@@ -18,6 +19,7 @@ jest.mock("../../lib/supabase/migration-inventory", () => {
 });
 
 describe("Batched Migration Execution Plan", () => {
+  beforeAll(() => { process.env.NODE_ENV = "test"; });
   it("should return mapChatMessage for messages collection", () => {
     const { getMapperFn } = require("../../scripts/migrate-all-batched");
     const fn = getMapperFn("messages");

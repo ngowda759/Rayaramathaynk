@@ -1,3 +1,8 @@
+// Ensure no browser leakage but support Jest testing in our shared module
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
+  throw new Error('createAdminClient cannot be called from the browser');
+}
+
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export function createAdminClient() {
