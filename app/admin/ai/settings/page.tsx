@@ -1,7 +1,7 @@
-import { useAdminFetch } from "@/hooks/useAdminFetch";
 /* eslint-disable */
 "use client";
 
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
 import { 
   Save, 

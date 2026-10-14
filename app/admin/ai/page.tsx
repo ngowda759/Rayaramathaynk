@@ -1,6 +1,6 @@
-import { useAdminFetch } from "@/hooks/useAdminFetch";
 "use client";
 
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { 
