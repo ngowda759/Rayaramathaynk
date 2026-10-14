@@ -33,3 +33,6 @@ The implementation of `import 'server-only';` in `lib/supabase/admin.ts` ensures
 - Enforced test verification in CI by updating `.github/workflows/ci.yml` from `npm test || true` to strictly `npm test`.
 - Updated `scripts/test-boundary.sh` with a cleanup `trap` guaranteeing leftover test files are removed regardless of outcome.
 - Cleaned up broken testing blocks across `tests/unit/bot-004-action.test.ts` and simplified mock behavior to securely assert zero-write operations when requests are unauthorized.
+
+- Fixed `npx tsx` child-process script tests failing from Next.js `server-only` bundler assertions by configuring `NODE_OPTIONS=--conditions=react-server` within execSync contexts.
+- Re-mocked `lib/supabase/client` heavily within `knowledge.test.ts` and `response-generator.test.ts` avoiding async timeout drops when tests invoke `getKnowledgeArticles` fallback patterns.

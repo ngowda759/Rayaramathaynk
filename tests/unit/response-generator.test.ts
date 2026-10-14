@@ -156,7 +156,40 @@ jest.mock("@/lib/ai/knowledge", () => ({
   }),
 }));
 
+
+const mockChain = {
+  from: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  eq: jest.fn().mockReturnThis(),
+  in: jest.fn().mockReturnThis(),
+  order: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  then: jest.fn((resolve) => resolve({ data: [], error: null }))
+};
+jest.mock('../../lib/supabase/client', () => ({
+  createClient: jest.fn(() => mockChain)
+}));
+
+global.fetch = jest.fn(() => Promise.resolve({
+  ok: true,
+  json: () => Promise.resolve([]),
+  text: () => Promise.resolve('[]'),
+  headers: new Headers(),
+  status: 200
+})) as jest.Mock;
+
 describe("Response Generator", () => {
+
+
+global.fetch = jest.fn(() => Promise.resolve({
+  ok: true,
+  json: () => Promise.resolve([]),
+  text: () => Promise.resolve('[]'),
+  headers: new Headers(),
+  status: 200
+})) as jest.Mock;
+
+
   describe("generateResponse", () => {
     describe("Temple Timings", () => {
       it("should generate response for timing queries", async () => {

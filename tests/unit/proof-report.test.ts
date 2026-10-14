@@ -1,3 +1,12 @@
+/**
+ * @jest-environment node
+ */
+/**
+ * @jest-environment node
+ */
+/**
+ * @jest-environment node
+ */
 import * as path from 'path';
 import * as fs from 'fs';
 import {
