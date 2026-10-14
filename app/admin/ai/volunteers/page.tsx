@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { 
-  Users, 
-  Phone, 
-  Mail, 
+import {
+  Users,
+  Phone,
+  Mail,
   Calendar,
   Check,
   Download,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
-import { 
-  getVolunteerRequests, 
-  updateVolunteerRequestStatus 
+import {
+  getVolunteerRequests,
+  updateVolunteerRequestStatus,
 } from "@/services/chat.service";
 import { VolunteerRequest } from "@/types/ai";
 import toast from "react-hot-toast";
@@ -22,7 +22,9 @@ import toast from "react-hot-toast";
 export default function VolunteersPage() {
   const [requests, setRequests] = useState<VolunteerRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "pending" | "contacted" | "completed">("all");
+  const [filter, setFilter] = useState<
+    "all" | "pending" | "contacted" | "completed"
+  >("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -45,7 +47,10 @@ export default function VolunteersPage() {
     loadRequests();
   }, [filter, loadRequests]);
 
-  async function handleUpdateStatus(id: string, status: "pending" | "contacted" | "completed") {
+  async function handleUpdateStatus(
+    id: string,
+    status: "pending" | "contacted" | "completed",
+  ) {
     try {
       await updateVolunteerRequestStatus(id, status);
       toast.success(`Status updated to ${status}`);
@@ -55,7 +60,7 @@ export default function VolunteersPage() {
     }
   }
 
-  const filteredRequests = requests.filter(r => {
+  const filteredRequests = requests.filter((r) => {
     if (filter !== "all" && r.status !== filter) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -70,7 +75,7 @@ export default function VolunteersPage() {
 
   const paginatedRequests = filteredRequests.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -91,7 +96,9 @@ export default function VolunteersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-stone-900">Volunteer Requests</h1>
+          <h1 className="text-3xl font-bold text-stone-900">
+            Volunteer Requests
+          </h1>
           <p className="text-stone-500 mt-1">
             Manage volunteer applications and track status
           </p>
@@ -122,7 +129,7 @@ export default function VolunteersPage() {
             </button>
           ))}
         </div>
-        
+
         <div className="flex-1 max-w-md">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -142,19 +149,19 @@ export default function VolunteersPage() {
         <div className="bg-amber-50 rounded-xl p-4">
           <p className="text-sm text-amber-600 font-medium">Pending</p>
           <p className="text-2xl font-bold text-amber-700">
-            {requests.filter(r => r.status === "pending").length}
+            {requests.filter((r) => r.status === "pending").length}
           </p>
         </div>
         <div className="bg-blue-50 rounded-xl p-4">
           <p className="text-sm text-blue-600 font-medium">Contacted</p>
           <p className="text-2xl font-bold text-blue-700">
-            {requests.filter(r => r.status === "contacted").length}
+            {requests.filter((r) => r.status === "contacted").length}
           </p>
         </div>
         <div className="bg-green-50 rounded-xl p-4">
           <p className="text-sm text-green-600 font-medium">Completed</p>
           <p className="text-2xl font-bold text-green-700">
-            {requests.filter(r => r.status === "completed").length}
+            {requests.filter((r) => r.status === "completed").length}
           </p>
         </div>
       </div>
@@ -200,7 +207,9 @@ export default function VolunteersPage() {
                   <tr key={request.id} className="hover:bg-stone-50">
                     <td className="px-4 py-4">
                       <div>
-                        <p className="font-medium text-stone-900">{request.name}</p>
+                        <p className="font-medium text-stone-900">
+                          {request.name}
+                        </p>
                         <div className="flex items-center gap-3 mt-1 text-sm text-stone-500">
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3" />
@@ -214,7 +223,9 @@ export default function VolunteersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="text-sm text-stone-600">{request.service}</p>
+                      <p className="text-sm text-stone-600">
+                        {request.service}
+                      </p>
                     </td>
                     <td className="px-4 py-4">
                       {request.preferredDate ? (
@@ -223,11 +234,15 @@ export default function VolunteersPage() {
                           {request.preferredDate}
                         </span>
                       ) : (
-                        <span className="text-sm text-stone-400">Not specified</span>
+                        <span className="text-sm text-stone-400">
+                          Not specified
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[request.status]}`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[request.status]}`}
+                      >
                         {statusLabels[request.status]}
                       </span>
                     </td>
@@ -238,7 +253,9 @@ export default function VolunteersPage() {
                       <div className="flex items-center justify-end gap-1">
                         {request.status === "pending" && (
                           <button
-                            onClick={() => handleUpdateStatus(request.id, "contacted")}
+                            onClick={() =>
+                              handleUpdateStatus(request.id, "contacted")
+                            }
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Mark as Contacted"
                           >
@@ -247,7 +264,9 @@ export default function VolunteersPage() {
                         )}
                         {request.status !== "completed" && (
                           <button
-                            onClick={() => handleUpdateStatus(request.id, "completed")}
+                            onClick={() =>
+                              handleUpdateStatus(request.id, "completed")
+                            }
                             className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                             title="Mark as Completed"
                           >
@@ -267,8 +286,8 @@ export default function VolunteersPage() {
             <div className="flex items-center justify-between">
               <p className="text-sm text-stone-500">
                 Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                {Math.min(currentPage * itemsPerPage, filteredRequests.length)} of{" "}
-                {filteredRequests.length} results
+                {Math.min(currentPage * itemsPerPage, filteredRequests.length)}{" "}
+                of {filteredRequests.length} results
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -282,7 +301,9 @@ export default function VolunteersPage() {
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
                   className="p-2 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

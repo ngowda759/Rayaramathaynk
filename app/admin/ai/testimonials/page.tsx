@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { 
-  Star, 
-  Check, 
-  X, 
+import {
+  Star,
+  Check,
+  X,
   Download,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
-import { 
-  getPendingTestimonials, 
+import {
+  getPendingTestimonials,
   getApprovedTestimonials,
   approveTestimonial,
-  deleteTestimonial
+  deleteTestimonial,
 } from "@/services/chat.service";
 import { Testimonial } from "@/types/ai";
 import toast from "react-hot-toast";
@@ -22,7 +22,9 @@ import toast from "react-hot-toast";
 export default function TestimonialsPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"pending" | "approved" | "all">("pending");
+  const [filter, setFilter] = useState<"pending" | "approved" | "all">(
+    "pending",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -77,15 +79,16 @@ export default function TestimonialsPage() {
     }
   }
 
-  const filteredTestimonials = testimonials.filter(t =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.experience.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTestimonials = testimonials.filter(
+    (t) =>
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.experience.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const paginatedTestimonials = filteredTestimonials.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   const totalPages = Math.ceil(filteredTestimonials.length / itemsPerPage);
@@ -142,7 +145,7 @@ export default function TestimonialsPage() {
             </button>
           ))}
         </div>
-        
+
         <div className="flex-1 max-w-md">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -195,8 +198,12 @@ export default function TestimonialsPage() {
                   <tr key={testimonial.id} className="hover:bg-stone-50">
                     <td className="px-4 py-4">
                       <div>
-                        <p className="font-medium text-stone-900">{testimonial.name}</p>
-                        <p className="text-sm text-stone-500">{testimonial.city}</p>
+                        <p className="font-medium text-stone-900">
+                          {testimonial.name}
+                        </p>
+                        <p className="text-sm text-stone-500">
+                          {testimonial.city}
+                        </p>
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -247,8 +254,11 @@ export default function TestimonialsPage() {
             <div className="flex items-center justify-between">
               <p className="text-sm text-stone-500">
                 Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                {Math.min(currentPage * itemsPerPage, filteredTestimonials.length)} of{" "}
-                {filteredTestimonials.length} results
+                {Math.min(
+                  currentPage * itemsPerPage,
+                  filteredTestimonials.length,
+                )}{" "}
+                of {filteredTestimonials.length} results
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -262,7 +272,9 @@ export default function TestimonialsPage() {
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
                   className="p-2 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

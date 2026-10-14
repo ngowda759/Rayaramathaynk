@@ -1,10 +1,16 @@
-1. **Enforce the server-only boundary properly**:
-   - `lib/supabase/admin.ts` is verified to have `if (typeof window !== 'undefined') { throw new Error(...) }` and `import "server-only";` is present to cause build failures correctly if imported on the client.
-2. **Secure the new settings server actions**:
-   - `app/actions/settings.ts` validates incoming payloads.
-   - It performs proper administrator authorization using the verified `checkAdminAuth` and `isUserAdmin` via a synthetic polyfill from standard cookies for NextJS Server Actions.
-3. **Correct the test and report discrepancy**:
-   - `tests/unit/bot-004-behavior.test.ts` exists and passes, running standard mocking behavior correctly.
-   - I have aligned `plan.md` and the result to reflect all execution.
-4. **Preserve the agreed project scope**:
-   - Project scoped preserved.
+1. **Fix `ai-behavior` API Payload Handling**
+   - In `app/api/ai/settings/ai-behavior/route.ts`, if `setting` is `"all"`, strictly reconstruct the `AIBehaviorSettings` object from the request payload to ensure properties like `setting: "all"` are entirely stripped out before updating the database.
+   - Use `cat app/api/ai/settings/ai-behavior/route.ts` to verify the changes.
+
+2. **Add Regression Tests**
+   - In `tests/unit/ai-settings.test.ts`, add a test to verify that the initialization logic handles idempotency correctly without overwriting existing data.
+   - Use `cat tests/unit/ai-settings.test.ts` to verify the new test blocks were added correctly.
+
+3. **Verify changes**
+   - Run `npm run typecheck`, `npm run lint`, `npm run build`, and `npm run test` (including the specific updated files).
+
+4. **Execute pre-commit steps**
+   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
+
+5. **Submit PR**
+   - Submit the PR with a detailed description of the changes.
