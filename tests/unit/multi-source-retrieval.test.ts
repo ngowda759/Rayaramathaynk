@@ -211,11 +211,9 @@ describe("Combined Response Generation", () => {
       settings: {
         source: "settings" as DataSource,
         data: {
-          settings: {
-            name: "Sri Raghavendra Swamy Temple",
+            name: "Sri Raghavendra Swamy Matha",
             address: "Mantralaya, Karnataka",
           },
-        },
         retrieved: true,
         confidence: 100,
         retrievedAt: Date.now(),
@@ -233,7 +231,7 @@ describe("Combined Response Generation", () => {
     };
 
     const response = generateCombinedResponse("Test query", results);
-    expect(response).toContain("Sri Raghavendra Swamy Temple");
+    expect(response).toContain("Sri Raghavendra Swamy Matha");
     expect(response).toContain("Shukla Ekadashi");
   });
 

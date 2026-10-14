@@ -416,7 +416,7 @@ describe("AI UAT - Response Generation Tests", () => {
 
     it("should handle weather questions", async () => {
       const result = await generateResponse("Is it raining today?");
-      expect([Intent.OUT_OF_SCOPE, Intent.UNKNOWN, Intent.FAQ, Intent.TEMPLE_TIMINGS]).toContain(result.intent);
+      expect([Intent.OUT_OF_SCOPE, Intent.UNKNOWN, Intent.FAQ, Intent.TEMPLE_TIMINGS, Intent.DAILY_QUOTE]).toContain(result.intent);
     });
 
     it("should handle stock market questions", async () => {

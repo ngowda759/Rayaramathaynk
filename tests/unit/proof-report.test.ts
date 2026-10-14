@@ -1,3 +1,12 @@
+// playwright fails to import in jest environment due to node version/bundling issues. Mocking playwright.
+jest.mock('playwright', () => ({
+  chromium: {
+    launch: jest.fn().mockResolvedValue({
+      newPage: jest.fn(),
+      close: jest.fn(),
+    })
+  }
+}));
 import * as path from 'path';
 import * as fs from 'fs';
 import {
