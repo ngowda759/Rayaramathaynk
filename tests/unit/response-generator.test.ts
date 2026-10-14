@@ -156,50 +156,7 @@ jest.mock("@/lib/ai/knowledge", () => ({
   }),
 }));
 
-
-
-
-
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
 describe("Response Generator", () => {
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
-
   describe("generateResponse", () => {
     describe("Temple Timings", () => {
       it("should generate response for timing queries", async () => {

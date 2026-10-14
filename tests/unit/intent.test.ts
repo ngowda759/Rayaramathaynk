@@ -1,8 +1,3 @@
-jest.mock('../../services/ml.service', () => ({
-  ...jest.requireActual('../../services/ml.service'),
-  getBestSemanticMatch: jest.fn(() => null),
-  autoCorrectMessage: jest.fn((msg) => ({ corrected: msg, corrections: [] }))
-}));
 // Unit tests for Intent Detection
 // Tests the intent classification functionality
 
@@ -80,7 +75,7 @@ describe("Intent Detection", () => {
       // Note: "How can I email" may detect as LOCATION due to semantic matching on "how"
       // The API routes this correctly through the generator
       const result = detector.detect("email the temple");
-      expect(result.intent).toBe(Intent.TEMPLE_TIMINGS);
+      expect(result.intent).toBe(Intent.CONTACT_INFORMATION);
     });
   });
 
@@ -93,7 +88,7 @@ describe("Intent Detection", () => {
     it("should detect festival queries", () => {
       const result = detector.detect("When is the next festival?");
       // Festival might be detected as FESTIVAL_INFO
-      expect([Intent.UPCOMING_EVENTS, Intent.FESTIVAL_INFO, Intent.FAQ]).toContain(result.intent);
+      expect([Intent.UPCOMING_EVENTS, Intent.FESTIVAL_INFO]).toContain(result.intent);
     });
   });
 
@@ -325,7 +320,7 @@ describe("Intent Detection", () => {
 
     it("should detect camera-related queries", () => {
       const result = detector.detect("Can I use my camera inside?");
-      expect(result.intent).toBe(Intent.FAQ);
+      expect(result.intent).toBe(Intent.PHOTOGRAPHY);
     });
 
     it("should not classify as OUT_OF_SCOPE", () => {
@@ -337,18 +332,18 @@ describe("Intent Detection", () => {
   describe("DRESS_CODE intent", () => {
     it("should detect dress code queries in English", () => {
       const result = detector.detect("dress code for temple");
-      expect(result.intent).toBe(Intent.VISITOR_GUIDELINES);
-      expect(result.category).toBe(IntentCategory.TEMPLE_INFO);
+      expect(result.intent).toBe(Intent.DRESS_CODE);
+      expect(result.category).toBe(IntentCategory.VISITOR);
     });
 
     it("should detect dress code queries in Kannada", () => {
       const result = detector.detect("ಏನು ಉಡುಗೆ ಹಾಕಬೇಕು?");
-      expect(result.intent).toBe(Intent.VISITOR_GUIDELINES);
+      expect(result.intent).toBe(Intent.DRESS_CODE);
     });
 
     it("should detect clothing-related queries", () => {
       const result = detector.detect("what can I wear to temple");
-      expect(result.intent).toBe(Intent.VISITOR_GUIDELINES);
+      expect(result.intent).toBe(Intent.DRESS_CODE);
     });
 
     it("should not classify as OUT_OF_SCOPE", () => {
@@ -394,7 +389,7 @@ describe("Intent Detection", () => {
 
     it("should detect prasada queries in Kannada", () => {
       const result = detector.detect("ಪ್ರಸಾದ");
-      expect(result.intent).toBe(Intent.FAQ);
+      expect(result.intent).toBe(Intent.PRASADA);
     });
 
     it("should detect theertha queries with proper context", () => {
@@ -422,7 +417,7 @@ describe("Intent Detection", () => {
 
     it("should detect committee queries in Kannada", () => {
       const result = detector.detect("ಸಮಿತಿ ಸದಸ್ಯರು ಯಾರು?");
-      expect(result.intent).toBe(Intent.FAQ);
+      expect(result.intent).toBe(Intent.COMMITTEE);
     });
 
     it("should detect committee keyword directly", () => {
@@ -444,7 +439,7 @@ describe("Intent Detection", () => {
   describe("OFFICE_HOURS intent", () => {
     it("should detect office hours queries in English", () => {
       const result = detector.detect("What are the office hours?");
-      expect(result.intent).toBe(Intent.TEMPLE_TIMINGS);
+      expect(result.intent).toBe(Intent.OFFICE_HOURS);
       expect(result.category).toBe(IntentCategory.TEMPLE_INFO);
     });
 
@@ -569,7 +564,7 @@ describe("Intent Detection", () => {
 
       it("should detect raghavendra quote query", () => {
         const result = detector.detect("raghavendra quote");
-        expect(result.intent).toBe(Intent.SRI_RAGHAVENDRA);
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
       });
 
       it("should detect sloka query", () => {
@@ -584,7 +579,7 @@ describe("Intent Detection", () => {
 
       it("should detect stotra query", () => {
         const result = detector.detect("stotra");
-        expect(result.intent).toBe(Intent.PANCHANGA);
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
       });
     });
 
@@ -636,7 +631,7 @@ describe("Intent Detection", () => {
 
       it("should detect ಸ್ತೋತ್ರ (stotra)", () => {
         const result = detector.detect("ಸ್ತೋತ್ರ");
-        expect(result.intent).toBe(Intent.PANCHANGA);
+        expect(result.intent).toBe(Intent.DAILY_QUOTE);
       });
     });
 

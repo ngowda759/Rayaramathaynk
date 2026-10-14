@@ -26,50 +26,7 @@ jest.mock("@/lib/firebase", () => ({
   isFirebaseConfigured: () => false,
 }));
 
-
-
-
-
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
 describe("Knowledge Base", () => {
-
-
-global.fetch = jest.fn(() => Promise.resolve({
-  ok: true,
-  json: () => Promise.resolve([]),
-  text: () => Promise.resolve('[]'),
-  headers: new Headers(),
-  status: 200
-})) as jest.Mock;
-
-
   describe("Seed Articles", () => {
     it("should have seed articles for common topics", () => {
       expect(SEED_ARTICLES.length).toBeGreaterThan(0);
