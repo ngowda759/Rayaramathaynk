@@ -121,7 +121,7 @@ export enum IntentPriority {
   SEVA_BOOKING = 64,
   DAILY_POOJA = 63, // Higher than TEMPLE_TIMINGS - "pooja" is specific
   SPECIAL_SEVAS = 68,
-  ANNADANA = 68, // Annadana/free meal service
+  ANNADANA = 69, // Annadana/free meal service
   PRASADA = 66, // Prasada distribution
   // Donations
   DONATION_80G = 58,
@@ -138,7 +138,7 @@ export enum IntentPriority {
   MANTRALAYA = 40,
   // Visitor
   GALLERY = 36,
-  PHOTOGRAPHY = 80,
+  PHOTOGRAPHY = 81,
   DRESS_CODE = 79,
   VISITOR_GUIDELINES = 33,
   PARKING = 32,
