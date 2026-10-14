@@ -173,6 +173,4 @@ describe('Settings Server Actions Authorization', () => {
        .rejects.toThrow('Unauthorized');
   });
 
-
-     });
-
+});

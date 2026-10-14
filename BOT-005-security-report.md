@@ -29,3 +29,7 @@ The implementation of `import 'server-only';` in `lib/supabase/admin.ts` ensures
 - Added explicit coverage testing `isUserAdmin` fallback to verify inactive admins are actively blocked without reaching Supabase.
 - Added test coverage demonstrating `process.env.ADMIN_API_KEY` bypass strictly validates standard keys and falls back to rejecting unauthorized tokens when missing.
 - Confirmed that `tests/unit/bot-004-behavior.test.ts` edits removed only the outdated `NODE_ENV` fallback bypass; other behavioral tests remained entirely intact.
+## BOT-005B Updates
+- Enforced test verification in CI by updating `.github/workflows/ci.yml` from `npm test || true` to strictly `npm test`.
+- Updated `scripts/test-boundary.sh` with a cleanup `trap` guaranteeing leftover test files are removed regardless of outcome.
+- Cleaned up broken testing blocks across `tests/unit/bot-004-action.test.ts` and simplified mock behavior to securely assert zero-write operations when requests are unauthorized.
