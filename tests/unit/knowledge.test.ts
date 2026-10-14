@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 // Unit tests for Knowledge Base
 // Tests the knowledge repository and search functionality
 

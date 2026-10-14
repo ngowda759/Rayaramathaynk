@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";

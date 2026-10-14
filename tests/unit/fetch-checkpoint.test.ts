@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { validateMigrationCheckpoint, ExpectedMetadata, Manifest } from "../../scripts/migrate-all-batched";
 import * as fs from "fs";
 import * as path from "path";

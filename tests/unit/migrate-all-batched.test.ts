@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { buildExecutionPlan, parseArgs, Manifest } from "../../scripts/migrate-all-batched";
 import { getBatchedMigratableCollections } from "../../lib/supabase/migration-inventory";
 

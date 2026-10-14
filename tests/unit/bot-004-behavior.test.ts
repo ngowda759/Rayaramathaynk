@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { getLatencyMetrics, getIntentDistribution, getUnknownQuestions, recordUnknownQuestion, markUnknownQuestionReviewed } from '../../services/ai-analytics.service';
 import { logUnknownQuestion, logLowConfidenceQuestion, logFailedKnowledgeLookup } from '../../lib/ai/unknown-logger';

@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { createSettingsAction, updateSettingsAction } from '../../app/actions/settings';
 
