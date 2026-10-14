@@ -111,10 +111,10 @@ export enum IntentPriority {
   LOCATION = 86,
   CONTACT_INFORMATION = 71, // Lower - generic words can match this
   TEMPLE_TIMINGS = 70,
-  OFFICE_HOURS = 71, // Specific temple office timing
+  OFFICE_HOURS = 72, // Specific temple office timing
   // Events
   NEXT_AARADHANE = 67,
-  UPCOMING_EVENTS = 76,
+  UPCOMING_EVENTS = 78,
   // Devotional Content
   DAILY_QUOTE = 77, // High priority - specific quote requests
   // Sevas
@@ -122,7 +122,7 @@ export enum IntentPriority {
   DAILY_POOJA = 63, // Higher than TEMPLE_TIMINGS - "pooja" is specific
   SPECIAL_SEVAS = 68,
   ANNADANA = 65, // Annadana/free meal service
-  PRASADA = 63, // Prasada distribution
+  PRASADA = 66, // Prasada distribution
   // Donations
   DONATION_80G = 58,
   DONATION_PURPOSE = 57,
@@ -138,8 +138,8 @@ export enum IntentPriority {
   MANTRALAYA = 40,
   // Visitor
   GALLERY = 36,
-  PHOTOGRAPHY = 76,
-  DRESS_CODE = 76,
+  PHOTOGRAPHY = 79,
+  DRESS_CODE = 81,
   VISITOR_GUIDELINES = 33,
   PARKING = 32,
   // Website Navigation
