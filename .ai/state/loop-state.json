@@ -17,9 +17,10 @@
     "AI-004",
     "AI-005",
     "AI-006",
-    "AI-007"
+    "AI-007",
+    "AI-008"
   ],
-  "updatedAt": "2026-10-07T12:15:18Z",
+  "updatedAt": "2026-10-14T16:26:10Z",
   "history": [
     {
       "at": "2026-10-03T16:23:31Z",
@@ -108,6 +109,16 @@
     },
     {
       "at": "2026-10-07T12:15:18Z",
+      "status": "next-task",
+      "note": "advancing to next-task generation"
+    },
+    {
+      "at": "2026-10-14T16:26:09Z",
+      "status": "completed",
+      "note": "task AI-008 completed"
+    },
+    {
+      "at": "2026-10-14T16:26:10Z",
       "status": "next-task",
       "note": "advancing to next-task generation"
     }

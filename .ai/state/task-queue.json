@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-07T12:19:23Z",
+  "updatedAt": "2026-10-14T16:26:09Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -218,7 +218,7 @@
       "id": "AI-008",
       "title": "Implement Festival Guide Component",
       "phase": "feature",
-      "status": "approved",
+      "status": "done",
       "summary": "Implement a festival guide component outlining what to expect for major temple festivals to fulfill the next milestone in the v2.0 Experience roadmap.",
       "acceptanceCriteria": [
         "Create a new component `FestivalGuide` that provides an overview of what to expect during a festival (e.g., schedule, rituals, cultural programs).",
@@ -240,7 +240,12 @@
       "references": [
         "docs/ROADMAP.md"
       ],
-      "createdAt": "2026-10-07T12:15:18.000Z"
+      "createdAt": "2026-10-07T12:15:18.000Z",
+      "pr": 322,
+      "branch": "automation/AI-008-festival-guide-10734231164733592323",
+      "headSha": "26dbd74b42a3eedd08b5455fa9ab45c901c72f61",
+      "mergedAt": "2026-10-14T16:25:55Z",
+      "completedAt": "2026-10-14T16:26:09.938Z"
     }
   ]
 }
