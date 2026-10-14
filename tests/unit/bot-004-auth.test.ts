@@ -58,4 +58,44 @@ describe('Admin Authentication Check', () => {
     const result = await checkAdminAuth(req);
     expect(result).toEqual({ uid: 'user-123', role: 'user' });
   });
+
+  describe('ADMIN_API_KEY bypass behavior', () => {
+    let originalApiKey: string | undefined;
+
+    beforeEach(() => {
+      originalApiKey = process.env.ADMIN_API_KEY;
+    });
+
+    afterEach(() => {
+      if (originalApiKey === undefined) {
+        delete process.env.ADMIN_API_KEY;
+      } else {
+        process.env.ADMIN_API_KEY = originalApiKey;
+      }
+    });
+
+    it('rejects tokens when ADMIN_API_KEY is not set', async () => {
+      delete process.env.ADMIN_API_KEY;
+      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback'));
+      const req = createMockRequest('Bearer some-random-string');
+      const result = await checkAdminAuth(req);
+      expect(result).toBeNull();
+    });
+
+    it('rejects incorrect tokens when ADMIN_API_KEY is set', async () => {
+      process.env.ADMIN_API_KEY = 'secret-key';
+      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback'));
+      const req = createMockRequest('Bearer wrong-key');
+      const result = await checkAdminAuth(req);
+      expect(result).toBeNull();
+    });
+
+    it('resolves standard server-side token when ADMIN_API_KEY is set', async () => {
+      process.env.ADMIN_API_KEY = 'secret-key';
+      const req = createMockRequest('Bearer secret-key');
+      const result = await checkAdminAuth(req);
+      expect(result).toEqual({ uid: 'api-admin', role: 'admin' });
+    });
+  });
+
 });

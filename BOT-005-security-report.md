@@ -22,3 +22,17 @@ None identified within the scope of this step.
 
 ## Evidence that service-role credentials cannot enter client bundles
 The implementation of `import 'server-only';` in `lib/supabase/admin.ts` ensures that Next.js / Webpack will immediately throw a compilation error if any component with `'use client'` tries to import the module, completely preventing the bundle from attempting to load the Supabase Service Role key in the browser.
+
+## BOT-005A Updates
+- Added explicit boundary tests in `scripts/test-boundary.sh` demonstrating that `npx next build` actively fails if a client component attempts to import `lib/supabase/admin`.
+- Updated `tests/unit/bot-004-action.test.ts` to assert that `mockSupabase.insert` and `mockSupabase.update` are never called when unauthorized users or invalid payloads hit server actions.
+- Added explicit coverage testing `isUserAdmin` fallback to verify inactive admins are actively blocked without reaching Supabase.
+- Added test coverage demonstrating `process.env.ADMIN_API_KEY` bypass strictly validates standard keys and falls back to rejecting unauthorized tokens when missing.
+- Confirmed that `tests/unit/bot-004-behavior.test.ts` edits removed only the outdated `NODE_ENV` fallback bypass; other behavioral tests remained entirely intact.
+
+## BOT-005A Updates
+- Added explicit boundary tests in `scripts/test-boundary.sh` demonstrating that `npx next build` actively fails if a client component attempts to import `lib/supabase/admin`.
+- Updated `tests/unit/bot-004-action.test.ts` to assert that `mockSupabase.insert` and `mockSupabase.update` are never called when unauthorized users or invalid payloads hit server actions.
+- Added explicit coverage testing `isUserAdmin` fallback to verify inactive admins are actively blocked without reaching Supabase.
+- Added test coverage demonstrating `process.env.ADMIN_API_KEY` bypass strictly validates standard keys and falls back to rejecting unauthorized tokens when missing.
+- Confirmed that `tests/unit/bot-004-behavior.test.ts` edits removed only the outdated `NODE_ENV` fallback bypass; other behavioral tests remained entirely intact.

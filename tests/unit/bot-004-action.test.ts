@@ -43,6 +43,7 @@ describe('Settings Server Actions Authorization', () => {
       mockCheckAdminAuth.mockResolvedValueOnce(null);
       await expect(createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' }))
         .rejects.toThrow('Unauthorized');
+      expect(require('../../lib/supabase/admin').createAdminClient().insert).not.toHaveBeenCalled();
     });
 
     it('rejects authenticated non-admin user', async () => {
@@ -50,6 +51,7 @@ describe('Settings Server Actions Authorization', () => {
       mockIsUserAdmin.mockResolvedValueOnce(false);
       await expect(createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' }))
         .rejects.toThrow('Unauthorized');
+      expect(require('../../lib/supabase/admin').createAdminClient().insert).not.toHaveBeenCalled();
     });
 
     it('rejects invalid payloads with Zod', async () => {
@@ -57,6 +59,7 @@ describe('Settings Server Actions Authorization', () => {
       // Missing templeName which is required
       await expect(createSettingsAction({ templeName: '', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' }))
         .rejects.toThrow(/templeName is required/);
+      expect(require('../../lib/supabase/admin').createAdminClient().insert).not.toHaveBeenCalled();
     });
 
     it('allows authorized admin user with valid payload', async () => {
@@ -73,11 +76,21 @@ describe('Settings Server Actions Authorization', () => {
     });
   });
 
+
+    it('rejects inactive admin user', async () => {
+      mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'user123', role: 'user' });
+      mockIsUserAdmin.mockResolvedValueOnce(false); // simulates isActive === false or role !== admin
+      await expect(createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' }))
+        .rejects.toThrow('Unauthorized');
+      expect(require('../../lib/supabase/admin').createAdminClient().insert).not.toHaveBeenCalled();
+    });
+
   describe('updateSettingsAction', () => {
     it('rejects missing credentials/unauthenticated user', async () => {
       mockCheckAdminAuth.mockResolvedValueOnce(null);
       await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { templeName: 'test' }))
         .rejects.toThrow('Unauthorized');
+      expect(require('../../lib/supabase/admin').createAdminClient().update).not.toHaveBeenCalled();
     });
 
     it('rejects authenticated non-admin user', async () => {
@@ -85,6 +98,7 @@ describe('Settings Server Actions Authorization', () => {
       mockIsUserAdmin.mockResolvedValueOnce(false);
       await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { templeName: 'test' }))
         .rejects.toThrow('Unauthorized');
+      expect(require('../../lib/supabase/admin').createAdminClient().update).not.toHaveBeenCalled();
     });
 
     it('allows authorized admin user', async () => {
@@ -101,11 +115,13 @@ describe('Settings Server Actions Authorization', () => {
        mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
        await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', {}))
          .rejects.toThrow(/Update payload cannot be empty/);
+       expect(require('../../lib/supabase/admin').createAdminClient().update).not.toHaveBeenCalled();
     });
 
     it('rejects invalid email formats', async () => {
        mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
        await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { contactEmail: 'not-an-email' }))
          .rejects.toThrow(/Invalid email format/);
+       expect(require('../../lib/supabase/admin').createAdminClient().update).not.toHaveBeenCalled();
     });
   });
