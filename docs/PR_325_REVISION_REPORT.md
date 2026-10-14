@@ -2,7 +2,7 @@
 
 This report addresses the requested verification points regarding the AI configuration migration, ensuring no unrelated Firebase services were broken, tests strictly validate behavior, and no unauthorized writes overwrite production records.
 
-## 1. Intent Detection Engine Fix
+## 1. Intent Detection Engine Fix (CI Results vs Production)
 - **Action:** Restored the exact `expect(result.intent).toBe(...)` intent expectation assertions in `tests/unit/intent.test.ts`.
 - **Action:** Fixed the actual intent detector inside `lib/ai/intent/detector.ts` by expanding and reordering the exact `domainKeywords` semantic matches and ensuring punctuation is properly stripped before split evaluation.
 - **Action:** Addressed the root cause inside `lib/ai/intent/types.ts` by adjusting the `IntentPriority` mappings to cleanly separate competing semantic matches. (e.g. `ANNADANA` bumped above `SPECIAL_SEVAS`, `DAILY_QUOTE` above `PANCHANGA`, `OFFICE_HOURS` above `TEMPLE_TIMINGS`). Evaluated and fixed any duplicate TypeScript enum numeric assignments which broke CI.
