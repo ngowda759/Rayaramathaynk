@@ -1,0 +1,61 @@
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { checkAdminAuth } from '../../lib/auth/admin';
+
+jest.mock('../../lib/admin-firebase', () => ({
+  getAdminApp: jest.fn().mockResolvedValue({}),
+}));
+
+const verifyIdTokenMock = jest.fn();
+
+jest.mock('firebase-admin/auth', () => ({
+  getAuth: () => ({
+    verifyIdToken: verifyIdTokenMock
+  })
+}));
+
+describe('Admin Authentication Check', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.NODE_ENV = 'test';
+  });
+
+  const createMockRequest = (authHeader: string | null) => {
+    return {
+      headers: {
+        get: (key: string) => key === 'authorization' ? authHeader : null
+      }
+    } as any;
+  };
+
+  it('rejects missing auth header', async () => {
+    const req = createMockRequest(null);
+    const result = await checkAdminAuth(req);
+    expect(result).toBeNull();
+  });
+
+  it('rejects invalid bearer token format', async () => {
+    const req = createMockRequest('Basic xyz');
+    const result = await checkAdminAuth(req);
+    expect(result).toBeNull();
+  });
+
+  it('rejects when token is empty', async () => {
+    const req = createMockRequest('Bearer ');
+    const result = await checkAdminAuth(req);
+    expect(result).toBeNull();
+  });
+
+  it('rejects when token verification fails', async () => {
+    verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token'));
+    const req = createMockRequest('Bearer invalid-token');
+    const result = await checkAdminAuth(req);
+    expect(result).toBeNull();
+  });
+
+  it('resolves valid tokens', async () => {
+    verifyIdTokenMock.mockResolvedValueOnce({ uid: 'user-123' });
+    const req = createMockRequest('Bearer valid-token');
+    const result = await checkAdminAuth(req);
+    expect(result).toEqual({ uid: 'user-123', role: 'user' });
+  });
+});

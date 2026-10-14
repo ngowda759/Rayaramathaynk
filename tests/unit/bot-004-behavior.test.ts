@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { getLatencyMetrics, getIntentDistribution, getUnknownQuestions, recordUnknownQuestion, markUnknownQuestionReviewed } from '../../services/ai-analytics.service';
 import { logUnknownQuestion, logLowConfidenceQuestion, logFailedKnowledgeLookup } from '../../lib/ai/unknown-logger';
 import { aiSettingsRepository } from '../../lib/ai/ai-settings/repository';
@@ -12,6 +12,22 @@ jest.mock('../../lib/supabase/client', () => ({
 
 jest.mock('../../lib/supabase/admin', () => ({
   createAdminClient: jest.fn(),
+}));
+
+jest.mock('next/headers', () => ({
+  headers: jest.fn().mockResolvedValue({
+    get: jest.fn().mockReturnValue(null)
+  }),
+}));
+
+// Mock NextRequest globally for this test
+jest.mock('next/server', () => ({
+  NextRequest: class {
+    headers: any;
+    constructor(url: string, init?: any) {
+      this.headers = init?.headers || new Headers();
+    }
+  }
 }));
 
 describe('BOT-004 Behavioral Verification', () => {
@@ -134,5 +150,35 @@ describe('BOT-004 Behavioral Verification', () => {
          await aiSettingsRepository.getUnknownQuestions();
          expect(mockSupabase.from).toHaveBeenCalledWith('unknown_questions');
      });
+  });
+});
+
+describe('Settings Server Actions Authorization', () => {
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.NODE_ENV;
+  });
+
+  afterEach(() => {
+    if (originalEnv) process.env.NODE_ENV = originalEnv as any;
+  });
+
+  it('prevents unauthorized access in production', async () => {
+     process.env.NODE_ENV = 'production';
+     const { createSettingsAction } = await import('../../app/actions/settings');
+
+     await expect(createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' }))
+       .rejects.toThrow('Unauthorized');
+  });
+
+  it('allows authorized access in test/dev', async () => {
+     process.env.NODE_ENV = 'test';
+     const mockSupabase = createAdminClient() as any;
+     mockSupabase.single.mockResolvedValueOnce({ data: { id: 'settings-123' }, error: null });
+
+     const { createSettingsAction } = await import('../../app/actions/settings');
+     const result = await createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' });
+     expect(result).toBe('settings-123');
   });
 });
