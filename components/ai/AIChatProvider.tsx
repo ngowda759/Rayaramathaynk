@@ -9,7 +9,7 @@ import {
   getUserChatSessions,
   submitFeedback 
 } from "@/services/chat.service";
-import { getWelcomeMessage } from "@/lib/ai/settings";
+
 import { detectLanguage } from "@/lib/ai/languageDetector";
 
 interface AIChatContextType {
@@ -73,7 +73,7 @@ export function AIChatProvider({ children }: AIChatProviderProps) {
   useEffect(() => {
     async function loadWelcomeMessage() {
       try {
-        const msg = await getWelcomeMessage();
+        const msg = "Welcome to Raya AI. How can I help you today?";
         setWelcomeMessage(msg);
       } catch (err) {
         console.error("Failed to load welcome message:", err);
