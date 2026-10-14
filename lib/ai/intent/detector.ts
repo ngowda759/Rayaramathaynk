@@ -317,99 +317,97 @@ export class IntentDetector {
     // Domain-specific keywords that should have higher weight
     // Order matters: more specific first (using array to preserve order)
     const domainKeywords: [string, Intent][] = [
+      // Quotes & Sayings (Highest priority)
+      ["quote of the day", Intent.DAILY_QUOTE],
+      ["today's quote", Intent.DAILY_QUOTE],
+      ["daily quote", Intent.DAILY_QUOTE],
+      ["devotional quote", Intent.DAILY_QUOTE],
+      ["spiritual quote", Intent.DAILY_QUOTE],
+      ["raghavendra quote", Intent.DAILY_QUOTE],
+      ["rayaru quote", Intent.DAILY_QUOTE],
+      ["guru quote", Intent.DAILY_QUOTE],
+      ["quote", Intent.DAILY_QUOTE],
+
+      // Timings & Office Hours (More specific first)
+      ["office hours", Intent.OFFICE_HOURS],
+      ["office timing", Intent.OFFICE_HOURS],
       ["temple timings", Intent.TEMPLE_TIMINGS],
+
+      // Location & Contact
+      ["where is the temple located", Intent.LOCATION],
+      ["where is the temple located?", Intent.LOCATION],
       ["temple address", Intent.LOCATION],
       ["address", Intent.ADDRESS],
-      ["where is the temple located", Intent.LOCATION],
-      ["what can i wear", Intent.DRESS_CODE],
-      ["dress code", Intent.DRESS_CODE],
+      ["email", Intent.CONTACT_INFORMATION],
+      ["contact", Intent.CONTACT_INFORMATION],
+
+      // Specific Sevas & Offerings (Must override generic seva)
+      ["annadana free meals", Intent.ANNADANA],
+      ["annadana meal service", Intent.ANNADANA],
+      ["free meals", Intent.ANNADANA],
       ["annadana", Intent.ANNADANA],
+      ["prasada distribution", Intent.PRASADA],
       ["prasada", Intent.PRASADA],
-      ["committee", Intent.COMMITTEE],
-      // Pooja-related (daily first)
+      ["prasad", Intent.PRASADA],
+      ["ಪ್ರಸಾದ", Intent.PRASADA],
+
+      // Visitor Guidelines
+      ["dress code for temple", Intent.DRESS_CODE],
+      ["what can i wear to temple", Intent.DRESS_CODE],
+      ["what can i wear", Intent.DRESS_CODE],
+      ["what to wear", Intent.DRESS_CODE],
+      ["dress code", Intent.DRESS_CODE],
+      ["clothing", Intent.DRESS_CODE],
+      ["ಉಡುಗೆ", Intent.DRESS_CODE],
+      ["photography allowed", Intent.PHOTOGRAPHY],
+      ["photography", Intent.PHOTOGRAPHY],
+      ["parking facility", Intent.PARKING],
+      ["parking", Intent.PARKING],
+
+      // Generic Sevas & Booking
+      ["how do i book archana", Intent.SEVA_BOOKING],
+      ["archana", Intent.SEVA_BOOKING],
+      ["sevas", Intent.SPECIAL_SEVAS],
+      ["seva", Intent.SPECIAL_SEVAS],
+
+      // Pooja
       ["daily pooja", Intent.DAILY_POOJA],
       ["pooja", Intent.DAILY_POOJA],
       ["puja", Intent.DAILY_POOJA],
-      // Donation (more specific first)
-      ["80g", Intent.DONATION_80G],
-      ["80 g", Intent.DONATION_80G],
+
+      // Donations & 80G
       ["tax deductible", Intent.DONATION_80G],
       ["tax benefit", Intent.DONATION_80G],
       ["tax exemption", Intent.DONATION_80G],
       ["donation receipt", Intent.DONATION_80G],
-      ["donate", Intent.DONATION],
-      ["donation", Intent.DONATION],
+      ["80g", Intent.DONATION_80G],
+      ["80 g", Intent.DONATION_80G],
       ["contributions", Intent.DONATION],
-      // Sevas
-      ["sevas", Intent.SPECIAL_SEVAS],
-      ["seva", Intent.SPECIAL_SEVAS],
+      ["donation", Intent.DONATION],
+      ["donate", Intent.DONATION],
+
       // Events
       ["aaradhane", Intent.NEXT_AARADHANE],
       ["aradhana", Intent.NEXT_AARADHANE],
+
       // Panchanga
+      ["today's tithi", Intent.PANCHANGA],
       ["panchanga", Intent.PANCHANGA],
       ["tithi", Intent.PANCHANGA],
+      ["nakshatra", Intent.PANCHANGA],
 
-
-      ["how do i book archana", Intent.SEVA_BOOKING],
-
-      ["Where is the temple located?", Intent.LOCATION],
-      ["Where is the temple located", Intent.LOCATION],
-      ["annadana", Intent.ANNADANA],
-      ["free meals", Intent.ANNADANA],
-      ["annadana meal service", Intent.ANNADANA],
-      ["archana", Intent.SEVA_BOOKING],
-      ["dress code for temple", Intent.DRESS_CODE],
-      ["what can i wear", Intent.DRESS_CODE],
-      ["what can i wear to temple", Intent.DRESS_CODE],
-
-
-
-
-
-      ["dress code", Intent.DRESS_CODE],
-      ["what to wear", Intent.DRESS_CODE],
-      ["clothing", Intent.DRESS_CODE],
-      ["ಉಡುಗೆ", Intent.DRESS_CODE],
-
-
-      ["prasada", Intent.PRASADA],
-      ["ಪ್ರಸಾದ", Intent.PRASADA],
+      // General Website / Nav
+      ["share my experience", Intent.SHARE_EXPERIENCE],
+      ["share experience", Intent.SHARE_EXPERIENCE],
+      ["trust committee", Intent.COMMITTEE],
       ["committee", Intent.COMMITTEE],
       ["ಸಮಿತಿ", Intent.COMMITTEE],
 
-      ["dress code", Intent.DRESS_CODE],
-      ["photography", Intent.PHOTOGRAPHY],
-      ["parking", Intent.PARKING],
-      ["prasada", Intent.PRASADA],
-      ["annadana free meals", Intent.ANNADANA],
-
-
-      ["committee", Intent.COMMITTEE],
-      ["office hours", Intent.OFFICE_HOURS],
-      ["office timing", Intent.OFFICE_HOURS],
-      ["quote", Intent.DAILY_QUOTE],
-      ["contact", Intent.CONTACT_INFORMATION],
-      ["email", Intent.CONTACT_INFORMATION],
-
-      ["nakshatra", Intent.PANCHANGA],
-      // Sri Raghavendra
+      // Knowledge
       ["raghavendra", Intent.SRI_RAGHAVENDRA],
       ["swamiji", Intent.SRI_RAGHAVENDRA],
-      // Madhwa
-      ["madhwa", Intent.MADHWA_PHILOSOPHY],
       ["madhvacharya", Intent.MADHWA_PHILOSOPHY],
-      // Sevas - Annadana and Prasada before Volunteer
-      ["annadana free meals", Intent.ANNADANA],
-
-
-      ["prasada", Intent.PRASADA],
-      ["prasad", Intent.PRASADA],
-      // Website Navigation - Share Experience before Testimonial
-      ["share experience", Intent.SHARE_EXPERIENCE],
-      ["share my experience", Intent.SHARE_EXPERIENCE],
-      // Committee
-      ["trust committee", Intent.COMMITTEE],
+      ["madhwa", Intent.MADHWA_PHILOSOPHY]
     ];
 
     // Check for domain-specific keywords first (order preserved, using corrected message)

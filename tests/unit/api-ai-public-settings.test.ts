@@ -41,10 +41,25 @@ describe("GET /api/ai/public-settings", () => {
     expect(aiSettingsService.getAIResponses).toHaveBeenCalledTimes(1);
   });
 
+  it("should return empty welcome if not present in database", async () => {
+    (aiSettingsService.getAIResponses as jest.Mock).mockResolvedValue({});
+
+    const request = {} as any;
+    const response = await GET(request) as any;
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.welcome).toBeUndefined();
+    expect(aiSettingsService.getAIResponses).toHaveBeenCalledTimes(1);
+  });
+
   it("should handle errors gracefully", async () => {
     (aiSettingsService.getAIResponses as jest.Mock).mockRejectedValue(
       new Error("Database error")
     );
+
+    // Silence console error
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     const request = {} as any;
     const response = await GET(request) as any;
@@ -52,5 +67,7 @@ describe("GET /api/ai/public-settings", () => {
     expect(response.status).toBe(500);
     const data = await response.json();
     expect(data.error).toBe("Failed to fetch AI settings");
+
+    spy.mockRestore();
   });
 });

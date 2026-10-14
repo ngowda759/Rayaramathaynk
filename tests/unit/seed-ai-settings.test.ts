@@ -50,6 +50,28 @@ describe("seedAISettings idempotency", () => {
     spyLog.mockRestore();
   });
 
+  it("should prove administrator changes are not overwritten", async () => {
+    // In actual Postgres, { onConflict: 'id', ignoreDuplicates: true } uses "ON CONFLICT (id) DO NOTHING"
+    // We simulate this by checking that upsert args contain exactly those parameters.
+    mockSupabase.upsert.mockResolvedValueOnce({ error: null });
+
+    const spyLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    await seedAISettings();
+
+    const callArgs = mockSupabase.upsert.mock.calls[0];
+    const payload = callArgs[0];
+    const options = callArgs[1];
+
+    // The primary/unique key is 'id' and the single configuration record is 'main'
+    expect(payload.id).toBe('main');
+
+    // The query explicitly must tell Postgres to ignore duplicates to preserve admin changes
+    expect(options).toEqual({ onConflict: 'id', ignoreDuplicates: true });
+
+    spyLog.mockRestore();
+  });
+
   it("should call process.exit(1) if upsert fails but returns an error", async () => {
     // Mock the upsert() call to return an error (simulating failed upsert)
     mockSupabase.upsert.mockResolvedValueOnce({ error: new Error("Upsert error") });
