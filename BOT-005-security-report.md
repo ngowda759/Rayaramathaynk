@@ -36,3 +36,6 @@ The implementation of `import 'server-only';` in `lib/supabase/admin.ts` ensures
 
 - Fixed `npx tsx` child-process script tests failing from Next.js `server-only` bundler assertions by configuring `NODE_OPTIONS=--conditions=react-server` within execSync contexts.
 - Re-mocked `lib/supabase/client` heavily within `knowledge.test.ts` and `response-generator.test.ts` avoiding async timeout drops when tests invoke `getKnowledgeArticles` fallback patterns.
+
+- Re-established `tests/unit/response-generator.test.ts` and `tests/unit/knowledge.test.ts` using clean explicit Supabase chained mocks allowing successful async resolution instead of timeout looping.
+- Integrated standard Node execution flags (`NODE_OPTIONS=--conditions=react-server`) into CI-bound migration script tests resolving the strict server-only execution boundary failures.
