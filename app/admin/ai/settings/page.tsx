@@ -186,7 +186,7 @@ export default function AISettingsPage() {
         adminFetch("/api/ai/settings/ai-behavior", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ setting: "all", ...settings.behavior }),
+          body: JSON.stringify({ setting: "all", data: settings.behavior }),
         }),
       ]);
 
