@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -26,7 +27,8 @@ const STATUS_COLORS: Record<PromptVersionStatus, { bg: string; text: string; bad
 };
 
 export default function PromptManagerPage() {
-  const [prompts, setPrompts] = useState<PromptVersion[]>([]);
+  const adminFetch = useAdminFetch();
+const [prompts, setPrompts] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -42,7 +44,7 @@ export default function PromptManagerPage() {
   const loadPrompts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/ai/settings/prompts");
+      const response = await adminFetch("/api/ai/settings/prompts");
       const data = await response.json();
       const versions = data.versions || [];
       setPrompts(versions);
@@ -72,7 +74,7 @@ export default function PromptManagerPage() {
     if (!name || !name.trim()) return;
     
     try {
-      const response = await fetch("/api/ai/settings/prompts", {
+      const response = await adminFetch("/api/ai/settings/prompts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -106,7 +108,7 @@ export default function PromptManagerPage() {
     
     setSaving(true);
     try {
-      const response = await fetch(`/api/ai/settings/prompts?id=${selectedPrompt.id}`, {
+      const response = await adminFetch(`/api/ai/settings/prompts?id=${selectedPrompt.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -132,7 +134,7 @@ export default function PromptManagerPage() {
     if (newStatus === "archived" && !confirm("Archiving will disable this prompt. Continue?")) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
+      const response = await adminFetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -151,7 +153,7 @@ export default function PromptManagerPage() {
     if (!confirm(`Delete prompt "${prompt.name}"? This cannot be undone.`)) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
+      const response = await adminFetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
         method: "DELETE",
       });
       
@@ -171,7 +173,7 @@ export default function PromptManagerPage() {
     if (!confirm(`Rollback "${prompt.name}" to this version?`)) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
+      const response = await adminFetch(`/api/ai/settings/prompts?id=${prompt.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "rollback" }),

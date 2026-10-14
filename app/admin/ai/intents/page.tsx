@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -31,7 +32,8 @@ const STATUS_COLORS: Record<IntentStatus, { bg: string; text: string; badge: str
 };
 
 export default function IntentManagerPage() {
-  const [intents, setIntents] = useState<IntentMetadata[]>([]);
+  const adminFetch = useAdminFetch();
+const [intents, setIntents] = useState<IntentMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,7 +49,7 @@ export default function IntentManagerPage() {
   const loadIntents = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/ai/settings/intents");
+      const response = await adminFetch("/api/ai/settings/intents");
       const data = await response.json();
       setIntents(data.intents || []);
     } catch (error) {
@@ -67,7 +69,7 @@ export default function IntentManagerPage() {
     const newStatus: IntentStatus = intent.status === "enabled" ? "disabled" : "enabled";
     
     try {
-      const response = await fetch("/api/ai/settings/intents", {
+      const response = await adminFetch("/api/ai/settings/intents", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ intentId: intent.intentId, status: newStatus }),
@@ -104,7 +106,7 @@ export default function IntentManagerPage() {
     });
     
     try {
-      const response = await fetch("/api/ai/settings/intents", {
+      const response = await adminFetch("/api/ai/settings/intents", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -71,7 +72,8 @@ const KNOWLEDGE_CATEGORIES: { value: KnowledgeCategory; label: string }[] = [
 ];
 
 export default function UnknownQuestionsPage() {
-  const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
+  const adminFetch = useAdminFetch();
+const [questions, setQuestions] = useState<UnknownQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -96,7 +98,7 @@ export default function UnknownQuestionsPage() {
   const loadQuestions = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/ai/settings/unknown-questions");
+      const response = await adminFetch("/api/ai/settings/unknown-questions");
       const data = await response.json();
       setQuestions(data.questions || data || []);
     } catch (error) {
@@ -114,7 +116,7 @@ export default function UnknownQuestionsPage() {
 
   const handleStatusChange = async (question: UnknownQuestion, newStatus: UnknownQuestionStatus) => {
     try {
-      const response = await fetch(`/api/ai/settings/unknown-questions`, {
+      const response = await adminFetch(`/api/ai/settings/unknown-questions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -141,7 +143,7 @@ export default function UnknownQuestionsPage() {
     if (!confirm("Delete this question?")) return;
     
     try {
-      const response = await fetch(`/api/ai/settings/unknown-questions?questionId=${question.id}`, {
+      const response = await adminFetch(`/api/ai/settings/unknown-questions?questionId=${question.id}`, {
         method: "DELETE",
       });
       
@@ -184,7 +186,7 @@ export default function UnknownQuestionsPage() {
     setSavingKnowledge(true);
     try {
       // Create knowledge article
-      const response = await fetch("/api/admin/knowledge", {
+      const response = await adminFetch("/api/admin/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -198,7 +200,7 @@ export default function UnknownQuestionsPage() {
 
       if (response.ok) {
         // Update unknown question status
-        await fetch(`/api/ai/settings/unknown-questions`, {
+        await adminFetch(`/api/ai/settings/unknown-questions`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

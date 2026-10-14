@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -31,7 +32,8 @@ interface CoverageSummary {
 }
 
 export default function AdminAIPage() {
-  const [stats, setStats] = useState({
+  const adminFetch = useAdminFetch();
+const [stats, setStats] = useState({
     pendingTestimonials: 0,
     pendingVolunteers: 0,
     totalConversations: 0,
@@ -43,7 +45,7 @@ export default function AdminAIPage() {
 
   const loadCoverage = useCallback(async () => {
     try {
-      const response = await fetch("/api/ai/knowledge/coverage");
+      const response = await adminFetch("/api/ai/knowledge/coverage");
       const data = await response.json();
       if (data.success) {
         setCoverage(data.data.summary);
@@ -56,7 +58,7 @@ export default function AdminAIPage() {
   const handleImportKnowledge = async () => {
     setImporting(true);
     try {
-      const response = await fetch("/api/ai/knowledge/import", {
+      const response = await adminFetch("/api/ai/knowledge/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ overwrite: false }),

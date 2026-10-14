@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 /* eslint-disable */
 "use client";
 
@@ -53,7 +54,8 @@ interface AISettingsFormData {
 }
 
 export default function AISettingsPage() {
-  const [activeTab, setActiveTab] = useState("temple");
+  const adminFetch = useAdminFetch();
+const [activeTab, setActiveTab] = useState("temple");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
@@ -73,7 +75,7 @@ export default function AISettingsPage() {
     
     setSeeding(true);
     try {
-      const response = await fetch("/api/seed-ai-settings", {
+      const response = await adminFetch("/api/seed-ai-settings", {
         method: "POST",
       });
       
@@ -98,11 +100,11 @@ export default function AISettingsPage() {
     try {
       setLoading(true);
       const [temple, visitor, policies, responses, behavior] = await Promise.all([
-        fetch("/api/ai/settings/temple-information").then(r => r.json()),
-        fetch("/api/ai/settings/visitor-information").then(r => r.json()),
-        fetch("/api/ai/settings/policies").then(r => r.json()),
-        fetch("/api/ai/settings/ai-responses").then(r => r.json()),
-        fetch("/api/ai/settings/ai-behavior").then(r => r.json()),
+        adminFetch("/api/ai/settings/temple-information").then(r => r.json()),
+        adminFetch("/api/ai/settings/visitor-information").then(r => r.json()),
+        adminFetch("/api/ai/settings/policies").then(r => r.json()),
+        adminFetch("/api/ai/settings/ai-responses").then(r => r.json()),
+        adminFetch("/api/ai/settings/ai-behavior").then(r => r.json()),
       ]);
       
       const data: AISettingsFormData = {
@@ -133,27 +135,27 @@ export default function AISettingsPage() {
     setSaving(true);
     try {
       await Promise.all([
-        fetch("/api/ai/settings/temple-information", {
+        adminFetch("/api/ai/settings/temple-information", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(settings.temple),
         }),
-        fetch("/api/ai/settings/visitor-information", {
+        adminFetch("/api/ai/settings/visitor-information", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(settings.visitor),
         }),
-        fetch("/api/ai/settings/policies", {
+        adminFetch("/api/ai/settings/policies", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(settings.policies),
         }),
-        fetch("/api/ai/settings/ai-responses", {
+        adminFetch("/api/ai/settings/ai-responses", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(settings.responses),
         }),
-        fetch("/api/ai/settings/ai-behavior", {
+        adminFetch("/api/ai/settings/ai-behavior", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(settings.behavior),

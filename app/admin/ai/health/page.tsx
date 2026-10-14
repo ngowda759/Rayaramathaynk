@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 /* eslint-disable */
 "use client";
 
@@ -24,7 +25,8 @@ interface HealthCheck {
 }
 
 export default function AIHealthPage() {
-  const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
+  const adminFetch = useAdminFetch();
+const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastFullCheck, setLastFullCheck] = useState<Date | null>(null);
 
@@ -34,7 +36,7 @@ export default function AIHealthPage() {
 
     // Check Firebase Connection
     try {
-      const response = await fetch("/api/ai/settings/temple-information");
+      const response = await adminFetch("/api/ai/settings/temple-information");
       if (response.ok) {
         checks.push({
           name: "Firebase Connection",
@@ -77,7 +79,7 @@ export default function AIHealthPage() {
       apiEndpoints.map(async (endpoint) => {
         const start = Date.now();
         try {
-          const response = await fetch(endpoint);
+          const response = await adminFetch(endpoint);
           const latency = Date.now() - start;
           return {
             name: endpoint.replace("/api/ai/settings/", ""),
@@ -109,11 +111,11 @@ export default function AIHealthPage() {
     // Check Data Integrity
     try {
       const [templeRes, visitorRes, policiesRes, responsesRes, behaviorRes] = await Promise.all([
-        fetch("/api/ai/settings/temple-information"),
-        fetch("/api/ai/settings/visitor-information"),
-        fetch("/api/ai/settings/policies"),
-        fetch("/api/ai/settings/ai-responses"),
-        fetch("/api/ai/settings/ai-behavior"),
+        adminFetch("/api/ai/settings/temple-information"),
+        adminFetch("/api/ai/settings/visitor-information"),
+        adminFetch("/api/ai/settings/policies"),
+        adminFetch("/api/ai/settings/ai-responses"),
+        adminFetch("/api/ai/settings/ai-behavior"),
       ]);
 
       const [temple, visitor, policies, responses, behavior] = await Promise.all([

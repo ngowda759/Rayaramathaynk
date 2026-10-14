@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 /* eslint-disable */
 "use client";
 
@@ -39,6 +40,8 @@ interface CoverageData {
 }
 
 export default function KnowledgeCoveragePage() {
+  const adminFetch = useAdminFetch();
+
   const [coverage, setCoverage] = useState<CoverageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -46,7 +49,7 @@ export default function KnowledgeCoveragePage() {
   const loadCoverage = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/ai/knowledge/coverage");
+      const response = await adminFetch("/api/ai/knowledge/coverage");
       const data = await response.json();
       if (data.success) {
         setCoverage(data.data);
@@ -67,7 +70,7 @@ export default function KnowledgeCoveragePage() {
   const handleImport = async (overwrite = false) => {
     setImporting(true);
     try {
-      const response = await fetch("/api/ai/knowledge/import", {
+      const response = await adminFetch("/api/ai/knowledge/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ overwrite }),

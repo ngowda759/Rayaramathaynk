@@ -1,3 +1,4 @@
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 "use client";
 
 import { useState, useCallback } from "react";
@@ -46,7 +47,8 @@ const SAMPLE_QUESTIONS = [
 ];
 
 export default function AIPlaygroundPage() {
-  const [question, setQuestion] = useState("");
+  const adminFetch = useAdminFetch();
+const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState("en");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
@@ -63,7 +65,7 @@ export default function AIPlaygroundPage() {
     const startTime = Date.now();
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await adminFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
