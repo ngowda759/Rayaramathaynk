@@ -25,10 +25,6 @@ export async function checkAdminAuth(
     const authHeader = request.headers.get("authorization");
     
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      // For development without auth, allow if in dev mode
-      if (process.env.NODE_ENV === "development") {
-        return { uid: "dev-admin", role: "admin" };
-      }
       return null;
     }
 

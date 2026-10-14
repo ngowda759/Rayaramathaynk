@@ -5,17 +5,25 @@ import { SiteSettingsPayload } from "@/types/settings";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import { checkAdminAuth, isUserAdmin } from "@/lib/auth/admin";
+import { z } from "zod";
+
+const settingsSchema = z.object({
+  templeName: z.string().min(1, "templeName is required"),
+  contactEmail: z.string().optional(),
+  contactPhone: z.string().optional(),
+  address: z.string().optional(),
+  footerText: z.string().optional(),
+  welcomeMessage: z.string().optional()
+});
+
+const settingsUpdateSchema = settingsSchema.partial();
 
 async function verifyAdminForAction(): Promise<boolean> {
-  // If we are in dev mode without token, allow
-  if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
-      return true;
-  }
   const headersList = await headers();
   const req = new NextRequest("http://localhost", { headers: headersList });
   const auth = await checkAdminAuth(req);
   if (!auth) return false;
-  if (auth.uid === "api-admin" || auth.uid === "dev-admin") return true;
+  if (auth.uid === "api-admin") return true; // Standard API key integration for server scripts
 
   return await isUserAdmin(auth.uid);
 }
@@ -26,21 +34,23 @@ export async function createSettingsAction(payload: SiteSettingsPayload): Promis
        throw new Error('Unauthorized');
   }
 
-  // Validate payload (similar to zod if available)
-  if (!payload.templeName || typeof payload.templeName !== "string") {
-      throw new Error("Invalid payload: templeName is required");
+  const parseResult = settingsSchema.safeParse(payload);
+  if (!parseResult.success) {
+      throw new Error(`Invalid payload: ${parseResult.error.message}`);
   }
+
+  const validatedPayload = parseResult.data;
 
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("site_settings")
     .insert({
-      temple_name: payload.templeName,
-      contact_email: payload.contactEmail || "",
-      contact_phone: payload.contactPhone || "",
-      address: payload.address || "",
-      footer_text: payload.footerText || "",
-      welcome_message: payload.welcomeMessage || "",
+      temple_name: validatedPayload.templeName,
+      contact_email: validatedPayload.contactEmail || "",
+      contact_phone: validatedPayload.contactPhone || "",
+      address: validatedPayload.address || "",
+      footer_text: validatedPayload.footerText || "",
+      welcome_message: validatedPayload.welcomeMessage || "",
     })
     .select("id")
     .single();
@@ -63,14 +73,20 @@ export async function updateSettingsAction(id: string, payload: Partial<SiteSett
       throw new Error("Invalid id");
   }
 
+  const parseResult = settingsUpdateSchema.safeParse(payload);
+  if (!parseResult.success) {
+      throw new Error(`Invalid payload: ${parseResult.error.message}`);
+  }
+  const validatedPayload = parseResult.data;
+
   const supabase = createAdminClient();
   const updates: any = {};
-  if (payload.templeName !== undefined) updates.temple_name = payload.templeName;
-  if (payload.contactEmail !== undefined) updates.contact_email = payload.contactEmail;
-  if (payload.contactPhone !== undefined) updates.contact_phone = payload.contactPhone;
-  if (payload.address !== undefined) updates.address = payload.address;
-  if (payload.footerText !== undefined) updates.footer_text = payload.footerText;
-  if (payload.welcomeMessage !== undefined) updates.welcome_message = payload.welcomeMessage;
+  if (validatedPayload.templeName !== undefined) updates.temple_name = validatedPayload.templeName;
+  if (validatedPayload.contactEmail !== undefined) updates.contact_email = validatedPayload.contactEmail;
+  if (validatedPayload.contactPhone !== undefined) updates.contact_phone = validatedPayload.contactPhone;
+  if (validatedPayload.address !== undefined) updates.address = validatedPayload.address;
+  if (validatedPayload.footerText !== undefined) updates.footer_text = validatedPayload.footerText;
+  if (validatedPayload.welcomeMessage !== undefined) updates.welcome_message = validatedPayload.welcomeMessage;
 
   const { error } = await supabase
     .from("site_settings")
