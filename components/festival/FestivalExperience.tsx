@@ -6,6 +6,7 @@ import { Sparkles, Calendar, Star } from "lucide-react";
 import FeaturedFestival from "./FeaturedFestival";
 import FestivalGrid from "./FestivalGrid";
 import FestivalPhotoHighlights from "./FestivalPhotoHighlights";
+import FestivalGuide from "./FestivalGuide";
 import { Festival, getFeaturedFestival, MONTH_NAMES } from "@/types/festival";
 
 interface FestivalExperienceProps {
@@ -97,6 +98,11 @@ export default function FestivalExperience({ festivals }: FestivalExperienceProp
             },
           ]}
         />
+      </section>
+
+      {/* Festival Guide */}
+      <section>
+        <FestivalGuide />
       </section>
     </div>
   );
