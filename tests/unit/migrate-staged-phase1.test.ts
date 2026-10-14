@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
@@ -29,6 +30,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
   });
 
   describe("migrate-staged-phase1.ts", () => {
+    beforeAll(() => { process.env.NODE_ENV = "test"; });
     it("should fail if no mode flags provided", () => {
       try {
         execSync("npx tsx scripts/migrate-staged-phase1.ts", { stdio: "ignore" });

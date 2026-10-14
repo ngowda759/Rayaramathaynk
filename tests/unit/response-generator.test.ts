@@ -1,3 +1,4 @@
+jest.mock("server-only", () => { return {}; }, { virtual: true });
 // Unit tests for Response Generator
 // Tests the hybrid response generation functionality
 

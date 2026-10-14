@@ -25,10 +25,6 @@ export async function checkAdminAuth(
     const authHeader = request.headers.get("authorization");
     
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      // For development without auth, allow if in dev mode
-      if (process.env.NODE_ENV === "development") {
-        return { uid: "dev-admin", role: "admin" };
-      }
       return null;
     }
 
@@ -43,13 +39,13 @@ export async function checkAdminAuth(
       return { uid: "api-admin", role: "admin" };
     }
 
-    // In production, this should verify Firebase ID tokens
-    // For now, require valid auth header with Bearer token
-    if (token && token.length > 10) {
-      return { uid: "authenticated-user", role: "user" };
-    }
+    // Use proper Firebase Admin SDK token verification for real environments
+    const { getAdminApp } = await import("@/lib/admin-firebase");
+    const adminApp = await getAdminApp();
+    const { getAuth } = await import("firebase-admin/auth");
     
-    return null;
+    const decodedToken = await getAuth(adminApp).verifyIdToken(token);
+    return { uid: decodedToken.uid, role: "user" }; // Role is refined by isUserAdmin later
   } catch (error) {
     console.error("Admin auth check failed:", error);
     return null;

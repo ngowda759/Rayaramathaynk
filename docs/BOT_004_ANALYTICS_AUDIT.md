@@ -57,3 +57,10 @@ The migration will target the following operations to completely eliminate Fires
 ## 4. Other Collections Mentioned (Out of Scope / To Be Confirmed)
 
 *   `chat_metrics`, `intent_metrics`, `intent_feedback`: These are listed in `PRODUCTION_REVIEW_COLLECTIONS_INVENTORY.md` but are currently marked as `REVIEW` with "No destination model explicitly defined yet". They are used in `services/analytics.service.ts`. The prompt explicitly says to document which collections are genuinely part of Raya AI analytics runtime. These appear to be an older/alternative set of metrics (perhaps from before the `ai_` prefixed ones). I will leave them alone for now as they are not explicitly called out as primary targets, but I will note them as legacy in the report.
+
+## Post-Merge Verification
+
+Following PR #323, post-merge checks were conducted.
+*   Added `server-only` directive to `lib/supabase/admin.ts`.
+*   Removed `createAdminClient` dynamic imports from client components (`services/settings.service.ts`) by wrapping writes behind server actions (`app/actions/settings.ts`).
+*   Added unit tests for testing behavior to `tests/unit/bot-004-behavior.test.ts`.
