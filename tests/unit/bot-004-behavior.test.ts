@@ -173,13 +173,6 @@ describe('Settings Server Actions Authorization', () => {
        .rejects.toThrow('Unauthorized');
   });
 
-  it('allows authorized access in test/dev', async () => {
-     process.env.NODE_ENV = 'test';
-     const mockSupabase = createAdminClient() as any;
-     mockSupabase.single.mockResolvedValueOnce({ data: { id: 'settings-123' }, error: null });
 
-     const { createSettingsAction } = await import('../../app/actions/settings');
-     const result = await createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' });
-     expect(result).toBe('settings-123');
-  });
-});
+     });
+

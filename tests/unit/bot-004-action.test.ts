@@ -9,7 +9,7 @@ jest.mock('../../lib/supabase/admin', () => ({
     update: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
-    single: jest.fn().mockResolvedValue({ data: { id: 'test-id' }, error: null }),
+    single: jest.fn().mockResolvedValue({ data: { id: '00000000-0000-0000-0000-000000000000' }, error: null }),
   }))
 }));
 
@@ -63,34 +63,34 @@ describe('Settings Server Actions Authorization', () => {
       mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'user123', role: 'user' });
       mockIsUserAdmin.mockResolvedValueOnce(true);
       const result = await createSettingsAction({ templeName: 'Valid Temple', contactEmail: 'test@example.com' } as any);
-      expect(result).toBe('test-id');
+      expect(result).toBe('00000000-0000-0000-0000-000000000000');
     });
 
     it('allows api-admin bypass', async () => {
       mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
       const result = await createSettingsAction({ templeName: 'Valid Temple', contactEmail: 'test@example.com' } as any);
-      expect(result).toBe('test-id');
+      expect(result).toBe('00000000-0000-0000-0000-000000000000');
     });
   });
 
   describe('updateSettingsAction', () => {
     it('rejects missing credentials/unauthenticated user', async () => {
       mockCheckAdminAuth.mockResolvedValueOnce(null);
-      await expect(updateSettingsAction('id-123', { templeName: 'test' }))
+      await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { templeName: 'test' }))
         .rejects.toThrow('Unauthorized');
     });
 
     it('rejects authenticated non-admin user', async () => {
       mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'user123', role: 'user' });
       mockIsUserAdmin.mockResolvedValueOnce(false);
-      await expect(updateSettingsAction('id-123', { templeName: 'test' }))
+      await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { templeName: 'test' }))
         .rejects.toThrow('Unauthorized');
     });
 
     it('allows authorized admin user', async () => {
       mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'user123', role: 'user' });
       mockIsUserAdmin.mockResolvedValueOnce(true);
-      await expect(updateSettingsAction('id-123', { templeName: 'Valid Temple Update' }))
+      await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { templeName: 'Valid Temple Update' }))
         .resolves.not.toThrow();
     });
   });
@@ -99,13 +99,13 @@ describe('Settings Server Actions Authorization', () => {
   describe('updateSettingsAction validation', () => {
     it('rejects empty payloads', async () => {
        mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
-       await expect(updateSettingsAction('test-id', {}))
+       await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', {}))
          .rejects.toThrow(/Update payload cannot be empty/);
     });
 
     it('rejects invalid email formats', async () => {
        mockCheckAdminAuth.mockResolvedValueOnce({ uid: 'api-admin', role: 'admin' });
-       await expect(updateSettingsAction('test-id', { contactEmail: 'not-an-email' }))
+       await expect(updateSettingsAction('00000000-0000-0000-0000-000000000000', { contactEmail: 'not-an-email' }))
          .rejects.toThrow(/Invalid email format/);
     });
   });
