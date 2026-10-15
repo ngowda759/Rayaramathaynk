@@ -7,6 +7,7 @@ const config: Config = {
     "^@/(.*)$": "<rootDir>/$1",
   },
   testMatch: ["**/tests/unit/**/*.test.ts", "**/tests/unit/**/*.test.tsx", "**/tests/ai-uat/**/*.test.ts"],
+  setupFiles: ["<rootDir>/tests/setup/jest.setup.ts"],
   transform: {
     "^.+\\.tsx?$": ["ts-jest", {
       tsconfig: {

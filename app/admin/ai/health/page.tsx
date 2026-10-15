@@ -2,7 +2,7 @@
 "use client";
 
 import { useAdminFetch } from "@/hooks/useAdminFetch";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -15,198 +15,183 @@ import {
   Shield,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import {
+  classifyHttpResult,
+  classifyFetchError,
+  classifyDataIntegrity,
+  type HealthStatus,
+  type SettingsPresenceInput,
+} from "@/lib/ai/health-classify";
 
 interface HealthCheck {
   name: string;
-  status: "healthy" | "warning" | "error";
+  status: HealthStatus;
   message: string;
   details?: string;
   lastChecked: Date;
 }
+
+// Endpoints shown on the dashboard, each with the label used for display.
+const API_ENDPOINTS: Array<{ path: string; label: string }> = [
+  { path: "/api/ai/settings/temple-information", label: "temple-information" },
+  { path: "/api/ai/settings/visitor-information", label: "visitor-information" },
+  { path: "/api/ai/settings/policies", label: "policies" },
+  { path: "/api/ai/settings/ai-responses", label: "ai-responses" },
+  { path: "/api/ai/settings/ai-behavior", label: "ai-behavior" },
+  { path: "/api/ai/settings/prompts", label: "prompts" },
+  { path: "/api/ai/settings/intents", label: "intents" },
+  { path: "/api/ai/settings/unknown-questions", label: "unknown-questions" },
+];
+
+const DATA_SECTIONS: Array<{ key: string; path: string; label: string }> = [
+  { key: "Temple Information", path: "/api/ai/settings/temple-information", label: "temple-information" },
+  { key: "Visitor Information", path: "/api/ai/settings/visitor-information", label: "visitor-information" },
+  { key: "Temple Policies", path: "/api/ai/settings/policies", label: "policies" },
+  { key: "AI Responses", path: "/api/ai/settings/ai-responses", label: "ai-responses" },
+  { key: "AI Behavior", path: "/api/ai/settings/ai-behavior", label: "ai-behavior" },
+];
 
 export default function AIHealthPage() {
   const adminFetch = useAdminFetch();
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastFullCheck, setLastFullCheck] = useState<Date | null>(null);
+  const mountedRef = useRef(true);
+  const runIdRef = useRef(0);
 
-  const runHealthChecks = async () => {
+  const runHealthChecks = useCallback(async () => {
+    const runId = ++runIdRef.current;
     setLoading(true);
     const checks: HealthCheck[] = [];
 
-    // Check Firebase Connection
-    try {
-      const response = await adminFetch("/api/ai/settings/temple-information");
-      if (response.ok) {
-        checks.push({
-          name: "Firebase Connection",
+    // 1. Database connectivity via the dedicated read-only probe.
+    //    Using the shared adminFetch means an auth failure surfaces as an auth
+    //    failure, never as a connectivity failure.
+    const databaseProbe = await (async (): Promise<HealthCheck> => {
+      const start = Date.now();
+      try {
+        const response = await adminFetch("/api/ai/health");
+        const latency = Date.now() - start;
+        const classification = classifyHttpResult(response.status, undefined, latency);
+        if (classification.category !== "ok") {
+          return {
+            name: "Supabase Connection",
+            status: classification.status,
+            message: classification.message,
+            details: classification.details,
+            lastChecked: new Date(),
+          };
+        }
+        const body = await response.json().catch(() => null);
+        if (body && body.database && body.database.connected === false) {
+          return {
+            name: "Supabase Connection",
+            status: "error",
+            message: "Datastore is unreachable.",
+            details: `Latency: ${latency}ms`,
+            lastChecked: new Date(),
+          };
+        }
+        return {
+          name: "Supabase Connection",
           status: "healthy",
-          message: "Successfully connected to Firebase",
+          message: "Successfully connected to the database",
+          details: `Latency: ${latency}ms`,
           lastChecked: new Date(),
-        });
-      } else {
-        checks.push({
-          name: "Firebase Connection",
-          status: "error",
-          message: "Failed to connect to Firebase",
-          details: `Status: ${response.status}`,
+        };
+      } catch (error) {
+        const classification = classifyFetchError(error);
+        return {
+          name: "Supabase Connection",
+          status: classification.status,
+          message: classification.message,
+          details: classification.details,
           lastChecked: new Date(),
-        });
+        };
       }
-    } catch (error) {
-      checks.push({
-        name: "Firebase Connection",
-        status: "error",
-        message: "Firebase connection failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        lastChecked: new Date(),
-      });
-    }
+    })();
+    checks.push(databaseProbe);
 
-    // Check API Routes
-    const apiEndpoints = [
-      "/api/ai/settings/temple-information",
-      "/api/ai/settings/visitor-information",
-      "/api/ai/settings/policies",
-      "/api/ai/settings/ai-responses",
-      "/api/ai/settings/ai-behavior",
-      "/api/ai/settings/prompts",
-      "/api/ai/settings/intents",
-      "/api/ai/settings/unknown-questions",
-    ];
-
+    // 2. Individual protected API endpoints.
     const apiResults = await Promise.all(
-      apiEndpoints.map(async (endpoint) => {
+      API_ENDPOINTS.map(async (endpoint) => {
         const start = Date.now();
         try {
-          const response = await adminFetch(endpoint);
+          const response = await adminFetch(endpoint.path);
           const latency = Date.now() - start;
+          let reason: string | undefined;
+          if (!response.ok) {
+            const body = await response.json().catch(() => null);
+            reason = body?.reason;
+          }
+          const classification = classifyHttpResult(response.status, reason, latency);
           return {
-            name: endpoint.replace("/api/ai/settings/", ""),
-            status: (response.ok
-              ? "healthy"
-              : "error") as HealthCheck["status"],
-            message: response.ok
-              ? `OK (${latency}ms)`
-              : `Error: ${response.status}`,
-            latency,
-          };
+            name: `API: ${endpoint.label}`,
+            status: classification.status,
+            message: classification.message,
+            details: classification.details,
+            lastChecked: new Date(),
+          } as HealthCheck;
         } catch (error) {
+          const classification = classifyFetchError(error);
           return {
-            name: endpoint.replace("/api/ai/settings/", ""),
-            status: "error" as HealthCheck["status"],
-            message: "Connection failed",
-            latency: Date.now() - start,
-          };
+            name: `API: ${endpoint.label}`,
+            status: classification.status,
+            message: classification.message,
+            details: classification.details,
+            lastChecked: new Date(),
+          } as HealthCheck;
         }
       }),
     );
+    checks.push(...apiResults);
 
-    apiResults.forEach((result) => {
-      checks.push({
-        name: `API: ${result.name}`,
-        status: result.status,
-        message: result.message,
-        details: `Latency: ${result.latency}ms`,
-        lastChecked: new Date(),
-      });
+    // 3. Data integrity — distinguish missing data from unreadable data.
+    const sectionInputs: Record<string, SettingsPresenceInput> = {};
+    await Promise.all(
+      DATA_SECTIONS.map(async (section) => {
+        try {
+          const response = await adminFetch(section.path);
+          if (!response.ok) {
+            sectionInputs[section.key] = { ok: false, httpStatus: response.status };
+            return;
+          }
+          const payload = await response.json().catch(() => null);
+          sectionInputs[section.key] = {
+            ok: true,
+            httpStatus: response.status,
+            payload,
+          };
+        } catch {
+          sectionInputs[section.key] = { ok: false, httpStatus: 0 };
+        }
+      })
+    );
+
+    const integrity = classifyDataIntegrity(sectionInputs);
+    checks.push({
+      name: "Data Integrity",
+      status: integrity.status,
+      message: integrity.message,
+      details: integrity.details,
+      lastChecked: new Date(),
     });
 
-    // Check Data Integrity
-    try {
-      const [templeRes, visitorRes, policiesRes, responsesRes, behaviorRes] =
-        await Promise.all([
-          adminFetch("/api/ai/settings/temple-information"),
-          adminFetch("/api/ai/settings/visitor-information"),
-          adminFetch("/api/ai/settings/policies"),
-          adminFetch("/api/ai/settings/ai-responses"),
-          adminFetch("/api/ai/settings/ai-behavior"),
-        ]);
-
-      const [temple, visitor, policies, responses, behavior] =
-        await Promise.all([
-          templeRes.ok ? templeRes.json() : null,
-          visitorRes.ok ? visitorRes.json() : null,
-          policiesRes.ok ? policiesRes.json() : null,
-          responsesRes.ok ? responsesRes.json() : null,
-          behaviorRes.ok ? behaviorRes.json() : null,
-        ]);
-
-      const hasData = temple && visitor && policies && responses && behavior;
-
-      checks.push({
-        name: "Data Integrity",
-        status: hasData ? "healthy" : "warning",
-        message: hasData ? "All settings data loaded" : "Some settings missing",
-        details: hasData
-          ? "Temple, Visitor, Policies, Responses, Behavior all present"
-          : "Check individual settings",
-        lastChecked: new Date(),
-      });
-
-      // Check for empty required fields
-      const emptyFields: string[] = [];
-      if (!temple?.timings && !temple?.contact)
-        emptyFields.push("Temple Information");
-      if (!visitor?.guidelines) emptyFields.push("Visitor Guidelines");
-      if (!responses?.greeting) emptyFields.push("AI Response Templates");
-
-      checks.push({
-        name: "Required Fields",
-        status: emptyFields.length === 0 ? "healthy" : "warning",
-        message:
-          emptyFields.length === 0
-            ? "All required fields populated"
-            : `${emptyFields.length} fields need attention`,
-        details: emptyFields.length > 0 ? emptyFields.join(", ") : undefined,
-        lastChecked: new Date(),
-      });
-
-      // AI Behavior Check
-      if (behavior) {
-        const confidence = behavior.confidenceThreshold;
-        const semantic = behavior.semanticThreshold;
-        const maxRelated = behavior.maxRelatedArticles;
-
-        const confidenceOk =
-          typeof confidence === "number" &&
-          confidence >= 0.7 &&
-          confidence <= 0.95;
-        const semanticOk =
-          typeof semantic === "number" && semantic >= 0.5 && semantic <= 0.9;
-        const maxRelatedOk =
-          typeof maxRelated === "number" && maxRelated >= 1 && maxRelated <= 5;
-
-        checks.push({
-          name: "AI Behavior Settings",
-          status:
-            confidenceOk && semanticOk && maxRelatedOk ? "healthy" : "warning",
-          message: "Configuration within recommended ranges",
-          details: `Confidence: ${confidenceOk ? `${(confidence * 100).toFixed(0)}%` : "N/A"}, Semantic: ${semanticOk ? `${(semantic * 100).toFixed(0)}%` : "N/A"}, Max Related: ${maxRelatedOk ? maxRelated : "N/A"}`,
-          lastChecked: new Date(),
-        });
-      }
-    } catch (error) {
-      checks.push({
-        name: "Data Integrity",
-        status: "error",
-        message: "Failed to check data",
-        details: error instanceof Error ? error.message : "Unknown error",
-        lastChecked: new Date(),
-      });
-    }
-
+    if (!mountedRef.current || runId !== runIdRef.current) return;
     setHealthChecks(checks);
     setLastFullCheck(new Date());
     setLoading(false);
-  };
+  }, [adminFetch]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
+    mountedRef.current = true;
     runHealthChecks();
-  }, []);
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [runHealthChecks]);
 
-  const getStatusIcon = (status: HealthCheck["status"]) => {
+  const getStatusIcon = (status: HealthStatus) => {
     switch (status) {
       case "healthy":
         return <CheckCircle className="w-5 h-5 text-green-500" />;
@@ -217,7 +202,7 @@ export default function AIHealthPage() {
     }
   };
 
-  const getStatusColor = (status: HealthCheck["status"]) => {
+  const getStatusColor = (status: HealthStatus) => {
     switch (status) {
       case "healthy":
         return "border-green-200 bg-green-50";
@@ -228,12 +213,8 @@ export default function AIHealthPage() {
     }
   };
 
-  const healthyCount = healthChecks.filter(
-    (c) => c.status === "healthy",
-  ).length;
-  const warningCount = healthChecks.filter(
-    (c) => c.status === "warning",
-  ).length;
+  const healthyCount = healthChecks.filter((c) => c.status === "healthy").length;
+  const warningCount = healthChecks.filter((c) => c.status === "warning").length;
   const errorCount = healthChecks.filter((c) => c.status === "error").length;
 
   return (
@@ -304,6 +285,13 @@ export default function AIHealthPage() {
         </div>
       </div>
 
+      {/* Loading state */}
+      {loading && healthChecks.length === 0 && (
+        <div className="flex items-center justify-center min-h-48">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
+        </div>
+      )}
+
       {/* Health Checks */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {healthChecks.map((check, index) => (
@@ -342,7 +330,7 @@ export default function AIHealthPage() {
             <Database className="w-5 h-5 text-amber-600" />
             <div>
               <p className="text-sm font-medium text-stone-900">Database</p>
-              <p className="text-xs text-stone-500">Firebase Firestore</p>
+              <p className="text-xs text-stone-500">Supabase PostgreSQL</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
