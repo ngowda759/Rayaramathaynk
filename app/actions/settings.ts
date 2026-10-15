@@ -17,13 +17,20 @@ const settingsSchema = z.object({
 });
 
 const settingsUpdateSchema = settingsSchema.partial();
+const idSchema = z.string().uuid("Invalid ID format");
 
+/**
+ * Verifies if the incoming request comes from an authorized admin.
+ * Includes a bypass for `api-admin` meant solely for standard server-side script integrations.
+ */
 async function verifyAdminForAction(): Promise<boolean> {
   const headersList = await headers();
   const req = new NextRequest("http://localhost", { headers: headersList });
   const auth = await checkAdminAuth(req);
   if (!auth) return false;
-  if (auth.uid === "api-admin") return true; // Standard API key integration for server scripts
+
+  // Standard API key integration for internal server scripts and automated bots.
+  if (auth.uid === "api-admin") return true;
 
   return await isUserAdmin(auth.uid);
 }
@@ -70,6 +77,12 @@ export async function updateSettingsAction(id: string, payload: Partial<SiteSett
   }
 
   if (!id || typeof id !== "string") {
+      throw new Error("Invalid id");
+  }
+
+  // Strictly validate the ID format as UUID as per schema.
+  const idParse = idSchema.safeParse(id);
+  if (!idParse.success) {
       throw new Error("Invalid id");
   }
 
