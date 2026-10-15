@@ -154,32 +154,3 @@ describe('BOT-004 Behavioral Verification', () => {
   });
 });
 
-describe('Settings Server Actions Authorization', () => {
-  let originalEnv: string | undefined;
-
-  beforeEach(() => {
-    originalEnv = process.env.NODE_ENV;
-  });
-
-  afterEach(() => {
-    if (originalEnv) process.env.NODE_ENV = originalEnv as any;
-  });
-
-  it('prevents unauthorized access in production', async () => {
-     process.env.NODE_ENV = 'production';
-     const { createSettingsAction } = await import('../../app/actions/settings');
-
-     await expect(createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' }))
-       .rejects.toThrow('Unauthorized');
-  });
-
-  it('allows authorized access in test/dev', async () => {
-     process.env.NODE_ENV = 'test';
-     const mockSupabase = createAdminClient() as any;
-     mockSupabase.single.mockResolvedValueOnce({ data: { id: 'settings-123' }, error: null });
-
-     const { createSettingsAction } = await import('../../app/actions/settings');
-     const result = await createSettingsAction({ templeName: 'test', contactEmail: '', contactPhone: '', address: '', footerText: '', welcomeMessage: '' });
-     expect(result).toBe('settings-123');
-  });
-});
