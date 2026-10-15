@@ -46,3 +46,6 @@ scripts/.*.mjs
 
 # TypeScript build artifacts
 *.tsbuildinfo
+
+# Prisma generated client (never commit generated output)
+/generated/prisma

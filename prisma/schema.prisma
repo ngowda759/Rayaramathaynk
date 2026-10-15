@@ -1,0 +1,265 @@
+// Prisma schema for the Raya AI domain.
+//
+// PROVENANCE: this schema is transcribed from the authoritative SQL migrations in
+// `supabase/migrations/`, which created these tables in the live database. It is a
+// MIRROR of those migrations, not a redesign. Column names, types, defaults,
+// nullability, unique constraints and indexes are all taken from the SQL.
+//
+// Do NOT treat this file as the source of truth for the database yet. The SQL
+// migrations are. See `docs/PRISMA-SCHEMA-BASELINE.md` for the baseline strategy
+// and for the decisions that still require confirmation.
+//
+// Scope: the Raya AI domain plus the role source. Tables owned by other modules
+// (events, sevas, gallery, ...) are intentionally out of scope for this PR.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+// NOTE: the connection URL is intentionally NOT declared here. Prisma 7 reads it
+// from `prisma.config.ts` (see `datasource.url` there), which sources it from an
+// environment variable. This keeps credentials out of the repository.
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// AI settings (single row, id = 'main')
+// Source: supabase/migrations/20261012000000_create_ai_settings_table.sql
+// ============================================================================
+
+model AiSettings {
+  id String @id @default("main") @db.Text
+
+  // JSONB sections. Each maps to a typed interface in `types/ai-settings.ts`.
+  general            Json @default("{}") @db.JsonB
+  safety             Json @default("{}") @db.JsonB
+  extendedBehavior   Json @default("{}") @map("extended_behavior") @db.JsonB
+  templeInformation  Json @default("{}") @map("temple_information") @db.JsonB
+  visitorInformation Json @default("{}") @map("visitor_information") @db.JsonB
+  templePolicies     Json @default("{}") @map("temple_policies") @db.JsonB
+  aiResponses        Json @default("{}") @map("ai_responses") @db.JsonB
+  aiBehavior         Json @default("{}") @map("ai_behavior") @db.JsonB
+  prompt             Json @default("{}") @db.JsonB
+  intents            Json @default("{}") @db.JsonB
+
+  // `updated_at` is maintained by the DB trigger `update_ai_settings_updated_at`.
+  // It deliberately has no `@updatedAt`: the database owns this value, and adding
+  // the client-side attribute would make Prisma a competing writer.
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Audit: Firebase Auth UID of the last writer.
+  updatedBy String? @map("updated_by") @db.Text
+  version   Int?    @default(1)
+
+  @@map("ai_settings")
+}
+
+// ============================================================================
+// Knowledge base
+// Source: supabase/migrations/20261013000000_create_ai_knowledge.sql
+// ============================================================================
+
+model AiKnowledge {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // Provenance from the Firestore migration. Nullable for rows created natively.
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  slug           String   @unique @db.Text
+  title          String   @db.Text
+  kannadaTitle   String?  @map("kannada_title") @db.Text
+  category       String   @default("general") @db.Text
+  keywords       String[] @default([]) @db.Text
+  content        String   @db.Text
+  kannadaContent String?  @map("kannada_content") @db.Text
+  language       String   @default("en") @db.Text
+
+  lastReviewed DateTime? @map("last_reviewed") @db.Timestamptz(6)
+  approved     Boolean   @default(false)
+
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([category], map: "idx_ai_knowledge_category")
+  @@index([approved], map: "idx_ai_knowledge_approved")
+  @@index([slug], map: "idx_ai_knowledge_slug")
+  @@map("ai_knowledge")
+}
+
+// ============================================================================
+// Chatbot runtime data
+// Source: supabase/migrations/20260930000000_create_ai_tables.sql
+// ============================================================================
+
+model ChatSession {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  // Loose reference to a Firebase Auth UID, or an anonymous session marker.
+  // Not a foreign key: the SQL defines no constraint here.
+  userId String? @map("user_id") @db.Text
+
+  messageCount     Int     @default(0) @map("message_count")
+  lastMessage      String? @map("last_message") @db.Text
+  detectedLanguage String? @map("detected_language") @db.Text
+
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId], map: "idx_chat_sessions_user_id")
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  // The SQL comment describes this as referencing chat_sessions.firestore_id, but
+  // the database has NO foreign key here (verified with `prisma migrate diff`
+  // against a database built from the migrations). It is therefore modelled as a
+  // plain column. Adding the constraint would be a schema change with a data risk,
+  // so it is left as an open decision rather than invented here.
+  sessionId String @map("session_id") @db.Text
+
+  role    String @db.Text
+  content String @db.Text
+
+  timestamp DateTime @db.Timestamptz(6)
+
+  model            String?  @db.Text
+  latency          Decimal? @db.Decimal(10, 2)
+  detectedLanguage String?  @map("detected_language") @db.Text
+
+  @@index([sessionId], map: "idx_chat_messages_session_id")
+  @@index([timestamp], map: "idx_chat_messages_timestamp")
+  @@map("chat_messages")
+}
+
+model UnknownQuestion {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  question       String   @db.Text
+  questionLower  String?  @map("question_lower") @db.Text
+  detectedIntent String?  @map("detected_intent") @db.Text
+  confidence     Decimal? @db.Decimal(5, 2)
+  language       String?  @db.Text
+
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
+  sessionId String?   @map("session_id") @db.Text
+
+  timesAsked Int?    @default(1) @map("times_asked")
+  status     String  @default("pending") @db.Text
+  assignedTo String? @default("unassigned") @map("assigned_to") @db.Text
+
+  lastAsked  DateTime? @map("last_asked") @db.Timestamptz(6)
+  reviewedBy String?   @map("reviewed_by") @db.Text
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(6)
+
+  response                  String? @db.Text
+  addedToKnowledgeArticleId String? @map("added_to_knowledge_article_id") @db.Text
+  notes                     String? @db.Text
+
+  @@index([timestamp], map: "idx_unknown_questions_timestamp")
+  @@map("unknown_questions")
+}
+
+model AiIntentDistribution {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  intent     String   @db.Text
+  category   String?  @db.Text
+  language   String?  @db.Text
+  confidence Decimal? @db.Decimal(5, 2)
+
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
+  sessionId String?   @map("session_id") @db.Text
+  messageId String?   @map("message_id") @db.Text
+
+  @@index([timestamp], map: "idx_ai_intent_dist_timestamp")
+  @@map("ai_intent_distribution")
+}
+
+model AiLatencyRecord {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  totalLatency        Decimal @map("total_latency") @db.Decimal(10, 2)
+  intentDetectionTime Decimal @map("intent_detection_time") @db.Decimal(10, 2)
+  retrievalTime       Decimal @map("retrieval_time") @db.Decimal(10, 2)
+  generationTime      Decimal @map("generation_time") @db.Decimal(10, 2)
+
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
+
+  success   Boolean @default(true)
+  errorType String? @map("error_type") @db.Text
+  model     String? @db.Text
+  sessionId String? @map("session_id") @db.Text
+
+  @@index([timestamp], map: "idx_ai_latency_records_timestamp")
+  @@map("ai_latency_records")
+}
+
+// ============================================================================
+// Role source (target for the Supabase-backed RBAC in migration PR-3)
+// Source: supabase/migrations/20261001000000_create_content_tables.sql
+//
+// Included in PR-1 because the migration plan makes this table the authority for
+// admin authorization, replacing the Firestore users/{uid} lookup. PR-1 declares
+// the model only; it does not change authorization behavior.
+// ============================================================================
+
+model User {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  email       String  @db.Text
+  displayName String? @map("display_name") @db.Text
+  phoneNumber String? @map("phone_number") @db.Text
+  photoUrl    String? @map("photo_url") @db.Text
+
+  // Authorization fields. `role` values are normalized by lib/auth/admin-auth.ts;
+  // `active = false` must deny access.
+  role   String  @default("user") @db.Text
+  active Boolean @default(true)
+
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model Profile {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  firestoreId String? @unique @map("firestore_id") @db.Text
+
+  uid          String  @db.Text
+  name         String  @db.Text
+  email        String  @db.Text
+  phone        String? @db.Text
+  profileImage String? @map("profile_image") @db.Text
+  bio          String? @db.Text
+  gotra        String? @db.Text
+  nakshatra    String? @db.Text
+
+  preferences    Json     @default("{}") @db.JsonB
+  favorites      String[] @default([]) @db.Text
+  recentlyViewed String[] @default([]) @map("recently_viewed") @db.Text
+  bookmarks      Json     @default("[]") @db.JsonB
+
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("profiles")
+}
