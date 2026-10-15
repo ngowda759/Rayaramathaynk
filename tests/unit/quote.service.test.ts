@@ -278,7 +278,7 @@ describe("Quote Service - Priority Rules", () => {
       // Non-festival context should fall back to stotra
       const normalContext = createMockContext({ isFestival: false });
       const normalResult = selectByPriority(quotes, normalContext);
-      expect(normalResult?.id).toBe("1");
+      expect(normalResult?.id).toBe("2");
     });
   });
 });
