@@ -9,7 +9,8 @@ import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
   const admin = await verifyAdminUser(request);
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!admin)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const aiBehavior = await aiSettingsService.getAIBehavior();
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching AI behavior settings:", error);
     return NextResponse.json(
       { error: "Failed to fetch AI behavior settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -43,13 +44,25 @@ export async function PUT(request: NextRequest) {
       case "streamingResponses":
         await aiSettingsService.setStreamingResponses(value, userId);
         break;
-      case "all":
-        await aiSettingsService.updateAIBehavior(body as AIBehaviorSettings, userId);
+      case "all": {
+        // Support both spread body and nested data property, and strictly reconstruct to strip out 'setting' field
+        const rawData = body.data || body;
+        const behaviorData: AIBehaviorSettings = {
+          confidenceThreshold: rawData.confidenceThreshold ?? 85,
+          semanticThreshold: rawData.semanticThreshold ?? 70,
+          maxRelatedArticles: rawData.maxRelatedArticles ?? 3,
+          conversationTimeout: rawData.conversationTimeout ?? 30,
+          streaming: rawData.streaming ?? false,
+          debugMode: rawData.debugMode ?? false,
+          unknownLogging: rawData.unknownLogging ?? true,
+        };
+        await aiSettingsService.updateAIBehavior(behaviorData, userId);
         break;
+      }
       default:
         return NextResponse.json(
           { error: `Unknown setting: ${setting}` },
-          { status: 400 }
+          { status: 400 },
         );
     }
 
@@ -59,7 +72,7 @@ export async function PUT(request: NextRequest) {
     console.error("Error updating AI behavior settings:", error);
     return NextResponse.json(
       { error: "Failed to update AI behavior settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

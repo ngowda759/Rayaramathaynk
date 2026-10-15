@@ -6,6 +6,7 @@ import { Sparkles, Calendar, Star } from "lucide-react";
 import FeaturedFestival from "./FeaturedFestival";
 import FestivalGrid from "./FestivalGrid";
 import FestivalPhotoHighlights from "./FestivalPhotoHighlights";
+import FestivalGuide from "./FestivalGuide";
 import { Festival, getFeaturedFestival, MONTH_NAMES } from "@/types/festival";
 
 interface FestivalExperienceProps {
@@ -79,24 +80,29 @@ export default function FestivalExperience({ festivals }: FestivalExperienceProp
           photos={[
             {
               id: '1',
-              url: 'https://images.unsplash.com/photo-1514222134-b57cbf8ce697?q=80&w=600&auto=format&fit=crop',
-              caption: 'Festival celebration 1',
-              altText: 'Festival celebration 1',
+              url: '/images/aaradhane/355-aaradhane-ynk-mutt.jpg',
+              caption: 'Devotees gathered for the grand Aradhana celebrations',
+              altText: 'Devotees at Sri Raghavendra Swamy Mutt during Aradhana',
             },
             {
               id: '2',
-              url: 'https://images.unsplash.com/photo-1605333166947-d5dc277c0cf5?q=80&w=600&auto=format&fit=crop',
-              caption: 'Festival celebration 2',
-              altText: 'Festival celebration 2',
+              url: '/images/aaradhane/355-Aaradhana-mohotsava.jpg',
+              caption: 'Special pooja performed during the festival',
+              altText: 'Priests performing pooja rituals at the mutt',
             },
             {
               id: '3',
-              url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?q=80&w=600&auto=format&fit=crop',
-              caption: 'Festival celebration 3',
-              altText: 'Festival celebration 3',
+              url: '/images/temple/Seva.jpg',
+              caption: 'Devotees participating in Seva during the festivities',
+              altText: 'Devotees participating in Seva at Sri Raghavendra Swamy Mutt',
             },
           ]}
         />
+      </section>
+
+      {/* Festival Guide */}
+      <section>
+        <FestivalGuide />
       </section>
     </div>
   );

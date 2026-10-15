@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAIProvider } from "@/lib/ai/provider";
-import { getSystemPrompt } from "@/lib/ai/settings";
-import { generateFirebaseResponse, getTempleInfo } from "@/lib/ai/firebaseChat";
+
+
 import { AIMessage, ChatRequest, ChatResponse } from "@/types/ai";
 
 // Import hybrid response generator

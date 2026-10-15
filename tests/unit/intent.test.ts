@@ -88,7 +88,7 @@ describe("Intent Detection", () => {
     it("should detect festival queries", () => {
       const result = detector.detect("When is the next festival?");
       // Festival might be detected as FESTIVAL_INFO
-      expect([Intent.UPCOMING_EVENTS, Intent.FESTIVAL_INFO]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.UPCOMING_EVENTS);
     });
   });
 
@@ -175,7 +175,7 @@ describe("Intent Detection", () => {
     it("should detect archana queries", () => {
       const result = detector.detect("How do I book archana?");
       // Archana could be SPECIAL_SEVAS or SEVA_BOOKING
-      expect([Intent.SPECIAL_SEVAS, Intent.SEVA_BOOKING]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.SEVA_BOOKING);
     });
   });
 
@@ -194,14 +194,14 @@ describe("Intent Detection", () => {
   describe("LOCATION intent", () => {
     it("should detect location queries", () => {
       const result = detector.detect("Where is the temple located?");
-      expect([Intent.LOCATION, Intent.ADDRESS]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.LOCATION);
     });
 
     it("should detect address queries", () => {
       // Note: "What is the address" may detect as TEMPLE_TIMINGS due to semantic matching
       // The API routes this correctly through the generator
       const result = detector.detect("temple address");
-      expect([Intent.LOCATION, Intent.ADDRESS]).toContain(result.intent);
+      expect(result.intent).toBe(Intent.LOCATION);
     });
   });
 

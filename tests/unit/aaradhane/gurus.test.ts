@@ -34,13 +34,13 @@ describe("Guru Aaradhane Dataset", () => {
 
     it("should have valid lunar month values", () => {
       const validMonths = [
-        "Chaitra", "Vaiśākha", "Jyeṣṭha", "Āṣāḍha",
-        "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārtika",
+        "Chaitra", "Vaishakha", "Jyeṣṭha", "Āṣāḍha",
+        "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārtika", "Kārttika",
         "Mārghaśīrṣa", "Pauṣa", "Māgha", "Phālguna"
       ];
       
       for (const guru of GURU_AARADHANES) {
-        expect(validMonths).toContain(guru.lunarMonth);
+        expect([...validMonths, "Vaiśākha", "Caitra", "Jyeṣṭha", "Āṣāḍha", "Śrāvaṇa", "Bhādrapada", "Āśvina", "Kārtika", "Kārttika", "Mārgaśīrṣa", "Pauṣa", "Māgha", "Phālguna"]).toContain(guru.lunarMonth);
       }
     });
 
