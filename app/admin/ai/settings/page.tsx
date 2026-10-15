@@ -2,11 +2,12 @@
 "use client";
 
 import { useAdminFetch } from "@/hooks/useAdminFetch";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Save,
   RotateCcw,
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
   Building,
   Users,
@@ -20,6 +21,7 @@ import {
   Info,
   Database,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import type {
@@ -53,6 +55,76 @@ interface AISettingsFormData {
   behavior: AIBehaviorSettings;
 }
 
+interface EndpointFailure {
+  key: string;
+  label: string;
+  path: string;
+  status: number;
+  reason?: string;
+  message: string;
+}
+
+interface LoadError {
+  summary: string;
+  failures: EndpointFailure[];
+}
+
+// The five required settings endpoints, keyed to the form sections they feed.
+const SETTINGS_ENDPOINTS: Array<{
+  key: keyof AISettingsFormData;
+  label: string;
+  path: string;
+}> = [
+  { key: "temple", label: "Temple Information", path: "/api/ai/settings/temple-information" },
+  { key: "visitor", label: "Visitor Information", path: "/api/ai/settings/visitor-information" },
+  { key: "policies", label: "Temple Policies", path: "/api/ai/settings/policies" },
+  { key: "responses", label: "AI Responses", path: "/api/ai/settings/ai-responses" },
+  { key: "behavior", label: "AI Behavior", path: "/api/ai/settings/ai-behavior" },
+];
+
+/**
+ * Turns a failed settings response into a user-facing message that names the
+ * actual cause (authentication vs. server vs. connectivity) instead of a
+ * generic "failed to load".
+ */
+function describeFailure(
+  status: number,
+  reason: string | undefined,
+  endpoint: string
+): string {
+  switch (reason) {
+    case "auth_initializing":
+      return "Authentication is still initializing. Please retry in a moment.";
+    case "no_user":
+      return "You are not signed in. Please sign in as an administrator and retry.";
+    case "token_failed":
+      return "Could not obtain your authentication token. Please sign in again.";
+    case "timeout":
+      return "The request timed out. The server may be slow or unreachable.";
+    case "missing_token":
+      return "Your session is missing a token. Please sign in again.";
+    case "expired_token":
+    case "invalid_token":
+      return "Your session has expired. Please sign in again.";
+    case "user_not_found":
+      return "No administrator profile was found for your account.";
+    case "inactive_user":
+      return "Your account is inactive. Contact a Super Admin.";
+    case "insufficient_role":
+      return "Your account does not have administrator permissions.";
+    case "auth_unavailable":
+      return "Server authentication is unavailable (Firebase Admin not configured).";
+    default:
+      break;
+  }
+
+  if (status === 401) return "Unauthorized. Please sign in again.";
+  if (status === 403) return "Forbidden. Your account lacks administrator permissions.";
+  if (status >= 500) return `Server error (${status}). Please retry shortly.`;
+  if (status >= 400) return `Request failed (${status}) for ${endpoint}.`;
+  return "Network request failed.";
+}
+
 export default function AISettingsPage() {
   const adminFetch = useAdminFetch();
   const [activeTab, setActiveTab] = useState("temple");
@@ -66,16 +138,137 @@ export default function AISettingsPage() {
   const [settings, setSettings] = useState<AISettingsFormData | null>(null);
   const [originalSettings, setOriginalSettings] =
     useState<AISettingsFormData | null>(null);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
   const showMsg = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    // Cancel any in-flight load so a rapid Retry never races an older request.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setLoadError(null);
+
+    const failures: EndpointFailure[] = [];
+    const results: Partial<AISettingsFormData> = {};
+
+    await Promise.all(
+      SETTINGS_ENDPOINTS.map(async (endpoint) => {
+        try {
+          const res = await adminFetch(endpoint.path, {
+            signal: controller.signal,
+          });
+
+          if (!res.ok) {
+            let reason: string | undefined;
+            let message = describeFailure(res.status, undefined, endpoint.path);
+            try {
+              const body = await res.json();
+              reason = body?.reason;
+              if (body?.error) message = describeFailure(res.status, reason, endpoint.path);
+            } catch {
+              // Non-JSON error body; keep the status-based message.
+            }
+            failures.push({
+              key: endpoint.key,
+              label: endpoint.label,
+              path: endpoint.path,
+              status: res.status,
+              reason,
+              message,
+            });
+            return;
+          }
+
+          const payload = await res.json();
+          if (payload === null || payload === undefined) {
+            failures.push({
+              key: endpoint.key,
+              label: endpoint.label,
+              path: endpoint.path,
+              status: res.status,
+              reason: "empty_payload",
+              message: `${endpoint.label} returned no data. Use "Initialize Data" to create defaults.`,
+            });
+            return;
+          }
+          results[endpoint.key] = payload;
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          failures.push({
+            key: endpoint.key,
+            label: endpoint.label,
+            path: endpoint.path,
+            status: 0,
+            reason: "network_error",
+            message: describeFailure(0, undefined, endpoint.path),
+          });
+          console.error(`Error loading ${endpoint.path}:`, error);
+        }
+      })
+    );
+
+    if (!mountedRef.current || controller.signal.aborted) return;
+
+    if (failures.length > 0) {
+      // Never leave the page in an infinite spinner: surface the failure with
+      // per-endpoint diagnostics and a Retry action.
+      const authFailure = failures.some(
+        (f) =>
+          f.status === 401 ||
+          f.status === 403 ||
+          [
+            "no_user",
+            "token_failed",
+            "missing_token",
+            "expired_token",
+            "invalid_token",
+            "user_not_found",
+            "inactive_user",
+            "insufficient_role",
+          ].includes(f.reason || "")
+      );
+      setLoadError({
+        summary: authFailure
+          ? "Some settings could not be loaded because of an authentication problem."
+          : "Some settings could not be loaded.",
+        failures,
+      });
+      // Keep whatever succeeded so partial data is still visible/editable.
+      if (Object.keys(results).length > 0) {
+        setSettings((prev) => ({ ...(prev as AISettingsFormData), ...results }));
+      }
+      setLoading(false);
+      return;
+    }
+
+    const data = results as AISettingsFormData;
+    setSettings(data);
+    setOriginalSettings(JSON.parse(JSON.stringify(data)));
+    setLoading(false);
+  }, [adminFetch]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    loadSettings();
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, [loadSettings]);
+
   const handleSeedData = async () => {
     if (
       !confirm(
-        "This will initialize default AI data (intents, prompts). It will not overwrite existing settings. Continue?",
+        "This will initialize any missing default AI data (settings, intents, prompts). Existing values are preserved and never overwritten. Continue?",
       )
     ) {
       return;
@@ -89,17 +282,16 @@ export default function AISettingsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        // The API returns a message regarding success or skipping
+        // The API returns a per-section report and a human-readable message.
         showMsg("success", data.message || "AI data initialized!");
-        // Reload settings
-        loadSettings();
+        await loadSettings();
       } else {
         let errorMsg = "Failed to seed data";
         try {
           const error = await response.json();
-          errorMsg = error.error || errorMsg;
+          errorMsg = describeFailure(response.status, error?.reason, "/api/seed-ai-settings");
         } catch {
-          errorMsg = `Failed to seed data (Status: ${response.status})`;
+          errorMsg = describeFailure(response.status, undefined, "/api/seed-ai-settings");
         }
         showMsg("error", errorMsg);
       }
@@ -110,52 +302,6 @@ export default function AISettingsPage() {
       setSeeding(false);
     }
   };
-
-  const loadSettings = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const fetchAndCheck = async (url: string) => {
-        const res = await adminFetch(url);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch ${url} (Status: ${res.status})`);
-        }
-        return res.json();
-      };
-
-      const [temple, visitor, policies, responses, behavior] =
-        await Promise.all([
-          fetchAndCheck("/api/ai/settings/temple-information"),
-          fetchAndCheck("/api/ai/settings/visitor-information"),
-          fetchAndCheck("/api/ai/settings/policies"),
-          fetchAndCheck("/api/ai/settings/ai-responses"),
-          fetchAndCheck("/api/ai/settings/ai-behavior"),
-        ]);
-
-      const data = {
-        temple: temple,
-        visitor: visitor,
-        policies: policies,
-        responses: responses,
-        behavior: behavior,
-      };
-
-      setSettings(data);
-      setOriginalSettings(JSON.parse(JSON.stringify(data)));
-    } catch (error) {
-      console.error("Error loading AI settings:", error);
-      showMsg(
-        "error",
-        error instanceof Error ? error.message : "Failed to load AI settings",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [showMsg, adminFetch]);
-
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -235,10 +381,75 @@ export default function AISettingsPage() {
     originalSettings &&
     JSON.stringify(settings) !== JSON.stringify(originalSettings);
 
-  if (loading || !settings) {
+  // While requests are genuinely in flight, show a loading state.
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
+      </div>
+    );
+  }
+
+  // Loading has finished but we have nothing to render: show an actionable
+  // error instead of an infinite spinner.
+  if (!settings) {
+    const failures = loadError?.failures ?? [];
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="AI Settings"
+          description="Configure temple information, visitor guidelines, policies, and AI response behavior."
+        />
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-6"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <div className="flex-1">
+              <h2 className="font-semibold text-red-800">
+                {loadError?.summary ?? "AI settings could not be loaded."}
+              </h2>
+              {failures.length > 0 ? (
+                <ul className="mt-3 space-y-1 text-sm text-red-700">
+                  {failures.map((f) => (
+                    <li key={f.path}>
+                      <span className="font-medium">{f.label}</span>
+                      {" — "}
+                      {f.message}
+                      {f.status ? ` (HTTP ${f.status})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-red-700">
+                  No settings were returned by the server.
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={() => loadSettings()}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Retry
+                </button>
+                <button
+                  onClick={handleSeedData}
+                  disabled={seeding}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  {seeding ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Database className="w-4 h-4" />
+                  )}
+                  {seeding ? "Initializing..." : "Initialize Data"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -279,6 +490,36 @@ export default function AISettingsPage() {
             <AlertCircle className="w-5 h-5" />
           )}
           {message.text}
+        </div>
+      )}
+
+      {/* Partial-failure diagnostics: some sections loaded, some did not. */}
+      {loadError && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-50 text-amber-800 border border-amber-200"
+        >
+          <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">{loadError.summary}</p>
+            <ul className="mt-1 space-y-1 text-sm">
+              {loadError.failures.map((f) => (
+                <li key={f.path}>
+                  <span className="font-medium">{f.label}</span>
+                  {" — "}
+                  {f.message}
+                  {f.status ? ` (HTTP ${f.status})` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={() => loadSettings()}
+            className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors shrink-0"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
         </div>
       )}
 

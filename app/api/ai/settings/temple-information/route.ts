@@ -4,20 +4,21 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
-export const revalidate = 3600;
+// This endpoint is admin-authenticated and returns user-scoped data; it must
+// never be cached publicly (or cached at all across users).
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const admin = await verifyAdminUser(request);
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+  const admin = guard.user;
 
   try {
     const templeInformation = await aiSettingsService.getTempleInformation();
     return NextResponse.json(templeInformation, {
-      headers: {
-        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-      },
+      headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
     console.error("Error fetching temple information:", error);
@@ -31,10 +32,9 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     // Get user ID from header or use "admin" as default
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireAdminUser(request);
+    if (!guard.ok) return guard.response;
+    const admin = guard.user;
     const userId = admin.uid;
 
     const body = await request.json();

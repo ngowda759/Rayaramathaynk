@@ -5,12 +5,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { AIBehaviorSettings } from "@/types/ai-settings";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
-  const admin = await verifyAdminUser(request);
-  if (!admin)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+  const admin = guard.user;
 
   try {
     const aiBehavior = await aiSettingsService.getAIBehavior();
@@ -26,10 +26,9 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireAdminUser(request);
+    if (!guard.ok) return guard.response;
+    const admin = guard.user;
     const userId = admin.uid;
     const body = await request.json();
     const { setting, value } = body;

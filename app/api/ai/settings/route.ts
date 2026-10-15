@@ -4,11 +4,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
-  const admin = await verifyAdminUser(request);
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+  const admin = guard.user;
 
   try {
     const settings = await aiSettingsService.getAISettings();
@@ -26,10 +27,9 @@ export async function POST(request: NextRequest) {
   try {
     // For now, get user ID from header or use "admin" as default
 
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireAdminUser(request);
+    if (!guard.ok) return guard.response;
+    const admin = guard.user;
     const userId = admin.uid;
 
     const body = await request.json();
