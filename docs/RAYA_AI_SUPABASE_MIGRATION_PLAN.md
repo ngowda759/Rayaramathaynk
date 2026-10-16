@@ -65,6 +65,13 @@ This plan is grounded in an inspection of `main` after PR #329.
 Also Firestore-based: `services/chat.service.ts`, `services/ai-analytics.service.ts`,
 `services/conversation.service.ts`.
 
+`services/knowledge-workflow.service.ts` also still reads and writes Firestore
+(`ARTICLES`, `VERSIONS`, `DRAFTS`, `REVIEW_COMMENTS`, `COMMITTEE_APPROVALS`,
+`WORKFLOW_ACTIONS`, `AUDIT_LOG`) and is reachable from eight
+`app/api/knowledge/workflow/*` routes. It was missing from the earlier inventory and
+is assigned to PR-6.
+
+
 ## 3. Target architecture
 
 ```
@@ -162,17 +169,37 @@ blocked with the same reason vocabulary; Firestore role lookup is unused by Raya
 
 ### PR-4 — AI settings, prompts, intents, default rules, initialization
 
+Scope correction (recorded by PR-1): the AI settings data layer is **already on
+Supabase**. `lib/ai/ai-settings/repository.ts` uses `createAdminClient` /
+`createClient` and queries `ai_settings` and `unknown_questions` directly. There is
+no `firebase/firestore` import anywhere under `lib/ai/ai-settings/`. PR-4 is
+therefore **not** a Firestore-to-Supabase move. It is two narrower things:
+
+- Align the existing Supabase data layer with Prisma, so all data access goes
+  through one client.
+- Remove the residual Firestore reads that the settings and initialization paths
+  still reach.
+
+Work items:
+
 - Move `lib/ai/ai-settings/*` onto Prisma while preserving the current service
   interface, so callers do not change.
 - Keep `/api/seed-ai-settings` semantics identical (idempotent; preserve existing
   values; repair only empty sections; report initialized / already_present /
   repaired / skipped / failed).
+- Preserve the authentication diagnostics added by PR #329: the structured
+  `reason` field from `lib/auth/admin-auth.ts` and its fail-closed guards. The
+  current vocabulary is `missing_token`, `expired_token`, `invalid_token`,
+  `auth_unavailable`, `user_not_found`, `inactive_user`, `insufficient_role`.
+  Do not collapse these into a blanket "Unauthorized".
 - Confirm response payloads for all five settings endpoints still match the
   frontend types in `types/ai-settings.ts`.
 - Tests: all five endpoints valid; one fails while others succeed; save and
   initialization preserve existing values.
 
-Exit criteria: AI Settings reads and writes Supabase through Prisma only.
+Exit criteria: AI Settings reads and writes Supabase through Prisma only, and the
+PR #329 diagnostic contract is unchanged.
+
 
 ### PR-5 — Knowledge retrieval and `lib/ai/retrieval/*`
 
@@ -190,10 +217,14 @@ Exit criteria: no `lib/ai/retrieval/*` module imports Firestore.
 
 ### PR-6 — Chatbot runtime data, analytics, feedback, operational history
 
-- Move `services/chat.service.ts`, `services/conversation.service.ts` and
-  `services/ai-analytics.service.ts` to Prisma/Supabase.
+- Move `services/chat.service.ts`, `services/conversation.service.ts`,
+  `services/ai-analytics.service.ts` and `services/knowledge-workflow.service.ts`
+  to Prisma/Supabase.
 - Map to `chat_sessions`, `chat_messages`, `unknown_questions`,
-  `ai_intent_distribution`, `ai_latency_records`.
+  `ai_intent_distribution`, `ai_latency_records`. The workflow service needs a
+  destination for drafts, versions, review comments, committee approvals and the
+  audit log; either add tables or fold them into `ai_knowledge` metadata. Decide
+  before starting, since it is a schema addition.
 - Migrate existing Firestore history with the ETL helpers (dry-run, reconcile,
   then commit), preserving identifiers and timestamps.
 - Tests: write-then-read round trips; analytics aggregation matches the migrated
