@@ -172,3 +172,29 @@ deployment metadata rather than the app.
   requires credentials the agent does not hold.
 
 No acceptance is claimed. Section 4 remains the checklist for the authorized step.
+
+## 9. Deployment record (authorized 2026-10-16)
+
+Production is deployed by Vercel's Git integration on push to `main` (the repo's
+`deploy.yml` workflow is stale — its runs date from 2026-07 and fail; it is not the
+live path). GitHub deployment records confirm the fix is live:
+
+| Deployment id | Environment | Commit | Result | Time |
+| --- | --- | --- | --- | --- |
+| `7115643877` | Production | `deb1d29` (the intended fix commit) | **success** | 09:30:18Z |
+| `7115849222` | Production | `5501e27` (newest main) | **success** | 09:41:22Z |
+
+- Both report `state: success`, `"Deployment has completed"`.
+- The `.vercel.app` deployment URLs are behind Vercel **Deployment Protection** (SSO),
+  so they cannot be byte-compared without a protection-bypass secret; the production
+  alias is served on `www.srsmathaynk.com`.
+- The live behavior can only come from the fix commit: the `reason` field
+  (`missing_token` / `expired_token` / …) was introduced **solely** by `8d54714`
+  (`git log -S'"missing_token"'` → only that commit; absent in `8d54714~1`), and the
+  live `401 {"reason":"missing_token"}` confirms that code is what production runs.
+- No separate manual deploy was needed: the authorized commit was already published by
+  the Vercel Git integration, and the newest production deployment for `deb1d29`
+  succeeded.
+
+Remaining for acceptance: the signed-in Super Admin walkthrough in §4b, which requires
+a real admin account.
