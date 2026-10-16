@@ -129,6 +129,23 @@ jobs:
           set -eu
           node scripts/lib/dump-ai-catalog.mjs "$DB_URL" ${TABLES:-ai_knowledge}
 
+      - name: PostgREST cross-check (read-only)
+        if: ${{ inputs.mode == 'catalog' }}
+        env:
+          SUPA_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPA_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -eu
+          echo "PostgREST HEAD (status + body) for a known table vs the disputed one:"
+          for t in ai_settings ai_knowledge unknown_questions; do
+            code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 20 \
+              -H "apikey: ${SUPA_KEY}" -H "Authorization: Bearer ${SUPA_KEY}" \
+              -H "Prefer: count=exact" -I "${SUPA_URL}/rest/v1/${t}?select=*" || echo "ERR")
+            echo "  ${t} -> HTTP ${code}"
+            head -c 300 /tmp/body | sed -E 's/postgres\.[a-z0-9]+/postgres.<ref>/g' || true
+            echo
+          done
+
       - name: Prisma drift check
         if: ${{ inputs.mode != 'catalog' }}
         env:
