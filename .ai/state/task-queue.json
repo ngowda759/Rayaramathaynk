@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-14T16:26:09Z",
+  "updatedAt": "2026-10-14T16:29:17Z",
   "tasks": [
     {
       "id": "AI-001",
@@ -246,6 +246,33 @@
       "headSha": "26dbd74b42a3eedd08b5455fa9ab45c901c72f61",
       "mergedAt": "2026-10-14T16:25:55Z",
       "completedAt": "2026-10-14T16:26:09.938Z"
+    },
+    {
+      "id": "AI-009",
+      "title": "Implement Digital Dashboard Real-time Stats Foundation",
+      "phase": "feature",
+      "status": "approved",
+      "summary": "Implement a foundation for the Digital Dashboard's real-time stats (visitor count, donations) to fulfill the next milestone in the v2.0 Experience roadmap.",
+      "acceptanceCriteria": [
+        "Create a new component `RealTimeStats` in `components/admin/dashboard/RealTimeStats.tsx` that displays a grid or set of cards showing current key statistics.",
+        "Use static or mock data to represent stats (e.g., Today's Visitors, Donations Received, Active Sevas).",
+        "Integrate the `RealTimeStats` component into the main admin dashboard page `app/admin/page.tsx`.",
+        "Running `npm run type-check` returns 0 errors.",
+        "Running `npm run lint` returns 0 errors.",
+        "A basic test in `tests/unit/components/admin/dashboard/RealTimeStats.test.tsx` runs successfully via `npm run test` and verifies rendering."
+      ],
+      "outOfScope": [
+        "Mobile app implementation",
+        "Real live database integration or websockets for live updating (static/mocked foundation is sufficient for this stage)"
+      ],
+      "humanApproval": false,
+      "dependsOn": [
+        "AI-008"
+      ],
+      "references": [
+        "docs/ROADMAP.md"
+      ],
+      "createdAt": "2026-10-14T16:29:09.759Z"
     }
   ]
 }
