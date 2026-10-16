@@ -445,9 +445,22 @@ function createMockQuote(overrides: Partial<Quote>): Quote {
   };
 }
 
+// A fixed date, not `new Date()`.
+//
+// The selectors under test derive their choice from the date string via
+// `getDateString` -> `calculateDateIndex` (a character-code sum modulo the number
+// of candidates). With a wall-clock date, tests that pass more than one candidate
+// to `deterministicSelect` pick a different quote depending on the day, so they
+// pass or fail by calendar. That made CI fail at certain times of day.
+//
+// 2026-01-02 is chosen because its character-code sum (397) is odd, which selects
+// index 1 from a two-item list. Midday UTC keeps the date stable across the
+// Asia/Kolkata offset used by `getDateString`.
+const FIXED_TEST_DATE = new Date("2026-01-02T12:00:00.000Z");
+
 function createMockContext(overrides: Partial<QuoteSelectionContext>): QuoteSelectionContext {
   return {
-    date: new Date(),
+    date: FIXED_TEST_DATE,
     dayOfWeek: 0,
     isFestival: false,
     activeEvents: [],
