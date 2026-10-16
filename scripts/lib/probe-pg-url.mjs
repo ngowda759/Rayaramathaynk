@@ -9,8 +9,18 @@ if (!url) {
   process.exit(2);
 }
 
+// Strip sslmode so the explicit ssl config below wins: pg's connection-string
+// parser otherwise forces certificate verification and the handshake fails
+// against Supavisor's cert chain before we ever reach authentication.
+let probeUrl = url;
+try {
+  const u = new URL(url);
+  u.searchParams.delete("sslmode");
+  probeUrl = u.toString();
+} catch {}
+
 const client = new Client({
-  connectionString: url,
+  connectionString: probeUrl,
   ssl: { rejectUnauthorized: false },
   connectionTimeoutMillis: 15000,
 });
