@@ -197,6 +197,13 @@ create tables that are already there and fail. The baseline approach:
 Step 3 is what makes this safe: it records the baseline as applied while running no
 DDL against production.
 
+Because the resolution records the version only in the Prisma ledger, a comment-only
+marker `supabase/migrations/20261015000000_baseline_raya_ai.sql` mirrors it into the
+Supabase ledger so the Supabase integration's "remote versions not found in local
+migrations" comparison passes. The marker declares no DDL - the baseline represents
+tables that already exist. The authoritative baseline SQL remains
+`prisma/migrations/20261015000000_baseline_raya_ai/migration.sql`.
+
 ### 4.0 Prerequisite: verify the target schema matches the baseline first
 
 `migrate resolve --applied` records a migration as done. It does **not** check that
