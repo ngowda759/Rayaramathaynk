@@ -360,20 +360,39 @@ not an AI-scope finding.
 
 **Baseline resolve: held.** §5 item 5 defines the *intended* baseline as the AI/user
 domain, and that domain is now reconciled, so the resolve is eligible. It is not performed
-here because the drift gate does not exit 0 (the deferred non-AI tables), and this
-document's own rule is to resolve only when the gate passes. The resolve is one command
-and can be run once the deferred tables are brought into the schema or the condition is
-re-scoped — see §4.1.4 for the recommendation.
+here because the *raw* whole-schema gate does not exit 0 (the deferred non-AI tables), and
+this document's rule is to resolve only when the gate passes. The gate now has a **scoped**
+mode that does pass on the reconciled state — see §4.1.4 — but running the resolve remains
+a separate, explicitly authorized operator action.
 
-#### 4.1.4 Recommendation for the baseline resolve
+#### 4.1.4 Gate scoping (implemented)
 
-The baseline covers exactly the nine tables §5 says it should. The 15 non-AI tables will
-never be in this schema, so the whole-schema `prisma migrate diff` will keep exiting 2 no
-matter what is done to the AI scope. The conflict is between a whole-schema gate and a
-scoped baseline. Recommended resolution, as its own change: teach the drift gate to ignore
-the deferred tables (a scoped `--from-migrations`/output filter), so exit 0 means "the
-declared schema is reconciled" rather than "the database matches the schema globally".
-Until then, the baseline stays unapplied.
+Before this change, the gate ran a **whole-schema** `prisma migrate diff`, so it exited 2
+whenever any deferred non-AI table differed — which is always. That made exit 0
+unreachable and hid the one signal that mattered (whether the *declared* schema is
+reconciled) behind fifteen permanent, expected differences.
+
+The gate now defaults to a **scoped** check (`npm run prisma:drift:scoped`,
+`scripts/lib/check-baseline-drift-scope.mjs`). It runs the same `prisma migrate diff`,
+parses its output, and decides the exit code from the **in-scope** tables only — the
+nine tables the schema declares via `@@map()` and the baseline migration creates.
+Out-of-scope tables are still printed and recorded as deferred; they are never hidden.
+
+Scope cannot be silently narrowed:
+
+- the scope is **derived from `prisma/schema.prisma`** (`@@map()` names), not hardcoded;
+- the schema's table set must equal the baseline migration's `CREATE TABLE` set, or the
+  checker exits 2 with an `IN-SCOPE MISMATCH` — so a table cannot be dropped from scope
+  by deleting it from one place;
+- a missing, added, or changed in-scope table still fails;
+- a table whose name is a probable typo/mismap of an in-scope name (e.g.
+  `ai_knowledge_extra`) still fails, so a wrong `@@map` is not excused.
+
+The raw whole-schema diff remains available as `mode: drift` for inspection. With this in
+place, the scoped gate returns **exit 0** on the current production state (all AI tables
+present; only deferred non-AI tables differ), which makes the baseline eligible for
+`migrate resolve --applied`. That resolve is still a separate, explicitly authorized
+operator action and is **not** performed by this change.
 
 
 

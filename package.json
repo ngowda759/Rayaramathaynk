@@ -8,6 +8,7 @@
     "prisma:format": "prisma format",
     "prisma:baseline": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
     "prisma:drift": "prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource --exit-code",
+    "prisma:drift:scoped": "node scripts/lib/check-baseline-drift-scope.mjs",
     "seed:ai": "npx ts-node --project tsconfig.scripts.json scripts/seed-ai-knowledge.ts",
     "dev": "next dev",
     "build": "next build",

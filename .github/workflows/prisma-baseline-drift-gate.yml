@@ -22,11 +22,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "drift = schema diff; catalog = read-only catalog dump for reconciliation."
+        description: "scoped = drift limited to the baseline's tables (default); drift = raw whole-schema diff; catalog = read-only catalog dump for reconciliation."
         required: false
-        default: drift
+        default: scoped
         type: choice
         options:
+          - scoped
           - drift
           - catalog
       tables:
@@ -146,8 +147,29 @@ jobs:
             echo
           done
 
-      - name: Prisma drift check
-        if: ${{ inputs.mode != 'catalog' }}
+      - name: Scoped drift check (default)
+        if: ${{ inputs.mode == 'scoped' }}
+        env:
+          PRISMA_DATABASE_URL: ${{ steps.derive.outputs.url }}
+        run: |
+          echo "Running: npm run prisma:drift:scoped"
+          set +e
+          npm run prisma:drift:scoped
+          CODE=$?
+          set -e
+          echo "prisma:drift:scoped exit code: $CODE"
+          {
+            echo "### Prisma baseline drift gate (scoped)"
+            if [ "$CODE" -eq 0 ]; then
+              echo "Exit 0 — the declared schema (the baseline's tables) is reconciled. Only tables outside the baseline scope differ, and those are deferred by design (docs/PRISMA-SCHEMA-BASELINE.md section 5 item 5). The baseline is eligible for \`migrate resolve --applied\`."
+            else
+              echo "Exit $CODE — an in-scope table is missing, added, or changed, or the connection failed. Do not mark the baseline applied."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$CODE"
+
+      - name: Prisma drift check (raw, whole schema)
+        if: ${{ inputs.mode == 'drift' }}
         env:
           PRISMA_DATABASE_URL: ${{ steps.derive.outputs.url }}
         run: |
@@ -158,11 +180,11 @@ jobs:
           set -e
           echo "prisma:drift exit code: $CODE"
           {
-            echo "### Prisma baseline drift gate"
+            echo "### Prisma baseline drift gate (raw)"
             if [ "$CODE" -eq 0 ]; then
-              echo "Exit 0 — the target schema matches \`prisma/schema.prisma\`. The baseline is eligible for \`migrate resolve --applied\`."
+              echo "Exit 0 — the target schema matches \`prisma/schema.prisma\`."
             else
-              echo "Exit $CODE — the target schema does **not** match the baseline, or the connection failed. Do not mark the baseline applied."
+              echo "Exit $CODE — the target schema does not match the baseline globally, or the connection failed. This is expected while the deferred non-AI tables remain out of scope; use the scoped mode to judge the baseline."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$CODE"
