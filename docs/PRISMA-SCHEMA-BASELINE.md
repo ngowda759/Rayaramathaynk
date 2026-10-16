@@ -328,11 +328,52 @@ action — not performed here. The two legitimate paths are:
 
 Path 1 is preferred: it preserves the intended data model and lets the baseline represent
 the complete AI domain. The operator procedure for it — guarded, single-migration,
-transactional, with a rollback plan — is in `docs/RUNBOOK-AI-KNOWLEDGE-APPLY.md`. As of
-this writing the mechanism is **prepared but not authorized and not executed**; the
-baseline stays unapplied until it is run and the drift gate passes.
+transactional, with a rollback plan — is in `docs/RUNBOOK-AI-KNOWLEDGE-APPLY.md`.
 
-Nothing is applied, resolved, or deployed in this change.
+**Path 1 was authorized and executed on 2026-10-16.** See §4.1.3.
+
+#### 4.1.3 Apply result (2026-10-16)
+
+An owner confirmed `ai_knowledge` should exist in the target and authorized a one-time
+apply. The guarded workflow `Apply ai_knowledge migration` (run 38862796014) applied
+`20261013000000_create_ai_knowledge.sql` in a single transaction.
+
+| Check | Before | After |
+| --- | --- | --- |
+| `public` tables | 23 | **24** |
+| Applied migrations | 14 | **15** (includes `20261013000000`) |
+| `ai_knowledge` columns | — | 14 |
+| `ai_knowledge` indexes | — | 6 (pkey, `firestore_id` unique, `slug` unique, `idx_*_approved`, `idx_*_category`, `idx_*_slug`) |
+| `ai_knowledge` trigger | — | `update_ai_knowledge_updated_at` |
+| `ai_settings` rows | 1 | **1 (unchanged)** |
+| All other table row counts | — | **unchanged** |
+
+Read-only confirmation: catalog run 38863125828 shows 24 tables, 15 applied migrations,
+and the table with its columns, indexes and trigger. `ai_settings` data was neither read
+nor modified by the apply.
+
+**Drift after the apply (run 38862933835):** the AI scope is **fully reconciled** — no
+`ai_settings`, `ai_knowledge`, `AiSettings`, `AiKnowledge`, `unknown_questions` or
+`chat_*` entries appear anywhere in the diff. The gate still exits 2 because of the 15
+non-AI tables that §5 item 5 deliberately defers to their own PRs; that is by design and
+not an AI-scope finding.
+
+**Baseline resolve: held.** §5 item 5 defines the *intended* baseline as the AI/user
+domain, and that domain is now reconciled, so the resolve is eligible. It is not performed
+here because the drift gate does not exit 0 (the deferred non-AI tables), and this
+document's own rule is to resolve only when the gate passes. The resolve is one command
+and can be run once the deferred tables are brought into the schema or the condition is
+re-scoped — see §4.1.4 for the recommendation.
+
+#### 4.1.4 Recommendation for the baseline resolve
+
+The baseline covers exactly the nine tables §5 says it should. The 15 non-AI tables will
+never be in this schema, so the whole-schema `prisma migrate diff` will keep exiting 2 no
+matter what is done to the AI scope. The conflict is between a whole-schema gate and a
+scoped baseline. Recommended resolution, as its own change: teach the drift gate to ignore
+the deferred tables (a scoped `--from-migrations`/output filter), so exit 0 means "the
+declared schema is reconciled" rather than "the database matches the schema globally".
+Until then, the baseline stays unapplied.
 
 
 
