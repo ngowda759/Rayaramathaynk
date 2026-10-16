@@ -22,8 +22,14 @@ try {
   process.exit(0);
 } catch (e) {
   // Redact the project ref in the username from any error we surface.
-  const msg = String(e?.message ?? e).replace(/postgres\.[a-z0-9]+/g, "postgres.<ref>");
-  console.error(msg.slice(0, 200));
+  const raw = String(e?.message ?? e);
+  const msg = raw.replace(/postgres\.[a-z0-9]+/g, "postgres.<ref>");
+  const kind = raw.includes("tenant/user") || raw.includes("ENOTFOUND")
+    ? "TENANT_NOT_HERE"
+    : raw.includes("password authentication")
+      ? "AUTH_FAILED"
+      : "OTHER";
+  console.error(`[${kind}] ${msg.slice(0, 160)}`);
   try { await client.end(); } catch {}
   process.exit(1);
 }

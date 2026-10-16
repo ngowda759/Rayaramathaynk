@@ -68,19 +68,32 @@ jobs:
             echo "ERROR: SUPABASE_DB_PASSWORD secret is not available."; exit 1
           fi
           if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
-            echo "ERROR: SUPABASE_ACCESS_TOKEN secret is not available (needed to resolve the project region)."; exit 1
+            echo "NOTE: SUPABASE_ACCESS_TOKEN is not available; using the region scan fallback."
           fi
 
-          REGION=$(curl -fsS --max-time 30 \
+          REGION=""
+          REGION_FROM_API=$(curl -fsS --max-time 30 \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}" \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(j.region||"")}catch{process.stdout.write("")}})')
-          echo "Project region: ${REGION:-<unavailable>}"
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(j.region||"")}catch{process.stdout.write("")}})' || true)
+          if [ -n "$REGION_FROM_API" ]; then
+            REGION="$REGION_FROM_API"
+            echo "Project region (Management API): ${REGION}"
+            HOSTS=("aws-0-${REGION}.pooler.supabase.com" "aws-1-${REGION}.pooler.supabase.com")
+          else
+            echo "Management API unavailable (region unknown). Falling back to a read-only"
+            echo "scan of known Supavisor region hostnames for this tenant."
+            HOSTS=()
+            for R in ap-south-1 ap-northeast-1 ap-northeast-2 ap-southeast-1 ap-southeast-2 \
+                     us-east-1 us-east-2 us-west-1 us-west-2 eu-west-1 eu-west-2 eu-central-1 \
+                     ca-central-1 sa-east-1 ap-east-1; do
+              HOSTS+=("aws-0-${R}.pooler.supabase.com" "aws-1-${R}.pooler.supabase.com")
+            done
+          fi
 
           PW="$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
           URL=""
-          for HOST in "aws-0-${REGION}.pooler.supabase.com" "aws-1-${REGION}.pooler.supabase.com"; do
-            [ -z "$REGION" ] && break
+          for HOST in "${HOSTS[@]}"; do
             CAND="postgresql://postgres.${SUPABASE_PROJECT_REF}:${PW}@${HOST}:5432/postgres?sslmode=require"
             echo "::add-mask::$CAND"
             if node scripts/lib/probe-pg-url.mjs "$CAND"; then
