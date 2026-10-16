@@ -72,6 +72,14 @@ Verified by import scan:
 | `app/admin/ai/analytics/page.tsx` | Admin analytics |
 | `app/admin/ai/training/page.tsx` | Admin training |
 | `lib/auth/admin-auth.ts` | Role lookup (`users/{uid}`) |
+| `services/ai-analytics.service.ts` | Firestore `AI_SETTINGS`, `CHAT_MESSAGES`, `CHAT_SESSIONS`, `TOKEN_USAGE`; some methods already use Supabase (`ai_latency_records`) |
+| `services/conversation.service.ts` | Firestore conversation sessions |
+| `services/knowledge-workflow.service.ts` | Firestore draft / review / publish workflow: `ARTICLES`, `VERSIONS`, `DRAFTS`, `REVIEW_COMMENTS`, `COMMITTEE_APPROVALS`, `WORKFLOW_ACTIONS`, `AUDIT_LOG`. Reachable from eight `app/api/knowledge/workflow/*` routes |
+
+`services/chat.service.ts` is already Supabase for chat sessions and messages, but
+still imports Firestore for unrelated testimonials, volunteer requests and feedback
+collections.
+
 
 ## 3. Field mapping
 
@@ -175,17 +183,46 @@ create tables that are already there and fail. The baseline approach:
 1. `prisma/migrations/20261015000000_baseline_raya_ai/migration.sql` is generated
    with `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`.
    It is a faithful `CREATE TABLE` script for the models above.
-2. That migration is marked **already applied** in the target environment, without
+2. **Before marking it applied, verify the target database actually matches the
+   baseline.** This step is mandatory and is described in §4.0.
+3. That migration is marked **already applied** in the target environment, without
    being executed:
 
    ```bash
    npx prisma migrate resolve --applied 20261015000000_baseline_raya_ai
    ```
 
-3. Only then do later migrations apply incrementally.
+4. Only then do later migrations apply incrementally.
 
-Step 2 is what makes this safe: it records the baseline as applied while running no
+Step 3 is what makes this safe: it records the baseline as applied while running no
 DDL against production.
+
+### 4.0 Prerequisite: verify the target schema matches the baseline first
+
+`migrate resolve --applied` records a migration as done. It does **not** check that
+the database actually matches. Marking the baseline applied against a database that
+has drifted hides that drift permanently, because Prisma will then never generate the
+missing objects.
+
+Do not mark the baseline applied merely to silence a drift report. Verify first:
+
+```bash
+# 1. Point PRISMA_DATABASE_URL at the target database (direct connection).
+# 2. Diff the schema against that database.
+npm run prisma:drift
+```
+
+Interpretation:
+
+- **Exit 0, no difference** — the database matches the baseline. Proceed to
+  `migrate resolve --applied`.
+- **Non-empty diff** — stop. The database is not the schema the baseline describes.
+  Reconcile the difference explicitly, as its own reviewed change, before recording
+  anything as applied. Do not paper over it.
+
+In practice this means the baseline may only be marked applied after the schema has
+been diffed against the real production database, not just against a database built
+from the SQL migrations. See §6 for the current status of that check.
 
 ### 4.1 Drift detection
 
@@ -257,8 +294,12 @@ later.
 
 - The SQL migrations are the source of truth. The schema was verified against a
   database **built from those migrations** (see §7). It has **not** been checked
-  against the live Supabase project — the drift check in §4.1 is that step, and it
-  needs production credentials.
+  against the live Supabase project.
+- **Consequence — the baseline is not yet eligible to be marked applied.** §4.0
+  requires a clean diff against the *target* database first. Until the drift check in
+  §4.1 has been run against production with a direct connection and returned no
+  difference, `migrate resolve --applied` must not be run. This is an operator action
+  with a verification gate, not a step to perform blind.
 - `gen_random_uuid()` is available. The SQL migrations already depend on it, so
   `pgcrypto` (or Postgres 13+) is present.
 - Prisma is pinned to 7.10.0 for both `prisma` and `@prisma/client`. Note that
