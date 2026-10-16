@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { Client } from "pg";
+import { resolveTargetConnection, redact } from "./lib/target-connection.mjs";
 
 // Guarded, single-migration apply for ai_knowledge. This is the ONE write path in
 // the Raya AI Supabase work, and it is deliberately narrow:
@@ -21,74 +21,22 @@ const DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || "";
 const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || "";
 const OVERRIDE = process.env.PGURL_OVERRIDE || "";
 
-const REGIONS = [
-  "ap-south-1", "ap-northeast-1", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2",
-  "us-east-1", "us-east-2", "us-west-1", "us-west-2", "eu-west-1", "eu-west-2",
-  "eu-central-1", "ca-central-1", "sa-east-1", "ap-east-1",
-];
-
-const redact = (s) => String(s ?? "").replace(/postgres\.[a-z0-9]+/g, "postgres.<ref>");
 const log = (...a) => console.log(...a);
 const die = (msg) => { console.error(redact(msg)); process.exit(1); };
 
-function clientFor(url) {
-  let clean = url;
-  try {
-    const u = new URL(url);
-    u.searchParams.delete("sslmode"); // else pg forces cert verification before auth
-    clean = u.toString();
-  } catch {}
-  return new Client({ connectionString: clean, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 });
-}
-
-async function tryConnect(url) {
-  const c = clientFor(url);
-  try { await c.connect(); await c.query("select 1"); return c; }
-  catch (e) { try { await c.end(); } catch {} return { err: redact(String(e?.message ?? e)) }; }
-}
-
 async function resolveConnection() {
-  if (OVERRIDE) {
-    const c = await tryConnect(OVERRIDE);
-    if (c.err) die(`[OVERRIDE] ${c.err}`);
-    log("Connected via operator-supplied PGURL_OVERRIDE.");
-    return c;
+  try {
+    const { client } = await resolveTargetConnection({
+      projectRef: PROJECT_REF,
+      dbPassword: DB_PASSWORD,
+      accessToken: ACCESS_TOKEN,
+      override: OVERRIDE,
+      log,
+    });
+    return client;
+  } catch (e) {
+    die(redact(e?.message ?? e));
   }
-  if (!PROJECT_REF) die("SUPABASE_PROJECT_REF is not set.");
-  if (!DB_PASSWORD) die("SUPABASE_DB_PASSWORD is not set.");
-
-  let hosts = [];
-  if (ACCESS_TOKEN) {
-    try {
-      const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}`, {
-        headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
-      });
-      if (res.ok) {
-        const j = await res.json();
-        if (j.region) {
-          hosts = [`aws-0-${j.region}.pooler.supabase.com`, `aws-1-${j.region}.pooler.supabase.com`];
-          log(`Region from Management API: ${j.region}`);
-        }
-      } else {
-        log(`Management API HTTP ${res.status}; falling back to a region scan.`);
-      }
-    } catch (e) {
-      log(`Management API unreachable (${redact(e?.message ?? e)}); falling back to a region scan.`);
-    }
-  } else {
-    log("No SUPABASE_ACCESS_TOKEN; using a region scan.");
-  }
-  if (!hosts.length) {
-    for (const r of REGIONS) hosts.push(`aws-0-${r}.pooler.supabase.com`, `aws-1-${r}.pooler.supabase.com`);
-  }
-
-  const pw = encodeURIComponent(DB_PASSWORD);
-  for (const h of hosts) {
-    const url = `postgresql://postgres.${PROJECT_REF}:${pw}@${h}:5432/postgres`;
-    const c = await tryConnect(url);
-    if (!c.err) { log(`Connected via ${h}:5432 (session pooler).`); return c; }
-  }
-  die("Could not reach the target through any known pooler host.");
 }
 
 async function snapshot(c) {

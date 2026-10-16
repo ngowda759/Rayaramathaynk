@@ -1,0 +1,62 @@
+# Guarded resolve for the Raya AI Prisma baseline (20261015000000_baseline_raya_ai).
+#
+# This marks the baseline migration as applied by writing exactly one row to
+# supabase_migrations.schema_migrations. It does not run any migration.
+#
+# Hard to run by accident, mirroring the ai_knowledge apply workflow:
+#   - workflow_dispatch only; never on push or schedule;
+#   - bound to the `production` environment, so a protected environment requires a
+#     human approval before the job starts;
+#   - requires the exact confirmation phrase;
+#   - the script itself re-runs the READ-ONLY scoped drift gate first and aborts if
+#     any in-scope table is missing/added/changed, so this can never suppress drift.
+name: Resolve Raya AI baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: resolve-baseline-raya-ai'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resolve-raya-ai-baseline
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Check confirmation phrase
+        run: |
+          if [ "${{ inputs.confirm }}" != "resolve-baseline-raya-ai" ]; then
+            echo "ERROR: confirmation phrase did not match. Refusing to run."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve baseline (re-runs the read-only scoped gate first)
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RESOLVE_CONFIRM: resolve-baseline-raya-ai
+        run: node scripts/resolve-baseline-raya-ai.mjs

@@ -50,7 +50,8 @@
     "verify:supabase-migrations:json": "npx tsx scripts/verify-supabase-migrations.ts --json",
     "supabase:migrations:dry-run": "supabase db push --dry-run",
     "supabase:migrations:push": "supabase db push",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "prisma:resolve:baseline": "node scripts/resolve-baseline-raya-ai.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
