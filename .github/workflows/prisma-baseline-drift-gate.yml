@@ -21,6 +21,18 @@ name: Prisma Baseline Drift Gate
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "drift = schema diff; catalog = read-only catalog dump for reconciliation."
+        required: false
+        default: drift
+        type: choice
+        options:
+          - drift
+          - catalog
+      tables:
+        description: "catalog mode: space-separated tables (default: ai_knowledge)."
+        required: false
+        type: string
       prisma_database_url_override:
         description: "Optional full Postgres URL (leave empty to derive from secrets)."
         required: false
@@ -108,7 +120,17 @@ jobs:
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Derived target: postgres://postgres.<ref>@<host>:5432/postgres (masked)"
 
+      - name: Catalog dump (read-only)
+        if: ${{ inputs.mode == 'catalog' }}
+        env:
+          DB_URL: ${{ steps.derive.outputs.url }}
+          TABLES: ${{ inputs.tables }}
+        run: |
+          set -eu
+          node scripts/lib/dump-ai-catalog.mjs "$DB_URL" ${TABLES:-ai_knowledge}
+
       - name: Prisma drift check
+        if: ${{ inputs.mode != 'catalog' }}
         env:
           PRISMA_DATABASE_URL: ${{ steps.derive.outputs.url }}
         run: |
