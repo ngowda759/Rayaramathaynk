@@ -275,23 +275,59 @@ Two things are true here and only the second one gates this baseline:
    differences for them"). Note that **no AI table appears under `[*] Changed`** —
    against a scoped reading, the other eight AI tables are consistent with the schema.
 
-2. **The one AI-scope finding to resolve is `ai_knowledge`.** Prisma reports the table
-   as present in the schema but not matched in the live database. A separate reachability
-   probe has previously reported `ai_knowledge` as readable through PostgREST, so the two
-   observations have to be reconciled before the schema can be trusted — either the live
-   table's shape differs from `@@map("ai_knowledge")`, or it is absent. This is the
-   finding the baseline gate exists to surface.
+2. **The one AI-scope finding was `ai_knowledge`**, reported as present in the schema
+   but not matched in the live database. It has since been reconciled — see §4.1.2.
 
 **Decision: do not run `migrate resolve --applied`.** Recording the baseline as applied
-now would permanently hide the `ai_knowledge` discrepancy. The next step is a diff
-scoped to the AI tables (for example `prisma migrate diff` with a scoped
-`--to-schema` derived from the live datasource, or an explicit query of
-`information_schema` for the AI table set), then a reviewed reconciliation of whatever
-it reports.
+now would permanently hide the `ai_knowledge` discrepancy. See §4.1.2 for the
+reconciled cause and the required next step.
 
 An operator with `SUPABASE_ACCESS_TOKEN` rotated (the stored secret currently returns
 HTTP 401 from the Management API — see §7.4) can also run the check directly against a
 direct connection.
+
+#### 4.1.2 Reconciliation of `ai_knowledge` (2026-10-16)
+
+The full-database diff alone could not say whether `ai_knowledge` was missing, or just
+differently shaped, because the non-AI tables dominate the range difference. The gate
+was extended with a read-only `mode=catalog` (see §7.4) and run against the same target.
+It settled the question with two independent methods in a single run.
+
+Evidence, from workflow run 38851246600:
+
+| Method | `ai_settings` | `ai_knowledge` | `unknown_questions` |
+| --- | --- | --- | --- |
+| `pg_catalog.pg_tables` (public schema) | present | **absent** | present |
+| `information_schema.columns` | 15 columns as declared | n/a | 18 columns |
+| PostgREST `HEAD /rest/v1/<table>` | HTTP 200 | **HTTP 404** | HTTP 200 |
+
+The live `public` schema has **23 tables** and does not contain `ai_knowledge`; no
+similar table name exists in any schema. PostgREST returns **404** for it while
+returning 200 for `ai_settings` and `unknown_questions`, which rules out a
+catalog-vs-PostgREST disagreement and rules out a name/`@@map` mismatch.
+
+**Cause: an incomplete migration.** `supabase/migrations/20261013000000_create_ai_knowledge.sql`
+defines the table exactly as the `AiKnowledge` model expects, but it has **not been
+applied to the target database**. The other eight AI tables are present and, per the
+`[*] Changed` section of the diff, match `prisma/schema.prisma` exactly.
+
+> Correction to an earlier claim: the connectivity diagnostic previously reported
+> `ai_knowledge: reachable, ? rows`. That result is wrong and is superseded by the two
+> methods above. A count-only PostgREST probe there did not surface the 404.
+
+**What this means for the baseline.** `prisma/schema.prisma` declares a table that does
+not exist in production. Marking the baseline applied now would record `ai_knowledge` as
+already-created and Prisma would never create it. Reconciliation is required **before**
+any `migrate resolve --applied`, and it is a database change, so it is an operator
+action — not performed here. The two legitimate paths are:
+
+1. Apply `20261013000000_create_ai_knowledge.sql` to the target (creating the table),
+   then re-run the drift check and expect the AI scope to be clean; or
+2. Remove `AiKnowledge` from the baseline schema until the table is created, as its own
+   reviewed change.
+
+Nothing is applied, resolved, or deployed in this change.
+
 
 
 ## 5. Decisions requiring confirmation
@@ -441,6 +477,30 @@ Notes worth keeping:
   `ssl: { rejectUnauthorized: false }`.
 - The following are still unverified and remain operator actions: rotating
   `SUPABASE_ACCESS_TOKEN`, and running the AI-scoped diff that §4.1.1 calls for.
+
+### 7.5 Catalog mode (2026-10-16)
+
+The gate gained a read-only `mode=catalog` input so the live catalog can be inspected
+over the same derived connection. It runs `scripts/lib/dump-ai-catalog.mjs`, which reads
+`pg_tables`, `information_schema.columns`, `pg_constraint`, `pg_indexes` and
+`pg_trigger` only, and a PostgREST `HEAD` cross-check. Neither writes nor prints a
+credential. The default `mode` is `drift`, so existing behaviour is unchanged.
+
+```bash
+gh workflow run prisma-baseline-drift-gate.yml --repo ngowda759/Rayaramathaynk \
+  --ref main -f mode=catalog -f tables="ai_settings ai_knowledge unknown_questions"
+```
+
+Runs:
+
+| Run | Purpose | Result |
+| --- | --- | --- |
+| 38850577583 | `ai_knowledge` catalog | absent from `public`; no similar table |
+| 38850986950 | full AI table set | eight AI tables match the schema; `ai_knowledge` absent |
+| 38851246600 | catalog + PostgREST cross-check | pg catalog: absent; PostgREST: HTTP 404 (200 for known tables) |
+
+The reconciliation conclusion is in §4.1.2.
+
 
 
 ## 8. Risks
