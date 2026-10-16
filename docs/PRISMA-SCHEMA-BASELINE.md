@@ -391,8 +391,30 @@ Scope cannot be silently narrowed:
 The raw whole-schema diff remains available as `mode: drift` for inspection. With this in
 place, the scoped gate returns **exit 0** on the current production state (all AI tables
 present; only deferred non-AI tables differ), which makes the baseline eligible for
-`migrate resolve --applied`. That resolve is still a separate, explicitly authorized
-operator action and is **not** performed by this change.
+`migrate resolve --applied`.
+
+#### 4.1.5 Baseline resolution (guarded)
+
+Marking the baseline applied requires writing one row to
+`supabase_migrations.schema_migrations`. That is a production change and must never be
+used to suppress unresolved drift, so it is done by a guarded command,
+`npm run prisma:resolve:baseline` (`scripts/resolve-baseline-raya-ai.mjs`), driven by the
+dispatch-only, `production`-environment-gated, phrase-guarded workflow
+`.github/workflows/resolve-raya-ai-baseline.yml`.
+
+Guard rails:
+
+- it re-runs the **read-only scoped drift gate** against the live database first and
+  **aborts without writing** if any in-scope table is missing, added, or changed;
+- it aborts if any declared table is absent, and is a no-op if the version is already
+  recorded (idempotent);
+- its only write is `insert ... on conflict (version) do nothing`; it runs no migration,
+  never calls `supabase db push`, touches no table data, and redacts the project ref from
+  every error.
+
+Because the command defers to the scoped gate, resolving the baseline records history
+without hiding any remaining drift: if the AI schema regresses later, the gate fails again
+regardless of the history row.
 
 
 
