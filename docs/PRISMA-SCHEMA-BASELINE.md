@@ -234,6 +234,66 @@ This diffs the schema against the live datasource. A non-empty diff means the sc
 has drifted from the database, which is the signal to reconcile before writing any
 new migration.
 
+#### 4.1.1 Result against the live target (2026-10-16) — drift detected
+
+The drift check was run against the live Supabase project through
+`.github/workflows/prisma-baseline-drift-gate.yml` (see §7.4). It **connected
+successfully** to the target database and the result was a **non-empty diff**
+(`prisma:drift` exit 2), so **the baseline is not eligible to be marked applied** and
+`migrate resolve --applied` must not be run yet.
+
+To run the check from CI:
+
+```bash
+gh workflow run prisma-baseline-drift-gate.yml --repo ngowda759/Rayaramathaynk --ref main
+gh run watch "$(gh run list --workflow prisma-baseline-drift-gate.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --repo ngowda759/Rayaramathaynk
+```
+
+Note that the gate must exist on the default branch to be dispatchable, and it may be
+run from any branch ref once it does.
+
+The command is `prisma migrate diff --from-schema prisma/schema.prisma
+--to-config-datasource`, so the source is the schema and the destination is the live
+database. `[+]` lists what must be added to the source to reach the destination,
+i.e. what the **live database has and the schema does not**; `[-]` is the reverse.
+
+Raw findings:
+
+| Label | Finding |
+| --- | --- |
+| `[+] Added tables` (in live, not in schema) | 15 non-AI tables: `aaradhanes`, `daily_poojas`, `donation_campaigns`, `donations`, `events`, `gallery_albums`, `gallery_media`, `settings_documents`, `seva_bookings`, `sevas`, `site_settings`, `social_links`, `temple_areas`, `testimonials`, `volunteer_requests` |
+| `[-] Removed tables` (in schema, not matched in live) | `ai_knowledge` |
+| `[*] Changed` | 15 tables — all non-AI; missing indexes, incl. a unique index on `firestore_id` on 14 of them, plus secondary indexes on the non-AI tables |
+
+Two things are true here and only the second one gates this baseline:
+
+1. **The range difference is not this baseline's concern.** The live database
+   contains the whole application schema; `prisma/schema.prisma` deliberately models
+   only the AI tables (plus `users`/`profiles`). So the 15 non-AI tables correctly
+   appear as "added". This is exactly the case §7.3 warns about ("the out-of-scope
+   tables are absent from the schema, so a full-database drift check will report
+   differences for them"). Note that **no AI table appears under `[*] Changed`** —
+   against a scoped reading, the other eight AI tables are consistent with the schema.
+
+2. **The one AI-scope finding to resolve is `ai_knowledge`.** Prisma reports the table
+   as present in the schema but not matched in the live database. A separate reachability
+   probe has previously reported `ai_knowledge` as readable through PostgREST, so the two
+   observations have to be reconciled before the schema can be trusted — either the live
+   table's shape differs from `@@map("ai_knowledge")`, or it is absent. This is the
+   finding the baseline gate exists to surface.
+
+**Decision: do not run `migrate resolve --applied`.** Recording the baseline as applied
+now would permanently hide the `ai_knowledge` discrepancy. The next step is a diff
+scoped to the AI tables (for example `prisma migrate diff` with a scoped
+`--to-schema` derived from the live datasource, or an explicit query of
+`information_schema` for the AI table set), then a reviewed reconciliation of whatever
+it reports.
+
+An operator with `SUPABASE_ACCESS_TOKEN` rotated (the stored secret currently returns
+HTTP 401 from the Management API — see §7.4) can also run the check directly against a
+direct connection.
+
+
 ## 5. Decisions requiring confirmation
 
 These are flagged rather than silently decided. Each one changes the database, so
@@ -293,13 +353,14 @@ later.
 ## 6. Assumptions
 
 - The SQL migrations are the source of truth. The schema was verified against a
-  database **built from those migrations** (see §7). It has **not** been checked
-  against the live Supabase project.
+  database **built from those migrations** (see §7). It has since been diffed against
+  the live Supabase project (§7.4); that diff is non-empty (§4.1.1), so the baseline is
+  still not eligible to be marked applied.
 - **Consequence — the baseline is not yet eligible to be marked applied.** §4.0
-  requires a clean diff against the *target* database first. Until the drift check in
-  §4.1 has been run against production with a direct connection and returned no
-  difference, `migrate resolve --applied` must not be run. This is an operator action
-  with a verification gate, not a step to perform blind.
+  requires a clean diff against the *target* database. The check has now been run
+  against production and returned differences (§4.1.1), so `migrate resolve --applied`
+  must not be run. Reconcile the reported differences explicitly, as their own reviewed
+  change, first.
 - `gen_random_uuid()` is available. The SQL migrations already depend on it, so
   `pgcrypto` (or Postgres 13+) is present.
 - Prisma is pinned to 7.10.0 for both `prisma` and `@prisma/client`. Note that
@@ -354,9 +415,33 @@ with the trigger.
 
 - The schema has not been diffed against the **live** Supabase project. That needs
   production credentials and is the operator step in §4.1.
-- The out-of-scope tables are absent from the schema, so a full-database drift check
-  will report differences for them until their own PRs land. Run the drift check
-  scoped to the AI tables in the meantime.
+
+### 7.4 Verification against the live target (2026-10-16)
+
+Run from CI via `.github/workflows/prisma-baseline-drift-gate.yml`, a read-only
+`workflow_dispatch` workflow. It derives a session-pooler connection from the existing
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD` secrets and
+runs `npm run prisma:drift`. It never applies or resolves a migration.
+
+| Step | Result |
+| --- | --- |
+| Resolve the target region | Management API returned **401** — the stored `SUPABASE_ACCESS_TOKEN` is stale |
+| Fall back to a region scan | tenant found on `aws-1-ap-south-1.pooler.supabase.com` (session pooler, port 5432) |
+| Connect with `SUPABASE_DB_PASSWORD` | **connected** (`select 1` succeeds) |
+| `prisma migrate diff --from-schema … --to-config-datasource` | **non-empty diff**, exit 2 — see §4.1.1 |
+
+Notes worth keeping:
+
+- The target's direct host `db.<ref>.supabase.co` is **IPv6-only**, and GitHub-hosted
+  runners have no IPv6 egress, so a direct `PRISMA_DATABASE_URL` cannot be used in CI.
+  The Supavisor session pooler (port 5432) has IPv4 and works for `migrate`.
+- Supavisor presents a self-signed certificate chain. A URL that carries
+  `sslmode=require` makes `pg` force verification and the handshake fails before
+  authentication; the probe drops `sslmode` and relies on
+  `ssl: { rejectUnauthorized: false }`.
+- The following are still unverified and remain operator actions: rotating
+  `SUPABASE_ACCESS_TOKEN`, and running the AI-scoped diff that §4.1.1 calls for.
+
 
 ## 8. Risks
 
