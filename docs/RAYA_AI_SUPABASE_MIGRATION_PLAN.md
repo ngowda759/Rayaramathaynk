@@ -29,7 +29,7 @@ This plan is grounded in an inspection of `main` after PR #329.
 
 | Area | State |
 | --- | --- |
-| `ai_settings` table | Exists (`supabase/migrations/20261012000000_create_ai_settings_table.sql`), seeded by `20261012000001_seed_ai_settings.sql`. |
+| `ai_settings` table | Exists (`supabase/migrations/20261012000000_create_ai_settings_table.sql`), seeded by `20261012000001_seed_ai_settings.sql` (the remote ledger records its version as `20261006101759`, mirrored locally by a comment-only marker file). |
 | AI runtime tables | `chat_sessions`, `chat_messages`, `unknown_questions`, `ai_intent_distribution`, `ai_latency_records` exist (`20260930000000_create_ai_tables.sql`). |
 | `ai_knowledge` table | Exists (`20261013000000_create_ai_knowledge.sql`) with an approved-article read policy. |
 | AI settings service | `lib/ai/ai-settings/*` already reads/writes Supabase via `@supabase/supabase-js`. |

@@ -1,0 +1,13 @@
+-- Migration: 20261015000000_baseline_raya_ai
+--
+-- Ledger marker only. The Raya AI baseline was recorded on the remote database via
+-- `prisma migrate resolve --applied 20261015000000_baseline_raya_ai` (see
+-- docs/PRISMA-SCHEMA-BASELINE.md and scripts/resolve-baseline-raya-ai.mjs). The
+-- baseline models the existing AI/user schema, so this file intentionally declares
+-- no DDL - the represented tables already exist. Its absence from
+-- supabase/migrations made the Supabase integration report "Remote migration
+-- versions not found in local migrations directory."
+--
+-- Adding this file only aligns local files with the remote ledger. It changes no
+-- schema and no data. The authoritative Prisma baseline SQL remains
+-- prisma/migrations/20261015000000_baseline_raya_ai/migration.sql.

@@ -46,6 +46,12 @@ it is out of scope for this change. The existing `Deploy Supabase Migrations` wo
 also depends on `supabase link`, which uses the stale `SUPABASE_ACCESS_TOKEN`. This runbook
 therefore applies exactly one file instead, and never uses `db push`.
 
+A comment-only marker, `supabase/migrations/20261006101759_seed_ai_settings.sql`, now
+records the remote id locally so the Supabase integration's ledger comparison stops
+reporting "Remote migration versions not found in local migrations directory." It
+executes nothing, and it sorts before `20261012000000_create_ai_settings_table.sql`, so
+it cannot cause the seed to run before the table exists on a fresh database.
+
 ## The change
 
 `scripts/apply-ai-knowledge-migration.mjs` applies, in **one transaction**:
