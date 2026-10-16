@@ -35,6 +35,18 @@ try {
   console.log(pub.rows.map((r) => r.tablename).join(", "));
   console.log();
 
+  // Supabase CLI migration history, if present. Read-only.
+  try {
+    const hist = await q(
+      `select version, name from supabase_migrations.schema_migrations order by version`,
+    );
+    console.log("=== applied migrations (" + hist.rowCount + ") ===");
+    for (const r of hist.rows) console.log(`  ${r.version}  ${r.name ?? ""}`);
+  } catch (e) {
+    console.log("=== applied migrations === (no supabase_migrations.schema_migrations)");
+  }
+  console.log();
+
   for (const t of wanted) {
     const exists = await q(
       `select 1 from pg_tables where schemaname='public' and tablename=$1`,

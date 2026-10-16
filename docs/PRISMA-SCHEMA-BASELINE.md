@@ -326,6 +326,12 @@ action — not performed here. The two legitimate paths are:
 2. Remove `AiKnowledge` from the baseline schema until the table is created, as its own
    reviewed change.
 
+Path 1 is preferred: it preserves the intended data model and lets the baseline represent
+the complete AI domain. The operator procedure for it — guarded, single-migration,
+transactional, with a rollback plan — is in `docs/RUNBOOK-AI-KNOWLEDGE-APPLY.md`. As of
+this writing the mechanism is **prepared but not authorized and not executed**; the
+baseline stays unapplied until it is run and the drift gate passes.
+
 Nothing is applied, resolved, or deployed in this change.
 
 
