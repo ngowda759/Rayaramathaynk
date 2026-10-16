@@ -126,3 +126,49 @@ deployment metadata rather than the app.
   `docs/SECURITY_SUPABASE_ACCESS_TOKEN_ROTATION.md`).
 - Any deployment — performed only after explicit owner authorization.
 - Claiming Super Admin acceptance without the signed-in walkthrough above.
+
+## 8. Read-only verification results (recorded 2026-10-16, not acceptance)
+
+### 8a. Intended commit and CI
+
+- Intended commit: `deb1d29` (`origin/main`, "Merge PR #340 …"). The fix commit
+  `8d54714` is an ancestor of `main`.
+- Main CI workflow: **success** on `deb1d29` (and on `795b06b`, `b705f1b`).
+- `deb1d29` also carries **two failing checks that are pre-existing and unrelated to
+  the AI work**, recorded honestly rather than claimed green:
+  1. **`build` — GitHub Pages Jekyll build.** Fails on Liquid syntax in
+     `docs/UI-GUIDELINES.md` line 340 (`{{ hidden: { opacity: 0 }`), i.e. docs content,
+     not application code. Present on `b705f1b` and `795b06b` as well. This is the
+     repository-hosting Pages build, **not** the app's `next build` (that passes in CI).
+  2. **`Supabase Preview` (Supabase integration).** "Remote migration versions not
+     found in local migrations directory." Newly triggered by the authorized baseline
+     resolution: remote now records `20261015000000_baseline_raya_ai`, which has no
+     local `supabase/migrations/*.sql` counterpart (the resolution writes a history row
+     only). A cosmetic history/local-file mismatch; the schema itself is reconciled.
+
+### 8b. Read-only gates re-run (both green)
+
+- **Catalog** (run `38881260953`, ref `main`): 24 public tables incl. `ai_knowledge`;
+  **16 applied migrations** incl. `20261015000000 baseline_raya_ai`.
+- **AI-scoped drift** (run `38881264306`, ref `main`): IN SCOPE added 0 / removed 0 /
+  changed 0 → **`SCOPED RESULT: PASS (exit 0)`**; 15 out-of-scope deferred tables
+  listed (not hidden).
+
+### 8c. Production probes (unauthenticated, canonical `www.` host)
+
+| Request | Result |
+| --- | --- |
+| `GET /admin/ai/settings`, `GET /admin/ai/health` | `200` (HTML shell) |
+| `GET /api/ai/health` | `401 {"reason":"missing_token"}` |
+| `GET /api/ai/settings/{temple-information,prompts,intents,unknown-questions}` | `401 missing_token` |
+| `POST /api/seed-ai-settings` | `401` — **never** reports success unauthenticated |
+| Browser `/admin/ai/settings` (no session) | redirects to `/login?redirect=%2Fadmin` — no spinner, unauthorized blocked |
+
+### 8d. Not yet performed (require authorization / a real account)
+
+- Deployment of `deb1d29` (or a later commit) — **held for explicit authorization**.
+- Signed-in Super Admin walkthrough (saved-settings load, retry/error states,
+  save+reload round-trip, health table accuracy, console/API/server-log review) —
+  requires credentials the agent does not hold.
+
+No acceptance is claimed. Section 4 remains the checklist for the authorized step.
