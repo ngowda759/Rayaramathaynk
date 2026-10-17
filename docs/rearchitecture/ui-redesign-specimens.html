@@ -1,0 +1,1571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temple Portal UI Specimens</title>
+<meta name="description" content="Proposed UI primitives for the Sri Raghavendra Swamy Matha portal, drawn with the palette tokens already in app/globals.css.">
+<style>
+/* ============================================================
+   PALETTE — copied verbatim from app/globals.css:128-193 and :299.
+   No value below is new. Everything else on this page references
+   these through var() or color-mix(), so the specimen introduces
+   zero colour values of its own.
+   ============================================================ */
+:root {
+  --background: oklch(0.985 0.015 95);
+  --foreground: oklch(0.25 0.02 50);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.02 50);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.02 50);
+  --primary: oklch(0.75 0.16 80);
+  --primary-foreground: oklch(0.98 0.02 95);
+  --secondary: oklch(0.95 0.02 90);
+  --secondary-foreground: oklch(0.3 0.02 50);
+  --muted: oklch(0.95 0.015 90);
+  --muted-foreground: oklch(0.5 0.02 50);
+  --accent: oklch(0.92 0.06 60);
+  --accent-foreground: oklch(0.35 0.08 45);
+  --destructive: oklch(0.55 0.2 25);
+  --border: oklch(0.88 0.02 85);
+  --input: oklch(0.94 0.02 90);
+  --ring: oklch(0.75 0.16 80);
+  --chart-1: oklch(0.75 0.16 80);
+  --chart-2: oklch(0.7 0.14 50);
+  --chart-3: oklch(0.65 0.12 35);
+  --chart-4: oklch(0.6 0.1 25);
+  --chart-5: oklch(0.55 0.08 20);
+  --sidebar: oklch(0.98 0.01 95);
+  --sidebar-foreground: oklch(0.25 0.02 50);
+  --sidebar-border: oklch(0.88 0.02 85);
+  --temple-gold: oklch(0.78 0.18 85);
+  --temple-gold-light: oklch(0.85 0.12 85);
+  --temple-gold-dark: oklch(0.65 0.2 80);
+  --temple-saffron: oklch(0.72 0.2 55);
+  --temple-saffron-light: oklch(0.82 0.14 55);
+  --temple-deep-red: oklch(0.45 0.18 25);
+  --temple-maroon: oklch(0.35 0.12 20);
+  --temple-cream: oklch(0.96 0.02 92);
+  --temple-warm-white: oklch(0.98 0.01 95);
+  --focus: oklch(0.5 0.2 45);
+
+  /* ---- proposed non-colour tokens (plan §4) ---- */
+  --font-serif: "Source Serif 4", "Noto Serif Kannada", Georgia, "Times New Roman", serif;
+  --font-ui: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-kn: "Noto Serif Kannada", "Noto Sans Kannada", Tunga, serif;
+
+  --text-display: clamp(2rem, 1.2rem + 3.3vw, 2.75rem);
+  --text-h1: clamp(1.625rem, 1.3rem + 1.3vw, 2rem);
+  --text-h2: clamp(1.3125rem, 1.15rem + 0.7vw, 1.5rem);
+  --text-h3: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);
+  --text-body-lg: clamp(1.0625rem, 1.04rem + 0.1vw, 1.125rem);
+  --text-body: 1rem;
+  --text-ui: 0.9375rem;
+  --text-meta: 0.8125rem;
+  --text-micro: 0.75rem;
+
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+
+  --radius-control: 0.5rem;
+  --radius-surface: 1rem;
+  --radius-pill: 9999px;
+
+  --shadow-raise: 0 1px 2px color-mix(in oklab, var(--foreground) 6%, transparent),
+                  0 2px 8px color-mix(in oklab, var(--foreground) 6%, transparent);
+  --shadow-overlay: 0 8px 32px color-mix(in oklab, var(--foreground) 14%, transparent);
+
+  --motion-instant: 120ms cubic-bezier(0.2, 0, 0.4, 1);
+  --motion-enter: 200ms cubic-bezier(0.2, 0, 0, 1);
+
+  --container-page: min(100% - 2 * var(--gutter), 1200px);
+  --gutter: 16px;
+}
+@media (min-width: 768px) { :root { --gutter: 24px; } }
+@media (min-width: 1024px) { :root { --gutter: 32px; } }
+
+/* ============================================================
+   Specimen page chrome
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-serif);
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wrap { width: var(--container-page); margin-inline: auto; }
+
+.pagehead {
+  background: var(--temple-maroon);
+  color: var(--primary-foreground);
+  padding: var(--space-12) 0 var(--space-8);
+}
+.pagehead h1 { font-size: var(--text-display); line-height: 1.1; margin: 0 0 var(--space-3); font-weight: 600; }
+.pagehead p { margin: 0 0 var(--space-2); max-width: 68ch; }
+.pagehead .note {
+  font-family: var(--font-ui); font-size: var(--text-meta);
+  border-top: 1px solid color-mix(in oklab, var(--primary-foreground) 30%, transparent);
+  padding-top: var(--space-3); margin-top: var(--space-6);
+}
+.pagehead a { color: var(--primary); }
+
+section.spec { padding: var(--space-16) 0; border-bottom: 1px solid var(--border); }
+section.spec > .wrap > h2 {
+  font-size: var(--text-h2); font-weight: 600; margin: 0 0 var(--space-2);
+}
+section.spec > .wrap > .lede {
+  font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground);
+  margin: 0 0 var(--space-8); max-width: 68ch;
+}
+.cap {
+  font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground);
+  margin: var(--space-2) 0 0;
+}
+.grid { display: grid; gap: var(--space-6); }
+@media (min-width: 860px) { .two { grid-template-columns: 1fr 1fr; } .three { grid-template-columns: repeat(3, 1fr); } }
+.stack { display: grid; gap: var(--space-6); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+
+.tag {
+  display: inline-block; font-family: var(--font-ui); font-size: var(--text-micro);
+  font-weight: 600; letter-spacing: 0.02em; padding: 2px var(--space-2);
+  border-radius: var(--radius-control);
+}
+.tag-now { background: var(--secondary); color: var(--secondary-foreground); }
+.tag-old { background: color-mix(in oklab, var(--destructive) 12%, transparent); color: var(--temple-deep-red); }
+.tag-new { background: var(--temple-gold-light); color: var(--foreground); }
+
+/* ============================================================
+   PROPOSED PRIMITIVES
+   ============================================================ */
+
+/* --- Button --- */
+.btn {
+  font-family: var(--font-ui); font-size: var(--text-ui); font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  height: 44px; padding-inline: 20px; border-radius: var(--radius-control);
+  border: 1px solid transparent; cursor: pointer; text-decoration: none;
+  transition: background-color var(--motion-instant), border-color var(--motion-instant);
+}
+.btn-sm { height: 36px; padding-inline: 12px; font-size: var(--text-meta); }
+.btn-lg { height: 48px; padding-inline: 24px; }
+.btn-icon { width: 44px; padding-inline: 0; }
+.btn-primary { background: var(--primary); color: var(--foreground); }
+.btn-primary:hover { background: var(--temple-gold); }
+.btn-primary:active { background: var(--temple-gold-dark); }
+.btn-secondary { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--border); }
+.btn-secondary:hover { background: var(--muted); }
+.btn-outline { background: transparent; color: var(--foreground); border-color: var(--muted-foreground); }
+.btn-outline:hover { background: var(--secondary); border-color: var(--foreground); }
+.btn-ghost { background: transparent; color: var(--foreground); }
+.btn-ghost:hover { background: var(--secondary); }
+.btn-destructive { background: var(--destructive); color: var(--primary-foreground); }
+.btn-link {
+  background: transparent; color: var(--temple-deep-red); height: auto; padding: 0;
+  text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px;
+}
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.spinner {
+  width: 14px; height: 14px; border-radius: var(--radius-pill);
+  border: 2px solid color-mix(in oklab, var(--foreground) 30%, transparent);
+  border-top-color: var(--foreground);
+  animation: spin 800ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- Fields --- */
+.field { display: grid; gap: var(--space-1); }
+.field label { font-family: var(--font-ui); font-size: var(--text-meta); font-weight: 500; }
+.field .hint { font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground); }
+.control {
+  font-family: var(--font-ui); font-size: var(--text-body); color: var(--foreground);
+  height: 44px; width: 100%; padding-inline: var(--space-4);
+  background: var(--card); border: 1px solid var(--muted-foreground);
+  border-radius: var(--radius-control);
+}
+.control::placeholder { color: var(--muted-foreground); }
+.control:focus-visible { border-width: 2px; outline: 2px solid var(--focus); outline-offset: 2px; }
+textarea.control { height: auto; min-height: 104px; padding-block: var(--space-3); resize: vertical; line-height: 1.5; }
+select.control { appearance: none; background-image: none; }
+.w-4ch { width: 8ch; } .w-10ch { width: 14ch; }
+.field-error .control { border-width: 2px; border-color: var(--destructive); }
+.errmsg {
+  font-family: var(--font-ui); font-size: var(--text-meta); color: var(--destructive);
+  display: flex; align-items: center; gap: var(--space-1);
+}
+.select-wrap { position: relative; display: inline-block; width: 100%; }
+.select-wrap svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+
+/* --- Card shell --- */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-surface); overflow: hidden;
+}
+.card-body { padding: var(--space-6); }
+.card-link { display: block; text-decoration: none; color: inherit; transition: border-color var(--motion-instant); }
+.card-link:hover { border-color: var(--muted-foreground); }
+.card-link:hover .card-title { text-decoration: underline; text-underline-offset: 3px; }
+.thumb {
+  aspect-ratio: 3 / 2; background: var(--muted);
+  display: grid; place-items: center;
+  font-family: var(--font-ui); font-size: var(--text-micro); color: var(--muted-foreground);
+  letter-spacing: 0.04em;
+}
+.thumb-1x1 { aspect-ratio: 1 / 1; }
+.meta { font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground); }
+.label {
+  font-family: var(--font-ui); font-size: var(--text-meta); font-weight: 600;
+  color: var(--accent-foreground);
+}
+.card-title { font-size: var(--text-h3); font-weight: 600; margin: var(--space-2) 0 var(--space-3); line-height: 1.35; }
+.kn { font-family: var(--font-kn); line-height: 1.75; }
+
+/* --- Seva row --- */
+.seva {
+  display: grid; grid-template-columns: 1fr auto; gap: var(--space-3) var(--space-6);
+  align-items: center; background: var(--card);
+  border: 1px solid var(--border); border-inline-start: 4px solid var(--temple-saffron);
+  border-radius: var(--radius-control); padding: var(--space-4) var(--space-6);
+}
+.seva .price { font-family: var(--font-ui); font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+
+/* --- Quote card --- */
+.quote {
+  background: var(--accent); color: var(--accent-foreground);
+  border-radius: var(--radius-surface); padding: var(--space-8);
+}
+.quote .line { font-family: var(--font-kn); font-size: var(--text-body-lg); line-height: 1.75; margin: 0 0 var(--space-4); }
+.quote .tr { font-size: var(--text-body); margin: 0 0 var(--space-4); max-width: 60ch; }
+.quote cite { font-family: var(--font-ui); font-size: var(--text-meta); font-style: normal; }
+
+/* --- Section header --- */
+.secthead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: var(--space-4); }
+.secthead .knline { font-family: var(--font-kn); font-size: var(--text-meta); color: var(--muted-foreground); }
+.secthead h3 { font-size: var(--text-h2); font-weight: 600; margin: var(--space-1) 0 var(--space-2); }
+.secthead p { margin: 0; max-width: 68ch; color: var(--muted-foreground); }
+
+/* --- Nav --- */
+.frame { border: 1px solid var(--border); border-radius: var(--radius-surface); overflow: hidden; background: var(--background); }
+.navbar {
+  height: 64px; background: var(--card); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: var(--space-6); padding-inline: var(--space-6);
+  font-family: var(--font-ui); font-size: var(--text-ui);
+}
+.mark {
+  width: 36px; height: 36px; border-radius: var(--radius-pill);
+  background: var(--temple-maroon); color: var(--primary-foreground);
+  display: grid; place-items: center; font-family: var(--font-serif); font-weight: 600; flex: none;
+}
+.wordmark { font-family: var(--font-serif); font-weight: 600; white-space: nowrap; }
+.navlinks { display: flex; gap: var(--space-6); margin-inline-start: auto; }
+.navlinks a { color: var(--foreground); text-decoration: none; padding-block: 21px; border-bottom: 2px solid transparent; }
+.navlinks a[aria-current] { border-bottom-color: var(--primary); }
+.navutil { display: flex; align-items: center; gap: var(--space-3); }
+.iconbtn {
+  width: 44px; height: 44px; display: grid; place-items: center; background: transparent;
+  border: 0; border-radius: var(--radius-control); color: var(--foreground); cursor: pointer;
+}
+.iconbtn:hover { background: var(--secondary); }
+.navbar-mobile { height: 56px; gap: var(--space-3); padding-inline: var(--space-4); }
+.phone { width: 390px; max-width: 100%; }
+.sheet { background: var(--card); box-shadow: var(--shadow-overlay); padding: var(--space-4); font-family: var(--font-ui); }
+.sheet a { display: block; padding: var(--space-3) var(--space-2); color: var(--foreground); text-decoration: none; border-bottom: 1px solid var(--border); }
+.sheet a:last-of-type { border-bottom: 0; }
+
+/* --- Hero --- */
+.hero { position: relative; }
+.hero .img {
+  aspect-ratio: 21 / 9; background: var(--muted);
+  display: grid; place-items: center;
+  font-family: var(--font-ui); font-size: var(--text-micro); color: var(--muted-foreground);
+}
+.hero .copy { position: absolute; inset-inline-start: var(--space-8); bottom: var(--space-8); max-width: 34rem; }
+.hero .panel { background: var(--card); border-radius: var(--radius-surface); padding: var(--space-6); }
+.hero .knname { font-family: var(--font-kn); font-size: var(--text-h3); color: var(--muted-foreground); }
+.hero h4 { font-size: var(--text-display); line-height: 1.1; font-weight: 600; margin: var(--space-1) 0 var(--space-2); }
+.statusstrip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  background: var(--temple-maroon); color: var(--primary-foreground);
+  font-family: var(--font-ui); font-size: var(--text-meta);
+  border-radius: var(--radius-control); padding: var(--space-2) var(--space-3); margin-block: var(--space-3);
+}
+.dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--primary); flex: none; }
+.hero-mobile .copy { position: static; max-width: none; padding: var(--space-6); }
+
+/* --- Today panel --- */
+.today {
+  background: var(--temple-cream); border-radius: var(--radius-surface); padding: var(--space-8);
+  display: grid; gap: var(--space-6); grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 640px) { .today { grid-template-columns: 1fr; gap: var(--space-4); } }
+.today .k { font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground); }
+.today .v { font-size: var(--text-h3); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* --- Stat tile --- */
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-surface); padding: var(--space-6); }
+.stat .k { font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground); }
+.stat .v { font-size: var(--text-h1); font-weight: 600; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
+.stat .d { font-family: var(--font-ui); font-size: var(--text-micro); color: var(--muted-foreground); }
+
+/* --- Table --- */
+.tablewrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-surface); overflow: hidden; }
+table.admin { width: 100%; border-collapse: collapse; font-family: var(--font-ui); font-size: var(--text-ui); }
+table.admin th {
+  height: 40px; background: var(--secondary); color: var(--secondary-foreground);
+  font-size: var(--text-meta); font-weight: 600; text-align: left; padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.admin td { height: 48px; padding-inline: var(--space-4); border-bottom: 1px solid var(--border); }
+table.admin tr:last-child td { border-bottom: 0; }
+table.admin .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.admin tr[aria-selected="true"] td { background: var(--temple-gold-light); }
+.sortable { display: inline-flex; align-items: center; gap: var(--space-1); background: none; border: 0; font: inherit; color: inherit; cursor: pointer; padding: 0; }
+.pager {
+  height: 56px; display: flex; align-items: center; justify-content: space-between;
+  padding-inline: var(--space-4); font-family: var(--font-ui); font-size: var(--text-meta);
+  color: var(--muted-foreground); border-top: 1px solid var(--border);
+}
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  font-family: var(--font-ui); font-size: var(--text-meta); font-weight: 500;
+  border-radius: var(--radius-control); padding: 2px var(--space-2);
+}
+.badge-neutral { background: var(--secondary); color: var(--secondary-foreground); }
+.badge-positive { background: color-mix(in oklab, var(--chart-5) 14%, transparent); color: var(--chart-5); }
+.badge-attention { background: var(--temple-gold-light); color: var(--foreground); }
+.badge-critical { background: color-mix(in oklab, var(--destructive) 12%, transparent); color: var(--temple-deep-red); }
+
+/* --- Toast --- */
+.toast {
+  display: flex; gap: var(--space-3); align-items: start;
+  background: var(--card); border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--chart-5);
+  border-radius: var(--radius-surface); box-shadow: var(--shadow-raise);
+  padding: var(--space-4); max-width: 26rem; font-family: var(--font-ui); font-size: var(--text-ui);
+}
+.toast.err { border-inline-start-color: var(--destructive); }
+.toast .t { font-weight: 600; }
+.toast .m { font-size: var(--text-meta); color: var(--muted-foreground); margin-top: 2px; }
+
+/* --- Empty state --- */
+.empty { text-align: center; padding: var(--space-12) var(--space-6); }
+.empty h4 { font-size: var(--text-h3); font-weight: 600; margin: var(--space-4) 0 var(--space-2); }
+.empty p { margin: 0 auto var(--space-6); max-width: 44ch; color: var(--muted-foreground); font-size: var(--text-body); }
+
+/* --- Skeleton --- */
+.sk { background: var(--muted); border-radius: var(--radius-control); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* --- Modal / drawer (plan §5.4 "Modal / drawer") --- */
+.scrim {
+  background: color-mix(in oklab, var(--foreground) 45%, transparent);
+  border-radius: var(--radius-surface);
+  padding: var(--space-8) var(--space-4);
+  display: grid; justify-items: center; align-content: center;
+}
+.scrim-sheet { padding: 0; align-content: end; min-height: 22rem; }
+.dialog {
+  width: min(560px, 100%);
+  background: var(--card); color: var(--foreground);
+  border-radius: var(--radius-surface); box-shadow: var(--shadow-overlay);
+  overflow: hidden; text-align: start;
+}
+.dialog-head { position: relative; padding: var(--space-6) var(--space-12) var(--space-4) var(--space-6); border-bottom: 1px solid var(--border); }
+.dialog-head .knline { font-family: var(--font-kn); font-size: var(--text-meta); line-height: 1.75; color: var(--muted-foreground); }
+.dialog-head h4 { font-size: var(--text-h3); font-weight: 600; line-height: 1.35; margin: var(--space-1) 0 0; }
+.dialog-close { position: absolute; inset-inline-end: var(--space-2); inset-block-start: var(--space-2); }
+.dialog-body { padding: var(--space-6); display: grid; gap: var(--space-4); }
+.dialog-foot { padding: var(--space-4) var(--space-6) var(--space-6); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
+.bottomsheet { width: 100%; border-radius: var(--radius-surface) var(--radius-surface) 0 0; }
+.bottomsheet .dialog-head { padding-top: var(--space-3); }
+.bottomsheet .dialog-foot {
+  flex-direction: column-reverse; align-items: stretch;
+  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+}
+.bottomsheet .dialog-foot .btn { width: 100%; }
+.grabber { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--border); margin: var(--space-2) auto var(--space-1); }
+.sumlist { margin: 0; display: grid; gap: var(--space-2); font-family: var(--font-ui); font-size: var(--text-ui); }
+.sumlist > div { display: flex; justify-content: space-between; gap: var(--space-4); }
+.sumlist dt { margin: 0; color: var(--muted-foreground); }
+.sumlist dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.sumlist .total { border-top: 1px solid var(--border); padding-top: var(--space-2); margin-top: var(--space-1); font-weight: 600; }
+.sumlist .total dt { color: var(--foreground); }
+
+/* --- Admin table, mobile row-cards (plan §6.9) --- */
+.cmp-table { display: grid; gap: var(--space-6); align-items: start; }
+@media (min-width: 1024px) { .cmp-table { grid-template-columns: minmax(0, 1fr) 375px; } }
+.phone375 { width: 375px; max-width: 100%; }
+.rowcards { display: grid; gap: var(--space-3); padding: var(--space-4); background: var(--background); }
+.rowcard {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-surface); padding: var(--space-4);
+  display: grid; gap: var(--space-3);
+}
+.rowcard-head { display: flex; justify-content: space-between; align-items: start; gap: var(--space-3); }
+.rowcard-head h5 { font-size: var(--text-h3); font-weight: 600; line-height: 1.35; margin: 0; }
+.rowcard-head .knline { font-family: var(--font-kn); font-size: var(--text-meta); line-height: 1.75; color: var(--muted-foreground); display: block; }
+.rowcard dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-1) var(--space-4); font-family: var(--font-ui); font-size: var(--text-meta); }
+.rowcard dt { color: var(--muted-foreground); }
+.rowcard dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.rowcard-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.scrollbox { overflow-x: auto; }
+
+/* --- Site footer (plan §5.4 "Footer") --- */
+.sitefoot {
+  background: var(--temple-maroon); color: var(--primary-foreground);
+  border-radius: var(--radius-surface); overflow: hidden;
+  font-family: var(--font-ui); font-size: var(--text-ui);
+}
+.sitefoot-inner { padding: var(--space-12) var(--space-6) var(--space-8); }
+.sitefoot-cols { display: grid; gap: var(--space-8); }
+@media (min-width: 860px) { .sitefoot-cols { grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: var(--space-6); } }
+.sitefoot h4 { font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 var(--space-3); }
+.sitefoot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.sitefoot a { color: var(--primary-foreground); text-decoration: none; display: inline-block; padding-block: var(--space-1); }
+.sitefoot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.sitefoot p { margin: 0 0 var(--space-2); }
+.sitefoot .knline { font-family: var(--font-kn); line-height: 1.75; }
+.sitefoot .brandline { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.mark-reverse { background: var(--primary-foreground); color: var(--temple-maroon); }
+.mark-knockout { background: transparent; color: var(--primary-foreground); box-shadow: inset 0 0 0 1.5px var(--primary-foreground); }
+.sitefoot-rule { border: 0; border-top: 1px solid color-mix(in oklab, var(--primary-foreground) 30%, transparent); margin: var(--space-8) 0 var(--space-4); }
+.sitefoot .fine { font-size: var(--text-micro); }
+.footacc details { border-top: 1px solid color-mix(in oklab, var(--primary-foreground) 30%, transparent); }
+.footacc details:last-of-type { border-bottom: 1px solid color-mix(in oklab, var(--primary-foreground) 30%, transparent); }
+.footacc summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); min-height: 48px; font-weight: 600;
+}
+.footacc summary::-webkit-details-marker { display: none; }
+.footacc details[open] summary svg { transform: rotate(180deg); }
+.footacc ul { padding-bottom: var(--space-4); }
+.socialrow { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.socialrow a {
+  width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary-foreground) 40%, transparent);
+}
+.socialrow a:hover { background: color-mix(in oklab, var(--primary-foreground) 12%, transparent); text-decoration: none; }
+
+/* --- Scales --- */
+.scaleRow { display: grid; grid-template-columns: 7.5rem 1fr; gap: var(--space-4); align-items: baseline; padding-block: var(--space-3); border-bottom: 1px solid var(--border); }
+.scaleRow .name { font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground); }
+.spaceRow { display: grid; grid-template-columns: 6rem 4rem 1fr; gap: var(--space-4); align-items: center; padding-block: var(--space-2); font-family: var(--font-ui); font-size: var(--text-meta); }
+.bar { height: 14px; background: var(--primary); border-radius: 2px; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+.sw { border: 1px solid var(--border); border-radius: var(--radius-control); overflow: hidden; font-family: var(--font-ui); font-size: var(--text-micro); }
+.sw .chip { height: 56px; }
+.sw .nm { padding: var(--space-2); }
+
+/* --- Current-vs-proposed --- */
+.compare { display: grid; gap: var(--space-6); }
+@media (min-width: 860px) { .compare { grid-template-columns: 1fr 1fr; } }
+.pane { border: 1px solid var(--border); border-radius: var(--radius-surface); padding: var(--space-6); background: var(--card); }
+.pane.before { background: var(--temple-warm-white); }
+
+/* Recreations of the CURRENT components, from their real class strings.
+   Geometry, gradient, shadow, radius and weight are reproduced exactly;
+   the hues are the nearest tokens in globals.css, because the real
+   bg-orange-600 / amber-600 values are not in that file and this page
+   introduces no colour value that is not. */
+.old-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-ui); font-weight: 500; font-size: var(--text-body);
+  height: 44px; padding: 12px 16px; border: 0; border-radius: 8px; cursor: pointer;
+  background: var(--temple-saffron); color: var(--primary-foreground);
+  transition: all 300ms;
+}
+.old-btn-gradient {
+  background: linear-gradient(to right, var(--temple-gold-dark), var(--temple-saffron));
+  border-radius: 12px; padding: 8px 16px; height: auto; font-weight: 600; font-size: var(--text-ui);
+  box-shadow: 0 10px 15px -3px color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+.old-btn-gradient:hover { transform: scale(1.05); }
+.old-btn-outline {
+  background: transparent; border: 1px solid var(--temple-saffron); color: var(--temple-saffron);
+  height: 36px; padding: 8px 12px; border-radius: 6px; font-size: var(--text-meta);
+}
+.old-card {
+  overflow: hidden; border-radius: 16px;
+  border: 1px solid color-mix(in oklab, var(--temple-gold-light) 45%, var(--card));
+  background: var(--card);
+  box-shadow: 0 10px 15px -3px color-mix(in oklab, var(--foreground) 10%, transparent),
+              0 4px 6px -4px color-mix(in oklab, var(--foreground) 10%, transparent);
+  transition: all 300ms;
+}
+.old-card:hover { transform: translateY(-8px); box-shadow: 0 25px 50px -12px color-mix(in oklab, var(--foreground) 25%, transparent); }
+.old-card .datehead {
+  background: linear-gradient(to right, var(--temple-gold-dark), var(--temple-saffron));
+  color: var(--primary-foreground); padding: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.old-card .mon { font-family: var(--font-ui); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; }
+.old-card .day { font-size: 24px; font-weight: 700; margin: 4px 0 0; font-family: var(--font-serif); }
+.old-card .inner { padding: 16px; }
+.old-pill {
+  display: inline-block; border-radius: 9999px; padding: 4px 12px;
+  font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+  background: color-mix(in oklab, var(--chart-5) 16%, transparent); color: var(--chart-5);
+}
+.old-card h5 { font-size: 18px; font-weight: 700; margin: 16px 0 0; }
+.old-card .desc { font-size: 14px; line-height: 1.25; color: var(--muted-foreground); margin: 12px 0 0; }
+.old-card .lines { margin-top: 16px; display: grid; gap: 8px; font-family: var(--font-ui); font-size: 14px; }
+.old-card .btnrow { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.old-card .btnrow .old-btn-outline { flex: 1 1 0; }
+.old-card .cta {
+  margin-top: 12px; display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 12px; padding: 8px 16px; font-family: var(--font-ui); font-size: 14px; font-weight: 600;
+  background: linear-gradient(to right, var(--temple-gold-dark), var(--temple-saffron));
+  color: var(--primary-foreground); text-decoration: none;
+}
+.old-secthead { text-align: center; margin-bottom: 48px; }
+.old-secthead .eyebrow {
+  display: inline-block; border-radius: 9999px; padding: 8px 20px;
+  background: color-mix(in oklab, var(--temple-gold-light) 40%, var(--card));
+  color: var(--temple-gold-dark); font-family: var(--font-ui); font-size: 14px; font-weight: 600;
+}
+.old-secthead h5 { font-size: 36px; font-weight: 700; margin: 24px 0 0; }
+.old-secthead p { font-size: 18px; color: var(--muted-foreground); margin: 16px 0 0; }
+
+.ratio { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.fail { color: var(--destructive); font-weight: 600; }
+.pass { color: var(--chart-5); font-weight: 600; }
+
+footer.pagefoot { padding: var(--space-12) 0 var(--space-24); font-family: var(--font-ui); font-size: var(--text-meta); color: var(--muted-foreground); }
+footer.pagefoot a { color: var(--temple-deep-red); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="pagehead">
+  <div class="wrap">
+    <h1>Temple portal — proposed UI primitives</h1>
+    <p>Specimens for the redesign described in <strong>UI-REDESIGN-PLAN.md</strong>. Every colour here is a token already declared in <code>app/globals.css</code>; nothing new was introduced. Typography, spacing, shape, elevation and motion are the proposed values.</p>
+    <p class="note">This page deliberately shows the <strong>temple site's</strong> proposed look and is styled with the temple portal's <strong>own palette tokens</strong> from app/globals.css. No external fonts, scripts or images are loaded — the serif degrades to Georgia and the UI face to Segoe UI / system-ui.</p>
+  </div>
+</header>
+
+<!-- ============================ PALETTE ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Palette — unchanged values, new roles</h2>
+    <p class="lede">The same 41 tokens from <code>app/globals.css:128-193</code>. What changes is where each one is allowed to appear.</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:var(--background)"></div><div class="nm">--background<br>page ground</div></div>
+      <div class="sw"><div class="chip" style="background:var(--card)"></div><div class="nm">--card<br>raised surface</div></div>
+      <div class="sw"><div class="chip" style="background:var(--temple-cream)"></div><div class="nm">--temple-cream<br>alternate band</div></div>
+      <div class="sw"><div class="chip" style="background:var(--secondary)"></div><div class="nm">--secondary<br>table header, chip</div></div>
+      <div class="sw"><div class="chip" style="background:var(--primary)"></div><div class="nm">--primary<br><strong>the one accent</strong></div></div>
+      <div class="sw"><div class="chip" style="background:var(--accent)"></div><div class="nm">--accent<br>quote ground</div></div>
+      <div class="sw"><div class="chip" style="background:var(--temple-saffron)"></div><div class="nm">--temple-saffron<br>category marker only</div></div>
+      <div class="sw"><div class="chip" style="background:var(--temple-deep-red)"></div><div class="nm">--temple-deep-red<br>links</div></div>
+      <div class="sw"><div class="chip" style="background:var(--temple-maroon)"></div><div class="nm">--temple-maroon<br>footer, status strip</div></div>
+      <div class="sw"><div class="chip" style="background:var(--destructive)"></div><div class="nm">--destructive<br>errors, delete</div></div>
+      <div class="sw"><div class="chip" style="background:var(--muted-foreground)"></div><div class="nm">--muted-foreground<br>2nd text + control border</div></div>
+      <div class="sw"><div class="chip" style="background:var(--foreground)"></div><div class="nm">--foreground<br>ink, incl. on gold</div></div>
+    </div>
+    <p class="cap">Gold is a fill and a marker, never text on white — <code>--primary</code> on <code>--card</code> measures 2.26:1.</p>
+  </div>
+</section>
+
+<!-- ============================ TYPE ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Type scale</h2>
+    <p class="lede">Nine steps. One body size for reading copy at every breakpoint; the UI face is capped at 16px and never carries prose.</p>
+
+    <div class="scaleRow"><span class="name">display · 32→44 · 600</span><span style="font-size:var(--text-display);line-height:1.1;font-weight:600">Sri Raghavendra Swamy Matha</span></div>
+    <div class="scaleRow"><span class="name">h1 · 26→32 · 600</span><span style="font-size:var(--text-h1);line-height:1.2;font-weight:600">Sevas and offerings</span></div>
+    <div class="scaleRow"><span class="name">h2 · 21→24 · 600</span><span style="font-size:var(--text-h2);line-height:1.3;font-weight:600">Upcoming events</span></div>
+    <div class="scaleRow"><span class="name">h3 · 18→20 · 600</span><span style="font-size:var(--text-h3);line-height:1.35;font-weight:600">Ganesha Chaturthi</span></div>
+    <div class="scaleRow"><span class="name">body-lg · 17→18 · 400</span><span style="font-size:var(--text-body-lg);line-height:1.6">The lead paragraph on an article or an event, set one step above the body.</span></div>
+    <div class="scaleRow"><span class="name">body · 16 · 400</span><span style="font-size:var(--text-body);line-height:1.6">Reading copy, capped at 68 characters a line. This is the smallest size any sentence is ever set in.</span></div>
+    <div class="scaleRow"><span class="name">ui · 15 · 500</span><span style="font-family:var(--font-ui);font-size:var(--text-ui);font-weight:500">Buttons · navigation · table cells · form controls</span></div>
+    <div class="scaleRow"><span class="name">meta · 13 · 500</span><span style="font-family:var(--font-ui);font-size:var(--text-meta);font-weight:500">24 September 2026 · Main hall · ₹501</span></div>
+    <div class="scaleRow"><span class="name">micro · 12 · 500</span><span style="font-family:var(--font-ui);font-size:var(--text-micro);font-weight:500">Footnotes and captions only — never anything actionable</span></div>
+
+    <div class="stack" style="margin-top:var(--space-8)">
+      <div>
+        <p class="kn" style="font-size:var(--text-meta);color:var(--muted-foreground);margin:0">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</p>
+        <p style="font-size:var(--text-h2);font-weight:600;margin:var(--space-1) 0 0">Sri Raghavendra Swamy Matha</p>
+        <p class="cap">Bilingual pair: Kannada first at <code>--text-meta</code> in <code>--font-kn</code>, English below, 4px apart, no separator, <code>lang="kn"</code> on the Kannada element.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ SPACING ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Spacing scale</h2>
+    <p class="lede">4px base, nine steps. Three of them — 48, 64, 96 — are the only vertical band heights on the site.</p>
+    <div class="spaceRow"><span>--space-1</span><span>4px</span><span class="bar" style="width:4px"></span></div>
+    <div class="spaceRow"><span>--space-2</span><span>8px</span><span class="bar" style="width:8px"></span></div>
+    <div class="spaceRow"><span>--space-3</span><span>12px</span><span class="bar" style="width:12px"></span></div>
+    <div class="spaceRow"><span>--space-4</span><span>16px</span><span class="bar" style="width:16px"></span></div>
+    <div class="spaceRow"><span>--space-6</span><span>24px</span><span class="bar" style="width:24px"></span></div>
+    <div class="spaceRow"><span>--space-8</span><span>32px</span><span class="bar" style="width:32px"></span></div>
+    <div class="spaceRow"><span>--space-12</span><span>48px · section band, mobile</span><span class="bar" style="width:48px"></span></div>
+    <div class="spaceRow"><span>--space-16</span><span>64px · section band, desktop</span><span class="bar" style="width:64px"></span></div>
+    <div class="spaceRow"><span>--space-24</span><span>96px · page opener only</span><span class="bar" style="width:96px"></span></div>
+    <p class="cap">Radius: two values only — 8px on controls, 16px on surfaces — plus a pill reserved for avatars and status dots.</p>
+    <div class="row" style="margin-top:var(--space-6)">
+      <div style="width:120px;height:56px;background:var(--secondary);border:1px solid var(--border);border-radius:var(--radius-control);display:grid;place-items:center;font-family:var(--font-ui);font-size:var(--text-micro)">8px control</div>
+      <div style="width:120px;height:56px;background:var(--secondary);border:1px solid var(--border);border-radius:var(--radius-surface);display:grid;place-items:center;font-family:var(--font-ui);font-size:var(--text-micro)">16px surface</div>
+      <div style="width:56px;height:56px;background:var(--secondary);border:1px solid var(--border);border-radius:var(--radius-pill);display:grid;place-items:center;font-family:var(--font-ui);font-size:var(--text-micro)">pill</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ BUTTONS ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Buttons</h2>
+    <p class="lede">One component, six variants, four sizes. Dark ink on gold is what makes the primary action legible without changing a colour value.</p>
+    <div class="row">
+      <button class="btn btn-primary">Book a seva</button>
+      <button class="btn btn-secondary">Save draft</button>
+      <button class="btn btn-outline">Today's timings</button>
+      <button class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-destructive">Delete booking</button>
+      <a href="#buttons" class="btn btn-link">Read the full plan</a>
+    </div>
+    <p class="cap">Primary = <code>--primary</code> fill + <code>--foreground</code> ink, <span class="ratio pass">7.10:1</span>. Destructive = <code>--destructive</code> + <code>--primary-foreground</code>, <span class="ratio pass">5.38:1</span>. Link = <code>--temple-deep-red</code>, <span class="ratio pass">8.18:1</span>.</p>
+
+    <div class="row" style="margin-top:var(--space-8)">
+      <button class="btn btn-primary btn-sm">Small 36</button>
+      <button class="btn btn-primary">Medium 44</button>
+      <button class="btn btn-primary btn-lg">Large 48</button>
+      <button class="btn btn-outline btn-icon" aria-label="Search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
+      <button class="btn btn-primary" aria-busy="true"><span class="spinner" aria-hidden="true"></span>Book a seva</button>
+      <button class="btn btn-primary" disabled>Pay by UPI</button>
+    </div>
+    <p class="cap">The loading button keeps its label and locks its width; it never becomes the words "Please wait…". The disabled state is used when finance settings carry no UPI id.</p>
+  </div>
+</section>
+
+<!-- ============================ CURRENT VS PROPOSED: BUTTON ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Current vs proposed — button</h2>
+    <p class="lede">The left pane recreates today's buttons from their real class strings — same height, padding, radius, gradient direction, shadow and hover transform. Hues are the nearest palette tokens, because the shipped <code>bg-orange-600</code> is a Tailwind literal that is not declared in <code>globals.css</code>, and this page introduces no colour value that is not.</p>
+    <div class="compare">
+      <div class="pane before">
+        <span class="tag tag-old">current</span>
+        <div class="row" style="margin-top:var(--space-4)">
+          <button class="old-btn">Book Now</button>
+          <button class="old-btn old-btn-gradient">View Event →</button>
+          <button class="old-btn old-btn-outline">Share</button>
+        </div>
+        <p class="cap"><code>components/ui/button.tsx:34,43</code> — <code>bg-orange-600 text-white h-11 rounded-lg px-4 py-3</code>. White on orange-600 is <span class="ratio fail">3.56:1</span>. The gradient CTA (<code>EventCard.tsx:257</code>) runs <span class="ratio fail">3.19:1 → 2.80:1</span> and scales 1.05 on hover. The outline variant is <code>text-orange-600</code> on white, <span class="ratio fail">3.56:1</span>. Three radii across three buttons.</p>
+      </div>
+      <div class="pane">
+        <span class="tag tag-new">proposed</span>
+        <div class="row" style="margin-top:var(--space-4)">
+          <button class="btn btn-primary">Book a seva</button>
+          <button class="btn btn-primary">View event</button>
+          <button class="btn btn-outline btn-sm">Share</button>
+        </div>
+        <p class="cap">Flat fill, one radius (8px), no gradient, no shadow, no transform. 44px tall so it clears every touch-target guidance. Labels name the outcome rather than the mechanism.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ INPUTS ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Inputs, select and textarea</h2>
+    <p class="lede">Label above, hint below the label, error below the control. The resting border is <code>--muted-foreground</code> because <code>--border</code> is 1.44:1 against white and WCAG 1.4.11 asks 3:1 of a control boundary.</p>
+    <div class="grid two">
+      <div class="stack">
+        <div class="field">
+          <label for="s1">Your name</label>
+          <input id="s1" class="control" type="text" placeholder="As it should appear on the receipt">
+        </div>
+        <div class="field">
+          <label for="s2">Phone number</label>
+          <span class="hint">We send the booking confirmation here</span>
+          <input id="s2" class="control" type="tel" inputmode="numeric" placeholder="10 digits">
+        </div>
+        <div class="field field-error">
+          <label for="s3">Email address</label>
+          <input id="s3" class="control" type="email" value="devotee@" aria-invalid="true" aria-describedby="s3e">
+          <span class="errmsg" id="s3e">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>
+            Enter an email address in the form name@example.com
+          </span>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="field">
+          <label for="s4">Seva</label>
+          <span class="select-wrap">
+            <select id="s4" class="control">
+              <option>Archana — 45 min</option>
+              <option>Abhisheka — 20 min</option>
+            </select>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </span>
+        </div>
+        <div class="row" style="align-items:end;gap:var(--space-4)">
+          <div class="field"><label for="s5">Year</label><input id="s5" class="control w-4ch" value="2026"></div>
+          <div class="field"><label for="s6">Pincode</label><input id="s6" class="control w-10ch" value="560064"></div>
+        </div>
+        <div class="field">
+          <label for="s7">Note for the archaka</label>
+          <span class="hint">Gotra, nakshatra or anything else they should know</span>
+          <textarea id="s7" class="control" placeholder="Optional"></textarea>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Input width follows expected content: 8ch for a year, 14ch for a pincode, full width for a name. Errors carry an icon and a sentence, never colour alone. Tab into any field to see the single focus treatment — 2px border plus a 2px <code>oklch(0.5 0.2 45)</code> outline at 2px offset, <span class="ratio pass">6.49:1</span>.</p>
+  </div>
+</section>
+
+<!-- ============================ SECTION HEADER ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Section header</h2>
+    <p class="lede">One component replaces fifteen copy-pasted blocks. Left-aligned, no badge, no ornament, no scroll animation.</p>
+    <div class="secthead">
+      <div>
+        <span class="knline" lang="kn">ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು</span>
+        <h3>Upcoming events</h3>
+        <p>Aaradhane, festivals and discourses at the matha over the next three months.</p>
+      </div>
+      <a href="#events" class="btn btn-link">All events</a>
+    </div>
+    <p class="cap">Optional Kannada line above the title; description capped at 68 characters a line; one optional text action on the right.</p>
+
+    <div class="compare" style="margin-top:var(--space-8)">
+      <div class="pane before">
+        <span class="tag tag-old">current</span>
+        <div class="old-secthead" style="margin-top:var(--space-4)">
+          <span class="eyebrow">UPCOMING EVENTS</span>
+          <h5>Celebrate Divine Festivals</h5>
+          <p>Join us for the sacred celebrations at the matha.</p>
+        </div>
+        <p class="cap"><code>components/home/UpcomingEvents.tsx:19-27</code> and 14 sibling files — centred amber pill, <code>text-5xl font-bold</code> h2, <code>text-lg</code> paragraph, <code>mb-12</code>. Drawn at 36px rather than the shipped 48px so the pane fits beside its pair; everything else is the real geometry. <code>components/common/SectionHeading.tsx:11</code> exists, is also centred, and none of the fifteen use it.</p>
+      </div>
+      <div class="pane">
+        <span class="tag tag-new">proposed</span>
+        <div class="secthead" style="margin-top:var(--space-4)">
+          <div>
+            <span class="knline" lang="kn">ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು</span>
+            <h3>Upcoming events</h3>
+            <p>Aaradhane, festivals and discourses over the next three months.</p>
+          </div>
+          <a href="#events" class="btn btn-link">All events</a>
+        </div>
+        <p class="cap">Left-aligned, no eyebrow, one size step down, Kannada and English as a pair on the same baseline grid. The action that was buried under the block sits on the heading line.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CARDS ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Cards</h2>
+    <p class="lede">Border, no shadow. Hover changes the border and underlines the title — nothing lifts, nothing scales, because on a phone none of that exists.</p>
+    <div class="grid three">
+      <a class="card card-link" href="#events">
+        <div class="thumb">event image 3:2</div>
+        <div class="card-body">
+          <span class="label">Festival</span>
+          <h4 class="card-title">Ganesha Chaturthi</h4>
+          <p class="meta">24 September 2026 · 6:00–20:30</p>
+          <p class="meta">Main hall</p>
+          <span class="btn btn-primary btn-sm" style="margin-top:var(--space-4)">View event</span>
+        </div>
+      </a>
+      <a class="card card-link" href="#events">
+        <div class="thumb">event image 3:2</div>
+        <div class="card-body">
+          <span class="label">Aaradhane</span>
+          <h4 class="card-title">Sri Raghavendra Swamy Aaradhane</h4>
+          <p class="meta">2 October 2026 · 5:30–21:00</p>
+          <p class="meta">Main hall</p>
+          <span class="btn btn-primary btn-sm" style="margin-top:var(--space-4)">View event</span>
+        </div>
+      </a>
+      <div class="card" aria-hidden="true">
+        <div class="sk" style="aspect-ratio:3/2;border-radius:0"></div>
+        <div class="card-body">
+          <div class="sk" style="height:13px;width:35%"></div>
+          <div class="sk" style="height:20px;width:80%;margin-top:var(--space-3)"></div>
+          <div class="sk" style="height:13px;width:60%;margin-top:var(--space-3)"></div>
+          <div class="sk" style="height:13px;width:45%;margin-top:var(--space-2)"></div>
+          <div class="sk" style="height:36px;width:110px;margin-top:var(--space-4)"></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Event card order follows the V&amp;A convention — image, content-type label, title, date, location, one action. The third tile is the skeleton, which mirrors the real boxes rather than showing a shimmering bar.</p>
+
+    <div class="stack" style="margin-top:var(--space-8)">
+      <div class="seva">
+        <div>
+          <div class="kn" lang="kn" style="font-size:var(--text-meta);color:var(--muted-foreground)">ಅರ್ಚನೆ</div>
+          <div style="font-size:var(--text-h3);font-weight:600">Archana</div>
+          <div class="meta">45 minutes · Daily, 9:30 AM</div>
+        </div>
+        <div style="text-align:right">
+          <div class="price">₹501</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:var(--space-2)">Book</button>
+        </div>
+      </div>
+      <div class="seva">
+        <div>
+          <div class="kn" lang="kn" style="font-size:var(--text-meta);color:var(--muted-foreground)">ಅಭಿಷೇಕ</div>
+          <div style="font-size:var(--text-h3);font-weight:600">Abhisheka</div>
+          <div class="meta">20 minutes · Daily, 7:00 AM</div>
+        </div>
+        <div style="text-align:right">
+          <div class="price">₹301</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:var(--space-2)">Book</button>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Seva rows, not cards: prices align down the column in tabular figures because price is what a devotee compares. The 4px saffron rule is the only place saffron survives.</p>
+
+    <div style="margin-top:var(--space-8)">
+      <blockquote class="quote">
+        <p class="line" lang="kn">ಪೂಜ್ಯಾಯ ರಾಘವೇಂದ್ರಾಯ ಸತ್ಯಧರ್ಮರತಾಯ ಚ</p>
+        <p class="tr">To the venerable Raghavendra, devoted to truth and dharma — bestower of what is desired to those who bow before him.</p>
+        <cite>Sri Raghavendra Stotra, verse 1</cite>
+      </blockquote>
+      <p class="cap">The quote card is the only surface that uses <code>--accent</code>: no border, no shadow, ink at <span class="ratio pass">9.00:1</span>, Kannada set one step larger with 1.75 line height.</p>
+    </div>
+
+    <div style="margin-top:var(--space-8)">
+      <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+        <a class="card card-link" href="#events"><div class="thumb thumb-1x1">1 : 1</div></a>
+        <a class="card card-link" href="#events"><div class="thumb thumb-1x1">1 : 1</div></a>
+        <a class="card card-link" href="#events"><div class="thumb thumb-1x1">1 : 1</div></a>
+        <a class="card card-link" href="#events"><div class="thumb thumb-1x1">1 : 1</div></a>
+      </div>
+      <p class="cap">Gallery tile: square <code>next/image</code>, <code>--radius-surface</code>, border only. Today's tile is <code>hover:scale-110</code> inside <code>overflow-hidden</code>; here hover moves the border, not the image, because zoom-on-hover does not exist on the primary device. Two columns at 390px, four at 1024px; the caption appears below the tile only on hover-capable pointers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CURRENT VS PROPOSED: CARD ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Current vs proposed — event card</h2>
+    <p class="lede">Left: <code>components/events/EventCard.tsx:141-260</code> recreated from its real classes. Right: the same content on the proposed primitives.</p>
+    <div class="compare">
+      <div class="pane before" style="padding:var(--space-4)">
+        <span class="tag tag-old">current</span>
+        <div class="old-card" style="margin-top:var(--space-4)">
+          <div class="datehead">
+            <div><p class="mon">SEP</p><p class="day">24</p></div>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
+          </div>
+          <div class="inner">
+            <span class="old-pill">5 Days Left</span>
+            <h5>Ganesha Chaturthi</h5>
+            <p class="desc">Ganesha Chaturthi celebrations at the matha with special poojas through the day.</p>
+            <div class="lines">
+              <div>◷ 6:00 AM</div>
+              <div>⌖ Main hall</div>
+            </div>
+            <div class="btnrow">
+              <button class="old-btn-outline">Share</button>
+              <button class="old-btn-outline">Calendar</button>
+              <button class="old-btn-outline">Notify</button>
+              <button class="old-btn-outline">Directions</button>
+            </div>
+            <a class="cta" href="#compare-card">View Event →</a>
+          </div>
+        </div>
+        <p class="cap">No image although <code>TempleEvent.imageUrl</code> exists. Gradient date header, green days-left pill, four equal-weight outline buttons above the real action, a gradient CTA with an arrow, <code>shadow-lg → shadow-2xl</code> and <code>-translate-y-2</code> on hover, three radii (16px card / 9999px pill / 12px CTA).</p>
+      </div>
+      <div class="pane" style="padding:var(--space-4)">
+        <span class="tag tag-new">proposed</span>
+        <a class="card card-link" href="#compare-card" style="margin-top:var(--space-4)">
+          <div class="thumb">event image 3:2</div>
+          <div class="card-body">
+            <span class="label">Festival</span>
+            <h4 class="card-title">Ganesha Chaturthi</h4>
+            <p class="meta">24 September 2026 · 6:00–20:30</p>
+            <p class="meta">Main hall</p>
+            <div class="row" style="margin-top:var(--space-4)">
+              <span class="btn btn-primary btn-sm">View event</span>
+              <span class="btn btn-ghost btn-sm" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+              </span>
+            </div>
+          </div>
+        </a>
+        <p class="cap">The image does the work the gradient was doing. Share, calendar, reminder and directions collapse into one overflow button, so the card has exactly one primary action. One radius, one border, no shadow.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ NAV ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Navigation bar</h2>
+    <p class="lede">64px on desktop, 56px on mobile. Opaque, bordered, and identical whether the page is scrolled or not.</p>
+    <div class="frame">
+      <div class="navbar">
+        <span class="mark" aria-hidden="true">ಶ್ರೀ</span>
+        <span class="wordmark">Sri Raghavendra Swamy Matha</span>
+        <nav class="navlinks">
+          <a href="#nav">Visit</a>
+          <a href="#nav" aria-current="page">Sevas</a>
+          <a href="#nav">Events</a>
+          <a href="#nav">Calendar</a>
+          <a href="#nav">About</a>
+        </nav>
+        <span class="navutil">
+          <button class="iconbtn" aria-label="Search">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          </button>
+          <button class="iconbtn" aria-label="Language" lang="kn">ಕ</button>
+          <button class="iconbtn" aria-label="Account">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
+          </button>
+          <a class="btn btn-primary btn-sm" href="#nav">Donate</a>
+        </span>
+      </div>
+      <div style="height:56px;background:var(--background)"></div>
+    </div>
+    <p class="cap">Order follows the V&amp;A and Rijksmuseum convention — brand, primary links, utility icons, one call to action. The active item is a 2px <code>--primary</code> underline flush to the bar's lower edge, not a filled gradient pill.</p>
+
+    <div class="grid two" style="margin-top:var(--space-8)">
+      <div>
+        <div class="frame phone">
+          <div class="navbar navbar-mobile">
+            <span class="mark" aria-hidden="true">ಶ್ರೀ</span>
+            <span class="wordmark" style="font-size:var(--text-ui)">SRS Matha</span>
+            <span class="navutil" style="margin-inline-start:auto">
+              <button class="iconbtn" aria-label="Search">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              </button>
+              <button class="iconbtn" aria-label="Menu" aria-expanded="false">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+              </button>
+            </span>
+          </div>
+          <div style="height:40px;background:var(--background)"></div>
+        </div>
+        <p class="cap">Mobile bar, 390px wide, 56px tall.</p>
+      </div>
+      <div>
+        <div class="frame phone">
+          <div class="navbar navbar-mobile">
+            <span class="wordmark" style="font-size:var(--text-ui)">Menu</span>
+            <span class="navutil" style="margin-inline-start:auto">
+              <button class="iconbtn" aria-label="Close menu">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </span>
+          </div>
+          <div class="sheet">
+            <a href="#nav">Visit</a>
+            <a href="#nav">Sevas</a>
+            <a href="#nav">Events</a>
+            <a href="#nav">Calendar</a>
+            <a href="#nav">About</a>
+            <a class="btn btn-primary" href="#nav" style="margin-top:var(--space-4);width:100%">Donate</a>
+          </div>
+        </div>
+        <p class="cap">The sheet renders from the same <code>lib/navigation.ts</code> manifest as the desktop bar and the footer, replacing today's three hand-maintained copies.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ HERO + TODAY ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Hero and the Today panel</h2>
+    <p class="lede">The only place this design spends its boldness. No particles, no canvas flame, no parallax, no gradient wash.</p>
+    <div class="frame hero">
+      <div class="img">hero photograph 21:9</div>
+      <div class="copy">
+        <div class="panel">
+          <span class="knname" lang="kn">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</span>
+          <h4>Sri Raghavendra Swamy Matha</h4>
+          <p class="meta">Yelahanka New Town, Bengaluru</p>
+          <span class="statusstrip"><span class="dot" aria-hidden="true"></span>Open today · 6:00–12:00 · 17:00–20:30</span>
+          <div class="row">
+            <a class="btn btn-primary" href="#hero">Book a seva</a>
+            <a class="btn btn-outline" href="#hero">Today's timings</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Desktop: full-bleed image, copy in a solid panel so the text never fights the photograph. Order follows Rijksmuseum — institution name, place, status, action.</p>
+
+    <div class="grid two" style="margin-top:var(--space-8)">
+      <div>
+        <div class="frame phone hero-mobile">
+          <div class="img" style="aspect-ratio:4/3">hero photograph 4:3</div>
+          <div class="copy">
+            <span class="knname" lang="kn">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</span>
+            <h4 style="font-size:var(--text-h1)">Sri Raghavendra Swamy Matha</h4>
+            <p class="meta">Yelahanka New Town, Bengaluru</p>
+            <span class="statusstrip"><span class="dot" aria-hidden="true"></span>Open today · 6:00–12:00</span>
+            <a class="btn btn-primary" href="#hero" style="width:100%;margin-top:var(--space-2)">Book a seva</a>
+            <a class="btn btn-outline" href="#hero" style="width:100%;margin-top:var(--space-2)">Today's timings</a>
+          </div>
+        </div>
+        <p class="cap">Below 768px nothing overlays the image — text stacks under it, which is the single most common legibility failure this avoids.</p>
+      </div>
+      <div>
+        <div class="today">
+          <div>
+            <div class="k">Today</div>
+            <div class="v">Sat 19 Sept 2026</div>
+          </div>
+          <div>
+            <div class="k">Tithi</div>
+            <div class="v">Chaturdashi</div>
+          </div>
+          <div>
+            <div class="k">Nakshatra</div>
+            <div class="v">Hasta</div>
+          </div>
+          <div style="grid-column:1/-1;border-top:1px solid color-mix(in oklab, var(--foreground) 12%, transparent);padding-top:var(--space-4);display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center;justify-content:space-between">
+            <div>
+              <div class="k">Today's seva</div>
+              <div class="v">Daily Pooja · 9:30 AM</div>
+            </div>
+            <a class="btn btn-primary btn-sm" href="#today">Book</a>
+          </div>
+        </div>
+        <p class="cap">The panel that replaces <code>Panchanga</code>, <code>DailySpiritualDashboard</code> and the marquee announcement bar. Tabular figures, cream ground, no border. Its three values are the page's one orchestrated entrance — 200ms, once, disabled under reduced motion.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ STAT TILES ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Stat tiles</h2>
+    <p class="lede">The number is the content. No gradient icon tile beside it competing for attention.</p>
+    <div class="grid three">
+      <div class="stat"><div class="k">Registered devotees</div><div class="v">1,204</div><div class="d">+38 this month</div></div>
+      <div class="stat"><div class="k">Seva bookings</div><div class="v">87</div><div class="d">4 awaiting payment</div></div>
+      <div class="stat"><div class="k">Donations this month</div><div class="v">₹1,42,500</div><div class="d">318 gifts</div></div>
+    </div>
+    <p class="cap">Sentence-case label, value at <code>--text-h1</code> in tabular figures, one optional delta line. Replaces both <code>StatCard.tsx</code> and the inline <code>MiniStat</code> at <code>app/admin/page.tsx:45</code>.</p>
+  </div>
+</section>
+
+<!-- ============================ ADMIN TABLE ============================ -->
+<section class="spec" id="admin-table">
+  <div class="wrap">
+    <h2>Admin table</h2>
+    <p class="lede">40px header, 48px rows, hairline rules, no zebra. Money and counts align right in tabular figures so a column can be read down.</p>
+    <div class="tablewrap">
+      <table class="admin">
+        <caption class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Donations</caption>
+        <thead>
+          <tr>
+            <th scope="col">Donor</th>
+            <th scope="col"><button class="sortable" aria-sort="descending">Date<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button></th>
+            <th scope="col" class="num"><button class="sortable">Amount</button></th>
+            <th scope="col">Method</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Lakshmi Narayan</td><td>19 Sept 2026</td><td class="num">₹501</td><td>UPI</td>
+            <td><span class="badge badge-positive">Paid</span></td>
+            <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Lakshmi Narayan"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+          </tr>
+          <tr aria-selected="true">
+            <td>Anantha Padmanabha</td><td>18 Sept 2026</td><td class="num">₹1,001</td><td>UPI</td>
+            <td><span class="badge badge-positive">Paid</span></td>
+            <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Anantha Padmanabha"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+          </tr>
+          <tr>
+            <td>Sharada Bai</td><td>18 Sept 2026</td><td class="num">₹201</td><td>Cash</td>
+            <td><span class="badge badge-attention">Pending</span></td>
+            <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Sharada Bai"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+          </tr>
+          <tr>
+            <td>Venkatesh Rao</td><td>17 Sept 2026</td><td class="num">₹2,501</td><td>Bank</td>
+            <td><span class="badge badge-critical">Failed</span></td>
+            <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Venkatesh Rao"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+          </tr>
+          <tr>
+            <td>Not recorded</td><td>17 Sept 2026</td><td class="num">₹101</td><td>Cash</td>
+            <td><span class="badge badge-neutral">Archived</span></td>
+            <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="pager">
+        <span>1–25 of 318</span>
+        <span class="row" style="gap:var(--space-2)">
+          <button class="btn btn-outline btn-sm">Previous</button>
+          <button class="btn btn-outline btn-sm">Next</button>
+        </span>
+      </div>
+    </div>
+    <p class="cap">Row height derives from Material's 52dp body / 56dp header, brought to 48/40 at web scale. The selected row is <code>--temple-gold-light</code> — the only tinted row state. Four badge tones replace ten hardcoded status strings, so an unknown status renders as neutral rather than disappearing.</p>
+  </div>
+</section>
+
+<!-- ============================ ADMIN TABLE — MOBILE ROW-CARDS ============================ -->
+<section class="spec" id="admin-table-rowcards">
+  <div class="wrap">
+    <h2>Admin table below 768px — row cards</h2>
+    <p class="lede">The same five donations twice: the desktop table at full width, and the row-card form in a 375px frame. This is <strong>open decision 9</strong> drawn rather than described.</p>
+
+    <div class="cmp-table">
+      <div>
+        <p class="row" style="margin:0 0 var(--space-3)"><span class="tag tag-new">≥768px</span> <span class="meta">table, unchanged from the section above</span></p>
+        <div class="tablewrap scrollbox">
+          <table class="admin">
+            <caption style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Donations, desktop table</caption>
+            <thead>
+              <tr>
+                <th scope="col">Donor</th>
+                <th scope="col">Date</th>
+                <th scope="col" class="num">Amount</th>
+                <th scope="col">Method</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Lakshmi Narayan</td><td>19 Sept 2026</td><td class="num">₹501</td><td>UPI</td>
+                <td><span class="badge badge-positive">Paid</span></td>
+                <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Lakshmi Narayan"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Anantha Padmanabha</td><td>18 Sept 2026</td><td class="num">₹1,001</td><td>UPI</td>
+                <td><span class="badge badge-positive">Paid</span></td>
+                <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Anantha Padmanabha"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Sharada Bai</td><td>18 Sept 2026</td><td class="num">₹201</td><td>Cash</td>
+                <td><span class="badge badge-attention">Pending</span></td>
+                <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Sharada Bai"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Venkatesh Rao</td><td>17 Sept 2026</td><td class="num">₹2,501</td><td>Bank</td>
+                <td><span class="badge badge-critical">Failed</span></td>
+                <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation from Venkatesh Rao"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Not recorded</td><td>17 Sept 2026</td><td class="num">₹101</td><td>Cash</td>
+                <td><span class="badge badge-neutral">Archived</span></td>
+                <td style="text-align:right"><button class="iconbtn" style="width:40px;height:40px" aria-label="Open donation"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager">
+            <span>1–25 of 318</span>
+            <span class="row" style="gap:var(--space-2)">
+              <button class="btn btn-outline btn-sm">Previous</button>
+              <button class="btn btn-outline btn-sm">Next</button>
+            </span>
+          </div>
+        </div>
+        <p class="cap">Option B keeps this table below 768px and lets it scroll sideways — which is what <code>components/ui/table.tsx:10-12</code> does today (<code>relative w-full overflow-x-auto</code>).</p>
+      </div>
+
+      <div>
+        <p class="row" style="margin:0 0 var(--space-3)"><span class="tag tag-new">&lt;768px · 375px frame</span> <span class="meta">option A</span></p>
+        <div class="frame phone375">
+          <div class="navbar navbar-mobile">
+            <button class="iconbtn" aria-label="Open menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+            <span class="wordmark">Donations</span>
+            <button class="iconbtn" style="margin-inline-start:auto" aria-label="Search donations"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+          </div>
+          <div class="rowcards">
+            <article class="rowcard">
+              <div class="rowcard-head">
+                <div>
+                  <span class="knline" lang="kn">ಲಕ್ಷ್ಮೀ ನಾರಾಯಣ</span>
+                  <h5>Lakshmi Narayan</h5>
+                </div>
+                <span class="badge badge-positive">Paid</span>
+              </div>
+              <dl>
+                <dt>Date</dt><dd>19 Sept 2026</dd>
+                <dt>Amount</dt><dd>₹501</dd>
+                <dt>Method</dt><dd>UPI</dd>
+              </dl>
+              <div class="rowcard-foot">
+                <button class="btn btn-outline btn-sm">Open receipt</button>
+                <button class="iconbtn" style="width:40px;height:40px" aria-label="More actions for Lakshmi Narayan"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+              </div>
+            </article>
+            <article class="rowcard">
+              <div class="rowcard-head">
+                <div>
+                  <span class="knline" lang="kn">ಅನಂತ ಪದ್ಮನಾಭ</span>
+                  <h5>Anantha Padmanabha</h5>
+                </div>
+                <span class="badge badge-positive">Paid</span>
+              </div>
+              <dl>
+                <dt>Date</dt><dd>18 Sept 2026</dd>
+                <dt>Amount</dt><dd>₹1,001</dd>
+                <dt>Method</dt><dd>UPI</dd>
+              </dl>
+              <div class="rowcard-foot">
+                <button class="btn btn-outline btn-sm">Open receipt</button>
+                <button class="iconbtn" style="width:40px;height:40px" aria-label="More actions for Anantha Padmanabha"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+              </div>
+            </article>
+            <article class="rowcard">
+              <div class="rowcard-head">
+                <div>
+                  <span class="knline" lang="kn">ಶಾರದಾ ಬಾಯಿ</span>
+                  <h5>Sharada Bai</h5>
+                </div>
+                <span class="badge badge-attention">Pending</span>
+              </div>
+              <dl>
+                <dt>Date</dt><dd>18 Sept 2026</dd>
+                <dt>Amount</dt><dd>₹201</dd>
+                <dt>Method</dt><dd>Cash</dd>
+              </dl>
+              <div class="rowcard-foot">
+                <button class="btn btn-primary btn-sm">Mark received</button>
+                <button class="iconbtn" style="width:40px;height:40px" aria-label="More actions for Sharada Bai"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+              </div>
+            </article>
+            <article class="rowcard">
+              <div class="rowcard-head">
+                <div>
+                  <span class="knline" lang="kn">ವೆಂಕಟೇಶ ರಾವ್</span>
+                  <h5>Venkatesh Rao</h5>
+                </div>
+                <span class="badge badge-critical">Failed</span>
+              </div>
+              <dl>
+                <dt>Date</dt><dd>17 Sept 2026</dd>
+                <dt>Amount</dt><dd>₹2,501</dd>
+                <dt>Method</dt><dd>Bank</dd>
+              </dl>
+              <div class="rowcard-foot">
+                <button class="btn btn-outline btn-sm">Retry</button>
+                <button class="iconbtn" style="width:40px;height:40px" aria-label="More actions for Venkatesh Rao"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+              </div>
+            </article>
+            <div class="pager" style="border-top:0">
+              <span>1–25 of 318</span>
+              <span class="row" style="gap:var(--space-2)">
+                <button class="btn btn-outline btn-sm">Previous</button>
+                <button class="btn btn-outline btn-sm">Next</button>
+              </span>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Option A: one card per donation, label/value pairs in a <code>&lt;dl&gt;</code> with the value right-aligned <code>tabular-nums</code>, the status as a pill beside the name, and one primary action per row — the action changes with the status ("Mark received" on Pending, "Retry" on Failed). Plan §6.9: "Below 768px the table becomes a list of row cards — a horizontally scrolling table is not a mobile table."</p>
+      </div>
+    </div>
+    <p class="cap"><strong>Open decision 9.</strong> Option A is the row-card list drawn on the right; option B is keeping the real columns in the horizontally scrolling table on the left. A is more readable for the trustee scanning one donation at a time; B is what a volunteer reconciling a receipt book against columns will ask for. The rest of the specimen assumes A.</p>
+  </div>
+</section>
+
+<!-- ============================ MODAL / DRAWER ============================ -->
+<section class="spec" id="modal-drawer">
+  <div class="wrap">
+    <h2>Modal and bottom sheet</h2>
+    <p class="lede">One overlay component in two shapes: centred on desktop, a bottom sheet on the phone. Plan §6.4 and §6.5 route the seva booking and the donation through it, so the sheet is the shape that carries the money.</p>
+
+    <div class="grid two">
+      <div>
+        <p class="row" style="margin:0 0 var(--space-3)"><span class="tag tag-new">≥768px</span> <span class="meta">centred dialog</span></p>
+        <div class="scrim">
+          <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+            <div class="dialog-head">
+              <span class="knline" lang="kn">ನಿಮ್ಮ ಸೇವೆಯನ್ನು ಖಚಿತಪಡಿಸಿ</span>
+              <h4 id="dlg-title">Confirm your seva booking</h4>
+              <button class="iconbtn dialog-close" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            </div>
+            <div class="dialog-body">
+              <div>
+                <p class="knline kn" style="font-size:var(--text-body-lg);margin:0" lang="kn">ಅರ್ಚನೆ</p>
+                <p style="font-size:var(--text-h3);font-weight:600;margin:var(--space-1) 0 0">Archana</p>
+              </div>
+              <dl class="sumlist">
+                <div><dt>Date</dt><dd>24 September 2026</dd></div>
+                <div><dt>Time</dt><dd>9:30 AM</dd></div>
+                <div><dt>In the name of</dt><dd>Lakshmi Narayan</dd></div>
+                <div><dt>Nakshatra</dt><dd>Rohini</dd></div>
+                <div class="total"><dt>Total</dt><dd>₹501</dd></div>
+              </dl>
+              <p class="meta" style="margin:0">A receipt goes to your phone once the payment is recorded.</p>
+            </div>
+            <div class="dialog-foot">
+              <button class="btn btn-secondary">Go back</button>
+              <button class="btn btn-primary">Pay ₹501</button>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Width <code>min(560px, calc(100% - 64px))</code>, <code>--radius-surface</code>, <code>--shadow-overlay</code>, scrim <code>color-mix(in oklab, var(--foreground) 45%, transparent)</code>. Header / body / footer are three bands separated by one hairline. Actions bottom-right: <code>secondary</code> then <code>primary</code>, and the primary names the amount rather than saying "Submit" (plan §5.1, §6.5).</p>
+      </div>
+
+      <div>
+        <p class="row" style="margin:0 0 var(--space-3)"><span class="tag tag-new">&lt;768px</span> <span class="meta">bottom sheet, same content</span></p>
+        <div class="frame phone375" style="border-radius:var(--radius-surface)">
+          <div class="scrim scrim-sheet">
+            <div class="dialog bottomsheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+              <div class="grabber" aria-hidden="true"></div>
+              <div class="dialog-head">
+                <span class="knline" lang="kn">ನಿಮ್ಮ ಸೇವೆಯನ್ನು ಖಚಿತಪಡಿಸಿ</span>
+                <h4 id="sheet-title">Confirm your seva booking</h4>
+                <button class="iconbtn dialog-close" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              </div>
+              <div class="dialog-body">
+                <div>
+                  <p class="knline kn" style="font-size:var(--text-body-lg);margin:0" lang="kn">ಅರ್ಚನೆ</p>
+                  <p style="font-size:var(--text-h3);font-weight:600;margin:var(--space-1) 0 0">Archana</p>
+                </div>
+                <dl class="sumlist">
+                  <div><dt>Date</dt><dd>24 September 2026</dd></div>
+                  <div><dt>Time</dt><dd>9:30 AM</dd></div>
+                  <div><dt>In the name of</dt><dd>Lakshmi Narayan</dd></div>
+                  <div class="total"><dt>Total</dt><dd>₹501</dd></div>
+                </dl>
+              </div>
+              <div class="dialog-foot">
+                <button class="btn btn-secondary">Go back</button>
+                <button class="btn btn-primary">Pay ₹501</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Full width, top corners only, a 36×4 grab handle, and the footer padded by <code>calc(var(--space-6) + env(safe-area-inset-bottom))</code> so the pay button clears the home indicator. Actions stack full width with the primary on top. Today <code>components/ui/dialog.tsx:14</code> returns <code>null</code> when <code>open</code> is false, which kills the exit animation and makes drag-to-dismiss impossible; no <code>sheet.tsx</code> exists, and <code>/admin/featured</code> hand-rolls its own <code>fixed inset-0</code> overlay.</p>
+      </div>
+    </div>
+    <p class="cap">Kannada first, English second, 4px apart, <code>lang="kn"</code> on the Kannada element, no separator character (plan §7.3). The same component carries the donation flow in §6.5 — only the body changes.</p>
+  </div>
+</section>
+
+<!-- ============================ TOAST + EMPTY ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Toast and empty state</h2>
+    <p class="lede">One toast library — <code>react-hot-toast</code>, already wired into 65 files. The dead 325-line second system and the unused <code>sonner</code> dependency are deleted.</p>
+    <div class="grid two">
+      <div class="stack">
+        <div class="toast" role="status">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--chart-5);flex:none;margin-top:2px" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+          <div><div class="t">Booking confirmed</div><div class="m">Archana on 24 September, 9:30 AM. Receipt SVA-2026-0412.</div></div>
+        </div>
+        <div class="toast err" role="status">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--destructive);flex:none;margin-top:2px" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>
+          <div><div class="t">Payment could not be recorded</div><div class="m">The UPI reference was not accepted. Check the twelve-digit number and try again.</div></div>
+        </div>
+        <p class="cap">A 4px tone rule instead of a coloured background, so the text sits on <code>--card</code> at 16:1. The action that produced the toast and the toast use the same verb — "Book" produces "Booking confirmed". Bottom-centre on mobile, top-right on desktop.</p>
+      </div>
+      <div>
+        <div class="card">
+          <div class="empty">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="color:var(--muted-foreground)" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
+            <h4>No events are scheduled yet</h4>
+            <p>Events you add here appear on the home page and in the calendar within a minute.</p>
+            <button class="btn btn-primary">Add an event</button>
+          </div>
+        </div>
+        <p class="cap">An empty screen is an invitation to act: a 24px icon, a statement of what is not here, one line on how to change that, and one button. No apology and no shrug illustration.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ MOTION ============================ -->
+<section class="spec">
+  <div class="wrap">
+    <h2>Motion</h2>
+    <p class="lede">Four durations. Nothing animates on scroll, nothing loops except the skeleton's pulse, and <code>prefers-reduced-motion</code> removes the rest.</p>
+    <div class="grid two">
+      <div>
+        <div class="row">
+          <button class="btn btn-primary">Hover me · 120ms</button>
+          <button class="btn btn-outline">Hover me · 120ms</button>
+        </div>
+        <p class="cap"><code>--motion-instant</code> 120ms on colour and border only. <code>--motion-enter</code> 200ms for menus, sheets and toasts; <code>--motion-exit</code> 140ms; <code>--motion-page</code> 240ms opacity with no translation.</p>
+      </div>
+      <div>
+        <div class="card"><div class="card-body">
+          <div class="sk" style="height:13px;width:40%"></div>
+          <div class="sk" style="height:20px;width:75%;margin-top:var(--space-3)"></div>
+          <div class="sk" style="height:13px;width:55%;margin-top:var(--space-3)"></div>
+        </div></div>
+        <p class="cap">The skeleton's 1.6s opacity pulse is the one permitted loop, because it communicates a pending state rather than decorating one. The shimmer sweep in <code>globals.css:613-617</code> is deleted.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ SITE FOOTER ============================ -->
+<section class="spec" id="site-footer">
+  <div class="wrap">
+    <h2>Site footer — the maroon ground</h2>
+    <p class="lede">The only dark surface on the site. Four columns at desktop, one accordion below 860px, both fed by the single <code>lib/navigation.ts</code> manifest that also feeds the nav bar — replacing today's 269-line third copy of the menu and its direct Firestore read at <code>components/layout/Footer.tsx:70</code>.</p>
+
+    <div class="sitefoot">
+      <div class="sitefoot-inner">
+        <div class="sitefoot-cols">
+          <div>
+            <div class="brandline">
+              <span class="mark mark-reverse" lang="kn" aria-hidden="true">ಶ್ರೀ</span>
+              <span>
+                <span class="knline" lang="kn" style="display:block;font-size:var(--text-meta)">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</span>
+                <span class="wordmark">Sri Raghavendra Swamy Matha</span>
+              </span>
+            </div>
+            <h4>About</h4>
+            <p>Yelahanka New Town, Bengaluru 560064</p>
+            <p class="knline" lang="kn">ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರಾಯ ನಮಃ</p>
+            <p>Open daily · 6:00–12:00 and 17:00–20:30</p>
+          </div>
+          <div>
+            <h4>Visit</h4>
+            <ul>
+              <li><a href="#site-footer">Timings and darshana</a></li>
+              <li><a href="#site-footer">Directions</a></li>
+              <li><a href="#site-footer">Calendar and panchanga</a></li>
+              <li><a href="#site-footer">Events</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Seva and donate</h4>
+            <ul>
+              <li><a href="#site-footer">Book a seva</a></li>
+              <li><a href="#site-footer">Make a donation</a></li>
+              <li><a href="#site-footer">Annadana</a></li>
+              <li><a href="#site-footer">80G receipts</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Connect</h4>
+            <ul>
+              <li><a href="#site-footer">Contact the office</a></li>
+              <li><a href="#site-footer">Volunteer</a></li>
+              <li><a href="#site-footer">Gallery</a></li>
+            </ul>
+            <div class="socialrow" style="margin-top:var(--space-3)">
+              <a href="#site-footer" aria-label="Phone"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z"/></svg></a>
+              <a href="#site-footer" aria-label="Email"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></a>
+              <a href="#site-footer" aria-label="Map"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></a>
+            </div>
+          </div>
+        </div>
+        <hr class="sitefoot-rule">
+        <p class="fine" style="margin:0">© 2026 Sri Raghavendra Swamy Matha, Yelahanka New Town. All rights reserved.</p>
+      </div>
+    </div>
+    <p class="cap">Desktop: four columns on <code>--temple-maroon</code>. Ink is <code>--primary-foreground</code> at <strong class="ratio pass">11.33:1</strong> (AAA) — recomputed from the <code>oklch</code> values in <code>app/globals.css</code>, matching plan §7.1. <code>--card</code> ink is the brighter alternative at 11.98:1. The hairline rules are <code>--primary-foreground</code> at 30% and are decorative only. <code>--primary</code> on maroon measures 5.29:1, so gold may be used for a link here, unlike on the light ground where it is 2.26:1.</p>
+
+    <div class="grid two" style="margin-top:var(--space-8)">
+      <div>
+        <p class="row" style="margin:0 0 var(--space-3)"><span class="tag tag-new">&lt;860px</span> <span class="meta">single column, accordion</span></p>
+        <div class="frame phone375" style="border-radius:var(--radius-surface)">
+          <div class="sitefoot" style="border-radius:0">
+            <div class="sitefoot-inner" style="padding:var(--space-8) var(--space-4) var(--space-6)">
+              <div class="brandline">
+                <span class="mark mark-reverse" lang="kn" aria-hidden="true">ಶ್ರೀ</span>
+                <span>
+                  <span class="knline" lang="kn" style="display:block;font-size:var(--text-meta)">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</span>
+                  <span class="wordmark">Sri Raghavendra Swamy Matha</span>
+                </span>
+              </div>
+              <p class="knline" lang="kn" style="margin-bottom:var(--space-4)">ಶ್ರೀ ಗುರು ರಾಘವೇಂದ್ರಾಯ ನಮಃ</p>
+              <div class="footacc">
+                <details open>
+                  <summary>Visit<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></summary>
+                  <ul>
+                    <li><a href="#site-footer">Timings and darshana</a></li>
+                    <li><a href="#site-footer">Directions</a></li>
+                    <li><a href="#site-footer">Calendar and panchanga</a></li>
+                  </ul>
+                </details>
+                <details>
+                  <summary>Seva and donate<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></summary>
+                  <ul>
+                    <li><a href="#site-footer">Book a seva</a></li>
+                    <li><a href="#site-footer">Make a donation</a></li>
+                  </ul>
+                </details>
+                <details>
+                  <summary>Connect<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></summary>
+                  <ul>
+                    <li><a href="#site-footer">Contact the office</a></li>
+                    <li><a href="#site-footer">Volunteer</a></li>
+                  </ul>
+                </details>
+              </div>
+              <div class="socialrow" style="margin-top:var(--space-4)">
+                <a href="#site-footer" aria-label="Phone"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z"/></svg></a>
+                <a href="#site-footer" aria-label="Email"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></a>
+                <a href="#site-footer" aria-label="Map"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></a>
+              </div>
+              <hr class="sitefoot-rule">
+              <p class="fine" style="margin:0">© 2026 Sri Raghavendra Swamy Matha</p>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Each group is a native <code>&lt;details&gt;</code>, so it works without JavaScript and the 48px summary row is its own touch target. The address, the Kannada line, the social row and the © stay outside the accordion because they are one line each.</p>
+      </div>
+
+      <div>
+        <p class="row" style="margin:0 0 var(--space-3)"><span class="tag tag-new">Open decision 6</span> <span class="meta">logo and wordmark on maroon</span></p>
+        <div class="sitefoot">
+          <div class="sitefoot-inner" style="padding:var(--space-8) var(--space-6)">
+            <p class="fine" style="margin:0 0 var(--space-3)">A — reversed mark: the disc takes <code>--primary-foreground</code>, the glyph takes <code>--temple-maroon</code>. 11.33:1.</p>
+            <div class="brandline">
+              <span class="mark mark-reverse" lang="kn" aria-hidden="true">ಶ್ರೀ</span>
+              <span>
+                <span class="knline" lang="kn" style="display:block;font-size:var(--text-meta)">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</span>
+                <span class="wordmark">Sri Raghavendra Swamy Matha</span>
+              </span>
+            </div>
+            <hr class="sitefoot-rule" style="margin:var(--space-6) 0 var(--space-3)">
+            <p class="fine" style="margin:0 0 var(--space-3)">B — knockout mark: a 1.5px <code>--primary-foreground</code> ring on the maroon itself, nothing filled.</p>
+            <div class="brandline" style="margin-bottom:0">
+              <span class="mark mark-knockout" lang="kn" aria-hidden="true">ಶ್ರೀ</span>
+              <span>
+                <span class="knline" lang="kn" style="display:block;font-size:var(--text-meta)">ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ</span>
+                <span class="wordmark">Sri Raghavendra Swamy Matha</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><strong>Open decision 6.</strong> Both marks are placeholders — the real logo is a raster file this page does not load, and neither variant has been tested against it. A survives a low-contrast screen; B keeps the maroon unbroken but depends on a logo whose strokes stay legible at 36px with no fill. Pick one before the footer is built; the wordmark is one line in <code>--font-serif</code> in both, replacing today's two-line stack.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="pagefoot">
+  <div class="wrap">
+    <p>Specimen page for <strong>docs/rearchitecture/UI-REDESIGN-PLAN.md</strong> · written 2026-09-19 · Sri Raghavendra Swamy Matha portal.</p>
+    <p>Colour values are taken verbatim from <code>app/globals.css:128-193</code> and <code>:299</code>. Contrast ratios quoted on this page are computed from those <code>oklch</code> values in sRGB. No external font, script or image is loaded.</p>
+  </div>
+</footer>
+
+</body>
+</html>
