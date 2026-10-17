@@ -20,7 +20,8 @@ Generated: 2026-09-19
 | M12 | API routes and server actions - the full HTTP surface | 101 | 6818 |
 | M13 | Device capabilities, notifications, location, QR, share, i18n and offline/PWA behaviour | 114 | 11850 |
 | M14 | Domain engines - Panchanga calendar and festivals, Aaradhane generator, receipt PDFs, proof reports | 62 | 13386 |
-| M15 | Testing, CI/CD, deployment, tooling, project history and documentation health | 241 | 66561 |
+| M15 | Testing, CI/CD, deployment, tooling, project history and documentation health | 242 | 66631 |
+| M17 | New since 2026-09-19 - the Expo mobile app, the Prisma layer, the .ai autonomous loop and the new root reports | 62 | 18702 |
 
 ## Unassigned
 
@@ -336,3 +337,4 @@ Generated: 2026-09-19
 - Root matched nothing: data/firestore-dump
 - Root matched nothing: test_plan.sh
 - Root matched nothing: fix-websocket.ts
+- Root matched nothing: app/api/mobile

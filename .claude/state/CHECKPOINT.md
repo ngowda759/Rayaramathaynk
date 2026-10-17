@@ -78,7 +78,7 @@ Workflow only from the repo root - the cwd at launch becomes the agents' cwd and
 - No git history exists; project history comes from the root report files only.
 - Skill name chosen: `temple-portal-expert` (invocable as `/temple-portal-expert`). Rename is a folder rename plus the `name:` line.
 
-## Run 4 - IN FLIGHT (wf_a11936f4-1b4, task wnl15u3tg) - refresh 2026-10-18
+## Run 4 - COMPLETE (wf_a11936f4-1b4, task wnl15u3tg) - refresh 2026-10-18 - 34 agents, 0 errors, 8.0M tokens, 109 min
 
 Ported to the git clone on branch feature/temple-portal-knowledge-base (commit 3d6aa9d, 75 files). Delta vs the
 2026-09-19 snapshot: 243 added, 7 deleted, 135 modified (line endings normalised), 475 commits, HEAD 424fdb8.
@@ -88,3 +88,35 @@ Fleet: 17 refresh/build (Opus high) + 14 skeptics (Opus high; M05, M07, M14 skip
 Script copy: .claude/state/temple-portal-brain-refresh.workflow.js. Resume: Workflow({ scriptPath: <persisted path in the
 session workflows folder>, resumeFromRunId: "wf_a11936f4-1b4", args: <same items/paths> }).
 After the notification: run the aggregate check, commit the refreshed files as a second commit on the branch, update this file.
+
+## Run 4 - refresh 2026-10-18 - role A (router and documents) done
+
+Single Opus agent, brief `.claude/state/briefs/SYNTH-REFRESH.brief.md`, against code commit `424fdb8`
+(repository HEAD `43361a3`, docs-only on top). Inputs: the 16 refreshed brain files (Refresh and
+Verification logs), the new M17 brain file, `.claude/state/delta/2026-10-18/delta.json`, today's
+`.claude/state/inventory/SUMMARY.md`, and the 17 refresher results from the dispatch.
+
+- `MIND-MAP.md`: dated header line; 17 brain files; M17 row in the Module map; 5 new Question-router
+  rows; a Mobile app screens table and `/api/ai/health`, `/api/ai/public-settings` in the Route index;
+  the second server action, the Prisma, `.ai/` and Expo entries and 22 workflows under Non-HTTP entry
+  points; Store index re-statused (24 Supabase tables, `ai_settings`, `ai_knowledge`,
+  `settings_documents`, the missing `website_settings`, a Prisma mirror note); 4 new Cross-cutting rows
+  (AI loop, server-only boundary, lint suppression, mobile client); Known problem areas re-counted from
+  the refreshed fault tables; the 110 unowned delta entries routed (M17, M15, M11, M01, M16).
+- Fault totals counted by script: 709 rated rows in M01-M15 and M17 (141 HIGH / 313 MEDIUM / 255 LOW;
+  591 on 2026-09-19) plus 23 unrated M16 ids; 20 FIXED (16 rated + 4 M16).
+- `README.md`, `SKILL.md`: counts (17 files, 97 routes, ~2.1 MB) and the M17 mention only.
+- `docs/overview/OVERVIEW.md`, `TECHNICAL-GUIDE.md`: a "What changed since 2026-09-19" section near the
+  top (15 and 16 non-blank lines), the M17 module row, and sentence-level corrections (auth 76 of 97
+  unguarded, Supabase scope, Raya AI request lifecycle and pipeline, migration state table, CI and
+  workflow table, conventions table, docs grading, counts).
+- `docs/overview/temple-portal-brief.html`: a "What changed since 19 September" section, the M17 row,
+  at-a-glance tiles from today's SUMMARY.md (929 files, 178,106 lines, 314 client, 6 server-only), and
+  the stale chat-flow, migration, state and risk rows corrected. Script check: 0 external resources,
+  2,141 tags balanced, 36 colour literals all present in `app/globals.css` (unchanged since 2026-09-19).
+- Link check (script) over the skill folder and `docs/overview`: 237 relative links and anchors, 0 broken.
+
+Open items noted for the controller: three diagnostic scripts are cited only by M16 (recorded under
+Known topic gaps); the dispatch's M11 summary says 11 new Supabase migrations, the tree shows 9 (8 to 17
+files) and the docs use 9; an untracked `WhatsApp Image 2026-10-14 at 9.01.32 PM.jpeg` and a modified
+`.gitignore` at the root were not produced by this run.

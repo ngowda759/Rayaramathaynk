@@ -1,5 +1,5 @@
 # M06 - Admin console - content, events, gallery, media and library
-> Brain file for the temple-portal expert skill. Written 2026-09-19 from code, not from docs. Verify against the code before acting on any claim.
+> Brain file for the temple-portal expert skill. Written 2026-09-19 from code, not from docs; refreshed 2026-10-18 against HEAD `424fdb8` (see *Refresh log*). Verify against the code before acting on any claim.
 
 ## Answers questions about
 
@@ -22,7 +22,14 @@
 - Where are temple-explorer areas managed and why do two near-identical API route trees exist for them?
 - What validation exists on each admin form, and which forms have none?
 - Which files in this module are dead code that can be deleted?
-- What auth protects the admin content APIs (answer: nothing at the route level)?
+- What auth protects the admin content APIs (answer: since 2026-09-20 only `POST /api/admin/quotes`
+  verifies a Firebase ID token; every other route in this module has nothing at the route level)?
+- Why does "Save" on `/admin/quotes/new` fail with "Unauthorized" (answer: the route now demands a
+  bearer token and the form's plain `fetch` sends none - M06-F32)?
+- Does the mobile app (`apps/mobile`) show the events and gallery an admin publishes here (answer:
+  it reads Supabase `events` / `gallery_albums` directly; see *Portability notes* and M06-F35/F36)?
+- Who edits the Temple Explorer "Accessibility Information" panel added 2026-10-06 (answer: nobody -
+  M06-F34)?
 - Which pieces of this module would survive a move to React Native and which would have to be rewritten?
 - How do I add a new field to a gallery item / an event / an announcement?
 - How do I add a new admin content page and wire it into the menu?
@@ -95,7 +102,10 @@ of these having been run, not an admin action. The generator engine itself is M1
 
 All `/admin/*` routes sit under `app/admin/layout.tsx`, which wraps children in
 `AdminAuthGuard` (`app/admin/layout.tsx:24`) and `AdminShell`. There is **no `middleware.ts`** in the
-repo, so the only gate is that client-side guard. Every API route below is completely unauthenticated.
+repo; the Next 16 equivalent `proxy.ts` exists but only sets security headers and logs page views
+(`proxy.ts:84-121`, no auth), so the only page gate is that client-side guard. Every API route below
+is unauthenticated **except `POST /api/admin/quotes`**, which since 2026-09-20 (`da7a1fc`) calls
+`verifyAdminUser` (`lib/auth/admin-auth.ts:186`) and requires `Authorization: Bearer <Firebase ID token>`.
 
 | Route or entry | File | server/client | Auth required | What it renders or does |
 |---|---|---|---|---|
@@ -116,7 +126,7 @@ repo, so the only gate is that client-side guard. Every API route below is compl
 | `/admin/announcements/new` | `app/admin/announcements/new/page.tsx` | client | AdminAuthGuard only | `<AnnouncementForm mode="create">` |
 | `/admin/announcements/[id]/edit` | `app/admin/announcements/[id]/edit/page.tsx` | client | AdminAuthGuard only | `<AnnouncementForm mode="edit">` |
 | `/admin/quotes` | `app/admin/quotes/page.tsx` | client | AdminAuthGuard only | Quote list, filters, import/export/seed/cache dialogs |
-| `/admin/quotes/new` | `app/admin/quotes/new/page.tsx` | client | AdminAuthGuard only | 600-line quote form → `POST /api/admin/quotes` |
+| `/admin/quotes/new` | `app/admin/quotes/new/page.tsx` | client | AdminAuthGuard only | 600-line quote form → `POST /api/admin/quotes` (returns 401 today: no bearer token sent, M06-F32) |
 | `/admin/quotes/[id]/edit` | `app/admin/quotes/[id]/edit/page.tsx` | client | AdminAuthGuard only | Near-identical form → `PUT /api/admin/quotes/[id]` |
 | `/admin/testimonials` | `app/admin/testimonials/page.tsx` | client | AdminAuthGuard only | Testimonial cards, approve/reject/edit, modal form |
 | `/admin/shlokas` | `app/admin/shlokas/page.tsx` | client | AdminAuthGuard only | In-memory editor seeded from `data/shlokas.ts` |
@@ -124,7 +134,7 @@ repo, so the only gate is that client-side guard. Every API route below is compl
 | `/admin/temple-areas` | `app/admin/temple-areas/page.tsx` | client | AdminAuthGuard only | Temple-explorer area CRUD via `/api/admin/temple-areas` |
 | `GET /api/storage/videos` | `app/api/storage/videos/route.ts` | server | **none** | `storageService.listVideos()` → Blob listing. No in-repo caller |
 | `GET,DELETE /api/gallery/local-assets` | `app/api/gallery/local-assets/route.ts` | server | **none** | Lists / deletes files under `public/images/temple` and `public/videos` |
-| `GET,POST,PATCH,DELETE /api/admin/quotes` | `app/api/admin/quotes/route.ts` | server | **none** | Quote list, create, bulk update, bulk delete |
+| `GET,POST,PATCH,DELETE /api/admin/quotes` | `app/api/admin/quotes/route.ts` | server | **POST only** - Firebase ID token via `verifyAdminUser` (`route.ts:47-50`); GET/PATCH/DELETE **none** | Quote list, create, bulk update, bulk delete |
 | `GET,PUT,DELETE /api/admin/quotes/[id]` | `app/api/admin/quotes/[id]/route.ts` | server | **none** | Single-quote read/update/delete + cache clear |
 | `POST,GET /api/admin/quotes/bulk` | `app/api/admin/quotes/bulk/route.ts` | server | **none** | Bulk import (with `mode:"validate"`) and JSON export |
 | `POST /api/admin/quotes/cache` | `app/api/admin/quotes/cache/route.ts` | server | **none** | `quoteService.clearCache()` |
@@ -134,10 +144,10 @@ repo, so the only gate is that client-side guard. Every API route below is compl
 | `GET,POST /api/temple-areas` | `app/api/temple-areas/route.ts` | server | **none** | Public list (`getPublicAreas`) **plus an unauthenticated create** |
 | `GET,PUT,DELETE /api/temple-areas/[id]` | `app/api/temple-areas/[id]/route.ts` | server | **none** | Public read plus unauthenticated update/delete |
 | `POST,GET /api/testimonials` | `app/api/testimonials/route.ts` | server | **none** | Submit / list approved testimonials via `chat.service`. No in-repo caller |
-| `GET,POST /api/announcements` | `app/api/announcements/route.ts` | server | **none** | Announcement list/create. No in-repo caller |
+| `GET,POST /api/announcements` | `app/api/announcements/route.ts` | server | **none** | Announcement list/create. No app caller; only the E2E contract test GETs it (`tests/e2e/sprint5/api-contract.spec.ts:68`) |
 | `GET,PATCH,DELETE /api/announcements/[id]` | `app/api/announcements/[id]/route.ts` | server | **none** | Single announcement. No in-repo caller |
-| `GET,POST /api/events` | `app/api/events/route.ts` | server | **none** | Event list/create. No in-repo caller |
-| `GET,PATCH,DELETE /api/events/[id]` | `app/api/events/[id]/route.ts` | server | **none** | Single event. No in-repo caller |
+| `GET,POST /api/events` | `app/api/events/route.ts` | server | **none** | Event list/create. No app caller; only the E2E contract test GETs it (`tests/e2e/sprint5/api-contract.spec.ts:9`) |
+| `GET,PATCH,DELETE /api/events/[id]` | `app/api/events/[id]/route.ts` | server | **none** | Single event. No app caller; only the E2E contract test GETs it (`tests/e2e/sprint5/api-contract.spec.ts:205,232`) |
 | `POST /api/revalidate` | `app/api/revalidate/route.ts` | server | **none** | `revalidatePath()` for the posted paths. Only caller is `components/admin/settings/homepage/useHomepageForm.ts:91` (M05) |
 
 ## Component trees
@@ -394,12 +404,17 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
    kannada / sanskrit / translationEnglish.
 3. `fetch("/api/admin/quotes", { method: "POST", body: JSON.stringify({...formData, slug}) })`
    (`new/page.tsx:210`).
-4. `app/api/admin/quotes/route.ts:44` re-checks title/category/source, reads the caller's identity
-   from an **unverified `x-user-email` header** (`route.ts:46`) and calls
-   `quoteService.createQuote({...body, createdBy: userEmail})`.
-5. `services/quote.service.ts:367` `addDoc(collection(db,'quotes'), ...)` (Firestore, client SDK
+4. `app/api/admin/quotes/route.ts:47` first calls `verifyAdminUser(request)`
+   (`lib/auth/admin-auth.ts:186`), which verifies the `Authorization: Bearer` Firebase ID token with
+   the Admin SDK and rejects `devotee`/`volunteer` roles (`admin-auth.ts:39,148`); on failure the route
+   returns 401 (`route.ts:48-50`). **The form at step 3 sends only `Content-Type`
+   (`new/page.tsx:210-213`), so today every create stops here with "Unauthorized" (M06-F32).** The
+   `x-user-email` header trust was removed by `da7a1fc` (2026-09-20).
+5. When authorised: re-checks title/category/source (`route.ts:56`) and calls
+   `quoteService.createQuote({...body, createdBy: admin.email})` (`route.ts:63-66`).
+6. `services/quote.service.ts:367` `addDoc(collection(db,'quotes'), ...)` (Firestore, client SDK
    imported into a server route).
-6. Redirect to `/admin/quotes`; the list re-fetches `GET /api/admin/quotes`.
+7. Redirect to `/admin/quotes`; the list re-fetches `GET /api/admin/quotes` (still ungated).
 
 ### 5. Manage a temple-explorer area
 
@@ -410,7 +425,10 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
    Supabase table `temple_areas` (`services/temple-areas.supabase.service.ts:6,16`).
 4. Save → `PUT|POST /api/admin/temple-areas[/:id]` (`page.tsx:99`) → `updateArea` / `addArea`.
 5. The public Temple Explorer reads the same data through the parallel route
-   `/api/temple-areas` (`components/temple-explorer/TempleExplorer.tsx:44`).
+   `/api/temple-areas` (`components/temple-explorer/TempleExplorer.tsx:46`). Since 2026-10-06
+   (`11a532f`) that component also renders an "Accessibility Information" panel from
+   `TempleArea.accessibility` (`TempleExplorer.tsx:461-497`), a field neither this admin page nor the
+   Supabase mapper handles (M06-F34).
 
 ### 6. Manage assets already committed to `public/`
 
@@ -449,7 +467,7 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | `app/admin/gallery/create/page.tsx` | 21 | Create via `CreateImage` | `metadata`, `CreateGalleryPage` | unlinked duplicate |
 | `app/admin/gallery/edit/[id]/page.tsx` | 34 | Edit via `EditImage` | `generateMetadata`, `EditGalleryPage` | unlinked duplicate |
 | `app/admin/gallery/columns.ts` | 38 | Gallery table columns | `galleryColumns` | **dead** - no importer |
-| `components/admin/gallery/GalleryDashboard.tsx` | 202 | Gallery orchestrator | `GalleryDashboard` | calls Blob `listVideos` from the client |
+| `components/admin/gallery/GalleryDashboard.tsx` | 203 | Gallery orchestrator | `GalleryDashboard` | calls Blob `listVideos` from the client; blanket `/* eslint-disable */` at line 1 since `6408c1d` (M06-F33) |
 | `components/admin/gallery/GalleryStats.tsx` | 91 | Album/media/featured/video cards | `GalleryStats` | own card markup, not `StatCard` |
 | `components/admin/gallery/GalleryToolbar.tsx` | 53 | Refresh / New Album / Add Media | `GalleryToolbar` | "Add Media" button has no handler (line 43) |
 | `components/admin/gallery/AlbumGrid.tsx` | 111 | Album cards | `AlbumGrid` | `next/image` with `fill` |
@@ -458,7 +476,7 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | `components/admin/gallery/MediaCard.tsx` | 104 | Single media card | `MediaCard` | videos render an icon, not a preview |
 | `components/admin/gallery/MediaDialog.tsx` | 346 | Media create/edit modal | `MediaDialog` | hosts `ImageUploader` / `VideoUploader`; no validation |
 | `components/admin/gallery/DeleteDialog.tsx` | 67 | Generic confirm modal | `DeleteDialog` | reused for album and media |
-| `components/admin/gallery/VideosManager.tsx` | 170 | Vercel Blob video panel | `VideosManager` | `storageService.deleteFile` from the client |
+| `components/admin/gallery/VideosManager.tsx` | 171 | Vercel Blob video panel | `VideosManager` | `storageService.deleteFile` from the client; blanket `/* eslint-disable */` at line 1 (M06-F33) |
 | `components/admin/gallery/GalleryForm.tsx` | 257 | Shared gallery form (form-kit) | `GalleryForm` | validates title / imagePath / altText |
 | `components/admin/gallery/CreateImage.tsx` | 308 | Parallel create form | `CreateImage` | raw shadcn inputs, own validate |
 | `components/admin/gallery/EditImage.tsx` | 299 | Parallel edit form | `EditImage` | raw shadcn inputs, own validate |
@@ -477,7 +495,7 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | `app/admin/quotes/columns.tsx` | 134 | Quote columns | `quoteColumns` | **no `actions` column** (M06-F05) |
 | `app/admin/quotes/new/page.tsx` | 603 | Quote create form | `NewQuotePage` | duplicated by the edit page |
 | `app/admin/quotes/[id]/edit/page.tsx` | 663 | Quote edit form | `EditQuotePage` | ~90% identical to the create page |
-| `app/admin/testimonials/page.tsx` | 750 | Testimonial moderation | `TestimonialsPage` | approve / reject / edit / delete, image by path |
+| `app/admin/testimonials/page.tsx` | 751 | Testimonial moderation | `TestimonialsPage` | approve / reject / edit / delete, image by path; blanket `/* eslint-disable */` at line 1 (M06-F33) |
 | `app/admin/shlokas/page.tsx` | 376 | Shloka editor | `ShlokasAdminPage` | in-memory only, seeded from `data/shlokas.ts` |
 | `app/admin/stotras/page.tsx` | 202 | Stotra grid (mock) | `StotrasAdminPage` | `SAMPLE_STOTRAS`, buttons inert |
 | `app/admin/temple-areas/page.tsx` | 472 | Temple-explorer area CRUD | `TempleAreasPage` | the only Supabase-backed admin screen here besides events |
@@ -486,7 +504,7 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | `lib/gallery.ts` | 47 | `public/images/temple` scanner | `GalleryItem`, `getTempleGalleryImages` | used by the *public* homepage, not admin |
 | `app/api/storage/videos/route.ts` | 38 | Blob video listing | `GET` | no in-repo caller |
 | `app/api/gallery/local-assets/route.ts` | 63 | `public/` asset list + delete | `GET`, `DELETE` | unauthenticated file deletion |
-| `app/api/admin/quotes/route.ts` | 146 | Quote list/create/bulk | `GET`,`POST`,`PATCH`,`DELETE` | `filters: any`, `error: any` |
+| `app/api/admin/quotes/route.ts` | 151 | Quote list/create/bulk | `GET`,`POST`,`PATCH`,`DELETE` | `filters: any`, `error: any`; only `POST` is gated (`verifyAdminUser`, `:47`) |
 | `app/api/admin/quotes/[id]/route.ts` | 85 | Single quote | `GET`,`PUT`,`DELETE` | clears cache after write |
 | `app/api/admin/quotes/bulk/route.ts` | 96 | Import/export | `POST`,`GET` | category whitelist duplicated inline (line 30) |
 | `app/api/admin/quotes/cache/route.ts` | 25 | Cache clear | `POST` | |
@@ -519,7 +537,7 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | `types/quote.ts` | M06 | quote admin pages, `quote.service` (M10), `/api/quotes/*` (M08/M12), `DailyQuoteWidget` (M02) |
 | `types/crud.ts` | M05 | all four `columns.ts` files |
 | `types/homepage.ts` | M02 | `app/admin/testimonials/page.tsx` (`Testimonial`) |
-| `types/temple-explorer.ts` | M02 | `app/admin/temple-areas/page.tsx` (`TempleArea`, `CATEGORY_LABELS`, `CATEGORY_COLORS`) |
+| `types/temple-explorer.ts` | M02 | `app/admin/temple-areas/page.tsx` (`TempleArea`, `CATEGORY_LABELS`, `CATEGORY_COLORS`). Gained `AccessibilityInfo` and `TempleArea.accessibility?` on 2026-10-06 (`:6-13,28`), which the admin page does not edit (M06-F34) |
 | `types/shlokas.ts` | M03 | `app/admin/shlokas/page.tsx` (`Shloka`) |
 
 ### Stores touched
@@ -532,7 +550,8 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | Firestore `quotes` | collection | `quoteService.getQuotes/getQuoteById/getQuoteBySlug` via `/api/admin/quotes*` | quote create/edit/bulk/seed routes |
 | Firestore `testimonials` | collection | `testimonial.service.getAllTestimonials`, `chat.service.getApprovedTestimonials` | testimonial admin page, `POST /api/testimonials` |
 | Firestore `events`, `gallery`, `sevas`, `poojas`, `knowledge`, `volunteer_requests` | collections | `/admin/content` counts only | — (`gallery` does not exist; see M06-F08) |
-| Supabase `events` | table | `eventService.getEvents/getEvent` | `EventForm` via `addEvent`/`updateEvent`; `EventTable` delete |
+| Supabase `events` | table | `eventService.getEvents/getEvent`; `apps/mobile/lib/api.ts:15-23` `fetchEvents` (anon client, `published = true`, ordered by `start_date`) | `EventForm` via `addEvent`/`updateEvent`; `EventTable` delete. Migration declares a deny-all public RLS policy (`supabase/migrations/20260907112632_create_core_tables.sql:98`) - see M06-F36 |
+| Supabase `gallery_albums`, `gallery_media` | tables | `apps/mobile/lib/api.ts:37-45` `fetchGalleryAlbums` only | **nobody** - this module writes Firestore `galleryAlbums`/`galleryMedia`; the tables are migration targets (`lib/supabase/migration-inventory.ts:29-30`, DDL `supabase/migrations/20261001000000_create_content_tables.sql:107-150`). See M06-F35 |
 | Supabase `temple_areas` | table | `templeAreasService.getAreas/getPublicAreas/getArea` | `/admin/temple-areas` via `/api/admin/temple-areas` |
 | Vercel Blob `gallery/`, `gallery/videos/`, `testimonials/`, `reports/` | object store | `storageService.listVideos/listFiles/listReports`, `/api/storage/videos` | `uploadBase64Image`, `uploadFile`, `uploadVideo`, `saveReport` (all currently broken from the client) |
 | `public/images/temple`, `public/videos` | filesystem | `lib/gallery.ts:21`, `GET /api/gallery/local-assets` | `DELETE /api/gallery/local-assets` (unlink) |
@@ -564,6 +583,7 @@ The workaround actually in use: commit the file to `public/images/temple/`, then
 | `app/api/quotes/*` (M08/M12), `components/home/DailyQuoteWidget.tsx` (M02), `lib/ai/generator.ts` (M08), `services/quote.service.ts` (M10) | `types/quote.ts` |
 | `components/temple-explorer/TempleExplorer.tsx` (M02) | `GET /api/temple-areas` |
 | `components/admin/settings/homepage/useHomepageForm.ts` (M05) | `POST /api/revalidate` |
+| `apps/mobile/lib/api.ts` (mobile app, added 2026-09-30) | **No code import.** Data-level only: reads the Supabase `events` table this module's `EventForm` writes, and the Supabase `gallery_albums`/`gallery_media` tables that are the migration targets of this module's Firestore gallery collections |
 
 ## How to change it
 
@@ -622,10 +642,15 @@ unused sidebar component). Do not edit either; delete them.
    `components/ui/ImageUploader.tsx:41,48` and `VideoUploader.tsx:45`).
 3. Change `ImageUploader`/`VideoUploader` to `fetch("/api/upload", { method: "POST", body: formData })`
    instead of importing `services/storage.service.ts`.
-4. Replace `GalleryDashboard.tsx:52`'s direct `storageService.listVideos()` with
+4. Replace `GalleryDashboard.tsx:53`'s direct `storageService.listVideos()` with
    `fetch("/api/storage/videos")` (that route already exists and is unused).
-5. Replace `VideosManager.tsx:37`'s `storageService.deleteFile` with a new authenticated
+5. Replace `VideosManager.tsx:38`'s `storageService.deleteFile` with a new authenticated
    `DELETE /api/storage/videos` handler.
+
+A server-side upload path was attempted on 2026-09-19 (`9581e51`, `54efe2c`: `app/api/storage/upload`,
+`upload-video`, `upload-testimonial`, `delete`, plus a Vercel Blob -> Supabase Storage switch in
+`22d7a18`) and reverted the same day by `f5582d2`; none of those routes exist today (deliberately
+cited as absent). Reading those commits is the fastest start for this recipe.
 
 ### Recipe 6 - change what "published" means for an event
 
@@ -644,46 +669,63 @@ switch to the form, stop hardcoding, surface `published` in `app/admin/events/co
 
 ### Recipe 8 - give the content APIs auth
 
-There is no `middleware.ts`. Add one matching `/api/admin/:path*` (and the write verbs of
-`/api/temple-areas`, `/api/events`, `/api/announcements`, `/api/gallery/local-assets`), verify the
-Firebase ID token server-side via `lib/admin-firebase.ts` / `lib/firebase-admin-rest.ts` (M10), and
-delete the `x-user-email` header trust at `app/api/admin/quotes/route.ts:46`.
+There is no `middleware.ts`, and `proxy.ts` does no auth. The building blocks now exist and one route
+uses them:
+
+1. Server side: call `requireAdminUser(request)` (`lib/auth/admin-auth.ts:198`, returns a ready
+   401/403/503 response) or `verifyAdminUser` (`:186`) at the top of each handler, as
+   `app/api/admin/quotes/route.ts:47-50` now does for `POST`. Do it for every verb under
+   `/api/admin/quotes/**`, `/api/admin/temple-areas/**`, and the write verbs of `/api/temple-areas`,
+   `/api/events`, `/api/announcements`, `/api/gallery/local-assets`. (Alternatively add `/api/admin`
+   matching to `proxy.ts`, but token verification needs the Admin SDK via `lib/admin-firebase.ts`, so
+   per-route is simpler.)
+2. Client side: in the matching admin pages swap `fetch` for `useAdminFetch()`
+   (`hooks/useAdminFetch.ts`), which attaches `Authorization: Bearer <getIdToken()>`; the
+   `app/admin/ai/*` pages are the working examples (`app/admin/ai/intents/page.tsx:51`). **Step 2 must
+   ship with step 1** - gating a route whose page still uses plain `fetch` breaks it (M06-F32).
+3. The `x-user-email` header trust that used to sit in `app/api/admin/quotes/route.ts` is already gone
+   (`da7a1fc`).
 
 ## Faults, smells and risks
 
-| id | sev | what | evidence | suggested direction |
-|---|---|---|---|---|
-| M06-F01 | HIGH | Media upload cannot work in production: `@vercel/blob` `put()` is called from client components with a server-only token, and there is no upload API route anywhere in `app/api`. | `services/storage.service.ts:6,69`; `components/ui/ImageUploader.tsx:8,67`; `components/ui/VideoUploader.tsx:8,61`; `.env.example:20` (`BLOB_READ_WRITE_TOKEN`, no `NEXT_PUBLIC_`) | Add a server-side `POST /api/upload` route, move all Blob calls behind it, validate type/size server-side (Recipe 5). |
-| M06-F02 | HIGH | `GalleryDashboard` (a client component) imports `storage.service` and calls `listVideos()`, swallowing the failure with `.catch(() => [])`, so the Videos panel is permanently empty and no error is shown. `VideosManager` deletes Blob objects the same way. | `components/admin/gallery/GalleryDashboard.tsx:6,52`; `components/admin/gallery/VideosManager.tsx:6,37` | Call `GET /api/storage/videos`; add an authenticated delete route. |
-| M06-F03 | HIGH | Every API route in this module is unauthenticated. `POST/PUT/DELETE /api/temple-areas` lets anonymous callers create, edit and delete temple areas; `/api/admin/quotes*` trusts an unverified `x-user-email` header for `createdBy`. `docs/QUOTE-ENGINE.md:486` claims admin endpoints "require auth". | `app/api/temple-areas/route.ts:14`; `app/api/temple-areas/[id]/route.ts:23,39`; `app/api/admin/quotes/route.ts:46`; no `middleware.ts` in the repo | Add middleware + server-side token verification (Recipe 8); delete the write verbs from the public temple-areas route. |
-| M06-F04 | HIGH | `DELETE /api/gallery/local-assets` unlinks files from `public/` with no auth. It is also dead weight on Vercel, where the deployment filesystem is read-only. | `app/api/gallery/local-assets/route.ts:38-57` | Remove the handler, or gate it behind admin auth and a dev-only guard. |
-| M06-F05 | HIGH | Quotes cannot be edited or deleted from the list: `quoteColumns` has no `{type:"actions"}` column, and `createCrudColumns` only renders the columns it is given, so the `onEdit`/`onDelete` handlers passed to `CrudTable` are unreachable. | `app/admin/quotes/columns.tsx:26-133` (no `actions` key); `components/admin/crud/createCrudColumns.tsx:18`; `app/admin/quotes/page.tsx:452` | Append an `actions` column, as `app/admin/events/columns.ts:30` does. |
-| M06-F06 | HIGH | `EventForm` builds Firestore `Timestamp` objects and hands them to a **Supabase**-backed service, which writes them straight into `start_date` / `end_date`. `types/event.ts` still declares these fields as `Timestamp`. | `components/admin/events/EventForm.tsx:59-68,154,170`; `services/event.service.ts:2,77-78`; `types/event.ts:1,18-19`. The read path lies the other way: `mapSupabaseEventToTempleEvent` (`event.service.ts:26-27`) assigns the raw Supabase `start_date`/`end_date` strings into the `Timestamp`-typed fields, so every consumer of `TempleEvent.startDate` receives a string the type says is a `Timestamp` | Change `TempleEvent.startDate/endDate` to ISO strings, convert in the form, and keep a single date helper. |
-| M06-F07 | HIGH | Three "management" screens persist nothing. `/admin/library` and `/admin/stotras` are hardcoded arrays whose Add/Edit/Delete buttons have no handlers; `/admin/shlokas` mutates React state seeded from the static `data/shlokas.ts`, losing everything on reload. | `app/admin/library/page.tsx:29,87,217-222` (its `setItems` is never called, and its "Add Content" button calls `setShowModal(true)` at line 117 although the `showModal` flag is read nowhere - no modal exists in the file, so the button does nothing visible); `app/admin/stotras/page.tsx:28,76,181-186` (the only `onClick` in the file is the category filter at line 121); `app/admin/shlokas/page.tsx:20,57,83,104`. `/admin/shlokas` is also redundant: the sidebar's "Shlokas" entry points at `/admin/settings/shlokas` (M05), a working editor that seeds from the same `data/shlokas.ts` and persists through `setDoc` (`app/admin/settings/shlokas/page.tsx:7,8,13`) | Either back them with a service + collection, or remove the routes so admins are not misled - `/admin/shlokas` can go today, the linked settings screen already does the job. |
-| M06-F08 | HIGH | The content dashboard's numbers are wrong by construction: it counts a `gallery` collection that does not exist (data lives in `galleryMedia`), filters announcements on `active` when the field is `isActive`, and filters events on a string `date` field when events live in Supabase with `start_date`. | `app/admin/content/page.tsx:90,92,93`; `services/gallery.service.ts:6`; `services/announcement.service.ts:48`; `services/event.service.ts:46` | Replace the inline Firestore counting with service calls (`galleryService.getStats()` already exists, line 248). |
-| M06-F09 | MEDIUM | `/admin/media` reads `data.url \|\| data.imageUrl` from `galleryMedia`, but the service writes `imagePath`, so every gallery item renders with an empty `src`. Its `onError` fallback points at `/images/placeholder.png`, which does not exist, and two of three `defaultMedia` entries point at `/images/gallery/sample1.jpg` / `sample2.jpg`, which also do not exist. | `app/admin/media/page.tsx:87,298-300,55-57`; `types/gallery.ts:49`; `public/images/gallery/` contains only `Naveen-testimonial.png` | Read `imagePath`, add the placeholder asset, or delete the page in favour of the gallery dashboard. |
-| M06-F10 | MEDIUM | Six gallery routes and three parallel form implementations for one job. `/admin/gallery` and `/admin/gallery/media` render the identical dashboard; `GalleryForm` (form-kit), `CreateImage` and `EditImage` (raw inputs) duplicate the same fields and validation three times; only `/admin/gallery` is in the sidebar. | `app/admin/gallery/page.tsx:16` vs `app/admin/gallery/media/page.tsx:14`; `components/admin/gallery/GalleryForm.tsx:82` vs `CreateImage.tsx:47` vs `EditImage.tsx:55`; the live menu lists only `/admin/gallery` (`components/admin/layout/AdminSidebar.tsx:66`) | Keep `/admin/gallery` + `/admin/gallery/new` + `/admin/gallery/[id]/edit` on `GalleryForm`; delete the rest. |
-| M06-F11 | MEDIUM | tiptap is a dependency (5 `@tiptap/*` packages) and `RichTextEditor.tsx` exists, but nothing imports it. There is **no rich-text field anywhere in this module** - every long-form field is a plain `<textarea>`, content is stored as plain text, and consequently no sanitisation layer exists or is needed today. | `components/admin/RichTextEditor.tsx:3-7` (only self-references in a repo-wide grep); `package-lock.json:18-22`; `EventForm.tsx:210`, `AnnouncementForm.tsx:115` use textareas | Decide: wire the editor into event/announcement descriptions *with* a sanitiser on the render side, or delete the component and the five packages. |
-| M06-F12 | MEDIUM | Dead code: eight files in this module have no importer. | `components/admin/events/EventSchema.ts`, `EventSearch.tsx`, `EventStatusBadge.tsx`, `DeleteEventDialog.tsx`; `app/admin/gallery/columns.ts`; `components/admin/gallery/GalleryTable.tsx`, `LocalGalleryAssets.tsx`; `components/admin/RichTextEditor.tsx` — all verified with a repo-wide grep of `app components lib services hooks types utils` | Delete, or wire `EventSchema` into `EventForm` (it is the only zod schema in the module). |
-| M06-F13 | MEDIUM | `/api/temple-areas/*` is a near-verbatim copy of `/api/admin/temple-areas/*` - same service, same verbs, different response envelope (`{success, areas}` vs bare arrays). | `app/api/temple-areas/route.ts:1-32` vs `app/api/admin/temple-areas/route.ts:1-34` | Keep one admin route (write) and one public read-only route; delete the duplicated write verbs. |
-| M06-F14 | MEDIUM | Six API routes have no caller in the repo: `/api/events`, `/api/events/[id]`, `/api/announcements`, `/api/announcements/[id]`, `/api/testimonials`, `/api/storage/videos`. The admin screens bypass them and call the browser Firestore/Supabase SDKs directly, so route-level validation never runs. | grep over `app components lib services hooks` finds no `fetch("/api/events…")`, `"/api/announcements"`, `"/api/testimonials"` or `"/api/storage/videos"` | Either route the admin screens through them (gaining server-side validation and auth) or delete them. |
-| M06-F15 | MEDIUM | No cache invalidation after a content write. `/api/revalidate` exists but its only caller is the homepage settings form in M05; saving an event, announcement, gallery item or quote never revalidates the public pages. | `app/api/revalidate/route.ts:10`; only caller `components/admin/settings/homepage/useHomepageForm.ts:91`; `EventForm.tsx:175-176` uses `router.refresh()` only | Call `POST /api/revalidate` with the affected public paths from each save handler. |
-| M06-F16 | MEDIUM | AGENTS.md forbids `any` and direct Firebase calls outside services; both are violated here. `/admin/media` and `/admin/content` import `firebase/firestore` and query collections inline; `types/gallery.ts` uses `any` for timestamps; the quote routes use `error: any` and `filters: any`. | `app/admin/media/page.tsx:25-36,81`; `app/admin/content/page.tsx:13-14,89`; `types/gallery.ts:38,39,52`; `app/api/admin/quotes/route.ts:18,34` | Move reads into `galleryService`; type timestamps as `Timestamp \| string`; type route errors as `unknown`. |
-| M06-F17 | MEDIUM | `app/admin/events/[id]/edit/page.tsx` is a server component that awaits `eventService.getEvent`, but that service instantiates the **browser** Supabase client at module scope. | `app/admin/events/[id]/edit/page.tsx:17`; `services/event.service.ts:2-4` (`createClient` from `@/lib/supabase/client`) | Use the server Supabase client (`lib/supabase/server.ts`) for server-side reads, or make the page a client component like its gallery counterpart. |
-| M06-F18 | MEDIUM | `galleryService.getMedia()` returns seven hardcoded `DEFAULT_GALLERY_IMAGES` whenever Firestore is empty **or throws**, so the admin gallery shows phantom rows with ids `default-1..7` that cannot be edited or deleted, and a Firestore outage looks like success. | `services/gallery.service.ts:9,151-173` | Return `[]` and surface the error; keep the defaults for the public site only, if at all. |
-| M06-F19 | MEDIUM | No server-side validation on any gallery or album write. `AlbumDialog` and `MediaDialog` save whatever is in state - empty title, empty slug, empty image path all persist. | `components/admin/gallery/AlbumDialog.tsx:74-85`; `components/admin/gallery/MediaDialog.tsx:115-136` | Share the `GalleryForm.validate()` rules, or move writes behind a validated API route. |
-| M06-F20 | LOW | Inconsistent error UX: `alert()`/`confirm()` in the event and gallery dashboard paths, `react-hot-toast` in the announcement, quote, testimonial and temple-area paths. | `EventForm.tsx:134,145,179`; `EventTable.tsx:29,42`; `GalleryDashboard.tsx:94,110`; `VideosManager.tsx:31,41`; vs `app/admin/announcements/page.tsx:31` | Standardise on toast plus the shared `DeleteDialog` that already exists in this module. |
-| M06-F21 | LOW | `GalleryToolbar`'s "Add Media" button has no `onClick`; the working one lives inside `MediaGrid`. | `components/admin/gallery/GalleryToolbar.tsx:43-46`; working button at `components/admin/gallery/MediaGrid.tsx:69` | Wire it to `MediaGrid`'s dialog or remove it. |
-| M06-F22 | LOW | Uploader identity is faked in two places: `MediaGrid` passes the literal `"admin"` and `MediaDialog` sets `uploadedBy: "admin"`, so `galleryMedia.uploadedBy` is meaningless for anything created via the dashboard. `GalleryForm`'s path does it correctly with `useAuth`. | `components/admin/gallery/MediaGrid.tsx:43`; `components/admin/gallery/MediaDialog.tsx:126`; correct version at `app/admin/gallery/new/page.tsx:26` | Thread `useAuth().user.email` through the dashboard. |
-| M06-F23 | LOW | `quotes/new` and `quotes/[id]/edit` are ~600 lines each and ~90% identical (a `diff` shows the delta is load-on-mount, POST vs PUT, and a delete button). | `app/admin/quotes/new/page.tsx` (603 lines) vs `app/admin/quotes/[id]/edit/page.tsx` (663 lines) | Extract a `QuoteForm` component the way announcements and gallery already do. |
-| M06-F24 | LOW | Accessibility gaps: icon-only action buttons carry no accessible name; `MediaDialog`, `AlbumDialog` and the temple-area dialog use `<Label>` without `htmlFor`; `CrudTableCell` renders a bare `<img>` for image columns instead of `next/image`. | `components/admin/gallery/AlbumGrid.tsx:86-100`; `components/admin/gallery/MediaCard.tsx:79-93`; `components/admin/gallery/AlbumDialog.tsx:100-146`; `components/admin/crud/CrudTableCell.tsx:81` | Add `aria-label` to icon buttons, `htmlFor`/`id` pairs on labels, swap in `next/image`. |
-| M06-F25 | LOW | Debug logging left in production code paths, including on every upload. | `services/storage.service.ts:66,75,99,124,138,146`; `components/admin/gallery/GalleryDashboard.tsx:55,63`; `services/event.service.ts:43` | Strip or gate behind a logger. |
-| M06-F26 | LOW | `types/quote.ts` is 494 lines because `DEFAULT_QUOTES_DATA`, `FESTIVAL_QUOTE_MAP` and `WEEKDAY_QUOTE_MAP` (seed and config data) live in the types folder. | `types/quote.ts:362` | Move seed data next to the other seed files or into the data folder; keep `types/` to types. |
-| M06-F27 | LOW | `TempleEvent.status` is marked "Legacy (will be removed later)" yet is still written on create, still a table column, and the list page computes a *different* status at render time from the dates. | `types/event.ts:35-36`; `components/admin/events/EventForm.tsx:168`; `app/admin/events/page.tsx:44-58`; `app/admin/events/columns.ts:25` | Drop the stored field and derive status everywhere, or stop deriving and maintain the field. |
-| M06-F28 | LOW | `/admin/content` links to `/admin/knowledge/new`, which does not exist (`app/admin/knowledge` has no `new` route). | `app/admin/content/page.tsx:263`; `ls app/admin/knowledge` shows only `page.tsx` | Point at `/admin/knowledge` or create the route. |
-| M06-F29 | MEDIUM | The admin menu is defined three times and only one copy is live, so any nav edit has a two-in-three chance of doing nothing. `components/admin/layout/navigation.ts` has **no importer anywhere in the repo** (grep for `layout/navigation` and `from "./navigation"` over `app components lib hooks` returns nothing) yet it reads like the canonical nav; the mounted sidebar uses an inline `allNavigation` array, and `components/admin/AdminSidebar.tsx` is a third, unused copy. The three lists disagree: `navigation.ts:92` points "Shlokas" at `/admin/shlokas`, the live one points it at `/admin/settings/shlokas`. | `components/admin/layout/AdminSidebar.tsx:37` (inline `allNavigation`, read at `:108`, no import of `navigation`); `components/admin/layout/navigation.ts` (0 importers); `components/admin/AdminSidebar.tsx:86` | Delete `navigation.ts` and `components/admin/AdminSidebar.tsx`, or make the mounted sidebar import `navigation.ts` and keep one list. |
-| M06-F30 | MEDIUM | The Supabase `events` table is addressed through a legacy `firestore_id` column, never its own id: `getEvent`, `updateEvent` and `deleteEvent` all filter `.eq('firestore_id', id)`, `addEvent` mints one with `crypto.randomUUID()`, and `TempleEvent.id` is mapped back out of it. A half-finished Firestore→Supabase migration is frozen into every event query. | `services/event.service.ts:23,58,71,114,123` | Decide on the real key, backfill it, and drop `firestore_id` (M11 owns the migration). |
-| M06-F31 | LOW | `/admin/media` imports Firebase Storage (`storage` from `lib/firebase.ts`, plus `ref`, `listAll`, `getDownloadURL`, `deleteObject`) and never calls any of it, so a third storage backend is pulled into the client bundle for nothing. It is the only trace of Firebase Storage in this module - real uploads target Vercel Blob (broken, M06-F01) and real assets live in `public/`. | `app/admin/media/page.tsx:25,36` (the four `firebase/storage` symbols appear on the import line and nowhere else in the 499-line file); `lib/firebase.ts:90,220` | Delete the imports, or finish the page against one storage backend. |
+| id | sev | what | evidence | suggested direction | status (2026-10-18) |
+|---|---|---|---|---|---|
+| M06-F01 | HIGH | Media upload cannot work in production: `@vercel/blob` `put()` is called from client components with a server-only token, and there is no upload API route anywhere in `app/api`. | `services/storage.service.ts:6,69`; `components/ui/ImageUploader.tsx:8,67`; `components/ui/VideoUploader.tsx:8,61`; `.env.example:20` (`BLOB_READ_WRITE_TOKEN`, no `NEXT_PUBLIC_`) | Add a server-side `POST /api/upload` route, move all Blob calls behind it, validate type/size server-side (Recipe 5). | STILL OPEN |
+| M06-F02 | HIGH | `GalleryDashboard` (a client component) imports `storage.service` and calls `listVideos()`, swallowing the failure with `.catch(() => [])`, so the Videos panel is permanently empty and no error is shown. `VideosManager` deletes Blob objects the same way. | `components/admin/gallery/GalleryDashboard.tsx:7,53`; `components/admin/gallery/VideosManager.tsx:7,38` | Call `GET /api/storage/videos`; add an authenticated delete route. | STILL OPEN (lines moved +1 by line-1 eslint-disable; evidence updated) |
+| M06-F03 | HIGH | Every API route in this module is unauthenticated. `POST/PUT/DELETE /api/temple-areas` lets anonymous callers create, edit and delete temple areas; in `/api/admin/quotes*` only `POST /api/admin/quotes` verifies a Firebase ID token (since `da7a1fc`, 2026-09-20, which also removed the `x-user-email` trust) - its `GET`, bulk `PATCH` and bulk `DELETE`, and every verb under `[id]`, `bulk`, `cache` and `seed`, are still open. `docs/QUOTE-ENGINE.md:486` claims admin endpoints "require auth". | `app/api/temple-areas/route.ts:14`; `app/api/temple-areas/[id]/route.ts:23,39`; `app/api/admin/quotes/route.ts:47-50` (the one gated verb) vs `:79,116` (ungated bulk update / bulk delete); no `middleware.ts` in the repo and `proxy.ts:84-121` does no auth | Add middleware + server-side token verification (Recipe 8); delete the write verbs from the public temple-areas route. | STILL OPEN - narrowed: `POST /api/admin/quotes` gated since `da7a1fc`; every other route here still open |
+| M06-F04 | HIGH | `DELETE /api/gallery/local-assets` unlinks files from `public/` with no auth. It is also dead weight on Vercel, where the deployment filesystem is read-only. | `app/api/gallery/local-assets/route.ts:38-57` | Remove the handler, or gate it behind admin auth and a dev-only guard. | STILL OPEN |
+| M06-F05 | HIGH | Quotes cannot be edited or deleted from the list: `quoteColumns` has no `{type:"actions"}` column, and `createCrudColumns` only renders the columns it is given, so the `onEdit`/`onDelete` handlers passed to `CrudTable` are unreachable. | `app/admin/quotes/columns.tsx:26-133` (no `actions` key); `components/admin/crud/createCrudColumns.tsx:18`; `app/admin/quotes/page.tsx:452` | Append an `actions` column, as `app/admin/events/columns.ts:30` does. | STILL OPEN |
+| M06-F06 | HIGH | `EventForm` builds Firestore `Timestamp` objects and hands them to a **Supabase**-backed service, which writes them straight into `start_date` / `end_date`. `types/event.ts` still declares these fields as `Timestamp`. | `components/admin/events/EventForm.tsx:59-68,154,170`; `services/event.service.ts:2,77-78`; `types/event.ts:1,18-19`. The read path lies the other way: `mapSupabaseEventToTempleEvent` (`event.service.ts:26-27`) assigns the raw Supabase `start_date`/`end_date` strings into the `Timestamp`-typed fields, so every consumer of `TempleEvent.startDate` receives a string the type says is a `Timestamp` | Change `TempleEvent.startDate/endDate` to ISO strings, convert in the form, and keep a single date helper. | STILL OPEN |
+| M06-F07 | HIGH | Three "management" screens persist nothing. `/admin/library` and `/admin/stotras` are hardcoded arrays whose Add/Edit/Delete buttons have no handlers; `/admin/shlokas` mutates React state seeded from the static `data/shlokas.ts`, losing everything on reload. | `app/admin/library/page.tsx:29,87,217-222` (its `setItems` is never called, and its "Add Content" button calls `setShowModal(true)` at line 117 although the `showModal` flag is read nowhere - no modal exists in the file, so the button does nothing visible); `app/admin/stotras/page.tsx:28,76,181-186` (the only `onClick` in the file is the category filter at line 121); `app/admin/shlokas/page.tsx:20,57,83,104`. `/admin/shlokas` is also redundant: the sidebar's "Shlokas" entry points at `/admin/settings/shlokas` (M05), a working editor that seeds from the same `data/shlokas.ts` and persists through `setDoc` (`app/admin/settings/shlokas/page.tsx:7,8,13`) | Either back them with a service + collection, or remove the routes so admins are not misled - `/admin/shlokas` can go today, the linked settings screen already does the job. | STILL OPEN |
+| M06-F08 | HIGH | The content dashboard's numbers are wrong by construction: it counts a `gallery` collection that does not exist (data lives in `galleryMedia`), filters announcements on `active` when the field is `isActive`, and filters events on a string `date` field when events live in Supabase with `start_date`. | `app/admin/content/page.tsx:90,92,93`; `services/gallery.service.ts:6`; `services/announcement.service.ts:48`; `services/event.service.ts:46` | Replace the inline Firestore counting with service calls (`galleryService.getStats()` already exists, line 248). | STILL OPEN |
+| M06-F09 | MEDIUM | `/admin/media` reads `data.url \|\| data.imageUrl` from `galleryMedia`, but the service writes `imagePath`, so every gallery item renders with an empty `src`. Its `onError` fallback points at `/images/placeholder.png`, which does not exist, and two of three `defaultMedia` entries point at `/images/gallery/sample1.jpg` / `sample2.jpg`, which also do not exist. | `app/admin/media/page.tsx:87,298-300,55-57`; `types/gallery.ts:49`; `public/images/gallery/` contains only `Naveen-testimonial.png` | Read `imagePath`, add the placeholder asset, or delete the page in favour of the gallery dashboard. | STILL OPEN |
+| M06-F10 | MEDIUM | Six gallery routes and three parallel form implementations for one job. `/admin/gallery` and `/admin/gallery/media` render the identical dashboard; `GalleryForm` (form-kit), `CreateImage` and `EditImage` (raw inputs) duplicate the same fields and validation three times; only `/admin/gallery` is in the sidebar. | `app/admin/gallery/page.tsx:16` vs `app/admin/gallery/media/page.tsx:14`; `components/admin/gallery/GalleryForm.tsx:82` vs `CreateImage.tsx:47` vs `EditImage.tsx:55`; the live menu lists only `/admin/gallery` (`components/admin/layout/AdminSidebar.tsx:66`) | Keep `/admin/gallery` + `/admin/gallery/new` + `/admin/gallery/[id]/edit` on `GalleryForm`; delete the rest. | STILL OPEN |
+| M06-F11 | MEDIUM | tiptap is a dependency (5 `@tiptap/*` packages) and `RichTextEditor.tsx` exists, but nothing imports it. There is **no rich-text field anywhere in this module** - every long-form field is a plain `<textarea>`, content is stored as plain text, and consequently no sanitisation layer exists or is needed today. | `components/admin/RichTextEditor.tsx:3-7` (only self-references in a repo-wide grep); `package-lock.json:21-25`; `EventForm.tsx:210`, `AnnouncementForm.tsx:115` use textareas | Decide: wire the editor into event/announcement descriptions *with* a sanitiser on the render side, or delete the component and the five packages. | STILL OPEN (package-lock evidence moved to :21-25) |
+| M06-F12 | MEDIUM | Dead code: eight files in this module have no importer. | `components/admin/events/EventSchema.ts`, `EventSearch.tsx`, `EventStatusBadge.tsx`, `DeleteEventDialog.tsx`; `app/admin/gallery/columns.ts`; `components/admin/gallery/GalleryTable.tsx`, `LocalGalleryAssets.tsx`; `components/admin/RichTextEditor.tsx` — all verified with a repo-wide grep of `app components lib services hooks types utils` | Delete, or wire `EventSchema` into `EventForm` (it is the only zod schema in the module). | STILL OPEN |
+| M06-F13 | MEDIUM | `/api/temple-areas/*` is a near-verbatim copy of `/api/admin/temple-areas/*` - same service, same verbs, different response envelope (`{success, areas}` vs bare arrays). | `app/api/temple-areas/route.ts:1-32` vs `app/api/admin/temple-areas/route.ts:1-34` | Keep one admin route (write) and one public read-only route; delete the duplicated write verbs. | STILL OPEN |
+| M06-F14 | MEDIUM | Six API routes have no caller in the application code: `/api/events`, `/api/events/[id]`, `/api/announcements`, `/api/announcements/[id]`, `/api/testimonials`, `/api/storage/videos`. The admin screens bypass them and call the browser Firestore/Supabase SDKs directly, so route-level validation never runs. | grep over `app components lib services hooks` finds no `fetch("/api/events…")`, `"/api/announcements"`, `"/api/testimonials"` or `"/api/storage/videos"`. The only caller anywhere is the Playwright contract test, which GETs `/api/events`, `/api/events/[id]` and `/api/announcements` (`tests/e2e/sprint5/api-contract.spec.ts:9,68,205`) - deleting those routes breaks that suite | Either route the admin screens through them (gaining server-side validation and auth) or delete them (and the matching contract tests). | STILL OPEN (evidence corrected 2026-10-18: an E2E test does call three of them) |
+| M06-F15 | MEDIUM | No cache invalidation after a content write. `/api/revalidate` exists but its only caller is the homepage settings form in M05; saving an event, announcement, gallery item or quote never revalidates the public pages. | `app/api/revalidate/route.ts:10`; only caller `components/admin/settings/homepage/useHomepageForm.ts:91`; `EventForm.tsx:175-176` uses `router.refresh()` only | Call `POST /api/revalidate` with the affected public paths from each save handler. | STILL OPEN |
+| M06-F16 | MEDIUM | AGENTS.md forbids `any` and direct Firebase calls outside services; both are violated here. `/admin/media` and `/admin/content` import `firebase/firestore` and query collections inline; `types/gallery.ts` uses `any` for timestamps; the quote routes use `error: any` and `filters: any`. | `app/admin/media/page.tsx:25-36,81`; `app/admin/content/page.tsx:13-14,89`; `types/gallery.ts:38,39,52`; `app/api/admin/quotes/route.ts:19,35` | Move reads into `galleryService`; type timestamps as `Timestamp \| string`; type route errors as `unknown`. | STILL OPEN (quote-route evidence moved to :19,35) |
+| M06-F17 | MEDIUM | `app/admin/events/[id]/edit/page.tsx` is a server component that awaits `eventService.getEvent`, but that service instantiates the **browser** Supabase client at module scope. | `app/admin/events/[id]/edit/page.tsx:17`; `services/event.service.ts:2-4` (`createClient` from `@/lib/supabase/client`) | Use the server Supabase client (`lib/supabase/server.ts`) for server-side reads, or make the page a client component like its gallery counterpart. | STILL OPEN |
+| M06-F18 | MEDIUM | `galleryService.getMedia()` returns seven hardcoded `DEFAULT_GALLERY_IMAGES` whenever Firestore is empty **or throws**, so the admin gallery shows phantom rows with ids `default-1..7` that cannot be edited or deleted, and a Firestore outage looks like success. | `services/gallery.service.ts:9,151-173` | Return `[]` and surface the error; keep the defaults for the public site only, if at all. | STILL OPEN |
+| M06-F19 | MEDIUM | No server-side validation on any gallery or album write. `AlbumDialog` and `MediaDialog` save whatever is in state - empty title, empty slug, empty image path all persist. | `components/admin/gallery/AlbumDialog.tsx:74-85`; `components/admin/gallery/MediaDialog.tsx:115-136` | Share the `GalleryForm.validate()` rules, or move writes behind a validated API route. | STILL OPEN |
+| M06-F20 | LOW | Inconsistent error UX: `alert()`/`confirm()` in the event and gallery dashboard paths, `react-hot-toast` in the announcement, quote, testimonial and temple-area paths. | `EventForm.tsx:134,145,179`; `EventTable.tsx:29,42`; `GalleryDashboard.tsx:95,111`; `VideosManager.tsx:32,42`; vs `app/admin/announcements/page.tsx:31` | Standardise on toast plus the shared `DeleteDialog` that already exists in this module. | STILL OPEN (gallery line numbers moved +1) |
+| M06-F21 | LOW | `GalleryToolbar`'s "Add Media" button has no `onClick`; the working one lives inside `MediaGrid`. | `components/admin/gallery/GalleryToolbar.tsx:43-46`; working button at `components/admin/gallery/MediaGrid.tsx:69` | Wire it to `MediaGrid`'s dialog or remove it. | STILL OPEN |
+| M06-F22 | LOW | Uploader identity is faked in two places: `MediaGrid` passes the literal `"admin"` and `MediaDialog` sets `uploadedBy: "admin"`, so `galleryMedia.uploadedBy` is meaningless for anything created via the dashboard. `GalleryForm`'s path does it correctly with `useAuth`. | `components/admin/gallery/MediaGrid.tsx:43`; `components/admin/gallery/MediaDialog.tsx:126`; correct version at `app/admin/gallery/new/page.tsx:26` | Thread `useAuth().user.email` through the dashboard. | STILL OPEN |
+| M06-F23 | LOW | `quotes/new` and `quotes/[id]/edit` are ~600 lines each and ~90% identical (a `diff` shows the delta is load-on-mount, POST vs PUT, and a delete button). | `app/admin/quotes/new/page.tsx` (603 lines) vs `app/admin/quotes/[id]/edit/page.tsx` (663 lines) | Extract a `QuoteForm` component the way announcements and gallery already do. | STILL OPEN |
+| M06-F24 | LOW | Accessibility gaps: icon-only action buttons carry no accessible name; `MediaDialog`, `AlbumDialog` and the temple-area dialog use `<Label>` without `htmlFor`; `CrudTableCell` renders a bare `<img>` for image columns instead of `next/image`. | `components/admin/gallery/AlbumGrid.tsx:86-100`; `components/admin/gallery/MediaCard.tsx:79-93`; `components/admin/gallery/AlbumDialog.tsx:100-146`; `components/admin/crud/CrudTableCell.tsx:81` | Add `aria-label` to icon buttons, `htmlFor`/`id` pairs on labels, swap in `next/image`. | STILL OPEN |
+| M06-F25 | LOW | Debug logging left in production code paths, including on every upload. | `services/storage.service.ts:66,75,99,124,138,146`; `components/admin/gallery/GalleryDashboard.tsx:56,64`; `services/event.service.ts:43` | Strip or gate behind a logger. | STILL OPEN (GalleryDashboard lines moved +1) |
+| M06-F26 | LOW | `types/quote.ts` is 494 lines because `DEFAULT_QUOTES_DATA`, `FESTIVAL_QUOTE_MAP` and `WEEKDAY_QUOTE_MAP` (seed and config data) live in the types folder. | `types/quote.ts:362` | Move seed data next to the other seed files or into the data folder; keep `types/` to types. | STILL OPEN |
+| M06-F27 | LOW | `TempleEvent.status` is marked "Legacy (will be removed later)" yet is still written on create, still a table column, and the list page computes a *different* status at render time from the dates. | `types/event.ts:35-36`; `components/admin/events/EventForm.tsx:168`; `app/admin/events/page.tsx:44-58`; `app/admin/events/columns.ts:25` | Drop the stored field and derive status everywhere, or stop deriving and maintain the field. | STILL OPEN |
+| M06-F28 | LOW | `/admin/content` links to `/admin/knowledge/new`, which does not exist (`app/admin/knowledge` has no `new` route). | `app/admin/content/page.tsx:263`; `ls app/admin/knowledge` shows only `page.tsx` | Point at `/admin/knowledge` or create the route. | STILL OPEN |
+| M06-F29 | MEDIUM | The admin menu is defined three times and only one copy is live, so any nav edit has a two-in-three chance of doing nothing. `components/admin/layout/navigation.ts` has **no importer anywhere in the repo** (grep for `layout/navigation` and `from "./navigation"` over `app components lib hooks` returns nothing) yet it reads like the canonical nav; the mounted sidebar uses an inline `allNavigation` array, and `components/admin/AdminSidebar.tsx` is a third, unused copy. The three lists disagree: `navigation.ts:92` points "Shlokas" at `/admin/shlokas`, the live one points it at `/admin/settings/shlokas`. | `components/admin/layout/AdminSidebar.tsx:37` (inline `allNavigation`, read at `:108`, no import of `navigation`); `components/admin/layout/navigation.ts` (0 importers); `components/admin/AdminSidebar.tsx:86` | Delete `navigation.ts` and `components/admin/AdminSidebar.tsx`, or make the mounted sidebar import `navigation.ts` and keep one list. | STILL OPEN |
+| M06-F30 | MEDIUM | The Supabase `events` table is addressed through a legacy `firestore_id` column, never its own id: `getEvent`, `updateEvent` and `deleteEvent` all filter `.eq('firestore_id', id)`, `addEvent` mints one with `crypto.randomUUID()`, and `TempleEvent.id` is mapped back out of it. A half-finished Firestore→Supabase migration is frozen into every event query. | `services/event.service.ts:23,58,71,114,123` | Decide on the real key, backfill it, and drop `firestore_id` (M11 owns the migration). | STILL OPEN |
+| M06-F31 | LOW | `/admin/media` imports Firebase Storage (`storage` from `lib/firebase.ts`, plus `ref`, `listAll`, `getDownloadURL`, `deleteObject`) and never calls any of it, so a third storage backend is pulled into the client bundle for nothing. It is the only trace of Firebase Storage in this module - real uploads target Vercel Blob (broken, M06-F01) and real assets live in `public/`. | `app/admin/media/page.tsx:25,36` (the four `firebase/storage` symbols appear on the import line and nowhere else in the 499-line file); `lib/firebase.ts:90,220` | Delete the imports, or finish the page against one storage backend. | STILL OPEN |
+| M06-F32 | HIGH | Creating a quote from the admin UI is broken. `da7a1fc` (2026-09-20) made `POST /api/admin/quotes` require `Authorization: Bearer <Firebase ID token>` via `verifyAdminUser`, but `/admin/quotes/new` still posts with a plain `fetch` carrying only `Content-Type`, so every save returns 401 and the page toasts "Unauthorized". The route was hardened without its caller. | `app/api/admin/quotes/route.ts:8,47-50`; `app/admin/quotes/new/page.tsx:210-213,221`; the token-attaching `hooks/useAdminFetch.ts` exists and is used by `app/admin/ai/*` (e.g. `app/admin/ai/intents/page.tsx:51`) but by no quote page | Switch all three quote pages (`page.tsx`, `new/page.tsx`, `[id]/edit/page.tsx`) to `useAdminFetch`, then gate the remaining quote verbs the same way (Recipe 8). | NEW (2026-10-18) |
+| M06-F33 | LOW | Blanket `/* eslint-disable */` added to line 1 of three files in this module by the CI-baseline commit `6408c1d` (2026-10-03; 35 such lines repo-wide), switching off every lint rule - including `no-explicit-any` and `react-hooks/*` - for 1,125 lines. "`npm run lint` passes" (AGENTS.md Definition of Done) is now met by not linting these files. | `app/admin/testimonials/page.tsx:1`; `components/admin/gallery/GalleryDashboard.tsx:1`; `components/admin/gallery/VideosManager.tsx:1`; `git show 6408c1d` adds 35 `/* eslint-disable */` lines | Replace with targeted `// eslint-disable-next-line <rule>` comments, or fix the underlying lint errors. | NEW (2026-10-18) |
+| M06-F34 | MEDIUM | The Temple Explorer accessibility panel added on 2026-10-06 (`11a532f`) has no data path from the admin console: `TempleArea.accessibility` exists in the type and in the static `TEMPLE_AREAS` constant, but the Supabase mapper never reads an `accessibility` column and `/admin/temple-areas` has no field for it, so the panel never renders and an admin cannot add the information. "For areas served from Supabase" is every area: `TempleExplorer` reads only `GET /api/temple-areas` with no static fallback (`TempleExplorer.tsx:46-49`), `getPublicAreas` returns `[]` when Supabase is empty (`temple-areas.supabase.service.ts:48-50`), and the `DEFAULT_TEMPLE_AREAS` import at `:4` is never used - so the accessibility data in `TEMPLE_AREAS` reaches no user. Worse, `scripts/seed-temple-areas-supabase.ts:45-54` spreads `...data` (which now includes `accessibility`) into the upsert, and no migration creates an `accessibility` column, so re-seeding now fails for the four areas that carry it (`types/temple-explorer.ts:94,183,207,251`). | `types/temple-explorer.ts:6-13,28,94`; `components/temple-explorer/TempleExplorer.tsx:461-497`; `services/temple-areas.supabase.service.ts:169-185` (no `accessibility`); `grep -n accessibility app/admin/temple-areas/page.tsx` and `grep -n accessibility supabase/migrations/*temple_areas*` return nothing | Add an `accessibility jsonb` column (M11), map it in `mapToTempleArea` and in the add/update payloads, and add the fields to the temple-area dialog. | NEW (2026-10-18) |
+| M06-F35 | MEDIUM | The mobile gallery cannot show anything an admin curates here. `apps/mobile` reads Supabase `gallery_albums` with an embedded `gallery_media(*)`, but (a) this module writes only Firestore `galleryAlbums`/`galleryMedia` and nothing writes the Supabase tables outside a migration ETL; (b) both tables have a deny-all public RLS policy and the app uses the anon key; (c) `gallery_media.album_id` is a "loose reference" with no foreign key, which PostgREST needs for the embed - and none can be added to `gallery_albums.id`, because `20261002000000_align_content_firestore_ids.sql:38-39` widened `album_id` to `text` to hold the Firestore `albumId` verbatim (`lib/supabase/migration-mappers.ts:323`), which matches `gallery_albums.firestore_id`, not the uuid `id`; (d) the mobile `Album` type reads `cover_url` and `url`, where the DDL has `cover_image` and `image_path`. | `apps/mobile/lib/api.ts:37-45`; `apps/mobile/lib/types.ts:39-44`; `apps/mobile/app/(tabs)/gallery.tsx:38,43`; `supabase/migrations/20261001000000_create_content_tables.sql:114,125,133,138,150`; `services/gallery.service.ts:6` (Firestore) | Give mobile an HTTP read API over `galleryService` (or finish the gallery move to Supabase with a public-read policy and FK), and align the field names. | NEW (2026-10-18) |
+| M06-F36 | HIGH | Supabase `events` carries a deny-all RLS policy for `public`, yet the web admin (`event.service` on the browser Supabase client, no Supabase session because admin auth is Firebase) and the mobile app (anon key) both read and write it directly. If that migration is applied, the admin event list is empty and event create/edit/delete fail, and mobile shows no events. The blast radius is wider than this module: every public reader goes through the same anon browser client - `components/events/EventGrid.tsx`, `app/(public)/events/[id]/page.tsx`, `app/(public)/favorites/page.tsx`, `components/common/PersonalizedHomepage.tsx`, `services/search.service.ts` - and `getEvents` swallows errors into `[]` (`event.service.ts:50-52`), so the public site would show "no events" rather than an error. No later migration adds a permissive `events` policy (`grep "CREATE POLICY" supabase/migrations/*.sql` hits `events` only at `:98`), and the web app never opens a Supabase session (no `supabase.auth.signIn*`/`setSession` in `app components hooks lib services`). Present at the 2026-09-19 snapshot but missed by the first pass; found while tracing the new mobile reader. | `supabase/migrations/20260907112632_create_core_tables.sql:98-102`; `services/event.service.ts:2-4`; `apps/mobile/lib/api.ts:15-23` | Move event reads/writes behind server routes using `lib/supabase/admin` (as `temple-areas.supabase.service.ts` does), and add an explicit public-read policy for published events if mobile keeps reading directly. UNCLEAR whether the live database has the policy - see Refresh log. | NEW (2026-10-18) |
 
 ## Portability notes (React Native / cross-platform)
 
@@ -723,14 +765,25 @@ on, once `TempleEvent`'s Firestore `Timestamp` becomes an ISO string. Fourth, a 
 helpers worth hoisting out of components before the port: `EventForm`'s date conversions
 (`EventForm.tsx:19-68`), `storageService.generateFilename`/`sanitizeFilename`
 (`storage.service.ts:194,207`), the `formatFileSize` duplicated in
-`app/api/storage/videos/route.ts:32` and `VideosManager.tsx:19`, and the tag comma-splitting repeated
+`app/api/storage/videos/route.ts:32` and `VideosManager.tsx:20`, and the tag comma-splitting repeated
 in `GalleryForm.tsx:119`, `MediaDialog.tsx:129` and `CreateImage.tsx`. Everything else in this module
 is a Next-routed, Tailwind-styled, Radix-dialogged screen and is a rewrite.
+
+**What `apps/mobile` consumes today (added 2026-09-30, `0cb71b6` / `5813fc9`).** No file of this
+module is imported - the Expo app has its own `apps/mobile/lib/types.ts` and talks straight to
+Supabase with the anon key (`apps/mobile/lib/supabase.ts:5-8`). It touches this module's *data* in
+two places, both of which bypass the API surface recommended above:
+
+| Mobile reader | Store | Relation to this module | Works? |
+|---|---|---|---|
+| `fetchEvents()` `apps/mobile/lib/api.ts:15-23` | Supabase `events` (`published = true`, order `start_date`) | Same table `EventForm` writes via `event.service` | Doubtful: deny-all RLS on `events` for the anon role (M06-F36), and `start_date` may hold a serialised Firestore `Timestamp` (M06-F06) |
+| `fetchGalleryAlbums()` `apps/mobile/lib/api.ts:37-45` | Supabase `gallery_albums` + embedded `gallery_media(*)` | Migration target of the Firestore `galleryAlbums`/`galleryMedia` this module writes | No: nothing writes these tables, RLS denies anon, there is no foreign key for the embed, and the mobile `Album` type reads `cover_url`/`url` where the DDL has `cover_image`/`image_path` (M06-F35) |
 
 ## Coverage
 
 filesExpected 75, filesMentioned 76 (all 75 inventory files plus the adopted
-`components/admin/RichTextEditor.tsx`), omitted: none.
+`components/admin/RichTextEditor.tsx`), omitted: none. Re-checked 2026-10-18 against
+`.claude/state/inventory/M06.json` (75 files; the 2026-10-18 delta adds and deletes none).
 
 Every inventory file has at least one row in **Key files**; the larger ones also appear in
 **Entry points**, **Component trees**, **Data flow** or **Faults**.
@@ -742,8 +795,11 @@ Every inventory file has at least one row in **Key files**; the larger ones also
   deployed site's network traffic or the chat widget in M09.
 - **Does Supabase's `events` table actually accept the Firestore `Timestamp` object that `EventForm`
   sends (M06-F06)?** Static reading says it would be serialised as `{seconds, nanoseconds}` JSON and
-  rejected or coerced by a `timestamptz` column. Settled by the table DDL in the Supabase migration
-  files (M11) or one live insert.
+  rejected or coerced by a `timestamptz` column. *Half-settled 2026-10-18:* the DDL is in the repo -
+  `start_date timestamptz NOT NULL` (`supabase/migrations/20260907112632_create_core_tables.sql:59`);
+  `20261011000000_alter_events_nullable.sql` relaxes only `description`, `location` and `status`. An
+  object is not valid `timestamptz` input, so static reading predicts the insert is rejected. Only a
+  live insert settles whether something coerces it.
 - **Whether `galleryMedia` documents in the live database use `imagePath` (what the service writes)
   or `url`/`imageUrl` (what `/admin/media` reads).** Settled by the Firestore dump in
   `.claude/state` / the `firestore:dump` output, which this run may not read.
@@ -819,3 +875,108 @@ returns only its own definition at `:52,:59,:64`, and it is the only file in the
 tiptap's `useEditor` (`grep -rln "useEditor\|@tiptap" components app lib` -> 1 file). A pointer to
 M11's event scripts was added under *Code roots*, because those scripts write the `events`
 collection this module's admin pages edit. Coverage is unchanged at 75 + 1 adopted.
+
+## Refresh log (2026-10-18)
+
+Scope: the 2026-10-18 delta lists 5 modified, 0 added, 0 deleted files for M06
+(`.claude/state/delta/2026-10-18/delta.json` `perModule.M06`). Each was diffed against the
+2026-09-19 snapshot with `diff --strip-trailing-cr`. Only one carries a behaviour change
+(`app/api/admin/quotes/route.ts`); three gained a blanket `/* eslint-disable */` on line 1 (shifting
+every line reference by +1); `services/storage.service.ts` changed whitespace only. Every cited file
+outside the delta was also compared to the snapshot; the ones that changed
+(`components/temple-explorer/TempleExplorer.tsx`, `types/temple-explorer.ts`, `package-lock.json`,
+`.env.example`, `components/ui/ImageUploader.tsx`, `services/testimonial.service.ts`) were re-checked
+at each cited line.
+
+Changes made (what was true -> what is true now -> evidence):
+
+- "`/api/admin/quotes*` trusts an unverified `x-user-email` header" -> header trust removed; `POST
+  /api/admin/quotes` verifies a Firebase ID token, other verbs still open -> `app/api/admin/quotes/route.ts:8,47-51`
+  (`da7a1fc`). Updated in Answers, Entry points (intro + row), Data flow 4, Key files, M06-F03, Recipe 8.
+- Data flow 4 described a create that succeeds -> it now 401s because the form sends no bearer token
+  -> `app/admin/quotes/new/page.tsx:210-213`. New M06-F32.
+- "Every API route below is completely unauthenticated" / "no `middleware.ts`" -> still no
+  `middleware.ts`, but `proxy.ts` exists (security headers + page-view logging, no auth), and one
+  route is gated -> `proxy.ts:84-121`. Added to Entry points and M06-F03.
+- Recipe 8 told you to add a middleware and delete the `x-user-email` trust -> the helpers now exist
+  (`lib/auth/admin-auth.ts:186,198`, `hooks/useAdminFetch.ts`) and the trust is gone; the recipe now
+  pairs server gating with client `useAdminFetch`.
+- Line references moved by +1 (blanket eslint-disable at line 1, `6408c1d`): M06-F02
+  `GalleryDashboard.tsx:6,52 -> 7,53`, `VideosManager.tsx:6,37 -> 7,38`; M06-F20 `94,110 -> 95,111`,
+  `31,41 -> 32,42`; M06-F25 `55,63 -> 56,64`; Recipe 5 steps 4-5; Portability `VideosManager.tsx:19 -> 20`.
+- M06-F16 `app/api/admin/quotes/route.ts:18,34 -> 19,35` (new import line).
+- M06-F11 `package-lock.json:18-22 -> 21-25` (Prisma/pg/testing deps inserted above the `@tiptap/*` lines).
+- Data flow 5 `TempleExplorer.tsx:44 -> 46`; added the accessibility panel `:461-497` (`11a532f`). New M06-F34.
+- Key files line counts: testimonials 750 -> 751, quotes route 146 -> 151, GalleryDashboard 202 -> 203,
+  VideosManager 170 -> 171 (`split('\n').length`, same method as the first pass); `storage.service.ts` 340 unchanged.
+- Types used: `types/temple-explorer.ts` gained `AccessibilityInfo` / `TempleArea.accessibility?` (`:6-13,28`).
+- Stores touched / Who imports / Portability: no mobile consumer existed -> `apps/mobile/lib/api.ts`
+  reads Supabase `events` (`:15-23`) and `gallery_albums`+`gallery_media` (`:37-45`) directly with the
+  anon key; no code import from this module. Added a Supabase gallery-tables store row and new
+  M06-F35, M06-F36.
+- Recipe 5 gained a note on the 2026-09-19 server-upload attempt that was reverted the same day
+  (`9581e51`, `54efe2c`, `22d7a18` reverted by `f5582d2`); the snapshot already reflected the revert,
+  so M06-F01's "no upload API route anywhere in `app/api`" still holds (`find app/api -path '*upload*'`
+  returns nothing).
+- Faults table gained a `status (2026-10-18)` column: F01-F31 all STILL OPEN (F02, F11, F16, F20, F25
+  with moved line numbers; F03 narrowed by one gated verb); F32-F36 NEW.
+- Coverage unchanged at 75 inventory files + 1 adopted.
+
+Commits that drove the biggest changes: `da7a1fc` (2026-09-20, quote POST gated by `verifyAdminUser`),
+`6408c1d` (2026-10-03, blanket eslint-disable), `11a532f` (2026-10-06, temple-area accessibility),
+`0cb71b6` / `5813fc9` (2026-09-30, mobile app reading Supabase directly), and `22d7a18` / `9581e51` /
+`54efe2c` / `f5582d2` (2026-09-19, storage migration attempted and reverted - net zero for this module).
+
+UNCLEAR:
+
+- Whether the deny-all RLS policies on `events`, `gallery_albums` and `gallery_media`
+  (`supabase/migrations/20260907112632_create_core_tables.sql:98`,
+  `20261001000000_create_content_tables.sql:125,150`) are applied on the live Supabase project, and
+  whether another permissive policy was added outside the repo. M06-F36's impact depends on it.
+  Settled by `select * from pg_policies where tablename in ('events','gallery_albums','gallery_media')`.
+- Whether anyone has used `/admin/quotes/new` since 2026-09-20 (M06-F32 predicts every attempt 401s);
+  settled by Vercel function logs for `POST /api/admin/quotes`.
+
+## Verification log (2026-10-18)
+
+Skeptic pass over the 2026-10-18 refresh, against HEAD `3d6aa9d` (a docs-only commit on top of `424fdb8`;
+`git diff --stat 424fdb8 3d6aa9d -- . ':!.claude'` touches only `docs/rearchitecture/*`, so the code is
+`424fdb8`). Path script: 552 backticked citations, 0 broken full paths, 0 line numbers past end of
+file (the 3 basename-only citations - `content/page.tsx`, `new/page.tsx`, `[id]/edit/page.tsx` - are
+contextual short forms, not breaks). Delta re-derived independently: diffing all 75 inventory files
+plus the adopted file against the snapshot gives exactly the 5 modified files the refresher named, 0
+added, 0 deleted. 30 claims re-checked (all refresh-touched sections first), all 36 faults re-opened.
+Every refreshed line reference (F02, F11, F16, F20, F25, Data flow 4 and 5, Recipe 8, Key-file line
+counts) matched the code. Changes made:
+
+- Entry points said `/api/events`, `/api/events/[id]` and `/api/announcements` have "No in-repo caller"
+  -> "No app caller; only the E2E contract test GETs it" -> `tests/e2e/sprint5/api-contract.spec.ts:9,68,205`
+  (file dates from `8e3eca9`, 2026-07-28, so the first pass missed it too). M06-F14 reworded the same
+  way, and its fix now says to delete the matching contract tests with the routes.
+- M06-F34 said the accessibility panel never renders "for areas served from Supabase" -> it never
+  renders at all, since the explorer has no static fallback and the service never uses its
+  `DEFAULT_TEMPLE_AREAS` import; plus re-running the seed script now fails on the unknown
+  `accessibility` column -> `TempleExplorer.tsx:46-49`; `temple-areas.supabase.service.ts:4,48-50`;
+  `scripts/seed-temple-areas-supabase.ts:45-54`; no `accessibility` in any temple_areas migration.
+- M06-F35 point (c) said only "no foreign key" -> no FK *can* be added to `gallery_albums.id`, because
+  `album_id` was widened to `text` holding the Firestore album id -> `20261002000000_align_content_firestore_ids.sql:38-39`;
+  `lib/supabase/migration-mappers.ts:323`.
+- M06-F36 covered only the admin and mobile readers -> the public site's event readers use the same
+  anon browser client and `getEvents` turns errors into `[]`; no later migration adds a permissive
+  `events` policy; the web app never opens a Supabase session -> `components/events/EventGrid.tsx`,
+  `app/(public)/events/[id]/page.tsx`, `event.service.ts:50-52`, `grep "CREATE POLICY" supabase/migrations/*.sql`.
+- UNCLEAR "does Supabase `events` accept a Firestore `Timestamp`" said the DDL would settle it -> the DDL
+  is in the repo: `start_date timestamptz NOT NULL` -> `20260907112632_create_core_tables.sql:59`;
+  `20261011000000_alter_events_nullable.sql` relaxes other columns only. Left as half-settled.
+
+Re-checked and left alone: `da7a1fc` (2026-09-20) adds `verifyAdminUser` to `POST` only, and no other
+quote verb or module route calls it (grep across all 17 route files in this module); `verifyAdminUser` maps every
+failure (401/403/503) to `null`, so the route always answers 401 (`admin-auth.ts:186-191`,
+`route.ts:48-50`); `/admin/quotes/new` sends only `Content-Type` (`new/page.tsx:210-213`), no global
+fetch patch exists, and `useAdminFetch` has 8 importers, all under `app/admin/ai/*` - M06-F32
+CONFIRMED HIGH; `6408c1d` (2026-10-03) adds 35 `/* eslint-disable */` lines, including line 1 of the
+three M06 files - M06-F33 CONFIRMED; `proxy.ts:84-121` does headers and page-view logging only, and
+there is no `middleware.ts`; no `*upload*` path under `app/api`, and `storage.service.ts` matches the snapshot
+ignoring whitespace (still `@vercel/blob`); the mobile reads at `apps/mobile/lib/api.ts:15-23,37-45`,
+`types.ts:39-44`, `gallery.tsx:38,43` and the anon client at `supabase.ts:5-8`; the deny-all policies
+at `core_tables.sql:98-102` and `content_tables.sql:125,150`; the `cover_image`/`image_path` DDL names.

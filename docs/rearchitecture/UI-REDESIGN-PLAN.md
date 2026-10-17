@@ -1,6 +1,7 @@
 # UI Redesign Plan — Sri Raghavendra Swamy Matha portal
 
-**Written:** 2026-09-19 · **Scope:** public site + admin console · **Status:** proposal, nothing implemented
+**Written:** 2026-09-19 · **Scope:** public site + admin console · **Status:** proposal, nothing implemented ·
+**Re-checked:** 2026-10-18 against commit `424fdb8` — still nothing implemented (see *Status as of 2026-10-18* at the end of §1)
 **Companion specimen:** [`ui-redesign-specimens.html`](./ui-redesign-specimens.html)
 
 The colour values do not change. Everything else about how the interface looks and is placed —
@@ -34,7 +35,7 @@ Counts are from `app/` + `components/`, `*.tsx` only, measured 2026-09-19. Repro
 
 | # | Finding | Evidence | Why it reads as dated |
 |---|---|---|---|
-| B1 | There is no page-title size. `h1` ranges from `text-2xl` (`/search`) to `text-6xl` (Hero), and `text-5xl font-bold` is used as a *section* `h2` in nine home components | `components/home/{DonationCTA:50,FeaturedSevasClient:24,GallerySection:43,QuickServices:99,TempleGalleryPreview:21,TempleInfo:129,TempleTimings:79,Testimonials:135,UpcomingEvents:23}.tsx` | Every section shouts at the same volume, so nothing is a heading |
+| B1 | There is no page-title size. `h1` ranges from `text-2xl` (`/search`) to `text-6xl` (Hero), and `text-5xl font-bold` is used as a *section* `h2` in nine home components | `components/home/{DonationCTA:50,FeaturedSevasClient:24,GallerySection:43,QuickServices:99,TempleGalleryPreview:21,TempleInfo:129,TempleTimings:79,Testimonials:135,UpcomingEvents:23}.tsx` *(2026-10-18: MOVED — `UpcomingEvents.tsx:25`, now `text-4xl lg:text-5xl`, by `ee8390c`)* | Every section shouts at the same volume, so nothing is a heading |
 | B2 | Ten size steps in live use — `text-sm` ×1290, `text-xs` ×460, `text-lg` ×296, `text-2xl` ×164, `text-xl` ×100, `text-3xl` ×78, `text-4xl` ×59, `text-5xl` ×36, `text-base` ×18, `text-6xl` ×11 | repo counts | The body default (`text-base`, 16px) is used 18 times against 1,290 uses of 14px: the site's reading size is a caption size |
 | B3 | `@theme inline` maps `--font-sans: var(--font-sans)` (self-referential, never defined) and `--font-mono: var(--font-geist-mono)` (never defined), and re-maps `--font-heading` to the broken `--font-sans`, fighting the `:root` `--font-heading: "Playfair Display"` set 84 lines earlier | `app/globals.css:3,87-89`, `:237-239` | `html { font-sans }` resolves to nothing; the browser default stack is doing the work |
 | B4 | `@import "tailwindcss"` and three other `@import`s sit at line 77, after 76 lines of real CSS rules, which the CSS spec does not allow | `app/globals.css:1-80` | Behaviour depends on the bundler, not the stylesheet |
@@ -57,7 +58,7 @@ Counts are from `app/` + `components/`, `*.tsx` only, measured 2026-09-19. Repro
 |---|---|---|---|
 | D1 | Five container widths in use — `max-w-7xl` ×62, `max-w-4xl` ×37, `max-w-3xl` ×30, `max-w-6xl` ×19, `max-w-5xl` ×5 — so the page changes width as you navigate | repo counts | No grid; each page was laid out on its own |
 | D2 | Four vertical band heights with no rule for choosing — `py-12` ×58, `py-16` ×36, `py-20` ×20, `py-24` ×12 | repo counts | Sections drift; the eye cannot find a rhythm |
-| D3 | Everything is centred. The shared `SectionHeading` is `mb-12 text-center`, and 15 files re-declare a centred amber-pill → `text-5xl` h2 → `text-lg` paragraph block inline | `components/common/SectionHeading.tsx:11`; `components/home/UpcomingEvents.tsx:19-27` and 14 sibling files | Centre-everything is a brochure layout; it makes scanning and bilingual text harder |
+| D3 | Everything is centred. The shared `SectionHeading` is `mb-12 text-center`, and 15 files re-declare a centred amber-pill → `text-5xl` h2 → `text-lg` paragraph block inline | `components/common/SectionHeading.tsx:11`; `components/home/UpcomingEvents.tsx:19-27` and 14 sibling files *(2026-10-18: MOVED — `ee8390c` set the Upcoming Events copy left in an 8/12 column at `UpcomingEvents.tsx:15-34`, still inline and still not `SectionHeading`; the 14 siblings are unchanged)* | Centre-everything is a brochure layout; it makes scanning and bilingual text harder |
 | D4 | Eight `<SacredDivider>` ornaments sit between the home page's sections | `components/home/HomeClient.tsx:40,45,50,54,58,73,77,81` | Decorative separators instead of whitespace; each one is also a framer-motion subtree |
 
 ### E. Navigation and chrome
@@ -85,7 +86,7 @@ Counts are from `app/` + `components/`, `*.tsx` only, measured 2026-09-19. Repro
 | # | Finding | Evidence | Why it reads as dated |
 |---|---|---|---|
 | G1 | **33** `whileInView` call sites across 44 framer-motion importers: nearly every section fades and rises as you scroll past it | repo counts | Scroll-triggered entrances on every block are the generic default |
-| G2 | The hero runs one `<canvas>` requestAnimationFrame loop (`FloatingParticles`, 25 particles) plus 15 framer-motion divs on `repeat: Infinity` (`FloatingDots` draws no canvas) and two `DeepaFlame` canvases — four are written, two render, both `hidden lg:block` — behind a hand-rolled scroll listener driving a parallax | `components/home/Hero.tsx:31-60,118-130,304,324,332,335`; `components/ui/FloatingParticles.tsx:182,200,272-295` | Ambient particle fields; a battery cost with no informational payload |
+| G2 | The hero runs one `<canvas>` requestAnimationFrame loop (`FloatingParticles`, 25 particles) plus 15 framer-motion divs on `repeat: Infinity` (`FloatingDots` draws no canvas) and two `DeepaFlame` canvases — four are written, two render, both `hidden lg:block` — behind a hand-rolled scroll listener driving a parallax | `components/home/Hero.tsx:31-60,118-130,304,324,332,335`; `components/ui/FloatingParticles.tsx:182,200,272-295` *(2026-10-18: MOVED to `:183,201,273-296` by the line-1 `/* eslint-disable */` of `6408c1d`)* | Ambient particle fields; a battery cost with no informational payload |
 | G3 | Six infinite CSS animations ship globally — `pulse-ring` (2s), `float-gentle` (4s), `shimmer` (2s), `flicker` (0.5s), `skeleton-loading` (1.5s), `marquee-smooth` (30s) | `app/globals.css:498-565,613-617,653-665` | Something is always moving, so nothing that moves means anything |
 | G4 | Motion durations are declared twice and agree nowhere: `ANIMATION_DURATION` in the dead `lib/animations.ts:4-10`, `duration-300` in the header, `0.4s` in `.temple-card`, `0.6s` in `.section-fade-in` | `lib/animations.ts:4-10`; `components/layout/Navbar.tsx:154`; `app/globals.css:431,598` | Transitions of different lengths on adjacent elements |
 
@@ -123,6 +124,75 @@ literal classes, sRGB relative luminance per WCAG 2.x.
 the shipped components, cannot legally carry white text. Gold and saffron are *light* colours. The
 redesign below puts dark ink on gold rather than inventing a darker gold — which would be a new
 colour value, and the palette stays.
+
+### Status as of 2026-10-18
+
+Re-checked on Sunday 2026-10-18 against code commit `424fdb8`, by script against the read-only 2026-09-19
+snapshot; nothing was built or run.
+
+**Evidence lines.** Every file the Diagnosis cites still exists. Comparing each cited line with the same line
+in the snapshot gave 210 identical, 6 shifted down by one and 4 changed, and all ten differences sit in three
+rows, now annotated in place:
+
+| Row | What happened | Verdict |
+|---|---|---|
+| B1 | `UpcomingEvents.tsx:23` is now `:25`, and the heading became `text-4xl lg:text-5xl` (`ee8390c`, 2026-10-06) — still the shouting section `h2` at desktop width | MOVED, still open |
+| D3 | The same commit moved the Upcoming Events header into an 8/12 column and dropped `mx-auto max-w-3xl text-center`, so that one copy is now left-aligned — incidentally, by a feature commit. It is still the inline pill → `h2` → paragraph block, not `SectionHeading`, and the other 14 copies are unchanged | MOVED, still open (1 of 15 de-centred) |
+| G2 | `FloatingParticles.tsx` gained the file-wide `/* eslint-disable */` of `6408c1d` on line 1, so its anchors read one lower | MOVED, still open |
+
+**No row is RESOLVED.** No row's dated pattern has been removed. The only removal anywhere in `app/` or
+`components/` is the one D3 copy `ee8390c` de-centred — one `max-w-3xl` and two `text-center`s gone from
+`components/home/UpcomingEvents.tsx` — and every other measured pattern is flat or higher file by file.
+
+**The counts moved up, not down.** Same patterns, same scope (`app` + `components`, `*.tsx`); the snapshot
+column reproduces this plan's own numbers exactly, which is what makes the comparison fair.
+
+| Row | Pattern | 2026-09-19 | 2026-10-18 |
+|---|---|---:|---:|
+| A1 | `amber-*` / `orange-*` / `stone-*` literals | 5,471 | 5,515 |
+| A3 | arbitrary hex in classes | 31 | 31 |
+| A4 | `bg-gradient-to` | 287 | 289 |
+| B2 | `text-sm` / `text-base` | 1,290 / 18 | 1,307 / 19 |
+| B6 | `uppercase tracking-` | 82 | 85 |
+| C1 | arbitrary radii `rounded-[` | 23 | 24 |
+| C2 | `shadow-lg` / `shadow-xl` / `shadow-2xl` | 160 / 51 / 36 | 160 / 51 / 37 |
+| C4 | `backdrop-blur` | 59 | 62 |
+| C5 | `hover:-translate-y-` / `hover:scale-1` | 15 / 42 | 15 / 43 |
+| D1 | `max-w-7xl` / `max-w-3xl` (the other three unchanged) | 62 / 30 | 63 / 29 |
+| D2 | `py-12` / `py-16` / `py-20` / `py-24` | 58 / 36 / 20 / 12 | unchanged |
+| F4 | files importing `framer-motion` | 44 | 45 |
+| G1 | `whileInView` | 33 | 33 |
+| H2 | `AdminPageHeader` importers | 58 | 58 |
+| H5 | `confirm(` call sites | 38 | 38 |
+
+**Redesign work visible in the code: none.** Every Phase 1–2 marker from §8 was looked for and is absent:
+`app/globals.css` and `app/layout.tsx` are unchanged since 2026-09-19 (identical to the snapshot copies once
+line endings are ignored, and untouched by any commit since), so the `@import` order, the self-referential font
+variables, Playfair Display and `bg-stone-50 text-stone-900` are all still there; `lib/navigation.ts` does not
+exist; `lib/formStyles.ts` and `lib/animations.ts` still have zero importers; `components/ui/TempleButton.tsx`
+is still present; there is no shared `SectionHeader` primitive (the only `SectionHeader` is a file-local helper at
+`components/recommendation/RecommendationsSection.tsx:142`, already there on 2026-09-19), no `statusTone`, no `Source_Serif_4`; `Navbar.tsx` is still
+633 lines; the home page still carries eight `SacredDivider`s; nothing adds the `dark` class.
+
+**New UI since 2026-09-19, all in the old idiom.** Five festival components (`components/festival/FestivalCountdown.tsx`,
+`FestivalCountdownWrapper.tsx`, `FestivalLiveUpdates.tsx`, `FestivalPhotoHighlights.tsx`, `FestivalGuide.tsx`,
+2026-10-06 → 07) bring 2 gradients, 3 `backdrop-blur`s and 3 tracked-uppercase eyebrows of their own — the
+whole of the A4, C4 and B6 increases above; the home
+Upcoming Events band became an 8/12 + 4/12 grid; Temple Explorer gained an accessibility panel that never
+renders. And the Expo app in `apps/mobile` (2026-09-30) hard-codes a second brand palette — eight `temple.*` hex values in
+`apps/mobile/tailwind.config.js:8-14`, led by maroon `#800000` and gold `#D4AF37` (`apps/mobile/app/(tabs)/_layout.tsx:9,12`,
+`apps/mobile/tailwind.config.js:8,11`), with cream `#FFFDD0` also hard-coded in the screens; 22 distinct hex literals
+in the app in all — none of which appears in the web code, and in neither form in `app/globals.css`. This plan and its specimen still
+introduce no colour value; the product now carries two palettes. When the shared token package of the
+migration report's §3.2 exists, the phone should take the converted `oklch()` tokens, not keep its own hex.
+
+**The token file and the specimen.** `app/globals.css` has not changed, so §3's palette and every contrast
+ratio in §1 *I* and §7.1 stand as computed. The specimen has not changed either; re-scripted on 2026-10-18 it
+carries **28 distinct colour literals, 0 of them absent from `app/globals.css`**.
+
+**Where this plan now sits in the programme.** The redesign is Phase 4 of the migration report, which its
+§7.6 re-base places at Monday 2027-02-08 → Friday 2027-03-19; whether it is a re-skin or a component-library
+rebuild (that report's §4.3 and decision 7) is due at the re-based Phase-2 gate, Friday 2027-01-08.
 
 ---
 
@@ -939,10 +1009,10 @@ one settings page.
 
 | Check | Command / method | Target |
 |---|---|---|
-| No literal palette classes left | `grep -ro "\b\(amber\|orange\|stone\)-[0-9]\+" app components --include=*.tsx \| wc -l` | 5,471 → 0 |
+| No literal palette classes left | `grep -ro "\b\(amber\|orange\|stone\)-[0-9]\+" app components --include=*.tsx \| wc -l` | 5,471 → 0 (5,515 on 2026-10-18) |
 | No arbitrary hex in classes | `grep -ro "\(bg\|text\|border\|from\|to\)-\[#" app components --include=*.tsx \| wc -l` | 31 → 0 |
 | Radius steps | `grep -ro "rounded-[a-z0-9\[]*" app components --include=*.tsx \| sort -u` | 3 values |
-| Gradients | `grep -ro "bg-gradient-to" app components --include=*.tsx \| wc -l` | 287 → 0 |
+| Gradients | `grep -ro "bg-gradient-to" app components --include=*.tsx \| wc -l` | 287 → 0 (289 on 2026-10-18) |
 | Scroll motion | `grep -ro "whileInView" app components --include=*.tsx \| wc -l` | 33 → 0 |
 | Container widths | `grep -ro "max-w-[0-9]xl" app components --include=*.tsx \| sort -u` | 0 (tokens only) |
 | Contrast | axe + the table in §7.1 | no AA failure on text |
@@ -1015,7 +1085,9 @@ Every convention borrowed, with what was taken from it.
 *Diagnosis rows: 53. Primitives specified: 19. Pages wireframed: 9. References cited: 10. New colour
 values introduced: 0. Every `path:line` in the Diagnosis was verified against the working tree on
 2026-09-19; the only file referenced that does not exist is `lib/navigation.ts`, which Phase 3
-creates. Eight rows were corrected in review on 2026-09-19 — see §11.*
+creates. Eight rows were corrected in review on 2026-09-19 — see §11. Re-checked 2026-10-18: every cited file
+still exists, three rows' anchors moved (B1, D3, G2), none is resolved, and the specimen's 28 colour literals
+are all still in `app/globals.css`, which has not changed — see §1, *Status as of 2026-10-18*, and §12.*
 
 ---
 
@@ -1136,3 +1208,78 @@ inference is sound and worth keeping — it is simply not a citation.
 *Review file: `.claude/state/verify/V4-redesign-critic.md`.*
 
 Specimen completed (2026-09-19): added modal/drawer, row-card table, footer.
+
+---
+
+## 12. Reviewer notes (2026-10-18)
+
+A refresh pass four weeks after the plan was written, against code commit `424fdb8`. The brief was to check
+that the Diagnosis still describes the code, mark anything the code has since resolved, note any redesign work
+already in the code, and re-check the specimen's colours against the token file. The 2026-09-19 notes above
+stand unchanged; nothing in §2–§10 was edited except two baselines in §8's checklist.
+
+### What changed in this document
+
+- **Header** — a *Re-checked 2026-10-18* note beside the status.
+- **New subsection at the end of §1, *Status as of 2026-10-18*** — the evidence check, the count comparison,
+  the search for redesign work, the new UI built since, and the token-file and specimen check.
+- **Rows B1, D3 and G2** — a dated *MOVED* note in each Evidence cell. The original citations are kept, so the
+  2026-09-19 reading can still be reproduced against the snapshot.
+- **§8 cross-phase checklist** — the A1 and A4 baselines now show their 2026-10-18 values beside the originals;
+  the targets are unchanged.
+- **Closing summary line** under §10 — one sentence on the re-check.
+
+### What was checked, and how
+
+- **All 53 Diagnosis rows** were re-opened by script: each cited `path:line` was compared with the same line
+  in the read-only snapshot. 210 lines matched, 6 had moved down one line, 4 had changed; every file exists.
+  The three affected rows are B1, D3 and G2. **No row is RESOLVED** — none of the dated patterns has been
+  removed, and only one of the fifteen centred section headers (D3) has changed, as a side effect of a
+  feature commit.
+- **Every count in the §1 status table was recomputed** on both trees with the same patterns. The snapshot
+  side reproduced the plan's numbers exactly; the 2026-10-18 side is flat or higher on all but one —
+  `max-w-3xl`, 30 → 29, which is the de-centred Upcoming Events header.
+- **Phase 1–2 markers** — tokens, fonts, the formStyles module, the navigation manifest, the deleted
+  primitives, the new primitives — were looked for one by one. None is present.
+- **`app/globals.css`** has the same git blob as on 2026-09-19 (this checkout's copy differs only in CRLF line
+  endings). **The specimen** is byte-identical to the snapshot copy once line endings are ignored, and its 28
+  distinct colour literals are all in `app/globals.css`: specimen colours still all in the token file — **yes**.
+
+### Judgement calls
+
+- **D3 is MOVED, not RESOLVED.** One of fifteen copies is now left-aligned, but the row's defect — fifteen
+  inline re-declarations instead of the shared primitive — is untouched, and the copy that moved still shouts.
+- **The mobile app's hex palette is recorded, not added to the palette.** They are a second, conflicting
+  brand definition rather than a change to this plan's palette; §3's "the colour values do not change" still
+  describes the web, and the fix belongs to the shared token package the migration report plans.
+
+### Skeptic re-check (2026-10-18)
+
+An adversarial pass over the refresh above on Sunday 2026-10-18, against code commit `424fdb8`; nothing was
+built or run. The full report is `.claude/state/verify/B-skeptic-2026-10-18.md`.
+
+- **No row is RESOLVED.** Confirmed by comparing every pattern file by file between the snapshot and
+  `424fdb8`. The only file where any count fell is `components/home/UpcomingEvents.tsx`: `max-w-3xl` 1 → 0
+  and `text-center` 2 → 0. That is D3's one de-centred copy, correctly marked MOVED. All other changes are
+  increases, and they come from the festival components, the AI admin pages, Temple Explorer and `/live`.
+- **Evidence lines.** An independent per-line comparison counted in a different unit, expanding every range,
+  so its totals differ from the 210 / 6 / 4 above. It found differences in the same three rows only: B1, D3
+  and G2. Every cited file exists.
+- **Counts and markers.** Every number in the 2026-10-18 count table was reproduced exactly on both trees.
+  The festival components account for the whole of the A4, C4 and B6 increases, as stated. Other checks:
+  - `app/globals.css` has the same blob as the snapshot (`1973fe3`; last touched 2026-07-20).
+  - `app/layout.tsx` matches the snapshot.
+  - `lib/navigation.ts` is absent.
+  - `lib/formStyles.ts` and `lib/animations.ts` each have 0 importers.
+  - `TempleButton.tsx` is present.
+  - `Navbar.tsx` is 633 lines, and there are 8 `SacredDivider`s.
+- **The specimen.** It matches the snapshot copy byte for byte once line endings are ignored. It has 28
+  distinct colour literals (all `oklch()`), and 0 are missing from `app/globals.css`.
+- **Corrected in place.**
+  - "No dated pattern has been removed anywhere" was literally false, because of D3's removal. It now says no
+    row's pattern was removed, and names the one removal.
+  - "There is no `SectionHeader`" overlooked the file-local helper at
+    `components/recommendation/RecommendationsSection.tsx:142`, which predates the snapshot. It now says no
+    *shared* `SectionHeader` primitive exists.
+  - The mobile palette is eight `temple.*` hex values, not two. Three of them recur in screen styles, and
+    the app has 22 distinct hex literals in all. The status text and the judgement call now say so.

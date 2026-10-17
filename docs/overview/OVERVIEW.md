@@ -1,8 +1,29 @@
 # Temple Portal — Product and System Overview
 
-**Repository:** `temple-portal` (`package.json:2`) · **Date of this document:** 2026-09-19
+**Repository:** `temple-portal` (`package.json:2`) · **Date of this document:** 2026-09-19, refreshed 2026-10-18
 **Audience:** anyone joining the project who needs to know what it is before how it works.
 **Companion:** [TECHNICAL-GUIDE.md](./TECHNICAL-GUIDE.md) for the engineering view.
+
+---
+
+## What changed since 2026-09-19
+
+*Added 2026-10-18 against commit `424fdb8`; sentences further down that the refresh made wrong
+were corrected in place.*
+
+- **A mobile app exists.** `apps/mobile` (Expo 57, React Native 0.86, built 2026-09-30) has seven
+  tabs and a seva modal, and no login, booking or payment. It reads Supabase directly with the anon
+  key, from tables that deny all access or do not exist, so only the Raya AI tab (`POST /api/chat`)
+  shows anything ([M17](../../.claude/skills/temple-portal-expert/brain/M17-mobile-app-prisma-and-ai-loop.md)).
+- **Prisma arrived unused.** A Prisma 7 schema mirrors nine Supabase tables; nothing imports its client (M17).
+- **Raya AI was rewritten and moved to Supabase.** A 192-line orchestrator over a retrieval registry
+  and a response composer replaced the 1,191-line generator; settings, knowledge, chat and analytics
+  moved to Supabase. Still no LLM call, and the admin knowledge screens still write Firestore (M08, M09).
+- **Migration progress.** A unit-tested ETL library with batched and staged runs; 9 new Supabase
+  migrations (24 tables). Bookings, donations, receipts and most settings still live in Firestore (M11).
+- **CI, but no deploy gate.** `ci.yml` (2026-10-03) runs lint, typecheck, tests and build on every push
+  and pull request, yet the deploy does not wait for it; 22 workflows, five of them a bot development
+  loop in `.ai/`. 21 of 97 route files now verify a token, against 5 of 95 before (M12, M15, M17).
 
 ---
 
@@ -66,8 +87,8 @@ Detail in [M05](../../.claude/skills/temple-portal-expert/brain/M05-admin-platfo
 
 **Raya AI** — a floating chat widget on every page, backed by `POST /api/chat`, plus an admin
 console at `/admin/ai` — a hub and eleven sub-pages. It classifies a question into one of 42 intents, retrieves the matching
-facts from Firestore, the panchanga files or the knowledge store, and formats a bilingual
-English/Kannada answer. Detail in
+facts from Supabase (the AI settings and knowledge tables, since October 2026), Firestore (events and
+other domains) or the panchanga files, and formats a bilingual English/Kannada answer. Detail in
 [M08](../../.claude/skills/temple-portal-expert/brain/M08-raya-ai-engine.md) and
 [M09](../../.claude/skills/temple-portal-expert/brain/M09-raya-ai-console-and-knowledge-workflow.md).
 
@@ -83,6 +104,10 @@ separate GST-style invoice module, feature-flagged off.
 **Device features** — share, add-to-calendar, directions, browser notifications, QR scanning and
 generation, plus English/Kannada/Sanskrit dictionaries and accessibility primitives. Detail in
 [M13](../../.claude/skills/temple-portal-expert/brain/M13-device-capabilities-i18n-and-pwa.md).
+
+**Mobile app** (added 2026-09-30) — `apps/mobile`, a read-only Expo app for devotees: temple
+information, daily poojas, sevas, events, gallery and Raya AI. It shares no code with the web app.
+Detail in [M17](../../.claude/skills/temple-portal-expert/brain/M17-mobile-app-prisma-and-ai-loop.md).
 
 ---
 
@@ -131,16 +156,20 @@ generation, plus English/Kannada/Sanskrit dictionaries and accessibility primiti
 Both journeys work in outline and break in detail. Step 8 of the first lets anyone mark a booking
 paid. In the second, `EventForm` builds Firestore `Timestamp` objects and hands them to a
 Supabase-backed service, and the event detail page calls `.toDate()` on what Supabase returns as an
-ISO string, so it throws for every event (`app/(public)/events/[id]/page.tsx:63`).
+ISO string, so it throws for every event (`app/(public)/events/[id]/page.tsx:63`). The 2026-10-18
+check adds a deeper problem: the repository's `events` table carries a deny-all RLS policy, so the
+anon client's reads and writes return nothing unless the live database differs from the migrations
+(M06-F36).
 
 ---
 
 ## The module map
 
-The codebase — 818 source files, 158,773 lines — is divided into fifteen modules, each with a
-verified brain file under
+The codebase — 929 source files, 178,106 lines on 2026-10-18 (818 and 158,773 on 2026-09-19) — is
+divided into sixteen code modules, M01-M15 plus M17 (added 2026-10-18 for the mobile app, Prisma and
+the `.ai/` loop), each with a verified brain file under
 [`.claude/skills/temple-portal-expert/brain/`](../../.claude/skills/temple-portal-expert/brain/).
-A sixteenth brain file, M16, owns no code: it is the field-level index across all of them.
+One more brain file, M16, owns no code: it is the field-level index across all of them.
 
 | ID | Module | In one line | Brain file |
 |---|---|---|---|
@@ -155,11 +184,12 @@ A sixteenth brain file, M16, owns no code: it is the field-level index across al
 | M09 | Raya AI console and knowledge workflow | Chat widget, `/admin/ai`, the editorial workflow, AI UAT | [M09](../../.claude/skills/temple-portal-expert/brain/M09-raya-ai-console-and-knowledge-workflow.md) |
 | M10 | Services and types catalogue | 54 services and 42 type files — the repository layer as built | [M10](../../.claude/skills/temple-portal-expert/brain/M10-services-and-types-catalogue.md) |
 | M11 | Data model, persistence and migration | Firestore collections, Supabase tables, rules, indexes, seeds | [M11](../../.claude/skills/temple-portal-expert/brain/M11-data-model-persistence-and-migration.md) |
-| M12 | API layer | 95 route handlers and one server action — the whole HTTP surface | [M12](../../.claude/skills/temple-portal-expert/brain/M12-api-layer.md) |
+| M12 | API layer | 97 route handlers and two server-action files — the whole HTTP surface | [M12](../../.claude/skills/temple-portal-expert/brain/M12-api-layer.md) |
 | M13 | Device capabilities, i18n and PWA | Share, location, notifications, QR, dictionaries, accessibility | [M13](../../.claude/skills/temple-portal-expert/brain/M13-device-capabilities-i18n-and-pwa.md) |
 | M14 | Domain engines | Panchanga, festivals, the Aaradhane generator, receipt PDFs, reports | [M14](../../.claude/skills/temple-portal-expert/brain/M14-domain-engines-panchanga-aaradhane-receipts-reports.md) |
-| M15 | Testing, CI/CD and repo health | 50 Playwright specs, 17 Jest files, five workflows, documentation health | [M15](../../.claude/skills/temple-portal-expert/brain/M15-testing-ci-tooling-and-repo-health.md) |
-| M16 | Collection and table field catalogue | Every field of all 64 Firestore collections and 21 Supabase tables, with its writers and readers | [M16](../../.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md) |
+| M15 | Testing, CI/CD and repo health | 50 Playwright specs, 52 Jest unit files, 22 workflows, documentation health | [M15](../../.claude/skills/temple-portal-expert/brain/M15-testing-ci-tooling-and-repo-health.md) |
+| M16 | Collection and table field catalogue | Every field of all 64 Firestore collections and 24 Supabase tables, with its writers and readers | [M16](../../.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md) |
+| M17 | Mobile app, Prisma, AI loop, root reports | The Expo app in `apps/mobile`, the unused Prisma mirror, the `.ai/` bot development loop and six new root reports | [M17](../../.claude/skills/temple-portal-expert/brain/M17-mobile-app-prisma-and-ai-loop.md) |
 
 ---
 
@@ -167,21 +197,24 @@ A sixteenth brain file, M16, owns no code: it is the field-level index across al
 
 The site renders, the admin console is navigable, and the Receipt Book genuinely works. Everything
 else needs qualifying. The platform is **mid-migration from Firestore to Supabase and stopped
-halfway**: Supabase owns events, site settings and temple areas; Firestore owns everything else; and
-two domains — sevas and social links — are read from one store while being written to the other, so
-an administrator's edits never reach the public page. Nine Supabase tables exist with no application
-code reading them at all, and several of the tables the code *does* read are locked to deny-all,
-so those reads return nothing and the services swallow the error. Authorization is the second
-systemic gap: the request-time interceptor `proxy.ts` authorizes nothing, the admin gate is a
-client-side React guard, and 88 of the
-95 API route files perform no identity check — including routes that mint a super-admin, overwrite AI
-settings, or return devotee phone numbers. A third of the code is scaffolding: the entire
+halfway**: Supabase owns events, site settings, temple areas and, since October 2026, the Raya AI
+data; Firestore owns almost everything else; and several domains — sevas, social links, knowledge,
+unknown questions and the AI dashboards — are read from one store while being written to the other,
+so an administrator's edits never reach the page that shows them. Twelve Supabase tables hold
+migrated or copied data that no web code reads (three of them are read only by the mobile app), and several of
+the tables the code *does* read are locked to deny-all, so those reads return nothing and the
+services swallow the error. Authorization is the second systemic gap: the request-time interceptor
+`proxy.ts` authorizes nothing, the admin gate is a client-side React guard, and 76 of the 97 API
+route files perform no identity check (88 of 95 on 2026-09-19) — including routes that mint a
+super-admin or rewrite any role (both latent today, M04-F04, M04-F05) and one that returns devotee
+phone numbers; the AI settings routes are now guarded. A third of the code is scaffolding: the entire
 knowledge-approval workflow (about 2,000 lines) has no reachable UI, the nine device widgets have no
 consumers, the 825 translated strings are never rendered because no i18n provider is mounted, the
 LLM provider abstraction is fully written but its only call site is commented out, and several admin
 screens (`/admin/library`, `/admin/stotras`, `/admin/calendar/*`) persist nothing at all. Finally,
-the quality apparatus is decorative: the deploy workflow pushes to production with no lint,
-typecheck or test step, the Playwright config points at a directory that does not exist, and the
+the quality apparatus is thin: since 2026-10-03 CI runs lint, typecheck, tests and the build, but the
+deploy workflow does not wait for it, lint passes partly because 35 files carry a blanket
+`eslint-disable`, the Playwright config points at a directory that does not exist, and the
 `no-explicit-any` rule the coding standards rest on is switched off for the whole source tree.
 
 Those are the conditions to design around, not reasons to start over: the domain modelling, the
@@ -191,7 +224,7 @@ For the data layer specifically, read
 [M11](../../.claude/skills/temple-portal-expert/brain/M11-data-model-persistence-and-migration.md)
 for which store owns what and
 [M16](../../.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md) for the
-fields inside it — every field of all 64 Firestore collections and 21 Supabase tables, with the
+fields inside it — every field of all 64 Firestore collections and 24 Supabase tables, with the
 `path:line` of everything that writes or reads it, and the nineteen collections that have no
 TypeScript type at all.
 
@@ -204,7 +237,7 @@ TypeScript type at all.
   and deployment, and a "where to look" table.
 - **The expert skill** — [`.claude/skills/temple-portal-expert/`](../../.claude/skills/temple-portal-expert/README.md).
   Start at its [MIND-MAP](../../.claude/skills/temple-portal-expert/MIND-MAP.md), which routes a
-  question to one of the sixteen brain files (linked in the module map above); each is the verified,
+  question to one of the seventeen brain files (linked in the module map above); each is the verified,
   evidence-backed record of what a module actually does, including a faults table with `path:line`
   evidence. M16 is the field-level catalogue across all of them.
 - **The re-architecture reports** — in [`docs/rearchitecture/`](../rearchitecture/):

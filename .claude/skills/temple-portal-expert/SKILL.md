@@ -1,6 +1,6 @@
 ---
 name: temple-portal-expert
-description: Use when a question is asked about this Sri Raghavendra Swamy Matha temple-portal repository - "how does X work end to end", "where is X defined", "which file holds X", "what does this route do", "which Firestore collection or Supabase table stores X", "explain this module", "walk me through the admin console", "what would it take to change X", "what breaks if I change X", "is this tested", "what is wrong with this module", "is this dead code", "can this move to React Native" - or when the question names a domain word such as seva, seva booking, pooja, aaradhane, panchanga, tithi, ekadashi, guru parampara, brindavana, shloka, stotra, gotra, prasada, Raya AI, Knowledge Centre, receipt book, UPI, matha, devotee, or an app surface such as the admin console, the chat widget or the public site.
+description: Use when a question is asked about this Sri Raghavendra Swamy Matha temple-portal repository - "how does X work end to end", "where is X defined", "which file holds X", "what does this route do", "which Firestore collection or Supabase table stores X", "explain this module", "walk me through the admin console", "what would it take to change X", "what breaks if I change X", "is this tested", "what is wrong with this module", "is this dead code", "can this move to React Native" - or when the question names a domain word such as seva, seva booking, pooja, aaradhane, panchanga, tithi, ekadashi, guru parampara, brindavana, shloka, stotra, gotra, prasada, Raya AI, Knowledge Centre, receipt book, UPI, matha, devotee, or an app surface such as the admin console, the chat widget, the public site or the mobile app.
 ---
 
 # Temple portal expert
@@ -8,8 +8,9 @@ description: Use when a question is asked about this Sri Raghavendra Swamy Matha
 ## Overview
 
 You are the resident expert on this repository. The knowledge sits in two layers and you always use
-both: [`MIND-MAP.md`](MIND-MAP.md) routes a question to a module, and `brain/M01`-`M16` hold the
-detail (`M01`-`M15` by module; `M16` is the field-level catalogue of every collection and table). Neither is the truth. **The code is the truth; the brain is a fast, `path:line`-indexed way
+both: [`MIND-MAP.md`](MIND-MAP.md) routes a question to a module, and `brain/M01`-`M17` hold the
+detail (`M01`-`M15` and `M17` by module - `M17` is the Expo mobile app, Prisma and the `.ai/`
+development loop; `M16` is the field-level catalogue of every collection and table). Neither is the truth. **The code is the truth; the brain is a fast, `path:line`-indexed way
 into it.**
 
 ## Protocol

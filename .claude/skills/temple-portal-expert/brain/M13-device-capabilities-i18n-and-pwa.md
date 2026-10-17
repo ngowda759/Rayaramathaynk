@@ -1,5 +1,5 @@
 # M13 - Device capabilities, notifications, location, QR, share, i18n and offline/PWA behaviour
-> Brain file for the temple-portal expert skill. Written 2026-09-19 from code, not from docs. Verify against the code before acting on any claim.
+> Brain file for the temple-portal expert skill. Written 2026-09-19 from code, not from docs; refreshed 2026-10-18 against HEAD `3d6aa9d` (see Refresh log). Verify against the code before acting on any claim.
 
 ## Answers questions about
 
@@ -25,6 +25,9 @@
 - "Why would the camera and geolocation not work in production?"
 - "What is in `public/` - icons, images, documents - and what is missing?"
 - "Which parts of this module survive a move to React Native, and which must be rewritten?"
+- "Does the Expo app in `apps/mobile` use `@/lib/device` or `@/lib/i18n`, or does it do share / directions / notifications itself?"
+- "Why do several device and i18n files start with a blanket `/* eslint-disable */`, and what does it hide?"
+- "What changed in this module between 2026-09-19 and 2026-10-18?"
 
 ## Purpose and business role
 
@@ -121,8 +124,8 @@ NotificationCenterPage (client)              app/(public)/notifications/page.tsx
 ├── useProfile -> preferences,               context/ProfileContext.tsx              [M02]
 │   updateNotificationPreferences            -> services/profile.service.ts -> Firestore `profiles`
 ├── useNotifications                         lib/device/hooks/useNotifications.tsx:34
-│   ├── useNotificationPermission            lib/device/hooks/usePermissions.ts:140
-│   │   └── usePermission("notifications")   lib/device/hooks/usePermissions.ts:26
+│   ├── useNotificationPermission            lib/device/hooks/usePermissions.ts:141
+│   │   └── usePermission("notifications")   lib/device/hooks/usePermissions.ts:27
 │   │       ├── queryPermission              lib/device/permissions/index.ts:87
 │   │       └── getPermissionManager()       lib/device/permissions/index.ts:326
 │   └── notificationsService                 lib/device/notifications/index.ts:284
@@ -211,7 +214,7 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 
 ### Flow B - Distance and directions to the temple
 
-1. `useLocation()` (`lib/device/hooks/useLocation.ts:54`) seeds `templeLocation` from
+1. `useLocation()` (`lib/device/hooks/useLocation.ts:60`) seeds `templeLocation` from
    `locationService.getTempleLocation()`, which is `DEFAULT_DEVICE_SETTINGS.templeLocation`
    (`types/device.ts:265`, lat `13.096788188005597`, lng `77.58461022456063`).
 2. `getCurrentLocation()` checks `useLocationPermission()`; if `isPrompt` it calls
@@ -245,14 +248,14 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 ### Flow D - QR scan (camera)
 
 1. `useQRScanner()` (`lib/device/hooks/useQRScanner.ts:51`) calls `qrScanner.loadLibrary()` on mount.
-2. `loadLibrary()` (`lib/device/qr/scanner.ts:62`) injects
+2. `loadLibrary()` (`lib/device/qr/scanner.ts:63`) injects
    `<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">` into `document.head`.
    `html5-qrcode` is **not** in `package.json` - it is a runtime CDN fetch.
 3. The **hook**, not the service, asks for permission: `useQRScanner.start()` calls
    `useCameraPermission().request()` (`lib/device/hooks/useQRScanner.ts:141-157`) ->
    `requestPermission("camera")` (`lib/device/permissions/index.ts:125`) ->
    `navigator.mediaDevices.getUserMedia({video:true})` (`lib/device/permissions/index.ts:140`). Only then
-   does it call `qrScanner.start(elementId, callbacks, ...)` (`lib/device/qr/scanner.ts:107-166`), which does
+   does it call `qrScanner.start(elementId, callbacks, ...)` (`lib/device/qr/scanner.ts:108-167`), which does
    `new window.Html5Qrcode(elementId)` then `.start(cameraId, {fps, qrbox}, onDecode)`.
    `lib/device/qr/scanner.ts` itself never touches the permission API.
 4. Decoded text -> `QRCodeResult {text, timestamp}` -> `onScan` callback -> component state.
@@ -279,11 +282,11 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 
 1. `components/common/LanguageSwitcher.tsx:4` imports `useLocale` from `@/lib/i18n`; it is rendered by
    `app/(public)/profile/page.tsx:115` and `app/(public)/profile/preferences/page.tsx:144`.
-2. `useLocale()` (`lib/i18n/context.tsx:158`) calls `useI18n()` (`:142`), which **throws**
+2. `useLocale()` (`lib/i18n/context.tsx:159`) calls `useI18n()` (`:143`), which **throws**
    `"useI18n must be used within an I18nProvider"` when the context is undefined
-   (`lib/i18n/context.tsx:146`).
-3. `I18nProvider` is defined at `lib/i18n/context.tsx:53` and re-exported at `lib/i18n/index.ts:36` -
-   and is **mounted nowhere**. `app/layout.tsx:84-88` wraps the tree in `A11yProvider` / `AuthProvider` /
+   (`lib/i18n/context.tsx:147`).
+3. `I18nProvider` is defined at `lib/i18n/context.tsx:54` and re-exported at `lib/i18n/index.ts:36` -
+   and is **mounted nowhere**. `app/layout.tsx:83-88` wraps the tree in `A11yProvider` / `AuthProvider` /
    `ProfileProvider` / `AIChatProvider` only.
 4. Consequently the whole dictionary pipeline (`getDictionary` ->
    `import("./dictionaries/<locale>.json")`, `lib/i18n/dictionaries.ts:421-433`) is dead, and there are
@@ -293,7 +296,7 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 
 ## Key files
 
-### `lib/device/` - capability layer (21 files, 5,217 lines)
+### `lib/device/` - capability layer (21 files, 5,220 lines)
 
 | File | Lines | Role | Key exports | Notes |
 |---|---|---|---|---|
@@ -307,25 +310,25 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 | `lib/device/settings.ts` | 197 | Device settings singleton, Firestore-backed | `deviceSettingsService` | `initialize()` is **never called anywhere**, so Firestore `settings/device` is never read; `update()` calls `updateDoc` directly from `lib/` |
 | `lib/device/actions.ts` | 409 | Registry #1: AI-invocable actions | `deviceActionRegistry`, `useDeviceActions`, `DeviceActionType` | **Zero consumers.** `DeviceActionType` declares 14 values (`:9-23`) but only 11 are registered (`:110-345`). Declares a hook (`useDeviceActions`, `:382`) without `"use client"` |
 | `lib/device/actions/index.ts` | 330 | Registry #2: context-driven hook API, 16 executors | `useActionRegistry` (`:78`), `generateShareText`, `getShareProviders`, `createCalendarEvent` | Used only by the unused `FloatingActionBar`; same import specifier family as `actions.ts` |
-| `lib/device/qr/scanner.ts` | 349 | html5-qrcode wrapper (camera) | `qrScanner`, `QRScannerCallbacks` | CDN script injection; `type Html5QrcodeConstructor = any` (line 10); `switchCamera` (`:249`) hard-codes element id `"qr-reader"` (`:266`) |
+| `lib/device/qr/scanner.ts` | 350 | html5-qrcode wrapper (camera) | `qrScanner`, `QRScannerCallbacks` | Line 1 is a blanket `/* eslint-disable */` (added 2026-10-03, `6408c1d`, M13-F39); CDN script injection; `type Html5QrcodeConstructor = any` (line 10); `switchCamera` (`:250`) hard-codes element id `"qr-reader"` (`:267`) |
 | `lib/device/qr/QRCode.tsx` | 465 | QR generation + display + result parser | `useURLQRCodeGenerator`, `generateURLQRCodeDataUrl`, `QRCodeDisplay`, `CompactQRCode`, `QRScannerResult`, `generateQRId`, `createQRPayload` | Only the URL generator is consumed; `useQRCodeGenerator` depends on the object `data` (`:124`) so it regenerates on every render of an inline literal |
 | `lib/device/hooks/useDevice.ts` | 342 | Device info, capabilities, online, PWA install, orientation, battery, connection | `useDevice`, `useCapabilities`, `useOnlineStatus`, `useCapability`, `usePWAInstall`, `useOrientation`, `useBattery`, `useConnection` | Imports `useSyncExternalStore` and never uses it (line 8); `usePWAInstall` exists but there is no manifest for the browser to offer an install |
-| `lib/device/hooks/usePermissions.ts` | 256 | Permission hooks | `usePermission`, `usePermissions`, 4 typed wrappers, `usePermissionWithDialog`, `usePermissionSummary` | `usePermissions` effect keys on `types.join(",")` - a lint-suppressed dependency hack (line 119) |
+| `lib/device/hooks/usePermissions.ts` | 257 | Permission hooks | `usePermission`, `usePermissions`, 4 typed wrappers, `usePermissionWithDialog`, `usePermissionSummary` | `usePermissions` effect keys on `types.join(",")` - a dependency hack (line 119) with no targeted `eslint-disable` of its own - only the blanket line-1 disable silences `react-hooks/exhaustive-deps` on it; line 1 is a blanket `/* eslint-disable */` (`6408c1d`, M13-F39) |
 | `lib/device/hooks/useNotifications.tsx` | 157 | Notification hook + context provider | `useNotifications`, `NotificationProvider`, `useNotificationContext` | Polls `getScheduled().length` every **1000 ms** (line 45); `NotificationProvider` is never mounted |
-| `lib/device/hooks/useLocation.ts` | 292 | Location hook + distance | `useLocation`, `useTempleDistance` | `permission` object is in the `useCallback` deps, so `getCurrentLocation` changes identity on each permission tick |
-| `lib/device/hooks/useShare.ts` | 203 | Share hook + templated content share | `useShare`, `useShareContent` | `useShareContent` recomputes `shareText` every render; its local `isSharing` (`:139`) is set three times but is absent from both `UseShareContentReturn` and the return object (`:189-202`) |
+| `lib/device/hooks/useLocation.ts` | 293 | Location hook + distance | `useLocation`, `useTempleDistance` | `permission` object is in the `useCallback` deps, so `getCurrentLocation` changes identity on each permission tick; line 1 is a blanket `/* eslint-disable */` (`6408c1d`, M13-F39) |
+| `lib/device/hooks/useShare.ts` | 203 | Share hook + templated content share | `useShare`, `useShareContent` | `useShareContent` recomputes `shareText` every render; its local `isSharing` (`:139`) is written four times (`:166`, `:175`, `:180`, `:186`) but is absent from both `UseShareContentReturn` and the return object (`:189-202`) |
 | `lib/device/hooks/useQRScanner.ts` | 297 | Scanner lifecycle | `useQRScanner` | Cleans up with `qrScanner.stop()` on unmount |
 | `lib/device/hooks/useCalendar.ts` | 151 | Calendar hook | `useCalendar`, `useAddToCalendar` | `useAddToCalendar` builds a new `event` object each render |
 | `lib/device/hooks/index.ts` | 40 | Hook barrel | - | Also re-exports `useActionRegistry` from `@/lib/device/actions/index` |
 | `lib/device/types/index.ts` | 6 | `export * from "@/types/device"` | - | Pure indirection; nothing imports it |
 
-### `components/device/` - widgets (10 files: 9 widgets + barrel, 2,629 lines) - **all unused**
+### `components/device/` - widgets (10 files: 9 widgets + barrel, 2,630 lines) - **all unused**
 
 | File | Lines | Role | Key exports |
 |---|---|---|---|
 | `components/device/FloatingActionBar.tsx` | 422 | Mobile action bar wired to `useActionRegistry` | `FloatingActionBar`, `CompactActionBar`, `StickyActionBar`, `ActionBarAction`, `FloatingActionBarProps`, `StickyActionBarProps` |
 | `components/device/ShareButton.tsx` | 379 | Share button + provider dropdown | `ShareButton`, `ShareIconButton`, `ShareDropdown` |
-| `components/device/QRScanner.tsx` | 339 | Full scanner UI (dialog, torch, camera switch, file upload) | `QRScanner`, `QRScannerButton`, `CompactQRScanner` |
+| `components/device/QRScanner.tsx` | 340 | Full scanner UI (dialog, torch, camera switch, file upload); line 1 is a blanket `/* eslint-disable */` (`6408c1d`, M13-F39) | `QRScanner`, `QRScannerButton`, `CompactQRScanner` |
 | `components/device/CapabilityBadge.tsx` | 308 | Capability badges / grid / summary | `CapabilityBadge`, `CapabilityGrid`, `CapabilityGroup`, `DeviceCapabilitiesSummary` |
 | `components/device/PermissionDialog.tsx` | 303 | Permission prompts and gate | `PermissionDialog`, `PermissionCard`, `PermissionGate`, `PermissionRequestButton` |
 | `components/device/NotificationToggle.tsx` | 260 | Notification toggles / bell / notify-me | `NotificationToggle`, `NotificationBell`, `NotifyMeButton`, `NotificationStatus` |
@@ -334,12 +337,12 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 | `components/device/LocationButton.tsx` | 163 | Location / distance CTA | `LocationButton`, `SimpleLocationButton` |
 | `components/device/index.ts` | 46 | Barrel | - |
 
-### `lib/i18n/` - internationalisation (7 files, 1,797 lines)
+### `lib/i18n/` - internationalisation (7 files, 1,798 lines)
 
 | File | Lines | Role | Key exports | Notes |
 |---|---|---|---|---|
 | `lib/i18n/config.ts` | 108 | Locale registry | `locales` (`["en","kn","sa"]`), `defaultLocale`, `localeNames`, `localeNativeNames`, `localeFlags`, `localeDirections`, `localeConfigs`, `isValidLocale`, `getLocaleFromPath` | `getLocaleFromPath` (`:94-103`) implies a `/[locale]/...` route segment that **does not exist** - there is no `app/[locale]` directory |
-| `lib/i18n/context.tsx` | 228 | React provider, `t()`, date formatters | `I18nProvider`, `useI18n`, `useTranslation`, `useLocale`, `useDirection`, `useDateFormatter` | Never mounted; `direction` hard-codes `sa` as RTL (line 124), contradicting `localeDirections.sa === "ltr"`; `getNestedValue(obj: any, ...)` (line 27) |
+| `lib/i18n/context.tsx` | 229 | React provider, `t()`, date formatters | `I18nProvider`, `useI18n`, `useTranslation`, `useLocale`, `useDirection`, `useDateFormatter` | Never mounted; line 1 is a blanket `/* eslint-disable */` ahead of `"use client"` on line 2 (`6408c1d`, M13-F39); `direction` hard-codes `sa` as RTL (line 125), contradicting `localeDirections.sa === "ltr"`; `getNestedValue(obj: any, ...)` (line 28) |
 | `lib/i18n/dictionaries.ts` | 434 | Dictionary types + lazy loaders | `Dictionary`, 25 section interfaces, `dictionaryLoaders`, `getDictionary` | Loaders `import()` the three JSON files; falls back to `en` on error |
 | `lib/i18n/dictionaries/en.json` | 328 | English strings | - | 25 top-level sections, 275 leaf strings |
 | `lib/i18n/dictionaries/kn.json` | 328 | Kannada strings | - | 275 leaves, **0 identical to English** - genuinely translated |
@@ -356,7 +359,7 @@ app/api/chat/route.ts (server)               -> services/ux.service.ts       [M0
 | `hooks/useReducedMotion.ts` | 53 | `prefers-reduced-motion` | `useReducedMotion`, `useMotionConfig` | Used by 8 components (`components/home/{Hero,TempleInfo,TempleTimings}.tsx`, `components/ui/{AnimateIn,DeepaFlame,FloatingParticles,MicroInteractions,PageTransition}.tsx`); matches `docs/UI-GUIDELINES.md:354` |
 | `hooks/a11y/index.ts` | 314 | Accessibility hooks | `useHighContrast`, `useAccessibleColors`, `useFocusTrap`, `useKeyboardNavigation`, `useAnnounce`, `useSkipLink`, `useKeyboardNavigationMode`, `useRovingTabIndex` | **No `"use client"`**; only `useHighContrast` and `useKeyboardNavigationMode` have a consumer (`components/common/A11yProvider.tsx:4`); `useRovingTabIndex(items: any[])` (line 261) |
 | `app/(public)/qr/page.tsx` | 270 | Printable QR page | `QRPage` | Hard-coded `SITE_URL` (line 15) disagrees with `metadataBase` in `app/layout.tsx:32` (`https://www.srsmathaynk.com`) |
-| `app/(public)/notifications/page.tsx` | 379 | Notification centre | `NotificationCenterPage` | `useState<any[]>` (line 100); unescaped `doesn't` in JSX |
+| `app/(public)/notifications/page.tsx` | 379 | Notification centre | `NotificationCenterPage` | `useState<any[]>` (line 100); the unescaped `doesn't` / `You'll` at line 183 were escaped to `&apos;` on 2026-10-03 (`6408c1d`) - M13-F34 fixed |
 | `app/(public)/pages/notifications/page.tsx` | 291 | Duplicate preferences page | `NotificationPreferencesPage` | localStorage-only; the info note admits it |
 
 ### `public/` - 68 files, grouped
@@ -404,7 +407,7 @@ By extension: 21 `.png`, 17 `.jpg`, 6 `.svg`, 2 `.json`, 1 `.pdf`, 21 extension-
 | `profiles` (notification preferences) | Firestore, via `ProfileContext` [M02] | `app/(public)/notifications/page.tsx:89` | yes | yes (`updateNotificationPreferences`) |
 | `localStorage["temple-notification-preferences"]` | browser | `app/(public)/pages/notifications/page.tsx:101` | yes (`:107`) | yes (`:143`) |
 | `localStorage["temple-device-settings"]` | browser | `app/(public)/pages/settings/page.tsx:37` [M02] | yes | yes |
-| `localStorage["preferred-locale"]` | browser | `lib/i18n/context.tsx:25` | yes | yes (dead - no provider) |
+| `localStorage["preferred-locale"]` | browser | `lib/i18n/context.tsx:26` | yes | yes (dead - no provider) |
 | In-memory `Map` of scheduled notifications | process memory | `lib/device/notifications/index.ts:10` | yes | yes (lost on reload) |
 | In-memory analytics queue | process memory | `services/device-analytics.service.ts:26` | - | written then discarded |
 | `lib/i18n/dictionaries/{en,kn,sa}.json` | static file | `lib/i18n/dictionaries.ts:421-433` | lazy `import()` - dead | - |
@@ -443,7 +446,7 @@ collection anywhere in this module.
 | `components/common/A11yProvider.tsx` | M01 | `useHighContrast`, `useKeyboardNavigationMode` |
 | `components/common/LanguageSwitcher.tsx` | M01/M02 | `useLocale`, `locales`, `localeNames`, `localeFlags` (throws - see M13-F02) |
 | `context/ProfileContext.tsx`, `services/profile.service.ts` | M02 | the `Locale` *type* only |
-| `app/api/chat/route.ts` | M09 | `getResponseMetadata`, `getQuickActions`, `getSuggestedQuestions` |
+| `app/api/chat/route.ts` | M09 | imports `getResponseMetadata`, `getQuickActions`, `getSuggestedQuestions` (`:26`) but calls only `getResponseMetadata` (`:302`), which calls the other two (`services/ux.service.ts:362-363`) |
 
 `app/(public)/notifications/page.tsx` and `app/(public)/pages/notifications/page.tsx` are shared with M02;
 `app/(public)/qr/page.tsx` is shared with M03 (per `.claude/state/inventory/SUMMARY.md:48-50`).
@@ -492,9 +495,9 @@ collection anywhere in this module.
 
 ### R5 - Turn i18n on
 
-1. Create a client provider component that renders `I18nProvider` (`lib/i18n/context.tsx:53`) and mount
+1. Create a client provider component that renders `I18nProvider` (`lib/i18n/context.tsx:54`) and mount
    it in `app/layout.tsx` inside `<body>`, outside `AuthProvider`.
-2. Fix `lib/i18n/context.tsx:124` to read `localeDirections[locale]` instead of hard-coding `sa` as RTL.
+2. Fix `lib/i18n/context.tsx:125` to read `localeDirections[locale]` instead of hard-coding `sa` as RTL.
 3. Replace hard-coded JSX text with `t("section.key")` - there are ~1,089 literal text nodes across 174
    of the 355 `.tsx` files today and **zero** `t(` call sites.
 4. Add any new key to all three of `lib/i18n/dictionaries/{en,kn,sa}.json` and to the matching interface
@@ -513,9 +516,9 @@ collection anywhere in this module.
 2. Generate 192/512 px and maskable icons into `public/icons/` - the folder exists but holds only
    `.gitkeep`.
 3. Add a service worker (a `public/sw.js` plus a registration effect, or `next-pwa`) - nothing registers
-   one today, and `isServiceWorkerSupported()` (`lib/device/capabilities/index.ts:86`) only reports
+   one today, and `isServiceWorkerSupported()` (`lib/device/capabilities/index.ts:90`) only reports
    browser support, it never registers.
-4. Only then does `usePWAInstall` (`lib/device/hooks/useDevice.ts:104`) have a `beforeinstallprompt` to
+4. Only then does `usePWAInstall` (`lib/device/hooks/useDevice.ts:106`) have a `beforeinstallprompt` to
    catch.
 5. For reminders that survive a reload, move scheduling out of `setTimeout` into the service worker plus
    a real push subscription, and persist subscriptions server-side.
@@ -529,46 +532,47 @@ collection anywhere in this module.
 
 ## Faults, smells and risks
 
-| id | severity | what | evidence | suggested direction |
-|---|---|---|---|---|
-| M13-F01 | HIGH | `Permissions-Policy: camera=(), microphone=(), geolocation=()` disables camera and geolocation for the whole origin, so every geolocation and QR-scanning feature in this module is dead in production | `next.config.ts:29-30` (value string on `:30`); consumers `lib/device/location/index.ts:44`, `lib/device/permissions/index.ts:140` (camera `getUserMedia`) and `:147` (`geolocation.getCurrentPosition`) | Change to `camera=(self), geolocation=(self)` if these features are wanted; otherwise delete the location/QR code paths rather than shipping dead UI |
-| M13-F02 | HIGH | `useI18n()` throws when no provider is present, and `I18nProvider` is mounted nowhere - yet `LanguageSwitcher` (which calls `useLocale` -> `useI18n`) is rendered on two profile pages, so those pages crash | `lib/i18n/context.tsx:146`, `lib/i18n/context.tsx:53`; `app/layout.tsx:84-88` has no `I18nProvider`; `components/common/LanguageSwitcher.tsx:4`, rendered at `app/(public)/profile/page.tsx:115` and `app/(public)/profile/preferences/page.tsx:144` | Mount `I18nProvider` in the root layout, or make `useI18n` return a default context instead of throwing |
-| M13-F03 | HIGH | The "notification" system is `setTimeout` over an in-memory `Map`. No service worker, no Web Push, no FCM, no persistence - every scheduled reminder is lost on reload, navigation or tab close, while the UI promises "you'll be notified" | `lib/device/notifications/index.ts:103-127` (`setTimeout` + `Map`), `:10`; UI claims at `app/(public)/notifications/page.tsx:359-372`, `components/device/FloatingActionBar.tsx:128` | Either implement Web Push with a service worker and a server-side subscription store, or relabel the feature as "reminder while this tab is open" |
-| M13-F04 | HIGH | QR scanning loads `html5-qrcode` from `unpkg.com` at runtime; the package is not a dependency, and the site CSP `script-src 'self' 'unsafe-inline' 'unsafe-eval'` does not allow unpkg, so the script is blocked in production | `lib/device/qr/scanner.ts:78`; `html5-qrcode` absent from `package.json`; CSP at `next.config.ts:33` | Add `html5-qrcode` (or `@zxing/browser`) as a real dependency and `import()` it, removing the CDN and the CSP conflict |
-| M13-F05 | HIGH | All 9 widgets in `components/device/` (2,629 lines incl. the barrel) have zero consumers; `lib/device/actions.ts` (409 lines, `deviceActionRegistry`/`useDeviceActions`) has zero consumers; `services/device-analytics.service.ts` (232 lines) has zero consumers; `QRCodeDisplay`/`CompactQRCode`/`QRScannerResult` (`lib/device/qr/QRCode.tsx:132-360`, ~230 lines) have zero consumers. Roughly **3,500** lines of dead code in an 11,845-line chunk | grep of all 19 widget export names outside `components/device/` returns 0 hits; `deviceActionRegistry`, `useDeviceActions`, `deviceAnalytics`, `trackDeviceEvent`, `QRCodeDisplay`, `CompactQRCode`, `QRScannerResult` each appear only at their own definition and in `lib/device/index.ts`; `components/device/FloatingActionBar.tsx:88` is the only consumer of `useActionRegistry` and is itself unused | Decide per widget: wire it into a page, or delete it. Dead UI code is where drift and false documentation start |
-| M13-F06 | HIGH | `lib/device/index.ts` has no `"use client"` but re-exports 8 client component modules alongside the hooks (`FloatingActionBar` is the one widget it does not re-export). A page importing only `useShare` from `@/lib/device` pulls every device widget, `Dialog`, `Card`, `Switch` and the full lucide icon set into its client bundle | `lib/device/index.ts:90-136`; consumers `components/home/DailyQuoteWidget.tsx:7`, `components/events/EventCard.tsx:7`, `app/(public)/pages/settings/page.tsx:12`, `app/(public)/qr/page.tsx:11`, `components/home/TempleInfo.tsx:19`, `components/home/Panchanga.tsx:19`, `app/(public)/pages/notifications/page.tsx:12` | Split the barrel: `@/lib/device` for services and hooks, `@/components/device` for UI, and never re-export components from `lib/` |
-| M13-F07 | MEDIUM | Two competing notification-preference pages with different key sets and different stores - `/notifications` (7 keys, Firestore `profiles`) and `/pages/notifications` (8 keys, `localStorage`). A user toggling one sees nothing change in the other | `app/(public)/notifications/page.tsx:34-84` vs `app/(public)/pages/notifications/page.tsx:38-99` (`defaultPreferences` `:38`, `preferenceItems` `:49`); storage key at `:101` | Keep the profile-backed page, redirect `/pages/notifications` to it, delete the duplicate |
-| M13-F08 | MEDIUM | Two device-settings stores plus a third page-local one: `deviceSettingsService` (Firestore `settings/device`), `localStorage["temple-device-settings"]`, and a page-local `DeviceSettings` interface that shadows the exported type | `lib/device/settings.ts:196` vs `app/(public)/pages/settings/page.tsx:30-42` vs `types/device.ts:235` | Single source: read defaults from `deviceSettingsService`, persist per-user overrides on the profile |
-| M13-F09 | MEDIUM | `hooks/a11y/index.ts` declares eight React hooks that call `document`, `window.matchMedia` and `useState`, but has no `"use client"` directive. Importing it from a Server Component is a build error waiting to happen | `hooks/a11y/index.ts:1-6` (no directive) vs `:14`, `:88`, `:186`, `:220` | Add `"use client"` to the file |
-| M13-F10 | MEDIUM | `deviceSettingsService.initialize()` is never called, so the Firestore `settings/device` document is never read and every admin-configurable value (temple location, share templates, navigation app, reminder offsets) silently falls back to hard-coded defaults | `lib/device/settings.ts:38` defines it; zero call sites repo-wide; `types/device.ts:265` holds the effective values | Call it from a client provider at layout level, or drop the Firestore path and keep the constants |
-| M13-F11 | MEDIUM | `deviceSettingsService.update()` uses `updateDoc`, which throws if `settings/device` does not exist; the error is swallowed by a `console.warn`, so an admin save appears to succeed and is lost on reload | `lib/device/settings.ts:85-95` | Use `setDoc(..., { merge: true })` and surface the failure to the caller |
-| M13-F12 | MEDIUM | Direct Firestore calls from `lib/` violate AGENTS.md ("No Direct Firebase Calls - Use services only"; services live in `/services/`) | `lib/device/settings.ts:45-53`, `:85-91`; rule at `AGENTS.md` §Architecture Principles | Move persistence into `services/device-settings.service.ts` and keep `lib/device` presentation-free |
-| M13-F13 | MEDIUM | Three separate always-on timers: notification count polled every 1 s per mounted hook, permissions re-queried every 30 s, analytics queue flushed every 5 s and never cleared. On a page with three `useNotifications()` consumers that is 3 timers/second doing nothing | `lib/device/hooks/useNotifications.tsx:45`; `lib/device/permissions/index.ts:297` (started at `lib/device/hooks/usePermissions.ts:114`); `services/device-analytics.service.ts:35` | Replace polling with subscriptions (`useSyncExternalStore` is already imported and unused at `lib/device/hooks/useDevice.ts:8`); clear the analytics interval |
-| M13-F14 | MEDIUM | `services/device-analytics.service.ts` collects eight event types and then throws them away - `processQueue()` splices the batch and only `console.log`s it in development. No endpoint, no store | `services/device-analytics.service.ts:186-206` | Either post to an endpoint (or Vercel Analytics, already a dependency) or delete the service |
-| M13-F15 | MEDIUM | 825 translated strings (275 keys x en/kn/sa, Kannada 0% identical to English) are unreachable: zero `t("...")` call sites in `app/` or `components/`, and, by a rough JSX-text-node scan, on the order of a thousand literal English text nodes across the 361 `.tsx` files under `app/ components/ lib/ hooks/ context/` (the exact node count is a heuristic; the zero `t()` call sites is not). `docs/ARCHITECTURE.md:180` claims "Language Support - English, Kannada, mixed" | `lib/i18n/dictionaries/kn.json` (328 lines, 275 leaves, 0 identical to `en.json`; `sa.json` has 2 identical); `grep -rn 't("' app components` returns 0 and `grep -rn '= useTranslation()' app components` returns 0; `docs/ARCHITECTURE.md:180` | Either wire i18n up (R5) or state plainly in the docs that the UI is English-only and the AI layer is bilingual |
-| M13-F16 | MEDIUM | `direction` is computed as `locale === "sa" ? "rtl" : "ltr"`, marking Sanskrit (Devanagari, left-to-right) as right-to-left, and contradicting `localeDirections.sa === "ltr"` in the same module | `lib/i18n/context.tsx:124` vs `lib/i18n/config.ts:30-34` | Read `localeDirections[locale]` |
-| M13-F17 | MEDIUM | No PWA assets at all: no `manifest.json`/`app/manifest.ts`, no service worker, no offline page, no icon set (`public/icons/` holds only `.gitkeep`), no `robots.txt`, no `sitemap.xml`. Yet the module ships `usePWAInstall`, `isServiceWorkerSupported`, `pwaSupported`, `installPromptSupported` and an offline indicator | `find public app -iname "manifest*" -o -iname "sw.js"` empty; `ls public/icons` = `.gitkeep`; `lib/device/hooks/useDevice.ts:104`, `lib/device/capabilities/index.ts:86` | Ship a manifest + icons + service worker (R6), or remove the install/offline affordances |
-| M13-F18 | MEDIUM | `app/layout.tsx:67` links `/favicon.ico` and `notificationsService.showTest()` uses `icon: "/favicon.ico"`, but the file does not exist in `public/` (only `favicon.svg`) - a 404 on every page and a missing notification icon | `app/layout.tsx:67`; `lib/device/notifications/index.ts:98`; `ls public/` shows `favicon.svg` only | Add `public/favicon.ico` or drop both references |
-| M13-F19 | MEDIUM | `/qr` hard-codes `SITE_URL = "https://rayaramathaynk.vercel.app"` while the app's `metadataBase` is `https://www.srsmathaynk.com`. Printed QR codes point at a preview deployment | `app/(public)/qr/page.tsx:15` vs `app/layout.tsx:32` | Derive from `NEXT_PUBLIC_SITE_URL` or `metadataBase` |
-| M13-F20 | MEDIUM | `locationService` keeps a single `watchId` on the singleton. Two components calling `useLocation({watchPosition:true})` overwrite each other's watch, and `clearWatch()` from one stops the other | `lib/device/location/index.ts:16` (`private watchId`), `:72-99` (`watchPosition` overwrites it), `:104-109` (`clearWatch` nulls it) | Return the watch id to the caller and clear it per-subscriber, or refcount |
-| M13-F21 | MEDIUM | `app/(public)/qr/page.tsx:46` builds a print document with `document.write` and interpolates `data.title` / `data.description` unescaped. Safe today because both values are local constants, but it is a stored-XSS sink the moment those come from Firestore | `app/(public)/qr/page.tsx:38-75` | Build the print DOM with `createElement`/`textContent`, or use a print stylesheet instead of a popup |
-| M13-F22 | LOW | `any` used in four places, against AGENTS.md "No `any` type - use `unknown`" | `lib/device/qr/scanner.ts:10` (`type Html5QrcodeConstructor = any`), `lib/i18n/context.tsx:27` (`obj: any`), `hooks/a11y/index.ts:261` (`items: any[]`), `app/(public)/notifications/page.tsx:100` (`useState<any[]>`) | Type them: `unknown` + narrowing, `ScheduledNotification[]`, a generic `<T,>` for roving tabindex |
-| M13-F23 | LOW | Two parallel action registries under near-identical specifiers - `lib/device/actions.ts` (class + `deviceActionRegistry`, 14 declared AI action types) and `lib/device/actions/index.ts` (hook + `useActionRegistry`, 16 executor functions). `lib/device/index.ts` re-exports both, resolving one by file and one by directory | `lib/device/index.ts:40-42`; `lib/device/actions.ts:41`; `lib/device/actions/index.ts:78` | Keep one. The hook version is the only one with a (dead) consumer; the class version is the one Raya AI was meant to call |
-| M13-F24 | LOW | `shareService.share()` returns `false` even after the clipboard fallback succeeded and `onCopySuccess` fired, so callers report failure on a successful share | `lib/device/share/index.ts:100-116` | Return `true` when the fallback copy succeeds (`useShare` at `lib/device/hooks/useShare.ts:55-65` already does this correctly - the service and the hook disagree) |
-| M13-F25 | LOW | `generateAppleCalendarUrl` computes `startDate`/`endDate` and never uses them, and creates an object URL that is never revoked | `lib/device/calendar/index.ts:29-36` | Delete the dead lines; revoke the URL, or call `downloadICS` which already does |
-| M13-F26 | LOW | ICS output stamps every time as UTC. **The trailing `Z` is preserved** (`toISOString()` -> strip `-`, `:` and `.mmm` leaves `20260919T103000Z`), so a *timed* event is correct in any client - an earlier reading that IST events land 5h30 early is wrong. The real gap is that there is no all-day handling at all: `generateICS` always emits `DTSTART:<utc>`/`DTEND:<utc>` and never `DTSTART;VALUE=DATE:`, so an all-day Aaradhane becomes a timed event offset by the UTC delta; there is also no `VTIMEZONE`/`TZID`, which rules out recurring or floating-time entries later | `lib/device/calendar/index.ts:201-203` (`formatDateForICS` keeps the `Z`), `:67-84` (`DTSTART`/`DTEND` unconditional, no `VALUE=DATE`) | Add an `allDay` branch emitting `DTSTART;VALUE=DATE:YYYYMMDD`; keep UTC for timed events |
-| M13-F27 | LOW | `qrScanner.switchCamera()` restarts the scanner into the hard-coded element id `"qr-reader"`, ignoring the `elementId` the caller started with, so switching cameras inside `CompactQRScanner` (`elementId="qr-compact"`) targets a node that does not exist | `lib/device/qr/scanner.ts:249` (`switchCamera`), `:266` (`await this.start("qr-reader", ...)`) vs `lib/device/hooks/useQRScanner.ts:55` (default `elementId`) / `:174` (honours the caller's id) and `components/device/QRScanner.tsx:310` (`elementId = "qr-compact"`) | Store the element id on the service at `start()` and reuse it |
-| M13-F28 | LOW | `useQRCodeGenerator(data, size)` lists the object `data` in its effect deps; callers passing an inline object literal regenerate the QR code on every render | `lib/device/qr/QRCode.tsx:124` (`}, [data, size]`) | Depend on `data.type`/`data.id`, as `useURLQRCodeGenerator` already does at `:461` (`}, [data.url, size]`) |
-| M13-F29 | LOW | `getLocaleFromPath` assumes a `/[locale]/...` route structure, but no `app/[locale]` segment exists; the function is dead and misleading | `lib/i18n/config.ts:94-103`; no `app/[locale]` directory | Delete it, or implement locale routing |
-| M13-F30 | LOW | Duplicate assets and starter cruft in `public/`: `Naveen-testimonial.png` exists in three directories, `raghavendra_swamy` in both `.jpg` and `.png`, and `next.svg` / `file.svg` / `window.svg` / `globe.svg` are unmodified Next.js starter files. `postman_collection.json` (34 KB) is publicly served | `public/images/gallery/`, `public/images/testimonials/`, `public/testimonials/`; `public/*.svg`; `public/postman_collection.json` | Delete the starter SVGs and duplicates; move the Postman collection out of the web root |
-| M13-F31 | LOW | Reduced-motion logic implemented twice: `hooks/useReducedMotion.ts` and, independently, inside `components/common/A11yProvider.tsx` | `hooks/useReducedMotion.ts:12-33` vs `components/common/A11yProvider.tsx:22-34` | Have `A11yProvider` consume `useReducedMotion` |
-| M13-F32 | LOW | Six of the eight accessibility hooks (`useFocusTrap`, `useKeyboardNavigation`, `useAnnounce`, `useSkipLink`, `useRovingTabIndex`, `useAccessibleColors`) have no consumer, while the app has custom dropdowns and dialogs that would need exactly them | `hooks/a11y/index.ts`; only `useHighContrast` and `useKeyboardNavigationMode` imported (`components/common/A11yProvider.tsx:4`) | Wire `useFocusTrap` into the dialog components, or remove the unused hooks |
-| M13-F33 | LOW | No tests anywhere in this chunk - no unit test for the Haversine maths, the ICS escaping, the QR payload parser or the dictionary loader, against AGENTS.md's "Tested" definition of done | no file under `tests/` references `lib/device` or `lib/i18n`. The one adjacent test is `tests/kannada-font-validation.spec.ts`, which checks rendered font stacks, not this code | Start with the pure functions: `calculateDistance`, `escapeICSText`, `generateShareText`, `getNestedValue`, `parseQRData` |
-| M13-F34 | LOW | Unescaped entity in JSX (`doesn't`) will fail `react/no-unescaped-entities` under `npm run lint` | `app/(public)/notifications/page.tsx:183` | Use `&apos;` |
-| M13-F35 | LOW | Browser notifications have no click handler, so tapping one does nothing - it cannot deep-link to the event or seva it announces | `lib/device/notifications/index.ts:64-89` creates the `Notification` and never assigns `onclick` | Assign `notification.onclick` to focus the window and route to `data.url` |
-| M13-F36 | MEDIUM | The `/notifications` info panel makes three promises that nothing in the repository keeps: "Email notifications are sent regardless of browser permissions", "Festival reminders are sent 7 days before the event" and "Event reminders are sent 30 minutes before start time". There is no reminder scheduler beyond the in-memory `setTimeout`, no cron or API route under `app/api/` that sends reminders, and the only email sender in the repo is a donation-receipt function | `app/(public)/notifications/page.tsx:357-372`; the only scheduler is `lib/device/notifications/index.ts:119` (`setTimeout`); `ls app/api` has no reminder/cron route; `lib/services/email.ts:5` is `sendEmail(receipt: Receipt)` only | Delete the three claims until a server-side scheduler and a reminder email template exist |
-| M13-F37 | LOW | `lib/device/actions.ts` declares 14 `DeviceActionType` values but registers handlers for only 11. `share_quote`, `notify_seva` and `share_daily_panchanga` are dispatchable names with no handler, so `execute()` on them fails at runtime rather than at compile time | `lib/device/actions.ts:9-23` (14 union members) vs the 11 `this.register(...)` calls at `:110`, `:125`, `:141`, `:168`, `:189`, `:221`, `:249`, `:275`, `:300`, `:318`, `:345` | Register the three missing handlers or drop them from the union |
-| M13-F38 | LOW | `useShareContent` sets `isSharing` in three code paths but neither `UseShareContentReturn` nor the returned object exposes it, so a consumer of the templated share hook has no way to show a spinner - unlike `useShare`, which does return it | `lib/device/hooks/useShare.ts:139` (state), `:165`, `:178`, `:186` (writes), `:118-131` (interface) and `:189-202` (return) omit it; contrast `lib/device/hooks/useShare.ts:92` | Add `isSharing` to the interface and the return object |
+| id | severity | what | evidence | suggested direction | status 2026-10-18 |
+|---|---|---|---|---|---|
+| M13-F01 | HIGH | `Permissions-Policy: camera=(), microphone=(), geolocation=()` disables camera and geolocation for the whole origin, so every geolocation and QR-scanning feature in this module is dead in production | `next.config.ts:29-30` (value string on `:30`); consumers `lib/device/location/index.ts:44`, `lib/device/permissions/index.ts:140` (camera `getUserMedia`) and `:147` (`geolocation.getCurrentPosition`) | Change to `camera=(self), geolocation=(self)` if these features are wanted; otherwise delete the location/QR code paths rather than shipping dead UI | STILL OPEN - `next.config.ts` unchanged since 2026-09-19; `:29-30` verbatim |
+| M13-F02 | HIGH | `useI18n()` throws when no provider is present, and `I18nProvider` is mounted nowhere - yet `LanguageSwitcher` (which calls `useLocale` -> `useI18n`) is rendered on two profile pages, so those pages crash | `lib/i18n/context.tsx:147`, `lib/i18n/context.tsx:54`; `app/layout.tsx:83-88` has no `I18nProvider`; `components/common/LanguageSwitcher.tsx:4`, rendered at `app/(public)/profile/page.tsx:115` and `app/(public)/profile/preferences/page.tsx:144` | Mount `I18nProvider` in the root layout, or make `useI18n` return a default context instead of throwing | STILL OPEN - evidence lines in `lib/i18n/context.tsx` moved +1 (header added by `6408c1d`); `app/layout.tsx` unchanged, still no `I18nProvider` |
+| M13-F03 | HIGH | The "notification" system is `setTimeout` over an in-memory `Map`. No service worker, no Web Push, no FCM, no persistence - every scheduled reminder is lost on reload, navigation or tab close, while the UI promises "you'll be notified" | `lib/device/notifications/index.ts:103-127` (`setTimeout` + `Map`), `:10`; UI claims at `app/(public)/notifications/page.tsx:359-372`, `components/device/FloatingActionBar.tsx:128` | Either implement Web Push with a service worker and a server-side subscription store, or relabel the feature as "reminder while this tab is open" | STILL OPEN - `lib/device/notifications/index.ts` unchanged |
+| M13-F04 | HIGH | QR scanning loads `html5-qrcode` from `unpkg.com` at runtime; the package is not a dependency, and the site CSP `script-src 'self' 'unsafe-inline' 'unsafe-eval'` does not allow unpkg, so the script is blocked in production | `lib/device/qr/scanner.ts:79`; `html5-qrcode` absent from `package.json`; CSP at `next.config.ts:33` | Add `html5-qrcode` (or `@zxing/browser`) as a real dependency and `import()` it, removing the CDN and the CSP conflict | STILL OPEN - URL moved `:78` -> `:79` (header line); `package.json` still has no `html5-qrcode`; CSP unchanged |
+| M13-F05 | HIGH | All 9 widgets in `components/device/` (2,630 lines incl. the barrel) have zero consumers; `lib/device/actions.ts` (409 lines, `deviceActionRegistry`/`useDeviceActions`) has zero consumers; `services/device-analytics.service.ts` (232 lines) has zero consumers; `QRCodeDisplay`/`CompactQRCode`/`QRScannerResult` (`lib/device/qr/QRCode.tsx:132-360`, ~230 lines) have zero consumers. Roughly **3,500** lines of dead code in an 11,850-line chunk | grep of all 19 widget export names outside `components/device/` returns 0 hits; `deviceActionRegistry`, `useDeviceActions`, `deviceAnalytics`, `trackDeviceEvent`, `QRCodeDisplay`, `CompactQRCode`, `QRScannerResult` each appear only at their own definition and in `lib/device/index.ts`; `components/device/FloatingActionBar.tsx:88` is the only consumer of `useActionRegistry` and is itself unused | Decide per widget: wire it into a page, or delete it. Dead UI code is where drift and false documentation start | STILL OPEN - no consumer added; widget line total 2,629 -> 2,630 (header in `QRScanner.tsx`) |
+| M13-F06 | HIGH | `lib/device/index.ts` has no `"use client"` but re-exports 8 client component modules alongside the hooks (`FloatingActionBar` is the one widget it does not re-export). A page importing only `useShare` from `@/lib/device` pulls every device widget, `Dialog`, `Card`, `Switch` and the full lucide icon set into its client bundle | `lib/device/index.ts:90-136`; consumers `components/home/DailyQuoteWidget.tsx:7`, `components/events/EventCard.tsx:7`, `app/(public)/pages/settings/page.tsx:12`, `app/(public)/qr/page.tsx:11`, `components/home/TempleInfo.tsx:19`, `components/home/Panchanga.tsx:19`, `app/(public)/pages/notifications/page.tsx:12` | Split the barrel: `@/lib/device` for services and hooks, `@/components/device` for UI, and never re-export components from `lib/` | STILL OPEN - `lib/device/index.ts` unchanged |
+| M13-F07 | MEDIUM | Two competing notification-preference pages with different key sets and different stores - `/notifications` (7 keys, Firestore `profiles`) and `/pages/notifications` (8 keys, `localStorage`). A user toggling one sees nothing change in the other | `app/(public)/notifications/page.tsx:34-84` vs `app/(public)/pages/notifications/page.tsx:38-99` (`defaultPreferences` `:38`, `preferenceItems` `:49`); storage key at `:101` | Keep the profile-backed page, redirect `/pages/notifications` to it, delete the duplicate | STILL OPEN - both pages still present, schemas unchanged |
+| M13-F08 | MEDIUM | Two device-settings stores plus a third page-local one: `deviceSettingsService` (Firestore `settings/device`), `localStorage["temple-device-settings"]`, and a page-local `DeviceSettings` interface that shadows the exported type | `lib/device/settings.ts:196` vs `app/(public)/pages/settings/page.tsx:30-42` vs `types/device.ts:235` | Single source: read defaults from `deviceSettingsService`, persist per-user overrides on the profile | STILL OPEN |
+| M13-F09 | MEDIUM | `hooks/a11y/index.ts` declares eight React hooks that call `document`, `window.matchMedia` and `useState`, but has no `"use client"` directive. Importing it from a Server Component is a build error waiting to happen | `hooks/a11y/index.ts:1-6` (no directive) vs `:14`, `:88`, `:186`, `:220` | Add `"use client"` to the file | STILL OPEN - `hooks/a11y/index.ts` unchanged, still no directive |
+| M13-F10 | MEDIUM | `deviceSettingsService.initialize()` is never called, so the Firestore `settings/device` document is never read and every admin-configurable value (temple location, share templates, navigation app, reminder offsets) silently falls back to hard-coded defaults | `lib/device/settings.ts:38` defines it; zero call sites repo-wide; `types/device.ts:265` holds the effective values | Call it from a client provider at layout level, or drop the Firestore path and keep the constants | STILL OPEN - still zero `initialize()` call sites |
+| M13-F11 | MEDIUM | `deviceSettingsService.update()` uses `updateDoc`, which throws if `settings/device` does not exist; the error is swallowed by a `console.warn`, so an admin save appears to succeed and is lost on reload | `lib/device/settings.ts:85-95` | Use `setDoc(..., { merge: true })` and surface the failure to the caller | STILL OPEN |
+| M13-F12 | MEDIUM | Direct Firestore calls from `lib/` violate AGENTS.md ("No Direct Firebase Calls - Use services only"; services live in `/services/`) | `lib/device/settings.ts:45-53`, `:85-91`; rule at `AGENTS.md` §Architecture Principles | Move persistence into `services/device-settings.service.ts` and keep `lib/device` presentation-free | STILL OPEN |
+| M13-F13 | MEDIUM | Three separate always-on timers: notification count polled every 1 s per mounted hook, permissions re-queried every 30 s, analytics queue flushed every 5 s and never cleared. On a page with three `useNotifications()` consumers that is 3 timers/second doing nothing | `lib/device/hooks/useNotifications.tsx:45`; `lib/device/permissions/index.ts:297` (started at `lib/device/hooks/usePermissions.ts:113`); `services/device-analytics.service.ts:35` | Replace polling with subscriptions (`useSyncExternalStore` is already imported and unused at `lib/device/hooks/useDevice.ts:8`); clear the analytics interval | STILL OPEN - start-site citation corrected `:114` -> `:113` (it was already off by one on 2026-09-19) |
+| M13-F14 | MEDIUM | `services/device-analytics.service.ts` collects eight event types and then throws them away - `processQueue()` splices the batch and only `console.log`s it in development. No endpoint, no store | `services/device-analytics.service.ts:186-206` | Either post to an endpoint (or Vercel Analytics, already a dependency) or delete the service | STILL OPEN |
+| M13-F15 | MEDIUM | 825 translated strings (275 keys x en/kn/sa, Kannada 0% identical to English) are unreachable: zero `t("...")` call sites in `app/` or `components/`, and, by a rough JSX-text-node scan, on the order of a thousand literal English text nodes across the 361 `.tsx` files under `app/ components/ lib/ hooks/ context/` (the exact node count is a heuristic; the zero `t()` call sites is not). `docs/ARCHITECTURE.md:180` claims "Language Support - English, Kannada, mixed" | `lib/i18n/dictionaries/kn.json` (328 lines, 275 leaves, 0 identical to `en.json`; `sa.json` has 2 identical); a word-boundary grep for a bare `t(` call (`grep -rnP '(?<![A-Za-z0-9_.$])t\(' app components`) returns 0 - the naive `grep -rn 't("' app components` returns 166 substring hits such as `split("/")` and `createElement("a")`, none a translation call - and `grep -rn '= useTranslation()' app components` returns 0; `docs/ARCHITECTURE.md:180` | Either wire i18n up (R5) or state plainly in the docs that the UI is English-only and the AI layer is bilingual | STILL OPEN - still 0 `t("` and 0 `= useTranslation()` call sites in `app/` `components/` |
+| M13-F16 | MEDIUM | `direction` is computed as `locale === "sa" ? "rtl" : "ltr"`, marking Sanskrit (Devanagari, left-to-right) as right-to-left, and contradicting `localeDirections.sa === "ltr"` in the same module | `lib/i18n/context.tsx:125` vs `lib/i18n/config.ts:30-34` | Read `localeDirections[locale]` | STILL OPEN - moved `:124` -> `:125` |
+| M13-F17 | MEDIUM | No PWA assets at all: no `manifest.json`/`app/manifest.ts`, no service worker, no offline page, no icon set (`public/icons/` holds only `.gitkeep`), no `robots.txt`, no `sitemap.xml`. Yet the module ships `usePWAInstall`, `isServiceWorkerSupported`, `pwaSupported`, `installPromptSupported` and an offline indicator | `find public app -iname "manifest*" -o -iname "sw.js"` empty; `ls public/icons` = `.gitkeep`; `lib/device/hooks/useDevice.ts:106`, `lib/device/capabilities/index.ts:90` | Ship a manifest + icons + service worker (R6), or remove the install/offline affordances | STILL OPEN - `app/manifest.ts`, `public/manifest.json`, `public/sw.js` still absent; `public/icons/` still `.gitkeep` only |
+| M13-F18 | MEDIUM | `app/layout.tsx:67` links `/favicon.ico` and `notificationsService.showTest()` uses `icon: "/favicon.ico"`, but the file does not exist in `public/` (only `favicon.svg`) - a 404 on every page and a missing notification icon | `app/layout.tsx:67`; `lib/device/notifications/index.ts:98`; `ls public/` shows `favicon.svg` only | Add `public/favicon.ico` or drop both references | STILL OPEN - `public/favicon.ico` still absent |
+| M13-F19 | MEDIUM | `/qr` hard-codes `SITE_URL = "https://rayaramathaynk.vercel.app"` while the app's `metadataBase` is `https://www.srsmathaynk.com`. Printed QR codes point at a preview deployment | `app/(public)/qr/page.tsx:15` vs `app/layout.tsx:32`; the Expo app's share text uses `https://www.srsmathaynk.com` (`apps/mobile/app/(tabs)/more.tsx:12`), so `/qr` is the odd one out | Derive from `NEXT_PUBLIC_SITE_URL` or `metadataBase` | STILL OPEN |
+| M13-F20 | MEDIUM | `locationService` keeps a single `watchId` on the singleton. Two components calling `useLocation({watchPosition:true})` overwrite each other's watch, and `clearWatch()` from one stops the other | `lib/device/location/index.ts:16` (`private watchId`), `:72-99` (`watchPosition` overwrites it), `:104-109` (`clearWatch` nulls it) | Return the watch id to the caller and clear it per-subscriber, or refcount | STILL OPEN |
+| M13-F21 | MEDIUM | `app/(public)/qr/page.tsx:46` builds a print document with `document.write` and interpolates `data.title` / `data.description` unescaped. Safe today because both values are local constants, but it is a stored-XSS sink the moment those come from Firestore | `app/(public)/qr/page.tsx:38-75` | Build the print DOM with `createElement`/`textContent`, or use a print stylesheet instead of a popup | STILL OPEN |
+| M13-F22 | LOW | `any` used in four places, against AGENTS.md "No `any` type - use `unknown`" | `lib/device/qr/scanner.ts:10` (`type Html5QrcodeConstructor = any`), `lib/i18n/context.tsx:28` (`obj: any`), `hooks/a11y/index.ts:261` (`items: any[]`), `app/(public)/notifications/page.tsx:100` (`useState<any[]>`) | Type them: `unknown` + narrowing, `ScheduledNotification[]`, a generic `<T,>` for roving tabindex | STILL OPEN - `context.tsx` cite moved `:27` -> `:28`; `scanner.ts:10` is now correct (the `any` was at `:9` before the header). None of the four sites was ever reported by lint, with or without M13-F39: `eslint.config.mjs:15-30` turns `@typescript-eslint/no-explicit-any` off for `app/`, `components/`, `hooks/`, `lib/`, `services/` and `types/`, and did so before `6408c1d` too (`git show 6408c1d^:eslint.config.mjs`), so AGENTS.md's no-`any` rule has no lint enforcement anywhere in this chunk |
+| M13-F23 | LOW | Two parallel action registries under near-identical specifiers - `lib/device/actions.ts` (class + `deviceActionRegistry`, 14 declared AI action types) and `lib/device/actions/index.ts` (hook + `useActionRegistry`, 16 executor functions). `lib/device/index.ts` re-exports both, resolving one by file and one by directory | `lib/device/index.ts:40-42`; `lib/device/actions.ts:41`; `lib/device/actions/index.ts:78` | Keep one. The hook version is the only one with a (dead) consumer; the class version is the one Raya AI was meant to call | STILL OPEN |
+| M13-F24 | LOW | `shareService.share()` returns `false` even after the clipboard fallback succeeded and `onCopySuccess` fired, so callers report failure on a successful share | `lib/device/share/index.ts:100-116` | Return `true` when the fallback copy succeeds (`useShare` at `lib/device/hooks/useShare.ts:55-65` already does this correctly - the service and the hook disagree) | STILL OPEN |
+| M13-F25 | LOW | `generateAppleCalendarUrl` computes `startDate`/`endDate` and never uses them, and creates an object URL that is never revoked | `lib/device/calendar/index.ts:29-36` | Delete the dead lines; revoke the URL, or call `downloadICS` which already does | STILL OPEN |
+| M13-F26 | LOW | ICS output stamps every time as UTC. **The trailing `Z` is preserved** (`toISOString()` -> strip `-`, `:` and `.mmm` leaves `20260919T103000Z`), so a *timed* event is correct in any client - an earlier reading that IST events land 5h30 early is wrong. The real gap is that there is no all-day handling at all: `generateICS` always emits `DTSTART:<utc>`/`DTEND:<utc>` and never `DTSTART;VALUE=DATE:`, so an all-day Aaradhane becomes a timed event offset by the UTC delta; there is also no `VTIMEZONE`/`TZID`, which rules out recurring or floating-time entries later | `lib/device/calendar/index.ts:201-203` (`formatDateForICS` keeps the `Z`), `:67-84` (`DTSTART`/`DTEND` unconditional, no `VALUE=DATE`) | Add an `allDay` branch emitting `DTSTART;VALUE=DATE:YYYYMMDD`; keep UTC for timed events | STILL OPEN |
+| M13-F27 | LOW | `qrScanner.switchCamera()` restarts the scanner into the hard-coded element id `"qr-reader"`, ignoring the `elementId` the caller started with, so switching cameras inside `CompactQRScanner` (`elementId="qr-compact"`) targets a node that does not exist | `lib/device/qr/scanner.ts:250` (`switchCamera`), `:267` (`await this.start("qr-reader", ...)`) vs `lib/device/hooks/useQRScanner.ts:55` (default `elementId`) / `:174` (honours the caller's id) and `components/device/QRScanner.tsx:311` (`elementId = "qr-compact"`) | Store the element id on the service at `start()` and reuse it | STILL OPEN - moved: `scanner.ts:249`/`:266` -> `:250`/`:267`, `QRScanner.tsx:310` -> `:311` |
+| M13-F28 | LOW | `useQRCodeGenerator(data, size)` lists the object `data` in its effect deps; callers passing an inline object literal regenerate the QR code on every render | `lib/device/qr/QRCode.tsx:124` (`}, [data, size]`) | Depend on `data.type`/`data.id`, as `useURLQRCodeGenerator` already does at `:461` (`}, [data.url, size]`) | STILL OPEN |
+| M13-F29 | LOW | `getLocaleFromPath` assumes a `/[locale]/...` route structure, but no `app/[locale]` segment exists; the function is dead and misleading | `lib/i18n/config.ts:94-103`; no `app/[locale]` directory | Delete it, or implement locale routing | STILL OPEN |
+| M13-F30 | LOW | Duplicate assets and starter cruft in `public/`: `Naveen-testimonial.png` exists in three directories, `raghavendra_swamy` in both `.jpg` and `.png`, and `next.svg` / `file.svg` / `window.svg` / `globe.svg` are unmodified Next.js starter files. `postman_collection.json` (34 KB) is publicly served | `public/images/gallery/`, `public/images/testimonials/`, `public/testimonials/`; `public/*.svg`; `public/postman_collection.json` | Delete the starter SVGs and duplicates; move the Postman collection out of the web root | STILL OPEN - `public/` file set unchanged (68 files) |
+| M13-F31 | LOW | Reduced-motion logic implemented twice: `hooks/useReducedMotion.ts` and, independently, inside `components/common/A11yProvider.tsx` | `hooks/useReducedMotion.ts:12-33` vs `components/common/A11yProvider.tsx:22-34` | Have `A11yProvider` consume `useReducedMotion` | STILL OPEN |
+| M13-F32 | LOW | Six of the eight accessibility hooks (`useFocusTrap`, `useKeyboardNavigation`, `useAnnounce`, `useSkipLink`, `useRovingTabIndex`, `useAccessibleColors`) have no consumer, while the app has custom dropdowns and dialogs that would need exactly them | `hooks/a11y/index.ts`; only `useHighContrast` and `useKeyboardNavigationMode` imported (`components/common/A11yProvider.tsx:4`) | Wire `useFocusTrap` into the dialog components, or remove the unused hooks | STILL OPEN |
+| M13-F33 | LOW | No tests anywhere in this chunk - no unit test for the Haversine maths, the ICS escaping, the QR payload parser or the dictionary loader, against AGENTS.md's "Tested" definition of done | no file under `tests/` references `lib/device` or `lib/i18n`. The one adjacent test is `tests/kannada-font-validation.spec.ts`, which checks rendered font stacks, not this code | Start with the pure functions: `calculateDistance`, `escapeICSText`, `generateShareText`, `getNestedValue`, `parseQRData` | STILL OPEN - `@testing-library/react` and `jest-environment-jsdom` were added to `package.json` devDependencies, but still no test under `tests/` references `lib/device` or `lib/i18n` |
+| M13-F34 | LOW | Unescaped entity in JSX (`doesn't`) will fail `react/no-unescaped-entities` under `npm run lint` | `app/(public)/notifications/page.tsx:183` (now reads `doesn&apos;t` / `You&apos;ll`) | Use `&apos;` | FIXED (2026-10-18) - `6408c1d` (2026-10-03) escaped both apostrophes |
+| M13-F35 | LOW | Browser notifications have no click handler, so tapping one does nothing - it cannot deep-link to the event or seva it announces | `lib/device/notifications/index.ts:64-89` creates the `Notification` and never assigns `onclick` | Assign `notification.onclick` to focus the window and route to `data.url` | STILL OPEN |
+| M13-F36 | MEDIUM | The `/notifications` info panel makes three promises that nothing in the repository keeps: "Email notifications are sent regardless of browser permissions", "Festival reminders are sent 7 days before the event" and "Event reminders are sent 30 minutes before start time". There is no reminder scheduler beyond the in-memory `setTimeout`, no cron or API route under `app/api/` that sends reminders, and the only email sender in the repo is a donation-receipt function | `app/(public)/notifications/page.tsx:357-372`; the only scheduler is `lib/device/notifications/index.ts:120` (`setTimeout`); `ls app/api` has no reminder/cron route; `lib/services/email.ts:5` is `sendEmail(receipt: Receipt)` only | Delete the three claims until a server-side scheduler and a reminder email template exist | STILL OPEN - `app/(public)/notifications/page.tsx:357-372` unchanged; still no reminder route under `app/api/` |
+| M13-F37 | LOW | `lib/device/actions.ts` declares 14 `DeviceActionType` values but registers handlers for only 11. `share_quote`, `notify_seva` and `share_daily_panchanga` are dispatchable names with no handler, so `execute()` on them fails at runtime rather than at compile time | `lib/device/actions.ts:9-23` (14 union members) vs the 11 `this.register(...)` calls at `:110`, `:125`, `:141`, `:168`, `:189`, `:221`, `:249`, `:275`, `:300`, `:318`, `:345` | Register the three missing handlers or drop them from the union | STILL OPEN |
+| M13-F38 | LOW | `useShareContent` sets `isSharing` in two code paths (four writes) but neither `UseShareContentReturn` nor the returned object exposes it, so a consumer of the templated share hook has no way to show a spinner - unlike `useShare`, which does return it | `lib/device/hooks/useShare.ts:139` (state), `:166`, `:175`, `:180`, `:186` (writes), `:114-131` (interface) and `:189-202` (return) omit it; contrast `lib/device/hooks/useShare.ts:92` | Add `isSharing` to the interface and the return object | STILL OPEN |
+| M13-F39 | LOW | A blanket `/* eslint-disable */` was prepended to five files of this chunk by the CI-baseline commit. It switches off every rule for the whole file, so `react-hooks/exhaustive-deps` no longer reports the `[types.join(",")]` dependency at `lib/device/hooks/usePermissions.ts:119` (which has no targeted disable of its own), `@typescript-eslint/no-unused-vars` no longer reports the unused `X` import in `components/device/QRScanner.tsx:10`, and any future hook or React-compiler error in these files will pass the `npm run lint` step of `.github/workflows/ci.yml`. It does **not** hide M13-F22's `any` sites - `no-explicit-any` was already off for `lib/**` and `components/**` by `eslint.config.mjs:15-30` before this commit. Nor were the disables needed for a green build: the lint runs saved by the same commit (`lint.txt:1472` = 18 errors, `lint2.txt:1262` = 5 errors) report no error in any of the five files, only warnings | line 1 of `lib/device/qr/scanner.ts`, `lib/device/hooks/useLocation.ts`, `lib/device/hooks/usePermissions.ts`, `lib/i18n/context.tsx`, `components/device/QRScanner.tsx`; added by `6408c1d` (2026-10-03, "chore: fix CI pipeline errors for baseline"); `eslint.config.mjs:15-30`; `lint.txt:647` (`QRScanner.tsx` unused `X`) | Delete the five blanket disables (no lint error requires them), fix or targeted-disable the warnings they hide, and narrow the repo-wide `no-explicit-any: off` override if M13-F22 is to be enforced | NEW (2026-10-18); severity MEDIUM -> LOW and rationale rewritten by the 2026-10-18 skeptic pass |
 
 ## Portability notes (React Native / cross-platform)
 
@@ -585,7 +589,7 @@ collection anywhere in this module.
 | `lib/device/qr/QRCode.tsx` generation | `qrcode` npm -> data URL, `<img>`, `<a download>` | **adapt** | `react-native-qrcode-svg` renders the same payloads; `generateQRId`, `createQRPayload` and the `parseQRData` logic are pure and reusable |
 | `lib/device/settings.ts` | dynamic `import("firebase/firestore")` | **adapt** | The subscribe/notify singleton is platform-neutral; swap the Firestore client and give it an `AsyncStorage` cache |
 | `lib/device/hooks/*.ts(x)` | `"use client"`, `window`/`navigator` inside effects | **adapt** | The hook *signatures* (`useShare`, `useLocation`, `useNotifications`, `usePermission`, `useQRScanner`, `useCalendar`) are the right cross-platform seam. Keep them; re-point each to a native service. `useBattery`, `useConnection`, `useOrientation`, `usePWAInstall`, `useOnlineStatus` map to `expo-battery`, `@react-native-community/netinfo`, `expo-screen-orientation`, and nothing (no install prompt on a store app) |
-| `components/device/*.tsx` (11 files) | Tailwind `className`, `lucide-react`, shadcn `Dialog`/`Card`/`Switch`, `@/components/ui/*` | **rewrite** | No DOM, no Tailwind classes, no shadcn in RN. Since all eleven are already unused, deleting them is cheaper than porting them |
+| `components/device/*.tsx` (9 widgets + `index.ts`) | Tailwind `className`, `lucide-react`, shadcn `Dialog`/`Card`/`Switch`, `@/components/ui/*` | **rewrite** | No DOM, no Tailwind classes, no shadcn in RN. Since all nine are already unused, deleting them is cheaper than porting them |
 | `lib/device/qr/QRCode.tsx` display components | `<img>`, `<div>`, Tailwind | **rewrite** | Same reason |
 | `lib/i18n/config.ts`, `dictionaries.ts`, `dictionaries/*.json` | none (dynamic `import()` of JSON works in Metro) | **reuse as-is** | The strongest asset in this chunk for a native client: 275 keys x 3 locales, ready to share |
 | `lib/i18n/context.tsx` | `localStorage`, `document.documentElement.lang` | **adapt** | Replace `localStorage` with `AsyncStorage`/`expo-secure-store`, drop the `document` line, seed the default from `expo-localization`. `getNestedValue`/`interpolate` are pure |
@@ -610,14 +614,27 @@ component's logic unchanged.
 The honest summary is that this chunk is the *easiest* part of the portal to move, because so little of it
 is actually wired in. The pure logic (distance, ICS, share templates, QR payloads, 825 translated strings)
 ports for free; the browser API wrappers are thin enough to swap for Expo modules one file at a time; and
-the 2,829 lines of unused Tailwind widgets - the only genuinely unportable part - can be deleted rather
+the 2,630 lines of unused Tailwind widgets - the only genuinely unportable part - can be deleted rather
 than ported. A native client would also *fix* the module's two worst faults for free: OS-level scheduled
 notifications replace the doomed `setTimeout` scheduler, and native camera/location permissions replace the
 CSP- and Permissions-Policy-blocked web paths.
 
+**Status of `apps/mobile` (2026-10-18).** An Expo Router app now lives at `apps/mobile` (added 2026-09-30,
+`0cb71b6` "Mobile app reconstruction", `5813fc9` "Final Mobile Hardening"). It consumes **nothing** from this
+module: grepping `apps/mobile` for `lib/device|lib/i18n|types/device|ux.service|useReducedMotion|hooks/a11y|device-analytics`
+returns no hits, and `apps/mobile/lib/` holds only `api.ts`, `supabase.ts` and `types.ts`. It re-implements the
+three capabilities it needs natively instead: share via React Native `Share.share` (`apps/mobile/app/(tabs)/more.tsx:11`,
+a fixed app-download message, no templates), directions via `Linking.openURL` with `maps:`/`geo:` schemes and a
+Google Maps web fallback (`apps/mobile/app/(tabs)/temple.tsx:25-56`), and `expo-notifications` registered as a plugin
+(`apps/mobile/app.json:31`) with no call site under `apps/mobile/app`. There is no i18n in the mobile app. The
+temple coordinates now diverge by source: mobile reads `location_lat`/`location_lng` from the Supabase
+`website_settings` row (`apps/mobile/lib/api.ts:49`, `fetchWebsiteSettings`), while every web path here still
+uses the hard-coded `DEFAULT_DEVICE_SETTINGS.templeLocation` (`types/device.ts:265`) - the shared contract
+proposed above has not been adopted, and the two clients can disagree about where the temple is.
+
 ## Coverage
 
-filesExpected 114, filesMentioned 114, omitted: none.
+filesExpected 114, filesMentioned 114, omitted: none. (Re-checked 2026-10-18 against the regenerated `.claude/state/inventory/M13.json`: still 114 files, 46 source + 68 under `public/`; the delta has 0 added and 0 deleted.)
 
 - 46 source files: every one has a row in **Key files** and appears in at least one flow, tree or fault row.
 - 68 files under `public/`: covered by the grouped table in **Key files** (per the brief's allowance to
@@ -747,3 +764,83 @@ M13-F02 (`app/layout.tsx:83-88` has A11yProvider/AuthProvider/ProfileProvider/AI
 M13-F09, M13-F10, M13-F11, M13-F13, M13-F14, M13-F16, M13-F17, M13-F18, M13-F19, M13-F21, M13-F22,
 M13-F24, M13-F25, M13-F30, M13-F31, M13-F32, M13-F34, M13-F35, and the dictionary arithmetic
 (275 leaves x 3, 25 sections, kn 0 identical, sa 2 identical) which re-ran exactly.
+
+## Refresh log (2026-10-18)
+
+Scope: delta `perModule.M13` = 0 added, 0 deleted, 11 modified. Of the 11, six carry real content changes,
+all from one commit (`6408c1d`, 2026-10-03, "chore: fix CI pipeline errors for baseline"); the other five are
+line-ending-only (CRLF snapshot vs LF clone) or live data: `public/favicon.svg`, `public/images/deepa.svg`,
+`public/images/committee/.gitignore`, `public/images/testimonials/.gitignore` (all identical under
+`diff --strip-trailing-cr`, images not opened), and `public/data/panchanga/current.json` (daily CI data refresh,
+`43c6d8f`, `e465557` plus the daily panchanga commits). Boundary files `next.config.ts`, `app/layout.tsx`,
+`app/globals.css`, `components/common/LanguageSwitcher.tsx`, `components/common/A11yProvider.tsx` and all seven
+consumer components/pages are byte-identical to the snapshot (modulo CRLF), so no flow or fault that depends on
+them moved.
+
+Changes made (what was true -> what is true now -> evidence):
+
+- `lib/device/qr/scanner.ts`, `lib/device/hooks/useLocation.ts`, `lib/device/hooks/usePermissions.ts`,
+  `lib/i18n/context.tsx`, `components/device/QRScanner.tsx` had no file-wide lint suppression -> each now starts
+  with `/* eslint-disable */` on line 1, shifting every line +1 -> `diff --strip-trailing-cr` shows `0a1 > /* eslint-disable */`; `git show 6408c1d --stat`
+- Line counts 349/292/256/228/339 -> 350/293/257/229/340 for those five files; section totals `lib/device`
+  5,217 -> 5,220, `components/device` 2,629 -> 2,630, `lib/i18n` 1,797 -> 1,798 (chunk 11,845 -> 11,850) -> `split(/\r?\n/).length` on snapshot vs today
+- Tree 2: `usePermissions.ts:140` / `:26` -> `:141` / `:27` -> grep `export function useNotificationPermission` = 141, `export function usePermission(` = 27
+- Flow B: `useLocation.ts:54` -> `:60` (it was already `:59` on 2026-09-19; the old cite was wrong before the shift) -> grep `export function useLocation` = 60
+- Flow D: `scanner.ts:62` -> `:63`; `:107-166` -> `:108-167` -> grep `async loadLibrary` = 63, `async start(` = 108
+- Flow F: `lib/i18n/context.tsx:158`/`:142`/`:146`/`:53` -> `:159`/`:143`/`:147`/`:54` -> grep `export function useLocale` 159, `export function useI18n` 143, `throw new Error("useI18n` 147, `export function I18nProvider` 54
+- Key files `scanner.ts` row: `switchCamera` `:249` -> `:250`, `"qr-reader"` `:266` -> `:267`; `any` at "line 10" is now actually line 10 (was `:9` in the snapshot) -> grep
+- Key files `context.tsx` row: RTL hard-code line 124 -> 125, `getNestedValue(obj: any` line 27 -> 28 -> grep
+- Key files `/notifications` row: "unescaped `doesn't` in JSX" -> escaped to `&apos;` (both `doesn't` and `You'll`) -> `app/(public)/notifications/page.tsx:183`, `6408c1d`
+- Stores: `preferred-locale` at `lib/i18n/context.tsx:25` -> `:26` -> grep `LOCALE_STORAGE_KEY` = 26
+- R5: `lib/i18n/context.tsx:53` / `:124` -> `:54` / `:125`
+- Faults table: added a `status 2026-10-18` column; 37 rows STILL OPEN, M13-F34 FIXED (`6408c1d`); evidence lines moved in F02, F04, F16, F22, F27; F05 line total 2,629 -> 2,630; F13 start-site `usePermissions.ts:114` -> `:113` (pre-existing off-by-one; `startAutoRecheck(30000)` was at :112 in the snapshot)
+- New fault M13-F39 (MEDIUM): blanket `/* eslint-disable */` in five chunk files hides M13-F22's `any` and any new hook-deps violations from `npm run lint`
+- Portability table: `components/device/*.tsx` "(11 files)" / "all eleven" -> 9 widgets + barrel / "all nine"; summary "2,829 lines" -> 2,630 (both were pre-existing errors the 2026-09-19 skeptic pass corrected elsewhere but missed here) -> `ls components/device`
+- Portability notes: added "Status of `apps/mobile`" - the Expo app consumes nothing from this module and re-implements share (`Share.share`), directions (`Linking` + `geo:`/`maps:`) and declares `expo-notifications` with no call site; temple coordinates come from Supabase `website_settings` on mobile vs `types/device.ts:265` on web -> grep of `apps/mobile` for this module's specifiers = 0 hits; `apps/mobile/app/(tabs)/temple.tsx:25-56`, `apps/mobile/app/(tabs)/more.tsx:11`, `apps/mobile/app.json:31`, `apps/mobile/lib/api.ts:49`
+- F33: noted that `@testing-library/react` and `jest-environment-jsdom` are now devDependencies (`package.json`), yet no test touches `lib/device` or `lib/i18n`
+- Answers questions about: added three topics (mobile app vs this module, the blanket eslint-disable, what changed since 2026-09-19)
+- Coverage: unchanged at 114/114 (46 source + 68 `public/`), re-checked against the regenerated inventory
+
+Commits that drove the changes: `6408c1d` (2026-10-03, lint headers + `&apos;` fix - the only code change in this
+chunk), `0cb71b6` / `5813fc9` (2026-09-30, `apps/mobile` created - drives the portability update),
+`43c6d8f` / `e465557` (data-only `public/data/panchanga/current.json` refreshes). `git log --since=2026-09-19`
+over the chunk roots, excluding "chore: update daily panchanga", lists only `6408c1d`, `43c6d8f`, `e465557` and merge `b95bfd0`; the mobile commits sit outside the chunk roots.
+
+Path check by script (2026-10-18): 248 distinct path / path:line citations extracted; every one exists and every line number is inside its file, except the seven cited deliberately as absent or as files to create (`app/manifest.ts`, `public/manifest.json`, `public/sw.js`, `public/favicon.ico`, `lib/device/vibration/index.ts`, `lib/device/hooks/useVibration.ts`, `services/device-settings.service.ts`) and four regex fragments of longer paths (bare `context.tsx`, `types.ts` inside `apps/mobile/lib/`, and two in the historical Verification log).
+
+The Verification log (2026-09-19) above is historical and its line numbers are left as they were on that date.
+
+UNCLEAR:
+
+- UNCLEAR: the dispatch named HEAD `424fdb8`; the clone's HEAD is `3d6aa9d`, a docs-only commit on top of it.
+  `git diff --stat 424fdb8 3d6aa9d -- lib components app public hooks services types` is empty, so every claim
+  here holds at both.
+- UNCLEAR: whether `6408c1d` (authored by an automation bot) intended the blanket disables as temporary. No
+  follow-up commit narrows them. Settling it: ask whoever owns the CI baseline.
+
+## Verification log (2026-10-18)
+
+Skeptic pass over the 2026-10-18 refresh, against HEAD `43361a3` (two docs-only commits above `424fdb8`;
+`git diff --stat 424fdb8 HEAD` outside `.claude/` and `docs/` touches only `CLAUDE.md` and `.gitignore`, so
+every code claim holds at `424fdb8`, `3d6aa9d` and `43361a3`). 238 distinct path citations re-checked by
+script; 36 claims sampled with weight on the refreshed sections; all 39 fault rows re-opened. Report:
+`.claude/state/verify/M13-2026-10-18.md`.
+
+- M13-F39 said the blanket disables hide M13-F22's `any` sites -> refuted; `no-explicit-any` is off for `lib/**`, `components/**`, `hooks/**`, `app/**` by config and was before `6408c1d`; the row now names what is actually hidden (`usePermissions.ts:119` exhaustive-deps, `QRScanner.tsx:10` unused import) and is LOW, not MEDIUM -> `eslint.config.mjs:15-30`; `git show 6408c1d^:eslint.config.mjs`; `lint.txt:1472`, `lint2.txt:1262` (no errors in the five files)
+- M13-F22 status said two sites are "now also hidden from lint by M13-F39" -> none of the four was ever lint-reported; the config override is the reason -> `eslint.config.mjs:15-30`
+- Key files `usePermissions.ts` row called line 119 "a lint-suppressed dependency hack" -> it had no targeted disable before or after `6408c1d`; only the blanket header silences it -> `git show 6408c1d^:lib/device/hooks/usePermissions.ts` lines 115-119
+- M13-F15 evidence said `grep -rn 't("' app components` returns 0 -> that command returns 166 substring hits; the word-boundary grep returns 0, so the conclusion stands with a correct command -> `grep -rnP '(?<![A-Za-z0-9_.$])t\(' app components` = 0
+- Flow F step 3 and M13-F02 cited `app/layout.tsx:84-88` -> `:83-88` (`A11yProvider` opens at :83)
+- R6 and M13-F17 cited `useDevice.ts:104` / `capabilities/index.ts:86` -> `:106` / `:90` -> grep `export function usePWAInstall` = 106, `export function isServiceWorkerSupported` = 90
+- M13-F36 cited the scheduler `setTimeout` at `notifications/index.ts:119` -> `:120`
+- M13-F38 and the `useShare.ts` row said `isSharing` is set three times at `:165/:178/:186`, interface `:118-131` -> four writes at `:166/:175/:180/:186` in two functions, interface `:114-131`
+- Cross-module row for `app/api/chat/route.ts` listed three functions as taken -> it imports three and calls only `getResponseMetadata` (`:302`), which calls the other two (`services/ux.service.ts:362-363`)
+- M13-F19 evidence extended: the Expo app shares `https://www.srsmathaynk.com` (`apps/mobile/app/(tabs)/more.tsx:12`), matching `metadataBase`; only `/qr` uses the vercel.app URL
+
+Confirmed without change: the five line-1 headers and the `6408c1d` attribution; every re-pointed line in the
+five changed files (`usePermissions.ts:27/:113/:141`, `useLocation.ts:60`, `scanner.ts:10/:63/:79/:108/:250/:267`,
+`context.tsx:26/:28/:54/:125/:143/:147/:159`, `QRScanner.tsx:311`); M13-F34 FIXED at `notifications/page.tsx:183`;
+line totals 5,220 / 2,630 / 1,798 (the file's convention is `wc -l` + 1 per file); boundary files byte-identical
+to the snapshot under `diff --strip-trailing-cr`; the `apps/mobile` paragraph (no import of this module;
+`Share.share`, `Linking` + `maps:`/`geo:`, `expo-notifications` plugin with no call site; coordinates from the
+`website_settings` row `temple_information`, read at `apps/mobile/app/(tabs)/temple.tsx:26-29`); coverage 114/114.

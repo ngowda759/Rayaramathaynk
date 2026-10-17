@@ -1,6 +1,9 @@
 # temple-portal-expert
 
 Built **2026-09-19** against the repository at `D:\Onboarding\Repos\POCs\General Purpose POCs`.
+Refreshed **2026-10-18** against commit `424fdb8` of the git clone at
+`D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected` - 17 brain files, with M17 added for
+the Expo mobile app, the Prisma layer, the `.ai/` development loop and the new root reports.
 
 ## What this folder is
 
@@ -14,9 +17,9 @@ It is deliberately three layers, not one file:
 |---|---|---|
 | Protocol | [`SKILL.md`](SKILL.md) | How to answer a question: route, read one section, confirm in the code, answer in the right shape |
 | Router | [`MIND-MAP.md`](MIND-MAP.md) | Module map, question router, route index, store index, cross-cutting concerns, glossary, find-it recipes, known problem areas, unowned files |
-| Detail | [`brain/`](brain/) | 16 verified files, `M01`-`M16`, roughly 1.5 MB total |
+| Detail | [`brain/`](brain/) | 17 verified files, `M01`-`M17`, roughly 2.1 MB total |
 
-`M01`-`M15` are module files and all have the same sections, so the router can name one precisely:
+`M01`-`M15` and `M17` are module files and all have the same sections, so the router can name one precisely:
 *Answers questions about, Purpose and business role, Code roots, Entry points, Component trees, Data
 flow, Key files, Types and stores, Cross-module dependencies, How to change it, Faults smells and
 risks, Portability notes, Coverage, UNCLEAR, Verification log*.
@@ -63,11 +66,12 @@ and definition of done - apply.
     M09-raya-ai-console-and-knowledge-workflow.md                chat UI, AI console, knowledge
     M10-services-and-types-catalogue.md                          every service and type
     M11-data-model-persistence-and-migration.md                  collections, tables, migration
-    M12-api-layer.md                                             all 95 route handlers
+    M12-api-layer.md                                             all 97 route handlers
     M13-device-capabilities-i18n-and-pwa.md                      device, i18n, a11y, PWA
     M14-domain-engines-panchanga-aaradhane-receipts-reports.md   panchanga, aaradhane, PDFs
     M15-testing-ci-tooling-and-repo-health.md                    tests, CI, docs health
     M16-collection-field-catalogue.md                            every field of every collection
+    M17-mobile-app-prisma-and-ai-loop.md                         Expo app, Prisma, .ai loop, root reports
 ```
 
 Supporting state that produced these files lives outside the skill and is not needed to use it:
@@ -79,7 +83,8 @@ worth keeping if you intend to refresh the field catalogue rather than edit it b
 
 ## Keeping the brain fresh
 
-A brain file is a snapshot of the code on 2026-09-19. It goes stale the moment that module changes.
+A brain file is a snapshot of the code on 2026-09-19, refreshed on 2026-10-18 (each file's *Refresh
+log* says what moved). It goes stale the moment that module changes.
 
 1. **After changing a module**, re-run the verify brief for that module id against the changed files,
    and fold its corrections back into the brain file. The previous run's logs in

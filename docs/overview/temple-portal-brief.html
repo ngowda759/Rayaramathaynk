@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Temple Portal - Application Brief</title>
-<meta name="description" content="A ten-minute brief on the Temple Portal application: what it is, how it is structured, its component trees, data stores and AI pipeline. Prepared for Nikhil.">
+<meta name="description" content="A ten-minute brief on the Temple Portal application: what it is, how it is structured, its component trees, data stores and AI pipeline. Prepared for Nikhil; refreshed 2026-10-18.">
 <style>
 /* ---------- Sri Raghavendra Swamy Matha - the temple portal's own identity ----------
    Every colour token below is copied name-for-name and value-for-value from
@@ -368,7 +368,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <p class="lede">The web platform of the Sri Raghavendra Swamy Matha, Rayara Matha, Yelahanka.
       What it is, how it is put together, and the state it is actually in &mdash; in about ten minutes.</p>
     <div class="meta">
-      <span><b>Date</b> &nbsp;19 September 2026</span>
+      <span><b>Date</b> &nbsp;19 September 2026, refreshed 18 October 2026</span>
       <span><b>Prepared for</b> &nbsp;Nikhil</span>
       <span><b>Repository</b> &nbsp;<code>temple-portal</code></span>
     </div>
@@ -380,6 +380,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
   <div class="eyebrow">Contents</div>
   <ol>
     <li><a href="#glance">At a glance</a></li>
+    <li><a href="#changed">What changed since 19 September</a></li>
     <li><a href="#what">What it is</a></li>
     <li><a href="#features">Feature map</a></li>
     <li><a href="#architecture">Architecture</a></li>
@@ -398,17 +399,47 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
   <h2>At a glance</h2>
   <div class="tiles">
     <div class="tile"><span class="k">Page routes</span><span class="n">130</span><span class="s">37 public, 3 auth, 83 admin</span></div>
-    <div class="tile"><span class="k">API handlers</span><span class="n">95</span><span class="s"><code>route.ts</code> files + 1 server action</span></div>
-    <div class="tile"><span class="k">Component files</span><span class="n">230</span><span class="s">under <code>components/</code></span></div>
+    <div class="tile"><span class="k">API handlers</span><span class="n">97</span><span class="s"><code>route.ts</code> files + 2 server-action files</span></div>
+    <div class="tile"><span class="k">Component files</span><span class="n">235</span><span class="s">under <code>components/</code></span></div>
     <div class="tile"><span class="k">Services</span><span class="n">54</span><span class="s">41 top-level + 13 proof-report</span></div>
-    <div class="tile"><span class="k">Source files</span><span class="n">818</span><span class="s">310 carry <code>"use client"</code></span></div>
-    <div class="tile"><span class="k">Source lines</span><span class="n">158,773</span><span class="s">TypeScript, TSX, JS</span></div>
-    <div class="tile"><span class="k">Test files</span><span class="n">67</span><span class="s">50 Playwright + 17 Jest</span></div>
-    <div class="tile"><span class="k">Backing stores</span><span class="n">4</span><span class="s">Firestore, Supabase, Blob, static JSON</span></div>
+    <div class="tile"><span class="k">Source files</span><span class="n">929</span><span class="s">314 carry <code>"use client"</code> (818 on 19 Sep)</span></div>
+    <div class="tile"><span class="k">Source lines</span><span class="n">178,106</span><span class="s">TypeScript, TSX, JS (158,773 on 19 Sep)</span></div>
+    <div class="tile"><span class="k">Test files</span><span class="n">105</span><span class="s">50 Playwright + 55 Jest (52 unit)</span></div>
+    <div class="tile"><span class="k">Backing stores</span><span class="n">4</span><span class="s">Firestore, Supabase (24 tables), Blob, static JSON</span></div>
   </div>
-  <p class="muted" style="font-size:12.5px">Divided into <strong>15 modules</strong>, each with a verified
-    brain file under <code>.claude/skills/temple-portal-expert/brain/</code>. 730 JSON almanac files sit
-    under <code>data/panchanga/</code>; exactly <strong>3</strong> files carry <code>server-only</code>.</p>
+  <p class="muted" style="font-size:12.5px">Figures counted 2026-10-18 (source totals from the inventory
+    summary). Divided into <strong>16 code modules</strong> (M01&ndash;M15 and M17, the mobile app,
+    Prisma and the <code>.ai/</code> loop) plus the M16 field catalogue, each with a verified brain file
+    under <code>.claude/skills/temple-portal-expert/brain/</code>. 730 JSON almanac files sit under
+    <code>data/panchanga/</code>; <strong>6</strong> files carry <code>server-only</code> (3 on 19 September).
+    22 GitHub workflows, 5 on 19 September.</p>
+</section>
+
+<!-- ============ WHAT CHANGED ============ -->
+<section id="changed">
+  <h2>What changed since 19 September</h2>
+  <p class="muted" style="font-size:12.5px">Added 2026-10-18 against commit <code>424fdb8</code>. The
+    sections below describe the 2026-09-19 snapshot except where a figure or sentence is marked as
+    updated; each brain file's Refresh log names the commits.</p>
+  <ul class="plain">
+    <li><strong>A mobile app exists.</strong> <code>apps/mobile</code> (Expo 57, React Native 0.86, built
+      2026-09-30) has seven tabs and a seva modal, and no login, booking or payment. It reads Supabase
+      directly with the anon key, from tables that deny all access or do not exist, so only the Raya AI
+      tab (<code>POST /api/chat</code>) shows anything (M17).</li>
+    <li><strong>Prisma arrived unused.</strong> A Prisma 7 schema mirrors nine Supabase tables; nothing
+      imports its client <code>lib/prisma.ts</code> (M17).</li>
+    <li><strong>Raya AI was rewritten and moved to Supabase.</strong> A 192-line orchestrator over a
+      retrieval registry and a response composer replaced the 1,191-line generator; settings, knowledge,
+      chat and analytics moved to Supabase. Still no LLM call, and the admin knowledge screens still write
+      Firestore, so admin edits no longer reach the bot (M08, M09).</li>
+    <li><strong>Migration progress.</strong> A unit-tested ETL library with batched and staged runs; 9
+      new Supabase migrations (24 tables). Bookings, donations, receipts and most settings still live in
+      Firestore (M11).</li>
+    <li><strong>CI, but no deploy gate.</strong> <code>ci.yml</code> (2026-10-03) runs lint, typecheck,
+      tests and build on every push and pull request, yet the deploy does not wait for it; five of the 22
+      workflows run a bot development loop in <code>.ai/</code>. 21 of 97 route files now verify a token,
+      against 5 of 95 before (M12, M15, M17).</li>
+  </ul>
 </section>
 
 <!-- ============ WHAT IT IS ============ -->
@@ -488,9 +519,9 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
       <h3>Raya AI</h3>
       <p>A floating chat widget on every page, backed by <code>POST /api/chat</code>, plus an admin console
         of a hub and eleven sub-pages. It classifies a question into one of 42 intents, retrieves the matching facts from
-        Firestore, the panchanga files or the knowledge store, and formats a bilingual English/Kannada
-        answer.</p>
-      <div class="routes">/api/chat &middot; /admin/ai &middot; /api/ai/* (22 routes)</div>
+        Supabase (AI settings and knowledge, since October 2026), Firestore or the panchanga files, and
+        formats a bilingual English/Kannada answer.</p>
+      <div class="routes">/api/chat &middot; /admin/ai &middot; /api/ai/* (24 routes)</div>
     </div>
 
     <div class="card">
@@ -674,9 +705,10 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
 <!-- ============ MODULE MAP ============ -->
 <section id="modules">
   <h2>Module map</h2>
-  <p>The codebase is divided into fifteen modules. Each has a verified, evidence-backed brain file
-    carrying its purpose, entry points, data flow, component trees and a faults table with
-    <code>path:line</code> evidence. A sixteenth brain file, M16, owns no code: it is the
+  <p>The codebase is divided into sixteen code modules &mdash; M01&ndash;M15, and M17 added on
+    2026-10-18 for the areas that did not exist on 2026-09-19. Each has a verified, evidence-backed brain
+    file carrying its purpose, entry points, data flow, component trees and a faults table with
+    <code>path:line</code> evidence. One more brain file, M16, owns no code: it is the
     field-level catalogue across all of them.</p>
   <div class="tablewrap">
     <table>
@@ -693,11 +725,12 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
         <tr><td class="id">M09</td><td>Raya AI console and knowledge workflow</td><td>Chat widget, <code>/admin/ai</code>, the editorial workflow, AI UAT</td><td class="path">.claude/skills/temple-portal-expert/brain/M09-raya-ai-console-and-knowledge-workflow.md</td></tr>
         <tr><td class="id">M10</td><td>Services and types catalogue</td><td>54 services and 42 type files &mdash; the repository layer as built</td><td class="path">.claude/skills/temple-portal-expert/brain/M10-services-and-types-catalogue.md</td></tr>
         <tr><td class="id">M11</td><td>Data model, persistence and migration</td><td>Firestore collections, Supabase tables, rules, indexes, seeds</td><td class="path">.claude/skills/temple-portal-expert/brain/M11-data-model-persistence-and-migration.md</td></tr>
-        <tr><td class="id">M12</td><td>API layer</td><td>95 route handlers and one server action &mdash; the whole HTTP surface</td><td class="path">.claude/skills/temple-portal-expert/brain/M12-api-layer.md</td></tr>
+        <tr><td class="id">M12</td><td>API layer</td><td>97 route handlers and two server-action files &mdash; the whole HTTP surface</td><td class="path">.claude/skills/temple-portal-expert/brain/M12-api-layer.md</td></tr>
         <tr><td class="id">M13</td><td>Device capabilities, i18n and PWA</td><td>Share, location, notifications, QR, dictionaries, accessibility</td><td class="path">.claude/skills/temple-portal-expert/brain/M13-device-capabilities-i18n-and-pwa.md</td></tr>
         <tr><td class="id">M14</td><td>Domain engines</td><td>Panchanga, festivals, the Aaradhane generator, receipt PDFs, reports</td><td class="path">.claude/skills/temple-portal-expert/brain/M14-domain-engines-panchanga-aaradhane-receipts-reports.md</td></tr>
-        <tr><td class="id">M15</td><td>Testing, CI/CD and repo health</td><td>50 Playwright specs, 17 Jest files, five workflows, documentation health</td><td class="path">.claude/skills/temple-portal-expert/brain/M15-testing-ci-tooling-and-repo-health.md</td></tr>
-        <tr><td class="id">M16</td><td>Collection and table field catalogue</td><td>Every field of all 64 Firestore collections and 21 Supabase tables, with the writers and readers of each</td><td class="path">.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md</td></tr>
+        <tr><td class="id">M15</td><td>Testing, CI/CD and repo health</td><td>50 Playwright specs, 52 Jest unit files, 22 workflows, documentation health</td><td class="path">.claude/skills/temple-portal-expert/brain/M15-testing-ci-tooling-and-repo-health.md</td></tr>
+        <tr><td class="id">M16</td><td>Collection and table field catalogue</td><td>Every field of all 64 Firestore collections and 24 Supabase tables, with the writers and readers of each</td><td class="path">.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md</td></tr>
+        <tr><td class="id">M17</td><td>Mobile app, Prisma, AI loop, root reports</td><td>The Expo app in <code>apps/mobile</code>, the unused Prisma mirror, the <code>.ai/</code> bot development loop and six new root reports</td><td class="path">.claude/skills/temple-portal-expert/brain/M17-mobile-app-prisma-and-ai-loop.md</td></tr>
       </tbody>
     </table>
   </div>
@@ -764,20 +797,20 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
       by testing for the Kannada Unicode block.</li>
     <li><code>:143</code> &mdash; <code>getSessionContext()</code> loads Firestore
       <code>chat_sessions/{id}</code>; if none, <code>:158</code> mints a UUID.</li>
-    <li><code>:162</code> &rarr; <code>lib/ai/generator.ts:1056</code> <code>generateResponse()</code>
-      &rarr; <code>lib/ai/intent/detector.ts:677</code> <code>detectIntent()</code> &rarr;
+    <li><code>:162</code> &rarr; <code>lib/ai/generator.ts:48</code> <code>generateResponse()</code>
+      &rarr; <code>lib/ai/intent/detector.ts:721</code> <code>detectIntent()</code> &rarr;
       <code>IntentDetector.detect()</code> (<code>:204</code>): out-of-scope guard,
-      keyword match, a &ldquo;semantic&rdquo; pass, then <code>combineResults()</code>.</li>
-    <li>Dispatch to one of the generator's <strong>33</strong> <code>case Intent.*</code> handlers &mdash; 42
-      intents, so nine fall through the <code>default</code> branch &mdash; e.g.
-      <code>handleTempleTimings()</code> reads Firestore
-      <code>timings</code> then <code>settings</code>, with a 5-minute module cache and a
-      <code>DEFAULT_SETTINGS</code> fallback.</li>
-    <li><code>lib/ai/generator.ts:119-138</code> &mdash; formats one of three hardcoded bilingual
-      templates. <strong><code>usesLLM: false</code> on every path.</strong></li>
+      keyword match, a &ldquo;semantic&rdquo; pass, then <code>combineResults()</code>.
+      <em>(Updated 2026-10-18: the generator is now a 192-line orchestrator.)</em></li>
+    <li><code>lib/ai/generator.ts:57</code> reads the Supabase <code>ai_settings</code> row, then
+      <code>:127</code> <code>retrieve()</code> maps the intent to a retriever through
+      <code>lib/ai/retrieval/registry.ts</code>; temple timings now come from that settings row, not
+      Firestore. Until the 2026-09 rewrite this was one of 33 hand-written handlers.</li>
+    <li><code>lib/ai/generator.ts:148</code> &rarr; <code>lib/ai/response/composer.ts</code> formats an
+      English or Kannada template. <strong><code>usesLLM: false</code> on every path.</strong></li>
     <li><code>:183</code> &mdash; <code>updateSession()</code> writes both messages with
       <code>arrayUnion</code> and prunes to 20. If <code>confidence &lt; 50</code>, the question is
-      written to Firestore <code>unknown_questions</code>.</li>
+      written to Supabase <code>unknown_questions</code> (Firestore before 2026-10).</li>
     <li><code>:304-339</code> &mdash; returns <code>{message, sessionId}</code>, but the returned
       <code>sessionId</code> is <code>resolvedSessionId || crypto.randomUUID()</code>, <strong>not</strong>
       <code>effectiveSessionId</code>, so a first-turn client is handed an id no document uses.</li>
@@ -886,7 +919,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
         <tr><td>Content</td><td><code>events</code>, <code>announcements</code>, <code>gallery</code>, <code>galleryAlbums</code>, <code>galleryMedia</code>, <code>testimonials</code>, <code>quotes</code>, <code>homepage</code>, <code>settings</code></td><td><code>events</code> (live), <code>site_settings</code> (live), <code>social_links</code> (read), <code>temple_areas</code> (live)</td><td class="id">M02 M06</td></tr>
         <tr><td>Devotional</td><td><code>aaradhane</code>, <code>aaradhanes</code>, <code>guruParampara</code>, <code>timings</code></td><td><code>aaradhanes</code> (unread)</td><td class="id">M07 M14</td></tr>
         <tr><td>People</td><td><code>members</code>, <code>volunteers</code>, <code>volunteer_requests</code></td><td><code>volunteer_requests</code> (unread)</td><td class="id">M07</td></tr>
-        <tr><td>AI</td><td><code>chat_sessions</code>, <code>messages</code>, <code>chatTraining</code>, <code>ai_settings</code>, <code>unknown_questions</code>, <code>ai_unknown_questions</code>, <code>ai_token_usage</code>, <code>ai_latency_records</code>, <code>ai_intent_distribution</code>, <code>knowledge</code></td><td><code>unknown_questions</code> (live), <code>ai_latency_records</code>, <code>ai_intent_distribution</code> (read-only)</td><td class="id">M08 M09</td></tr>
+        <tr><td>AI</td><td><code>chat_sessions</code>, <code>messages</code>, <code>chatTraining</code>, <code>ai_settings</code>, <code>unknown_questions</code>, <code>ai_unknown_questions</code>, <code>ai_token_usage</code>, <code>ai_latency_records</code>, <code>ai_intent_distribution</code>, <code>knowledge</code> &mdash; most now legacy, still read by admin screens</td><td><code>ai_settings</code>, <code>ai_knowledge</code>, <code>unknown_questions</code>, <code>ai_latency_records</code>, <code>ai_intent_distribution</code> (live since October 2026), <code>chat_sessions</code>/<code>chat_messages</code> (written through a deny-all policy)</td><td class="id">M08 M09</td></tr>
         <tr><td>Knowledge workflow</td><td>7 collections &mdash; <strong>no rules, no reachable UI</strong></td><td>&mdash;</td><td class="id">M09</td></tr>
         <tr><td>Analytics</td><td><code>page_views</code>, <code>daily_page_stats</code>, <code>chat_metrics</code>, <code>intent_metrics</code>, <code>intent_feedback</code></td><td>&mdash;</td><td class="id">M15</td></tr>
         <tr><td>Non-database</td><td><code>data/panchanga/**</code> (730 JSON), <code>data/calendar.ts</code>, <code>data/shlokas.ts</code>, <code>seed/ai/*.json</code></td><td>&mdash;</td><td class="id">M14 M11</td></tr>
@@ -900,14 +933,16 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
       <thead><tr><th>Domain</th><th>State</th><th>Evidence</th></tr></thead>
       <tbody>
         <tr><td>Sevas</td><td><strong>Split brain</strong> &mdash; reads Supabase, writes Firestore</td><td class="path">services/seva.service.ts:11 vs :76,81,86</td></tr>
-        <tr><td>Social links</td><td><strong>Split brain</strong> &mdash; admin writes Firestore <code>settings/socialLinks</code>, public reads Supabase <code>social_links</code>; nothing writes the table</td><td class="path">app/admin/settings/social-links/page.tsx:33,89 vs services/settings.service.ts:121</td></tr>
+        <tr><td>Social links</td><td><strong>Split brain</strong> &mdash; admin writes Firestore <code>settings/socialLinks</code>, public reads Supabase <code>social_links</code>; nothing writes the table</td><td class="path">app/admin/settings/social-links/page.tsx:33,89 vs services/settings.service.ts:83</td></tr>
         <tr><td>Events</td><td><strong>Dual and diverging</strong> &mdash; <code>event.service</code> uses Supabase; admin content pages and the Aaradhane generator still write Firestore <code>events</code></td><td class="path">services/event.service.ts:46 vs app/admin/content/page.tsx:89, lib/aaradhane/firestore.ts:41</td></tr>
-        <tr><td>Site settings</td><td><strong>Supabase only</strong></td><td class="path">services/settings.service.ts:43,75,107</td></tr>
+        <tr><td>Site settings</td><td><strong>Supabase only</strong> &mdash; written through the server action since 2026-10-13</td><td class="path">services/settings.service.ts:43, app/actions/settings.ts</td></tr>
         <tr><td>Temple areas</td><td><strong>Supabase only</strong></td><td class="path">services/temple-areas.supabase.service.ts:6</td></tr>
-        <tr><td>AI analytics</td><td><strong>Firestore write / Supabase read</strong> &mdash; the two never meet</td><td class="path">app/admin/ai/analytics/page.tsx:245,247 vs services/ai-analytics.service.ts:134,170</td></tr>
-        <tr><td>Unknown questions</td><td><strong>Three stores, two schemas</strong></td><td class="path">lib/ai/unknown-logger.ts:13, services/ai-analytics.service.ts:47, lib/ai/ai-settings/repository.ts:391</td></tr>
-        <tr><td>Users, profiles, donations, gallery, testimonials, aaradhane, volunteers, chat</td><td><strong>Schema-only migration</strong> &mdash; 9 Supabase tables exist, no <code>.from(...)</code> anywhere</td><td class="path">M11</td></tr>
-        <tr><td>Quotes, knowledge, receipts, bills, announcements, homepage, members</td><td><strong>Firestore only</strong></td><td class="path">services/quote.service.ts:288 etc.</td></tr>
+        <tr><td>AI settings (2026-10-18)</td><td><strong>Supabase for the bot</strong> since 2026-10-06</td><td class="path">lib/ai/ai-settings/repository.ts</td></tr>
+        <tr><td>AI knowledge (2026-10-18)</td><td><strong>Split brain</strong> &mdash; the bot reads Supabase <code>ai_knowledge</code>, the admin screens write Firestore <code>knowledge</code></td><td class="path">lib/ai/knowledge/repository.ts vs app/api/ai/knowledge/import/route.ts:114</td></tr>
+        <tr><td>AI analytics</td><td><strong>Supabase write / admin page reads Firestore</strong> &mdash; reversed in October 2026, and the two still never meet</td><td class="path">services/ai-analytics.service.ts vs app/admin/ai/analytics/page.tsx</td></tr>
+        <tr><td>Unknown questions</td><td><strong>Two live stores</strong> &mdash; the logger writes Supabase; the generator's low-confidence path still writes Firestore</td><td class="path">lib/ai/unknown-logger.ts, services/analytics.service.ts</td></tr>
+        <tr><td>Users, profiles, donations, gallery, testimonials, aaradhane, volunteers, seva bookings</td><td><strong>Schema plus data copy</strong> &mdash; loaded by the migrators, no web reader (the mobile app reads the gallery tables)</td><td class="path">M11</td></tr>
+        <tr><td>Quotes, receipts, bills, announcements, homepage, members</td><td><strong>Firestore only</strong></td><td class="path">services/quote.service.ts:288 etc.</td></tr>
         <tr><td>Panchanga</td><td><strong>Static files, never in a database</strong></td><td class="path">lib/aaradhane/panchanga.ts:65</td></tr>
       </tbody>
     </table>
@@ -918,7 +953,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <li><strong>Rules.</strong> <code>firestore.rules</code> is additive, and both properties bite.
       <code>match /settings/{docId}</code> is declared twice and the second block allows
       <code>write: if true</code>, so every settings document is publicly overwritable;
-      <code>ai_settings</code> is world-readable <em>and</em> world-writable. Meanwhile 25 collections the
+      <code>ai_settings</code> is world-readable <em>and</em> world-writable. Meanwhile 23 collections (25 on 19 September) the
       code actively uses have no <code>match</code> block at all &mdash; including <code>profiles</code>,
       <code>bookmarks</code> and all seven knowledge-workflow collections &mdash; so those reads and
       writes are denied and the errors are swallowed into empty UI states.
@@ -940,7 +975,11 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
   <h2>Raya AI pipeline</h2>
   <p><code>POST /api/chat</code> &rarr; rate limit &rarr; language detection &rarr; session load &rarr;
     <code>generateResponse()</code> &rarr; <code>detectIntent()</code> &rarr; one of 33 generator handlers
-    &rarr; retrieval &rarr; a hardcoded bilingual template &rarr; session write &rarr; response.</p>
+    &rarr; retrieval &rarr; a hardcoded bilingual template &rarr; session write &rarr; response.
+    <em>Updated 2026-10-18: the diagram below is the 2026-09-19 engine. Since the rewrite, steps 5&ndash;7
+    are a Supabase settings read, <code>retrieve()</code> through <code>lib/ai/retrieval/registry.ts</code>
+    and a template from <code>lib/ai/response/composer.ts</code>; knowledge comes from Supabase
+    <code>ai_knowledge</code> and step 9 writes Supabase. No LLM is called either way (M08).</em></p>
 
 <pre>  <b>POST /api/chat</b>
        │
@@ -982,10 +1021,10 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <span class="dot" aria-hidden="true"></span>
     <p>Consequences worth knowing before touching it: editing the system prompt in the admin console
       changes nothing; every analytics recorder (token usage, latency, intent distribution) has zero
-      callers, so every AI chart reads an empty collection; unknown questions are written to one store and
-      triaged from two others; three intents share a <code>case</code> label and answer with opening hours
-      regardless of the question; and the 275-case UAT suite asserts only that <em>an</em> intent was
-      detected, never which one.</p>
+      callers, so every AI chart reads an empty collection; unknown questions are written to two stores;
+      a settings row that fails validation is overwritten with defaults (new on 2026-10-18); the
+      dress-code mix-up of 2026-09-19 is fixed; and the 275-case UAT suite asserts only that <em>an</em>
+      intent was detected, never which one.</p>
   </div>
 </section>
 
@@ -1001,17 +1040,18 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
       exist with no application code reading them at all, and several of the tables the code <em>does</em>
       read are locked to deny-all, so those reads return nothing and the services swallow the error.</p>
     <p><strong>Authorization is the second systemic gap:</strong> the request-time interceptor <code>proxy.ts</code> authorizes
-      nothing, the admin gate is a client-side React guard, and 88 of the 95 API route files perform no identity
-      check &mdash; including routes that mint a super-admin, overwrite AI settings, or return devotee
-      phone numbers.</p>
+      nothing, the admin gate is a client-side React guard, and 76 of the 97 API route files still perform
+      no identity check (88 of 95 on 19 September) &mdash; including routes that mint a super-admin
+      (latent today) or return devotee phone numbers; the AI settings routes are now guarded.</p>
     <p><strong>A third of the code is scaffolding:</strong> the entire knowledge-approval workflow (about
       2,000 lines) has no reachable UI, the nine device widgets have no consumers, the 825 translated
       strings are never rendered because no i18n provider is mounted, the LLM provider abstraction is
       fully written but its only call site is commented out, and several admin screens
       (<code>/admin/library</code>, <code>/admin/stotras</code>, <code>/admin/calendar/*</code>) persist
       nothing at all.</p>
-    <p><strong>Finally, the quality apparatus is decorative:</strong> the deploy workflow pushes to
-      production with no lint, typecheck or test step, the Playwright config points at a directory that
+    <p><strong>Finally, the quality apparatus is thin:</strong> since 2026-10-03 CI runs lint, typecheck,
+      tests and the build, but the deploy workflow does not wait for it, lint passes partly because 35
+      files carry a blanket <code>eslint-disable</code>, the Playwright config points at a directory that
       does not exist, and the <code>no-explicit-any</code> rule the coding standards rest on is switched
       off for the whole source tree.</p>
   </div>
@@ -1021,17 +1061,18 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <table>
       <thead><tr><th>Severity</th><th>Risk</th><th>Why it matters</th></tr></thead>
       <tbody>
-        <tr><td><span class="pill pill-critical">Critical</span></td><td>88 of 95 API route files perform no identity check</td><td>Includes <code>POST /api/admin/users/create-admin</code> (mints a super-admin) and <code>/set-role</code> (privilege escalation)</td></tr>
+        <tr><td><span class="pill pill-critical">Critical</span></td><td>76 of 97 API route files perform no identity check (88 of 95 on 19 September)</td><td>Includes <code>POST /api/admin/users/create-admin</code> (mints a super-admin) and <code>/set-role</code> (privilege escalation), both latent today</td></tr>
         <tr><td><span class="pill pill-critical">Critical</span></td><td><code>settings</code> and <code>ai_settings</code> are world-writable in <code>firestore.rules</code></td><td>Every settings document, including the AI system-prompt store, is publicly overwritable</td></tr>
         <tr><td><span class="pill pill-critical">Critical</span></td><td>Payment status is set from the browser</td><td>Anyone can mark a seva booking paid and confirmed; no server participates and nothing verifies the transaction</td></tr>
         <tr><td><span class="pill pill-critical">Critical</span></td><td><code>GET /api/public/receipts</code> returns devotee PII, unauthenticated</td><td>Names, phone numbers and payment references for any substring match</td></tr>
         <tr><td><span class="pill pill-high">High</span></td><td>No request-time authorization; the admin gate is a client-side React guard</td><td><code>proxy.ts</code> only writes <code>page_views</code> and sets headers</td></tr>
         <tr><td><span class="pill pill-high">High</span></td><td>Migration stopped halfway; two domains are split-brain</td><td>Administrator edits to sevas and social links never reach the public page</td></tr>
-        <tr><td><span class="pill pill-high">High</span></td><td>25 used collections have no rules block; 12 queries lack their index</td><td>Reads are denied or throw <code>FAILED_PRECONDITION</code>, and the errors are swallowed into empty UI</td></tr>
-        <tr><td><span class="pill pill-high">High</span></td><td>Quality gates are decorative</td><td>Deploy runs no lint, typecheck or test; the Playwright config points at a non-existent directory; <code>no-explicit-any</code> is off everywhere</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>23 used collections have no rules block; queries lack their index</td><td>Reads are denied or throw <code>FAILED_PRECONDITION</code>, and the errors are swallowed into empty UI</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>The deploy is not gated</td><td><code>ci.yml</code> runs lint, typecheck, tests and build since 2026-10-03, but the deploy does not wait for it; the Playwright config points at a non-existent directory; <code>no-explicit-any</code> is off everywhere</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>The mobile app reads the database directly (2026-10-18)</td><td>Anon-key reads of deny-all and missing Supabase tables leave every tab but Raya AI empty, built before the server-side auth and API the report required</td></tr>
         <tr><td><span class="pill pill-high">High</span></td><td>Secrets in the repository</td><td>Firebase web config hardcoded as fallbacks; a service-account private key appears in nine <code>scripts/</code> files; the Postman collection carries a real API key</td></tr>
         <tr><td><span class="pill pill-med">Medium</span></td><td>Roughly a third of the code is unreachable scaffolding</td><td>Knowledge workflow (~2,000 lines), nine device widgets, 825 translated strings, the whole LLM provider layer</td></tr>
-        <tr><td><span class="pill pill-med">Medium</span></td><td>Server-only SDKs called from the browser</td><td><code>@vercel/blob</code> and the Supabase service-role client throw in a deployed build, so uploads and Site Settings saves cannot succeed</td></tr>
+        <tr><td><span class="pill pill-med">Medium</span></td><td>Server-only SDKs called from the browser</td><td><code>@vercel/blob</code> throws in a deployed build, so uploads cannot succeed; Site Settings now saves through a server action that still rejects browser callers</td></tr>
         <tr><td><span class="pill pill-med">Medium</span></td><td>Documentation drift</td><td><code>ARCHITECTURE.md</code>, <code>DATA-MODEL.md</code>, <code>PROJECT_STRUCTURE.md</code> and <code>RAYA_AI_ARCHITECTURE.md</code> are stale (Next.js 14, pre-Supabase); <code>CHANGELOG.md</code> and <code>DEPLOYMENT.md</code> are 0 bytes</td></tr>
       </tbody>
     </table>
@@ -1048,7 +1089,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <div class="card">
       <span class="tag">Ask it anything</span>
       <h3>The expert skill</h3>
-      <p>Sixteen brain files &mdash; the verified, evidence-backed record of what each module actually
+      <p>Seventeen brain files &mdash; the verified, evidence-backed record of what each module actually
         does, including a faults table per module with <code>path:line</code> evidence. Start at the
         mind map, which routes a question to one file and one section.</p>
       <div class="routes">.claude/skills/temple-portal-expert/MIND-MAP.md</div>
@@ -1056,7 +1097,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <div class="card">
       <span class="tag">Down to the field</span>
       <h3>The field catalogue</h3>
-      <p>M16 lists every field of all 64 Firestore collections and 21 Supabase tables with the
+      <p>M16 lists every field of all 64 Firestore collections and 24 Supabase tables with the
         <code>path:line</code> of each writer and reader &mdash; including the fields written and never
         read, and the nineteen collections that have no TypeScript type, where the write site
         <em>is</em> the schema.</p>
@@ -1091,9 +1132,9 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
     <span class="dot" aria-hidden="true"></span>
     <p>The existing <code>docs/</code> corpus is graded in the documentation-health table in the M15 brain
       file. Link those documents, but read them against the code: <strong>where a document and the code
-      disagree, the code is the truth</strong>. <code>REPORT.md</code> at the repository root is stale and
-      dangerous &mdash; it records deliberately removing auth from the admin receipts API, and since the
-      code has been restored it now reads as an instruction.</p>
+      disagree, the code is the truth</strong>. <code>REPORT.md</code> at the repository root no longer
+      records the receipts-auth removal of 19 September; since late September it holds a migration-blocker
+      note. The new root reports are graded in the M17 and M15 brain files.</p>
   </div>
 </section>
 
@@ -1104,7 +1145,7 @@ footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;fle
   </div>
   <div>
     <div>Sri Raghavendra Swamy Matha &middot; Temple Portal application brief</div>
-    <div>19 September 2026 &middot; Self-contained; no external resources</div>
+    <div>19 September 2026, refreshed 18 October 2026 &middot; Self-contained; no external resources</div>
   </div>
 </footer>
 
