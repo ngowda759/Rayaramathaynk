@@ -77,3 +77,14 @@ Workflow only from the repo root - the cwd at launch becomes the agents' cwd and
 - node_modules is absent and stays absent; all analysis is static. Build/lint/type-check evidence is therefore not available.
 - No git history exists; project history comes from the root report files only.
 - Skill name chosen: `temple-portal-expert` (invocable as `/temple-portal-expert`). Rename is a folder rename plus the `name:` line.
+
+## Run 4 - IN FLIGHT (wf_a11936f4-1b4, task wnl15u3tg) - refresh 2026-10-18
+
+Ported to the git clone on branch feature/temple-portal-knowledge-base (commit 3d6aa9d, 75 files). Delta vs the
+2026-09-19 snapshot: 243 added, 7 deleted, 135 modified (line endings normalised), 475 commits, HEAD 424fdb8.
+New areas: apps/mobile (Expo app), prisma/, .ai/ (autonomous loop), six root migration/security reports -> chunk M17.
+Fleet: 17 refresh/build (Opus high) + 14 skeptics (Opus high; M05, M07, M14 skipped, delta < 5 files) + role A router/docs
+(Opus high) + role B reports (Opus xhigh) + B skeptic (Opus xhigh) = 34 agents.
+Script copy: .claude/state/temple-portal-brain-refresh.workflow.js. Resume: Workflow({ scriptPath: <persisted path in the
+session workflows folder>, resumeFromRunId: "wf_a11936f4-1b4", args: <same items/paths> }).
+After the notification: run the aggregate check, commit the refreshed files as a second commit on the branch, update this file.

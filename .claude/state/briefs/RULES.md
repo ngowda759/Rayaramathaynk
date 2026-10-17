@@ -8,6 +8,11 @@ Use the date your dispatch gives you wherever a date is written (first run 2026-
 
 - **Git:** read-only git commands (`log`, `diff`, `show`, `status`, `blame`) are fine and useful.
   Never commit, branch, checkout, push, pull, rebase, stash or reset.
+- **Boundary (strict, set by Nikhil 2026-10-18):** this repository is a standalone proof of concept
+  with no link to his office work. Never apply the CoreFlex house theme or presentation skill, never
+  mention or write to the Architect Rulings page, never import CONA / Lifecycle / Onboarding
+  conventions. Any brief in this folder that names a CoreFlex asset predates this rule and is
+  superseded by it. HTML uses this site's own tokens from `app/globals.css`.
 - **Write only under the output paths your brief names.** Do not edit application code, existing
   docs, configs or anything adjacent. If you see something worth fixing elsewhere, record it in your
   return under `notes`, do not fix it.
