@@ -295,7 +295,8 @@ CREATE OR REPLACE TRIGGER update_day_closes_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- A day close is a cash record: it is never deleted (a reopen keeps the row), so its counted notes and coins in
--- day_close_counts are never lost through ON DELETE CASCADE either.
+-- day_close_counts are protected from loss through ON DELETE CASCADE from day_closes. They are not frozen: a re-close
+-- after a reopen replaces them by design, and day_close_counts itself carries no delete guard.
 CREATE OR REPLACE TRIGGER seva_day_closes_no_delete
   BEFORE DELETE ON day_closes
   FOR EACH ROW EXECUTE FUNCTION seva_forbid_change();

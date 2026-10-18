@@ -370,6 +370,52 @@ describe('seva schema (A1-1)', () => {
     ).rejects.toThrow(/permission denied/);
   });
 
+  it('strips phones at the audit_log table on a direct insert by service_role and by the owner', async () => {
+    const before = { status: 'issued', devotee: { name: 'C', contact: { phone: '98450 12345', city: 'Mysuru' } } };
+    const after = { lines: [{ qty: 1, phone_e164: '+919845012345' }, [{ mobile: '98450 12345' }]], note: 'kept' };
+    const insert = `insert into audit_log (action, entity, before, after) values ('seva.update', 'sevas', $1::jsonb, $2::jsonb)
+                    returning before::text as before, after::text as after`;
+    const expected = {
+      before: '{"status": "issued", "devotee": {"name": "C", "contact": {"city": "Mysuru"}}}',
+      after: '{"note": "kept", "lines": [{"qty": 1}, [{}]]}',
+    };
+    const viaService = await asRole(db, 'service_role', (d) =>
+      d.query<{ before: string; after: string }>(insert, [JSON.stringify(before), JSON.stringify(after)]),
+    );
+    expect(viaService.rows[0]).toEqual(expected);
+    const viaOwner = await db.query<{ before: string; after: string }>(insert, [
+      JSON.stringify(before),
+      JSON.stringify(after),
+    ]);
+    expect(viaOwner.rows[0]).toEqual(expected);
+    const nulls = await asRole(db, 'service_role', (d) =>
+      d.query<{ before: unknown; after: unknown }>(
+        `insert into audit_log (action, entity) values ('seva.update', 'sevas') returning before, after`,
+      ),
+    );
+    expect(nulls.rows[0]).toEqual({ before: null, after: null });
+  });
+
+  it('seva_strip_phones drops any key containing phone or mobile, in any case, at every depth', async () => {
+    const input = {
+      Phone: '1',
+      PHONE: '2',
+      phoneNumber: '3',
+      devotee_phone: '4',
+      mobile: '5',
+      nested: { Mobile_No: '6', AltMobile: '7', name: 'D', deep: [{ HomePhone: '8', qty: 2 }] },
+      telephone_note: 'x',
+      city: 'phone and mobile as values stay',
+    };
+    const r = await asRole(db, 'service_role', (d) =>
+      d.query<{ out: unknown }>(`select seva_strip_phones($1::jsonb) as out`, [JSON.stringify(input)]),
+    );
+    expect(r.rows[0].out).toEqual({
+      nested: { name: 'D', deep: [{ qty: 2 }] },
+      city: 'phone and mobile as values stay',
+    });
+  });
+
   it('never re-points a staff login and keeps deleted final', async () => {
     const id = await seedStaff(db, { staffNo: 31, name: 'Shanthamma', uid: 'uid-shanthamma' });
     const asOwner = (sql: string, params: unknown[]) => db.query(sql, params);

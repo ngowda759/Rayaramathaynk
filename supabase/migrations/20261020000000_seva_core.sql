@@ -474,9 +474,13 @@ BEGIN
 END;
 $$;
 
--- Returns p with the keys phone, phone_e164 and phoneE164 removed at every depth: inside objects, arrays, objects in
--- arrays and arrays in objects. Scalars and JSON null come back unchanged; SQL NULL gives NULL. Used by seva_audit so
--- no phone number ever reaches the append-only audit trail (DB 7.6, 15.2, C-16).
+-- Returns p with every key whose lower-cased name contains 'phone' or 'mobile' removed (phone, Phone, PHONE,
+-- phone_e164, phoneE164, phoneNumber, devotee_phone, mobile, ...) at every depth: inside objects, arrays, objects in
+-- arrays and arrays in objects. Scalars and JSON null come back unchanged; SQL NULL gives NULL. Applied by seva_audit
+-- and by the audit_log_strip_phones trigger so no phone number ever reaches the append-only audit trail
+-- (DB 7.6, 15.2, C-16).
+-- Only keys are matched, never values: callers must never pass a phone number under any other key name or as a plain
+-- (array or scalar) value, because it would not be removed.
 CREATE OR REPLACE FUNCTION seva_strip_phones(p jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -493,7 +497,8 @@ BEGIN
     SELECT coalesce(jsonb_object_agg(e.key, seva_strip_phones(e.value)), '{}'::jsonb)
       INTO v_out
       FROM jsonb_each(p) AS e(key, value)
-     WHERE e.key NOT IN ('phone', 'phone_e164', 'phoneE164');
+     WHERE strpos(lower(e.key), 'phone') = 0
+       AND strpos(lower(e.key), 'mobile') = 0;
     RETURN v_out;
   ELSIF v_type = 'array' THEN
     SELECT coalesce(jsonb_agg(seva_strip_phones(a.value) ORDER BY a.ord), '[]'::jsonb)
@@ -504,6 +509,25 @@ BEGIN
   RETURN p;
 END;
 $$;
+
+-- Enforces the phone rule at the table: every row inserted into audit_log, by seva_audit, by service_role directly or
+-- by the owner, has phone keys stripped from before and after (DB 7.6, 15.2, C-16).
+CREATE OR REPLACE FUNCTION seva_audit_log_strip_phones()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  NEW.before := seva_strip_phones(NEW.before);
+  NEW.after := seva_strip_phones(NEW.after);
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER audit_log_strip_phones
+  BEFORE INSERT ON audit_log
+  FOR EACH ROW EXECUTE FUNCTION seva_audit_log_strip_phones();
 
 -- Writes one audit row and returns its id. The actor's Firebase uid is looked up from staff. Optional transaction
 -- settings seva.actor_role and seva.request_id (a uuid) fill actor_role and request_id when the caller set them.
@@ -693,6 +717,8 @@ REVOKE EXECUTE ON FUNCTION seva_receipt_no(text, smallint, text, smallint, small
 GRANT EXECUTE ON FUNCTION seva_receipt_no(text, smallint, text, smallint, smallint, int) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_strip_phones(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_strip_phones(jsonb) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_audit_log_strip_phones() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_audit_log_strip_phones() TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_audit(text, text, text, text, text, jsonb, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_audit(text, text, text, text, text, jsonb, jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_next_staff_no() FROM PUBLIC, anon, authenticated;
