@@ -173,7 +173,54 @@ describe("requireSevaActor", () => {
       fakeIdentity.getAccessProfile.mockResolvedValue({ role, isActive: true });
       expect(await denial(await requireSevaActor(request(), "me"))).toEqual({ status: 403, code: "forbidden" });
     }
-    expect(mockQueries.filter((q) => q.table === "staff")).toHaveLength(0);
+    // Even with a matching active staff row, a role outside the four seva roles is refused.
+    expect(mockTables.staff).toHaveLength(1);
+  });
+
+  it("starts the profile, staff and device reads together once the token is verified", async () => {
+    let releaseProfile: () => void = () => undefined;
+    fakeIdentity.getAccessProfile.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseProfile = () => resolve({ role: "receptionist", isActive: true });
+        }),
+    );
+    const pending = requireSevaActor(withDevice(), "counter.issue", { device: "required" });
+    await new Promise((resolve) => setImmediate(resolve));
+    // The profile has not answered yet, but the staff and device reads are already out.
+    expect(mockQueries.map((q) => q.table).sort()).toEqual(["counter_devices", "staff"]);
+    releaseProfile();
+    expect((await pending).ok).toBe(true);
+  });
+
+  it("still answers in the order of the checks when the reads run together", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    // An inactive profile wins over a staff store that is down...
+    fakeIdentity.getAccessProfile.mockResolvedValue({ role: "receptionist", isActive: false });
+    mockFailing.table = "staff";
+    expect(await denial(await requireSevaActor(withDevice(), "counter.issue", { device: "required" }))).toEqual({
+      status: 403,
+      code: "staff_inactive",
+    });
+    // ...a legacy role wins over it too...
+    fakeIdentity.getAccessProfile.mockResolvedValue({ role: "billing", isActive: true });
+    expect(await denial(await requireSevaActor(request(), "me"))).toEqual({ status: 403, code: "forbidden" });
+    // ...and a missing staff row wins over a device store that is down.
+    fakeIdentity.getAccessProfile.mockResolvedValue({ role: "receptionist", isActive: true });
+    mockFailing.table = "counter_devices";
+    mockTables.staff = [];
+    expect(await denial(await requireSevaActor(withDevice(), "counter.issue", { device: "required" }))).toEqual({
+      status: 403,
+      code: "forbidden",
+    });
+    // With every earlier check passed, the device store being down answers 500.
+    mockTables.staff = [staffRow()];
+    expect(await denial(await requireSevaActor(withDevice(), "counter.issue", { device: "required" }))).toEqual({
+      status: 500,
+      code: "internal",
+    });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
   });
 
   it("403 forbidden when no staff row exists", async () => {
@@ -280,6 +327,21 @@ describe("requireSevaActor", () => {
     expect(mockQueries.some((q) => q.table === "counter_devices")).toBe(false);
   });
 
+  it("always needs a registered PC for counter actions, even when the route forgets to ask (C-37)", async () => {
+    for (const action of ["counter.issue", "counter.change_amount", "counter.heartbeat"] as const) {
+      expect(await denial(await requireSevaActor(request(), action))).toEqual({ status: 403, code: "device_required" });
+      expect(await denial(await requireSevaActor(request(), action, { device: "optional" }))).toEqual({
+        status: 403,
+        code: "device_required",
+      });
+      expect(await denial(await requireSevaActor(withDevice(`${RETIRED_ID}.${SECRET}`), action, { device: "optional" }))).toEqual({
+        status: 403,
+        code: "device_unknown",
+      });
+      expect(await requireSevaActor(withDevice(), action)).toMatchObject({ ok: true, device: { id: DEVICE_ID, counterId: 1 } });
+    }
+  });
+
   it("answers 500 internal without leaking when a store fails", async () => {
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     mockFailing.table = "staff";
@@ -342,6 +404,68 @@ describe("Firebase identity adapter", () => {
       expect(await firebaseIdentityAdapter.verifyRequest(bearer("tok-2"))).toBeNull();
     }
     expect(await firebaseIdentityAdapter.verifyRequest(new Request("http://localhost/api/seva/me"))).toBeNull();
+  });
+
+  // DB §16.2: when Firebase Auth is down, signed-in staff carry on (offline if needed). The counter only falls back on
+  // status 0 or 5xx, so "could not check the token" must never come back as 401 "Please sign in again".
+  const SECRET_TOKEN = "tok-secret-value-1234";
+  function counterSave(): NextRequest {
+    return request({ authorization: `Bearer ${SECRET_TOKEN}`, "x-seva-device": `${DEVICE_ID}.${SECRET}` });
+  }
+  const UNREACHABLE: { label: string; error: Error }[] = [
+    { label: "app/network-error", error: Object.assign(new Error("network down"), { code: "app/network-error" }) },
+    { label: "app/network-timeout", error: Object.assign(new Error("timed out"), { code: "app/network-timeout" }) },
+    { label: "auth/internal-error", error: Object.assign(new Error("backend 503"), { code: "auth/internal-error" }) },
+    { label: "auth/quota-exceeded", error: Object.assign(new Error("quota"), { code: "auth/quota-exceeded" }) },
+    { label: "no code", error: new Error("No Firebase Admin credentials found.") },
+  ];
+
+  it.each(UNREACHABLE)("answers 500 internal, not 401, when Firebase Auth cannot be reached ($label)", async ({ error }) => {
+    setIdentityAdapterForTests(null);
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockAuth.verifyIdToken.mockRejectedValue(error);
+
+    await expect(firebaseIdentityAdapter.verifyRequest(bearer(SECRET_TOKEN))).rejects.toMatchObject({ code: "internal" });
+    expect(await denial(await requireSevaActor(counterSave(), "counter.issue", { device: "required" }))).toEqual({
+      status: 500,
+      code: "internal",
+    });
+    expect(mockAuth.verifyIdToken).toHaveBeenCalledWith(SECRET_TOKEN, true);
+    expect(errorSpy).toHaveBeenCalled();
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(SECRET_TOKEN);
+    errorSpy.mockRestore();
+  });
+
+  it("still answers 401 for a revoked, disabled, expired or malformed token through the guard", async () => {
+    setIdentityAdapterForTests(null);
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    for (const code of [
+      "auth/id-token-revoked",
+      "auth/user-disabled",
+      "auth/id-token-expired",
+      "auth/argument-error",
+      "auth/user-not-found",
+    ]) {
+      mockAuth.verifyIdToken.mockRejectedValue(Object.assign(new Error("refused"), { code }));
+      expect(await denial(await requireSevaActor(counterSave(), "counter.issue", { device: "required" }))).toEqual({
+        status: 401,
+        code: "unauthenticated",
+      });
+    }
+    // A bad token is the caller's problem, not a server fault, and is not logged.
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("lets a verified, active receptionist through the guard with the real adapter", async () => {
+    setIdentityAdapterForTests(null);
+    mockAuth.verifyIdToken.mockResolvedValue({ uid: "uid-ramesh", email: "ramesh@example.org" });
+    mockUserDocs["uid-ramesh"] = { role: "receptionist", isActive: true };
+    expect(await requireSevaActor(counterSave(), "counter.issue", { device: "required" })).toMatchObject({
+      ok: true,
+      actor: { staffId: "staff-ramesh", role: "receptionist", staffNo: 23 },
+      device: { id: DEVICE_ID, counterId: 1 },
+    });
   });
 
   it("reads role and isActive from users/{uid} and never the users email", async () => {

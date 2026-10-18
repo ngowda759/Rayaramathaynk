@@ -4,7 +4,8 @@
  */
 
 import "server-only";
-import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
+import { checkBearerIdToken } from "@/lib/auth/verify-id-token";
+import { SevaError } from "@/lib/seva/errors";
 import type { IdentityAdapter } from "./identity";
 
 async function adminAuth() {
@@ -28,9 +29,12 @@ function errorCode(error: unknown): string | null {
 export const firebaseIdentityAdapter: IdentityAdapter = {
   async verifyRequest(req) {
     // checkRevoked: a disabled login or revoked sessions (offboarding) stop working at once, not when the hour-long
-    // ID token runs out.
-    const caller = await verifyBearerIdToken(req, { checkRevoked: true });
-    return caller ? { externalUid: caller.uid, email: caller.email } : null;
+    // ID token runs out. That check is a live call to Firebase Auth, so an outage or a network blip must not read as
+    // "signed out": it throws, the guard answers 500, and the counter retries or offers offline (DB §16.2).
+    const result = await checkBearerIdToken(req, { checkRevoked: true });
+    if (result.status === "unavailable") throw new SevaError("internal");
+    if (result.status !== "ok") return null;
+    return { externalUid: result.caller.uid, email: result.caller.email };
   },
 
   async getAccessProfile(externalUid) {

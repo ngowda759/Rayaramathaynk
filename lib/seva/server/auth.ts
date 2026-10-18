@@ -6,11 +6,16 @@
  *  2. access profile - Firestore `isActive` must be exactly true; no profile at all                 403 staff_inactive / forbidden
  *  3. role           - the profile role must map to one of the four seva roles (C-62)               403 forbidden
  *  4. staff row      - Supabase `staff` by external uid, status `active` ('invited' only for `me`)   403 forbidden / staff_inactive
- *  5. device         - `x-seva-device` when the route asks for one                                   403 device_required / device_unknown
+ *  5. device         - `x-seva-device` when the route asks for one, and always for counter actions  403 device_required / device_unknown
  *  6. view-only      - blocks every write action                                                     403 view_only
  *  7. matrix         - `can(actor, action, ctx)`                                                     403 forbidden
- * Both stores must say "active", so drift between them can only deny (DB §3.2). A store that cannot be read
- * answers 500 internal. The person's email is never taken from the Firestore profile (A1 security gate L-4).
+ * Both stores must say "active", so drift between them can only deny (DB §3.2). A store that cannot be read - and a
+ * sign-in provider that cannot be reached - answers 500 internal, so the counter retries or works offline rather than
+ * asking the person to sign in again (DB §16.2). The person's email is never taken from the Firestore profile (A1
+ * security gate L-4).
+ *
+ * Once the token is verified, the profile, staff and device reads start together (DB §9.12: no extra round trips);
+ * their answers are still judged one by one in the order above, so which read finishes first never changes the answer.
  */
 
 import "server-only";
@@ -26,6 +31,16 @@ import { sevaErrorResponse } from "./respond";
 
 export const SEVA_DEVICE_HEADER = "x-seva-device";
 
+/**
+ * Counter calls that must come from a live registered PC whatever the route asked for (C-37, DB §8.4), so a route that
+ * forgets `device: 'required'` (or passes 'optional') still fails closed.
+ */
+export const DEVICE_BOUND_ACTIONS: ReadonlySet<SevaAction> = new Set<SevaAction>([
+  "counter.issue",
+  "counter.change_amount",
+  "counter.heartbeat",
+]);
+
 export type ActorResult =
   | { ok: true; actor: SevaActor; device: { id: string; counterId: number } | null }
   | { ok: false; response: NextResponse };
@@ -36,6 +51,7 @@ export interface RequireSevaActorOptions {
    * 'optional': a valid header is used (it gives receptionists their own-counter context); a missing, stale or wrong
    * one is ignored, so a replaced PC can still reach pages that do not need it.
    * Left out: the header is not read at all.
+   * Either way, the actions in DEVICE_BOUND_ACTIONS are always 'required'.
    */
   device?: "required" | "optional";
   /** Facts about the record being touched. `counterIdOfDevice` and `todayBusinessDate` are always set by the guard. */
@@ -52,6 +68,12 @@ interface StaffRow {
 
 function deny(code: SevaErrorCode): ActorResult {
   return { ok: false, response: sevaErrorResponse(new SevaError(code)) };
+}
+
+/** The value of a read that ran alongside others; a failed read throws its error here, at its turn in the order. */
+function settledValue<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === "rejected") throw result.reason;
+  return result.value;
 }
 
 async function findStaff(externalUid: string): Promise<StaffRow | null> {
@@ -86,24 +108,29 @@ export async function requireSevaActor(
     const caller = await identity.verifyRequest(req);
     if (!caller) return deny("unauthenticated");
 
-    const profile = await identity.getAccessProfile(caller.externalUid);
+    const deviceMode = DEVICE_BOUND_ACTIONS.has(action) ? "required" : opts.device;
+    const deviceHeader = deviceMode ? req.headers.get(SEVA_DEVICE_HEADER) : null;
+    // verifyDeviceHeader(null) answers null without touching the database.
+    const [profileRead, staffRead, deviceRead] = await Promise.allSettled([
+      identity.getAccessProfile(caller.externalUid),
+      findStaff(caller.externalUid),
+      verifyDeviceHeader(deviceHeader),
+    ]);
+
+    const profile = settledValue(profileRead);
     if (!profile) return deny("forbidden");
     if (profile.isActive !== true) return deny("staff_inactive");
 
     const role = mapFirestoreRole(profile.role);
     if (!role) return deny("forbidden");
 
-    const staff = await findStaff(caller.externalUid);
+    const staff = settledValue(staffRead);
     if (!staff) return deny("forbidden");
     const usable = staff.status === "active" || (staff.status === "invited" && action === "me");
     if (!usable) return deny("staff_inactive");
 
-    let device: { id: string; counterId: number } | null = null;
-    if (opts.device) {
-      const header = req.headers.get(SEVA_DEVICE_HEADER);
-      if (header) device = await verifyDeviceHeader(header);
-      if (opts.device === "required" && !device) return deny(header ? "device_unknown" : "device_required");
-    }
+    const device = settledValue(deviceRead);
+    if (deviceMode === "required" && !device) return deny(deviceHeader ? "device_unknown" : "device_required");
 
     const actor: SevaActor = {
       staffId: staff.id,

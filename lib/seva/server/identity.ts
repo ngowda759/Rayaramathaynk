@@ -11,7 +11,10 @@ import "server-only";
 import { firebaseIdentityAdapter } from "./identity-firebase";
 
 export interface IdentityAdapter {
-  /** The verified caller of this request, or null when there is no valid, unrevoked sign-in. */
+  /**
+   * The verified caller of this request, or null when there is no valid, unrevoked sign-in. Throws (SevaError
+   * 'internal') when the provider cannot be reached, so an outage answers 500, never "sign in again" (DB §16.2).
+   */
   verifyRequest(req: Request): Promise<{ externalUid: string; email: string | null } | null>;
   /** Role and active flag (Firestore `users/{uid}` today); null when the person has no profile. */
   getAccessProfile(externalUid: string): Promise<{ role: unknown; isActive: boolean } | null>;
