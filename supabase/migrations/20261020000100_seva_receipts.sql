@@ -294,6 +294,16 @@ CREATE OR REPLACE TRIGGER update_day_closes_updated_at
   BEFORE UPDATE ON day_closes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- A day close is a cash record: it is never deleted (a reopen keeps the row), so its counted notes and coins in
+-- day_close_counts are never lost through ON DELETE CASCADE either.
+CREATE OR REPLACE TRIGGER seva_day_closes_no_delete
+  BEFORE DELETE ON day_closes
+  FOR EACH ROW EXECUTE FUNCTION seva_forbid_change();
+
+CREATE OR REPLACE TRIGGER seva_day_closes_no_truncate
+  BEFORE TRUNCATE ON day_closes
+  FOR EACH STATEMENT EXECUTE FUNCTION seva_forbid_change();
+
 -- Counted notes and coins; values are snapshots, so later denomination changes never alter old closes.
 CREATE TABLE IF NOT EXISTS day_close_counts (
   day_close_id uuid NOT NULL REFERENCES day_closes (id) ON DELETE CASCADE,

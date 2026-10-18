@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
@@ -10,6 +11,17 @@ import { ReceiptText, Search, Loader2, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import SevaReceipt from "@/components/home/SevaReceipt";
 import SevaBooking from "@/components/home/SevaBooking";
+import { useAuth } from "@/hooks/useAuth";
+
+const SEARCH_FAILED = "Failed to search receipts";
+
+/** The receipts API answers errors as `{ error: { code, message } }`; older responses used a plain string. */
+function apiErrorMessage(body: unknown): string {
+  const error = (body as { error?: unknown } | null)?.error;
+  if (typeof error === "string" && error !== "") return error;
+  const message = (error as { message?: unknown } | null | undefined)?.message;
+  return typeof message === "string" && message !== "" ? message : SEARCH_FAILED;
+}
 
 interface SevaBookingRecord {
   id: string;
@@ -28,6 +40,7 @@ interface SevaBookingRecord {
 
 export default function PublicReceiptsPage() {
   const [activeTab, setActiveTab] = useState<"search" | "create">("search");
+  const { user, loading: authLoading } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +50,11 @@ export default function PublicReceiptsPage() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!user) {
+      toast.error("Please sign in to see your seva receipts.");
+      return;
+    }
 
     if (!searchQuery.trim()) {
       toast.error("Please enter search details");
@@ -50,11 +68,14 @@ export default function PublicReceiptsPage() {
       const searchParams = new URLSearchParams();
       searchParams.append("search", searchQuery);
 
-      const response = await fetch(`/api/public/receipts?${searchParams.toString()}`);
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/public/receipts?${searchParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(data?.error || "Failed to search receipts");
+        const data: unknown = await response.json().catch(() => null);
+        throw new Error(apiErrorMessage(data));
       }
 
       const data = await response.json();
@@ -65,7 +86,7 @@ export default function PublicReceiptsPage() {
       }
     } catch (error) {
       console.error("Error searching receipts:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to search receipts");
+      toast.error(error instanceof Error ? error.message : SEARCH_FAILED);
       setReceipts([]);
     } finally {
       setLoading(false);
@@ -107,6 +128,23 @@ export default function PublicReceiptsPage() {
 
           {activeTab === "search" ? (
             <div className="mx-auto max-w-4xl">
+              {!authLoading && !user ? (
+                <div className="rounded-3xl border border-stone-200 bg-stone-50 p-8 shadow-sm mb-8 text-center">
+                  <ReceiptText className="mx-auto h-12 w-12 text-stone-300 mb-4" aria-hidden="true" />
+                  <h3 className="text-lg font-medium text-stone-900">Sign in to see your seva receipts</h3>
+                  <p className="text-stone-500 mt-1 mb-6">
+                    Your receipts are private. Sign in with the account you booked with to find them.
+                  </p>
+                  <div className="flex flex-col justify-center gap-3 sm:flex-row">
+                    <Link href="/login" className="inline-flex items-center justify-center rounded-lg bg-orange-600 px-5 py-3 text-white transition hover:bg-orange-700">
+                      Sign in
+                    </Link>
+                    <Link href="/register" className="inline-flex items-center justify-center rounded-lg border border-orange-600 px-5 py-3 text-orange-600 transition hover:bg-orange-50">
+                      Register
+                    </Link>
+                  </div>
+                </div>
+              ) : (
               <div className="rounded-3xl border border-stone-200 bg-stone-50 p-8 shadow-sm mb-8">
                 <form onSubmit={handleSearch} className="flex flex-col gap-4 sm:flex-row sm:items-end">
                   <div className="flex-1">
@@ -121,12 +159,13 @@ export default function PublicReceiptsPage() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700" disabled={loading}>
+                  <Button type="submit" className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700" disabled={loading || authLoading}>
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                     Search
                   </Button>
                 </form>
               </div>
+              )}
 
               {loading ? (
                 <div className="flex justify-center py-12">

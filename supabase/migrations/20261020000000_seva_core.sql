@@ -31,6 +31,8 @@ END;
 $$;
 
 -- Staff rows are never deleted (status 'deleted' keeps the row) and a staff number never changes (DB 3.4, 7.2).
+-- The login a staff number belongs to (firebase_uid) never changes either, and 'deleted' is final: delete removes
+-- the login for good, so the row (and the receipts that point at it) can never be handed to another identity.
 CREATE OR REPLACE FUNCTION seva_staff_guard()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -44,6 +46,14 @@ BEGIN
   END IF;
   IF NEW.id IS DISTINCT FROM OLD.id OR NEW.staff_no IS DISTINCT FROM OLD.staff_no THEN
     RAISE EXCEPTION 'seva guard: a staff number never changes and is never reused'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  IF NEW.firebase_uid IS DISTINCT FROM OLD.firebase_uid THEN
+    RAISE EXCEPTION 'seva guard: a staff login (firebase_uid) never changes; invite a new staff member instead'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  IF OLD.status = 'deleted' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    RAISE EXCEPTION 'seva guard: a deleted staff member stays deleted; invite a new staff member instead'
       USING ERRCODE = 'restrict_violation';
   END IF;
   RETURN NEW;
@@ -464,9 +474,41 @@ BEGIN
 END;
 $$;
 
+-- Returns p with the keys phone, phone_e164 and phoneE164 removed at every depth: inside objects, arrays, objects in
+-- arrays and arrays in objects. Scalars and JSON null come back unchanged; SQL NULL gives NULL. Used by seva_audit so
+-- no phone number ever reaches the append-only audit trail (DB 7.6, 15.2, C-16).
+CREATE OR REPLACE FUNCTION seva_strip_phones(p jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_type text := jsonb_typeof(p);
+  v_out jsonb;
+BEGIN
+  IF v_type = 'object' THEN
+    SELECT coalesce(jsonb_object_agg(e.key, seva_strip_phones(e.value)), '{}'::jsonb)
+      INTO v_out
+      FROM jsonb_each(p) AS e(key, value)
+     WHERE e.key NOT IN ('phone', 'phone_e164', 'phoneE164');
+    RETURN v_out;
+  ELSIF v_type = 'array' THEN
+    SELECT coalesce(jsonb_agg(seva_strip_phones(a.value) ORDER BY a.ord), '[]'::jsonb)
+      INTO v_out
+      FROM jsonb_array_elements(p) WITH ORDINALITY AS a(value, ord);
+    RETURN v_out;
+  END IF;
+  RETURN p;
+END;
+$$;
+
 -- Writes one audit row and returns its id. The actor's Firebase uid is looked up from staff. Optional transaction
 -- settings seva.actor_role and seva.request_id (a uuid) fill actor_role and request_id when the caller set them.
--- Top-level phone keys are dropped from before/after (no phone numbers in the audit trail, C-16).
+-- Phone keys are dropped from before/after at every depth by seva_strip_phones (no phone numbers in the audit trail,
+-- C-16, DB 7.6 and 15.2).
 CREATE OR REPLACE FUNCTION seva_audit(
   p_action text,
   p_entity text,
@@ -483,7 +525,6 @@ SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_phone_keys constant text[] := ARRAY['phone', 'phone_e164', 'phoneE164'];
   v_uid text;
   v_role text := nullif(btrim(coalesce(current_setting('seva.actor_role', true), '')), '');
   v_request_text text := nullif(btrim(coalesce(current_setting('seva.request_id', true), '')), '');
@@ -508,8 +549,8 @@ BEGIN
                          before, after, request_id)
   VALUES (
     p_staff_id, v_uid, v_role, p_action, p_entity, p_entity_id, p_receipt_no, p_reason,
-    CASE WHEN jsonb_typeof(p_before) = 'object' THEN p_before - v_phone_keys ELSE p_before END,
-    CASE WHEN jsonb_typeof(p_after) = 'object' THEN p_after - v_phone_keys ELSE p_after END,
+    seva_strip_phones(p_before),
+    seva_strip_phones(p_after),
     v_request
   )
   RETURNING id INTO v_id;
@@ -650,6 +691,8 @@ REVOKE EXECUTE ON FUNCTION seva_ist_parts(timestamptz) FROM PUBLIC, anon, authen
 GRANT EXECUTE ON FUNCTION seva_ist_parts(timestamptz) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_receipt_no(text, smallint, text, smallint, smallint, int) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_receipt_no(text, smallint, text, smallint, smallint, int) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_strip_phones(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_strip_phones(jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_audit(text, text, text, text, text, jsonb, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_audit(text, text, text, text, text, jsonb, jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_next_staff_no() FROM PUBLIC, anon, authenticated;

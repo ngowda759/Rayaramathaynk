@@ -219,6 +219,7 @@ describe('seva schema (A1-1)', () => {
         'seva_ist_parts(timestamp with time zone)',
         'seva_receipt_no(text,smallint,text,smallint,smallint,integer)',
         'seva_audit(text,text,text,text,text,jsonb,jsonb,uuid)',
+        'seva_strip_phones(jsonb)',
         'seva_next_staff_no()',
         'seva_forbid_change()',
         'seva_staff_guard()',
@@ -288,6 +289,139 @@ describe('seva schema (A1-1)', () => {
     await expect(db.query(`select seva_audit('Not An Action', 'x', null, null, null, null, null, null)`)).rejects.toThrow(
       /SEVA:validation/,
     );
+  });
+
+  it('seva_audit strips phone keys at every depth of objects and arrays', async () => {
+    const nestedBefore = {
+      status: 'issued',
+      phone: '+919845012345',
+      devotee: {
+        name: 'Venkatesh Rao',
+        phone_e164: '+919845012345',
+        contact: { phoneE164: '+919845012345', city: 'Mysuru' },
+      },
+    };
+    const nestedAfter = {
+      receipts: [
+        { receipt_no: 'C1-100-10-2026/000001', devotee: { name: 'A', phone: '98450 12345' } },
+        { receipt_no: 'C1-100-10-2026/000002', phone_e164: '+919845012345', lines: [[{ phoneE164: '+919845012345', qty: 1 }]] },
+      ],
+      note: 'phone is a word in a value, not a key',
+    };
+    const r = await asRole(db, 'service_role', (d) =>
+      d.query<{ id: number }>(
+        `select seva_audit('receipt.superseded', 'seva_orders', 'o-1', null, 'Nested phone probe',
+                           $1::jsonb, $2::jsonb, null)::int as id`,
+        [JSON.stringify(nestedBefore), JSON.stringify(nestedAfter)],
+      ),
+    );
+    const row = await db.query<{ before: unknown; after: unknown; leaks: number }>(
+      `select before, after,
+              (select count(*)::int
+                 from (values (before), (after)) v(j),
+                      unnest(array['phone', 'phone_e164', 'phoneE164']) k(key)
+                where v.j is not null
+                  and jsonb_path_exists(v.j, ('strict $.**.' || k.key)::jsonpath)) as leaks
+         from audit_log where id = $1`,
+      [r.rows[0].id],
+    );
+    expect(row.rows[0].leaks).toBe(0);
+    expect(row.rows[0].before).toEqual({
+      status: 'issued',
+      devotee: { name: 'Venkatesh Rao', contact: { city: 'Mysuru' } },
+    });
+    expect(row.rows[0].after).toEqual({
+      receipts: [
+        { receipt_no: 'C1-100-10-2026/000001', devotee: { name: 'A' } },
+        { receipt_no: 'C1-100-10-2026/000002', lines: [[{ qty: 1 }]] },
+      ],
+      note: 'phone is a word in a value, not a key',
+    });
+
+    const arrays = await asRole(db, 'service_role', (d) =>
+      d.query<{ id: number }>(
+        `select seva_audit('receipt.reissue_spoiled', 'seva_receipts', 'r-2', null, 'Array probe',
+                           '[{"devotee":{"phone_e164":"+919845012345","name":"B"}},{"phone":"98450 12345"},"x",1,null]'::jsonb,
+                           '"plain"'::jsonb, null)::int as id`,
+      ),
+    );
+    const arrRow = await db.query<{ before: string; after: string }>(
+      `select before::text as before, after::text as after from audit_log where id = $1`,
+      [arrays.rows[0].id],
+    );
+    expect(arrRow.rows[0]).toEqual({
+      before: '[{"devotee": {"name": "B"}}, {}, "x", 1, null]',
+      after: '"plain"',
+    });
+  });
+
+  it('lets only service_role execute seva_strip_phones', async () => {
+    const priv = await db.query<{ anon: boolean; auth: boolean; pub: boolean; service: boolean }>(
+      `select has_function_privilege('anon', 'seva_strip_phones(jsonb)', 'EXECUTE') as anon,
+              has_function_privilege('authenticated', 'seva_strip_phones(jsonb)', 'EXECUTE') as auth,
+              exists (select 1
+                        from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                       where p.oid = 'seva_strip_phones(jsonb)'::regprocedure and a.grantee = 0) as pub,
+              has_function_privilege('service_role', 'seva_strip_phones(jsonb)', 'EXECUTE') as service`,
+    );
+    expect(priv.rows[0]).toEqual({ anon: false, auth: false, pub: false, service: true });
+    await expect(
+      asRole(db, 'anon', (d) => d.query(`select seva_strip_phones('{"phone":"1"}'::jsonb)`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('never re-points a staff login and keeps deleted final', async () => {
+    const id = await seedStaff(db, { staffNo: 31, name: 'Shanthamma', uid: 'uid-shanthamma' });
+    const asOwner = (sql: string, params: unknown[]) => db.query(sql, params);
+    const asService = (sql: string, params: unknown[]) => asRole(db, 'service_role', (d) => d.query(sql, params));
+    for (const run of [asOwner, asService]) {
+      await expect(run(`update staff set firebase_uid = 'uid-someone-else' where id = $1`, [id])).rejects.toThrow(
+        /seva guard: a staff login \(firebase_uid\) never changes/,
+      );
+    }
+    await db.query(`update staff set status = 'deleted', status_reason = 'Left the temple office' where id = $1`, [id]);
+    for (const status of ['active', 'inactive', 'invited']) {
+      await expect(
+        asService(`update staff set status = $2, status_reason = 'Came back' where id = $1`, [id, status]),
+      ).rejects.toThrow(/seva guard: a deleted staff member stays deleted/);
+    }
+    await db.query(`update staff set status_reason = 'Left the temple office in October' where id = $1`, [id]);
+    const kept = await db.query<{ firebase_uid: string; status: string }>(
+      'select firebase_uid, status from staff where id = $1',
+      [id],
+    );
+    expect(kept.rows[0]).toEqual({ firebase_uid: 'uid-shanthamma', status: 'deleted' });
+  });
+
+  it('never deletes or truncates day closes', async () => {
+    const staff = await newStaff(db);
+    const close = await db.query<{ id: string }>(
+      `insert into day_closes (counter_id, business_date, cash_expected, cash_counted, series_ranges, outbox_pending,
+                               closed_by_staff_id, closed_at)
+       values (1, '2026-10-05', 500, 500, '{}'::jsonb, 0, $1::uuid, now())
+       returning id`,
+      [staff.id],
+    );
+    const id = close.rows[0].id;
+    await db.query(
+      `insert into day_close_counts (day_close_id, kind, value, count) values ($1::uuid, 'note', 500, 1)`,
+      [id],
+    );
+    await expect(db.query('delete from day_closes where id = $1', [id])).rejects.toThrow(
+      /seva guard: DELETE on day_closes is not allowed/,
+    );
+    await expect(
+      asRole(db, 'service_role', (d) => d.query('delete from day_closes where id = $1', [id])),
+    ).rejects.toThrow(/seva guard: DELETE on day_closes is not allowed/);
+    await expect(db.query('truncate day_closes cascade')).rejects.toThrow(
+      /seva guard: TRUNCATE on day_closes is not allowed/,
+    );
+    const left = await db.query<{ closes: number; counts: number }>(
+      `select (select count(*)::int from day_closes where id = $1) as closes,
+              (select count(*)::int from day_close_counts where day_close_id = $1) as counts`,
+      [id],
+    );
+    expect(left.rows[0]).toEqual({ closes: 1, counts: 1 });
   });
 
   it('never deletes staff and keeps staff_no unique in 1..999', async () => {
