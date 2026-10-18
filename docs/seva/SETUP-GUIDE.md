@@ -66,7 +66,7 @@ When a command asks for a password, the letters you type do not appear on screen
 |---|---|---|
 | 1. Supabase test project | Now (before the build reaches its test stage) | 30 min |
 | 2. Vercel access and settings | Now | 20 min |
-| 3. Revoke the old Firebase key | Now (the scripts no longer need it) | 30 min |
+| 3. Revoke the old Firebase key | When I tell you the build is merged into main (see the reason in 3) | 30 min |
 | 4. Backup secrets and the age key | Now; you need two USB drives | 30 min |
 | 5. Restore drill | Once a month, first time before go-live | 20 min |
 | 6. Local database tests | Nothing to do; read only | 2 min |
@@ -253,29 +253,53 @@ Where each value comes from:
 | `NEXT_PUBLIC_SUPABASE_URL` | keep what is there | `https://<test ref>.supabase.co` | Config |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | keep what is there | test project: **Settings** > **API Keys**, the **anon** / publishable key | Config |
 | `SUPABASE_SERVICE_ROLE_KEY` | keep what is there | test project: **Settings** > **API Keys**, the **service_role** / secret key | Secret |
-| `NEXT_PUBLIC_FIREBASE_*` (six names) | keep what is there | same values as Production | Config |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | the new key file from section 3 | the same new key file | Secret |
-| `NEXT_PUBLIC_SITE_URL` | the website's public address, for example `https://<your domain>` | leave empty for now | Config |
+| `NEXT_PUBLIC_FIREBASE_*` (six names) | keep what is there | nothing to do if the name already covers **Preview** (same values as Production); see the note under the steps | Config |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | the new key file from section 3 | done in section 3.4 - skip here | Secret |
+| `NEXT_PUBLIC_SITE_URL` | the website's public address, for example `https://<your domain>` | skip | Config |
 
 Names starting with `NEXT_PUBLIC_` are sent to every visitor's browser, so they never hold a secret.
 
-Steps for one Preview value (repeat for each row that has a Preview value):
+The one rule for this section: **never untick Production on a name that already exists, and never change the value
+of a name that covers Production.** In most Vercel projects one entry holds a name for all environments at once; if
+you took Production away from it, the next live deployment would be built without that setting and the live website
+would break. Instead you take only **Preview** away from the existing entry, and then add a second, Preview-only entry
+with the test value.
+
+Steps for one name (repeat for the three Supabase rows; skip the rows marked "skip"):
 
 1. In the project, click **Settings**, then **Environment Variables** in the sidebar.
    You should now see an "Add New" form at the top and the list of existing names below it.
-2. Look in the list for the name first. If it already exists for **Preview**, click the three dots next to it, click
-   **Edit**, and continue at step 6.
-3. Under **Type**, choose **Config** or **Secret** as the table says.
-4. In **Key** (or **Name**), type the name exactly as in the table.
-5. In **Value**, paste the value. For the two Supabase keys: open the `seva-test` project in Supabase in another tab,
-   click **Project Settings** > **API Keys**, click **Copy** next to the key, and paste here. (UNVERIFIED: Supabase
-   shows the older **anon** and **service_role** keys under a "Legacy" heading on that page.)
-6. Under the environments, tick **Preview** only and untick **Production** and **Development**.
-7. Click **Save**.
-   You should now see the name in the list with the label **Preview** and **Config** or **Secret**.
+2. Look in the list for the name. Next to it, Vercel shows which environments the entry covers (**Production**,
+   **Preview**, **Development**). Then:
+   - If the name is not in the list at all, go to step 6.
+   - If the name is listed for **Preview** only (no **Production**), click the three dots next to it, click **Edit**,
+     paste the test value into **Value** as step 8 says, keep only **Preview** ticked, click **Save**, and you are done
+     with this name.
+   - If the entry covers **Production** (alone, or together with **Preview** or **Development**), continue at step 3.
+3. Click the three dots next to that entry and click **Edit**.
+4. Under the environments, untick **Preview** only. Keep **Production** ticked, and leave **Development** as it was.
+   Do not touch **Value**.
+5. Click **Save**.
+   You should now see the name still listed for **Production**, but no longer for **Preview**. If **Production** has
+   gone from it, stop and tell me at once (0.3).
+6. Go to the "Add New" form at the top of the page.
+7. Under **Type**, choose **Config** or **Secret** as the table says, and in **Key** (or **Name**) type the name
+   exactly as in the table.
+8. In **Value**, paste the test value. For the URL, type `https://<test ref>.supabase.co` with the 20 letters from 1.3.
+   For the two Supabase keys: open the `seva-test` project in Supabase in another tab, click **Project Settings** >
+   **API Keys**, click **Copy** next to the key, and paste here. (UNVERIFIED: Supabase shows the older **anon** and
+   **service_role** keys under a "Legacy" heading on that page.)
+9. Under the environments, tick **Preview** only and untick **Production** and **Development**.
+10. Click **Save**.
+    You should now see the name listed twice: once for **Production** with the old value, and once for **Preview**
+    with the label **Config** or **Secret**.
+
+Note on the six `NEXT_PUBLIC_FIREBASE_*` names: look at each one in the list. If it already covers **Preview**, there
+is nothing to do. If one covers **Production** but not **Preview**, click its three dots > **Edit**, tick **Preview**
+as well (keep **Production** and **Development** as they are, do not change **Value**), and click **Save**.
 
 A new value only reaches the site after a new deployment. You do not need to redeploy for the Preview values; the next
-test build picks them up.
+test build picks them up. Taking Preview away from an entry does not change the live site.
 
 ### Tell me it is done
 
@@ -284,10 +308,16 @@ Send me this message in chat (it holds no secret; fill in the brackets):
 
 ## 3. Revoke the old Firebase key
 
+When: after I tell you the build is merged into main, not before.
+
 Why: an old Firebase service-account key was once written into the code, so anyone with a copy of the code could use
-it. The scripts now read the key from a git-ignored file or a secret (task A1-5), so the old key can be switched off
-(open item O-18). You make a new key, put it everywhere the old one is used, check the site, and only then delete the
-old key. Deleting a key cannot be undone, so the order matters.
+it (open item O-18). In the build, the scripts read the key from a git-ignored file or a secret instead (task A1-5).
+Until the build is merged, the 11 one-off scripts on main still carry the old key inside them, so this section waits
+for the merge: after it, nothing needs the old key and it can be switched off. (Nothing runs those scripts on a
+schedule, so the website and the nightly jobs do not depend on them either way.)
+
+You make a new key, put it everywhere the old one is used, check the site, and only then delete the old key. Deleting
+a key cannot be undone, so the order matters.
 
 What you need: your Google sign-in for the Firebase project, your GitHub and Vercel sign-ins, about 30 minutes.
 
@@ -326,15 +356,18 @@ Vendor pages read for this section:
 
 1. Open **File Explorer**, click **View** > **Show** > **File name extensions** so you can see the `.json` endings.
 2. Go to `D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected`.
-3. If a file named `.firebase-adminsdk.json` is there, right-click it and click **Delete** (it holds the old key).
+3. If a file named `.firebase-adminsdk.json` is there (it holds the old key), click it once, hold **Shift** and press
+   **Delete**.
+   You should now see a box asking "Are you sure you want to permanently delete this file?". Click **Yes**. Shift+Delete
+   skips the Recycle Bin, so the old key is gone at once and nothing else is touched.
 4. Open your **Downloads** folder and drag the new `.json` file into
    `D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected`. Dragging between folders on the same drive moves it;
-   if Downloads is on another drive, it copies, so delete the one left in Downloads afterwards.
+   if Downloads is on another drive, it copies, so remove the one left in Downloads afterwards with **Shift**+**Delete**
+   as in step 3.
 5. Right-click the new file, click **Rename**, type `.firebase-adminsdk.json` (with the dot at the start), and press
    **Enter**.
    You should now see `.firebase-adminsdk.json` in the folder. Git ignores this exact name, so it never goes into the
    code.
-6. Empty the **Recycle Bin** (right-click it on the desktop > **Empty Recycle Bin**) so the old file is gone.
 
 ### 3.3 Replace the key in GitHub secrets
 
@@ -547,19 +580,35 @@ Vendor pages read for this section:
 
 ### 5.3 Open it with the key
 
+The drill script lives in the build's folder, `D:\Onboarding\Repos\POCs\seva-entry`. The repository folder
+`D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected` does not have it until that folder is brought up to the
+latest main, so do not use that one unless I tell you to.
+
 1. Plug in one of the two USB drives and note its letter (for example `E:`).
-2. In **File Explorer**, open `D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected`.
-3. Right-click an empty space, click **Show more options**, then **Open Git Bash here**.
+2. In **File Explorer**, open `D:\Onboarding\Repos\POCs\seva-entry`.
+3. Open the folder `scripts`, then `seva`.
+   You should now see a file `verify-backup.sh` (with **File name extensions** on, as in 3.2.1). If the folder
+   `seva-entry`, the folder `seva` or the file is missing, stop and tell me "Section 5 - no drill script"; I will tell
+   you which folder to use instead.
+4. Go back up twice to `D:\Onboarding\Repos\POCs\seva-entry`, right-click an empty space, click **Show more options**,
+   then **Open Git Bash here**.
    You should now see a window with a `$` sign at the end of the last line.
-4. Type `export PATH="$PATH:/c/Program Files/PostgreSQL/<version>/bin"` with your version number from 5.1.5, and
+5. Type `export PATH="$PATH:/c/Program Files/PostgreSQL/<version>/bin"` with your version number from 5.1.5, and
    press **Enter**.
-5. Type `bash scripts/seva/verify-backup.sh /c/SevaDrill/<file name>.dump.age /e/seva-backup-key.txt` (use your file
+6. Type `bash scripts/seva/verify-backup.sh /c/SevaDrill/<file name>.dump.age /e/seva-backup-key.txt` (use your file
    name and your USB letter in small letters) and press **Enter**.
-   You should now see a few lines with counts (for example how many tables the backup holds) and no line with the word
-   "error". It prints no names or phone numbers. (UNVERIFIED: the exact wording is set by the backup task.)
-6. Close the Git Bash window.
-7. Eject the USB drive (**Safely Remove Hardware**) and put it back in its place.
-8. Delete the folder `C:\SevaDrill` and the `.zip` in **Downloads**, then empty the **Recycle Bin**.
+   You should now see these lines, with your own numbers:
+   `Checksum: matches the .sha256 file`, `Decryption: ok (whole file)`, then `Archive entries: <n>`, `Schemas: <n>`,
+   `Tables: <n>` (a number above 0), and lines for table data, sequences, functions, indexes, triggers and
+   row-level security policies. It prints no names or phone numbers.
+   If the first line says `Checksum: not checked (no .sha256 file next to the backup)`, the `.sha256` file is not in
+   `C:\SevaDrill` next to the backup; the drill still counts, but tell me.
+   If a line starts with `verify-backup:` instead, the drill failed. Copy that one line (it holds no secret) and send
+   it to me with the step number.
+7. Close the Git Bash window.
+8. Eject the USB drive (**Safely Remove Hardware**) and put it back in its place.
+9. Delete the folder `C:\SevaDrill` and the `.zip` in **Downloads**: click each one, hold **Shift** and press
+   **Delete**, then click **Yes**. This skips the Recycle Bin, so nothing else of yours is deleted.
 
 ### Tell me it is done
 
