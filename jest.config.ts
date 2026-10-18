@@ -21,6 +21,7 @@ const config: Config = {
   collectCoverageFrom: [
     "lib/ai/**/*.ts",
     "!lib/ai/**/*.d.ts",
+    "lib/seva/**/*.ts",
   ],
   coverageThreshold: {
     global: {
