@@ -189,12 +189,14 @@ BEGIN
      OR v_new.prasadam_given IS NULL OR v_new.active IS NULL THEN
     RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'seva', 'reason', 'missing')::text;
   END IF;
-  IF v_new.display_order IS NULL OR v_new.display_order < 1 THEN
-    IF v_is_new AND NOT p_seva ? 'display_order' THEN
-      SELECT coalesce(max(s.display_order), 0) + 1 INTO v_new.display_order FROM sevas s;
-    ELSE
+  -- display_order is checked only when the caller sends it. An edit that leaves it out keeps the stored value, even
+  -- a legacy 0 from migrated rows (the column default), so a rename or rate change on those rows still works.
+  IF p_seva ? 'display_order' THEN
+    IF v_new.display_order IS NULL OR v_new.display_order < 1 THEN
       RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'display_order')::text;
     END IF;
+  ELSIF v_is_new THEN
+    SELECT coalesce(max(s.display_order), 0) + 1 INTO v_new.display_order FROM sevas s;
   END IF;
 
   -- Other Seva / Karnike takes any amount and is counter-only (C-38); its stored rate is not used.
@@ -761,6 +763,7 @@ BEGIN
       RETURN;
     END IF;
     IF v_reason IS NULL OR char_length(v_reason) < 3 THEN
+      -- validation on field 'reason', not change_reason_required: that code's message is about a changed amount.
       RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'reason')::text;
     END IF;
     v_target := v_status;

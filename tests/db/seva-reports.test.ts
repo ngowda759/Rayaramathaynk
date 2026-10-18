@@ -597,6 +597,35 @@ describe('seva needs attention (A2-3)', () => {
     if (f.detail) expect(c.detail).toMatchObject(f.detail);
   });
 
+  it('waiting to sync flags a counter PC not seen for 10 minutes only during the IST day', async () => {
+    // The rule reads the wall clock, so the expectation follows the current IST hour (05:00-21:59 is "the day").
+    const [clock] = (
+      await db.query<{ today: string; hour: number }>(
+        `select (now() at time zone 'Asia/Kolkata')::date::text as today,
+                extract(hour from now() at time zone 'Asia/Kolkata')::int as hour`,
+      )
+    ).rows;
+    const quiet = await seedDevice(db, { staffId });
+    await db.query(`update counter_devices set last_outbox_count = 0, last_seen_at = now() - interval '15 minutes' where id = $1`, [quiet]);
+    await db.query(`insert into counters (id, name) values (2, 'Counter 2')`);
+    const recent = await seedDevice(db, { counterId: 2, staffId });
+    await db.query(`update counter_devices set last_outbox_count = 0, last_seen_at = now() - interval '2 minutes' where id = $1`, [recent]);
+
+    const c = card(await attention(db, DAY_FROM, DAY_TO, clock.today), 'waiting_to_sync');
+    const duringDay = clock.hour >= 5 && clock.hour <= 21;
+    expect({ level: c.level, count: c.count }).toEqual(duringDay ? { level: 'attention', count: 1 } : { level: 'ok', count: 0 });
+
+    // Once the day is closed for that counter the quiet PC is no longer waiting.
+    await db.query(
+      `insert into day_closes (counter_id, business_date, cash_expected, cash_counted, series_ranges, outbox_pending,
+                               closed_by_staff_id, closed_at)
+       values (1, $1::date, 0, 0, '[]', 0, $2::uuid, now())`,
+      [clock.today, staffId],
+    );
+    const closed = card(await attention(db, DAY_FROM, DAY_TO, clock.today), 'waiting_to_sync');
+    expect({ level: closed.level, count: closed.count }).toEqual({ level: 'ok', count: 0 });
+  });
+
   it('only an extra day-close difference is attention, not critical', async () => {
     await db.query(
       `insert into day_closes (counter_id, business_date, cash_expected, cash_counted, series_ranges, outbox_pending,

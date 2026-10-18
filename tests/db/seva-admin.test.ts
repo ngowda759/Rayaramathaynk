@@ -171,6 +171,23 @@ describe('seva admin functions (A2-3)', () => {
       expect(count.n).toBe(2);
     });
 
+    it('edits a migrated seva that still has the default display_order 0', async () => {
+      const legacy = await one<{ id: string }>(
+        db,
+        `insert into sevas (name, description, category, amount, duration)
+         values ('Legacy Seva', '', 'Seva', 100, 0) returning id`,
+      );
+      await upsertSeva(db, { id: legacy.id, amount: '120.00' }, 'Office revision', admin);
+      await upsertSeva(db, { id: legacy.id, name_en: 'Legacy Seva Renamed' }, null, admin);
+      expect(
+        await one(db, `select name, amount::text as amount, display_order from sevas where id = $1`, [legacy.id]),
+      ).toEqual({ name: 'Legacy Seva Renamed', amount: '120.00', display_order: 0 });
+      // Sending an order below 1 is still refused.
+      await expect(upsertSeva(db, { id: legacy.id, display_order: 0 }, null, admin)).rejects.toThrow(
+        /SEVA:validation/,
+      );
+    });
+
     it('forces Other Seva (any amount) to counter-only', async () => {
       const id = await upsertSeva(
         db,
