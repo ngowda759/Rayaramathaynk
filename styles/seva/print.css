@@ -1,0 +1,284 @@
+/*
+ * Seva receipt slip and print job (Design Book 10.1-10.2; approved look counter.html#receipt, rcpt-original).
+ *
+ * Paper: one-third of A4 cut lengthwise, 99 mm wide x 210 mm tall, portrait, fed upright from the bypass tray.
+ * Type: Inter for Latin, Noto Sans Kannada for Kannada (loaded by app/layout.tsx as --font-inter / --font-kannada);
+ * body 10 pt, seva date 18 pt bold, receipt number 12 pt bold, total 14 pt bold; Kannada never below 10 pt.
+ * Pure black on white: no greys, no hairlines.
+ *
+ * The print root (#seva-print-root, components/seva/slip/PrintRoot.tsx) sits directly under <body>. It is hidden on
+ * screen; in print, while it holds a job, everything else on the page is hidden.
+ */
+
+/* ---------- Print root ---------- */
+
+#seva-print-root {
+  display: none;
+}
+
+@media print {
+  @page { size: 99mm 210mm; margin: 5mm; }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  body:has(> #seva-print-root .slip) > :not(#seva-print-root) {
+    display: none !important;
+  }
+
+  #seva-print-root {
+    display: block;
+  }
+
+  .slip { width: 89mm; height: 199mm; break-after: page; overflow: hidden; }
+
+  .slip:last-child {
+    break-after: auto;
+  }
+}
+
+/* ---------- The slip (same look on screen and on paper) ---------- */
+
+.slip {
+  box-sizing: border-box;
+  width: 89mm;
+  height: 199mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-inter, Inter), var(--font-kannada, "Noto Sans Kannada"), "Segoe UI", system-ui, sans-serif;
+  font-size: 10pt;
+  font-weight: 400;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.slip *,
+.slip *::before,
+.slip *::after {
+  box-sizing: border-box;
+  color: #000;
+}
+
+.slip .kn {
+  display: block;
+  font-family: var(--font-kannada, "Noto Sans Kannada"), "Noto Sans Kannada", "Nirmala UI", Tunga, sans-serif;
+  font-size: 10pt;
+  font-weight: inherit;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+/* Header: photo left, temple name (English, Kannada under it) and address centred, photo right */
+.slip .s-head {
+  display: grid;
+  grid-template-columns: 15mm minmax(0, 1fr) 15mm;
+  align-items: center;
+  gap: 2mm;
+}
+
+.slip .php {
+  display: block;
+  width: 15mm;
+  height: 15mm;
+  object-fit: cover;
+}
+
+.slip .s-head .nm {
+  min-width: 0;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.slip .s-head .e {
+  font-size: 11pt;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.slip .s-head .nm .kn {
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.slip .s-head .ad {
+  margin-top: 0.3mm;
+  line-height: 1.3;
+}
+
+.slip .s-reg {
+  margin-top: 1.5mm;
+  padding-bottom: 1.8mm;
+  border-bottom: 1.5px solid #000;
+  text-align: center;
+}
+
+.slip .s-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.6mm;
+  padding-top: 2mm;
+}
+
+/* Reprint band */
+.slip .s-dup {
+  padding: 0.4mm 2mm;
+  border: 2px solid #000;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.slip .s-dup .kn {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* Receipt number: 12 pt bold */
+.slip .s-no > span {
+  display: block;
+}
+
+.slip .s-no b {
+  display: block;
+  font-size: 12pt;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* Seva date: the largest line, 18 pt bold */
+.slip .s-date {
+  padding: 1.2mm 2.5mm 1.6mm;
+  border: 1.5px solid #000;
+  border-radius: 1.5mm;
+}
+
+.slip .s-date b {
+  display: block;
+  font-size: 18pt;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.slip .s-date .grp {
+  margin-top: 0.7mm;
+  font-weight: 600;
+}
+
+/* Devotee details */
+.slip .kv {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3mm 3mm;
+  margin: 0;
+}
+
+.slip .kv-row {
+  display: contents;
+}
+
+.slip .kv dt {
+  white-space: nowrap;
+}
+
+.slip .kv dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Seva lines */
+.slip .s-sh {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 0.5mm;
+  border-bottom: 1px solid #000;
+  font-weight: 600;
+}
+
+.slip .sl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 3mm;
+  padding-top: 1.4mm;
+}
+
+.slip .sl .n,
+.slip .sl .a {
+  font-weight: 700;
+}
+
+.slip .sl .a,
+.slip .sl .q {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.slip .sl .chg {
+  font-weight: 700;
+}
+
+/* Total: 14 pt bold */
+.slip .s-tot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 3mm;
+  padding-top: 1mm;
+  border-top: 1.5px solid #000;
+  font-weight: 700;
+}
+
+.slip .s-tot .v {
+  font-size: 14pt;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* QR (left, about 26 mm with its quiet zone) and the prasadam line */
+.slip .s-qr {
+  display: grid;
+  grid-template-columns: 26mm minmax(0, 1fr);
+  gap: 3mm;
+  align-items: center;
+}
+
+.slip .slip-qr {
+  display: block;
+  width: 26mm;
+  height: 26mm;
+}
+
+.slip .s-qr .by {
+  margin-top: 1.8mm;
+}
+
+/* Footer and blessing */
+.slip .s-foot {
+  padding-top: 1.6mm;
+  border-top: 1px dashed #000;
+  text-align: center;
+}
+
+.slip .s-foot .bl {
+  margin-top: 0.5mm;
+  font-family: var(--font-kannada, "Noto Sans Kannada"), "Noto Sans Kannada", "Nirmala UI", Tunga, sans-serif;
+  font-size: 11pt;
+  font-weight: 700;
+  line-height: 1.45;
+}
