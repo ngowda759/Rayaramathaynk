@@ -23,7 +23,19 @@ function bearerToken(request: Request): string | null {
   return token.length > 0 ? token : null;
 }
 
-export async function verifyBearerIdToken(request: Request): Promise<VerifiedCaller | null> {
+export interface VerifyIdTokenOptions {
+  /**
+   * Also refuse a token whose account is disabled or whose refresh tokens were revoked after it was issued
+   * (Firebase `checkRevoked`; one extra call to Firebase Auth). The seva routes use it so an offboarded person is
+   * shut out at once (DB §3.2).
+   */
+  checkRevoked?: boolean;
+}
+
+export async function verifyBearerIdToken(
+  request: Request,
+  options: VerifyIdTokenOptions = {},
+): Promise<VerifiedCaller | null> {
   const token = bearerToken(request);
   if (!token) return null;
 
@@ -31,7 +43,8 @@ export async function verifyBearerIdToken(request: Request): Promise<VerifiedCal
     const { getAdminApp } = await import("@/lib/admin-firebase");
     const adminApp = await getAdminApp();
     const { getAuth } = await import("firebase-admin/auth");
-    const decoded = await getAuth(adminApp).verifyIdToken(token);
+    const auth = getAuth(adminApp);
+    const decoded = options.checkRevoked ? await auth.verifyIdToken(token, true) : await auth.verifyIdToken(token);
     return { uid: decoded.uid, email: typeof decoded.email === "string" ? decoded.email : null };
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;
