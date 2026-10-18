@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type JSX, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type JSX, type KeyboardEvent } from "react";
 
 import { Bilingual } from "./Bilingual";
 
@@ -25,6 +25,10 @@ export interface SearchSelectProps {
   /** Called after Enter picks an option (or Enter on an untouched field), to move to the next field. */
   onEnterNext?(): void;
   disabled?: boolean;
+  /** Wording of the last option for typed text. Default: "Use '<typed>' as entered". */
+  typedOptionLabel?(typed: string): string;
+  /** Hint under the field when the value is typed text, not a list option. Default: "As entered - not in the list". */
+  typedHint?: string;
 }
 
 type Item = { kind: "option"; option: SearchOption } | { kind: "typed"; text: string };
@@ -78,6 +82,8 @@ export function SearchSelect({
   placeholder,
   onEnterNext,
   disabled = false,
+  typedOptionLabel = (t: string) => `Use ‘${t}’ as entered`,
+  typedHint = "As entered - not in the list",
 }: SearchSelectProps): JSX.Element {
   const listId = `${id}-list`;
   const hintId = `${id}-hint`;
@@ -87,6 +93,10 @@ export function SearchSelect({
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(-1);
+  // Set synchronously by pick(). A blur that follows a pick in the same event (onEnterNext moving focus) runs the
+  // handler from the earlier render, whose `editing` and `query` still hold the partial text; this ref stops that
+  // stale blur from overwriting the pick.
+  const pickedRef = useRef(false);
 
   // A new value from the parent (for example a returning devotee's details) ends any edit in progress.
   const key = valueKey(value);
@@ -129,6 +139,7 @@ export function SearchSelect({
   }
 
   function pick(item: Item): void {
+    pickedRef.current = true;
     if (item.kind === "typed") onChange({ text: item.text });
     else onChange({ value: item.option.value, text: item.option.en });
     setEditing(false);
@@ -138,6 +149,7 @@ export function SearchSelect({
 
   function handleInput(e: ChangeEvent<HTMLInputElement>): void {
     const next = e.target.value;
+    pickedRef.current = false;
     setQuery(next);
     setEditing(true);
     setOpen(true);
@@ -147,7 +159,10 @@ export function SearchSelect({
 
   function handleBlur(): void {
     close();
-    if (!editing) return;
+    if (pickedRef.current || !editing) {
+      pickedRef.current = false;
+      return;
+    }
     const exact = exactOption(options, typed);
     if (exact) onChange({ value: exact.value, text: exact.en });
     else if (allowTyped && typed) onChange({ text: typed });
@@ -266,7 +281,7 @@ export function SearchSelect({
                 }
               >
                 {item.kind === "typed" ? (
-                  `Use ‘${item.text}’ as entered`
+                  typedOptionLabel(item.text)
                 ) : (
                   <Bilingual en={item.option.en} kn={item.option.kn} className="[&_.kn]:text-(length:--text-meta)" />
                 )}
@@ -281,7 +296,7 @@ export function SearchSelect({
         </span>
       ) : value && !value.value ? (
         <span id={hintId} className="text-(length:--text-meta) text-(--muted-foreground)">
-          As entered - not in the list
+          {typedHint}
         </span>
       ) : null}
     </div>

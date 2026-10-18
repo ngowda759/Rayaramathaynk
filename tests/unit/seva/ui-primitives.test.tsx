@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { SearchSelect, type SearchOption } from "@/components/seva/ui/SearchSelect";
@@ -127,6 +127,69 @@ describe("SearchSelect", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onChange).toHaveBeenLastCalledWith({ value: "bharadwaja", text: "Bharadwaja" });
     expect(onEnterNext).toHaveBeenCalledTimes(1);
+  });
+
+  it("SearchSelect keeps the Enter pick when onEnterNext moves focus (allowTyped)", () => {
+    const onChange = jest.fn();
+    function FocusHarness() {
+      const [value, setValue] = useState<Picked>(null);
+      return (
+        <>
+          <SearchSelect
+            id="gotra"
+            label={{ en: "Gotra", kn: "ಗೋತ್ರ" }}
+            options={GOTRAS}
+            value={value}
+            allowTyped
+            onEnterNext={() => document.getElementById("next")?.focus()}
+            onChange={(v) => {
+              setValue(v);
+              onChange(v);
+            }}
+          />
+          <input id="next" aria-label="Next" />
+          <output data-testid="parent">{JSON.stringify(value)}</output>
+        </>
+      );
+    }
+    render(<FocusHarness />);
+    const input = screen.getByRole("combobox");
+    act(() => input.focus());
+
+    fireEvent.change(input, { target: { value: "kash" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(document.activeElement?.id).toBe("next");
+    expect(onChange).toHaveBeenLastCalledWith({ value: "kashyapa", text: "Kashyapa" });
+    expect(JSON.parse(screen.getByTestId("parent").textContent ?? "null")).toEqual({
+      value: "kashyapa",
+      text: "Kashyapa",
+    });
+    expect((input as HTMLInputElement).value).toBe("Kashyapa");
+  });
+
+  it("SearchSelect takes custom wording for the typed option and hint", () => {
+    function TextHarness() {
+      const [value, setValue] = useState<Picked>(null);
+      return (
+        <SearchSelect
+          id="g2"
+          label={{ en: "Gotra" }}
+          options={GOTRAS}
+          value={value}
+          allowTyped
+          onChange={setValue}
+          typedOptionLabel={(t) => `Keep ${t}`}
+          typedHint="Typed by hand"
+        />
+      );
+    }
+    render(<TextHarness />);
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "Atri" } });
+    expect(optionTexts()).toEqual(["Keep Atri"]);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByText("Typed by hand")).toBeTruthy();
   });
 });
 
