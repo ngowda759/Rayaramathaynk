@@ -222,10 +222,27 @@
   font-weight: 700;
 }
 
+/* Name (English, Kannada under it) on the left; amount, and Qty x Rate under it, on the right */
+.slip .sl .n {
+  min-width: 0;
+}
+
+.slip .sl .n .kn {
+  font-weight: 400;
+}
+
+.slip .sl .r > span {
+  display: block;
+}
+
 .slip .sl .a,
 .slip .sl .q {
   text-align: right;
   white-space: nowrap;
+}
+
+.slip .sl .q {
+  line-height: 1.3;
 }
 
 .slip .sl .chg {
@@ -262,6 +279,14 @@
   display: block;
   width: 26mm;
   height: 26mm;
+}
+
+.slip .s-qr .pr {
+  font-weight: 700;
+}
+
+.slip .s-qr .pr .kn {
+  font-weight: 400;
 }
 
 .slip .s-qr .by {
