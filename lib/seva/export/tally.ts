@@ -36,13 +36,27 @@ export function defaultIncomeLedger(sevaName: string): string {
   return `Seva Income - ${sevaName}`;
 }
 
+/**
+ * Credit lines for one receipt. With no income ledgers given, the default ledger is used only for a single-seva
+ * receipt (one seva code); a multi-seva receipt would otherwise get a joined name Tally does not have.
+ * Throws RangeError('missing_income_ledger') for that case and RangeError('unbalanced_voucher') when the credits do
+ * not add up to the receipt total, since Tally rejects an unbalanced voucher on import.
+ */
 function creditLedgers(row: ExportReceiptRow): ExportIncomeLedger[] {
   if (row.incomeLedgers.length === 0) {
+    if (row.sevaCodes.includes(",")) {
+      throw new RangeError("missing_income_ledger");
+    }
     return [{ ledger: defaultIncomeLedger(row.sevas), amountPaise: row.amountPaise }];
   }
   const totals = new Map<string, number>();
+  let creditPaise = 0;
   for (const entry of row.incomeLedgers) {
     totals.set(entry.ledger, (totals.get(entry.ledger) ?? 0) + entry.amountPaise);
+    creditPaise += entry.amountPaise;
+  }
+  if (creditPaise !== row.amountPaise) {
+    throw new RangeError("unbalanced_voucher");
   }
   return [...totals].map(([ledger, amountPaise]) => ({ ledger, amountPaise }));
 }

@@ -2,7 +2,8 @@
  * Excel workbooks for the seva module, built in the browser with one library (C-41):
  * - the Export workbook, seven sheets in the order of DESIGN-BOOK 12.6;
  * - the counter's day workbook (Summary and Receipts).
- * Amounts are numbers shown with two decimals; dates are real spreadsheet dates shown as DD-MM-YYYY.
+ * Amounts are numbers shown with two decimals; dates are real spreadsheet dates shown as DD-MM-YYYY; timestamps are
+ * IST text DD-MM-YYYY HH:mm.
  */
 import ExcelJS from "exceljs";
 import {
@@ -16,6 +17,7 @@ import {
   toDayMonthYear,
   toSheetDate,
 } from "@/lib/seva/export/columns";
+import { istParts } from "@/lib/seva/time";
 import type { PaymentMode } from "@/types/seva";
 import type { ExportData, ExportOptions, ExportReceiptRow, SheetCell } from "@/types/seva-export";
 
@@ -34,6 +36,18 @@ const DATE_FORMAT = "dd-mm-yyyy";
 const PAYMENT_MODES: readonly PaymentMode[] = ["cash", "upi", "online"];
 
 type Cell = SheetCell | Date | null;
+
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/** An ISO timestamp as IST text `DD-MM-YYYY HH:mm`; text that is not a timestamp is returned unchanged. */
+function toIstDateTime(iso: string): string {
+  const instant = new Date(iso);
+  if (Number.isNaN(instant.getTime())) {
+    return iso;
+  }
+  const p = istParts(instant);
+  return `${pad2(p.day)}-${pad2(p.month)}-${p.year} ${pad2(p.hour)}:${pad2(p.minute)}`;
+}
 
 interface SheetSpec {
   header: readonly string[];
@@ -99,7 +113,7 @@ function recordSpec(records: Record<string, string | number>[]): SheetSpec {
 }
 
 function cancelledChangedSpec(rows: ExportReceiptRow[], opts: ExportOptions): SheetSpec {
-  const header = ["Receipt no.", "Date", "Devotee", "Seva(s)", "Amount", "Mode", "Status", "Changed amount", "Reason", "Issued by"];
+  const header = ["Receipt no.", "Date", "Devotee", "Seva(s)", "Amount", "Mode", "Status", "Changed", "Reason", "Issued by"];
   if (opts.includePhones) {
     header.push("Phone");
   }
@@ -151,7 +165,7 @@ export async function buildExportWorkbook(data: ExportData, opts: ExportOptions)
     rows: [
       ["Range", `${data.range.label} (${toDayMonthYear(data.range.from)} to ${toDayMonthYear(data.range.to)})`],
       ["Prepared by", data.preparedBy],
-      ["Prepared at", data.preparedAt],
+      ["Prepared at", toIstDateTime(data.preparedAt)],
       ...data.summary.map((item): Cell[] => [item.label, item.value]),
     ],
   });
@@ -182,7 +196,7 @@ export async function buildExportWorkbook(data: ExportData, opts: ExportOptions)
       paiseToRupees(change.newPaise),
       change.reason,
       change.by,
-      change.at,
+      toIstDateTime(change.at),
     ]),
     amountColumns: [2, 3],
   });

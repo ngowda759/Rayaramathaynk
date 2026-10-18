@@ -14,6 +14,24 @@ describe("seva CSV export", () => {
     expect(csv.slice(1)).toBe('Devotee,Amount\r\n"Rao, ""Venkatesh""\n",610\r\nವೆಂಕಟೇಶ,plain\r\n');
   });
 
+  it("neutralises text that would run as a formula but keeps plain numbers", () => {
+    const csv = buildCsv(
+      ["Devotee"],
+      [['=HYPERLINK("x")'], ["-610.00"], ["+91 98"], ["@SUM(A1)"], ["-cmd"], ["\tTab"], [-610], ["Rao"]],
+    );
+    expect(csv.slice(1)).toBe(
+      "Devotee\r\n" +
+        "\"'=HYPERLINK(\"\"x\"\")\"\r\n" +
+        "-610.00\r\n" +
+        "'+91 98\r\n" +
+        "'@SUM(A1)\r\n" +
+        "'-cmd\r\n" +
+        "'\tTab\r\n" +
+        "-610\r\n" +
+        "Rao\r\n",
+    );
+  });
+
   it("leaves the phone column out unless includePhones", () => {
     expect(RECEIPT_COLUMNS).not.toContain("Phone");
     const without = receiptSheetRows([receipt()], { includePhones: false });

@@ -47,6 +47,20 @@ describe("seva Tally export", () => {
     expect(rows[1][4]).toBe("-1220.00");
   });
 
+  it("falls back to the default income ledger only for a single-seva receipt", () => {
+    const single = tallyRows([receipt({ incomeLedgers: [] })], ledgers).slice(1);
+    expect(single[1][3]).toBe("Seva Income - Paaduka Pooja");
+    expect(single[1][4]).toBe("-610.00");
+    expect(() =>
+      tallyRows([receipt({ incomeLedgers: [], sevas: "Paaduka Pooja, Kanakabhisheka", sevaCodes: "PP, KB" })], ledgers),
+    ).toThrow(new RangeError("missing_income_ledger"));
+  });
+
+  it("refuses a voucher whose credits do not match the receipt total", () => {
+    const r = receipt({ amountPaise: 70000 });
+    expect(() => tallyRows([r], ledgers)).toThrow(new RangeError("unbalanced_voucher"));
+  });
+
   it("leaves cancelled receipts out of Tally and applies custom column names", () => {
     const rows = tallyRows(
       [receipt({ status: "cancelled" }), receipt({ receiptNo: "C1-023-10-2026/000125", mode: "online" })],

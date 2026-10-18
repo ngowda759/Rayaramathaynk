@@ -51,5 +51,23 @@ describe("seva Excel workbooks", () => {
     );
     expect(wb.worksheets.map((ws) => ws.name)).toEqual(["Summary", "Receipts"]);
     expect(wb.getWorksheet("Receipts")?.rowCount).toBe(3);
+    // The day copy never carries phone numbers (C-16), even though the fixture rows have one.
+    for (const sheet of wb.worksheets) {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          expect(String(cell.value)).not.toContain("9876543210");
+        });
+      });
+    }
+  });
+
+  it("labels the changed column and writes timestamps as IST text", async () => {
+    const changed = receipt({ status: "cancelled", changed: true, cancelReason: "Wrong seva" });
+    const wb = await load(await buildExportWorkbook(exportData({ cancelledChanged: [changed] }), { includePhones: false }));
+    const cancelled = wb.getWorksheet("Cancelled and changed");
+    expect(cancelled?.getRow(1).getCell(8).value).toBe("Changed");
+    expect(cancelled?.getRow(2).getCell(8).value).toBe("Yes");
+    expect(wb.getWorksheet("Summary")?.getRow(4).getCell(2).value).toBe("18-10-2026 10:00");
+    expect(wb.getWorksheet("Rate changes")?.getRow(2).getCell(6).value).toBe("01-10-2026 09:00");
   });
 });
