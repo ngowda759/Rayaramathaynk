@@ -33,7 +33,10 @@ service cloud.firestore {
     // True when a users write changes an access field. `role`, `isActive` and
     // `isApproved` are written only by the server staff API (Admin SDK, which
     // bypasses these rules), so no client - not even a super admin - may change
-    // them. Unchanged values (the sign-in merge write) are not "affected".
+    // them. Adding a missing one counts as a change; repeating an unchanged
+    // value does not. The site's sign-in merge (lib/auth/sign-in-profile.ts)
+    // sends these fields only when it creates the profile, so a staff doc the
+    // staff API wrote without `isApproved` still signs in.
     function changesUserAccessFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['role', 'isApproved', 'isActive']);
