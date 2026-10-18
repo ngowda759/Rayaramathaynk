@@ -108,5 +108,19 @@ So: **plan on five build windows, the fifth about half used**; the Design Book's
 12. Background Sync is not used: a service worker has no sign-in token to send with, so the outbox sends on reconnect and every 30 s while the counter page is open.
 13. The brief's phrase "the PGlite-free nothing" is read as: the guide tells the owner that local database tests need no account or set-up (SETUP-GUIDE section 6).
 14. The old receipt list at `/admin/receipts` is replaced by the dashboard; its list moves to the new register (the book's 17.1), and the old Firestore pages are deleted in A5-1.
+15. (A2-FIX, A2-FIX2, decided while building Wave A2) Offline work is recorded as the person who did it on the PC, not
+    whoever is signed in when the outbox is sent: an offline order carries `issuerStaffNo`, an offline cancel
+    `cancelledByStaffNo`; the syncer is kept separately (`seva_orders.synced_by_staff_id`; for a cancel, in its audit
+    row). That person may be offboarded since (staff row `inactive`: accepted, audit `receipt.issuer_inactive_at_sync`);
+    invited and deleted people and roles that may not use the counter are refused. `seva_sync_offline_order` gains
+    `p_issuer_role` and `seva_cancel_receipts` gains `p_cancelled_by_staff_no` and `p_canceller_role`; the sync route
+    reads those roles from Firestore. Offline cancels always follow the counter rule (own receipt, window measured to
+    the cancel's recorded time).
+16. (A2-FIX2) A spoiled print is reissued on the day it was issued only (an earlier day's slip gets a DUPLICATE
+    reprint, which needs no new number), so the day close counts each payment once and the series has no hole.
+17. (A2-FIX, A2-FIX2) Offline group labels never repeat after "Replace this PC": the heartbeat and the bootstrap return
+    `lastOfGroupNo`, and the new PC gets a stored floor = the old PC's floor + the open `device_replaced` gap sizes
+    (`counter_devices.of_group_floor_yymm/no`), so labels the dead PC printed but never sent stay free for its late
+    upload.
 
 END OF REPORT

@@ -87,10 +87,13 @@ class Fixture {
     const order = await this.db.query<{ id: string }>(
       `insert into seva_orders (group_no, client_order_id, channel, counter_id, issued_by_staff_id, devotee_name,
                                 receipts_count, amount_total, payment_mode, upi_ref_last6, upi_seen_confirmed,
-                                payment_order_id, issued_offline, supersedes_order_id, test_mode, issued_at, received_at)
+                                payment_order_id, issued_offline, supersedes_order_id, test_mode, issued_at, received_at,
+                                synced_by_staff_id)
        values ($1, gen_random_uuid(), $2, $3::smallint, $4::uuid, 'Venkatesh Rao', $5::smallint, $6::numeric, $7,
                $8, $9::boolean, $10::uuid, $11::boolean, $12::uuid, $13::boolean, $14::timestamptz,
-               coalesce($15::timestamptz, $14::timestamptz))
+               coalesce($15::timestamptz, $14::timestamptz),
+               -- An offline counter order was synced by someone (seva_orders_counter_offline_synced).
+               case when $11::boolean then $4::uuid end)
        returning id`,
       [
         `G-TEST-${String(this.group).padStart(4, '0')}`,

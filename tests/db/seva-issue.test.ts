@@ -661,10 +661,18 @@ describe('seva_issue_counter_order (A2-1)', () => {
       'seva_issue_counter_order(jsonb,uuid,uuid)',
       'seva_sync_offline_order(jsonb,uuid,uuid,text)',
       'seva_record_prints(uuid[],uuid,uuid)',
-      'seva_cancel_receipts(uuid[],text,text,uuid,boolean,timestamptz)',
+      'seva_cancel_receipts(uuid[],text,text,uuid,boolean,timestamptz,integer,text)',
       'seva_reissue_spoiled(uuid,uuid,uuid,text)',
       'seva_order_json(uuid,boolean)',
     ];
+    // Superseded signatures are dropped, so an old call can never reach an older body.
+    const dropped = await c.db.query<{ sig: string | null }>(
+      `select to_regprocedure(s)::text as sig
+         from unnest(array['seva_sync_offline_order(jsonb,uuid,uuid)',
+                           'seva_cancel_receipts(uuid[],text,text,uuid,boolean,timestamptz)',
+                           'seva_issue_offline_issuer(text,text)']) as s`,
+    );
+    expect(dropped.rows).toEqual([{ sig: null }, { sig: null }, { sig: null }]);
     const helpers = await c.db.query<{ sig: string }>(
       `select p.oid::regprocedure::text as sig
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace

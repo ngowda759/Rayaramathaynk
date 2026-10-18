@@ -101,6 +101,9 @@ CREATE TABLE IF NOT EXISTS seva_orders (
   CONSTRAINT seva_orders_counter_fields
     CHECK (channel <> 'counter' OR (counter_id IS NOT NULL AND issued_by_staff_id IS NOT NULL)),
   CONSTRAINT seva_orders_synced_by_offline CHECK (synced_by_staff_id IS NULL OR issued_offline),
+  -- A counter order was made offline exactly when someone sent it from an outbox.
+  CONSTRAINT seva_orders_counter_offline_synced
+    CHECK (channel <> 'counter' OR issued_offline = (synced_by_staff_id IS NOT NULL)),
   CONSTRAINT seva_orders_cash_received CHECK (cash_received IS NULL OR cash_received >= amount_total),
   CONSTRAINT seva_orders_change_returned
     CHECK (

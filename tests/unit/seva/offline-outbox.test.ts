@@ -6,7 +6,7 @@ import type { SevaDb } from '@/lib/seva/offline/db';
 import { enqueueCancel, enqueueOrder, markSent, pendingCount, pendingItems } from '@/lib/seva/offline/outbox';
 import { pruneClosedDays, rememberReceipts, todaysReceipts } from '@/lib/seva/offline/local-receipts';
 import { connectionStore, createConnectionStore } from '@/lib/seva/offline/connection';
-import { freshDb, issuedReceipt, NOW, offlinePayload, uuid } from './offline-fixtures';
+import { freshDb, issuedReceipt, NOW, offlinePayload, STAFF, uuid } from './offline-fixtures';
 
 let db: SevaDb;
 
@@ -18,7 +18,16 @@ beforeEach(async () => {
 describe('outbox', () => {
   it('queues orders and cancels in issue order with numbers that only go up', async () => {
     expect(await enqueueOrder(db, offlinePayload(1))).toBe(1);
-    expect(await enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [uuid(801)], reasonCode: 'other', note: 'Typed twice', at: NOW.toISOString() })).toBe(2);
+    expect(
+      await enqueueCancel(db, {
+        kind: 'cancel',
+        clientReceiptIds: [uuid(801)],
+        reasonCode: 'other',
+        note: 'Typed twice',
+        at: NOW.toISOString(),
+        cancelledByStaffNo: STAFF.staffNo,
+      }),
+    ).toBe(2);
     expect(await pendingCount(db)).toBe(2);
     expect(connectionStore.get().waiting).toBe(2);
 
@@ -27,6 +36,7 @@ describe('outbox', () => {
       [1, 'order'],
       [2, 'cancel'],
     ]);
+    // The cancel names who cancelled on this PC: someone else may be signed in when it is sent.
     expect(items[1]).toEqual({
       seq: 2,
       kind: 'cancel',
@@ -34,6 +44,7 @@ describe('outbox', () => {
       reasonCode: 'other',
       note: 'Typed twice',
       at: NOW.toISOString(),
+      cancelledByStaffNo: STAFF.staffNo,
     });
 
     await markSent(db, 2);
@@ -43,9 +54,16 @@ describe('outbox', () => {
     expect(connectionStore.get().waiting).toBe(2);
   });
 
-  it('refuses an empty order or cancel', async () => {
+  it('refuses an empty order or cancel, and a cancel without a valid staff no.', async () => {
     await expect(enqueueOrder(db, { ...offlinePayload(1), receipts: [] })).rejects.toThrow(RangeError);
-    await expect(enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [], reasonCode: 'other', at: NOW.toISOString() })).rejects.toThrow(RangeError);
+    await expect(
+      enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [], reasonCode: 'other', at: NOW.toISOString(), cancelledByStaffNo: 23 }),
+    ).rejects.toThrow(RangeError);
+    for (const cancelledByStaffNo of [0, 1000, 23.5]) {
+      await expect(
+        enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [uuid(801)], reasonCode: 'wrong_seva', at: NOW.toISOString(), cancelledByStaffNo }),
+      ).rejects.toThrow('invalid_staff_no');
+    }
     expect(await pendingCount(db)).toBe(0);
   });
 
@@ -53,7 +71,13 @@ describe('outbox', () => {
     const receipt = issuedReceipt({ clientReceiptId: uuid(801), receiptNo: 'C1-023-10-2026/000124', issuedAt: NOW.toISOString() });
     await rememberReceipts(db, [receipt], true);
 
-    await enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [uuid(801), uuid(999)], reasonCode: 'wrong_seva', at: NOW.toISOString() });
+    await enqueueCancel(db, {
+      kind: 'cancel',
+      clientReceiptIds: [uuid(801), uuid(999)],
+      reasonCode: 'wrong_seva',
+      at: NOW.toISOString(),
+      cancelledByStaffNo: STAFF.staffNo,
+    });
 
     const [local] = await todaysReceipts(db, '2026-10-18');
     expect(local.status).toBe('cancelled');
@@ -86,7 +110,13 @@ describe('local receipts', () => {
     const sentToday = issuedReceipt({ clientReceiptId: uuid(4), receiptNo: 'C1-023-10-2026/000003', issuedAt: NOW.toISOString() });
     await rememberReceipts(db, [sentOld, cancelWaiting, sentToday], true);
     await rememberReceipts(db, [unsentOld], false);
-    await enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [uuid(3)], reasonCode: 'changed_mind', at: '2026-10-16T08:10:00.000Z' });
+    await enqueueCancel(db, {
+      kind: 'cancel',
+      clientReceiptIds: [uuid(3)],
+      reasonCode: 'changed_mind',
+      at: '2026-10-16T08:10:00.000Z',
+      cancelledByStaffNo: STAFF.staffNo,
+    });
 
     await pruneClosedDays(db, '2026-10-18');
 

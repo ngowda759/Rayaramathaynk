@@ -182,11 +182,30 @@ describe('offlineOrderSchema and syncRequestSchema', () => {
       clientReceiptIds: [randomUUID()],
       reasonCode: 'wrong_seva',
       at: '2026-10-20T05:13:00.000Z',
+      cancelledByStaffNo: 23,
     };
     expect(syncRequestSchema.safeParse({ items: [item, cancel] }).success).toBe(true);
     expect(syncRequestSchema.safeParse({ items: [] }).success).toBe(false);
     const many = Array.from({ length: 201 }, (_, i) => ({ ...cancel, seq: i + 1 }));
     expect(syncRequestSchema.safeParse({ items: many }).success).toBe(false);
+  });
+
+  it("needs the staff number (001-999) of whoever cancelled offline on every outbox cancel", () => {
+    const cancel = {
+      seq: 1,
+      kind: 'cancel',
+      clientReceiptIds: [randomUUID()],
+      reasonCode: 'wrong_seva',
+      at: '2026-10-20T05:13:00.000Z',
+    };
+    expect(syncRequestSchema.safeParse({ items: [cancel] }).success).toBe(false);
+    for (const cancelledByStaffNo of [0, 1000, 23.5, '23']) {
+      expect({ cancelledByStaffNo, ok: syncRequestSchema.safeParse({ items: [{ ...cancel, cancelledByStaffNo }] }).success }).toEqual({
+        cancelledByStaffNo,
+        ok: false,
+      });
+    }
+    expect(syncRequestSchema.safeParse({ items: [{ ...cancel, cancelledByStaffNo: 1 }] }).success).toBe(true);
   });
 });
 

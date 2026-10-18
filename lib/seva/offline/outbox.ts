@@ -31,6 +31,7 @@ export async function putOutboxItem<T extends ArrayLike<SevaStoreName>>(
           reasonCode: draft.reasonCode,
           ...(draft.note !== undefined ? { note: draft.note } : {}),
           at: draft.at,
+          cancelledByStaffNo: draft.cancelledByStaffNo,
         };
   await outbox.put(item);
   return seq;
@@ -51,10 +52,17 @@ export async function enqueueOrder(db: SevaDb, payload: OfflineOrderPayload): Pr
   return seq;
 }
 
-/** Queues an offline cancel and marks this PC's copies of those receipts cancelled in the same transaction. */
+/**
+ * Queues an offline cancel and marks this PC's copies of those receipts cancelled in the same transaction. The cancel
+ * carries `cancelledByStaffNo`, the staff no. of the person signed in now: the office records them as the canceller
+ * even when someone else is signed in by the time the outbox is sent.
+ */
 export async function enqueueCancel(db: SevaDb, c: Omit<CancelItem, 'seq'>): Promise<number> {
   if (c.clientReceiptIds.length === 0) throw new RangeError('empty_cancel');
   if (Number.isNaN(Date.parse(c.at))) throw new RangeError('invalid_cancel_time');
+  if (!Number.isInteger(c.cancelledByStaffNo) || c.cancelledByStaffNo < 1 || c.cancelledByStaffNo > 999) {
+    throw new RangeError('invalid_staff_no');
+  }
   const tx = db.transaction(['meta', 'outbox', 'today'], 'readwrite');
   const seq = await runTransaction(tx, async () => {
     const queued = await putOutboxItem(tx.objectStore('meta'), tx.objectStore('outbox'), c);

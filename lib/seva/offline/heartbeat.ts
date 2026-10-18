@@ -21,7 +21,10 @@ export interface HeartbeatAnswer {
   serverTime: string;
   ofSeries: string;
   lastOfNo: number;
-  /** The highest offline group label NNN ('G-YYMM-OF1-NNN') the office holds for the series in its IST month. */
+  /**
+   * The group label floor NNN ('G-YYMM-OF1-NNN') for the series in the office's IST month: the highest label the office
+   * holds, or the floor "Replace this PC" stored for this PC when higher (it covers labels a dead PC never sent).
+   */
   lastOfGroupNo: number;
   dayClosed: boolean;
 }

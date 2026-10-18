@@ -242,6 +242,8 @@ const outboxCancelSchema = z
     reasonCode: clientCancelReason,
     note: cancelNote,
     at: isoDateTime,
+    /** Who cancelled on the PC; the SQL function checks them as it checks an offline issuer. */
+    cancelledByStaffNo: z.number().int().min(1).max(999),
   })
   .superRefine(checkOtherNeedsNote);
 

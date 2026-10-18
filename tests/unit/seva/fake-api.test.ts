@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { createFakeSevaApi } from "../../e2e/seva/fixtures/fake-api";
-import type { CounterOrderPayload, IssueResponse } from "@/types/seva";
+import type { CounterOrderPayload, IssuedReceipt, IssueResponse, OfflineOrderPayload, OutboxItem } from "@/types/seva";
 
 const NOW = "2026-10-18T05:00:00.000Z"; // 10:30 IST
 
@@ -146,5 +146,55 @@ describe("fake seva API", () => {
     const given = await api.handle({ method: "POST", path: "/api/seva/prasadam/give", body: { receiptId: id, confirmOffDate: false }, role: "prasadam_counter" });
     expect(given.kind === "json" && given.body).toMatchObject({ state: "already_given" });
     expect(api.state.receipts[0].prasadam).toBe("given");
+  });
+
+  it("records the issuer and the canceller an offline outbox carries, not the person who syncs", async () => {
+    const api = createFakeSevaApi();
+    api.setNow(NOW);
+    // Lakshmi R (023, receptionist) issued and then cancelled offline; Srinivas T (temple admin) syncs both.
+    const base = order("o-off");
+    const payload: OfflineOrderPayload = {
+      ...base,
+      issuerStaffNo: 23,
+      issuedAt: NOW,
+      groupNo: "G-2610-OF1-001",
+      receipts: base.receipts.map((r) => ({
+        ...r,
+        runningNo: 1,
+        receiptNo: "OF1-023-10-2026/000001",
+        lines: r.lines.map((l) => ({ ...l, cachedRatePaise: 5000 })),
+      })),
+    };
+    const items: OutboxItem[] = [
+      { seq: 1, kind: "order", payload },
+      {
+        seq: 2,
+        kind: "cancel",
+        clientReceiptIds: [payload.receipts[0].clientReceiptId],
+        reasonCode: "wrong_seva",
+        at: NOW,
+        cancelledByStaffNo: 23,
+      },
+    ];
+    const synced = await api.handle({ method: "POST", path: "/api/seva/counter/sync", body: { items }, role: "temple_admin" });
+    expect(synced.kind === "json" && synced.body).toEqual({
+      results: [
+        { seq: 1, ok: true, duplicate: false },
+        { seq: 2, ok: true, duplicate: false },
+      ],
+    });
+
+    const receipt = api.state.receipts[0];
+    expect(receipt.issuedBy).toEqual({ name: "Lakshmi R", staffNo: 23 });
+    const detail = await api.handle({ method: "GET", path: `/api/seva/receipts/${receipt.id}`, body: null, role: "temple_admin" });
+    const body = (detail.kind === "json" ? detail.body : null) as IssuedReceipt & {
+      cancel: { by: string } | null;
+      history: { action: string; by: string | null }[];
+    };
+    expect(body.cancel).toMatchObject({ by: "Lakshmi R" });
+    expect(body.history.map((h) => [h.action, h.by])).toEqual([
+      ["issued_offline", "Lakshmi R"],
+      ["cancelled", "Lakshmi R"],
+    ]);
   });
 });

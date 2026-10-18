@@ -237,10 +237,63 @@ BEGIN
 END;
 $$;
 
+-- The offline group label floor of a counter PC for the IST month of p_at (DB 8.3): the highest NNN of the labels
+-- 'G-YYMM-<OF series>-NNN' the office holds for the counter's offline orders of that month, or, when higher, the
+-- floor "Replace this PC" stored on the device for that month (of_group_floor_no). A PC raises its own group counter
+-- to it and so never repeats a label. 0 when there is neither. p_device_id may be null (only the labels count) or a
+-- retired device. Read by seva_heartbeat and seva_replace_device; the counter bootstrap reads it too.
+CREATE OR REPLACE FUNCTION seva_offline_group_floor(p_counter_id smallint, p_device_id uuid, p_at timestamptz)
+RETURNS integer
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_year smallint;
+  v_month smallint;
+  v_yymm text;
+  v_month_start timestamptz;
+  v_series text;
+  v_prefix text;
+  v_last integer;
+  v_stored integer;
+BEGIN
+  SELECT p.year, p.month INTO v_year, v_month FROM seva_ist_parts(p_at) p;
+  v_yymm := lpad((v_year % 100)::text, 2, '0') || lpad(v_month::text, 2, '0');
+  v_month_start := make_timestamptz(v_year, v_month, 1, 0, 0, 0, 'Asia/Kolkata');
+  SELECT s.code INTO v_series FROM receipt_series s WHERE s.counter_id = p_counter_id AND s.kind = 'counter_offline';
+
+  -- Offline labels of this series and month: 'G-' || YYMM || '-' || series || '-' || NNN. The series code holds only
+  -- letters and digits, so the LIKE prefix has no wildcard in it, and the '-' after it keeps OF1 apart from OF10.
+  -- The counter, offline and issued_at bounds let idx_seva_orders_counter_issued find the month's orders; a label's
+  -- month is the IST month of the same PC clock reading as its issued_at.
+  v_prefix := 'G-' || v_yymm || '-' || v_series || '-';
+  SELECT max(substr(o.group_no, char_length(v_prefix) + 1)::integer) INTO v_last
+    FROM seva_orders o
+   WHERE o.counter_id = p_counter_id
+     AND o.issued_offline
+     AND o.issued_at >= v_month_start
+     AND o.group_no LIKE v_prefix || '%'
+     AND substr(o.group_no, char_length(v_prefix) + 1) ~ '^[0-9]{1,9}$';
+
+  SELECT d.of_group_floor_no INTO v_stored
+    FROM counter_devices d
+   WHERE d.id = p_device_id AND d.counter_id = p_counter_id AND d.of_group_floor_yymm = v_yymm;
+
+  RETURN greatest(coalesce(v_last, 0), coalesce(v_stored, 0));
+END;
+$$;
+
 -- "Replace this PC" (DB 8.4): retires the counter's live PC (if any), registers the new one, and raises the counter's
 -- OF floor for the current IST year to the number on the last slip printed (p_last_printed_of_no). When that number
 -- is above the server's last OF number, the range in between (server last + 1 .. typed) becomes an open
 -- 'device_replaced' gap. A typed number at or below the server's never lowers the floor and opens no gap.
+-- The new PC also gets an offline group label floor for this IST month (of_group_floor_yymm/no, DB 8.3): the old
+-- PC's floor (seva_offline_group_floor) plus the total size of the OF series' open device_replaced gaps. Every order
+-- the old PC printed but never sent used at least one OF number of such a gap and one label above that floor, so the
+-- new PC never repeats one of those labels, and the old PC's late upload is still accepted. The floor is stored, not
+-- worked out at each heartbeat, so it does not creep up while a gap stays open.
 -- Needs a reason of at least 3 characters. Audit device.replace.
 CREATE OR REPLACE FUNCTION seva_replace_device(
   p_counter_id smallint,
@@ -260,11 +313,13 @@ DECLARE
   v_label text := nullif(btrim(coalesce(p_label, '')), '');
   v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
   v_year smallint;
+  v_month smallint;
   v_series text;
   v_last integer;
   v_old uuid;
   v_new uuid;
   v_gap bigint;
+  v_group_floor integer;
 BEGIN
   PERFORM seva_ops_require_staff(p_staff_id);
   IF p_secret_hash IS NULL OR p_secret_hash !~ '^[0-9a-f]{64}$' THEN
@@ -292,7 +347,7 @@ BEGIN
     RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'receipt_series')::text;
   END IF;
 
-  SELECT p.year INTO v_year FROM seva_ist_parts(v_now) p;
+  SELECT p.year, p.month INTO v_year, v_month FROM seva_ist_parts(v_now) p;
   INSERT INTO receipt_series_years (series_code, year) VALUES (v_series, v_year)
   ON CONFLICT (series_code, year) DO NOTHING;
   SELECT y.last_no INTO v_last
@@ -307,10 +362,6 @@ BEGIN
    WHERE counter_id = p_counter_id AND retired_at IS NULL
   RETURNING id INTO v_old;
 
-  INSERT INTO counter_devices (counter_id, secret_hash, label, registered_by_staff_id, registered_at)
-  VALUES (p_counter_id, p_secret_hash, v_label, p_staff_id, v_now)
-  RETURNING id INTO v_new;
-
   IF p_last_printed_of_no > v_last THEN
     INSERT INTO receipt_number_gaps (series_code, year, from_no, to_no, cause, detected_at)
     VALUES (v_series, v_year, v_last + 1, p_last_printed_of_no, 'device_replaced', v_now)
@@ -320,6 +371,18 @@ BEGIN
      WHERE series_code = v_series AND year = v_year;
   END IF;
 
+  -- The labels the old PC (and any PC replaced before it) may have printed but not sent: one per missing OF number.
+  SELECT seva_offline_group_floor(p_counter_id, v_old, v_now) + coalesce(sum(g.to_no - g.from_no + 1), 0)::integer
+    INTO v_group_floor
+    FROM receipt_number_gaps g
+   WHERE g.series_code = v_series AND g.cause = 'device_replaced' AND g.status = 'open';
+
+  INSERT INTO counter_devices (counter_id, secret_hash, label, registered_by_staff_id, registered_at,
+                               of_group_floor_yymm, of_group_floor_no)
+  VALUES (p_counter_id, p_secret_hash, v_label, p_staff_id, v_now,
+          lpad((v_year % 100)::text, 2, '0') || lpad(v_month::text, 2, '0'), v_group_floor)
+  RETURNING id INTO v_new;
+
   PERFORM seva_audit(
     'device.replace', 'counter_device', v_new::text, NULL, v_reason,
     jsonb_build_object('device_id', v_old, 'last_of_no', v_last),
@@ -328,7 +391,8 @@ BEGIN
       'last_printed_of_no', p_last_printed_of_no, 'last_of_no', greatest(v_last, p_last_printed_of_no),
       'gap_id', v_gap,
       'gap_from', CASE WHEN v_gap IS NOT NULL THEN v_last + 1 END,
-      'gap_to', CASE WHEN v_gap IS NOT NULL THEN p_last_printed_of_no END
+      'gap_to', CASE WHEN v_gap IS NOT NULL THEN p_last_printed_of_no END,
+      'group_floor', v_group_floor
     ),
     p_staff_id
   );
@@ -385,10 +449,11 @@ $$;
 
 -- The counter's heartbeat (DB 8.3): stores outbox count, clock skew and app version on the live device and returns
 -- { server_time, of_series, last_of_no, last_of_group_no, day_closed } - the server's last OF number this IST year
--- (0 when none yet), the highest offline group label stored for the counter's OF series this IST month
--- ('G-YYMM-OF<n>-NNN' -> NNN; 0 when none yet) and whether today's day close for the counter is closed. The PC raises
--- its own group counter to last_of_group_no, so a PC that replaced another ("Replace this PC") never reuses a label
--- the office already holds (group_no is unique). A retired or unknown device gets SEVA:device_unknown.
+-- (0 when none yet), the device's offline group label floor this IST month (seva_offline_group_floor: the highest
+-- 'G-YYMM-OF<n>-NNN' label stored, or the floor "Replace this PC" stored for the device when higher; 0 when none)
+-- and whether today's day close for the counter is closed. The PC raises its own group counter to last_of_group_no,
+-- so a PC that replaced another never reuses a label the office holds (group_no is unique) or one the old PC printed
+-- but never sent. A retired or unknown device gets SEVA:device_unknown.
 CREATE OR REPLACE FUNCTION seva_heartbeat(
   p_device_id uuid,
   p_outbox_count int,
@@ -405,12 +470,9 @@ DECLARE
   v_version text := nullif(btrim(coalesce(p_app_version, '')), '');
   v_counter smallint;
   v_year smallint;
-  v_month smallint;
   v_today date;
   v_series text;
   v_last integer;
-  v_group_prefix text;
-  v_last_group integer;
   v_closed boolean;
 BEGIN
   IF p_outbox_count IS NULL OR p_outbox_count < 0 THEN
@@ -435,17 +497,9 @@ BEGIN
          app_version = v_version
    WHERE id = p_device_id;
 
-  SELECT p.year, p.month, p.business_date INTO v_year, v_month, v_today FROM seva_ist_parts(v_now) p;
+  SELECT p.year, p.business_date INTO v_year, v_today FROM seva_ist_parts(v_now) p;
   SELECT s.code INTO v_series FROM receipt_series s WHERE s.counter_id = v_counter AND s.kind = 'counter_offline';
   SELECT y.last_no INTO v_last FROM receipt_series_years y WHERE y.series_code = v_series AND y.year = v_year;
-  -- Offline group labels of this series and IST month: 'G-' || YYMM || '-' || series || '-' || NNN. The series code
-  -- holds only letters and digits, so the LIKE prefix has no wildcard in it, and the '-' after it keeps OF1 apart
-  -- from OF10.
-  v_group_prefix := 'G-' || lpad((v_year % 100)::text, 2, '0') || lpad(v_month::text, 2, '0') || '-' || v_series || '-';
-  SELECT max(substr(o.group_no, char_length(v_group_prefix) + 1)::integer) INTO v_last_group
-    FROM seva_orders o
-   WHERE o.group_no LIKE v_group_prefix || '%'
-     AND substr(o.group_no, char_length(v_group_prefix) + 1) ~ '^[0-9]{1,9}$';
   v_closed := EXISTS (
     SELECT 1 FROM day_closes dc
      WHERE dc.counter_id = v_counter AND dc.business_date = v_today AND dc.status = 'closed'
@@ -455,7 +509,7 @@ BEGIN
     'server_time', v_now,
     'of_series', v_series,
     'last_of_no', coalesce(v_last, 0),
-    'last_of_group_no', coalesce(v_last_group, 0),
+    'last_of_group_no', seva_offline_group_floor(v_counter, p_device_id, v_now),
     'day_closed', v_closed
   );
 END;
@@ -780,6 +834,8 @@ REVOKE EXECUTE ON FUNCTION seva_undo_prasadam(uuid, uuid, text, boolean) FROM PU
 GRANT EXECUTE ON FUNCTION seva_undo_prasadam(uuid, uuid, text, boolean) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_register_device(smallint, text, text, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_register_device(smallint, text, text, uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_offline_group_floor(smallint, uuid, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_offline_group_floor(smallint, uuid, timestamptz) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, text, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, text, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_resolve_gap(bigint, text, text, uuid) FROM PUBLIC, anon, authenticated;

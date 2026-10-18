@@ -3,7 +3,8 @@
  * exactly as printed, idempotent, with number gaps recorded and closed, the retired-PC rule, the C-58 rate audit and
  * the in-doubt supersede of DB 8.6. A2-FIX: the order carries its issuer (the staff no. inside its OF numbers), who
  * may differ from the person who syncs it; and after "Replace this PC" the heartbeat's group floor stops a new PC from
- * reusing an offline group label.
+ * reusing an offline group label. A2-FIX2: the floor also reserves the labels the dead PC printed but never sent; the
+ * line audits of a synced order name the issuer; an issuer offboarded after issuing is still accepted (and audited).
  *
  * Every test starts from its own copy of one migrated template database (a PGlite data-dir clone). Seed helpers only
  * set the starting state; every rule is proved through the SQL functions, called as service_role.
@@ -231,6 +232,37 @@ async function heartbeat(c: Ctx, deviceId: string): Promise<HeartbeatResult> {
     const r = await d.query<{ r: HeartbeatResult }>(`select seva_heartbeat($1::uuid, 0, 0, 'test') as r`, [deviceId]);
     return r.rows[0].r;
   });
+}
+
+/** "Replace this PC" on Counter 1 with the number on the last slip that came out of the printer; the new device id. */
+async function replaceDevice(c: Ctx, lastPrintedOfNo: number): Promise<string> {
+  return asRole(c.db, 'service_role', async (d) => {
+    const r = await d.query<{ id: string }>(
+      `select seva_replace_device(1::smallint, $1, 'New PC', $2::int, 'Old PC stopped working', $3::uuid) as id`,
+      [createHash('sha256').update(randomBytes(32)).digest('hex'), lastPrintedOfNo, c.staffId],
+    );
+    return r.rows[0].id;
+  });
+}
+
+interface AuditRow {
+  action: string;
+  entity_id: string;
+  actor_staff_id: string | null;
+  actor_role: string | null;
+  after: Record<string, unknown> | null;
+}
+
+async function auditRows(db: PGlite, where = 'true'): Promise<AuditRow[]> {
+  const r = await db.query<AuditRow>(
+    `select action, entity_id, actor_staff_id, actor_role, after from audit_log where ${where} order by id`,
+  );
+  return r.rows;
+}
+
+/** What a route does before calling a function: names the signed-in person's role for the audit rows. */
+async function setRouteRole(db: PGlite, role: string): Promise<void> {
+  await db.query(`select set_config('seva.actor_role', $1, false)`, [role]);
 }
 
 /** Same-number shorthand: one receipt with the given running number, issued at ISSUED. */
@@ -626,14 +658,36 @@ describe('seva_sync_offline_order (A2-1)', () => {
     const c = await setup();
     const suresh = await seedStaff(c.db, { staffNo: 24, name: 'Suresh', uid: 'uid-suresh' });
 
-    // Ramesh (023) printed the receipts offline; Suresh signed in on the same PC before the outbox was sent.
+    // Ramesh (023, a receptionist) printed the receipts offline - one line at an older cached rate (C-58) and one
+    // changed amount; Suresh signed in on the same PC before the outbox was sent, and the route names his role.
+    await setRouteRole(c.db, 'temple_admin');
     const res = await sync(
       c,
-      offlineOrder(c, { issuedAt: ISSUED, receipts: [{ runningNo: 1 }, { runningNo: 2 }] }),
+      offlineOrder(c, {
+        issuedAt: ISSUED,
+        expectedTotal: '705.00',
+        receipts: [
+          {
+            runningNo: 1,
+            lines: [
+              { sevaId: c.pan, cachedRate: '100.00' },
+              { sevaId: c.paa, cachedRate: '505.00', unitRate: '500.00', changeReason: 'Regular devotee' },
+            ],
+          },
+          { runningNo: 2 },
+        ],
+      }),
       c.deviceId,
-      { syncerId: suresh },
+      { syncerId: suresh, issuerRole: 'receptionist' },
     );
     expect(res.duplicate).toBe(false);
+    // The line audits are Ramesh's: he printed those amounts. They carry his role, not the syncer's.
+    const lineAudits = await auditRows(c.db, `action = 'receipt.amount_changed'`);
+    expect(lineAudits).toHaveLength(2);
+    expect(lineAudits.map((a) => [a.actor_staff_id, a.actor_role])).toEqual([
+      [c.staffId, 'receptionist'],
+      [c.staffId, 'receptionist'],
+    ]);
     expect(res.receipts.map((r) => [r.receipt_no, r.issued_by])).toEqual([
       ['OF1-023-10-2026/000001', { name: 'Ramesh', staff_no: 23 }],
       ['OF1-023-10-2026/000002', { name: 'Ramesh', staff_no: 23 }],
@@ -665,15 +719,61 @@ describe('seva_sync_offline_order (A2-1)', () => {
     expect(onlineRow.rows).toEqual([{ synced_by_staff_id: null }]);
   });
 
-  it('refuses an unknown or inactive issuer with SEVA:validation', async () => {
+  it('accepts an issuer offboarded after issuing, and audits receipt.issuer_inactive_at_sync', async () => {
     const c = await setup();
     const suresh = await seedStaff(c.db, { staffNo: 24, name: 'Suresh', uid: 'uid-suresh' });
     const former = await seedStaff(c.db, { staffNo: 25, name: 'Former', uid: 'uid-former' });
     await c.db.query(`update staff set status = 'inactive', status_reason = 'Left' where id = $1`, [former]);
+    await setRouteRole(c.db, 'temple_admin');
+
+    // Former (025) printed two receipts offline - one with a changed amount - and was offboarded before they synced.
+    const res = await sync(
+      c,
+      offlineOrder(c, {
+        issuedAt: ISSUED,
+        issuerStaffNo: 25,
+        expectedTotal: '605.00',
+        receipts: [
+          { runningNo: 1, lines: [{ sevaId: c.paa, cachedRate: '505.00', unitRate: '500.00', changeReason: 'Regular devotee' }] },
+          { runningNo: 2 },
+        ],
+      }),
+      c.deviceId,
+      { syncerId: suresh, issuerRole: 'receptionist' },
+    );
+    expect(res.receipts.map((r) => [r.receipt_no, r.issued_by])).toEqual([
+      ['OF1-025-10-2026/000001', { name: 'Former', staff_no: 25 }],
+      ['OF1-025-10-2026/000002', { name: 'Former', staff_no: 25 }],
+    ]);
+    const ids = res.receipts.map((r) => r.id);
+    expect(await auditRows(c.db)).toEqual([
+      expect.objectContaining({ action: 'receipt.amount_changed', entity_id: ids[0], actor_staff_id: former, actor_role: 'receptionist' }),
+      // Written by the sync, so the syncer and the route's role are restored for it.
+      ...ids.map((id) =>
+        expect.objectContaining({
+          action: 'receipt.issuer_inactive_at_sync',
+          entity_id: id,
+          actor_staff_id: suresh,
+          actor_role: 'temple_admin',
+          after: expect.objectContaining({ issuer_staff_id: former, issuer_staff_no: 25, synced_by_staff_id: suresh }),
+        }),
+      ),
+    ]);
+
+    // An active issuer writes no such row.
+    await sync(c, offlineOrder(c, { issuedAt: ISSUED, receipts: [{ runningNo: 3 }] }), c.deviceId, { syncerId: suresh });
+    expect(await count(c.db, 'audit_log', `action = 'receipt.issuer_inactive_at_sync'`)).toBe(2);
+  });
+
+  it('refuses an unknown, invited or deleted issuer with SEVA:validation', async () => {
+    const c = await setup();
+    const suresh = await seedStaff(c.db, { staffNo: 24, name: 'Suresh', uid: 'uid-suresh' });
+    const gone = await seedStaff(c.db, { staffNo: 25, name: 'Gone', uid: 'uid-gone' });
+    await c.db.query(`update staff set status = 'deleted', status_reason = 'Removed' where id = $1`, [gone]);
     await seedStaff(c.db, { staffNo: 26, name: 'Invited', uid: 'uid-invited', status: 'invited' });
     const bySuresh: SyncAs = { syncerId: suresh };
 
-    // 99: no such staff; 25: inactive; 26: invited, never signed in; null: no issuer sent.
+    // 99: no such staff; 25: deleted; 26: invited, never signed in; null: no issuer sent.
     for (const issuerStaffNo of [99, 25, 26, null]) {
       const refused = await failure(
         sync(c, offlineOrder(c, { issuedAt: ISSUED, issuerStaffNo, receipts: [{ runningNo: 1 }] }), c.deviceId, bySuresh),
@@ -741,36 +841,89 @@ describe('seva_sync_offline_order (A2-1)', () => {
     expect(await lastNo(c.db, 'OF1', 2026)).toBe(3);
   });
 
-  it('after Replace this PC the heartbeat gives the group floor, so the new PC never reuses a group label', async () => {
+  it('after Replace this PC the new PC never reuses a label the dead PC printed but never sent', async () => {
+    const c = await setup();
+    const issuedAt = new Date().toISOString();
+    const { yymm } = istParts(issuedAt);
+    const label = (n: number): string => `G-${yymm}-OF1-${pad(n, 3)}`;
+
+    // The old PC sent 001 and 002, printed 003 (OF number 3) and died before sending it.
+    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(1), receipts: [{ runningNo: 1 }] }));
+    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(2), receipts: [{ runningNo: 2 }] }));
+    const unsent = offlineOrder(c, { issuedAt, groupNo: label(3), receipts: [{ runningNo: 3 }] });
+    expect(await heartbeat(c, c.deviceId)).toMatchObject({ of_series: 'OF1', last_of_no: 2, last_of_group_no: 2 });
+
+    // "Replace this PC": the slip in the printer said 3. The floor reserves one label per missing OF number, so the
+    // new PC's first offline order is labelled 004, never 003.
+    const newPc = await replaceDevice(c, 3);
+    const beat = await heartbeat(c, newPc);
+    expect(beat).toMatchObject({ last_of_no: 3, last_of_group_no: 3 });
+    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(beat.last_of_group_no + 1), receipts: [{ runningNo: 4 }] }), newPc);
+    // The floor does not creep while the old PC's gap is open: the next label is 005.
+    expect((await heartbeat(c, newPc)).last_of_group_no).toBe(4);
+
+    // The old PC comes back and uploads 003: accepted inside its device_replaced gap, which it closes.
+    await expect(sync(c, unsent)).resolves.toMatchObject({ duplicate: false, group_no: label(3) });
+    expect(await gaps(c.db)).toEqual([{ from_no: 3, to_no: 3, cause: 'device_replaced', status: 'received_late' }]);
+    expect((await heartbeat(c, newPc)).last_of_group_no).toBe(4);
+
+    // A repeated label is still refused (group_no is unique).
+    expect(
+      await failure(sync(c, offlineOrder(c, { issuedAt, groupNo: label(1), receipts: [{ runningNo: 5 }] }), newPc)),
+    ).toMatchObject({ code: 'number_conflict', detail: { field: 'group_no' } });
+    expect(await count(c.db, 'seva_orders')).toBe(4);
+  });
+
+  it('a second replacement in the month keeps both dead PCs\' labels reserved, even once the first gap is resolved', async () => {
     const c = await setup();
     const issuedAt = new Date().toISOString();
     const { yymm } = istParts(issuedAt);
     const label = (n: number, month = yymm): string => `G-${month}-OF1-${pad(n, 3)}`;
 
-    // The old PC sent two orders this month; a label of another month does not count.
+    // PC 1 sent 001 (OF 1) and an order labelled in another month, which does not count; it printed 002 (OF 3) and died.
     await sync(c, offlineOrder(c, { issuedAt, groupNo: label(1), receipts: [{ runningNo: 1 }] }));
-    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(2), receipts: [{ runningNo: 2 }] }));
-    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(40, '2601'), receipts: [{ runningNo: 3 }] }));
-    expect(await heartbeat(c, c.deviceId)).toMatchObject({ of_series: 'OF1', last_of_no: 3, last_of_group_no: 2 });
+    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(40, '2601'), receipts: [{ runningNo: 2 }] }));
+    expect((await heartbeat(c, c.deviceId)).last_of_group_no).toBe(1);
+    const pc2 = await replaceDevice(c, 3);
+    expect((await heartbeat(c, pc2)).last_of_group_no).toBe(2);
 
-    // "Replace this PC": the slip in the printer said 3. The new PC starts with an empty group counter.
-    const newPc = await asRole(c.db, 'service_role', async (d) => {
-      const r = await d.query<{ id: string }>(
-        `select seva_replace_device(1::smallint, $1, 'New PC', 3, 'Old PC stopped working', $2::uuid) as id`,
-        [createHash('sha256').update(randomBytes(32)).digest('hex'), c.staffId],
+    // PC 2 printed 003 (OF 4) and 004 (OF 5), sent nothing and died; meanwhile PC 1's slip was declared lost.
+    await asRole(c.db, 'service_role', (d) =>
+      d.query(
+        `select seva_resolve_gap(g.id, 'declared_lost', 'Slip lost in the paper jam', $1::uuid)
+           from receipt_number_gaps g where g.from_no = 3`,
+        [c.staffId],
+      ),
+    );
+    const pc3 = await replaceDevice(c, 5);
+    // PC 3 starts after PC 2's labels (004), although only PC 2's gap is still open.
+    expect((await heartbeat(c, pc3)).last_of_group_no).toBe(4);
+
+    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(5), receipts: [{ runningNo: 6 }] }), pc3);
+    for (const [n, running] of [
+      [3, 4],
+      [4, 5],
+    ]) {
+      await expect(
+        sync(c, offlineOrder(c, { issuedAt, groupNo: label(n), receipts: [{ runningNo: running }] }), pc2),
+      ).resolves.toMatchObject({ duplicate: false });
+    }
+    expect(await count(c.db, 'seva_orders')).toBe(5);
+  });
+
+  it('stores a counter order as offline exactly when someone synced it (table check)', async () => {
+    const c = await setup();
+    const insert = (offline: boolean, syncedBy: string | null): Promise<unknown> =>
+      c.db.query(
+        `insert into seva_orders (group_no, client_order_id, channel, counter_id, issued_by_staff_id, devotee_name,
+                                  receipts_count, amount_total, payment_mode, issued_offline, synced_by_staff_id, issued_at)
+         values ('G-CHECK-' || $1, gen_random_uuid(), 'counter', 1, $2::uuid, 'Venkatesh Rao', 1, 105, 'cash',
+                 $3::boolean, $4::uuid, now())`,
+        [String(offline), c.staffId, offline, syncedBy],
       );
-      return r.rows[0].id;
-    });
-
-    // Its first heartbeat raises its group floor to 2, so its first offline order is labelled 003 and is accepted.
-    expect(await heartbeat(c, newPc)).toMatchObject({ last_of_no: 3, last_of_group_no: 2 });
-    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(3), receipts: [{ runningNo: 4 }] }), newPc);
-    expect((await heartbeat(c, newPc)).last_of_group_no).toBe(3);
-
-    // Without the floor it would have started again at 001, which the office refuses (group_no is unique).
-    expect(
-      await failure(sync(c, offlineOrder(c, { issuedAt, groupNo: label(1), receipts: [{ runningNo: 5 }] }), newPc)),
-    ).toMatchObject({ code: 'number_conflict', detail: { field: 'group_no' } });
-    expect(await count(c.db, 'seva_orders')).toBe(4);
+    await expect(insert(true, null)).rejects.toThrow(/seva_orders_counter_offline_synced/);
+    await expect(insert(false, c.staffId)).rejects.toThrow(/seva_orders_(synced_by_offline|counter_offline_synced)/);
+    await expect(insert(true, c.staffId)).resolves.toBeDefined();
+    await expect(insert(false, null)).resolves.toBeDefined();
   });
 });

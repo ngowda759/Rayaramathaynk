@@ -129,7 +129,13 @@ describe('outbox sync', () => {
   });
 
   it('counts an already cancelled receipt as a sent cancel', async () => {
-    await enqueueCancel(db, { kind: 'cancel', clientReceiptIds: [uuid(801)], reasonCode: 'wrong_seva', at: NOW.toISOString() });
+    await enqueueCancel(db, {
+      kind: 'cancel',
+      clientReceiptIds: [uuid(801)],
+      reasonCode: 'wrong_seva',
+      at: NOW.toISOString(),
+      cancelledByStaffNo: STAFF.staffNo,
+    });
     const sync = jest.fn(async (): Promise<SyncResponse> => ({ results: [{ seq: 1, ok: false, code: 'already_cancelled' }] }));
 
     await expect(runSync({ db, api: { sync } })).resolves.toEqual({ sent: 1, refused: [], stoppedBy: null });

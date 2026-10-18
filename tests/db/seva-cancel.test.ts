@@ -1,7 +1,9 @@
 /**
  * Database tests for Task A2-1 (part 3 of 3): recording prints and reprints (seva_record_prints), cancelling with a
  * reason and the money-back state (seva_cancel_receipts, C-20, D23) and the spoiled-print reissue
- * (seva_reissue_spoiled, C-21), which keeps the spoiled receipt's business date (A2-FIX).
+ * (seva_reissue_spoiled, C-21). A2-FIX2: a spoiled print is reissued on the day it was issued only (an earlier day's
+ * slip gets a DUPLICATE reprint instead); an offline cancel names the person who cancelled on the PC, who is checked
+ * like an offline issuer, and the person who synced it is recorded separately.
  *
  * Every test starts from its own copy of one migrated template database (a PGlite data-dir clone). Receipts that must
  * look older than the cancel window are inserted directly as fixtures; every rule is proved through the SQL functions,
@@ -202,17 +204,61 @@ async function prints(c: Ctx, ids: string[], deviceId: string = c.deviceId): Pro
   });
 }
 
+/**
+ * Calls seva_cancel_receipts. An offline cancel (sent by the outbox) also passes `cancelledByStaffNo`, the staff no. of
+ * the person who cancelled on the PC, and `cancellerRole`, that person's role as the sync route reads it.
+ */
 async function cancel(
   c: Ctx,
-  p: { ids: string[]; reason: string; note?: string | null; staffId?: string; isAdmin?: boolean; at?: string | null },
+  p: {
+    ids: string[];
+    reason: string;
+    note?: string | null;
+    staffId?: string;
+    isAdmin?: boolean;
+    at?: string | null;
+    cancelledByStaffNo?: number | null;
+    cancellerRole?: string | null;
+  },
 ): Promise<CancelResult> {
   return asRole(c.db, 'service_role', async (d) => {
     const r = await d.query<{ r: CancelResult }>(
-      'select seva_cancel_receipts($1::uuid[], $2, $3, $4::uuid, $5::boolean, $6::timestamptz) as r',
-      [uuidArray(p.ids), p.reason, p.note ?? null, p.staffId ?? c.staffId, p.isAdmin ?? false, p.at ?? null],
+      'select seva_cancel_receipts($1::uuid[], $2, $3, $4::uuid, $5::boolean, $6::timestamptz, $7::integer, $8::text) as r',
+      [
+        uuidArray(p.ids),
+        p.reason,
+        p.note ?? null,
+        p.staffId ?? c.staffId,
+        p.isAdmin ?? false,
+        p.at ?? null,
+        p.cancelledByStaffNo ?? null,
+        p.cancellerRole ?? null,
+      ],
     );
     return r.rows[0].r;
   });
+}
+
+/** The receipt's issue time plus an interval, as text the function reads back exactly. */
+async function issuedAtPlus(c: Ctx, id: string, plus: string): Promise<string> {
+  const r = await c.db.query<{ t: string }>(`select (issued_at + $2::interval)::text as t from seva_receipts where id = $1`, [
+    id,
+    plus,
+  ]);
+  return r.rows[0].t;
+}
+
+interface AuditRow {
+  action: string;
+  entity_id: string;
+  actor_staff_id: string | null;
+  actor_role: string | null;
+  after: Record<string, unknown> | null;
+}
+
+async function auditRows(db: PGlite): Promise<AuditRow[]> {
+  const r = await db.query<AuditRow>('select action, entity_id, actor_staff_id, actor_role, after from audit_log order by id');
+  return r.rows;
 }
 
 async function reissue(c: Ctx, receiptId: string, token: string, deviceId: string = c.deviceId): Promise<OrderResult> {
@@ -468,6 +514,102 @@ describe('seva_cancel_receipts (A2-1)', () => {
   });
 });
 
+describe('seva_cancel_receipts - offline cancels from the outbox (A2-FIX2)', () => {
+  it('names the person who cancelled on the PC as canceller and records the person who synced separately', async () => {
+    const c = await setup();
+    // Ramesh (023) issued the receipt and cancelled it on the PC 10 minutes later; Suresh signed in before the
+    // outbox sent the cancel, 30 minutes after that. The window is measured to the cancel's recorded time.
+    const receipt = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const at = await issuedAtPlus(c, receipt, '10 minutes');
+
+    const res = await cancel(c, {
+      ids: [receipt],
+      reason: 'wrong_seva',
+      staffId: c.sureshId,
+      at,
+      cancelledByStaffNo: 23,
+      cancellerRole: 'receptionist',
+    });
+    expect(res.receipts).toEqual([expect.objectContaining({ id: receipt, status: 'cancelled' })]);
+    expect(await receiptRow(c.db, receipt)).toMatchObject({
+      status: 'cancelled',
+      cancel_reason_code: 'wrong_seva',
+      cancelled_by_staff_id: c.staffId,
+    });
+    expect(await auditRows(c.db)).toEqual([
+      {
+        action: 'receipt.cancel',
+        entity_id: receipt,
+        actor_staff_id: c.staffId,
+        actor_role: 'receptionist',
+        after: expect.objectContaining({ status: 'cancelled', offline: true, synced_by_staff_id: c.sureshId, by_admin: false }),
+      },
+    ]);
+  });
+
+  it('checks the offline canceller like an offline issuer and keeps the counter rule', async () => {
+    const c = await setup();
+    await seedStaff(c.db, { staffNo: 26, name: 'Invited', uid: 'uid-invited', status: 'invited' });
+    const gone = await seedStaff(c.db, { staffNo: 27, name: 'Gone', uid: 'uid-gone' });
+    await c.db.query(`update staff set status = 'deleted', status_reason = 'Removed' where id = $1`, [gone]);
+    const receipt = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const at10 = await issuedAtPlus(c, receipt, '10 minutes');
+    const offline = (p: { no: number; role: string | null; at?: string | null; isAdmin?: boolean }): Promise<CancelResult> =>
+      cancel(c, {
+        ids: [receipt],
+        reason: 'wrong_seva',
+        staffId: c.sureshId,
+        at: p.at === undefined ? at10 : p.at,
+        isAdmin: p.isAdmin ?? false,
+        cancelledByStaffNo: p.no,
+        cancellerRole: p.role,
+      });
+
+    // Cancelled on the PC 31 minutes after issue: past the window, however soon it is synced.
+    expect(
+      (await failure(offline({ no: 23, role: 'receptionist', at: await issuedAtPlus(c, receipt, '31 minutes') }))).code,
+    ).toBe('cancel_window_passed');
+    // Only the issuer cancels offline: not another receptionist, and not a temple admin either (DB 9.11).
+    expect((await failure(offline({ no: 24, role: 'receptionist' }))).code).toBe('forbidden');
+    expect((await failure(offline({ no: 1, role: 'temple_admin', isAdmin: true }))).code).toBe('forbidden');
+    // Unknown, invited or deleted people, and roles that may not use the counter, are refused.
+    for (const [no, role] of [
+      [99, 'receptionist'],
+      [26, 'receptionist'],
+      [27, 'receptionist'],
+      [23, 'prasadam_counter'],
+      [23, null],
+    ] as [number, string | null][]) {
+      expect({ no, role, f: await failure(offline({ no, role })) }).toEqual({
+        no,
+        role,
+        f: { code: 'validation', detail: expect.objectContaining({ field: 'cancelled_by_staff_no' }) },
+      });
+    }
+    // An offline cancel carries the time it was made on the PC.
+    expect(await failure(offline({ no: 23, role: 'receptionist', at: null }))).toEqual({
+      code: 'validation',
+      detail: { field: 'at' },
+    });
+    expect(await count(c.db, 'seva_receipts', `status = 'cancelled'`)).toBe(0);
+    expect(await count(c.db, 'audit_log')).toBe(0);
+
+    // Offboarded after cancelling on the PC: still accepted, and the audit trail says so.
+    await c.db.query(`update staff set status = 'inactive', status_reason = 'Left the temple office' where id = $1`, [c.staffId]);
+    await expect(offline({ no: 23, role: 'receptionist' })).resolves.toMatchObject({ receipts: [{ id: receipt, status: 'cancelled' }] });
+    expect((await receiptRow(c.db, receipt)).cancelled_by_staff_id).toBe(c.staffId);
+    expect(await auditRows(c.db)).toEqual([
+      expect.objectContaining({ action: 'receipt.cancel', entity_id: receipt, actor_staff_id: c.staffId }),
+      expect.objectContaining({
+        action: 'receipt.issuer_inactive_at_sync',
+        entity_id: receipt,
+        actor_staff_id: c.sureshId,
+        after: expect.objectContaining({ issuer_staff_id: c.staffId, issuer_staff_no: 23, synced_by_staff_id: c.sureshId }),
+      }),
+    ]);
+  });
+});
+
 describe('seva_reissue_spoiled (A2-1)', () => {
   it('spoiled reissue cancels with spoiled_print and issues the next number on the same order', async () => {
     const c = await setup();
@@ -514,36 +656,60 @@ describe('seva_reissue_spoiled (A2-1)', () => {
     expect(await count(c.db, 'seva_receipts')).toBe(3);
   });
 
-  it("reissue keeps the spoiled receipt's business date, so today's day close does not change", async () => {
+  it("refuses to reissue an earlier day's receipt: the counter reprints it as a DUPLICATE instead", async () => {
     const c = await setup();
-    // Today: one cash order at Counter 1.
-    await issue(c, { days: [1] });
-    // An earlier day's cash receipt, spoiled when it is printed again today.
     const earlier = await insertPastReceipt(c, { minutesAgo: 26 * 60, mode: 'cash' });
     const day = await c.db.query<{ d: string }>('select business_date::text as d from seva_receipts where id = $1', [earlier]);
-    const earlierDay = day.rows[0].d;
-    expect(earlierDay < c.today).toBe(true);
+    expect(day.rows[0].d < c.today).toBe(true);
 
-    const todayBefore = await prepareDayClose(c, c.today);
-    const earlierBefore = await prepareDayClose(c, earlierDay);
-    expect(todayBefore).toMatchObject({ receipts: 1, cancelled: 0 });
+    expect(await failure(reissue(c, earlier, qrToken()))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'reissue_only_today' },
+    });
+    // Nothing moved: the receipt is still issued, no number was taken and nothing was audited.
+    expect(await receiptRow(c.db, earlier)).toMatchObject({ status: 'issued', cancel_reason_code: null });
+    expect(await count(c.db, 'seva_receipts')).toBe(1);
+    expect(await count(c.db, 'receipt_series_years', `series_code = 'C1' and last_no > 0`)).toBe(0);
+    expect(await count(c.db, 'audit_log')).toBe(0);
+  });
 
-    const res = await reissue(c, earlier, qrToken());
+  it("a same-day reissue keeps today's day close, series ranges and continuity whole: no hole, no double count", async () => {
+    const c = await setup();
+    // Today at Counter 1: a cash order of two receipts (000001, 000002) and a UPI receipt (000003).
+    const order = await issue(c, { days: [1, 2] });
+    await issue(c, { days: [1], mode: 'upi' });
+    const [spoiled] = order.receipts;
+    await prints(c, [spoiled.id]);
+    const before = await prepareDayClose(c, c.today);
+    expect(before).toMatchObject({ receipts: 3, cancelled: 0, upi_count: 1, upi_expected: '105.00' });
+
+    const res = await reissue(c, spoiled.id, qrToken());
     const fresh = await c.db.query(
-      'select business_date::text as business_date, replaces_receipt_id, status from seva_receipts where id = $1',
+      'select business_date::text as business_date, replaces_receipt_id, status, total::text as total from seva_receipts where id = $1',
       [res.new_receipt_id],
     );
-    expect(fresh.rows).toEqual([{ business_date: earlierDay, replaces_receipt_id: earlier, status: 'issued' }]);
+    expect(fresh.rows).toEqual([{ business_date: c.today, replaces_receipt_id: spoiled.id, status: 'issued', total: '105.00' }]);
 
-    // The payment was carried over (no new cash): today's figures are exactly as before.
-    expect(await prepareDayClose(c, c.today)).toEqual(todayBefore);
-    // The earlier day still counts the money once; the spoiled slip shows there as cancelled.
-    const earlierAfter = await prepareDayClose(c, earlierDay);
-    expect([earlierAfter.receipts, earlierAfter.cancelled, earlierAfter.cash_expected, earlierAfter.upi_expected]).toEqual([
-      earlierBefore.receipts,
-      earlierBefore.cancelled + 1,
-      earlierBefore.cash_expected,
-      earlierBefore.upi_expected,
+    // The money is counted once: the same issued count, cash and UPI; the spoiled slip shows as cancelled.
+    const after = await prepareDayClose(c, c.today);
+    expect([after.receipts, after.cancelled, after.cash_expected, after.upi_count, after.upi_expected]).toEqual([
+      before.receipts,
+      before.cancelled + 1,
+      before.cash_expected,
+      before.upi_count,
+      before.upi_expected,
+    ]);
+    // Every number from the first to the last of the day is either issued or cancelled, exactly once.
+    const prefix = `C1-023-${c.month}-${c.year}/`;
+    expect(after.series_ranges).toEqual([
+      { series: 'C1', first: `${prefix}000001`, last: `${prefix}000004`, issued: 3, cancelled: 1, open_gaps: 0 },
+      { series: 'OF1', first: null, last: null, issued: 0, cancelled: 0, open_gaps: 0 },
+    ]);
+    const continuity = await asRole(c.db, 'service_role', (d) =>
+      d.query('select * from seva_continuity($1::date, $1::date)', [c.today]),
+    );
+    expect(continuity.rows).toEqual([
+      { series_code: 'C1', year: Number(c.year), first_no: 1, last_no: 4, issued: 3, cancelled: 1, open_gaps: 0 },
     ]);
   });
 });

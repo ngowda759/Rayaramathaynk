@@ -161,8 +161,8 @@ export function isWriteAction(action: SevaAction): boolean;
 //   devotee: { name, gotra, gotra_id, nakshatra_id, nakshatra_text, rashi_id, rashi_text, phone_e164 },
 //   payment: { mode: 'cash'|'upi', cash_received, upi_ref_last6, upi_seen_confirmed },
 //   receipts: [{ client_receipt_id, seva_date, qr_token, lines: [{ seva_id, quantity, unit_rate /* null = catalogue */, change_reason }] }] }
-// p_order for seva_sync_offline_order adds: issued_at, group_no, receipts[].running_no, receipts[].receipt_no,
-//   receipts[].lines[].cached_rate.
+// p_order for seva_sync_offline_order adds: issuer_staff_no, issued_at, group_no, receipts[].running_no,
+//   receipts[].receipt_no, receipts[].lines[].cached_rate.
 // Both return: { order_id, group_no, duplicate, receipts: [ <IssuedReceipt in snake_case, amounts as numeric strings> ] }
 ```
 
@@ -788,11 +788,19 @@ Tier: **Opus xhigh** - money and gap-free numbering in one transaction; the rule
 seva_take_numbers(p_series text, p_year smallint, p_count int) returns int      -- first running no.; INSERT ... ON CONFLICT DO NOTHING, then UPDATE ... RETURNING (row lock to commit)
 seva_next_group_no(p_issued_at timestamptz) returns text                          -- 'G-YYMM-NNNN' from group_counters (IST month)
 seva_issue_counter_order(p_order jsonb, p_staff_id uuid, p_device_id uuid) returns jsonb
-seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid) returns jsonb
+seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid, p_issuer_role text) returns jsonb
+  -- A2-FIX/A2-FIX2: p_order carries issuer_staff_no; p_staff_id is the syncer (synced_by_staff_id); p_issuer_role is the
+  -- issuer's role read by the route. Issuer: may use the counter, staff row active or inactive (inactive -> audit
+  -- receipt.issuer_inactive_at_sync); line audits name the issuer with p_issuer_role as actor_role
 seva_record_prints(p_receipt_ids uuid[], p_staff_id uuid, p_device_id uuid) returns jsonb   -- { receipts: [{ id, print_count, duplicate, last_printed_at }] }
 seva_cancel_receipts(p_receipt_ids uuid[], p_reason_code text, p_note text, p_staff_id uuid, p_is_admin boolean,
-                     p_at timestamptz default null) returns jsonb   -- + p_at: when the cancel happened (offline cancels); window checked at coalesce(p_at, now()), never earlier than issued_at nor later than now()
+                     p_at timestamptz default null, p_cancelled_by_staff_no integer default null,
+                     p_canceller_role text default null) returns jsonb   -- + p_at: when the cancel happened (offline cancels); window checked at coalesce(p_at, now()), never earlier than issued_at nor later than now()
+  -- A2-FIX2: an outbox cancel passes p_cancelled_by_staff_no + p_canceller_role (who cancelled on the PC) and p_at
+  -- (required); p_staff_id is then the syncer. Canceller checked like an offline issuer, counter rule always (own receipt,
+  -- window to p_at); recorded as cancelled_by_staff_id and receipt.cancel actor; syncer in after.synced_by_staff_id
 seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text) returns jsonb  -- + p_qr_token (tokens are made in TypeScript, see qr.ts)
+  -- A2-FIX2: today's receipts only (business_date = the IST business date), else validation field reissue_only_today
 ```
 JSON shapes: **Shared contracts / SQL JSON contract**. Rules decided here (beyond DB §8-9):
 - Every function reads time once through `now()` and IST parts through `seva_ist_parts(now())`.
@@ -885,7 +893,13 @@ seva_undo_prasadam(p_receipt_id uuid, p_staff_id uuid, p_reason text, p_is_admin
 seva_register_device(p_counter_id smallint, p_secret_hash text, p_label text, p_staff_id uuid) returns uuid
 seva_replace_device(p_counter_id smallint, p_secret_hash text, p_label text, p_last_printed_of_no int, p_reason text, p_staff_id uuid) returns uuid
 seva_resolve_gap(p_gap_id bigint, p_status text, p_note text, p_staff_id uuid) returns void
-seva_heartbeat(p_device_id uuid, p_outbox_count int, p_clock_skew_ms int, p_app_version text) returns jsonb   -- new: { server_time, of_series, last_of_no, day_closed }
+seva_heartbeat(p_device_id uuid, p_outbox_count int, p_clock_skew_ms int, p_app_version text) returns jsonb   -- new: { server_time, of_series, last_of_no, last_of_group_no, day_closed }
+  -- last_of_group_no = seva_offline_group_floor(counter, device, now()) (A2-FIX2): the highest offline group label NNN
+  -- ('G-YYMM-OF<n>-NNN') held for the counter's OF series this IST month, or the floor "Replace this PC" stored on the
+  -- device when higher; the PC raises its group counter to it
+seva_offline_group_floor(p_counter_id smallint, p_device_id uuid, p_at timestamptz) returns int   -- A2-FIX2; also read by counter/bootstrap
+-- A2-FIX2: seva_replace_device also stores the new PC's group label floor (counter_devices.of_group_floor_yymm/no) =
+-- the old PC's floor + the total size of the OF series' open device_replaced gaps (DB 8.4)
 seva_prepare_day_close(p_counter_id smallint, p_business_date date) returns jsonb
 seva_close_day(p_counter_id smallint, p_business_date date, p_counts jsonb, p_upi_bank_total numeric, p_note text, p_staff_id uuid) returns uuid
 seva_reopen_day(p_day_close_id uuid, p_reason text, p_staff_id uuid) returns void

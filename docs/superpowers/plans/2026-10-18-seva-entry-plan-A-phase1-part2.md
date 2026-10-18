@@ -33,6 +33,7 @@ Tier: **Opus high** - the hot path; thin over A2 but the conversions and permiss
 **Files:**
 - Create: `app/api/seva/me/route.ts`, `app/api/seva/counter/bootstrap/route.ts`, `counter/orders/route.ts`, `counter/sync/route.ts`, `counter/prints/route.ts`, `counter/heartbeat/route.ts`, `counter/devices/route.ts`
 - Create: `lib/seva/server/counter.ts`, `lib/seva/server/finance.ts`, `services/seva/counter.service.ts`, `services/seva/me.service.ts`
+- Modify (A2-FIX2): `types/seva.ts` - `CounterBootstrap` gains `lastOfGroupNo: number` (update its fixtures: `tests/unit/seva/offline-fixtures.ts` `bootstrap()`, the fake API's bootstrap in `tests/e2e/seva/fixtures/fake-api.ts`)
 - Test: `tests/unit/seva/api-counter.test.ts`, `tests/unit/seva/counter-convert.test.ts`
 
 **Interfaces:**
@@ -50,12 +51,14 @@ export async function readCounterUpi(): Promise<{ vpa: string; payeeName: string
 export function counterApi(token: () => Promise<string>, device: () => string | null): {
   bootstrap(): Promise<CounterBootstrap>; issue(p: CounterOrderPayload): Promise<IssueResponse>; sync(items: OutboxItem[]): Promise<SyncResponse>;
   prints(receiptIds: string[]): Promise<{ receipts: { id: string; printCount: number; duplicate: boolean }[] }>;
-  heartbeat(b: { outboxCount: number; clockSkewMs: number; appVersion: string }): Promise<{ serverTime: string; ofSeries: string; lastOfNo: number; dayClosed: boolean }>;
+  heartbeat(b: { outboxCount: number; clockSkewMs: number; appVersion: string }): Promise<HeartbeatAnswer>;  // lib/seva/offline/heartbeat.ts: { serverTime, ofSeries, lastOfNo, lastOfGroupNo, dayClosed }
   registerDevice(b: { counterId: number; secretHash: string; label: string }): Promise<{ deviceId: string }>;
   replaceDevice(b: { counterId: number; secretHash: string; label: string; lastPrintedOfNo: number; reason: string }): Promise<{ deviceId: string }> };
 export function meApi(token: () => Promise<string>, device: () => string | null): { get(): Promise<SevaMe> };
 ```
-Route rules: `me` (any staff, device optional; calls `seva_mark_signed_in` when the staff row is `invited`); `bootstrap` (`counter.issue`, device required; catalogue = active sevas with visibility counter or both, ordered by key; festival chips whose last date is today or later; `upi` null with `upiDisabledReason: 'not_configured'` when finance settings have no UPI id); `orders` (`counter.issue` + device); `sync` (`counter.issue` + device; items processed in `seq` order: orders through `seva_sync_offline_order`, cancels through `seva_cancel_receipts` with `p_at` after resolving `clientReceiptIds` to ids; a business error answers that item with its code and continues, any other error stops and answers 503); `prints` (first print needs `counter.issue`; when any receipt already has `print_count >= 1` the call needs `receipt.reprint` with the own-counter/today context); `heartbeat` (`counter.heartbeat` + device); `devices` (`device.register`; body `{ action: 'register' | 'replace', ... }`).
+Route rules: `me` (any staff, device optional; calls `seva_mark_signed_in` when the staff row is `invited`); `bootstrap` (`counter.issue`, device required; catalogue = active sevas with visibility counter or both, ordered by key; festival chips whose last date is today or later; `upi` null with `upiDisabledReason: 'not_configured'` when finance settings have no UPI id; `lastOfNo` and `lastOfGroupNo` - the latter from `seva_offline_group_floor(counter, device, now())`, the same floor as the heartbeat, so a new PC that goes offline right after "Replace this PC" never repeats a group label; the counter page (A4-1) raises its OF and group counters from both with `raiseOfflineFloor` / `raiseOfflineGroupFloor`); `orders` (`counter.issue` + device); `sync` (`counter.issue` + device; items processed in `seq` order: orders through `seva_sync_offline_order`, cancels through `seva_cancel_receipts` with `p_at` after resolving `clientReceiptIds` to ids; a business error answers that item with its code and continues, any other error stops and answers 503); `prints` (first print needs `counter.issue`; when any receipt already has `print_count >= 1` the call needs `receipt.reprint` with the own-counter/today context); `heartbeat` (`counter.heartbeat` + device; answers `lastOfGroupNo` from the SQL `last_of_group_no`); `devices` (`device.register`; body `{ action: 'register' | 'replace', ... }`).
+
+Sync - who did the work (A2-FIX, A2-FIX2; DB 8.3): the signed-in caller is only the syncer (`p_staff_id`). For an order, look up the staff row by `payload.issuerStaffNo` -> `staff.firebase_uid` -> Firestore `users/{uid}` -> `mapFirestoreRole(role)` and pass it as `p_issuer_role`; for a cancel do the same with `cancelledByStaffNo` and pass `p_cancelled_by_staff_no`, `p_canceller_role`, `p_at = item.at` and `p_is_admin = false`. Pass null for the role when `isActive` is false while the staff row is still `active` (the two stores disagree, and drift may only deny, DB 3.2), or when there is no `users` doc or no seva role. An issuer offboarded after the work (staff row `inactive`, `isActive` false) keeps the role they had, so the SQL function can accept them and write `receipt.issuer_inactive_at_sync`; an unknown staff no. is passed through and refused by SQL (`validation`). The route never decides acceptance itself.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -69,9 +72,11 @@ it('bootstrap leaves out online-only sevas and past festival chips')
 it('bootstrap disables UPI when no UPI id is configured')                         // upi null, upiDisabledReason 'not_configured'
 it('me marks an invited staff member active once')
 it('sync stores orders and cancels in order and reports each item')
+it('sync passes the issuer\'s and the canceller\'s role, not the syncer\'s')       // p_issuer_role / p_cancelled_by_staff_no + p_canceller_role from users/{uid} of that staff no.; null on store drift
 it('sync stops with 503 on a non-business error')
 it('a reprint needs receipt.reprint with the own-counter context')                // guard called with action 'receipt.reprint' and ctx.counterIdOfDevice
-it('heartbeat returns the server time and the OF floor')
+it('heartbeat returns the server time, the OF floor and the group label floor')   // lastOfNo, lastOfGroupNo
+it('bootstrap returns lastOfNo and lastOfGroupNo')
 it('only temple admins and super admins register devices')                       // guard called with 'device.register'
 ```
 
@@ -471,7 +476,7 @@ Mockups: `counter.html#recent`, the cancel dialog `cancel-dlg`.
 - Consumes: `receiptsApi` (list, cancel, reissue - A3-2), `counterApi.prints` (A3-1), `todaysReceipts`, `enqueueCancel`, `connectionStore` (A2-6), `toSlipModel`, `printSlips` (A2-11), `cancelDeadline` (A1-2), `can` via `useSevaMe` (A3-6).
 - Produces: nothing used by other tasks.
 
-Behaviour: DB §9.8-9.9 - newest first; groups shown together with each date's number; search by number, name or seva; "Cancel until 11:12 AM" or "Past 30 minutes: a temple admin can cancel"; group cancel offers "All 3 receipts" or "Only 000124, Sat 28 Aug" (C-01); eight reasons (C-60), "Other" needs a note; cash cancelled the same day shows "Give back Rs 820 in cash"; UPI shows "Refund due - the office refunds from the bank app"; reprint prints the DUPLICATE slip; cancelled rows have no reprint; "Spoiled - cancel and reissue" asks once and prints the new number. Offline: list merges local receipts; a cancel is queued with `enqueueCancel` (own receipts inside the window only).
+Behaviour: DB §9.8-9.9 - newest first; groups shown together with each date's number; search by number, name or seva; "Cancel until 11:12 AM" or "Past 30 minutes: a temple admin can cancel"; group cancel offers "All 3 receipts" or "Only 000124, Sat 28 Aug" (C-01); eight reasons (C-60), "Other" needs a note; cash cancelled the same day shows "Give back Rs 820 in cash"; UPI shows "Refund due - the office refunds from the bank app"; reprint prints the DUPLICATE slip; cancelled rows have no reprint; "Spoiled - cancel and reissue" asks once and prints the new number, and is offered only for receipts of today's IST business date (A2-FIX2: the server refuses others with `validation` / `reissue_only_today`; an earlier day's slip gets the DUPLICATE reprint). Offline: list merges local receipts; a cancel is queued with `enqueueCancel` (own receipts inside the window only) carrying `cancelledByStaffNo` = the signed-in person's staff no.
 
 - [ ] **Step 1: Write the failing tests**
 

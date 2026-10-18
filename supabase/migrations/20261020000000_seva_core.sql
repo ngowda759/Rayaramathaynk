@@ -126,8 +126,14 @@ CREATE TABLE IF NOT EXISTS counter_devices (
   last_outbox_count integer NOT NULL DEFAULT 0 CHECK (last_outbox_count >= 0),
   last_clock_skew_ms integer,
   app_version text,
+  -- Set by "Replace this PC" (DB 8.3, 8.4): the offline group label NNN ('G-YYMM-OF<n>-NNN') of IST month YYMM that
+  -- this PC must start after, so it never repeats a label the PC it replaced printed but never sent.
+  of_group_floor_yymm char(4) CHECK (of_group_floor_yymm ~ '^[0-9]{2}(0[1-9]|1[0-2])$'),
+  of_group_floor_no integer CHECK (of_group_floor_no >= 0),
   CONSTRAINT counter_devices_retired_reason_required
-    CHECK (retired_at IS NULL OR coalesce(btrim(retired_reason), '') <> '')
+    CHECK (retired_at IS NULL OR coalesce(btrim(retired_reason), '') <> ''),
+  CONSTRAINT counter_devices_group_floor_pair
+    CHECK ((of_group_floor_yymm IS NULL) = (of_group_floor_no IS NULL))
 );
 
 -- One live PC per counter.

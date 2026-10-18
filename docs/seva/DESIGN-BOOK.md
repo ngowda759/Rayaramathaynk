@@ -359,7 +359,7 @@ tests/unit/seva/**, tests/db/**, tests/e2e/seva/**   (new)
 | `receipts` | GET | TA, TV, SA; R (own counter today) | Register list with filters |
 | `receipts/[receiptId]` | GET | as above | One receipt with history |
 | `receipts/cancel` | POST | R (own, window), TA, SA | Cancel one or more receipts |
-| `receipts/[receiptId]/reissue` | POST | R (own, window), TA, SA | Spoiled print: cancel and reissue |
+| `receipts/[receiptId]/reissue` | POST | R (own, window), TA, SA | Spoiled print: cancel and reissue (today's receipts only, 9.8) |
 | `devotees/search` | GET | R, TA, SA | Returning-devotee matches |
 | `prasadam/lookup` | GET | P, TA, SA | Find by token or number |
 | `prasadam/give`, `prasadam/undo` | POST | P, TA, SA | Mark or undo |
@@ -481,6 +481,7 @@ DELETE). `seva_next_staff_no()` returns max+1.
 | `last_outbox_count` | integer | not null default 0 |
 | `last_clock_skew_ms` | integer | null |
 | `app_version` | text | null |
+| `of_group_floor_yymm`, `of_group_floor_no` | char(4), integer | null; set together by "Replace this PC": the offline group label NNN of IST month YYMM this PC starts after (8.3, 8.4) |
 
 Partial unique index `(counter_id) where retired_at is null`: one live PC per counter.
 
@@ -599,6 +600,7 @@ numbers are labels, not accounting numbers.
 | `test_mode` | boolean | not null default false |
 | `issued_at` | timestamptz | not null (server time online; PC time offline) |
 | `received_at` | timestamptz | not null default now() |
+| `synced_by_staff_id` | uuid | null fk `staff`; who sent an offline order from the outbox - the person signed in at sync, who may differ from the issuer (`issued_by_staff_id`, the staff no. inside the OF numbers); check: only on an offline order, and a counter order is offline exactly when it is set |
 | `created_at` | timestamptz | default now() |
 
 Indexes: `(counter_id, issued_at)`, `(devotee_uid, created_at desc) where devotee_uid is not null`, `(phone_e164)`.
@@ -734,12 +736,17 @@ A monthly job deletes profiles not seen for 3 years.
 
 Indexes `(at desc)`, `(entity, entity_id)`, `(action, at desc)`, `(actor_staff_id, at desc)`. Trigger raises on UPDATE,
 DELETE and TRUNCATE; `REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM service_role`. Actions: `receipt.cancel`,
-`receipt.reprint`, `receipt.amount_changed`, `receipt.reissue_spoiled`, `receipt.superseded` (C-53), `prasadam.given_off_date`,
+`receipt.reprint`, `receipt.amount_changed`, `receipt.reissue_spoiled`, `receipt.superseded` (C-53),
+`receipt.issuer_inactive_at_sync`, `prasadam.given_off_date`,
 `prasadam.undo`, `prasadam.reversed`, `dayclose.close`, `dayclose.reopen`, `seva.create`, `seva.update`,
 `seva.rate_change`, `settings.update`, `denominations.update`, `festival.update`, `device.register`, `device.replace`,
 `gap.resolve`, `staff.onboard`, `staff.role_change`, `staff.view_only_change`, `staff.deactivate`, `staff.reactivate`,
 `staff.delete`, `export.download`, `payment.refund`, `payment.fee_rule_change`, `payment.amount_mismatch`. A normal
-receipt issue writes no audit row (C-36).
+receipt issue writes no audit row (C-36). Work done offline and synced later is audited as the person who did it on
+the PC, with their role: a synced order's `receipt.amount_changed` rows name its issuer, an offline cancel's
+`receipt.cancel` names whoever cancelled (and records the syncer in `after.synced_by_staff_id`). What the sync itself
+does (`receipt.superseded`, `receipt.issuer_inactive_at_sync` when that person was offboarded before the sync) names
+the person who synced.
 
 **`ops_backup_runs`**: `id bigint identity pk`, `started_at`, `finished_at`, `ok boolean`, `bytes bigint`, `sha256
 text`, `error text`. Written by the backup job; read by Needs attention.
@@ -801,11 +808,18 @@ seva_receipt_no(p_series text, p_staff_no smallint, p_channel text, p_month smal
 seva_take_numbers(p_series text, p_year smallint, p_count int) returns int           -- first running no.; locks the year row
 seva_next_group_no(p_issued_at timestamptz) returns text
 seva_issue_counter_order(p_order jsonb, p_staff_id uuid, p_device_id uuid) returns jsonb
-seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid) returns jsonb
+seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid, p_issuer_role text) returns jsonb
+  -- p_order carries issuer_staff_no; p_staff_id is the syncer; p_issuer_role is the issuer's role read by the route
 seva_issue_online_order(p_payment_order_id uuid) returns jsonb
 seva_record_prints(p_receipt_ids uuid[], p_staff_id uuid, p_device_id uuid) returns jsonb
-seva_cancel_receipts(p_receipt_ids uuid[], p_reason_code text, p_note text, p_staff_id uuid, p_is_admin boolean) returns jsonb
-seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid) returns jsonb
+seva_cancel_receipts(p_receipt_ids uuid[], p_reason_code text, p_note text, p_staff_id uuid, p_is_admin boolean,
+                     p_at timestamptz default null, p_cancelled_by_staff_no integer default null,
+                     p_canceller_role text default null) returns jsonb
+  -- offline cancel: p_cancelled_by_staff_no and p_canceller_role name who cancelled on the PC, p_at when; p_staff_id syncs
+seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text) returns jsonb  -- today's receipts only
+seva_heartbeat(p_device_id uuid, p_outbox_count int, p_clock_skew_ms int, p_app_version text) returns jsonb
+  -- { server_time, of_series, last_of_no, last_of_group_no, day_closed }
+seva_offline_group_floor(p_counter_id smallint, p_device_id uuid, p_at timestamptz) returns int  -- 8.3; heartbeat and bootstrap
 seva_mark_prasadam(p_receipt_id uuid, p_staff_id uuid, p_confirm_off_date boolean) returns jsonb
 seva_undo_prasadam(p_receipt_id uuid, p_staff_id uuid, p_reason text) returns jsonb
 seva_prepare_day_close(p_counter_id smallint, p_business_date date) returns jsonb
@@ -880,6 +894,20 @@ R3 1.4). Each counter has its own series, so counters never wait on each other.
   an open gap (closing that part of the gap), otherwise refused and flagged.
 - The PC clock decides month and year for OF numbers. The heartbeat records clock skew; the counter warns when the PC
   clock is more than 2 minutes off, and the server flags offline receipts dated in the future.
+- **Who.** Each offline order carries `issuerStaffNo`, the staff no. of the person signed in when it was made (the one
+  inside its OF numbers); each offline cancel carries `cancelledByStaffNo` and the time it was made. Someone else may be
+  signed in when the outbox is sent. The server records that person as issuer (or canceller) and the signed-in person
+  as the syncer (`seva_orders.synced_by_staff_id`; for a cancel, `synced_by_staff_id` in its audit row). The person
+  must be a staff member who may use the counter (3.3 row 1, role read from Firestore by the route) whose staff row is
+  active, or inactive because they were offboarded after doing the work - then an audit row
+  `receipt.issuer_inactive_at_sync` says so; invited and deleted rows are refused. An offline cancel always follows the
+  counter rule: own receipt only, inside the cancel window measured from the receipt's issue time to the cancel's
+  recorded time (9.9).
+- **Group labels.** An offline order's group label is `G-YYMM-OF<n>-NNN`, numbered by the PC per series and IST month.
+  The PC raises its group counter to the server's floor, `last_of_group_no` in every heartbeat and in
+  `counter/bootstrap` (`seva_offline_group_floor`): the highest label the office holds for the counter's OF series this
+  IST month or, when higher, the floor that "Replace this PC" stored on the device (8.4). So a PC never repeats a label
+  (`group_no` is unique), including one a dead PC printed but never sent.
 
 ### 8.4 Devices, registration and "Replace this PC"
 
@@ -893,6 +921,14 @@ R3 1.4). Each counter has its own series, so counters never wait on each other.
   and the typed number as an open gap (`device_replaced`). An admin then enters those receipts from the paper slips or
   declares them lost with a reason (C-52). A retired device's later uploads are accepted only for numbers inside that
   gap; anything else is refused and flagged.
+- **Group label floor on replace.** The dead PC may have printed orders it never sent, each with a group label above
+  what the office holds. `seva_replace_device()` stores on the new device a floor for the current IST month
+  (`of_group_floor_yymm`, `of_group_floor_no`): the old PC's floor (the highest label received this month for the OF
+  series, or the old PC's own stored floor when higher) plus the total size of the series' open `device_replaced` gaps
+  - every unsent order used at least one OF number of such a gap. The new PC's first label comes after it, and the old
+  PC's late upload keeps its own label. The floor is stored once rather than worked out at each heartbeat, so it does
+  not creep up while a gap stays open; a second replacement in the same month starts from the replaced PC's floor, so
+  resolving an older gap never frees its labels again.
 
 ### 8.5 Year rollover, gaps and how they are explained
 
@@ -1013,7 +1049,11 @@ back as codes with plain messages ("Paaduka Pooja was switched off in Seva setti
   <staff no.>", same number, same QR. Any second print is a duplicate, even after a jam (C-22). Cancelled receipts cannot
   be reprinted (C-23).
 - **Spoiled print** (paper jam or misprint): "Spoiled - cancel and reissue" cancels the receipt with reason "Spoiled
-  print" and issues a new number on the same payment, linked by `replaces_receipt_id` (C-21; audit mockup).
+  print" and issues a new number on the same payment, linked by `replaces_receipt_id` (C-21; audit mockup). **Same day
+  only:** only a receipt of the counter's current IST business date is reissued, so the new receipt has the same
+  business date and today's day close counts the payment once (the spoiled number cancelled, the new one issued, no
+  hole in the series). An earlier day's slip is refused (`validation`, field `reissue_only_today`) and the counter
+  offers a DUPLICATE reprint instead, which needs no new number.
 
 ### 9.9 Today's receipts and cancel (Round B - cancel)
 
@@ -1028,7 +1068,11 @@ back as codes with plain messages ("Paaduka Pooja was switched off in Seva setti
 - **Money back:** cash cancelled the same business day is handed back from the drawer ("Give back Rs 820 in cash");
   `refund_state = done`. UPI cancellations set `refund_state = due`; the office refunds from the bank app and an admin
   marks it done with a note. A receipt from an earlier day is refunded by the office, never from today's drawer (C-20).
-- Offline, a receipt still in the outbox can be cancelled; the cancel travels in the outbox after the issue.
+- Offline, a receipt still in the outbox can be cancelled; the cancel travels in the outbox after the issue. An offline
+  cancel is of one's own receipt only, carries the canceller's staff no. (`cancelledByStaffNo`) and the time it was
+  made, and is checked at sync against that person and that time, not against whoever is signed in when it is sent
+  (8.3): the cancel window runs from the receipt's issue time to the recorded cancel time. The canceller is recorded as
+  `cancelled_by_staff_id`; the syncer is recorded in the audit row.
 
 ### 9.10 Close day (Round B - counter i, j; Round B - cancel; Round C - cash)
 
@@ -1513,7 +1557,7 @@ time: a few hours (new project, restore, update env, redeploy).
 | Supabase or Vercel down | Same as above for the counter; dashboard and prasadam unavailable | Counter carries on; prasadam checks the slip date by eye |
 | Firebase Auth down | Signed-in staff continue (offline if needed); new sign-ins fail | Keep the shift's person signed in |
 | Counter PC dies | New PC, "Replace this PC", type the last slip number; any unsent range becomes an open gap | Admin enters those slips from paper or declares them lost |
-| Printer jam or misprint | Receipt exists | Spoiled - cancel and reissue, or reprint (DUPLICATE) |
+| Printer jam or misprint | Receipt exists | Spoiled - cancel and reissue (same day only), or reprint (DUPLICATE) |
 | Power cut | Outbox and Excel copy survive on disk | Resume; check "waiting" count |
 | Gateway down (Phase 2) | Online booking shows "try later"; pending orders reconciled later | Nothing |
 | Bad migration or accidental data change | Additive-only migrations; immutable receipts; audit | Restore from backup if ever needed |

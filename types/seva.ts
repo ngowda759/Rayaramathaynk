@@ -218,7 +218,20 @@ export interface IssueResponse {
 
 export type OutboxItem =
   | { seq: number; kind: 'order'; payload: OfflineOrderPayload }
-  | { seq: number; kind: 'cancel'; clientReceiptIds: string[]; reasonCode: CancelReasonCode; note?: string; at: string };
+  | {
+      seq: number;
+      kind: 'cancel';
+      clientReceiptIds: string[];
+      reasonCode: CancelReasonCode;
+      note?: string;
+      /** When the cancel was made on the PC; the cancel window is measured to it. */
+      at: string;
+      /**
+       * Staff no. of the person signed in when the cancel was made. Someone else may be signed in when the outbox is
+       * sent; the office records this person as the canceller.
+       */
+      cancelledByStaffNo: number;
+    };
 
 export interface SyncResponse {
   results: { seq: number; ok: boolean; duplicate?: boolean; code?: string }[];

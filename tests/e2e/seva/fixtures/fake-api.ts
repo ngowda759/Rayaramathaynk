@@ -367,7 +367,10 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
     return formatGroupNo({ yymm, n: orders.size + 1 });
   }
 
-  /** Like seva_heartbeat's last_of_group_no: the highest 'G-YYMM-<series>-NNN' stored for the series this IST month. */
+  /**
+   * Like seva_heartbeat's last_of_group_no: the highest 'G-YYMM-<series>-NNN' stored for the series this IST month
+   * (the fake has no "Replace this PC", so no stored floor raises it).
+   */
   function lastOfGroupNo(series: string): number {
     const p = istParts(now());
     const prefix = `G-${String(p.year % 100).padStart(2, "0")}${String(p.month).padStart(2, "0")}-${series}-`;
@@ -470,10 +473,24 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
     return response;
   }
 
+  /**
+   * Like seva_issue_offline_issuer: the person an outbox item names by staff no. (the issuer of an offline order, or
+   * whoever cancelled offline), who may differ from the person syncing. Active, or inactive (offboarded since); null
+   * for an unknown, invited or deleted staff member.
+   */
+  function offlineStaff(staffNo: number): { staffId: string; name: string } | null {
+    const s = staffList().find((x) => x.staffNo === staffNo);
+    if (!s || !isString(s.id) || !isString(s.name) || (s.status !== "active" && s.status !== "inactive")) return null;
+    return { staffId: s.id, name: s.name };
+  }
+
   function syncOrder(payload: OfflineOrderPayload, me: SevaMe): { ok: boolean; duplicate?: boolean; code?: string } {
     if (orders.has(payload.clientOrderId)) return { ok: true, duplicate: true };
     const taken = payload.receipts.find((r) => state.receipts.some((x) => x.receiptNo === r.receiptNo));
     if (taken) return { ok: false, code: "number_conflict" };
+    // The issuer is the person whose staff no. the order carries, not the person signed in now (`me` only syncs).
+    const issuer = offlineStaff(payload.issuerStaffNo);
+    if (!issuer) return { ok: false, code: "validation" };
     const counter = counterOf(me);
     const priced = payload.receipts.map((r) => {
       const lines = r.lines.map((l, i) => priceLine(l, i + 1, { offline: true, cachedRatePaise: l.cachedRatePaise }));
@@ -499,7 +516,7 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
         devotee: devoteeOut(payload.devotee),
         qrToken: r.input.qrToken,
         issuedAt: payload.issuedAt,
-        issuedBy: { name: me.name, staffNo: me.staffNo },
+        issuedBy: { name: issuer.name, staffNo: payload.issuerStaffNo },
         counterName: counter.name,
         channel: "counter",
         issuedOffline: true,
@@ -510,8 +527,8 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
       extras.set(receipt.clientReceiptId, {
         devotee: payload.devotee,
         counterId: counter.id,
-        issuedByStaffId: me.staffId,
-        history: [{ at: payload.issuedAt, action: "issued_offline", by: me.name, reason: null }],
+        issuedByStaffId: issuer.staffId,
+        history: [{ at: payload.issuedAt, action: "issued_offline", by: issuer.name, reason: null }],
         cancel: null,
         given: null,
       });
@@ -522,12 +539,13 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
     return { ok: true, duplicate: false };
   }
 
-  function cancelReceipts(receipts: IssuedReceipt[], me: SevaMe, reasonCode: CancelReasonCode, note: string | null, at: string): void {
+  /** `by` is the name of whoever cancelled: the signed-in person online, the outbox's canceller offline. */
+  function cancelReceipts(receipts: IssuedReceipt[], by: string, reasonCode: CancelReasonCode, note: string | null, at: string): void {
     for (const r of receipts) {
       r.status = "cancelled";
       const extra = extraOf(r);
-      extra.cancel = { at, by: me.name, reasonCode, note };
-      extra.history.push({ at, action: "cancelled", by: me.name, reason: note ?? reasonCode });
+      extra.cancel = { at, by, reasonCode, note };
+      extra.history.push({ at, action: "cancelled", by, reason: note ?? reasonCode });
     }
   }
 
@@ -679,8 +697,11 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
             if (item.kind === "order") return { seq: item.seq, ...syncOrder(item.payload, me) };
             const targets = item.clientReceiptIds.map((id) => findReceipt(id));
             if (targets.some((t) => t === undefined)) return { seq: item.seq, ok: false, code: "not_found" };
+            // The canceller is whoever cancelled on the PC (the item's staff no.), not the person syncing.
+            const canceller = offlineStaff(item.cancelledByStaffNo);
+            if (!canceller) return { seq: item.seq, ok: false, code: "validation" };
             const live = (targets as IssuedReceipt[]).filter((t) => t.status === "issued");
-            cancelReceipts(live, me, item.reasonCode, item.note ?? null, item.at);
+            cancelReceipts(live, canceller.name, item.reasonCode, item.note ?? null, item.at);
             return { seq: item.seq, ok: true, duplicate: live.length === 0 };
           }),
         };
@@ -759,7 +780,7 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
         }
         const targets = (body.receiptIds as string[]).map(receiptOrThrow);
         targets.forEach((r) => checkCancel(r, me));
-        cancelReceipts(targets, me, body.reasonCode as CancelReasonCode, typeof body.note === "string" ? body.note : null, now().toISOString());
+        cancelReceipts(targets, me.name, body.reasonCode as CancelReasonCode, typeof body.note === "string" ? body.note : null, now().toISOString());
         return { receipts: targets.map(listItem) };
       },
     },
@@ -770,8 +791,10 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
       run: ({ params, me }): IssueResponse => {
         const old = receiptOrThrow(params.id);
         checkCancel(old, me);
+        // Like seva_reissue_spoiled: only a receipt of today's business date; an earlier day's slip is reprinted.
+        if (businessDate(new Date(old.issuedAt)) !== today()) throw new Refusal("validation", { field: "reissue_only_today" });
         const at = now().toISOString();
-        cancelReceipts([old], me, "spoiled_print", null, at);
+        cancelReceipts([old], me.name, "spoiled_print", null, at);
         const counter = counterOf(me);
         const p = istParts(now());
         const running = nextRunning(counter.onlineSeries);
