@@ -87,7 +87,11 @@ export default function EChart({ option, height, title, asOf, table }: EChartPro
       typeof window.matchMedia === "function" ? [window.matchMedia(REDUCED_MOTION), window.matchMedia(DARK_SCHEME)] : [];
     queries.forEach((q) => q.addEventListener("change", reapply));
     const themeObserver = new MutationObserver(reapply);
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    const themeFilter = { attributes: true, attributeFilter: ["class", "data-theme"] };
+    themeObserver.observe(document.documentElement, themeFilter);
+    // The module's dark tokens are scoped to `.seva[data-theme="dark"]`, so watch that wrapper too.
+    const sevaRoot = box.closest(".seva");
+    if (sevaRoot && sevaRoot !== document.documentElement) themeObserver.observe(sevaRoot, themeFilter);
 
     return () => {
       resize.disconnect();

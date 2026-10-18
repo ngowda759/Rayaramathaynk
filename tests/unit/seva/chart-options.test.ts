@@ -122,4 +122,51 @@ describe("chart option builders", () => {
       expect((option.xAxis as Rec).max).toBe(100);
     }
   });
+
+  it("top sevas has one ranked bar series with an arrow against the previous period", () => {
+    const option = topSevasOption(
+      {
+        rows: [
+          { name: "Kumkumarchane", value: 120, prev: 90 },
+          { name: "Panchamrutha", value: 50, prev: 80 },
+        ],
+        metric: "count",
+      },
+      OPTS,
+    ) as unknown as Rec;
+    const series = seriesOf(option);
+    expect(series).toHaveLength(1);
+    const data = series[0].data as number[];
+    const label = series[0].label as { formatter: (p: unknown) => string };
+    const tooltip = (option.tooltip as Rec).formatter as (p: unknown) => string;
+    const idxOf = (value: number) => data.indexOf(value);
+    expect(label.formatter({ dataIndex: idxOf(120), value: 120 })).toContain("▲");
+    expect(label.formatter({ dataIndex: idxOf(50), value: 50 })).toContain("▼");
+    expect(tooltip({ dataIndex: idxOf(50), value: 50 })).toContain("▼");
+    expect(tooltip({ dataIndex: idxOf(50), value: 50 })).toContain("80");
+  });
+
+  it("donut tooltip shows the amount and the share without repeating the mode name", () => {
+    const option = modeOption({ cashPaise: 100_000, upiPaise: 50_000, onlinePaise: 0 }, "today", OPTS) as unknown as Rec;
+    const tooltip = (option.tooltip as Rec).formatter as (p: unknown) => string;
+    const html = tooltip({ name: "Cash", value: 100_000, percent: 66.7, marker: "" });
+    expect(html.match(/Cash/g)).toHaveLength(1);
+    expect(html).toContain("Share: <b>67%</b>");
+  });
+
+  it("gives each payment mode the same colour in the hero and the donut", () => {
+    const hero = seriesOf(heroOption(HERO, OPTS) as unknown as Rec);
+    const pie = seriesOf(modeOption({ cashPaise: 1, upiPaise: 1, onlinePaise: 1 }, "today", OPTS) as unknown as Rec)[0];
+    const pieColors = (pie.data as { itemStyle: { color: string } }[]).map((x) => x.itemStyle.color);
+    const heroColors = hero.slice(0, 3).map((s) => (s.itemStyle as Rec).color);
+    expect(heroColors).toEqual(pieColors);
+    expect(pieColors).toEqual([COLORS[0], COLORS[3], COLORS[2]]);
+  });
+
+  it("hero tooltip adds the % change against the previous period", () => {
+    const option = heroOption(HERO, OPTS) as unknown as Rec;
+    const tooltip = (option.tooltip as Rec).formatter as (p: unknown) => string;
+    const html = tooltip([{ seriesName: "Cash", value: 50_000, marker: "", axisValueLabel: "10:00", dataIndex: 1 }]);
+    expect(html).toContain("▲ 25% against previous");
+  });
 });

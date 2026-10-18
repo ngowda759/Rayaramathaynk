@@ -49,6 +49,16 @@ export function chartCount(n: number): string {
   return COUNT_FORMAT.format(n);
 }
 
+/** ' ▲' when the value rose against the previous period, ' ▼' when it fell, '' when level. */
+export function trendArrow(value: number, prev: number): string {
+  if (value > prev) return " ▲";
+  if (value < prev) return " ▼";
+  return "";
+}
+
+/** Colour index per payment mode, the same in every chart (gold, green, blue: distinct hues, DESIGN-BOOK 18). */
+const MODE_COLOR_INDEX = { cash: 0, upi: 3, online: 2 } as const;
+
 function color(o: Opts, i: number): string {
   return o.colors[i] ?? FALLBACK_CHART_COLORS[i % FALLBACK_CHART_COLORS.length];
 }
@@ -63,6 +73,8 @@ interface TooltipParam {
   value?: unknown;
   marker?: unknown;
   axisValueLabel?: string;
+  percent?: number;
+  dataIndex?: number;
 }
 
 function asParams(p: unknown): TooltipParam[] {
@@ -80,8 +92,11 @@ function pointNumber(value: unknown): number | null {
   return null;
 }
 
-/** Builds a tooltip formatter: a heading (axis label or point name) then 'marker series: value' rows. */
-function tooltipFormatter(format: (n: number) => string, suffix = ""): (p: unknown) => string {
+/**
+ * Builds a tooltip formatter: a heading (axis label or point name) then 'marker series: value' rows.
+ * A single item point (no axis) is labelled `itemLabel` so the heading is not repeated as the row label.
+ */
+function tooltipFormatter(format: (n: number) => string, suffix = "", itemLabel = "Amount"): (p: unknown) => string {
   return (p: unknown) => {
     const params = asParams(p);
     if (params.length === 0) return "";
@@ -89,7 +104,7 @@ function tooltipFormatter(format: (n: number) => string, suffix = ""): (p: unkno
     const rows = params.map((x) => {
       const n = pointNumber(x.value);
       const marker = typeof x.marker === "string" ? x.marker : "";
-      const label = params.length > 1 || x.axisValueLabel ? x.seriesName ?? "" : x.name ?? x.seriesName ?? "";
+      const label = params.length > 1 || x.axisValueLabel ? x.seriesName ?? "" : itemLabel;
       return `${marker}${escapeHtml(label)}: <b>${n === null ? "-" : format(n) + suffix}</b>`;
     });
     return [heading ? `<b>${escapeHtml(heading)}</b>` : "", ...rows].filter(Boolean).join("<br/>");
@@ -122,16 +137,29 @@ export function heroOption(d: HeroInput, o: Opts): EChartsCoreOption {
     emphasis: { focus: "series" },
     data: d.buckets.map(pick),
   });
+  const rows = tooltipFormatter(chartRupees);
+  // Rows for each series, then '▲ n% against previous' when there is a previous value to compare with (R5 chart 1).
+  const heroTooltip = (p: unknown): string => {
+    const params = asParams(p);
+    const i = params[0]?.dataIndex;
+    const bucket = typeof i === "number" ? d.buckets[i] : undefined;
+    const prev = bucket ? prevByKey.get(bucket.key) : undefined;
+    if (!bucket || prev === undefined || prev <= 0) return rows(p);
+    const total = bucket.cashPaise + bucket.upiPaise + bucket.onlinePaise;
+    const change = Math.round(((total - prev) / prev) * 100);
+    const arrow = change >= 0 ? "▲" : "▼";
+    return `${rows(p)}<br/>${arrow} ${Math.abs(change)}% against previous`;
+  };
   return {
-    ...base(o, { trigger: "axis", axisPointer: { type: "shadow" }, formatter: tooltipFormatter(chartRupees) }),
+    ...base(o, { trigger: "axis", axisPointer: { type: "shadow" }, formatter: heroTooltip }),
     legend: LEGEND,
     grid: { left: 8, right: 8, top: 16, bottom: 48, containLabel: true },
     xAxis: { type: "category", data: d.buckets.map((b) => b.label), axisLabel: AXIS_LABEL },
     yAxis: { type: "value", axisLabel: AMOUNT_AXIS_LABEL },
     series: [
-      stacked(MODE_NAMES.cash, 0, (b) => b.cashPaise),
-      stacked(MODE_NAMES.upi, 1, (b) => b.upiPaise),
-      stacked(MODE_NAMES.online, 2, (b) => b.onlinePaise),
+      stacked(MODE_NAMES.cash, MODE_COLOR_INDEX.cash, (b) => b.cashPaise),
+      stacked(MODE_NAMES.upi, MODE_COLOR_INDEX.upi, (b) => b.upiPaise),
+      stacked(MODE_NAMES.online, MODE_COLOR_INDEX.online, (b) => b.onlinePaise),
       {
         name: PREV_NAME,
         type: "line",
@@ -145,17 +173,26 @@ export function heroOption(d: HeroInput, o: Opts): EChartsCoreOption {
   };
 }
 
-/** Top sevas: horizontal ranked bars (largest on top) with the previous period as a grey bar beside each. */
+/** Top sevas: one ranked bar series (largest on top); each label carries ▲/▼ against the previous period. */
 export function topSevasOption(
   d: { rows: { name: string; value: number; prev: number }[]; metric: "amount" | "count" },
   o: Opts,
 ): EChartsCoreOption {
   const format = d.metric === "amount" ? chartRupees : chartCount;
   const rows = [...d.rows].sort((a, b) => b.value - a.value).reverse();
+  const rowAt = (p: unknown) => {
+    const [x] = asParams(p);
+    return x && typeof x.dataIndex === "number" ? rows[x.dataIndex] : undefined;
+  };
+  const tooltip = (p: unknown): string => {
+    const r = rowAt(p);
+    if (!r) return "";
+    const arrow = trendArrow(r.value, r.prev);
+    return `<b>${escapeHtml(r.name)}</b><br/>This period: <b>${format(r.value)}${arrow}</b><br/>${PREV_NAME}: ${format(r.prev)}`;
+  };
   return {
-    ...base(o, { trigger: "axis", axisPointer: { type: "shadow" }, formatter: tooltipFormatter(format) }),
-    legend: LEGEND,
-    grid: { left: 8, right: 24, top: 8, bottom: 48, containLabel: true },
+    ...base(o, { trigger: "item", formatter: tooltip }),
+    grid: { left: 8, right: 24, top: 8, bottom: 8, containLabel: true },
     xAxis: { type: "value", axisLabel: d.metric === "amount" ? AMOUNT_AXIS_LABEL : COUNT_AXIS_LABEL },
     yAxis: { type: "category", data: rows.map((r) => r.name), axisLabel: { fontSize: SMALL_FONT_SIZE, width: 140, overflow: "truncate" } },
     series: [
@@ -164,15 +201,16 @@ export function topSevasOption(
         type: "bar",
         barMaxWidth: 22,
         itemStyle: { color: color(o, 0) },
-        label: { show: true, position: "right", fontSize: SMALL_FONT_SIZE, formatter: (p: { value: unknown }) => format(pointNumber(p.value) ?? 0) },
+        label: {
+          show: true,
+          position: "right",
+          fontSize: SMALL_FONT_SIZE,
+          formatter: (p: unknown) => {
+            const r = rowAt(p);
+            return r ? `${format(r.value)}${trendArrow(r.value, r.prev)}` : "";
+          },
+        },
         data: rows.map((r) => r.value),
-      },
-      {
-        name: PREV_NAME,
-        type: "bar",
-        barMaxWidth: 22,
-        itemStyle: { color: CHART_PREV_COLOR, opacity: 0.5 },
-        data: rows.map((r) => r.prev),
       },
     ],
   };
@@ -181,14 +219,20 @@ export function topSevasOption(
 /** Payment mode: a donut for today and week; one 100% stacked bar (shares of the period) for month and year. */
 export function modeOption(d: ModeInput, period: Period, o: Opts): EChartsCoreOption {
   const parts = [
-    { name: MODE_NAMES.cash, value: d.cashPaise, itemStyle: { color: color(o, 0) } },
-    { name: MODE_NAMES.upi, value: d.upiPaise, itemStyle: { color: color(o, 1) } },
-    { name: MODE_NAMES.online, value: d.onlinePaise, itemStyle: { color: color(o, 2) } },
+    { name: MODE_NAMES.cash, value: d.cashPaise, itemStyle: { color: color(o, MODE_COLOR_INDEX.cash) } },
+    { name: MODE_NAMES.upi, value: d.upiPaise, itemStyle: { color: color(o, MODE_COLOR_INDEX.upi) } },
+    { name: MODE_NAMES.online, value: d.onlinePaise, itemStyle: { color: color(o, MODE_COLOR_INDEX.online) } },
   ];
   if (period === "today" || period === "week") {
+    const pieTooltip = (p: unknown): string => {
+      const [x] = asParams(p);
+      if (!x) return "";
+      const share = typeof x.percent === "number" ? Math.round(x.percent) : 0;
+      return `<b>${escapeHtml(x.name ?? "")}</b><br/>Amount: <b>${chartRupees(pointNumber(x.value) ?? 0)}</b><br/>Share: <b>${share}%</b>`;
+    };
     // The period total sits in the tiles above; no title component is registered (register.ts), so none here.
     return {
-      ...base(o, { trigger: "item", formatter: tooltipFormatter(chartRupees) }),
+      ...base(o, { trigger: "item", formatter: pieTooltip }),
       legend: LEGEND,
       series: [
         {
@@ -197,8 +241,8 @@ export function modeOption(d: ModeInput, period: Period, o: Opts): EChartsCoreOp
           radius: ["50%", "75%"],
           center: ["50%", "45%"],
           avoidLabelOverlap: true,
-          label: { show: false, fontSize: SMALL_FONT_SIZE },
-          labelLine: { show: false },
+          label: { show: true, fontSize: CHART_FONT_SIZE, formatter: "{b}\n{d}%" },
+          labelLine: { show: true, length: 8, length2: 8 },
           data: parts,
         },
       ],
