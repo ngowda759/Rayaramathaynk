@@ -3,7 +3,12 @@
  */
 import 'fake-indexeddb/auto';
 import { openSevaDb } from '@/lib/seva/offline/db';
-import { raiseOfflineFloor, takeOfflineGroupNo, takeOfflineNumbers } from '@/lib/seva/offline/allocator';
+import {
+  raiseOfflineFloor,
+  raiseOfflineGroupFloor,
+  takeOfflineGroupNo,
+  takeOfflineNumbers,
+} from '@/lib/seva/offline/allocator';
 import { createCounterSubmitter } from '@/lib/seva/offline/submitter';
 import {
   deviceHeader,
@@ -66,6 +71,23 @@ describe('OF number allocator', () => {
     expect(await takeOfflineGroupNo(db, { yymm: '2610', series: 'OF1' })).toBe('G-2610-OF1-002');
     expect(await takeOfflineGroupNo(db, { yymm: '2611', series: 'OF1' })).toBe('G-2611-OF1-001');
     expect(await takeOfflineGroupNo(db, { yymm: '2610', series: 'OF2' })).toBe('G-2610-OF2-001');
+  });
+
+  it('a replacement PC never reuses a group label the office already has', async () => {
+    // A new PC after "Replace this PC": its group counter is empty, the office already has G-2610-OF1-001..003.
+    const db = await freshDb();
+    await raiseOfflineGroupFloor(db, { series: 'OF1', yymm: '2610', serverLastNo: 3 });
+    expect(await takeOfflineGroupNo(db, { yymm: '2610', series: 'OF1' })).toBe('G-2610-OF1-004');
+
+    // Never lowered; other months and series keep their own counters.
+    await raiseOfflineGroupFloor(db, { series: 'OF1', yymm: '2610', serverLastNo: 1 });
+    expect(await takeOfflineGroupNo(db, { yymm: '2610', series: 'OF1' })).toBe('G-2610-OF1-005');
+    expect(await takeOfflineGroupNo(db, { yymm: '2611', series: 'OF1' })).toBe('G-2611-OF1-001');
+    expect(await takeOfflineGroupNo(db, { yymm: '2610', series: 'OF2' })).toBe('G-2610-OF2-001');
+
+    await expect(raiseOfflineGroupFloor(db, { series: 'OF1', yymm: '2610', serverLastNo: -1 })).rejects.toThrow(RangeError);
+    await expect(raiseOfflineGroupFloor(db, { series: 'OF1', yymm: '2613', serverLastNo: 1 })).rejects.toThrow(RangeError);
+    await expect(raiseOfflineGroupFloor(db, { series: 'C1', yymm: '2610', serverLastNo: 1 })).rejects.toThrow(RangeError);
   });
 
   it('offline numbers take month and year from the PC clock in IST', async () => {

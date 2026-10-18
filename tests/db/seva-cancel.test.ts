@@ -1,7 +1,7 @@
 /**
  * Database tests for Task A2-1 (part 3 of 3): recording prints and reprints (seva_record_prints), cancelling with a
  * reason and the money-back state (seva_cancel_receipts, C-20, D23) and the spoiled-print reissue
- * (seva_reissue_spoiled, C-21).
+ * (seva_reissue_spoiled, C-21), which keeps the spoiled receipt's business date (A2-FIX).
  *
  * Every test starts from its own copy of one migrated template database (a PGlite data-dir clone). Receipts that must
  * look older than the cancel window are inserted directly as fixtures; every rule is proved through the SQL functions,
@@ -222,6 +222,24 @@ async function reissue(c: Ctx, receiptId: string, token: string, deviceId: strin
       c.staffId,
       deviceId,
       token,
+    ]);
+    return r.rows[0].r;
+  });
+}
+
+interface DayClosePrepRow {
+  receipts: number;
+  cancelled: number;
+  cash_expected: string;
+  upi_expected: string;
+  [key: string]: unknown;
+}
+
+/** What the close-day screen shows for Counter 1 on one business date (A2-2's seva_prepare_day_close). */
+async function prepareDayClose(c: Ctx, businessDate: string): Promise<DayClosePrepRow> {
+  return asRole(c.db, 'service_role', async (d) => {
+    const r = await d.query<{ r: DayClosePrepRow }>('select seva_prepare_day_close(1::smallint, $1::date) as r', [
+      businessDate,
     ]);
     return r.rows[0].r;
   });
@@ -494,5 +512,38 @@ describe('seva_reissue_spoiled (A2-1)', () => {
     expect(await failure(reissue(c, other.id, token))).toEqual({ code: 'validation', detail: { field: 'qr_token' } });
     expect((await failure(reissue(c, randomUUID(), qrToken()))).code).toBe('not_found');
     expect(await count(c.db, 'seva_receipts')).toBe(3);
+  });
+
+  it("reissue keeps the spoiled receipt's business date, so today's day close does not change", async () => {
+    const c = await setup();
+    // Today: one cash order at Counter 1.
+    await issue(c, { days: [1] });
+    // An earlier day's cash receipt, spoiled when it is printed again today.
+    const earlier = await insertPastReceipt(c, { minutesAgo: 26 * 60, mode: 'cash' });
+    const day = await c.db.query<{ d: string }>('select business_date::text as d from seva_receipts where id = $1', [earlier]);
+    const earlierDay = day.rows[0].d;
+    expect(earlierDay < c.today).toBe(true);
+
+    const todayBefore = await prepareDayClose(c, c.today);
+    const earlierBefore = await prepareDayClose(c, earlierDay);
+    expect(todayBefore).toMatchObject({ receipts: 1, cancelled: 0 });
+
+    const res = await reissue(c, earlier, qrToken());
+    const fresh = await c.db.query(
+      'select business_date::text as business_date, replaces_receipt_id, status from seva_receipts where id = $1',
+      [res.new_receipt_id],
+    );
+    expect(fresh.rows).toEqual([{ business_date: earlierDay, replaces_receipt_id: earlier, status: 'issued' }]);
+
+    // The payment was carried over (no new cash): today's figures are exactly as before.
+    expect(await prepareDayClose(c, c.today)).toEqual(todayBefore);
+    // The earlier day still counts the money once; the spoiled slip shows there as cancelled.
+    const earlierAfter = await prepareDayClose(c, earlierDay);
+    expect([earlierAfter.receipts, earlierAfter.cancelled, earlierAfter.cash_expected, earlierAfter.upi_expected]).toEqual([
+      earlierBefore.receipts,
+      earlierBefore.cancelled + 1,
+      earlierBefore.cash_expected,
+      earlierBefore.upi_expected,
+    ]);
   });
 });

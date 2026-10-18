@@ -178,6 +178,40 @@ BEGIN
 END;
 $$;
 
+-- The issuer of an offline order: the person signed in on the PC when the order was made, named by the staff number
+-- the order carries (issuer_staff_no, the one inside its OF numbers). Someone else may sync it later. The issuer must
+-- be an active staff member who may use the counter (DB 3.3 row 1): a receptionist, temple admin or super admin who
+-- is not view-only. The role is kept in Firestore, not here (DB 3.2), so the route reads it for this staff member and
+-- passes it as p_role ('receptionist' | 'prasadam_counter' | 'temple_admin' | 'super_admin'; null when unknown).
+-- Anything else is SEVA:validation naming issuer_staff_no.
+CREATE OR REPLACE FUNCTION seva_issue_offline_issuer(p_staff_no text, p_role text)
+RETURNS staff
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_no integer;
+  v_staff staff%ROWTYPE;
+BEGIN
+  v_no := seva_issue_arg_int(p_staff_no, 'issuer_staff_no');
+  IF v_no IS NULL OR v_no NOT BETWEEN 1 AND 999 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'issuer_staff_no')::text;
+  END IF;
+  SELECT s.* INTO v_staff FROM staff s WHERE s.staff_no = v_no;
+  IF NOT FOUND OR v_staff.status <> 'active' THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'issuer_staff_no', 'reason', 'not an active staff member')::text;
+  END IF;
+  IF v_staff.view_only OR p_role IS NULL OR p_role NOT IN ('receptionist', 'temple_admin', 'super_admin') THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'issuer_staff_no', 'reason', 'may not use the counter')::text;
+  END IF;
+  RETURN v_staff;
+END;
+$$;
+
 -- The registered counter PC. It must be live (retired_at is null) unless p_allow_retired: only an offline sync may
 -- come from a retired PC, and then only for numbers inside its device_replaced gap (DB 8.4).
 CREATE OR REPLACE FUNCTION seva_issue_device(p_device_id uuid, p_allow_retired boolean)
@@ -983,14 +1017,17 @@ $$;
 -- 8. Store an offline order exactly as printed (DB 8.3, 8.4, 8.6)
 -- =====================================================================================================
 
--- p_order is the issue contract plus issued_at, group_no, receipts[].running_no, receipts[].receipt_no and
--- receipts[].lines[].cached_rate. The PC already printed and was paid, so the order is stored as printed: the
--- catalogue rate of each line is the PC's cached rate, and seva dates and the catalogue are not re-checked. What is
--- checked: the PC is this counter's (a retired PC only inside its device_replaced gap), every number is in the
--- counter's OF series and equals seva_receipt_no() of its parts, and the number fits the series (next number, a jump
--- that opens a missing_in_sync gap, or a late number inside an open gap). A repeat of the order, or of its printed
--- receipts under another order id, returns the stored order with duplicate = true.
-CREATE OR REPLACE FUNCTION seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid)
+-- p_order is the issue contract plus issuer_staff_no, issued_at, group_no, receipts[].running_no,
+-- receipts[].receipt_no and receipts[].lines[].cached_rate. The PC already printed and was paid, so the order is
+-- stored as printed: the catalogue rate of each line is the PC's cached rate, and seva dates and the catalogue are not
+-- re-checked. What is checked: the PC is this counter's (a retired PC only inside its device_replaced gap), the issuer
+-- is an active staff member who may use the counter (seva_issue_offline_issuer; p_issuer_role is that person's role,
+-- read by the route), every number is in the counter's OF series and equals seva_receipt_no() of its parts with the
+-- issuer's staff number, and the number fits the series (next number, a jump that opens a missing_in_sync gap, or a
+-- late number inside an open gap). The issuer is recorded as issued_by_staff_id; p_staff_id, the person signed in
+-- when the outbox is sent (it may be someone else), as synced_by_staff_id and as the actor of the audit rows. A repeat
+-- of the order, or of its printed receipts under another order id, returns the stored order with duplicate = true.
+CREATE OR REPLACE FUNCTION seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid, p_issuer_role text)
 RETURNS jsonb
 LANGUAGE plpgsql
 VOLATILE
@@ -999,7 +1036,8 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_now timestamptz := now();
-  v_staff staff%ROWTYPE;
+  v_syncer staff%ROWTYPE;
+  v_issuer staff%ROWTYPE;
   v_device counter_devices%ROWTYPE;
   v_series text;
   v_client_order_id uuid;
@@ -1054,7 +1092,7 @@ BEGIN
     RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'client_order_id')::text;
   END IF;
 
-  v_staff := seva_issue_staff(p_staff_id);
+  v_syncer := seva_issue_staff(p_staff_id);
   v_device := seva_issue_device(p_device_id, true);
 
   PERFORM pg_advisory_xact_lock(hashtextextended('seva_order:' || v_client_order_id::text, 0));
@@ -1103,6 +1141,9 @@ BEGIN
     RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'group_no')::text;
   END IF;
 
+  -- Who printed these receipts: their numbers carry this person's staff number.
+  v_issuer := seva_issue_offline_issuer(p_order->>'issuer_staff_no', p_issuer_role);
+
   v_devotee := seva_issue_devotee(p_order->'devotee');
   v_expected := seva_issue_arg_money(p_order->>'expected_total', 'expected_total');
   IF v_expected IS NULL THEN
@@ -1140,7 +1181,7 @@ BEGIN
       RAISE EXCEPTION 'SEVA:number_conflict'
         USING DETAIL = jsonb_build_object('receipt_no', v_receipt_no, 'reason', 'not this counter''s offline series')::text;
     END IF;
-    IF v_receipt_no <> seva_receipt_no(v_series, v_staff.staff_no, NULL, v_month, v_year, v_running) THEN
+    IF v_receipt_no <> seva_receipt_no(v_series, v_issuer.staff_no, NULL, v_month, v_year, v_running) THEN
       RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'receipt_no', 'receipt_no', v_receipt_no)::text;
     END IF;
     IF jsonb_typeof(v_receipt.body->'lines') IS DISTINCT FROM 'array'
@@ -1252,13 +1293,13 @@ BEGIN
   INSERT INTO seva_orders (group_no, client_order_id, channel, counter_id, device_id, issued_by_staff_id, devotee_name,
                            gotra, gotra_id, nakshatra_id, nakshatra_text, rashi_id, rashi_text, phone_e164,
                            receipts_count, amount_total, payment_mode, cash_received, change_returned, upi_ref_last6,
-                           upi_seen_confirmed, issued_offline, supersedes_order_id, issued_at)
-  VALUES (v_group_no, v_client_order_id, 'counter', v_device.counter_id, v_device.id, v_staff.id, v_devotee->>'name',
+                           upi_seen_confirmed, issued_offline, supersedes_order_id, issued_at, synced_by_staff_id)
+  VALUES (v_group_no, v_client_order_id, 'counter', v_device.counter_id, v_device.id, v_issuer.id, v_devotee->>'name',
           v_devotee->>'gotra', (v_devotee->>'gotra_id')::smallint, (v_devotee->>'nakshatra_id')::smallint,
           v_devotee->>'nakshatra_text', (v_devotee->>'rashi_id')::smallint, v_devotee->>'rashi_text',
           v_devotee->>'phone_e164', v_count, v_total, v_payment->>'mode', (v_payment->>'cash_received')::numeric,
           (v_payment->>'change_returned')::numeric, v_payment->>'upi_ref_last6',
-          (v_payment->>'upi_seen_confirmed')::boolean, true, v_superseded_order, v_issued_at)
+          (v_payment->>'upi_seen_confirmed')::boolean, true, v_superseded_order, v_issued_at, v_syncer.id)
   RETURNING id INTO v_order_id;
 
   -- Numbers in running order; positions follow them (the PC numbered the receipts in printing order).
@@ -1320,14 +1361,14 @@ BEGIN
     INSERT INTO seva_receipts (receipt_no, series_code, year, month, running_no, staff_no, order_id, position,
                                client_receipt_id, seva_date, business_date, total, qr_token, prasadam_state, issued_at,
                                issued_by_staff_id, issued_by_name, issued_offline, has_changed_amount)
-    VALUES (v_receipt_no, v_series, v_year, v_month, v_running, v_staff.staff_no, v_order_id, v_position,
+    VALUES (v_receipt_no, v_series, v_year, v_month, v_running, v_issuer.staff_no, v_order_id, v_position,
             (v_receipt.body->>'client_receipt_id')::uuid, (v_receipt.body->>'seva_date')::date, v_business_date,
             (v_receipt.body->>'total')::numeric, v_receipt.body->>'qr_token',
             CASE WHEN (v_receipt.body->>'prasadam')::boolean THEN 'pending' ELSE 'none' END,
-            v_issued_at, v_staff.id, v_staff.full_name, true, (v_receipt.body->>'changed')::boolean)
+            v_issued_at, v_issuer.id, v_issuer.full_name, true, (v_receipt.body->>'changed')::boolean)
     RETURNING id INTO v_receipt_id;
     PERFORM seva_issue_write_lines(v_receipt_id, v_receipt.body->'lines');
-    PERFORM seva_issue_audit_lines(v_receipt_id, v_receipt_no, v_receipt.body->'lines', v_staff.id);
+    PERFORM seva_issue_audit_lines(v_receipt_id, v_receipt_no, v_receipt.body->'lines', v_syncer.id);
   END LOOP;
 
   UPDATE receipt_series_years y
@@ -1350,14 +1391,14 @@ BEGIN
                cancel_reason_code = 'not_printed_connection_lost',
                cancel_note = v_note,
                cancelled_at = v_now,
-               cancelled_by_staff_id = v_staff.id
+               cancelled_by_staff_id = v_syncer.id
          WHERE r.id = v_old.id;
         PERFORM seva_audit(
           'receipt.superseded', 'receipt', v_old.id::text, v_old.receipt_no, v_note,
           jsonb_build_object('status', 'issued'),
           jsonb_build_object('status', 'cancelled', 'cancel_reason_code', 'not_printed_connection_lost',
                              'superseded_by_order_id', v_order_id, 'superseded_by_receipt_no', v_first_no),
-          v_staff.id
+          v_syncer.id
         );
       END LOOP;
     END IF;
@@ -1569,8 +1610,9 @@ $$;
 -- The receipt jammed or misprinted: it is cancelled with reason spoiled_print (no money moves, so refund_state stays
 -- none) and a new receipt takes the next number of this counter's C series on the same order, with the same seva
 -- date, position, total and lines, a new QR token (made in TypeScript, qr.ts) and replaces_receipt_id pointing at
--- the spoiled one. Audit receipt.reissue_spoiled. Returns the order (seva_order_json) plus new_receipt_id and
--- replaced_receipt_id.
+-- the spoiled one. The new receipt keeps the spoiled one's business_date: the payment is carried over, no new cash
+-- comes in, so a receipt from an earlier day never shows again in today's day close. Audit receipt.reissue_spoiled.
+-- Returns the order (seva_order_json) plus new_receipt_id and replaced_receipt_id.
 CREATE OR REPLACE FUNCTION seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -1632,7 +1674,7 @@ BEGIN
                              issued_at, issued_by_staff_id, issued_by_name, issued_offline, has_changed_amount,
                              test_mode)
   VALUES (v_receipt_no, v_series, v_year, v_month, v_running, v_staff.staff_no, v_old.order_id, v_old.position,
-          gen_random_uuid(), v_old.seva_date, v_today, v_old.total, v_old.id, p_qr_token,
+          gen_random_uuid(), v_old.seva_date, v_old.business_date, v_old.total, v_old.id, p_qr_token,
           v_old.prasadam_state, v_old.prasadam_given_at, v_old.prasadam_given_by_staff_id, v_old.prasadam_off_date,
           v_now, v_staff.id, v_staff.full_name, false, v_old.has_changed_amount, v_old.test_mode)
   RETURNING id INTO v_new_id;
@@ -1674,6 +1716,8 @@ REVOKE EXECUTE ON FUNCTION seva_issue_arg_text(text, text, integer) FROM PUBLIC,
 GRANT EXECUTE ON FUNCTION seva_issue_arg_text(text, text, integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_staff(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_staff(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_device(uuid, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_device(uuid, boolean) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_counter_series(smallint, text) FROM PUBLIC, anon, authenticated;
@@ -1702,8 +1746,8 @@ REVOKE EXECUTE ON FUNCTION seva_order_json(uuid, boolean) FROM PUBLIC, anon, aut
 GRANT EXECUTE ON FUNCTION seva_order_json(uuid, boolean) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_counter_order(jsonb, uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_counter_order(jsonb, uuid, uuid) TO service_role;
-REVOKE EXECUTE ON FUNCTION seva_sync_offline_order(jsonb, uuid, uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION seva_sync_offline_order(jsonb, uuid, uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_sync_offline_order(jsonb, uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_sync_offline_order(jsonb, uuid, uuid, text) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_record_prints(uuid[], uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_record_prints(uuid[], uuid, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz) FROM PUBLIC, anon, authenticated;

@@ -1,13 +1,14 @@
 /**
  * The counter heartbeat (Design Book 8.3, 9.1, 9.12): every 60 s it tells the office how many outbox items wait, how
  * far this PC's clock is off and which app version runs; the answer raises this PC's OF floor to the server's last OF
- * number and says whether the day is closed. It also keeps the connection status honest.
+ * number and its offline group counter to the server's last group label of the month (so a PC that replaced another
+ * never repeats a label), and says whether the day is closed. It also keeps the connection status honest.
  *
  * Clock skew = this PC's time minus the server's, measured at the middle of the call (positive: the PC is ahead).
  * It is measured from each answer and sent with the next beat.
  */
 import { istParts } from '@/lib/seva/time';
-import { raiseOfflineFloor } from './allocator';
+import { raiseOfflineFloor, raiseOfflineGroupFloor } from './allocator';
 import { connectionStore, isUnreachable } from './connection';
 import type { SevaDb } from './db';
 import { pendingCount } from './outbox';
@@ -20,6 +21,8 @@ export interface HeartbeatAnswer {
   serverTime: string;
   ofSeries: string;
   lastOfNo: number;
+  /** The highest offline group label NNN ('G-YYMM-OF1-NNN') the office holds for the series in its IST month. */
+  lastOfGroupNo: number;
   dayClosed: boolean;
 }
 
@@ -57,11 +60,13 @@ export function startHeartbeat(deps: HeartbeatDeps): () => void {
       if (Number.isNaN(serverMs)) return;
       const skewMs = Math.round((sentAt + receivedAt) / 2 - serverMs);
       lastSkewMs = skewMs;
-      // lastOfNo is the server's count for its own IST year.
-      await raiseOfflineFloor(deps.db, {
+      // lastOfNo is the server's count for its own IST year; lastOfGroupNo for its own IST month.
+      const server = istParts(new Date(serverMs));
+      await raiseOfflineFloor(deps.db, { series: answer.ofSeries, year: server.year, serverLastNo: answer.lastOfNo });
+      await raiseOfflineGroupFloor(deps.db, {
         series: answer.ofSeries,
-        year: istParts(new Date(serverMs)).year,
-        serverLastNo: answer.lastOfNo,
+        yymm: `${String(server.year % 100).padStart(2, '0')}${String(server.month).padStart(2, '0')}`,
+        serverLastNo: answer.lastOfGroupNo,
       });
       if (!stopped) deps.onResult({ skewMs, dayClosed: answer.dayClosed });
     } catch {

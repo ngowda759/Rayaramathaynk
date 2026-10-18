@@ -384,8 +384,11 @@ END;
 $$;
 
 -- The counter's heartbeat (DB 8.3): stores outbox count, clock skew and app version on the live device and returns
--- { server_time, of_series, last_of_no, day_closed } - the server's last OF number this IST year (0 when none yet)
--- and whether today's day close for the counter is closed. A retired or unknown device gets SEVA:device_unknown.
+-- { server_time, of_series, last_of_no, last_of_group_no, day_closed } - the server's last OF number this IST year
+-- (0 when none yet), the highest offline group label stored for the counter's OF series this IST month
+-- ('G-YYMM-OF<n>-NNN' -> NNN; 0 when none yet) and whether today's day close for the counter is closed. The PC raises
+-- its own group counter to last_of_group_no, so a PC that replaced another ("Replace this PC") never reuses a label
+-- the office already holds (group_no is unique). A retired or unknown device gets SEVA:device_unknown.
 CREATE OR REPLACE FUNCTION seva_heartbeat(
   p_device_id uuid,
   p_outbox_count int,
@@ -402,9 +405,12 @@ DECLARE
   v_version text := nullif(btrim(coalesce(p_app_version, '')), '');
   v_counter smallint;
   v_year smallint;
+  v_month smallint;
   v_today date;
   v_series text;
   v_last integer;
+  v_group_prefix text;
+  v_last_group integer;
   v_closed boolean;
 BEGIN
   IF p_outbox_count IS NULL OR p_outbox_count < 0 THEN
@@ -429,9 +435,17 @@ BEGIN
          app_version = v_version
    WHERE id = p_device_id;
 
-  SELECT p.year, p.business_date INTO v_year, v_today FROM seva_ist_parts(v_now) p;
+  SELECT p.year, p.month, p.business_date INTO v_year, v_month, v_today FROM seva_ist_parts(v_now) p;
   SELECT s.code INTO v_series FROM receipt_series s WHERE s.counter_id = v_counter AND s.kind = 'counter_offline';
   SELECT y.last_no INTO v_last FROM receipt_series_years y WHERE y.series_code = v_series AND y.year = v_year;
+  -- Offline group labels of this series and IST month: 'G-' || YYMM || '-' || series || '-' || NNN. The series code
+  -- holds only letters and digits, so the LIKE prefix has no wildcard in it, and the '-' after it keeps OF1 apart
+  -- from OF10.
+  v_group_prefix := 'G-' || lpad((v_year % 100)::text, 2, '0') || lpad(v_month::text, 2, '0') || '-' || v_series || '-';
+  SELECT max(substr(o.group_no, char_length(v_group_prefix) + 1)::integer) INTO v_last_group
+    FROM seva_orders o
+   WHERE o.group_no LIKE v_group_prefix || '%'
+     AND substr(o.group_no, char_length(v_group_prefix) + 1) ~ '^[0-9]{1,9}$';
   v_closed := EXISTS (
     SELECT 1 FROM day_closes dc
      WHERE dc.counter_id = v_counter AND dc.business_date = v_today AND dc.status = 'closed'
@@ -441,6 +455,7 @@ BEGIN
     'server_time', v_now,
     'of_series', v_series,
     'last_of_no', coalesce(v_last, 0),
+    'last_of_group_no', coalesce(v_last_group, 0),
     'day_closed', v_closed
   );
 END;

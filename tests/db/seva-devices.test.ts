@@ -223,13 +223,14 @@ describe('seva device, gap and heartbeat functions (A2-2)', () => {
     const deviceId = await seedDevice(db, { staffId: admin });
     await setOfLastNo(db, 7);
 
-    const r = await db.query<{ r: { server_time: string; of_series: string; last_of_no: number; day_closed: boolean } }>(
-      `select seva_heartbeat($1::uuid, 3, -1500, '1.4.0') as r`,
-      [deviceId],
-    );
+    const r = await db.query<{
+      r: { server_time: string; of_series: string; last_of_no: number; last_of_group_no: number; day_closed: boolean };
+    }>(`select seva_heartbeat($1::uuid, 3, -1500, '1.4.0') as r`, [deviceId]);
     const beat = r.rows[0].r;
     expect(beat.of_series).toBe('OF1');
     expect(beat.last_of_no).toBe(7);
+    // No offline group label stored this month yet (the group floor itself is proved in seva-sync.test.ts).
+    expect(beat.last_of_group_no).toBe(0);
     expect(beat.day_closed).toBe(false);
     expect(Math.abs(new Date(beat.server_time).getTime() - Date.now())).toBeLessThan(60_000);
 
@@ -255,7 +256,7 @@ describe('seva device, gap and heartbeat functions (A2-2)', () => {
         `select seva_heartbeat($1::uuid, 0, 0, '1.4.0') as r`,
         [d2],
       );
-      expect(r2.rows[0].r).toMatchObject({ last_of_no: 0, day_closed: true });
+      expect(r2.rows[0].r).toMatchObject({ last_of_no: 0, last_of_group_no: 0, day_closed: true });
     } finally {
       await db2.close();
     }

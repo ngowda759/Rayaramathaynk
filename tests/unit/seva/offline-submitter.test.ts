@@ -168,6 +168,9 @@ describe('counter submitter', () => {
     expect(item.payload.clientOrderId).toBe(uuid(900));
     expect(item.payload.supersedesClientOrderId).toBe(uuid(1));
     expect(item.payload.groupNo).toBe('G-2610-OF1-001');
+    // The issuer travels with the order (the staff no. inside its OF numbers), so whoever is signed in when the
+    // outbox is sent can sync it.
+    expect(item.payload.issuerStaffNo).toBe(STAFF.staffNo);
     expect(item.payload.issuedAt).toBe(NOW.toISOString());
     expect(item.payload.expectedTotalPaise).toBe(82000);
     expect(item.payload.devotee.phone).toBe('+919845012345');

@@ -94,9 +94,13 @@ CREATE TABLE IF NOT EXISTS seva_orders (
   test_mode boolean NOT NULL DEFAULT false,
   issued_at timestamptz NOT NULL,
   received_at timestamptz NOT NULL DEFAULT now(),
+  -- Who sent an offline order to the office: the person signed in when the outbox synced, who may differ from the
+  -- issuer (issued_by_staff_id, the staff no. inside the OF numbers). Null for orders saved online.
+  synced_by_staff_id uuid REFERENCES staff (id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT seva_orders_counter_fields
     CHECK (channel <> 'counter' OR (counter_id IS NOT NULL AND issued_by_staff_id IS NOT NULL)),
+  CONSTRAINT seva_orders_synced_by_offline CHECK (synced_by_staff_id IS NULL OR issued_offline),
   CONSTRAINT seva_orders_cash_received CHECK (cash_received IS NULL OR cash_received >= amount_total),
   CONSTRAINT seva_orders_change_returned
     CHECK (

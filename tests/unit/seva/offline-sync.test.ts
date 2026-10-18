@@ -6,11 +6,24 @@ import type { SevaDb } from '@/lib/seva/offline/db';
 import { runSync } from '@/lib/seva/offline/sync';
 import { startHeartbeat } from '@/lib/seva/offline/heartbeat';
 import { enqueueCancel, enqueueOrder, pendingItems } from '@/lib/seva/offline/outbox';
-import { takeOfflineNumbers } from '@/lib/seva/offline/allocator';
+import { takeOfflineGroupNo, takeOfflineNumbers } from '@/lib/seva/offline/allocator';
 import { rememberReceipts } from '@/lib/seva/offline/local-receipts';
 import { connectionStore } from '@/lib/seva/offline/connection';
+import { createCounterSubmitter } from '@/lib/seva/offline/submitter';
 import type { OutboxItem, SyncResponse } from '@/types/seva';
-import { FakeClientError, freshDb, issuedReceipt, NOW, offlinePayload, uuid } from './offline-fixtures';
+import {
+  bookOrder,
+  bootstrap,
+  COUNTER,
+  FakeClientError,
+  freshDb,
+  idSequence,
+  issuedReceipt,
+  NOW,
+  offlinePayload,
+  STAFF,
+  uuid,
+} from './offline-fixtures';
 
 let db: SevaDb;
 
@@ -168,6 +181,7 @@ describe('heartbeat', () => {
       serverTime: new Date(NOW.getTime() - 180_000).toISOString(),
       ofSeries: 'OF1',
       lastOfNo: 41,
+      lastOfGroupNo: 6,
       dayClosed: false,
     }));
     const results: { skewMs: number; dayClosed: boolean }[] = [];
@@ -191,7 +205,44 @@ describe('heartbeat', () => {
     expect(heartbeat.mock.calls[0]).toEqual([{ outboxCount: 1, clockSkewMs: 0, appVersion: expect.any(String) }]);
     expect(heartbeat.mock.calls[1]).toEqual([{ outboxCount: 1, clockSkewMs: 180_000, appVersion: expect.any(String) }]);
     expect(await takeOfflineNumbers(db, { series: 'OF1', year: 2026, count: 1 })).toBe(42);
+    // The group floor is the office's last offline group label of its IST month (October 2026).
+    expect(await takeOfflineGroupNo(db, { yymm: '2610', series: 'OF1' })).toBe('G-2610-OF1-007');
     expect(connectionStore.get()).toMatchObject({ status: 'online', waiting: 1 });
+  });
+
+  it('after Replace this PC the first heartbeat stops the new PC reusing a group label', async () => {
+    // The new PC's IndexedDB is empty. The office already has OF1 numbers up to 9 and labels G-2610-OF1-001..003.
+    const heartbeat = jest.fn(async () => ({
+      serverTime: NOW.toISOString(),
+      ofSeries: 'OF1',
+      lastOfNo: 9,
+      lastOfGroupNo: 3,
+      dayClosed: false,
+    }));
+    let beaten: () => void = () => undefined;
+    const firstBeat = new Promise<void>((resolve) => (beaten = resolve));
+    const stop = startHeartbeat({ api: { heartbeat }, db, clock: () => NOW, intervalMs: 60_000, onResult: () => beaten() });
+    await firstBeat;
+    stop();
+
+    const submitter = createCounterSubmitter({
+      db,
+      api: { issue: jest.fn() },
+      clock: () => NOW,
+      askPrintOffline: jest.fn(async () => true),
+      staff: () => STAFF,
+      counter: () => COUNTER,
+      catalogue: () => bootstrap(),
+      isForcedOffline: () => true,
+      newIds: idSequence(900),
+    });
+    const result = await submitter.submit(bookOrder());
+    if (result.mode !== 'offline') throw new Error('expected an offline save');
+    expect(result.receipts.map((r) => [r.groupNo, r.receiptNo])).toEqual([
+      ['G-2610-OF1-004', 'OF1-023-10-2026/000010'],
+      ['G-2610-OF1-004', 'OF1-023-10-2026/000011'],
+      ['G-2610-OF1-004', 'OF1-023-10-2026/000012'],
+    ]);
   });
 
   it('marks the counter offline when the heartbeat cannot reach the office, and stops cleanly', async () => {

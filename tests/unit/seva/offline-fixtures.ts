@@ -216,6 +216,7 @@ export function offlinePayload(n: number): OfflineOrderPayload {
     devotee: { name: `Devotee ${n}` },
     payment: { mode: 'cash', cashReceivedPaise: 10500 },
     expectedTotalPaise: 10500,
+    issuerStaffNo: STAFF.staffNo,
     issuedAt: NOW.toISOString(),
     groupNo: `G-2610-OF1-${String(n).padStart(3, '0')}`,
     receipts: [

@@ -140,6 +140,7 @@ describe('offlineOrderSchema and syncRequestSchema', () => {
   function offline() {
     return {
       ...order(),
+      issuerStaffNo: 23,
       issuedAt: '2026-10-20T05:12:00.000Z',
       groupNo: 'G-2610-0042',
       receipts: [
@@ -158,6 +159,19 @@ describe('offlineOrderSchema and syncRequestSchema', () => {
     const bad = offline();
     bad.receipts[0].receiptNo = 'x'.repeat(41);
     expect(offlineOrderSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("needs the issuer's staff number (001-999) on every offline order", () => {
+    const withoutIssuer: Record<string, unknown> = { ...offline() };
+    delete withoutIssuer.issuerStaffNo;
+    expect(offlineOrderSchema.safeParse(withoutIssuer).success).toBe(false);
+    for (const issuerStaffNo of [0, 1000, 23.5, '23']) {
+      expect({ issuerStaffNo, ok: offlineOrderSchema.safeParse({ ...offline(), issuerStaffNo }).success }).toEqual({
+        issuerStaffNo,
+        ok: false,
+      });
+    }
+    expect(offlineOrderSchema.safeParse({ ...offline(), issuerStaffNo: 999 }).success).toBe(true);
   });
 
   it('accepts 1..200 outbox items', () => {

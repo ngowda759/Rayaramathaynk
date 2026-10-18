@@ -367,6 +367,16 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
     return formatGroupNo({ yymm, n: orders.size + 1 });
   }
 
+  /** Like seva_heartbeat's last_of_group_no: the highest 'G-YYMM-<series>-NNN' stored for the series this IST month. */
+  function lastOfGroupNo(series: string): number {
+    const p = istParts(now());
+    const prefix = `G-${String(p.year % 100).padStart(2, "0")}${String(p.month).padStart(2, "0")}-${series}-`;
+    return state.receipts.reduce((max, r) => {
+      const n = r.groupNo.startsWith(prefix) ? Number(r.groupNo.slice(prefix.length)) : 0;
+      return Number.isSafeInteger(n) && n > max ? n : max;
+    }, 0);
+  }
+
   function validOrderShape(body: unknown): body is CounterOrderPayload {
     if (!isRecord(body) || !isString(body.clientOrderId) || !isRecord(body.devotee) || !isRecord(body.payment)) return false;
     if (typeof body.devotee.name !== "string" || body.devotee.name.trim().length < 1 || body.devotee.name.trim().length > 80) return false;
@@ -701,7 +711,13 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
       action: "counter.heartbeat",
       run: ({ me }) => {
         const counter = counterOf(me);
-        return { serverTime: now().toISOString(), ofSeries: counter.offlineSeries, lastOfNo: state.lastNo[counter.offlineSeries] ?? 0, dayClosed: state.dayClosed };
+        return {
+          serverTime: now().toISOString(),
+          ofSeries: counter.offlineSeries,
+          lastOfNo: state.lastNo[counter.offlineSeries] ?? 0,
+          lastOfGroupNo: lastOfGroupNo(counter.offlineSeries),
+          dayClosed: state.dayClosed,
+        };
       },
     },
     { method: "POST", pattern: "counter/devices", action: "device.register", run: () => ({ deviceId: nextId("device") }) },

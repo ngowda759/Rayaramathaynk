@@ -659,7 +659,7 @@ describe('seva_issue_counter_order (A2-1)', () => {
       'seva_take_numbers(text,smallint,integer)',
       'seva_next_group_no(timestamptz)',
       'seva_issue_counter_order(jsonb,uuid,uuid)',
-      'seva_sync_offline_order(jsonb,uuid,uuid)',
+      'seva_sync_offline_order(jsonb,uuid,uuid,text)',
       'seva_record_prints(uuid[],uuid,uuid)',
       'seva_cancel_receipts(uuid[],text,text,uuid,boolean,timestamptz)',
       'seva_reissue_spoiled(uuid,uuid,uuid,text)',

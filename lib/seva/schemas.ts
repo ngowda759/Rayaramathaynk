@@ -183,6 +183,8 @@ const offlineReceiptSchema = counterReceiptSchema.extend({
 export const offlineOrderSchema = z
   .object({
     ...orderBase,
+    /** The issuer, whose staff no. is inside every receipt number (the SQL function checks both). */
+    issuerStaffNo: z.number().int().min(1).max(999),
     issuedAt: isoDateTime,
     groupNo: z.string().trim().min(1).max(20),
     receipts: z.array(offlineReceiptSchema).min(1).max(31),

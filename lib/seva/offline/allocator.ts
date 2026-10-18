@@ -4,7 +4,8 @@
  * Each counter lives in the `meta` store as the last number used: `of:<series>:<year>` for receipt numbers and
  * `ofg:<series>:<yymm>` for group numbers. Every take is one read-write transaction, and IndexedDB runs read-write
  * transactions on the same store one after another, so two tabs (or two saves) never share a number. The server's
- * last OF number (bootstrap and heartbeat) only ever raises the PC's counter.
+ * last OF number (bootstrap and heartbeat) and its last offline group number of the month (heartbeat) only ever raise
+ * the PC's counters - which is what keeps a PC that replaced another from repeating a number or a group label.
  */
 import { formatOfflineGroupNo } from '@/lib/seva/numbering';
 import { runTransaction, type SevaDb, type SevaStoreName, type WritableStore } from './db';
@@ -24,6 +25,14 @@ function assertSeries(series: string): void {
 
 function assertYear(year: number): void {
   if (!Number.isInteger(year) || year < MIN_YEAR || year > MAX_YEAR) throw new RangeError('invalid_year');
+}
+
+function assertYymm(yymm: string): void {
+  if (!YYMM_PATTERN.test(yymm)) throw new RangeError('invalid_yymm');
+}
+
+function assertLastNo(n: number, max: number): void {
+  if (!Number.isSafeInteger(n) || n < 0 || n > max) throw new RangeError('invalid_last_no');
 }
 
 function readLast(value: unknown, key: string): number {
@@ -66,7 +75,7 @@ export async function takeGroupNumber<T extends ArrayLike<SevaStoreName>>(
   p: { yymm: string; series: string },
 ): Promise<string> {
   assertSeries(p.series);
-  if (!YYMM_PATTERN.test(p.yymm)) throw new RangeError('invalid_yymm');
+  assertYymm(p.yymm);
   const n = await takeFromCounter(meta, groupKey(p.series, p.yymm), 1);
   return formatOfflineGroupNo({ yymm: p.yymm, series: p.series, n });
 }
@@ -77,19 +86,37 @@ export async function takeOfflineNumbers(db: SevaDb, p: { series: string; year: 
   return runTransaction(tx, () => takeRunningNumbers(tx.store, p));
 }
 
+/** In one read-write transaction: raises a counter in `meta` to `serverLastNo` when that is higher; never lowers it. */
+async function raiseCounter(db: SevaDb, key: string, serverLastNo: number): Promise<void> {
+  const tx = db.transaction('meta', 'readwrite');
+  await runTransaction(tx, async () => {
+    const last = readLast(await tx.store.get(key), key);
+    if (serverLastNo > last) await tx.store.put(serverLastNo, key);
+  });
+}
+
 /** Sets this PC's last OF number to the server's when the server's is higher; never lowers it. */
 export async function raiseOfflineFloor(db: SevaDb, p: { series: string; year: number; serverLastNo: number }): Promise<void> {
   assertSeries(p.series);
   assertYear(p.year);
-  if (!Number.isSafeInteger(p.serverLastNo) || p.serverLastNo < 0 || p.serverLastNo > MAX_RUNNING_NO) {
-    throw new RangeError('invalid_last_no');
-  }
-  const tx = db.transaction('meta', 'readwrite');
-  await runTransaction(tx, async () => {
-    const key = ofKey(p.series, p.year);
-    const last = readLast(await tx.store.get(key), key);
-    if (p.serverLastNo > last) await tx.store.put(p.serverLastNo, key);
-  });
+  assertLastNo(p.serverLastNo, MAX_RUNNING_NO);
+  await raiseCounter(db, ofKey(p.series, p.year), p.serverLastNo);
+}
+
+/**
+ * Sets this PC's last offline group number for the series and IST month ('YYMM') to the office's when the office's is
+ * higher; never lowers it. After "Replace this PC" the new PC's group counter is empty: without this it would start
+ * again at 001 and repeat a label the office already holds, and that order's sync would be refused (group_no is
+ * unique).
+ */
+export async function raiseOfflineGroupFloor(
+  db: SevaDb,
+  p: { series: string; yymm: string; serverLastNo: number },
+): Promise<void> {
+  assertSeries(p.series);
+  assertYymm(p.yymm);
+  assertLastNo(p.serverLastNo, Number.MAX_SAFE_INTEGER);
+  await raiseCounter(db, groupKey(p.series, p.yymm), p.serverLastNo);
 }
 
 /** The next offline group number for the series and IST month ('YYMM'). */

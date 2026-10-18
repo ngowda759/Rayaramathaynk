@@ -227,6 +227,8 @@ async function issueOffline(deps: CounterSubmitterDeps, p: CounterOrderPayload, 
       payment: p.payment,
       expectedTotalPaise: p.expectedTotalPaise,
       ...(supersedes !== undefined ? { supersedesClientOrderId: supersedes } : {}),
+      // Stored now, with the numbers it is inside: whoever is signed in when the outbox is sent may be someone else.
+      issuerStaffNo: staff.staffNo,
       issuedAt,
       groupNo,
       receipts: priced.receipts.map((r, i) => ({

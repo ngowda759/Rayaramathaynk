@@ -148,6 +148,11 @@ export interface CounterOrderPayload {
 }
 
 export interface OfflineOrderPayload extends Omit<CounterOrderPayload, 'receipts'> {
+  /**
+   * Staff no. of the person signed in when the order was made - the one inside every receiptNo. Someone else may be
+   * signed in when the outbox is sent; the office records this person as the issuer.
+   */
+  issuerStaffNo: number;
   issuedAt: string;
   groupNo: string;
   receipts: (Omit<CounterReceiptInput, 'lines'> & {
