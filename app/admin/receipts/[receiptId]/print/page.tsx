@@ -23,17 +23,18 @@ function formatDateTime(value: string): string {
 }
 
 export default function ReceiptPrintPage() {
-  const params = useParams();
+  // The folder is [receiptId], so the id arrives as params.receiptId.
+  const { receiptId } = useParams<{ receiptId: string }>();
   const { user } = useAuth();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!user || !params.id) return;
+      if (!user || !receiptId) return;
       try {
         const token = await user.getIdToken();
-        const data = await receiptService.getReceipt(params.id as string, token);
+        const data = await receiptService.getReceipt(receiptId, token);
         if (!cancelled) setReceipt(data);
       } catch {
         if (!cancelled) setReceipt(null);
@@ -41,7 +42,7 @@ export default function ReceiptPrintPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [user, params.id]);
+  }, [user, receiptId]);
 
   useEffect(() => {
     if (!receipt) return;

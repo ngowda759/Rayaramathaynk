@@ -238,8 +238,8 @@ export function resolveCredentials(
         .replace(/\\n/g, "\n")
         .replace(/\r\n/g, "\n")
         .replace(/^\s+|\s+$/g, "")
-        .replace(/-----BEGIN PRIVATE KEY-----\s*/, "-----BEGIN PRIVATE KEY-----\n")
-        .replace(/\s*-----END PRIVATE KEY-----/, "\n-----END PRIVATE KEY-----"),
+        .replace(/(-----BEGIN [A-Z ]+-----)\s*/, "$1\n")
+        .replace(/\s*(-----END [A-Z ]+-----)/, "\n$1"),
     };
   } else if (keyFilePath && fs.existsSync(keyFilePath)) {
     return JSON.parse( fs.readFileSync( keyFilePath, "utf8" ) );

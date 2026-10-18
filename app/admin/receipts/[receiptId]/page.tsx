@@ -20,7 +20,8 @@ function formatCurrency(amount: number): string {
 }
 
 export default function ReceiptDetailPage() {
-  const params = useParams();
+  // The folder is [receiptId], so the id arrives as params.receiptId.
+  const { receiptId } = useParams<{ receiptId: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -29,10 +30,10 @@ export default function ReceiptDetailPage() {
 
   useEffect(() => {
     async function loadReceipt() {
-      if (!user || !params.id) return;
+      if (!user || !receiptId) return;
       try {
         const token = await user.getIdToken();
-        const data = await receiptService.getReceipt(params.id as string, token);
+        const data = await receiptService.getReceipt(receiptId, token);
         setReceipt(data);
       } catch (error) {
         console.error("Failed to load receipt:", error);
@@ -42,7 +43,7 @@ export default function ReceiptDetailPage() {
       }
     }
     loadReceipt();
-  }, [user, params.id]);
+  }, [user, receiptId]);
 
   if (loading) {
     return (
