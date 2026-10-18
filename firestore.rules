@@ -30,14 +30,25 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'priest'];
     }
     
+    // True when a users write changes an access field. `role`, `isActive` and
+    // `isApproved` are written only by the server staff API (Admin SDK, which
+    // bypasses these rules), so no client - not even a super admin - may change
+    // them. Unchanged values (the sign-in merge write) are not "affected".
+    function changesUserAccessFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'isApproved', 'isActive']);
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow read: if isAdmin();
-      allow update: if isOwner(userId) && 
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isApproved', 'isActive']);
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAdmin();
+      // Sign-up: only your own doc, only as a devotee, never pre-approved or inactive.
+      allow create: if isOwner(userId) && request.resource.data.uid == request.auth.uid
+        && (!('role' in request.resource.data) || request.resource.data.role == 'devotee')
+        && (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false)
+        && (!('isActive' in request.resource.data) || request.resource.data.isActive == true);
+      allow update: if (isOwner(userId) || isAdmin()) && !changesUserAccessFields();
       allow delete: if isSuperAdmin();
     }
     
@@ -227,11 +238,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
-    
-    match /settings/{docId} {
-      allow read: if true;
-      allow write: if true;
-    }
+
+    // `settings` is matched once only, above (public read, admin-only write).
+    // Firestore ORs every matching rule, so a second open match here would let
+    // anyone rewrite settings/financeSettings and its UPI id.
 
     // Chat messages collection (public read for conversation history)
     match /messages/{docId} {

@@ -36,10 +36,26 @@ export type AdminAuthResult =
   | { ok: true; user: ServerAdminUser }
   | { ok: false; reason: AdminAuthFailureReason; status: number; message: string };
 
-const BLOCKED_ROLES = new Set(["devotee", "volunteer"]);
+/**
+ * Roles that may use the admin console and the routes guarded here (DB §17.4).
+ * This is an allow-list: an empty, unknown or misspelt role is refused. The
+ * seva roles `receptionist` and `prasadam_counter` are deliberately absent -
+ * they reach only `/api/seva/*` through the seva route guard.
+ */
+export const ADMIN_CONSOLE_ROLES: ReadonlySet<string> = new Set([
+  "super_admin",
+  "temple_admin",
+  "admin",
+  "billing",
+  "priest",
+  "staff",
+  "office_staff",
+]);
 
+/** Trims, lower-cases and joins words with `_`; anything not a string becomes "". */
 function normalizeRole(role: unknown): string {
-  return String(role || "").toLowerCase().replace(/\s+/g, "_");
+  if (typeof role !== "string") return "";
+  return role.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
 /**
@@ -145,8 +161,10 @@ export async function verifyAdminUserResult(
     }
 
     const role = normalizeRole(data.role);
-    if (BLOCKED_ROLES.has(role)) {
-      console.warn(`[verifyAdminUser] User ${decoded.uid} has blocked role ${role}`);
+    if (!ADMIN_CONSOLE_ROLES.has(role)) {
+      console.warn(
+        `[verifyAdminUser] User ${decoded.uid} has role ${JSON.stringify(role)}, which is not an admin console role`
+      );
       return {
         ok: false,
         reason: "insufficient_role",
