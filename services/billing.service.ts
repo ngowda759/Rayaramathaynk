@@ -213,7 +213,7 @@ class BillingService {
       updateData.balanceDue = totalAmount - (updateData.amountPaid || 0);
     }
 
-    await updateDoc(doc(db, COLLECTION, id), updateData as Record<string, unknown>);
+    await updateDoc(doc(db, COLLECTION, id), updateData as any);
   }
 
   async deleteBill(id: string): Promise<void> {

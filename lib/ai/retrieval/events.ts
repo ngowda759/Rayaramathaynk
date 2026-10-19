@@ -1,8 +1,8 @@
 // Events Retrieval - Temple events and festivals
 // Single source of truth for event information
 
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy, limit, DocumentData } from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { TempleEvent, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 
@@ -12,71 +12,36 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Convert Firebase timestamp to Date
+ * Fetch published events from Supabase
  */
-function toDate(value: unknown): Date {
-  if (!value) return new Date();
-  if (value instanceof Date) return value;
-  if (typeof value === "string") return new Date(value);
-  if (typeof value === "number") return new Date(value);
-  if (typeof value === "object" && value !== null && "toDate" in value) {
-    const toDateFn = (value as { toDate: () => Date }).toDate;
-    if (typeof toDateFn === "function") {
-      return toDateFn();
+async function fetchFromSupabase(maxEvents = 10): Promise<TempleEvent[]> {
+  const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('published', true)
+      .order('start_date', { ascending: true })
+      .limit(maxEvents);
+
+    if (error || !data) {
+      console.error("[Events Retrieval] Error fetching from Supabase:", error);
+      return cachedEvents;
     }
-  }
-  return new Date();
-}
 
-/**
- * Convert Firebase doc to TempleEvent
- */
-function docToEvent(doc: DocumentData): TempleEvent | null {
-  try {
-    const data = doc.data();
-    if (!data) return null;
-
-    return {
-      id: doc.id,
-      title: data.title || "Event",
-      description: data.description || "",
-      startDate: toDate(data.startDate),
-      endDate: toDate(data.endDate),
-      startTime: data.startTime,
-      endTime: data.endTime,
-      location: data.location || "",
-      featured: data.featured || false,
-      category: data.category,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetch published events from Firebase
- */
-async function fetchFromFirebase(maxEvents = 10): Promise<TempleEvent[]> {
-  if (!isFirebaseConfigured() || !db) {
-    return [];
-  }
-
-  try {
-    const q = query(
-      collection(db, "events"),
-      where("published", "==", true),
-      orderBy("startDate", "asc"),
-      limit(maxEvents)
-    );
-    
-    const snapshot = await getDocs(q);
-    const events: TempleEvent[] = [];
-    
-    snapshot.docs.forEach((doc) => {
-      const event = docToEvent(doc);
-      if (event) {
-        events.push(event);
-      }
+    const events: TempleEvent[] = data.map(doc => {
+      return {
+        id: doc.id,
+        title: doc.title || "Event",
+        description: doc.description || "",
+        startDate: doc.start_date ? new Date(doc.start_date) : new Date(),
+        endDate: doc.end_date ? new Date(doc.end_date) : new Date(),
+        startTime: doc.start_time,
+        endTime: doc.end_time,
+        location: doc.location || "",
+        featured: doc.featured || false,
+        category: doc.category,
+      };
     });
     
     return events;
@@ -107,7 +72,7 @@ export async function getUpcomingEvents(maxEvents = 5): Promise<RetrievedData<Te
   }
 
   try {
-    const events = await fetchFromFirebase(20); // Fetch more to filter
+    const events = await fetchFromSupabase(20); // Fetch more to filter
     cachedEvents = events;
     lastFetchTime = now;
 

@@ -5,11 +5,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { AIBehaviorSettings } from "@/types/ai-settings";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
-  const admin = await verifyAdminUser(request);
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+  const admin = guard.user;
 
   try {
     const aiBehavior = await aiSettingsService.getAIBehavior();
@@ -18,17 +19,16 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching AI behavior settings:", error);
     return NextResponse.json(
       { error: "Failed to fetch AI behavior settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireAdminUser(request);
+    if (!guard.ok) return guard.response;
+    const admin = guard.user;
     const userId = admin.uid;
     const body = await request.json();
     const { setting, value } = body;
@@ -43,13 +43,25 @@ export async function PUT(request: NextRequest) {
       case "streamingResponses":
         await aiSettingsService.setStreamingResponses(value, userId);
         break;
-      case "all":
-        await aiSettingsService.updateAIBehavior(body as AIBehaviorSettings, userId);
+      case "all": {
+        // Support both spread body and nested data property, and strictly reconstruct to strip out 'setting' field
+        const rawData = body.data || body;
+        const behaviorData: AIBehaviorSettings = {
+          confidenceThreshold: rawData.confidenceThreshold ?? 85,
+          semanticThreshold: rawData.semanticThreshold ?? 70,
+          maxRelatedArticles: rawData.maxRelatedArticles ?? 3,
+          conversationTimeout: rawData.conversationTimeout ?? 30,
+          streaming: rawData.streaming ?? false,
+          debugMode: rawData.debugMode ?? false,
+          unknownLogging: rawData.unknownLogging ?? true,
+        };
+        await aiSettingsService.updateAIBehavior(behaviorData, userId);
         break;
+      }
       default:
         return NextResponse.json(
           { error: `Unknown setting: ${setting}` },
-          { status: 400 }
+          { status: 400 },
         );
     }
 
@@ -59,7 +71,7 @@ export async function PUT(request: NextRequest) {
     console.error("Error updating AI behavior settings:", error);
     return NextResponse.json(
       { error: "Failed to update AI behavior settings" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

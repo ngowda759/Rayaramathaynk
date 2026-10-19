@@ -1,8 +1,8 @@
 // Sevas Retrieval - Temple sevas and services
 // Single source of truth for seva information
 
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy, DocumentData } from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { TempleSeva, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 
@@ -90,58 +90,34 @@ const SEED_SEVAS: TempleSeva[] = [
 ];
 
 /**
- * Convert Firebase doc to TempleSeva
+ * Fetch active sevas from Supabase
  */
-function docToSeva(doc: DocumentData): TempleSeva | null {
+async function fetchFromSupabase(): Promise<TempleSeva[]> {
+  const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
   try {
-    const data = doc.data();
-    if (!data) return null;
+    const { data, error } = await supabase
+      .from('sevas')
+      .select('id, name, description, category, price, duration, is_active')
+      .eq('is_active', true)
+      .order('order', { ascending: true });
 
-    return {
-      id: doc.id,
-      name: data.name || "Seva",
-      description: data.description || "",
-      category: data.category || "General",
-      amount: Number(data.amount) || 0,
-      duration: Number(data.duration) || 30,
-      active: data.active !== false, // Default to active if not specified
-    };
-  } catch {
-    return null;
-  }
-}
+    if (error || !data || data.length === 0) {
+      return SEED_SEVAS;
+    }
 
-/**
- * Fetch active sevas from Firebase
- */
-async function fetchFromFirebase(): Promise<TempleSeva[]> {
-  if (!isFirebaseConfigured() || !db) {
-    // Return seed data when Firebase is not configured
-    return SEED_SEVAS;
-  }
-
-  try {
-    const q = query(
-      collection(db, "sevas"),
-      where("active", "==", true),
-      orderBy("displayOrder", "asc")
-    );
+    const sevas: TempleSeva[] = data.map(row => ({
+      id: row.id,
+      name: row.name || "Seva",
+      description: row.description || "",
+      category: row.category || "General",
+      amount: Number(row.price) || 0,
+      duration: Number(row.duration) || 30,
+      active: row.is_active !== false,
+    }));
     
-    const snapshot = await getDocs(q);
-    const sevas: TempleSeva[] = [];
-    
-    snapshot.docs.forEach((doc) => {
-      const seva = docToSeva(doc);
-      if (seva) {
-        sevas.push(seva);
-      }
-    });
-    
-    // Return seed data if Firebase has no sevas
-    return sevas.length > 0 ? sevas : SEED_SEVAS;
+    return sevas;
   } catch (error) {
     console.error("[Sevas Retrieval] Error fetching sevas:", error);
-    // Return seed data on error
     return SEED_SEVAS;
   }
 }
@@ -164,7 +140,7 @@ export async function getActiveSevas(): Promise<RetrievedData<TempleSeva[]>> {
   }
 
   try {
-    const sevas = await fetchFromFirebase();
+    const sevas = await fetchFromSupabase();
     cachedSevas = sevas;
     lastFetchTime = now;
 

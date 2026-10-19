@@ -15,7 +15,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, getCountFromServer, query, orderBy, limit } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  getCountFromServer,
+  query,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 
 interface StatCardProps {
   title: string;
@@ -27,7 +34,15 @@ interface StatCardProps {
   trendUp?: boolean;
 }
 
-function StatCard({ title, value, icon, color, bgColor, trend, trendUp }: StatCardProps) {
+function StatCard({
+  title,
+  value,
+  icon,
+  color,
+  bgColor,
+  trend,
+  trendUp,
+}: StatCardProps) {
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-5 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between">
@@ -35,22 +50,26 @@ function StatCard({ title, value, icon, color, bgColor, trend, trendUp }: StatCa
           <p className="text-sm text-stone-500">{title}</p>
           <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
           {trend && (
-            <p className={`text-xs mt-1 ${trendUp ? "text-green-600" : "text-red-600"}`}>
+            <p
+              className={`text-xs mt-1 ${trendUp ? "text-green-600" : "text-red-600"}`}
+            >
               {trend}
             </p>
           )}
         </div>
-        <div className={`p-3 rounded-lg ${bgColor}`}>
-          {icon}
-        </div>
+        <div className={`p-3 rounded-lg ${bgColor}`}>{icon}</div>
       </div>
     </div>
   );
 }
 
-function PieChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+function PieChart({
+  data,
+}: {
+  data: { label: string; value: number; color: string }[];
+}) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  
+
   if (total === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-stone-400 text-sm">
@@ -58,7 +77,7 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
       </div>
     );
   }
-  
+
   const { paths } = data.reduce(
     (acc, item) => {
       const percentage = total > 0 ? (item.value / total) * 100 : 0;
@@ -82,13 +101,13 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
           className="hover:opacity-80 transition-opacity cursor-pointer"
           stroke="white"
           strokeWidth="2"
-        />
+        />,
       );
 
       acc.currentAngle += angle;
       return acc;
     },
-    { paths: [] as React.JSX.Element[], currentAngle: 0 }
+    { paths: [] as React.JSX.Element[], currentAngle: 0 },
   );
 
   return (
@@ -115,14 +134,14 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
 }
 
 function LineChart({ data }: { data: { label: string; value: number }[] }) {
-  if (data.length === 0 || data.every(d => d.value === 0)) {
+  if (data.length === 0 || data.every((d) => d.value === 0)) {
     return (
       <div className="flex items-center justify-center h-48 text-stone-400 text-sm">
         No conversation data yet - Chat with the bot to see trends
       </div>
     );
   }
-  
+
   const maxValue = Math.max(...data.map((d) => d.value), 1);
   const points = data.map((d, i) => ({
     x: (i / Math.max(data.length - 1, 1)) * 100,
@@ -135,7 +154,11 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
 
   return (
     <div className="relative">
-      <svg viewBox="0 0 100 100" className="w-full h-48" preserveAspectRatio="none">
+      <svg
+        viewBox="0 0 100 100"
+        className="w-full h-48"
+        preserveAspectRatio="none"
+      >
         {[0, 25, 50, 75, 100].map((y) => (
           <line
             key={y}
@@ -188,11 +211,32 @@ function LineChart({ data }: { data: { label: string; value: number }[] }) {
   );
 }
 
-function HealthIndicator({ name, status }: { name: string; status: "healthy" | "degraded" | "unhealthy" }) {
+function HealthIndicator({
+  name,
+  status,
+}: {
+  name: string;
+  status: "healthy" | "degraded" | "unhealthy";
+}) {
   const statusConfig = {
-    healthy: { icon: CheckCircle, color: "text-green-600", bg: "bg-green-50", label: "Healthy" },
-    degraded: { icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", label: "Needs Data" },
-    unhealthy: { icon: XCircle, color: "text-red-600", bg: "bg-red-50", label: "Unhealthy" },
+    healthy: {
+      icon: CheckCircle,
+      color: "text-green-600",
+      bg: "bg-green-50",
+      label: "Healthy",
+    },
+    degraded: {
+      icon: AlertCircle,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      label: "Needs Data",
+    },
+    unhealthy: {
+      icon: XCircle,
+      color: "text-red-600",
+      bg: "bg-red-50",
+      label: "Unhealthy",
+    },
   };
 
   const config = statusConfig[status];
@@ -214,16 +258,35 @@ function HealthIndicator({ name, status }: { name: string; status: "healthy" | "
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Stats state
   const [totalConversations, setTotalConversations] = useState(0);
   const [todayConversations, setTodayConversations] = useState(0);
-  const [intentDistribution, setIntentDistribution] = useState<Array<{ label: string; value: number; color: string }>>([]);
-  const [dailyConversations, setDailyConversations] = useState<Array<{ label: string; value: number }>>([]);
-  const [unknownQuestions, setUnknownQuestions] = useState<Array<{ question: string; confidence: string; intent: string; date: string; status: string }>>([]);
-  const [latencyAvg, setLatencyAvg] = useState({ intent: 0, retrieval: 0, generation: 0, total: 0 });
+  const [intentDistribution, setIntentDistribution] = useState<
+    Array<{ label: string; value: number; color: string }>
+  >([]);
+  const [dailyConversations, setDailyConversations] = useState<
+    Array<{ label: string; value: number }>
+  >([]);
+  const [unknownQuestions, setUnknownQuestions] = useState<
+    Array<{
+      question: string;
+      confidence: string;
+      intent: string;
+      date: string;
+      status: string;
+    }>
+  >([]);
+  const [latencyAvg, setLatencyAvg] = useState({
+    intent: 0,
+    retrieval: 0,
+    generation: 0,
+    total: 0,
+  });
   const [unknownCount, setUnknownCount] = useState(0);
-  const [healthStatus, setHealthStatus] = useState<Record<string, "healthy" | "degraded" | "unhealthy">>({});
+  const [healthStatus, setHealthStatus] = useState<
+    Record<string, "healthy" | "degraded" | "unhealthy">
+  >({});
 
   const fetchAnalytics = useCallback(async () => {
     if (!db || !isFirebaseConfigured()) {
@@ -234,35 +297,52 @@ export default function AnalyticsPage() {
 
     try {
       setLoading(true);
-      
+
       // Fetch data in parallel
-      const [
-        intentResult,
-        latencyResult,
-        unknownResult
-      ] = await Promise.allSettled([
-        // Intent distribution
-        getDocs(query(collection(db, "ai_intent_distribution"), orderBy("timestamp", "desc"), limit(500))),
-        // Latency records
-        getDocs(query(collection(db, "ai_latency_records"), orderBy("timestamp", "desc"), limit(100))),
-        // Unknown questions
-        getDocs(query(collection(db, "unknown_questions"), orderBy("timestamp", "desc"), limit(10))),
-      ]);
+      const [intentResult, latencyResult, unknownResult] =
+        await Promise.allSettled([
+          // Intent distribution
+          getDocs(
+            query(
+              collection(db, "ai_intent_distribution"),
+              orderBy("timestamp", "desc"),
+              limit(500),
+            ),
+          ),
+          // Latency records
+          getDocs(
+            query(
+              collection(db, "ai_latency_records"),
+              orderBy("timestamp", "desc"),
+              limit(100),
+            ),
+          ),
+          // Unknown questions
+          getDocs(
+            query(
+              collection(db, "unknown_questions"),
+              orderBy("timestamp", "desc"),
+              limit(10),
+            ),
+          ),
+        ]);
 
       // Process sessions
       let total = 0;
       let today = 0;
       const sessionsSnapAll = await getDocs(collection(db, "chat_sessions"));
       total = sessionsSnapAll.size;
-      
+
       // Count today's conversations
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      
-      sessionsSnapAll.docs.forEach(doc => {
+
+      sessionsSnapAll.docs.forEach((doc) => {
         const data = doc.data();
         if (data.createdAt) {
-          const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          const createdAt = data.createdAt.toDate
+            ? data.createdAt.toDate()
+            : new Date(data.createdAt);
           if (createdAt >= todayStart) {
             today++;
           }
@@ -288,7 +368,7 @@ export default function AnalyticsPage() {
       };
 
       if (intentResult.status === "fulfilled" && !intentResult.value.empty) {
-        intentResult.value.docs.forEach(doc => {
+        intentResult.value.docs.forEach((doc) => {
           const data = doc.data();
           const intent = data.intent || "UNKNOWN";
           intentMap[intent] = (intentMap[intent] || 0) + 1;
@@ -313,7 +393,7 @@ export default function AnalyticsPage() {
       let latencyCount = 0;
 
       if (latencyResult.status === "fulfilled" && !latencyResult.value.empty) {
-        latencyResult.value.docs.forEach(doc => {
+        latencyResult.value.docs.forEach((doc) => {
           const data = doc.data();
           if (data.totalLatency) {
             totalLatency += data.totalLatency;
@@ -335,24 +415,39 @@ export default function AnalyticsPage() {
       }
 
       // Process unknown questions
-      const unknown: Array<{ question: string; confidence: string; intent: string; date: string; status: string }> = [];
+      const unknown: Array<{
+        question: string;
+        confidence: string;
+        intent: string;
+        date: string;
+        status: string;
+      }> = [];
       let unknownTotal = 0;
-      
+
       // Get total count
       try {
-        const unknownCountSnap = await getCountFromServer(collection(db, "unknown_questions"));
+        const unknownCountSnap = await getCountFromServer(
+          collection(db, "unknown_questions"),
+        );
         unknownTotal = unknownCountSnap.data().count;
       } catch {}
 
       if (unknownResult.status === "fulfilled") {
-        unknownResult.value.docs.forEach(doc => {
+        unknownResult.value.docs.forEach((doc) => {
           const data = doc.data();
-          const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
+          const timestamp = data.timestamp?.toDate
+            ? data.timestamp.toDate()
+            : new Date();
           unknown.push({
-            question: (data.question || "Unknown").substring(0, 40) + (data.question?.length > 40 ? "..." : ""),
+            question:
+              (data.question || "Unknown").substring(0, 40) +
+              (data.question?.length > 40 ? "..." : ""),
             confidence: `${data.confidence || 0}%`,
             intent: (data.detectedIntent || "UNKNOWN").replace(/_/g, " "),
-            date: timestamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            date: timestamp.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
             status: data.reviewed ? "Reviewed" : "Pending",
           });
         });
@@ -364,7 +459,7 @@ export default function AnalyticsPage() {
       // Calculate daily conversations for the last 7 days
       const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
       const dailyData: Array<{ label: string; value: number }> = [];
-      
+
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
@@ -372,18 +467,20 @@ export default function AnalyticsPage() {
         dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(date);
         dayEnd.setHours(23, 59, 59, 999);
-        
+
         let dayCount = 0;
-        sessionsSnapAll.docs.forEach(doc => {
+        sessionsSnapAll.docs.forEach((doc) => {
           const data = doc.data();
           if (data.createdAt) {
-            const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+            const createdAt = data.createdAt.toDate
+              ? data.createdAt.toDate()
+              : new Date(data.createdAt);
             if (createdAt >= dayStart && createdAt <= dayEnd) {
               dayCount++;
             }
           }
         });
-        
+
         dailyData.push({ label: days[date.getDay()], value: dayCount });
       }
 
@@ -429,7 +526,9 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-stone-900 mb-2">Analytics Error</h2>
+          <h2 className="text-xl font-semibold text-stone-900 mb-2">
+            Analytics Error
+          </h2>
           <p className="text-stone-500 mb-4">{error}</p>
           <button
             onClick={fetchAnalytics}
@@ -483,7 +582,11 @@ export default function AnalyticsPage() {
         />
         <StatCard
           title="Avg Response"
-          value={latencyAvg.total > 0 ? `${(latencyAvg.total / 1000).toFixed(1)}s` : "N/A"}
+          value={
+            latencyAvg.total > 0
+              ? `${(latencyAvg.total / 1000).toFixed(1)}s`
+              : "N/A"
+          }
           icon={<Clock className="w-6 h-6 text-amber-600" />}
           color="text-amber-600"
           bgColor="bg-amber-50"
@@ -516,14 +619,22 @@ export default function AnalyticsPage() {
           </h3>
           <div className="space-y-3">
             {healthItems.map((item) => (
-              <HealthIndicator key={item.name} name={item.name} status={item.status} />
+              <HealthIndicator
+                key={item.name}
+                name={item.name}
+                status={item.status}
+              />
             ))}
           </div>
           <div className="mt-4 pt-4 border-t border-stone-100">
-            <div className={`flex items-center gap-2 ${totalConversations > 0 ? "text-green-600" : "text-amber-600"}`}>
+            <div
+              className={`flex items-center gap-2 ${totalConversations > 0 ? "text-green-600" : "text-amber-600"}`}
+            >
               <CheckCircle className="w-4 h-4" />
               <span className="text-sm font-medium">
-                {totalConversations > 0 ? "Analytics Active" : "Awaiting Conversations"}
+                {totalConversations > 0
+                  ? "Analytics Active"
+                  : "Awaiting Conversations"}
               </span>
             </div>
           </div>
@@ -550,8 +661,16 @@ export default function AnalyticsPage() {
           <div className="space-y-4">
             {[
               { label: "Intent Detection", value: latencyAvg.intent, max: 500 },
-              { label: "Data Retrieval", value: latencyAvg.retrieval, max: 1000 },
-              { label: "Response Gen", value: latencyAvg.generation, max: 2000 },
+              {
+                label: "Data Retrieval",
+                value: latencyAvg.retrieval,
+                max: 1000,
+              },
+              {
+                label: "Response Gen",
+                value: latencyAvg.generation,
+                max: 2000,
+              },
             ].map((item) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between mb-1">
@@ -564,7 +683,9 @@ export default function AnalyticsPage() {
                   <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
-                      style={{ width: `${Math.min((item.value / item.max) * 100, 100)}%` }}
+                      style={{
+                        width: `${Math.min((item.value / item.max) * 100, 100)}%`,
+                      }}
                     />
                   </div>
                 )}
@@ -572,9 +693,13 @@ export default function AnalyticsPage() {
             ))}
             <div className="pt-4 border-t border-stone-100">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-stone-700">Total Avg</span>
+                <span className="text-sm font-medium text-stone-700">
+                  Total Avg
+                </span>
                 <span className="text-lg font-bold text-amber-600">
-                  {latencyAvg.total > 0 ? `${(latencyAvg.total / 1000).toFixed(1)}s` : "N/A"}
+                  {latencyAvg.total > 0
+                    ? `${(latencyAvg.total / 1000).toFixed(1)}s`
+                    : "N/A"}
                 </span>
               </div>
             </div>
@@ -599,18 +724,35 @@ export default function AnalyticsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-stone-100">
-                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Question</th>
-                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Confidence</th>
-                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Intent</th>
-                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Date</th>
-                  <th className="text-left text-xs font-medium text-stone-500 pb-2">Status</th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">
+                    Question
+                  </th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">
+                    Confidence
+                  </th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">
+                    Intent
+                  </th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">
+                    Date
+                  </th>
+                  <th className="text-left text-xs font-medium text-stone-500 pb-2">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {unknownQuestions.map((q, i) => (
-                  <tr key={i} className="border-b border-stone-50 last:border-0">
-                    <td className="py-3 text-sm text-stone-700 max-w-xs truncate">{q.question}</td>
-                    <td className="py-3 text-sm text-stone-600">{q.confidence}</td>
+                  <tr
+                    key={i}
+                    className="border-b border-stone-50 last:border-0"
+                  >
+                    <td className="py-3 text-sm text-stone-700 max-w-xs truncate">
+                      {q.question}
+                    </td>
+                    <td className="py-3 text-sm text-stone-600">
+                      {q.confidence}
+                    </td>
                     <td className="py-3">
                       <span className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">
                         {q.intent}

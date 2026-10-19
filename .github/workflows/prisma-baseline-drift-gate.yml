@@ -1,0 +1,190 @@
+name: Prisma Baseline Drift Gate
+
+# Read-only gate for the Prisma schema baseline (docs/PRISMA-SCHEMA-BASELINE.md §4.0).
+#
+# Purpose: diff prisma/schema.prisma against the REAL Supabase target database and
+# report whether the baseline matches, BEFORE anyone runs
+# `prisma migrate resolve --applied 20261015000000_baseline_raya_ai`.
+#
+# This workflow NEVER writes. `prisma:drift` runs
+# `prisma migrate diff --from-schema … --to-config-datasource --exit-code`, which only
+# reads. It does not apply migrations, resolve migrations, or modify data.
+#
+# Why the connection is derived here rather than stored as a secret:
+#   The target database's direct host (db.<ref>.supabase.co) is IPv6-only, and
+#   GitHub-hosted runners have no IPv6 egress, so a direct URL cannot be used in CI.
+#   Supavisor's session pooler (port 5432) has IPv4 and is suitable for `migrate`.
+#   The pooler host is resolved from the project's region via the Management API, and
+#   the password comes from the existing SUPABASE_DB_PASSWORD secret. No credential
+#   value is ever printed; the derived URL is masked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "scoped = drift limited to the baseline's tables (default); drift = raw whole-schema diff; catalog = read-only catalog dump for reconciliation."
+        required: false
+        default: scoped
+        type: choice
+        options:
+          - scoped
+          - drift
+          - catalog
+      tables:
+        description: "catalog mode: space-separated tables (default: ai_knowledge)."
+        required: false
+        type: string
+      prisma_database_url_override:
+        description: "Optional full Postgres URL (leave empty to derive from secrets)."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Prisma drift check against target
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Derive target connection
+        id: derive
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          OVERRIDE: ${{ inputs.prisma_database_url_override }}
+        run: |
+          set -eu
+          if [ -n "${OVERRIDE:-}" ]; then
+            echo "::add-mask::$OVERRIDE"
+            echo "url=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            echo "Using operator-supplied PRISMA_DATABASE_URL (masked)."
+            exit 0
+          fi
+          if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            echo "ERROR: SUPABASE_PROJECT_REF secret is not available."; exit 1
+          fi
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "ERROR: SUPABASE_DB_PASSWORD secret is not available."; exit 1
+          fi
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "NOTE: SUPABASE_ACCESS_TOKEN is not available; using the region scan fallback."
+          fi
+
+          REGION=""
+          REGION_FROM_API=$(curl -fsS --max-time 30 \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(j.region||"")}catch{process.stdout.write("")}})' || true)
+          if [ -n "$REGION_FROM_API" ]; then
+            REGION="$REGION_FROM_API"
+            echo "Project region (Management API): ${REGION}"
+            HOSTS=("aws-0-${REGION}.pooler.supabase.com" "aws-1-${REGION}.pooler.supabase.com")
+          else
+            echo "Management API unavailable (region unknown). Falling back to a read-only"
+            echo "scan of known Supavisor region hostnames for this tenant."
+            HOSTS=()
+            for R in ap-south-1 ap-northeast-1 ap-northeast-2 ap-southeast-1 ap-southeast-2 \
+                     us-east-1 us-east-2 us-west-1 us-west-2 eu-west-1 eu-west-2 eu-central-1 \
+                     ca-central-1 sa-east-1 ap-east-1; do
+              HOSTS+=("aws-0-${R}.pooler.supabase.com" "aws-1-${R}.pooler.supabase.com")
+            done
+          fi
+
+          PW="$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
+          URL=""
+          for HOST in "${HOSTS[@]}"; do
+            CAND="postgresql://postgres.${SUPABASE_PROJECT_REF}:${PW}@${HOST}:5432/postgres?sslmode=require"
+            echo "::add-mask::$CAND"
+            if node scripts/lib/probe-pg-url.mjs "$CAND"; then
+              echo "Reachable via ${HOST}:5432 (session pooler)."
+              URL="$CAND"
+              break
+            fi
+          done
+          if [ -z "$URL" ]; then
+            echo "ERROR: could not reach the target database through any known pooler host."; exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Derived target: postgres://postgres.<ref>@<host>:5432/postgres (masked)"
+
+      - name: Catalog dump (read-only)
+        if: ${{ inputs.mode == 'catalog' }}
+        env:
+          DB_URL: ${{ steps.derive.outputs.url }}
+          TABLES: ${{ inputs.tables }}
+        run: |
+          set -eu
+          node scripts/lib/dump-ai-catalog.mjs "$DB_URL" ${TABLES:-ai_knowledge}
+
+      - name: PostgREST cross-check (read-only)
+        if: ${{ inputs.mode == 'catalog' }}
+        env:
+          SUPA_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPA_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -eu
+          echo "PostgREST HEAD (status + body) for a known table vs the disputed one:"
+          for t in ai_settings ai_knowledge unknown_questions; do
+            code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 20 \
+              -H "apikey: ${SUPA_KEY}" -H "Authorization: Bearer ${SUPA_KEY}" \
+              -H "Prefer: count=exact" -I "${SUPA_URL}/rest/v1/${t}?select=*" || echo "ERR")
+            echo "  ${t} -> HTTP ${code}"
+            head -c 300 /tmp/body | sed -E 's/postgres\.[a-z0-9]+/postgres.<ref>/g' || true
+            echo
+          done
+
+      - name: Scoped drift check (default)
+        if: ${{ inputs.mode == 'scoped' }}
+        env:
+          PRISMA_DATABASE_URL: ${{ steps.derive.outputs.url }}
+        run: |
+          echo "Running: npm run prisma:drift:scoped"
+          set +e
+          npm run prisma:drift:scoped
+          CODE=$?
+          set -e
+          echo "prisma:drift:scoped exit code: $CODE"
+          {
+            echo "### Prisma baseline drift gate (scoped)"
+            if [ "$CODE" -eq 0 ]; then
+              echo "Exit 0 — the declared schema (the baseline's tables) is reconciled. Only tables outside the baseline scope differ, and those are deferred by design (docs/PRISMA-SCHEMA-BASELINE.md section 5 item 5). The baseline is eligible for \`migrate resolve --applied\`."
+            else
+              echo "Exit $CODE — an in-scope table is missing, added, or changed, or the connection failed. Do not mark the baseline applied."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$CODE"
+
+      - name: Prisma drift check (raw, whole schema)
+        if: ${{ inputs.mode == 'drift' }}
+        env:
+          PRISMA_DATABASE_URL: ${{ steps.derive.outputs.url }}
+        run: |
+          echo "Running: npm run prisma:drift"
+          set +e
+          npm run prisma:drift
+          CODE=$?
+          set -e
+          echo "prisma:drift exit code: $CODE"
+          {
+            echo "### Prisma baseline drift gate (raw)"
+            if [ "$CODE" -eq 0 ]; then
+              echo "Exit 0 — the target schema matches \`prisma/schema.prisma\`."
+            else
+              echo "Exit $CODE — the target schema does not match the baseline globally, or the connection failed. This is expected while the deferred non-AI tables remain out of scope; use the scoped mode to judge the baseline."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$CODE"

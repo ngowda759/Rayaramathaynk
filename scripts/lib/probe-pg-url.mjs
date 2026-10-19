@@ -1,0 +1,45 @@
+import { Client } from "pg";
+
+// Read-only connectivity probe for a Postgres URL. Exit 0 if a SELECT succeeds.
+// Used by .github/workflows/prisma-baseline-drift-gate.yml to find the reachable
+// session-pooler host before running the Prisma drift diff. Never writes.
+const url = process.argv[2];
+if (!url) {
+  console.error("usage: probe-pg-url.mjs <postgres-url>");
+  process.exit(2);
+}
+
+// Strip sslmode so the explicit ssl config below wins: pg's connection-string
+// parser otherwise forces certificate verification and the handshake fails
+// against Supavisor's cert chain before we ever reach authentication.
+let probeUrl = url;
+try {
+  const u = new URL(url);
+  u.searchParams.delete("sslmode");
+  probeUrl = u.toString();
+} catch {}
+
+const client = new Client({
+  connectionString: probeUrl,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 15000,
+});
+try {
+  await client.connect();
+  await client.query("select 1");
+  console.log("connected");
+  await client.end();
+  process.exit(0);
+} catch (e) {
+  // Redact the project ref in the username from any error we surface.
+  const raw = String(e?.message ?? e);
+  const msg = raw.replace(/postgres\.[a-z0-9]+/g, "postgres.<ref>");
+  const kind = raw.includes("tenant/user") || raw.includes("ENOTFOUND")
+    ? "TENANT_NOT_HERE"
+    : raw.includes("password authentication")
+      ? "AUTH_FAILED"
+      : "OTHER";
+  console.error(`[${kind}] ${msg.slice(0, 160)}`);
+  try { await client.end(); } catch {}
+  process.exit(1);
+}

@@ -12,7 +12,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
   describe("dump-firestore-staged.ts", () => {
     it("should fail if no collections provided", () => {
       try {
-        execSync("npx tsx scripts/dump-firestore-staged.ts", { stdio: "ignore" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/dump-firestore-staged.ts", { stdio: "ignore" });
         fail("Should have thrown an error");
       } catch (err: unknown) {
         expect((err as {status?: number}).status).toBe(1);
@@ -21,7 +21,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
 
     it("should fail if invalid collections requested", () => {
       try {
-        execSync("npx tsx scripts/dump-firestore-staged.ts users", { stdio: "ignore" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/dump-firestore-staged.ts users", { stdio: "ignore" });
         fail("Should have thrown an error");
       } catch (err: unknown) {
         expect((err as {status?: number}).status).toBe(1);
@@ -33,7 +33,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
     beforeAll(() => { process.env.NODE_ENV = "test"; });
     it("should fail if no mode flags provided", () => {
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts", { stdio: "ignore" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts", { stdio: "ignore" });
         fail("Should have thrown an error");
       } catch (err: unknown) {
         expect((err as {status?: number}).status).toBe(1);
@@ -42,7 +42,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
 
     it("should fail if both mode flags provided", () => {
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run --confirm-production", { stdio: "ignore" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run --confirm-production", { stdio: "ignore" });
         fail("Should have thrown an error");
       } catch (err: unknown) {
         expect((err as {status?: number}).status).toBe(1);
@@ -51,7 +51,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
 
     it("should fail if manifest is missing", () => {
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { stdio: "ignore" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run", { stdio: "ignore" });
         fail("Should have thrown an error");
       } catch (err: unknown) {
         expect((err as {status?: number}).status).toBe(1); // Will fail because manifest doesn't exist
@@ -84,7 +84,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
     it("should process empty successful collections cleanly", () => {
       setupValidManifest([], []);
       try {
-        const out = execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
+        const out = execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
       } catch (err: unknown) {
         const stderr = (err as any).stderr || (err as any).stdout || "";
         expect(stderr).toMatch(/Missing Supabase environment variables for admin client|Failed to query existing events from Supabase/);
@@ -95,7 +95,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
       setupValidManifest([], []);
       fs.writeFileSync(path.join(DD, "settings.json"), "invalid json");
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
         fail("Should have thrown");
       } catch(err: unknown) {
          const stderr = (err as any).stderr || (err as any).stdout || "";
@@ -107,7 +107,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
       fs.mkdirSync(DD, { recursive: true });
       fs.writeFileSync(path.join(DD, "manifest.json"), JSON.stringify({ success: true, collections: { settings: {status:"success", docCount: 0} } }));
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
         fail("Should have thrown");
       } catch(err: unknown) {
          const stderr = (err as any).stderr || (err as any).stdout || "";
@@ -122,7 +122,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
       fs.writeFileSync(path.join(DD, "settings.json"), settingsStr);
 
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
         fail("Should have thrown");
       } catch(err: unknown) {
          const stderr = (err as any).stderr || (err as any).stdout || "";
@@ -139,7 +139,7 @@ describe("Phase 1 Migration Scripts (Hardened)", () => {
       fs.writeFileSync(manifestPath, JSON.stringify(manifest));
 
       try {
-        execSync("npx tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
+        execSync("npx cross-env NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-staged-phase1.ts --dry-run", { encoding: "utf8" });
         fail("Should have thrown");
       } catch(err: unknown) {
          const stderr = (err as any).stderr || (err as any).stdout || "";

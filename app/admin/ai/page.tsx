@@ -1,12 +1,13 @@
 "use client";
 
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { 
-  MessageSquare, 
-  Star, 
-  Users, 
-  BarChart3, 
+import {
+  MessageSquare,
+  Star,
+  Users,
+  BarChart3,
   Settings,
   ArrowRight,
   Clock,
@@ -15,7 +16,7 @@ import {
   Download,
   Loader2,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
 import { getPendingTestimonials } from "@/services/chat.service";
 import { getVolunteerRequests } from "@/services/chat.service";
@@ -31,6 +32,7 @@ interface CoverageSummary {
 }
 
 export default function AdminAIPage() {
+  const adminFetch = useAdminFetch();
   const [stats, setStats] = useState({
     pendingTestimonials: 0,
     pendingVolunteers: 0,
@@ -43,7 +45,7 @@ export default function AdminAIPage() {
 
   const loadCoverage = useCallback(async () => {
     try {
-      const response = await fetch("/api/ai/knowledge/coverage");
+      const response = await adminFetch("/api/ai/knowledge/coverage");
       const data = await response.json();
       if (data.success) {
         setCoverage(data.data.summary);
@@ -56,13 +58,13 @@ export default function AdminAIPage() {
   const handleImportKnowledge = async () => {
     setImporting(true);
     try {
-      const response = await fetch("/api/ai/knowledge/import", {
+      const response = await adminFetch("/api/ai/knowledge/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ overwrite: false }),
       });
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success(`Imported ${data.data.imported} knowledge articles`);
         loadCoverage(); // Refresh coverage
@@ -88,20 +90,22 @@ export default function AdminAIPage() {
         // Fetch real conversation stats from Firestore
         let totalConversations = 0;
         let todayConversations = 0;
-        
+
         if (db && isFirebaseConfigured()) {
           try {
             const sessionsSnap = await getDocs(collection(db, "chat_sessions"));
             totalConversations = sessionsSnap.size;
-            
+
             // Count today's conversations
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
-            
-            sessionsSnap.docs.forEach(doc => {
+
+            sessionsSnap.docs.forEach((doc) => {
               const data = doc.data();
               if (data.createdAt) {
-                const createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                const createdAt = data.createdAt.toDate
+                  ? data.createdAt.toDate()
+                  : new Date(data.createdAt);
                 if (createdAt >= todayStart) {
                   todayConversations++;
                 }
@@ -114,7 +118,8 @@ export default function AdminAIPage() {
 
         setStats({
           pendingTestimonials: testimonials.length,
-          pendingVolunteers: volunteers.filter(v => v.status === "pending").length,
+          pendingVolunteers: volunteers.filter((v) => v.status === "pending")
+            .length,
           totalConversations,
           recentMessages: todayConversations,
         });
@@ -200,7 +205,9 @@ export default function AdminAIPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-stone-900">Raya AI Assistant</h1>
+          <h1 className="text-3xl font-bold text-stone-900">
+            Raya AI Assistant
+          </h1>
           <p className="text-stone-500 mt-1">
             Manage your AI assistant, testimonials, and volunteer requests
           </p>
@@ -248,11 +255,13 @@ export default function AdminAIPage() {
 
       {/* Knowledge Status Banner */}
       {coverage !== null && (
-        <div className={`rounded-xl p-4 border ${
-          coverage.percentage === 100 
-            ? "bg-green-50 border-green-200" 
-            : "bg-amber-50 border-amber-200"
-        }`}>
+        <div
+          className={`rounded-xl p-4 border ${
+            coverage.percentage === 100
+              ? "bg-green-50 border-green-200"
+              : "bg-amber-50 border-amber-200"
+          }`}
+        >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               {coverage.percentage === 100 ? (
@@ -265,9 +274,13 @@ export default function AdminAIPage() {
                 </div>
               )}
               <div>
-                <p className={`font-medium ${
-                  coverage.percentage === 100 ? "text-green-800" : "text-amber-800"
-                }`}>
+                <p
+                  className={`font-medium ${
+                    coverage.percentage === 100
+                      ? "text-green-800"
+                      : "text-amber-800"
+                  }`}
+                >
                   Knowledge Base: {coverage.percentage}% Complete
                 </p>
                 <p className="text-sm text-stone-600">

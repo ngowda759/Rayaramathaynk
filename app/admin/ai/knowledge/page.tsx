@@ -1,6 +1,7 @@
 /* eslint-disable */
 "use client";
 
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { useState, useEffect } from "react";
 import {
   CheckCircle,
@@ -39,6 +40,8 @@ interface CoverageData {
 }
 
 export default function KnowledgeCoveragePage() {
+  const adminFetch = useAdminFetch();
+
   const [coverage, setCoverage] = useState<CoverageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -46,7 +49,7 @@ export default function KnowledgeCoveragePage() {
   const loadCoverage = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/ai/knowledge/coverage");
+      const response = await adminFetch("/api/ai/knowledge/coverage");
       const data = await response.json();
       if (data.success) {
         setCoverage(data.data);
@@ -67,13 +70,13 @@ export default function KnowledgeCoveragePage() {
   const handleImport = async (overwrite = false) => {
     setImporting(true);
     try {
-      const response = await fetch("/api/ai/knowledge/import", {
+      const response = await adminFetch("/api/ai/knowledge/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ overwrite }),
       });
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success(`Imported ${data.data.imported} articles`);
         loadCoverage(); // Refresh coverage
@@ -88,11 +91,16 @@ export default function KnowledgeCoveragePage() {
     }
   };
 
-  const missingCategories = coverage?.coverage.filter((c) => c.status === "missing") || [];
-  const presentCategories = coverage?.coverage.filter((c) => c.status === "present") || [];
+  const missingCategories =
+    coverage?.coverage.filter((c) => c.status === "missing") || [];
+  const presentCategories =
+    coverage?.coverage.filter((c) => c.status === "present") || [];
 
   // Check if knowledge base is completely empty
-  const isEmpty = coverage !== null && coverage.summary.present === 0 && coverage.summary.total > 0;
+  const isEmpty =
+    coverage !== null &&
+    coverage.summary.present === 0 &&
+    coverage.summary.total > 0;
 
   if (loading) {
     return (
@@ -117,9 +125,7 @@ export default function KnowledgeCoveragePage() {
           description="Manage AI knowledge base for complete coverage"
         />
         <div className="bg-white rounded-xl shadow">
-          <AIKnowledgeEmptyState
-            onInitialize={() => handleImport(false)}
-          />
+          <AIKnowledgeEmptyState onInitialize={() => handleImport(false)} />
         </div>
       </div>
     );
@@ -220,7 +226,8 @@ export default function KnowledgeCoveragePage() {
           )}
           {coverage.summary.percentage < 100 && (
             <p className="text-sm text-stone-500 mt-2">
-              Missing {coverage.summary.missing} categories. Click "Initialize Missing" to add them.
+              Missing {coverage.summary.missing} categories. Click "Initialize
+              Missing" to add them.
             </p>
           )}
         </div>
@@ -239,7 +246,8 @@ export default function KnowledgeCoveragePage() {
                   Initialize Missing Knowledge
                 </h3>
                 <p className="text-sm text-stone-600">
-                  Import default knowledge articles to fill {coverage.summary.missing} missing categories
+                  Import default knowledge articles to fill{" "}
+                  {coverage.summary.missing} missing categories
                 </p>
               </div>
             </div>
@@ -290,7 +298,9 @@ export default function KnowledgeCoveragePage() {
               >
                 <div>
                   <p className="font-medium text-stone-900">{category.name}</p>
-                  <p className="text-sm text-stone-500">{category.description}</p>
+                  <p className="text-sm text-stone-500">
+                    {category.description}
+                  </p>
                 </div>
                 <span className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-full">
                   Missing
@@ -318,7 +328,9 @@ export default function KnowledgeCoveragePage() {
               >
                 <div>
                   <p className="font-medium text-stone-900">{category.name}</p>
-                  <p className="text-sm text-stone-500">{category.articleTitle || category.description}</p>
+                  <p className="text-sm text-stone-500">
+                    {category.articleTitle || category.description}
+                  </p>
                 </div>
                 <span className="px-3 py-1 bg-green-100 text-green-700 text-sm rounded-full">
                   Active

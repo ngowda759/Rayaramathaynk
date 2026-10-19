@@ -26,6 +26,16 @@ jest.mock("@/lib/firebase", () => ({
   isFirebaseConfigured: () => false,
 }));
 
+
+jest.mock('server-only', () => { return {}; }, { virtual: true });
+global.fetch = jest.fn(() => Promise.resolve({
+  ok: true,
+  json: () => Promise.resolve([]),
+  text: () => Promise.resolve('[]'),
+  headers: new Headers(),
+  status: 200
+})) as jest.Mock;
+
 describe("Knowledge Base", () => {
   describe("Seed Articles", () => {
     it("should have seed articles for common topics", () => {

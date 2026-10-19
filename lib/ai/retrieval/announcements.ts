@@ -1,8 +1,8 @@
 // Announcements Retrieval - Temple announcements
 // Single source of truth for announcement information
 
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy, DocumentData } from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { TempleAnnouncement, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 
@@ -12,62 +12,31 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes (announcements change more frequently)
 
 /**
- * Convert Firebase doc to TempleAnnouncement
+ * Fetch active announcements from Supabase
  */
-function docToAnnouncement(doc: DocumentData): TempleAnnouncement | null {
+async function fetchFromSupabase(): Promise<TempleAnnouncement[]> {
+  const supabase = typeof window === 'undefined' ? createAdminClient() : createClient();
   try {
-    const data = doc.data();
-    if (!data) return null;
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('id, title, message, link, is_active, created_at')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
 
-    let createdAt = new Date();
-    if (data.createdAt) {
-      if (data.createdAt instanceof Date) {
-        createdAt = data.createdAt;
-      } else if (typeof data.createdAt.toDate === "function") {
-        createdAt = data.createdAt.toDate();
-      } else if (typeof data.createdAt === "string") {
-        createdAt = new Date(data.createdAt);
-      } else if (typeof data.createdAt === "number") {
-        createdAt = new Date(data.createdAt);
-      }
+    if (error || !data) {
+      console.error("[Announcements Retrieval] Error fetching from Supabase:", error);
+      return cachedAnnouncements;
     }
 
-    return {
-      id: doc.id,
-      title: data.title || "",
-      message: data.message || "",
-      link: data.link || "",
-      isActive: data.isActive ?? true,
-      createdAt,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetch active announcements from Firebase
- */
-async function fetchFromFirebase(): Promise<TempleAnnouncement[]> {
-  if (!isFirebaseConfigured() || !db) {
-    return [];
-  }
-
-  try {
-    const q = query(
-      collection(db, "announcements"),
-      where("isActive", "==", true),
-      orderBy("createdAt", "desc")
-    );
-    
-    const snapshot = await getDocs(q);
-    const announcements: TempleAnnouncement[] = [];
-    
-    snapshot.docs.forEach((doc) => {
-      const announcement = docToAnnouncement(doc);
-      if (announcement) {
-        announcements.push(announcement);
-      }
+    const announcements: TempleAnnouncement[] = data.map(doc => {
+      return {
+        id: doc.id,
+        title: doc.title || "",
+        message: doc.message || "",
+        link: doc.link || "",
+        isActive: doc.is_active ?? true,
+        createdAt: doc.created_at ? new Date(doc.created_at) : new Date(),
+      };
     });
     
     return announcements;
@@ -95,7 +64,7 @@ export async function getActiveAnnouncements(): Promise<RetrievedData<TempleAnno
   }
 
   try {
-    const announcements = await fetchFromFirebase();
+    const announcements = await fetchFromSupabase();
     cachedAnnouncements = announcements;
     lastFetchTime = now;
 

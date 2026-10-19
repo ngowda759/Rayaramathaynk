@@ -1,0 +1,61 @@
+# Guarded apply for the single, reviewed ai_knowledge migration.
+#
+# This is the only workflow that writes to the target database. It is intentionally
+# hard to run by accident:
+#   - workflow_dispatch only; it never runs on push or on a schedule;
+#   - it is bound to the `production` environment, so a repository that protects that
+#     environment requires a human approval before the job starts;
+#   - it requires the confirmation phrase to be typed exactly;
+#   - it applies exactly one file, in one transaction, and aborts unless the target
+#     looks right (ai_knowledge absent, ai_settings populated, helper function present).
+#
+# It does not run `supabase db push`, which would apply every pending migration.
+name: Apply ai_knowledge migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: apply-create-ai-knowledge'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-knowledge-migration-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Check confirmation phrase
+        run: |
+          if [ "${{ inputs.confirm }}" != "apply-create-ai-knowledge" ]; then
+            echo "ERROR: confirmation phrase did not match. Refusing to run."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply ai_knowledge migration
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/apply-ai-knowledge-migration.mjs

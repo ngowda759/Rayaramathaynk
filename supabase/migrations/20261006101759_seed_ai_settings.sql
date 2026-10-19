@@ -1,0 +1,16 @@
+-- Migration: 20261006101759_seed_ai_settings
+--
+-- Ledger marker only. This version IS recorded in the remote
+-- supabase_migrations.schema_migrations history (the ai_settings seed row was
+-- applied out of band), but no local file existed for it, which made the
+-- Supabase integration report "Remote migration versions not found in local
+-- migrations directory."
+--
+-- Deliberately contains no DDL or DML:
+--   * the seed itself lives in 20261012000001_seed_ai_settings.sql, which must
+--     sort AFTER 20261012000000_create_ai_settings_table.sql so a fresh database
+--     applies the table before the seed;
+--   * this marker sorts before the table, so it must stay a no-op.
+--
+-- Adding this file only aligns local files with the remote ledger. It changes no
+-- schema and no data.

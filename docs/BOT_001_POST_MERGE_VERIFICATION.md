@@ -9,7 +9,7 @@
 
 3. **Row Validation**:
    - The row did not exist automatically because there was no seed data migration in `supabase/migrations/`.
-   - Created and applied `20261012000001_seed_ai_settings.sql` which populated the default `id = 'main'` configuration.
+   - Created and applied `20261012000001_seed_ai_settings.sql` which populated the default `id = 'main'` configuration. The remote history row for it was recorded under the id `20261006101759`; a comment-only marker file `supabase/migrations/20261006101759_seed_ai_settings.sql` now records that id locally so the Supabase integration's ledger comparison passes (see `docs/RUNBOOK-AI-KNOWLEDGE-APPLY.md`).
    - Queried the remote `ai_settings` table using `SELECT count(*) FROM ai_settings`. Confirmed `1` row was returned.
    - The inserted fields accurately match the expected structure: `general`, `safety`, `extended_behavior`, `temple_information`, `visitor_information`, `temple_policies`, `ai_responses`, `ai_behavior`, `prompt`, and `intents`.
 
