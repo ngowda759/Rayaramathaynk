@@ -202,6 +202,7 @@ export const AUDIT_TYPES = {
     "settings.update",
     "denominations.update",
     "festival.update",
+    "settings.list_item",
     "device.register",
     "device.replace",
     "gap.resolve",

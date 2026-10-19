@@ -1,18 +1,17 @@
 "use client";
 
-import type { JSX, RefObject } from "react";
+import { useMemo, type JSX, type RefObject } from "react";
 
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { SearchSelect, type SearchOption } from "@/components/seva/ui/SearchSelect";
 import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
 import type { DevoteeDraft } from "@/lib/seva/counter/state";
-import { GOTRAS } from "@/lib/seva/domain/gotras";
-import { NAKSHATRAS } from "@/lib/seva/domain/nakshatras";
+import { counterPickLists } from "@/lib/seva/domain/lists";
 import type { DomainOption } from "@/lib/seva/domain/options";
-import { RASHIS } from "@/lib/seva/domain/rashis";
 import { COMMON } from "@/lib/seva/strings/common";
 import { COUNTER_TEXT } from "@/lib/seva/strings/counter";
+import type { SevaLists } from "@/types/seva";
 
 /** One returning-devotee match (online search or this PC's cached profiles), never a full phone. */
 export interface DevoteeSuggestion {
@@ -37,6 +36,11 @@ export interface DevoteeStepProps {
   /** Set after "Use these details", until the next devotee. */
   filledFrom: { lastVisit: string } | null;
   onUndo(): void;
+  /**
+   * The gotra, nakshatra and rashi lists from the counter bootstrap (cached on this PC for offline use, plan A4P-5).
+   * Absent: the built-in lists. Hidden gotras are not offered.
+   */
+  lists?: SevaLists;
   /** True while the returning-devotee search runs: a small spinner sits in the Name box (typing never waits on it). */
   searching?: boolean;
 }
@@ -48,12 +52,8 @@ function toOptions(list: readonly DomainOption[]): SearchOption[] {
   return list.map((o) => ({ value: String(o.id), en: o.en, kn: o.kn, aliases: o.aliases }));
 }
 
-const GOTRA_OPTIONS = toOptions(GOTRAS);
-const NAKSHATRA_OPTIONS = toOptions(NAKSHATRAS);
-const RASHI_OPTIONS = toOptions(RASHIS);
-
-function suggestionLine(s: DevoteeSuggestion): string {
-  const nakshatra = NAKSHATRAS.find((n) => n.id === s.nakshatraId)?.en;
+function suggestionLine(s: DevoteeSuggestion, nakshatras: readonly DomainOption[]): string {
+  const nakshatra = nakshatras.find((n) => n.id === s.nakshatraId)?.en;
   return [s.name, s.gotra, nakshatra].filter((t): t is string => !!t && t.trim() !== "").join(" - ");
 }
 
@@ -78,8 +78,19 @@ export function DevoteeStep({
   onRejectSuggestion,
   filledFrom,
   onUndo,
+  lists,
   searching = false,
 }: DevoteeStepProps): JSX.Element {
+  const picks = useMemo(() => {
+    const merged = counterPickLists(lists);
+    return {
+      nakshatras: merged.nakshatras,
+      gotra: toOptions(merged.gotras),
+      nakshatra: toOptions(merged.nakshatras),
+      rashi: toOptions(merged.rashis),
+    };
+  }, [lists]);
+
   return (
     <section aria-label={COUNTER_TEXT.devoteeTitle.en} className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -127,7 +138,7 @@ export function DevoteeStep({
           >
             <div className="flex min-w-0 flex-col gap-0.5">
               <Bilingual en={COUNTER_TEXT.returning.en} kn={COUNTER_TEXT.returning.kn} className="meta" />
-              <b>{suggestionLine(suggestion)}</b>
+              <b>{suggestionLine(suggestion, picks.nakshatras)}</b>
               <span className="meta">{suggestionMeta(suggestion)}</span>
             </div>
             <div className="flex gap-2">
@@ -155,7 +166,7 @@ export function DevoteeStep({
           <SearchSelect
             id="counter-gotra"
             label={COMMON.gotra}
-            options={GOTRA_OPTIONS}
+            options={picks.gotra}
             value={devotee.gotra}
             onChange={(gotra) => onDevotee({ gotra })}
             allowTyped
@@ -167,7 +178,7 @@ export function DevoteeStep({
           <SearchSelect
             id="counter-nakshatra"
             label={COMMON.nakshatra}
-            options={NAKSHATRA_OPTIONS}
+            options={picks.nakshatra}
             value={devotee.nakshatra}
             onChange={(nakshatra) => onDevotee({ nakshatra })}
             allowTyped
@@ -179,7 +190,7 @@ export function DevoteeStep({
           <SearchSelect
             id="counter-rashi"
             label={COMMON.rashi}
-            options={RASHI_OPTIONS}
+            options={picks.rashi}
             value={devotee.rashi}
             onChange={(rashi) => onDevotee({ rashi })}
             allowTyped

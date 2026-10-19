@@ -7,13 +7,14 @@ import { formatRupees } from '@/lib/seva/money';
 import type { CatalogueSeva } from '@/types/seva';
 import type { Bi } from './common';
 
-/** The settings tabs (A4-9 builds the layout; A4-10 builds Receipts, Counters and Counter rules). */
+/** The settings tabs (A4-9 builds the layout; A4-10 builds Receipts, Counters and Counter rules; A4P-5 Devotee lists). */
 export const SETTINGS_TABS: readonly { href: string; label: Bi }[] = [
   { href: '/admin/receipts/settings/receipt', label: { en: 'Receipts', kn: 'ರಸೀದಿಗಳು' } },
   { href: '/admin/receipts/settings/counters', label: { en: 'Counters', kn: 'ಕೌಂಟರ್‌ಗಳು' } },
   { href: '/admin/receipts/settings/rules', label: { en: 'Counter rules', kn: 'ಕೌಂಟರ್ ನಿಯಮಗಳು' } },
   { href: '/admin/receipts/settings/denominations', label: { en: 'Denominations', kn: 'ನೋಟು ಮತ್ತು ನಾಣ್ಯಗಳು' } },
   { href: '/admin/receipts/settings/festival-days', label: { en: 'Festival days', kn: 'ಹಬ್ಬದ ದಿನಗಳು' } },
+  { href: '/admin/receipts/settings/lists', label: { en: 'Devotee lists', kn: 'ಭಕ್ತರ ಪಟ್ಟಿಗಳು' } },
 ];
 
 export const VISIBILITY_LABEL: Record<CatalogueSeva['visibility'], Bi> = {

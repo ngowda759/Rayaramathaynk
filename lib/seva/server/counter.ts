@@ -38,6 +38,7 @@ import type {
 import type { VerifiedDevice } from "./device";
 import { readCounterUpi } from "./finance";
 import { getIdentityAdapter } from "./identity";
+import { readLists } from "./lists";
 import { callRpc } from "./rpc";
 
 type Json = Record<string, unknown>;
@@ -456,7 +457,9 @@ function festivalChips(festivals: Json[], today: string): CounterBootstrap["fest
  * GET counter/bootstrap: everything the counter page needs to issue online and to keep working offline - the counter,
  * the counter catalogue in key order, slip settings, rules, cash denominations, festival chips, next numbers, the OF
  * number floor and the group label floor (seva_offline_group_floor at `serverTime`, so the counter keys it by the IST
- * month of `serverTime`, as it keys the heartbeat's), today's totals, UPI and the site address for QR links.
+ * month of `serverTime`, as it keys the heartbeat's), today's totals, UPI, the site address for QR links, and the
+ * gotra, nakshatra and rashi lists temple admins keep (A4P-5). The lists are left out when they cannot be read - the
+ * counter then offers its built-in lists - so a lists problem never stops the counter from issuing.
  */
 export async function loadBootstrap(
   actor: SevaActor,
@@ -470,7 +473,7 @@ export async function loadBootstrap(
   const year = istParts(now).year;
   const db = createAdminClient();
 
-  const [counter, sevasRead, settingsRead, festivalsRead, yearsRead, prepAnswer, groupFloor, upi] = await Promise.all([
+  const [counter, sevasRead, settingsRead, festivalsRead, yearsRead, prepAnswer, groupFloor, upi, lists] = await Promise.all([
     loadCounterInfo(device.counterId),
     db
       .from("sevas")
@@ -492,6 +495,7 @@ export async function loadBootstrap(
     callRpc<unknown>("seva_prepare_day_close", { p_counter_id: device.counterId, p_business_date: today }),
     callRpc<unknown>("seva_offline_group_floor", { p_counter_id: device.counterId, p_device_id: device.id, p_at: serverTime }),
     readCounterUpi(),
+    readLists().catch(() => undefined),
   ]);
 
   const settings = row(settingsRead) ?? bad();
@@ -535,6 +539,7 @@ export async function loadBootstrap(
     upiDisabledReason: upi ? null : "not_configured",
     serverTime,
     siteUrl,
+    ...(lists ? { lists } : {}),
   };
 }
 

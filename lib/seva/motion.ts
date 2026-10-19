@@ -75,6 +75,7 @@ const RECEIPT_SKELETONS: readonly (readonly [string, SkeletonVariant])[] = [
   ["/settings/counters", "list"],
   ["/settings/denominations", "form"],
   ["/settings/festival-days", "list"],
+  ["/settings/lists", "list"],
   ["/settings/receipt", "form"],
   ["/settings/rules", "form"],
 ];

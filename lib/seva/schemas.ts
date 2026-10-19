@@ -11,7 +11,6 @@ import type {
   OutboxItem,
   SevaRole,
 } from '@/types/seva';
-import { GOTRAS } from './domain/gotras';
 import { NAKSHATRAS } from './domain/nakshatras';
 import { RASHIS } from './domain/rashis';
 
@@ -78,7 +77,11 @@ const phone = z
 // Devotee and counter orders
 // ---------------------------------------------------------------------------------------------------------------
 
-const MAX_GOTRA_ID = Math.max(...GOTRAS.map((g) => g.id));
+/**
+ * Gotra ids as the receipts store them (smallint, 0 up): the built-in 0-56 and the gotras temple admins add from 1000
+ * (plan A4P-5, seva_list_items). The text is always stored too, so an id the office does not know is never lost.
+ */
+const MAX_GOTRA_ID = 32767;
 
 export const devoteeSchema = z.object({
   name: boundedText(1, 80),
@@ -401,6 +404,32 @@ export const festivalSchema = z.object({
     .refine((dates) => new Set(dates).size === dates.length, 'A date is listed twice'),
 });
 
+/**
+ * Settings - Devotee lists (plan A4P-5): one save. A gotra is added (no id, English name needed) or changed (English or
+ * Kannada name, hidden or shown); a nakshatra or rashi only gets its Kannada spelling corrected. The SQL function
+ * re-checks all of it, refuses a duplicate English gotra name and marks a saved Kannada name checked.
+ */
+const listName = boundedText(1, 60);
+
+export const listItemSaveSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('gotra'),
+      id: z.number().int().min(0).max(MAX_GOTRA_ID).optional(),
+      nameEn: listName.optional(),
+      nameKn: listName.optional(),
+      active: z.boolean().optional(),
+    })
+    .strict()
+    .refine((g) => g.id !== undefined || g.nameEn !== undefined, { path: ['nameEn'], message: 'Write the English name' })
+    .refine((g) => g.id === undefined || g.nameEn !== undefined || g.nameKn !== undefined || g.active !== undefined, {
+      path: ['id'],
+      message: 'Nothing to change',
+    }),
+  z.object({ kind: z.literal('nakshatra'), id: z.number().int().min(1).max(NAKSHATRAS.length), nameKn: listName }).strict(),
+  z.object({ kind: z.literal('rashi'), id: z.number().int().min(1).max(RASHIS.length), nameKn: listName }).strict(),
+]);
+
 export const counterSchema = z.object({
   name: boundedText(1, 40),
   place: boundedText(1, 60).nullable(),
@@ -493,6 +522,7 @@ export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
 export type DenominationsRequest = z.infer<typeof denominationsSchema>;
 export type FestivalRequest = z.infer<typeof festivalSchema>;
 export type CounterRequest = z.infer<typeof counterSchema>;
+export type ListItemSaveRequest = z.infer<typeof listItemSaveSchema>;
 export type DeviceRegisterRequest = z.infer<typeof deviceRegisterSchema>;
 export type StaffOnboardRequest = z.infer<typeof staffOnboardSchema>;
 export type StaffUpdateRequest = z.infer<typeof staffUpdateSchema>;

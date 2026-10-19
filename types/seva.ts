@@ -263,6 +263,28 @@ export interface SlipSettings {
   printRashi: boolean;
 }
 
+/** The three devotee pick lists temple admins keep (plan A4P-5, table seva_list_items). */
+export type SevaListKind = 'gotra' | 'nakshatra' | 'rashi';
+
+/** One gotra, nakshatra or rashi. Ids are those the receipts store (gotra 0-56 built in, 1000 up added). */
+export interface SevaListItem {
+  id: number;
+  nameEn: string;
+  /** Null only for an added gotra saved without a Kannada name. */
+  nameKn: string | null;
+  /** A temple admin has saved (proof-read) this Kannada name (O-03). */
+  knChecked: boolean;
+  /** False for a hidden gotra: kept for old receipts, not offered at the counter. Nakshatras and rashis are always true. */
+  active: boolean;
+  displayOrder: number;
+}
+
+export interface SevaLists {
+  gotras: SevaListItem[];
+  nakshatras: SevaListItem[];
+  rashis: SevaListItem[];
+}
+
 export interface CounterBootstrap {
   counter: { id: number; name: string; onlineSeries: string; offlineSeries: string };
   catalogue: CatalogueSeva[];
@@ -287,6 +309,11 @@ export interface CounterBootstrap {
   upiDisabledReason: 'not_configured' | null;
   serverTime: string;
   siteUrl: string;
+  /**
+   * The gotra, nakshatra and rashi lists as temple admins keep them (plan A4P-5). Absent when the office could not
+   * read them, and in a bootstrap this PC cached before the lists existed: the counter then uses the built-in lists.
+   */
+  lists?: SevaLists;
 }
 
 export interface SevaMe {

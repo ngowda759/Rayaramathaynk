@@ -206,6 +206,7 @@ export function CounterScreen(): JSX.Element {
                     onRejectSuggestion={counter.rejectSuggestion}
                     filledFrom={counter.filledFrom}
                     onUndo={counter.undoSuggestion}
+                    lists={bootstrap.lists}
                     searching={counter.searching}
                   />
                 ) : state.step === 2 ? (
