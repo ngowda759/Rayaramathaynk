@@ -1,297 +1,170 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Plus, Pencil } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import toast from "react-hot-toast";
-import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
-import FormDialog from "@/components/admin/common/FormDialog";
+
+import { SevaDrawer, catalogueToUpsert } from "@/components/seva/settings/SevaDrawer";
+import { SevaTable } from "@/components/seva/settings/SevaTable";
+import { SevaGate } from "@/components/seva/shell/SevaGate";
+import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
-import { receiptSevaService } from "@/services/receiptSeva.service";
-import { ReceiptSeva, ReceiptSevaInput } from "@/types/receiptSeva";
-import { validateReceiptSevaInput } from "@/lib/receipt/validation";
+import { useSevaMe } from "@/hooks/seva/useSevaMe";
+import { SETTINGS_TEXT as T } from "@/lib/seva/strings/settings";
+import { catalogueApi } from "@/services/seva/catalogue.service";
+import { SevaClientError } from "@/services/seva/http";
+import type { CatalogueSeva } from "@/types/seva";
+import type { SaveSevaResult } from "@/types/seva-settings";
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+type Phase = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready" };
+/** The drawer: a seva to edit, `seva: null` to add one, or closed. */
+type Drawer = { seva: CatalogueSeva | null } | null;
+
+function messageOf(err: unknown): string {
+  return err instanceof SevaClientError ? err.message : T.loadFailed;
 }
 
-interface DialogState {
-  mode: "create" | "edit";
-  seva: ReceiptSeva |
-    null;
+function byKey(list: CatalogueSeva[]): CatalogueSeva[] {
+  return [...list].sort((a, b) => a.key - b.key);
 }
 
-const emptyForm: ReceiptSevaInput = {
-  name: "",
-  description: "",
-  amount: 0,
-  active: true,
-  displayOrder: 0,
-};
-
-export default function SevaSettingsPage() {
-  const router = useRouter();
+function SevaSettings(): JSX.Element {
   const { user } = useAuth();
-  const [sevas, setSevas] = useState<ReceiptSeva[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dialog, setDialog] = useState<DialogState | null>(null);
-  const [form, setForm] = useState<ReceiptSevaInput>(emptyForm);
-  const [saving, setSaving] = useState(false);
+  const { can } = useSevaMe();
+  const editable = can("sevas.edit");
+  const api = useMemo(
+    () => catalogueApi(() => (user ? user.getIdToken() : Promise.reject(new Error("Sign in again to change sevas.")))),
+    [user],
+  );
+  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  const [sevas, setSevas] = useState<CatalogueSeva[]>([]);
+  const [drawer, setDrawer] = useState<Drawer>(null);
+  const [busy, setBusy] = useState(false);
 
-  const loadSevas = useCallback(async () => {
-    if (!user) return;
+  const load = useCallback(async (): Promise<void> => {
     try {
-      setLoading(true);
-      const token = await user.getIdToken();
-      const data = await receiptSevaService.getAllSevas(token);
-      setSevas([...data].sort((a,b) => a.displayOrder - b.displayOrder));
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to load seva catalogue.");
-    } finally {
-      setLoading(false);
+      const list = await api.list();
+      setSevas(byKey(list));
+      setPhase({ kind: "ready" });
+    } catch (err) {
+      setPhase({ kind: "error", message: messageOf(err) });
     }
-  }, [user]);
+  }, [api]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadSevas();
-  }, [loadSevas]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the first load of the list
+    void load();
+  }, [load]);
 
-  function openCreate() {
-    setForm({ ...emptyForm, displayOrder: sevas.length + 1 });
-    setDialog({ mode: "create", seva: null });
+  function afterSave(result: SaveSevaResult, message: string): void {
+    if (result.mirror === "failed") toast.error(T.mirrorFailed);
+    else toast.success(message);
   }
 
-  function openEdit(seva: ReceiptSeva) {
-    setForm({
-      name: seva.name,
-      description: seva.description,
-      amount: seva.amount,
-      active: seva.active,
-      displayOrder: seva.displayOrder,
-    });
-    setDialog({ mode: "edit", seva });
-  }
-
-  function updateField<K extends keyof ReceiptSevaInput>(field: K, value: ReceiptSevaInput[K]) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  async function handleSave() {
-    if (!user || !dialog) return;
-
-    const errors = validateReceiptSevaInput(form);
-    if (errors.length > 0) {
-      errors.forEach((error) => toast.error(error));
-      return;
-    }
-
-    setSaving(true);
+  async function reorder(ids: string[]): Promise<void> {
+    const previous = sevas;
+    const order = new Map(ids.map((id, i) => [id, i + 1]));
+    // Shown at once; the office renumbers the keys 1..n in this order.
+    setSevas(byKey(sevas.map((s) => ({ ...s, key: order.get(s.id) ?? s.key }))));
+    setBusy(true);
     try {
-      const token = await user.getIdToken();
-      if (dialog.mode === "create") {
-        await receiptSevaService.createSeva({ ...form, name: form.name.trim(), description: form.description.trim() }, token);
-        toast.success("Seva added successfully.");
-      } else if (dialog.seva) {
-        await receiptSevaService.updateSeva(dialog.seva.id, form, token);
-        toast.success("Seva updated successfully.");
-      }
-      setDialog(null);
-      await loadSevas();
-    } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : "Failed to save seva.");
+      await api.reorder(ids);
+      toast.success(T.reordered);
+      await load();
+    } catch (err) {
+      setSevas(previous);
+      toast.error(messageOf(err));
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
 
-  async function toggleActive(seva: ReceiptSeva) {
-    if (!user) return;
+  async function toggleActive(seva: CatalogueSeva, active: boolean): Promise<void> {
+    setBusy(true);
     try {
-      const token = await user.getIdToken();
-      await receiptSevaService.updateSeva(seva.id, { active: !seva.active }, token);
-      toast.success(!seva.active ? "Seva enabled." : "Seva disabled.");
-      await loadSevas();
-    } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : "Failed to update seva.");
+      const result = await api.save({ ...catalogueToUpsert(seva), active });
+      afterSave(result, active ? T.sevaSwitchedOn(seva.nameEn) : T.sevaSwitchedOff(seva.nameEn));
+      await load();
+    } catch (err) {
+      toast.error(messageOf(err));
+    } finally {
+      setBusy(false);
     }
   }
+
+  const nextKey = sevas.reduce((max, s) => Math.max(max, s.key), 0) + 1;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/admin/receipts"
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <AdminPageHeader
-            title="Seva Settings"
-            description="Manage the seva prices and catalogue used for receipts."
-          />
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 p-4 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Bilingual as="h1" en={T.sevasTitle.en} kn={T.sevasTitle.kn} className="text-(length:--text-h1) font-semibold" />
+          <p className="text-(length:--text-meta) text-(--muted-foreground)">
+            {phase.kind === "ready" ? T.sevasCount(sevas.length) : ""}
+          </p>
+          {editable ? null : <p className="text-(length:--text-meta) text-(--muted-foreground)">{T.viewOnly}</p>}
         </div>
-        <Button onClick={openCreate} className="bg-orange-600 hover:bg-orange-700">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Seva
-        </Button>
+        {editable ? (
+          <Button variant="seva-primary" onClick={() => setDrawer({ seva: null })} disabled={phase.kind !== "ready"}>
+            <Bilingual en={T.addSeva.en} kn={T.addSeva.kn} />
+          </Button>
+        ) : null}
       </div>
 
-      <div className="rounded-xl border bg-white p-4 text-sm text-stone-500">
-        Sevas used in past receipts can never be deleted — disable them instead. Prices are
-        snapshotted into receipts atthe time of issuance, so changing a price never alters old receipts.
-
-      </div>
-
-      {loading ? (
-        <div className="rounded-xl border bg-white p-8 text-center text-stone-500">
-          Loading sevas...
+      {phase.kind === "loading" ? (
+        <div role="status" aria-live="polite" className="p-6 text-(--muted-foreground)">
+          <Bilingual en={T.loading.en} kn={T.loading.kn} />
         </div>
-      ) : sevas.length === 0 ? (
-        <div className="rounded-xl border bg-white p-12 text-center">
-          <p className="text-stone-500">No sevas in the catalogue yet.</p>
-          <Button onClick={openCreate} className="mt-4 bg-orange-600 hover:bg-orange-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Your First Seva
+      ) : phase.kind === "error" ? (
+        <div role="alert" className="flex flex-col items-start gap-3 rounded-(--radius-surface) border border-(--border) bg-(--card) p-6">
+          <p className="font-semibold">{phase.message}</p>
+          <Button variant="seva-secondary" onClick={() => void load()}>
+            {T.tryAgain}
           </Button>
         </div>
+      ) : sevas.length === 0 ? (
+        <p className="rounded-(--radius-surface) border border-(--border) bg-(--card) p-6 text-(--muted-foreground)">{T.sevasEmpty}</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Order</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Seva</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Description</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Amount</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-stone-500">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-200">
-                {sevas.map((seva) => (
-                  <tr key={seva.id} className="hover:bg-stone-50">
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-600">
-                      {seva.displayOrder}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-stone-900">{seva.name}</p>
-                    </td>
-                    <td className="max-w-md px-4 py-3 text-sm text-stone-500">
-                      {seva.description || "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-stone-900">
-                      {formatCurrency(seva.amount)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleActive(seva)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          seva.active ? "bg-green-500" : "bg-stone-300"
-                        }`}
-                        title={seva.active ? "Disable seva" : "Enable seva"}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                            seva.active ? "translate-x-6" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <Button size="sm" variant="outline" onClick={() => openEdit(seva)}>
-                        <Pencil className="mr-1 h-3 w-3" />
-                        Edit
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <SevaTable
+          sevas={sevas}
+          editable={editable}
+          busy={busy}
+          onEdit={(seva) => setDrawer({ seva })}
+          onReorder={(ids) => void reorder(ids)}
+          onToggleActive={(seva, active) => void toggleActive(seva, active)}
+        />
       )}
 
-      <FormDialog
-        open={dialog !== null}
-        title={dialog?.mode === "edit" ? "Edit Seva" : "Add Seva"}
-        onClose={() => setDialog(null)}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Seva Name *
-            </label>
-            <Input
-              type="text"
-              value={form.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              placeholder="e.g. Panchamrutha Seva"
-            />
-          </div>
+      <p className="text-(length:--text-meta) text-(--muted-foreground)">{T.otherSevaNote}</p>
 
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Amount (₹) *
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={form.amount}
-              onChange={(e) => updateField("amount", Number(e.target.value) || 0)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Description
-            </label>
-            <Textarea
-              value={form.description}
-              onChange={(e) => updateField("description", e.target.value)}
-              placeholder="Short description of the seva"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Display Order
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={form.displayOrder}
-              onChange={(e) => updateField("displayOrder", Number(e.target.value) || 0)}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => setDialog(null)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSave} loading={saving} className="bg-orange-600 hover:bg-orange-700">
-              {dialog?.mode === "edit" ? "Save Changes" : "Add Seva"}
-            </Button>
-          </div>
-        </div>
-      </FormDialog>
+      {drawer ? (
+        <SevaDrawer
+          key={drawer.seva?.id ?? "new"}
+          seva={drawer.seva}
+          nextKey={nextKey}
+          readOnly={!editable}
+          api={api}
+          onClose={() => setDrawer(null)}
+          onSaved={(result) => {
+            setDrawer(null);
+            afterSave(result, T.sevaSaved);
+            void load();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Seva settings (DB §13.1, mockup `settings-devotee.html#sevas`): the seva catalogue from Supabase through
+ * `/api/seva/sevas`. Temple admins and super admins edit; view-only temple admins see everything read-only. Every save
+ * is audited by the office and mirrored to the website's Firestore `sevas` (C-39).
+ */
+export default function SevaSettingsPage(): JSX.Element {
+  return (
+    <SevaGate action="reports.view">
+      <SevaSettings />
+    </SevaGate>
   );
 }
