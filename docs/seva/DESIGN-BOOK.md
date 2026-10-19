@@ -65,6 +65,20 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
   `/admin/prasadam` addresses forwarding (D8, C-40, §6.1, §6.4, §9, §11, §12, §13, §17, §18, §20.1).
 - 2026-10-20, installable app: one app for every role; manifest `start_url` `/seva` and scope `/seva`; offline, the
   service worker opens the cached counter (§6.1, §20.1).
+- 2026-10-20, final-review fixes, SQL and server (A5-FIX F2, `20261102000000_seva_final_fixes.sql`):
+  - §8.3, §9.4: offline sync prices a fixed seva from the catalogue (today's rate, or the rate in force at the issue
+    time); a line that differs without a trusted rate, a reason, or `allow_amount_change` is stored as printed but
+    marked changed with an "Offline price mismatch" reason, never refused.
+  - §9.9: an online cancel of a receipt in a closed day is refused for the counter; an admin's cash cancel there is
+    refund-due. A receptionist cancels only from the receipt's own counter PC; a spoiled reissue follows the same
+    own-receipt and window rule in SQL.
+  - §9.10: closing needs the counter PC seen in the last 2 minutes; a temple admin may override (audited, API
+    `counterOfflineOk`); only shown denominations are counted. An offline receipt synced into a closed day is
+    audited `receipt.synced_into_closed_day` and raises the critical card `synced_into_closed_day` (§12.2).
+  - §8.4, §8.5: "Replace this PC" takes the last slip's year (this year or the one before); a `device_replaced` gap
+    belongs to the retired PC; gaps are never deleted and only shrink, `last_no` only rises.
+  - §7: reasons count only visible characters (3 at least) in checks and forms; view-only staff are refused in SQL
+    by every admin and office write function.
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.
