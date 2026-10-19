@@ -928,6 +928,8 @@ $$;
 -- may close anyway with p_counter_offline_ok (the route passes it only for an admin); the dayclose.close audit row
 -- then carries counter_offline_override and counter_last_seen_at. The old six-argument signature is dropped so no
 -- stale overload stays callable; the new argument has a default, so a six-argument call still works.
+-- L-9: every count must be a denomination the settings show (cash_denominations.shown), else SEVA:validation (field
+-- counts, reason unknown_denomination).
 DROP FUNCTION IF EXISTS seva_close_day(smallint, date, jsonb, numeric, text, uuid);
 CREATE OR REPLACE FUNCTION seva_close_day(
   p_counter_id smallint,
@@ -992,6 +994,15 @@ BEGIN
      <> (SELECT count(DISTINCT (e.value ->> 'kind', (e.value ->> 'value')::numeric)) FROM jsonb_array_elements(p_counts) e) THEN
     RAISE EXCEPTION 'SEVA:validation'
       USING DETAIL = jsonb_build_object('field', 'counts', 'reason', 'duplicate_denomination')::text;
+  END IF;
+  -- L-9: only the denominations the settings show, so an invented value cannot zero a difference and skip the note.
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(p_counts) e
+     WHERE NOT EXISTS (SELECT 1 FROM cash_denominations cd
+                        WHERE cd.shown AND cd.kind = e.value ->> 'kind' AND cd.value = (e.value ->> 'value')::numeric)
+  ) THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'counts', 'reason', 'unknown_denomination')::text;
   END IF;
 
   -- The counter row lock serialises closes of one counter.

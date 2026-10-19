@@ -306,6 +306,22 @@ describe('seva day close functions (A2-2)', () => {
     await expect(bad({ kind: 'note', value: 100, count: 2 })).rejects.toThrow('SEVA:validation');
   });
 
+  it('accepts only the denominations the settings show (A5-FIX L-9)', async () => {
+    const closeC2 = (counts: unknown) =>
+      db.query(
+        `select seva_close_day(2::smallint, (select business_date from seva_ist_parts(now())), $1::jsonb, null,
+                               'Counted', $2::uuid)`,
+        [JSON.stringify(counts), ramesh],
+      );
+    // An invented coin of 0.37 could zero a difference and skip the note.
+    await expect(closeC2([{ kind: 'coin', value: 0.37, count: 1 }])).rejects.toThrow('SEVA:validation');
+    await db.query(`update cash_denominations set shown = false where kind = 'note' and value = 200`);
+    await expect(closeC2([{ kind: 'note', value: 200, count: 1 }])).rejects.toThrow('SEVA:validation');
+    const n = await db.query<{ n: number }>('select count(*)::int as n from day_closes');
+    expect(n.rows[0].n).toBe(0);
+    await expect(closeC2([{ kind: 'note', value: 100, count: 2 }])).resolves.toBeDefined();
+  });
+
   it('allows one close per counter and date, and closing again after a reopen', async () => {
     const id = await close(db, ramesh, EXACT);
     expect((await prepare(db)).status).toBe('closed');
