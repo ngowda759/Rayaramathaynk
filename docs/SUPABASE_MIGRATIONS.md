@@ -103,8 +103,9 @@ changes or drops what the website already has.
 | `20261030000000_seva_lists.sql` | the gotra, nakshatra and rashi lists (`seva_list_items`) and their functions |
 | `20261031000000_seva_paper_size.sql` | the receipt paper size columns on `seva_settings` |
 
-**Frozen files.** Every file up to and including `20261030000000_seva_lists.sql` was applied to the developer's test
-project on 2026-10-19. Such a file is never edited again: a change is a new file with a later timestamp, written to
+**Frozen files.** Every file up to and including `20261031000000_seva_paper_size.sql` was applied to the developer's
+test project: the files up to `20261030000000_seva_lists.sql` on 2026-10-19, `20261031000000_seva_paper_size.sql` on
+2026-10-20. Such a file is never edited again: a change is a new file with a later timestamp, written to
 be additive and safe to run once on a database that already has the old ones.
 
 **How they were tested.**

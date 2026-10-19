@@ -132,6 +132,17 @@ describe("Seva Entry documentation covers the built code", () => {
     expect(doc).toMatch(/PGlite/);
   });
 
+  it("names the newest file pushed to the owner's test project as frozen", () => {
+    // Pushed 2026-10-20 (BUILD-RULES); move this when the next file is pushed.
+    const lastPushed = "20261031000000_seva_paper_size.sql";
+    expect(sevaMigrationFiles()).toContain(lastPushed);
+    const flat = (text: string): string => text.replace(/\s*\r?\n\s*/g, " ");
+    const migrations = flat(read("docs/SUPABASE_MIGRATIONS.md")).match(/\*\*Frozen files\.\*\* Every file up to and including `[^`]+`/);
+    expect(migrations?.[0]).toBe(`**Frozen files.** Every file up to and including \`${lastPushed}\``);
+    const book = flat(read("docs/seva/DESIGN-BOOK.md")).match(/Files up to and including `[^`]+` are frozen/);
+    expect(book?.[0]).toBe(`Files up to and including \`${lastPushed}\` are frozen`);
+  });
+
   it("docs name no office company or its theme", () => {
     const banned = [/coreflex/i, /\bcfs\b/i, /\bcfx\b/i, /architect rulings/i, /\bcona\b/i, /\blifecycle (app|application)\b/i];
     for (const file of CHANGED_DOCS) {
@@ -283,7 +294,8 @@ describe("plans and scripts point at the rewritten setup guide", () => {
     for (const file of files) {
       const stale = read(file)
         .split(/\r?\n/)
-        .filter((line) => /SETUP-GUIDE(?:\.md`?)? section \d/.test(line));
+        // "SETUP-GUIDE section 3", or a gate checklist line that says only "Read section 4" / "Open section 5".
+        .filter((line) => /SETUP-GUIDE(?:\.md`?)? section \d/.test(line) || /\b(?:Read|Open) section \d/i.test(line));
       expect({ file, stale }).toEqual({ file, stale: [] });
     }
   });

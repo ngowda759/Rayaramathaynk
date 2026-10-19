@@ -67,9 +67,11 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
   service worker opens the cached counter (§6.1, §20.1).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
-  (D11, §10, §13.2); the Follow-ups `paper` decision is superseded.
+  (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.
 - 2026-10-19, two backup keys (owner card `backup-who`): one key for Nikhil and one for the site owner;
   `scripts/seva/backup.sh` takes several recipients (§16.1, §20.2).
+- 2026-10-18, backup retention as built (A2): the nightly copy is kept 30 days and the first-of-month copy 90 days,
+  the most GitHub allows on default settings; where the 12-month monthly copies live is still open (§16.1, C-57).
 - 2026-10-19, demo data: `scripts/seva/seed-demo-data.ts`, guarded and for test projects only (`docs/seva/README.md`).
 
 ## 1. Purpose and why
@@ -928,8 +930,9 @@ seva_request_refund(p_payment_order_id uuid, p_receipt_ids uuid[], p_reason text
   functions in three files `20261021000000_seva_functions_issue.sql`, `20261021000100_seva_functions_ops.sql` and
   `20261021000200_seva_functions_admin.sql`, then `20261029235900_seva_privilege_hardening.sql`,
   `20261030000000_seva_lists.sql` and `20261031000000_seva_paper_size.sql`; in Phase 2 `..._seva_payments.sql`.
-  Files up to `20261030000000_seva_lists.sql` are frozen (applied on the owner's test project, 2026-10-19): a change is
-  a new, additive file with a later timestamp. The first super admin `staff` row (001) is created by a one-off script, not a migration.
+  Files up to and including `20261031000000_seva_paper_size.sql` are frozen (applied on the owner's test project: the
+  lists file and earlier on 2026-10-19, the paper size file on 2026-10-20): a change is a new, additive file with a
+  later timestamp. The first super admin `staff` row (001) is created by a one-off script, not a migration.
 - Deploying: today `.github/workflows/supabase-migrations.yml` runs only on `workflow_dispatch` (manual), not on merge
   (R3 3.2 said "on merge"; section 5.1 item 9). Either way a migration lands on the live project, so additive
   only, and each file is first run in PGlite by the database test layer.
@@ -1791,7 +1794,7 @@ boundary rule (CLAUDE.md, 2026-10-18).
 | Unit | Jest (`ts-jest`, jsdom), `tests/unit/seva/**` | Number formatting and parsing; grouping by date; amount in words (Indian system); period and bucket maths in IST; validation schemas; outbox ordering and retry; QR token format; Tally row building; Excel sheet building; ECharts option builders; permission matrix (every cell of 3.3) |
 | Server / route | Jest with mocks (pattern of `tests/unit/admin-auth.test.ts`, `api-knowledge-routes.test.ts`), `tests/unit/seva/api-*.test.ts` | Every route: 401 without token, 403 for each disallowed role and for view-only writes, device checks, input errors, correct SQL function and arguments; webhook signature good, bad and replayed; refund permissions |
 | Database | PGlite (embedded Postgres in Node, no Docker) as a separate Jest config, `tests/db/**`, script `npm run test:db` | Every migration applies cleanly from scratch and twice (idempotent); RLS on and revokes in place; triggers (immutability, append-only audit, rate history); `seva_issue_counter_order` numbering, year rollover, idempotency, pricing, overrides; offline sync rules and gaps; in-doubt supersede; cancel window; prasadam once, undo, off-date; day close maths; continuity; dashboard sums |
-| Browser | Playwright, `tests/e2e/seva/**`, config `tests/playwright.config.ts` | Counter flow by keyboard; multi-date group printing; offline (`context.setOffline`), outbox, OF numbers, resend; print layout (Chromium `page.pdf` with CSS page size: one 99 x 210 mm page per slip, checked with `pdf-lib`); dashboard period switch and charts; prasadam scan and typed states; test-mode checkout against a gateway mock |
+| Browser | Playwright, `tests/e2e/seva/**`, config `tests/playwright.config.ts` | Counter flow by keyboard; multi-date group printing; offline (`context.setOffline`), outbox, OF numbers, resend; print layout (Chromium `page.pdf` with CSS page size: one page per receipt at the chosen paper size, checked with `pdf-lib`); dashboard period switch and charts; prasadam scan and typed states; test-mode checkout against a gateway mock |
 
 Notes:
 - PGlite runs one connection, so the "two counters at once" test runs against a multi-connection embedded Postgres
@@ -1937,7 +1940,7 @@ Each is a decision the owner did not explicitly make. He can accept, change or r
 | C-54 | Cash of Rs 2,00,000 or more in one order needs a confirm (s.269ST; CA to confirm) | Legal caution | 9.5 |
 | C-55 | Tally: a ledger per seva plus cash, UPI and online ledgers in settings | Tally needs existing ledgers (R4 s5) | 12.6 |
 | C-56 | Invitations use Firebase's own set-password email | Free; no email provider | 13.6 |
-| C-57 | Backups kept 30 days, monthly copies 12 months; destination to confirm | Free storage limits | 16.1 |
+| C-57 | Backups kept 30 days, plus a first-of-month copy kept 90 days as built (the most GitHub allows on default settings); where the 12-month monthly copies live is still open with the owner | Free storage limits | 16.1 |
 | C-58 | Offline receipts keep the cached rate as printed; rate differences flagged at sync | The printed slip is the truth | 9.11 |
 | C-59 | Receptionists see only their counter's today, no dashboard | Need to know | 3.3 |
 | C-60 | Cancel reasons (8) and "Esc twice clears" are samples to confirm | From the mockup | 9.6, 9.9 |
@@ -1949,8 +1952,8 @@ Each is a decision the owner did not explicitly make. He can accept, change or r
 | C-66 | Staff and devotees get a provider-neutral internal id (uuid); the Firebase uid is stored as an external identity, and every route reads identity through one auth adapter, so a later move to Supabase Auth changes the adapter, not the module | Hedge while the owner decides the sign-in direction (builder check #1; owner card in the Design Book deck) | 3.2, 6.3, 7.2 |
 
 Builder's calls (not for the owner): service-worker library; IndexedDB wrapper; Excel library; camera QR decoder;
-PGlite or embedded Postgres for concurrency tests; env variable names; migration timestamps; component split; whether
-the day-close summary prints on A4 or slips after the printer test.
+PGlite or embedded Postgres for concurrency tests; env variable names; migration timestamps; component split. (The
+day-close summary prints on the receipt paper chosen in settings, section 9.10.)
 
 ## 23. Open items for the owner and the temple office
 

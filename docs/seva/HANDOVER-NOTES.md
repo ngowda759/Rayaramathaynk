@@ -1,8 +1,8 @@
 # Seva Entry - hand-over notes
 
-Written 2026-10-20 (Tuesday) at the end of Phase 1 (plan A, task A5-2). Two lists for after the merge: the Kannada
-text the temple office must check before go-live, and the problems found while testing that belong to the rest of the
-website, not to Seva Entry.
+Written 2026-10-20 (Tuesday) at the end of Phase 1 (plan A, task A5-2). Three lists for after the merge: the Kannada
+text the temple office must check before go-live, the problems found while testing that belong to the rest of the
+website, not to Seva Entry, and the small Seva Entry follow-ups not built in Phase 1.
 
 ## Kannada proof-read list (O-03)
 
@@ -39,3 +39,9 @@ one is already on the `main` branch, so Seva Entry does not fix them; they are l
 | 4 | The AI settings fail zod validation on an empty database | Raya AI settings pages and the chat log zod errors until settings exist | `lib/ai/ai-settings/validation.ts`, `lib/ai/ai-settings/service.ts` | Fall back to the defaults in `lib/ai/ai-settings/seed-data.ts` when no row exists, or run the settings seed on a new project |
 | 5 | `lib/admin-firebase.ts` falls back to `applicationDefault()` | With no key configured, the server tries Google's default credentials and fails later with a confusing error instead of saying the key is missing | `lib/admin-firebase.ts` (the `applicationDefault()` branch) | Fail at once with a plain "Firebase admin key not configured" message (Seva Entry's own code already reads the key this way) |
 | 6 | The public site has no sign-out | A person signed in on the public pages cannot sign out there; only the admin console and Seva Entry's header have Sign out | The public header and menu components under `components/layout/` | Add Sign out to the public header's account menu |
+
+## Seva Entry follow-ups (not built in Phase 1)
+
+| # | Follow-up | Today | Where |
+|---|---|---|---|
+| 1 | A link from each row on **Day closes** to that counter and day's Close day page | An admin who must reopen a closed day types the address `/seva/day-close?counterId=<n>&date=<YYYY-MM-DD>` by hand (`docs/seva/README.md`, "Reopen a closed day") | `components/seva/reports/DayCloseList.tsx`, `components/seva/reports/DayCloseDetail.tsx` |

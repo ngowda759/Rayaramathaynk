@@ -613,9 +613,9 @@ Vendor pages read for this section:
 
 ### A5.3 Install the printer and set the receipt paper size
 
-The receipt paper size is chosen in Seva Entry under **Settings** > **Receipts** > **Paper size**: **A5** (148 x 210
-mm, the default), **A6** (105 x 148 mm), **One-third A4** (99 x 210 mm), an **80 mm** or **58 mm** roll, or a custom
-size. Every size prints upright (portrait), one receipt per sheet. A5 and A6 are sizes the printer driver already
+The receipt paper size is chosen in Seva Entry under **Receipt settings** (`/seva/settings`) > **Receipts**
+(`/seva/settings/receipt`) > **Receipt paper**: **A5** (148 x 210 mm, the default), **A6** (105 x 148 mm),
+**One-third A4** (99 x 210 mm), an **80 mm** or **58 mm** roll, or a custom size. Every size prints upright (portrait), one receipt per sheet. A5 and A6 are sizes the printer driver already
 knows: for them, do steps 1 and 2, then step 9 and 10 choosing **A5** (or **A6**) as the paper size, and skip the form
 in steps 3 to 8. For one-third A4 or a custom size, do every step and make the form with your size.
 
@@ -688,7 +688,7 @@ The silent printing switch only works when Edge starts fresh, so Edge must not k
 
 1. In **File Explorer**, make a folder `D:\Seva receipts` (or `C:\Seva receipts` if the PC has no D: drive).
 2. Open the counter (**Seva counter** shortcut) and sign in as a temple admin.
-3. Go to **Settings** > **Receipts** > **Counters** and click **Register this PC** for **Counter 1**.
+3. Go to **Receipt settings** > **Counters** (`/seva/settings/counters`) and click **Register this PC** for **Counter 1**.
    (UNVERIFIED: I will confirm the exact wording at the print test.)
    What you should see now: Counter 1 marked as registered to this PC.
 4. On the counter, click **Choose folder**.

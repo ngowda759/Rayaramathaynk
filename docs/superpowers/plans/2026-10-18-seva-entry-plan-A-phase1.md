@@ -1628,7 +1628,7 @@ git commit -m "test(seva): add the Firebase-emulator Playwright harness and the 
 **Wave A2 gate - owner's 10-minute checklist**
 1. Read the A2 test report summary.
 2. Open `docs/seva/SETUP-GUIDE.md` B3 and revoke the old Firebase key (about 5 minutes).
-3. Read section 4 and say whether keeping the backup key on two USB drives works for you (the key itself can wait until wave A5).
+3. Read B6 (two keys, two holders; chosen 2026-10-19 on owner card `backup-who`).
 4. Check five amount-in-words samples listed in the report (for example Rs 2,50,005 -> "Rupees Two Lakh Fifty Thousand Five only").
 
 ---
