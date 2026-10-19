@@ -8,7 +8,7 @@ Written 2026-10-18 (Sunday) from the signed Design Book (`.claude/state/seva/boo
 |---|---|
 | `2026-10-18-seva-entry-plan-A-phase1.md` | Plan A part 1 of 2, full detail: header, Global Constraints, Review Focus, how to run, file map, shared contracts, waves A0-A2 |
 | `2026-10-18-seva-entry-plan-A-phase1-part2.md` | Plan A part 2 of 2, full detail: waves A3-A5 and the self-review. **Split by wave because Plan A passed 2,200 lines** (about 2,640 lines in all) |
-| `2026-10-18-seva-entry-plan-B-phase2-web.md` | Plan B outline: task titles, files, interfaces, dependencies, test intent - detailed with superpowers:writing-plans at the start of its window |
+| `2026-10-18-seva-entry-plan-B-phase2-web.md` | Plan B, full detail (detailed 2026-10-19 against the code at `f0f8aec`): header, Global Constraints, gateway facts to check, Review Focus, file map, shared contracts, waves B0-B3 (16 tasks), self-review and what changed from the outline. One file - about 1,250 lines, under the 2,200-line split point |
 | `2026-10-18-seva-entry-plan-C-android.md` | Plan C outline, same level |
 
 All paths inside the plans are relative to the worktree `D:/Onboarding/Repos/POCs/seva-entry` (branch `feature/seva-entry` off `main`, created in Task A0-1; the main checkout is never switched). Test reports and build notes go to `.claude/state/seva/test-reports/` and `.claude/state/seva/build/` (git-ignored).
@@ -31,16 +31,16 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | **A3** API and shell | A2 | A3-1 Counter routes (H); A3-2 Receipt, devotee, prasadam, gap routes (H); A3-3 Day-close and report routes (M); A3-4 Catalogue and settings routes + Firestore mirror (M); A3-5 Staff routes + legacy user routes + first super admin (X); A3-6 Module shell, navigation, role landing (H); A3-7 Counter Excel copy, service worker, manifest (H) | Wave gate + **security gate** (Opus xhigh review of every `/api/seva/*` route against DB §3.3) + owner checklist |
 | **A4** Screens | A3 | A4-1 Counter screens (H); A4-2 Today's receipts, cancel, reprint, spoiled (H); A4-3 Close day (M); A4-4 Receipt detail/print + public QR page (M); A4-5 Prasadam counter (H); A4-6 Dashboard (H); A4-7 Register, continuity, reports, day closes (H); A4-8 Export + board summary (M); A4-9 Settings: sevas, festivals, denominations (M); A4-10 Settings: receipt template, counters, devices, rules (H); A4-11 Staff and roles (H) | Wave gate + **owner gate**: the DB §19.2 10-minute checklist on a preview build |
 | **A5** Switch-over and final | A4 (A5-3 after A5-1 and A5-2) | A5-1 Retire the Firestore Receipt Book code (H); A5-2 Documentation (H); A5-3 Final verification and whole-branch review (X) | Final report + **owner gate**: merge now or after Plan B |
-| **B0** Setup | A5 | B0-1 SETUP-GUIDE: Cashfree test account, going live (H); B0-2 Package, env names, migration slots (S) | - |
-| **B1** Core | B0 | B1-1 Payment tables and SQL functions (X); B1-2 Provider adapter + Cashfree + gateway mock (X); B1-3 Devotee booking rules (M) | Wave gate |
-| **B2** API | B1 | B2-1 Devotee order/status/receipts routes (X); B2-2 Webhook, refunds, status, fee rule (X); B2-3 Reconcile sweep on GitHub Actions (H); B2-4 Payments in Needs attention (M) | Wave gate + **security gate** (webhook and devotee routes) |
-| **B3** Screens + e2e | B2 | B3-1 Website booking flow (H); B3-2 My seva bookings and e-receipts (M); B3-3 Admin Payments page (H); B3-4 Test-mode end-to-end + docs (H) | Wave gate + **owner gate** (test payment on the preview site) |
+| **B0** Setup (sequential) | A5 | B0-1 Gateway facts check + SETUP-GUIDE sections 8 and 10 (H); B0-2 Packages, env names, Postgres 15 test runner (M) | Report; no owner checklist beyond reading the facts summary |
+| **B1** Core | B0 | B1-1 Payment tables and SQL functions (X); B1-2 Provider interface, Cashfree adapter, gateway mock (X); B1-3 Booking rules, schemas, wire types, error codes (M); B1-4 Payment orchestration with injected dependencies (X); B1-5 Google sign-in, CSP for Google and Cashfree, e2e devotee account (H) | Wave gate |
+| **B2** API | B1 | B2-1 Devotee routes: catalogue, order, status, checkout, My seva bookings, booked before (X); B2-2 Payment webhook (X); B2-3 Payments page routes: status, refunds, fee rule, test payment (H); B2-4 Reconcile sweep on GitHub Actions (H); B2-5 Payment cards in Needs attention (M) | Wave gate + **security gate** (webhook signature, idempotency, amount and currency against the server's order, no client-trusted amounts, ownership, secrets) |
+| **B3** Screens + e2e | B2 (B3-4 after B3-1 and B3-2) | B3-1 Website booking flow (H); B3-2 My seva bookings, e-receipts, old public receipts retired (M); B3-3 Admin Payments page (H); B3-4 Test-mode end to end, DB flow test, docs (H) | Wave gate + **owner gate** (10-minute test payment on the preview site) |
 | **C0** Setup | B3 | C0-1 SETUP-GUIDE: Expo account and Android preview build (H) | - |
 | **C1** Foundations | C0 | C1-1 Firebase email + password sign-in in the app (H); C1-2 Seva API client, catalogue through the API (M) | Wave gate |
 | **C2** Screens | C1 | C2-1 Booking screens (H); C2-2 In-app checkout + deep-link return (H); C2-3 My bookings and e-receipts (M) | Wave gate |
 | **C3** Verification | C2 | C3-1 App tests, EAS Android preview build, docs (H) | **Owner gate** (install the APK, pay in test mode) |
 
-**Task count per wave:** A0 2, A1 6, A2 12, A3 7, A4 11, A5 3 (Plan A **41**: 1 S, 10 M, 21 H, 9 X); B0 2, B1 3, B2 4, B3 4 (Plan B **13**: 1 S, 3 M, 5 H, 4 X); C0 1, C1 2, C2 3, C3 1 (Plan C **7**: 2 M, 5 H). Total **61**.
+**Task count per wave:** A0 2, A1 6, A2 12, A3 7, A4 11, A5 3 (Plan A **41**: 1 S, 10 M, 21 H, 9 X); B0 2, B1 5, B2 5, B3 4 (Plan B **16**: 4 M, 7 H, 5 X - was 13 in the outline; see "Changed from the outline" at the end of Plan B); C0 1, C1 2, C2 3, C3 1 (Plan C **7**: 2 M, 5 H). Total **64**.
 
 ## Reviewer gates
 
@@ -64,9 +64,13 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | A4 | 11 | 38.0 + 13.2 + 4.4 + 5.7 + 5 | 66% |
 | A5 | 3 | 14.0 + 3.6 + 1.2 + 2.1 + 5 | 26% |
 | **Plan A** | **41** | | **about 2.8 windows** (range 2.5-3.6), about USD 840-1,230 |
-| B0-B3 | 13 | 52.0 + 15.6 + 5.2 + 7.8 + 11 + 2.5 | **about 0.95 window** (range 0.85-1.2), about USD 280-415 |
+| B0 | 2 | 6.5 + 2.4 + 0.8 + 1.0 + 0 | 11% |
+| B1 | 5 | 24.5 + 6.0 + 2.0 + 3.7 + 3 | 39% |
+| B2 | 5 | 22.5 + 6.0 + 2.0 + 3.4 + 4 + 2.5 | 40% |
+| B3 | 4 | 14.5 + 4.8 + 1.6 + 2.2 + 5 | 28% |
+| **Plan B** | **16** | 68.0 + 19.2 + 6.4 + 10.2 + 12 + 2.5 = 118.3 | **about 1.2 windows** (range 1.05-1.55), about USD 355-520 (was 0.95 for the 13-task outline) |
 | C0-C3 | 7 | 25.0 + 8.4 + 2.8 + 3.8 + 11 | **about 0.5 window** (range 0.45-0.7), about USD 150-225 |
-| **All** | **61** | | **about 4.2 windows** (range 3.8-5.5), about USD 1,270-1,860 (range 1,140-2,420) |
+| **All** | **64** | | **about 4.5 windows** (range 4.0-5.85), about USD 1,345-1,975 |
 
 **How that maps onto real windows** (waves should not straddle a window when avoidable; A2's twelve tasks are independent and can be split):
 
@@ -74,11 +78,12 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 |---|---|---|
 | 1 | A0, A1, and about half of A2's tasks | ~95% |
 | 2 | Rest of A2, A2 gate, A3 | ~90% |
-| 3 | A4, A5 | ~92% |
-| 4 | Plan B (detail it first with writing-plans, ~5%) | ~100% |
-| 5 | Plan C (detail it first, ~3%) | ~55% |
+| 3 | A4 part 1 (owner's split, DECISIONS 2026-10-19) | done |
+| 4 | A4 part 2 (A4-6..A4-10), A4 gate and owner gate, A5 | per Plan A |
+| 5 | Plan B waves B0, B1, B2 and the B2 security gate (Plan B already detailed, 2026-10-19) | ~90% |
+| 6 | B3 and its owner gate (~28%), then Plan C (detail it first, ~3%; ~50%) | ~80% |
 
-So: **plan on five build windows, the fifth about half used**; the Design Book's earlier figure (Phase 1 about 2.5, Phase 2 about 1) was close for Phase 1 and low for Phase 2 because the app is now its own plan. The owner said more windows are fine (Design Book deck `cut-order`). Ask for the remaining percentage at every wave boundary (working style).
+Rows 3-6 updated 2026-10-19 when Plan B was detailed (16 tasks instead of 13; Plan B no longer fits one window). So: **plan on six build windows, the sixth about four-fifths used**; the Design Book's earlier figure (Phase 1 about 2.5, Phase 2 about 1) was close for Phase 1 and low for Phase 2 because the app is now its own plan. The owner said more windows are fine (Design Book deck `cut-order`). Ask for the remaining percentage at every wave boundary (working style).
 
 ## Owner actions the build waits on
 
@@ -88,7 +93,10 @@ So: **plan on five build windows, the fifth about half used**; the Design Book's
 | During A3 | Create the Supabase test project for the build (O-16, O-17) | Section 1 |
 | Before A5 ends | Generate the `age` backup key; set `SEVA_BACKUP_DB_URL` and `SEVA_BACKUP_AGE_RECIPIENT` (O-15) | Section 4 |
 | A4 owner gate | Allow pushing `feature/seva-entry` for a Vercel preview, or check on the builder's PC | Section 2 |
-| Before Plan B | Cashfree test account and test keys in Vercel Preview | Section 8 (B0-1) |
+| During Plan B waves B1-B2 (needed by the B3 owner gate, not before) | Cashfree test account; test keys and `PAYMENTS_PROVIDER`/`PAYMENTS_MODE` in Vercel **Preview**; Vercel Protection Bypass for Automation; Google sign-in on in Firebase with the preview host authorised | Sections 8.1-8.5 (B0-1) |
+| B3 owner gate | Allow pushing `feature/seva-entry` for a preview; make the test payment, refund, Rs 1 test payment | Section 8.7; Plan B's B3 checklist |
+| After merging to `main` | `SEVA_CRON_SECRET` in Vercel and as a GitHub secret, `SEVA_SITE_URL` as a GitHub variable (the 5-minute sweep runs only from `main`) | Section 8.8 |
+| Before going live (Phase 2) | Cashfree activation papers, written answer on UPI charges, CA answers, Vercel plan (O-16: Hobby is non-commercial) | Section 10 |
 | Before Plan C | Expo account | Section 9 (C0-1) |
 | Before go-live (not in these plans) | Office data O-01 to O-12, CA answers O-13, printer test O-05 to O-08 | Design Book §23 |
 
@@ -122,5 +130,27 @@ So: **plan on five build windows, the fifth about half used**; the Design Book's
     `lastOfGroupNo`, and the new PC gets a stored floor = the old PC's floor + the open `device_replaced` gap sizes
     (`counter_devices.of_group_floor_yymm/no`), so labels the dead PC printed but never sent stay free for its late
     upload.
+
+## Plan B: assumptions and open questions (written 2026-10-19, for the owner to confirm or change)
+
+- **U-1 Payer mobile for UPI.** Cashfree's create-order most likely needs a customer phone (check CF-3 in B0-1). The
+  plan asks for a "mobile number for the UPI payment" on the review step, pre-filled from the devotee's phone, sent only
+  to the gateway and never stored. The devotee's own phone on the receipt stays optional, as decided. If CF-3 shows the
+  phone is optional, B1-3 makes `payerPhone` optional and the review step hides it.
+- **U-2 One seva per online order, quantity 1 per date** (the mockup's "Rs 505 per date - Pay Rs 1,515"). Several sevas
+  in one online payment is not built.
+- **U-3 Online receipts do not create returning-devotee profiles** at the counter; "Booked before" reads only the
+  account's own earlier orders (C-10).
+- **U-4 "Send a test payment"** uses the refund right (temple admin or super admin, not view-only) instead of a new
+  permission row; it works only in test mode and issues no receipt.
+- **U-5 A failed refund has no "try again" button**: it is a critical card, and the runbook says to refund from the
+  Cashfree dashboard and note it. A refund that never reached Cashfree (network) is retried by the sweep with the same
+  reference.
+- **U-6 Previews and payment alerts:** the site sends Cashfree its own alert address per order, built from Vercel's
+  branch URL with the protection-bypass value (V-1, V-2); nothing is typed into Cashfree's webhook settings for tests.
+- **U-7 The 5-minute sweep runs only from `main`** (GitHub schedules); on the preview, the return page and the Payments
+  page re-check by themselves, so the B3 test does not need the sweep.
+- **U-8 Vercel plan (O-16):** previews in test mode move no money; taking real payments on Hobby is outside Vercel's
+  non-commercial terms, so the plan question returns at go-live (SETUP-GUIDE section 10).
 
 END OF REPORT
