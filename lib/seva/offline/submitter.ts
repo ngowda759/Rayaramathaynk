@@ -46,6 +46,10 @@ import { connectionStore, isUnreachable } from './connection';
 import { runTransaction, type SevaDb } from './db';
 import { putLocalReceipt, rememberReceipts } from './local-receipts';
 import { putOutboxItem, refreshWaiting } from './outbox';
+import { reasonLength } from './refused';
+
+/** A changed amount needs a reason of at least this many characters, as the office requires (review M-5). */
+const MIN_CHANGE_REASON_CHARS = 3;
 
 export const ONLINE_TIMEOUT_MS = 6000;
 export const ONLINE_ATTEMPTS = 3;
@@ -77,7 +81,8 @@ export type OfflineIssueCode =
   | 'offline_amount_missing'
   | 'offline_total_mismatch'
   | 'offline_clock_invalid'
-  | 'offline_empty_order';
+  | 'offline_empty_order'
+  | 'offline_reason_required';
 
 /** Why an order could not be printed offline. Nothing was kept and no number was used. */
 export class OfflineIssueError extends Error {
@@ -153,13 +158,12 @@ function priceOrder(p: CounterOrderPayload, catalogue: readonly CatalogueSeva[])
       const rate = line.unitRatePaise ?? seva.ratePaise;
       if (rate === null || !Number.isSafeInteger(rate) || rate <= 0) throw new OfflineIssueError('offline_amount_missing');
       if (!Number.isSafeInteger(line.quantity) || line.quantity < 1) throw new RangeError('invalid_quantity');
-      return {
-        input: line,
-        seva,
-        unitRatePaise: rate,
-        amountPaise: rate * line.quantity,
-        changed: seva.ratePaise !== null && line.unitRatePaise !== undefined && line.unitRatePaise !== seva.ratePaise,
-      };
+      const changed = seva.ratePaise !== null && line.unitRatePaise !== undefined && line.unitRatePaise !== seva.ratePaise;
+      // The office refuses a changed line without a reason; a slip it would refuse is never printed (M-5).
+      if (changed && reasonLength(line.changeReason ?? '') < MIN_CHANGE_REASON_CHARS) {
+        throw new OfflineIssueError('offline_reason_required');
+      }
+      return { input: line, seva, unitRatePaise: rate, amountPaise: rate * line.quantity, changed };
     });
     if (lines.length === 0) throw new OfflineIssueError('offline_empty_order');
     return { input, lines, totalPaise: lines.reduce((sum, l) => sum + l.amountPaise, 0) };

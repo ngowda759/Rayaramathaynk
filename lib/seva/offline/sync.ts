@@ -4,14 +4,16 @@
  * failure leaves everything after it waiting. Every send is idempotent on the server (client ids), so sending an
  * item again after a lost answer is safe.
  *
- * Per item: accepted or already there (duplicate) -> removed from the outbox; refused by the office -> kept, reported
- * and the next item is tried (a printed slip is never dropped on this PC; it stays waiting until a person deals with
- * it); office unreachable or busy -> stop and try again later. A sign-in or device problem is thrown to the caller.
+ * Per item: accepted or already there (duplicate) -> removed from the outbox; refused by the office -> kept, recorded
+ * as refused (refused.ts) and reported, and the next item is tried (a printed slip is never dropped on this PC; it
+ * stays waiting until a temple admin sets it aside after its paper entry); office unreachable or busy -> stop and try
+ * again later. A sign-in or device problem is thrown to the caller.
  */
 import type { OutboxItem, SyncResponse } from '@/types/seva';
 import { connectionStore, errorCode, errorStatus, isUnreachable } from './connection';
 import type { SevaDb } from './db';
 import { markSent, pendingCount, pendingItems } from './outbox';
+import { recordRefusal } from './refused';
 
 export interface SyncSummary {
   sent: number;
@@ -46,7 +48,9 @@ async function sendAll({ db, api }: SyncDeps): Promise<SyncSummary> {
         if (status === 400) {
           // The office refused this one item as invalid; the rest may still go.
           reached = true;
-          summary.refused.push({ seq: item.seq, code: errorCode(err) ?? 'validation' });
+          const code = errorCode(err) ?? 'validation';
+          summary.refused.push({ seq: item.seq, code });
+          await recordRefusal(db, item.seq, code, new Date().toISOString());
           continue;
         }
         if (isUnreachable(err) || status === 429) {
@@ -66,7 +70,9 @@ async function sendAll({ db, api }: SyncDeps): Promise<SyncSummary> {
         await markSent(db, item.seq);
         summary.sent += 1;
       } else {
-        summary.refused.push({ seq: item.seq, code: result.code ?? 'refused' });
+        const code = result.code ?? 'refused';
+        summary.refused.push({ seq: item.seq, code });
+        await recordRefusal(db, item.seq, code, new Date().toISOString());
       }
     }
   } finally {

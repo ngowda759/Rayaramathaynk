@@ -116,6 +116,7 @@ export const OFFLINE_ISSUE_TEXT: Record<string, string> = {
   offline_total_mismatch: 'The total does not match the saved catalogue. Check the sevas and try again.',
   offline_clock_invalid: 'This PC clock looks wrong, so offline numbers cannot be made. Fix the date and time first.',
   offline_empty_order: 'Add at least one seva.',
+  offline_reason_required: 'A changed amount needs a reason of at least 3 characters. Add it and try again.',
 };
 
 export const COUNTER_TEXT: {
@@ -252,6 +253,17 @@ export const COUNTER_TEXT: {
   saveExcelNow: Bi;
   downloadExcel: Bi;
   refused(n: number): string;
+  refusedTitle: Bi;
+  refusedNext: Bi;
+  refusedNextAdmin: string;
+  refusedKindOrder: string;
+  refusedKindCancel: string;
+  refusedSetAside: string;
+  refusedReasonLabel: string;
+  refusedReasonShort: string;
+  refusedConfirm: string;
+  refusedKeep: string;
+  refusedSetAsideFailed: string;
 } = {
   steps: {
     devotee: { en: 'Devotee', kn: 'ಭಕ್ತರು' },
@@ -427,5 +439,19 @@ export const COUNTER_TEXT: {
   saveExcelNow: { en: 'Save Excel now', kn: 'ಈಗ ಎಕ್ಸೆಲ್ ಉಳಿಸಿ' },
   downloadExcel: { en: 'Download Excel', kn: 'ಎಕ್ಸೆಲ್ ಡೌನ್‌ಲೋಡ್' },
   refused: (n) =>
-    `${n === 1 ? '1 offline receipt was' : `${n} offline receipts were`} refused by the office. It stays on this PC; ask a temple admin.`,
+    `${n === 1 ? '1 offline receipt was' : `${n} offline receipts were`} refused by the office. It stays on this PC; see "Refused by the office" for what to do.`,
+  refusedTitle: { en: 'Refused by the office', kn: 'ಕಚೇರಿ ನಿರಾಕರಿಸಿದವು' },
+  refusedNext: {
+    en: 'These were printed on this PC but the office will not take them. Write each one in the paper receipt book, then ask a temple admin to set it aside here with a reason. Until then the day cannot be closed.',
+    kn: 'ಇವು ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಮುದ್ರಿತವಾಗಿವೆ, ಆದರೆ ಕಚೇರಿ ಸ್ವೀಕರಿಸುವುದಿಲ್ಲ. ಪ್ರತಿಯೊಂದನ್ನು ಕಾಗದದ ರಸೀದಿ ಪುಸ್ತಕದಲ್ಲಿ ಬರೆಯಿರಿ, ನಂತರ ದೇವಸ್ಥಾನದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.',
+  },
+  refusedNextAdmin: 'Set aside only after the receipt is written in the paper book. The reason is kept on this PC with the item.',
+  refusedKindOrder: 'Offline receipt',
+  refusedKindCancel: 'Offline cancel',
+  refusedSetAside: 'Set aside',
+  refusedReasonLabel: 'Reason (for example: entered in the paper book, page 14)',
+  refusedReasonShort: 'Write at least 3 characters.',
+  refusedConfirm: 'Set aside now',
+  refusedKeep: 'Keep it',
+  refusedSetAsideFailed: 'This item could not be set aside. Send now, then try again.',
 };

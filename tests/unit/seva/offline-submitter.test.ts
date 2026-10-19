@@ -276,6 +276,26 @@ describe('counter submitter', () => {
     ]);
   });
 
+  it.each([[undefined], ['ok'], ['\u{1F64F}\u{1F64F}']])(
+    'refuses to print offline a changed line without a 3-character reason (%s), using no number (M-5)',
+    async (changeReason) => {
+      const { submitter } = setup({ forced: true });
+      const order = bookOrder();
+      order.receipts = [
+        {
+          ...order.receipts[0],
+          lines: [{ sevaId: 'seva-paa', quantity: 1, unitRatePaise: 40000, ...(changeReason ? { changeReason } : {}) }],
+        },
+      ];
+      order.expectedTotalPaise = 40000;
+
+      await expect(submitter.submit(order)).rejects.toThrow('offline_reason_required');
+
+      expect(await pendingCount(db)).toBe(0);
+      expect(await takeOfflineNumbers(db, { series: 'OF1', year: 2026, count: 1 })).toBe(1);
+    },
+  );
+
   it('numbers receipts in seva-date order', async () => {
     const { submitter } = setup({ forced: true });
     const order = bookOrder();

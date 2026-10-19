@@ -150,6 +150,17 @@ describe("CancelDialog", () => {
     );
   });
 
+  it("counts the Other note in characters, as the schema does: two emoji are too short (M-5)", () => {
+    renderDialog([groupOfThree()[0]]);
+    const go = screen.getByRole("button", { name: "Cancel receipt" });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "other" } });
+    const note = screen.getByLabelText(/Say what happened/);
+    fireEvent.change(note, { target: { value: "\u{1F64F}\u{1F64F}" } });
+    expect(go).toBeDisabled();
+    fireEvent.change(note, { target: { value: "\u{1F64F}\u{1F64F}\u{1F64F}" } });
+    expect(go).toBeEnabled();
+  });
+
   it("shows the money-back line for cash and the refund-due line for UPI", () => {
     renderDialog(groupOfThree());
     expect(screen.getByText(/Give back Rs 820 in cash/)).toBeInTheDocument();

@@ -32,6 +32,7 @@ import { todaysReceipts } from "@/lib/seva/offline/local-receipts";
 import { refreshWaiting } from "@/lib/seva/offline/outbox";
 import { editedSinceInDoubt, markInDoubt, orderIdsFor, type PendingOrder } from "@/lib/seva/offline/pending-order";
 import { cacheProfile, findProfiles } from "@/lib/seva/offline/profiles";
+import { refusedItems, setAsideRefused as setAsideRefusedItem, type RefusedItem } from "@/lib/seva/offline/refused";
 import { createCounterSubmitter, OfflineIssueError } from "@/lib/seva/offline/submitter";
 import { runSync } from "@/lib/seva/offline/sync";
 import { printSlips } from "@/lib/seva/print/printSlips";
@@ -100,6 +101,10 @@ export interface UseCounter {
    */
   inDoubtOrder: "open" | "cleared" | null;
   dismissInDoubtOrder(): void;
+  /** Outbox items the office refused (M-5), shown with what to do next. */
+  refused: RefusedItem[];
+  /** A temple admin sets a refused item aside on this PC after its paper-book entry. Throws when it cannot. */
+  setAsideRefused(seq: number, reason: string): Promise<void>;
   dayClosed: boolean;
   skewMs: number;
   today: { receipts: number; cashPaise: number; upiPaise: number };
@@ -226,6 +231,7 @@ export function useCounter(): UseCounter {
   const [lastPrinted, setLastPrinted] = useState<UseCounter["lastPrinted"]>(null);
   const [inDoubt, setInDoubt] = useState(false);
   const [inDoubtOrder, setInDoubtOrder] = useState<"open" | "cleared" | null>(null);
+  const [refused, setRefused] = useState<RefusedItem[]>([]);
   const [dayClosed, setDayClosedState] = useState(false);
   const [skewMs, setSkewMs] = useState(0);
   const [today, setToday] = useState({ receipts: 0, cashPaise: 0, upiPaise: 0 });
@@ -399,7 +405,9 @@ export function useCounter(): UseCounter {
       newIds: () => ({ clientOrderId: newId() }),
     });
     await refreshWaiting(db).catch(() => undefined);
+    const stillRefused = await refusedItems(db).catch(() => []);
     if (isCancelled()) return;
+    setRefused(stillRefused);
     await loadBootstrap();
   }, [getApi, askPrintOffline, loadBootstrap]);
 
@@ -451,6 +459,7 @@ export function useCounter(): UseCounter {
         .then((summary) => {
           if (summary.sent > 0) excelRef.current?.noteReceipts(0);
           if (summary.refused.length > 0) setMessage({ tone: "error", text: COUNTER_TEXT.refused(summary.refused.length) });
+          return refusedItems(db).then(setRefused);
         })
         .catch(() => undefined);
     };
@@ -783,6 +792,14 @@ export function useCounter(): UseCounter {
   const dismissMessage = useCallback(() => setMessage(null), []);
   const dismissInDoubtOrder = useCallback(() => setInDoubtOrder(null), []);
 
+  const setAsideRefused = useCallback(async (seq: number, reason: string): Promise<void> => {
+    const db = dbRef.current;
+    const who = meRef.current;
+    if (!db || !who) throw new Error("counter_not_loaded");
+    await setAsideRefusedItem(db, seq, { reason, by: { name: who.name, staffNo: who.staffNo }, at: new Date().toISOString() });
+    setRefused(await refusedItems(db));
+  }, []);
+
   // An in-doubt order cleared from the screen (double Esc, or every line removed) is let go: the next order is a new
   // one with new ids. The office may still hold it unprinted, so the counter keeps showing it as needing attention.
   useEffect(() => {
@@ -812,6 +829,8 @@ export function useCounter(): UseCounter {
     answerInDoubt,
     inDoubtOrder,
     dismissInDoubtOrder,
+    refused,
+    setAsideRefused,
     dayClosed,
     skewMs,
     today,

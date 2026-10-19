@@ -14,6 +14,7 @@ import { DayClosedNotice } from "./DayClosedNotice";
 import { DEVOTEE_FIELD_IDS, DevoteeStep } from "./DevoteeStep";
 import { InDoubtDialog } from "./InDoubtDialog";
 import { InDoubtNotice } from "./InDoubtNotice";
+import { RefusedOutbox } from "./RefusedOutbox";
 import { OfflineBanner } from "./OfflineBanner";
 import { PayStep } from "./PayStep";
 import { PrintedPanel } from "./PrintedPanel";
@@ -170,6 +171,7 @@ export function CounterScreen(): JSX.Element {
       <div className="flex flex-col gap-6 p-8 max-md:p-4">
         {counter.dayClosed ? <DayClosedNotice date={bootstrap.today.businessDate} /> : null}
         {counter.inDoubtOrder ? <InDoubtNotice state={counter.inDoubtOrder} onDismiss={counter.dismissInDoubtOrder} /> : null}
+        <RefusedOutbox items={counter.refused} canSetAside={can("gap.resolve")} onSetAside={counter.setAsideRefused} />
         <AnimatePresence initial={false}>
           {offline ? (
             <OfflineBanner

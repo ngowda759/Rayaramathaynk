@@ -129,7 +129,7 @@ function CancelForm({ receipts, today, offline, busy, error, onConfirm, onClose 
   );
   const first = receipts[0];
   const isGroup = receipts.length > 1;
-  const noteOk = reason !== "other" || note.trim().length >= OTHER_NOTE_MIN;
+  const noteOk = reason !== "other" || Array.from(note.trim()).length >= OTHER_NOTE_MIN;
   const ready = reason !== "" && noteOk && chosen.length > 0 && !busy;
   const groupTotal = receipts.reduce((sum, r) => sum + r.totalPaise, 0);
   const money = chosen.length > 0 ? moneyBackLine(chosen, { today, offline }) : null;
