@@ -36,6 +36,7 @@ export const REGISTER = {
   loading: { en: 'Loading receipts...', kn: 'ರಸೀದಿಗಳನ್ನು ತರಲಾಗುತ್ತಿದೆ...' },
   empty: { en: 'No receipt matches these filters.', kn: 'ಈ ಆಯ್ಕೆಗಳಿಗೆ ಯಾವ ರಸೀದಿಯೂ ಹೊಂದುವುದಿಲ್ಲ.' },
   showMore: 'Show more',
+  loadingMore: 'Loading more...',
   tryAgain: 'Try again',
   shown: (n: number): string => `Showing ${plural(n, 'receipt', 'receipts')}`,
   columns: {

@@ -61,12 +61,18 @@ function ListShape(): JSX.Element {
           <Block key={i} className="h-11 w-40 rounded-(--radius-control)" />
         ))}
       </div>
-      <div className="flex flex-col gap-2 rounded-[18px] border border-(--border) bg-(--card) p-3">
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-          <Block key={i} className="h-11" />
-        ))}
-      </div>
+      <RowBlocks rows={8} />
     </>
+  );
+}
+
+function RowBlocks({ rows }: { rows: number }): JSX.Element {
+  return (
+    <div className="flex flex-col gap-2 rounded-[18px] border border-(--border) bg-(--card) p-3">
+      {Array.from({ length: rows }, (_, i) => (
+        <Block key={i} className="h-11" />
+      ))}
+    </div>
   );
 }
 
@@ -160,6 +166,27 @@ export function PageSkeleton({ variant }: PageSkeletonProps): JSX.Element {
       className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6 sm:px-6"
     >
       <Shape />
+    </div>
+  );
+}
+
+export interface SkeletonRowsProps {
+  /** How many placeholder rows. Default 8. */
+  rows?: number;
+  /** Accessible name, from the screen's strings. Default "Loading...". */
+  label?: string;
+  className?: string;
+  "data-testid"?: string;
+}
+
+/**
+ * Only the rows of the list outline (plan A4P-3): for a list whose page is already on screen (heading and filters
+ * drawn) while its first rows load. The same blocks as PageSkeleton "list", announced once.
+ */
+export function SkeletonRows({ rows = 8, label = SHELL.loading.en, className, ...props }: SkeletonRowsProps): JSX.Element {
+  return (
+    <div role="status" aria-busy="true" aria-label={label} className={className} {...props}>
+      <RowBlocks rows={rows} />
     </div>
   );
 }

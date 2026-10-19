@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState, type JSX } from "react";
 
+import { MotionDialog } from "@/components/seva/motion/MotionDialog";
 import { ReceiptHistory } from "@/components/seva/receipt/ReceiptHistory";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip } from "@/components/seva/ui/Chip";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { prasadamLabel } from "@/lib/seva/strings/receipt";
 import { DRAWER, MODE_LABEL, RECEIPT_STATUS } from "@/lib/seva/strings/reports";
 import { formatSevaDate } from "@/lib/seva/time";
@@ -38,15 +39,23 @@ function Fact({ label, children }: { label: { en: string; kn: string }; children
 
 /**
  * A register row opened (DB §12.3): the receipt's details and its history (prints, cancel, prasadam, audit rows),
- * with a link to the full receipt page. A side sheet on wide screens and a bottom sheet on a phone.
+ * with a link to the full receipt page. A side sheet on wide screens and a bottom sheet on a phone. It springs in and
+ * animates out (MotionDialog, plan A4P-3); while it leaves it still shows the receipt it had.
  */
 export function ReceiptDrawer({ row, today, load, onClose }: ReceiptDrawerProps): JSX.Element {
+  // The last row opened, kept while the drawer animates out after `row` is cleared.
+  const [shown, setShown] = useState<ReceiptListItem | null>(row);
+  if (row !== null && row !== shown) setShown(row);
+
   return (
-    <Dialog open={row !== null} onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent variant="seva" showCloseButton={false} className="max-h-[90vh] overflow-y-auto">
-        {row ? <DrawerBody key={row.id} row={row} today={today} load={load} onClose={onClose} /> : null}
-      </DialogContent>
-    </Dialog>
+    <MotionDialog
+      open={row !== null}
+      onOpenChange={(next) => (next ? undefined : onClose())}
+      showCloseButton={false}
+      className="max-h-[90vh] overflow-y-auto"
+    >
+      {shown ? <DrawerBody key={shown.id} row={shown} today={today} load={load} onClose={onClose} /> : null}
+    </MotionDialog>
   );
 }
 

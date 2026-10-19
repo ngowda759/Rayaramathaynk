@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { JSX } from "react";
 
+import { AnimatedNumber } from "@/components/seva/motion/AnimatedNumber";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { changeLabel, changeTrend } from "@/lib/seva/dashboard/format";
 import { formatRupees } from "@/lib/seva/money";
@@ -29,8 +30,16 @@ const TILES: TileSpec[] = [
   { id: "upi", label: DASHBOARD.upi, value: (t) => t.upiPaise, money: true, href: "/admin/receipts/day-closes" },
 ];
 
+function showMoney(value: number): string {
+  return formatRupees(value, { decimals: false });
+}
+
+function showCount(value: number): string {
+  return value.toLocaleString("en-IN");
+}
+
 function show(value: number, money: boolean): string {
-  return money ? formatRupees(value, { decimals: false }) : value.toLocaleString("en-IN");
+  return money ? showMoney(value) : showCount(value);
 }
 
 const TREND_CLASS = {
@@ -45,6 +54,7 @@ const TREND_ARROW = { up: "▲ ", down: "▼ ", level: "", none: "" } as const;
 /**
  * Summary tiles (DB §12.1 item 3): Total collected, Receipts, Cash and UPI, each with the change against the
  * like-for-like previous period ('+12%', '-5%' or 'no data'), and a quiet Online tile that starts in Phase 2.
+ * A tile's number counts to its new value with the module spring when the period changes (plan A4P-3).
  */
 export function SummaryTiles({ tiles, period }: SummaryTilesProps): JSX.Element {
   const prevWords = PREVIOUS[period];
@@ -64,7 +74,11 @@ export function SummaryTiles({ tiles, period }: SummaryTilesProps): JSX.Element 
               className="flex min-w-0 flex-col gap-1.5 rounded-[18px] border border-(--border) bg-(--card) p-4 text-(--foreground) no-underline shadow-(--shadow-card) hover:border-(--border-strong)"
             >
               <Bilingual as="span" en={t.label.en} kn={t.label.kn} className="text-(length:--text-ui) font-semibold" />
-              <span className="num text-[clamp(22px,2vw+12px,30px)] leading-tight font-bold tabular-nums">{show(now, t.money)}</span>
+              <AnimatedNumber
+                value={now}
+                format={t.money ? showMoney : showCount}
+                className="num text-[clamp(22px,2vw+12px,30px)] leading-tight font-bold"
+              />
               <span className="flex flex-wrap items-center gap-1.5 text-(length:--text-meta)">
                 <span className={`rounded-full px-2 py-0.5 font-semibold ${TREND_CLASS[trend]}`}>
                   {TREND_ARROW[trend]}

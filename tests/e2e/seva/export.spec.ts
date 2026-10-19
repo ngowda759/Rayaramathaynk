@@ -16,6 +16,12 @@ import { createFakeSevaApi, type FakeHandler, type FakeSevaApi } from "./fixture
  */
 
 const PAGE = "/admin/receipts/reports/export";
+/** Plan A4P-3: a slow export page, so the progress can be watched. */
+const SLOW_MS = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 const SUMMARY = "/admin/receipts/reports/summary?from=2026-10-01&to=2026-10-18";
 
 function receipt(over: Partial<ExportReceiptRow>): ExportReceiptRow {
@@ -271,6 +277,36 @@ test("every download writes the export audit", async ({ page }) => {
   await page.goto(SUMMARY);
   await expect(page.getByTestId("board-preview")).toBeVisible();
   await expect.poll(() => auditBodies(fake).map((b) => b.format)).toEqual(["xlsx", "csv", "tally", "print"]);
+});
+
+test("export shows progress while it pages", async ({ page }) => {
+  await openAs(page, "temple_admin", PAGE, {
+    "GET reports/export": async (req) => {
+      await sleep(SLOW_MS);
+      return exportAnswer(req.path);
+    },
+  });
+  const prepare = page.getByRole("button", { name: /Prepare Excel file/ });
+  await expect(prepare).toBeVisible({ timeout: 60_000 });
+
+  const downloaded = page.waitForEvent("download", { timeout: 60_000 });
+  await prepare.click();
+  // The button answers the click at once and cannot be pressed again.
+  const busy = page.getByRole("button", { name: /Preparing/ });
+  await expect(busy).toHaveAttribute("aria-busy", "true");
+  await expect(busy).toBeDisabled();
+
+  // Receipts come in two pages: still part 1 between them; then the bar moves on to part 2.
+  const bar = page.getByRole("progressbar", { name: "Export progress" });
+  await expect(bar).toHaveAttribute("aria-valuetext", /^Part 1 of \d+$/);
+  await expect(page.getByTestId("export-progress")).toContainText(/Part 1 of \d+/);
+  await expect(bar).toHaveAttribute("aria-valuetext", /^Part 2 of \d+$/, { timeout: 10_000 });
+
+  const file = await downloaded;
+  expect(file.suggestedFilename()).toMatch(/\.xlsx$/);
+  await expect(page.getByText("The file is ready and saved to your downloads.")).toBeVisible();
+  await expect(bar).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Prepare Excel file/ })).toBeEnabled();
 });
 
 test("the board summary prints on two A4 pages", async ({ page }) => {

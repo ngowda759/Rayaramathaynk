@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useTransition, type JSX } from "react";
+import { m } from "framer-motion";
 
 import { DetailCharts } from "@/components/seva/dashboard/DetailCharts";
 import { HeroChart } from "@/components/seva/dashboard/HeroChart";
 import { NeedsAttention } from "@/components/seva/dashboard/NeedsAttention";
 import { PeriodSwitch } from "@/components/seva/dashboard/PeriodSwitch";
 import { SummaryTiles } from "@/components/seva/dashboard/SummaryTiles";
+import { PageSkeleton } from "@/components/seva/motion/PageSkeleton";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,6 +31,10 @@ import type { DashboardData } from "@/types/seva-reports";
  * The route's 60-second browser cache keeps switching back and forth quick. Receptionists see only their counter's
  * day, never the dashboard (C-59), so they are sent to the counter. The old Firestore receipt list moved to the
  * register (Task A4-7).
+ *
+ * Motion (plan A4P-3): the first load shows the dashboard's outline; a period switch moves the switch at once and keeps
+ * the previous tiles and charts on screen, dimmed, with a small spinner beside the switch, until the new answer is in
+ * (the swap and the URL change run as transitions, so the screen never freezes and is never blank).
  */
 
 const PERIODS: readonly Period[] = ["today", "week", "month", "year"];
@@ -77,8 +83,11 @@ function Dashboard(): JSX.Element {
   const period = picked && picked.forQuery === queryPeriod ? picked.period : queryPeriod;
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [reloads, setReloads] = useState(0);
+  // The new answer and the URL change are transitions: the switch answers at once, the old numbers stay meanwhile.
+  const [swapping, startSwap] = useTransition();
   const requestKey = `${period}:${reloads}`;
   const refreshing = load.kind === "loading" || load.key !== requestKey;
+  const drawn = load.kind !== "loading";
   const [colors, setColors] = useState<string[]>([...FALLBACK_CHART_COLORS]);
   const [reducedMotion, setReducedMotion] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -95,11 +104,13 @@ function Dashboard(): JSX.Element {
     return answer.data;
   }, [api]);
 
-  // Chart colours come from the module's tokens (DB §12.5); EChart re-reads them on a theme change.
+  // Chart colours come from the module's tokens (DB §12.5); EChart re-reads them on a theme change. Read once the page
+  // (not its loading outline) is drawn.
   useEffect(() => {
+    if (!drawn) return;
     if (rootRef.current) setColors(readChartColors(rootRef.current));
     if (typeof window.matchMedia === "function") setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, []);
+  }, [drawn]);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -113,7 +124,7 @@ function Dashboard(): JSX.Element {
           setLoad({ kind: "error", key, message: DASHBOARD.badAnswer });
           return;
         }
-        setLoad({ kind: "ready", key, answer, period });
+        startSwap(() => setLoad({ kind: "ready", key, answer, period }));
       } catch (error) {
         if (!alive) return;
         const message = error instanceof Error && error.message ? error.message : DASHBOARD.loadFailed.en;
@@ -128,38 +139,39 @@ function Dashboard(): JSX.Element {
   const choosePeriod = useCallback(
     (next: Period) => {
       setPicked({ period: next, forQuery: queryPeriod });
-      router.replace(next === "today" ? "/admin/receipts" : `/admin/receipts?period=${next}`, { scroll: false });
+      startSwap(() => {
+        router.replace(next === "today" ? "/admin/receipts" : `/admin/receipts?period=${next}`, { scroll: false });
+      });
     },
     [queryPeriod, router],
   );
 
   const today = formatSevaDate(businessDate(new Date()));
   const ready = load.kind === "ready" ? load : null;
+  // Old numbers on screen while the new ones load.
+  const pending = ready !== null && (refreshing || swapping);
+
+  // The first answer: the dashboard's outline, the same one the route showed while the page loaded.
+  if (!drawn) return <PageSkeleton variant="dashboard" />;
 
   return (
-    <div ref={rootRef} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8" aria-busy={refreshing}>
+    <div ref={rootRef} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-1">
           <Bilingual as="h1" en={DASHBOARD.title.en} kn={DASHBOARD.title.kn} />
           <p className="meta text-(--muted-foreground)" data-testid="dashboard-as-of">
             {today}
             {ready ? ` · ${DASHBOARD.asOf} ${asOfClock(ready.answer.data.asOf)}` : ""}
-            {refreshing && ready ? ` · ${DASHBOARD.refreshing}` : ""}
+            {pending ? ` · ${DASHBOARD.refreshing}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <PeriodSwitch value={period} onChange={choosePeriod} />
+          <PeriodSwitch value={period} onChange={choosePeriod} pending={pending} />
           <Link href="/admin/receipts/reports/export" className={buttonVariants({ variant: "seva-ghost" })}>
             {DASHBOARD.export.en}
           </Link>
         </div>
       </header>
-
-      {load.kind === "loading" ? (
-        <div role="status" aria-live="polite" className="flex min-h-[30vh] items-center justify-center">
-          <Bilingual en={DASHBOARD.loading.en} kn={DASHBOARD.loading.kn} className="text-(--muted-foreground)" />
-        </div>
-      ) : null}
 
       {load.kind === "error" ? (
         <div role="alert" className="flex flex-col items-start gap-3 rounded-[18px] border border-(--border) bg-(--destructive-soft) p-5">
@@ -172,7 +184,15 @@ function Dashboard(): JSX.Element {
       ) : null}
 
       {ready ? (
-        <>
+        <m.div
+          data-testid="dashboard-content"
+          data-pending={pending ? "true" : "false"}
+          aria-busy={pending || undefined}
+          className="flex flex-col gap-5"
+          initial={false}
+          animate={{ opacity: pending ? 0.55 : 1 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
           <NeedsAttention cards={ready.answer.attention} />
           <SummaryTiles tiles={ready.answer.data.tiles} period={ready.period} />
           <h2 className="sr-only">{DASHBOARD.details}</h2>
@@ -184,7 +204,7 @@ function Dashboard(): JSX.Element {
             reducedMotion={reducedMotion}
             loadYear={loadYear}
           />
-        </>
+        </m.div>
       ) : null}
     </div>
   );

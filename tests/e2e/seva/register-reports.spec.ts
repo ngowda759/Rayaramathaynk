@@ -12,6 +12,12 @@ import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
  */
 
 const TODAY = businessDate(new Date());
+/** Plan A4P-3: a slow list answer, so the wait after a filter change can be watched. */
+const SLOW_MS = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function listItem(n: number, over: Partial<ReceiptListItem> = {}): ReceiptListItem {
   return {
@@ -65,6 +71,37 @@ test("filters map to the list query and the status filter from a link is applied
       receiptRequests(fake).some((q) => q.get("from") === "2026-10-01" && q.get("q") === "Devotee" && q.get("mode") === "upi"),
     )
     .toBe(true);
+});
+
+test("a filter change keeps the rows with an inline pending line", async ({ page }) => {
+  const fake = createFakeSevaApi();
+  fake.extend({
+    "GET receipts": async (req) => {
+      const query = new URLSearchParams(req.path.split("?")[1] ?? "");
+      if (query.get("mode") === "upi") {
+        await sleep(SLOW_MS);
+        return { rows: [listItem(2, { mode: "upi" })], nextCursor: null };
+      }
+      return { rows: [listItem(1)], nextCursor: null };
+    },
+  });
+  await fake.install(page);
+  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/register" });
+
+  const first = page.getByRole("button", { name: /Open C1-023-10-2026\/000101/ }).first();
+  await expect(first).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-register-pending="true"]')).toHaveCount(0);
+
+  await page.getByLabel("Payment").selectOption("upi");
+  // The old rows stay, with the pending line above them; never a blank list or a bare loading text.
+  await expect(page.locator('[data-register-pending="true"]')).toBeVisible();
+  await expect(page.getByTestId("register-list")).toHaveAttribute("aria-busy", "true");
+  await expect(first).toBeVisible();
+  await expect(page.getByText(/Loading receipts/)).toHaveCount(0);
+
+  await expect(page.getByRole("button", { name: /Open C1-023-10-2026\/000102/ }).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-register-pending="true"]')).toHaveCount(0);
+  await expect(page.getByTestId("register-list")).not.toHaveAttribute("aria-busy", "true");
 });
 
 test("a row opens the receipt with its history", async ({ page }) => {

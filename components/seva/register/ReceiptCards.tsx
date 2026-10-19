@@ -1,11 +1,12 @@
 "use client";
 
 import type { JSX } from "react";
+import { m } from "framer-motion";
 
 import { MODE_LABEL, REGISTER } from "@/lib/seva/strings/reports";
 import type { ReceiptListItem } from "@/types/seva-receipts";
 
-import { ReceiptStatusChips, issuedWhen, rupees } from "./RegisterTable";
+import { ReceiptStatusChips, issuedWhen, rowArrival, rupees } from "./RegisterTable";
 
 export interface ReceiptCardsProps {
   rows: ReceiptListItem[];
@@ -13,12 +14,15 @@ export interface ReceiptCardsProps {
   onOpen(row: ReceiptListItem): void;
 }
 
-/** Below 768 px each register row is a card; tapping it opens the same details (DB §12.3, mockup register phone). */
+/**
+ * Below 768 px each register row is a card; tapping it opens the same details (DB §12.3, mockup register phone).
+ * Cards arrive one after another like the table rows (plan A4P-3).
+ */
 export function ReceiptCards({ rows, today, onOpen }: ReceiptCardsProps): JSX.Element {
   return (
     <ul data-testid="register-cards" className="flex flex-col gap-2 md:hidden">
-      {rows.map((row) => (
-        <li key={row.id}>
+      {rows.map((row, index) => (
+        <m.li key={row.id} {...rowArrival(index)}>
           <button
             type="button"
             onClick={() => onOpen(row)}
@@ -37,7 +41,7 @@ export function ReceiptCards({ rows, today, onOpen }: ReceiptCardsProps): JSX.El
             </span>
             <ReceiptStatusChips row={row} />
           </button>
-        </li>
+        </m.li>
       ))}
     </ul>
   );

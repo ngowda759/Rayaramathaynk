@@ -1,9 +1,11 @@
 "use client";
 
 import type { JSX } from "react";
+import { m, type MotionProps } from "framer-motion";
 
 import { Chip } from "@/components/seva/ui/Chip";
 import { formatRupees } from "@/lib/seva/money";
+import { SPRING, enterVariants } from "@/lib/seva/motion";
 import { MODE_LABEL, REGISTER, RECEIPT_STATUS } from "@/lib/seva/strings/reports";
 import { formatSevaDate, istParts, businessDate } from "@/lib/seva/time";
 import type { ReceiptListItem } from "@/types/seva-receipts";
@@ -22,6 +24,24 @@ export function issuedWhen(issuedAt: string, today: string): string {
   const clock = `${hour12}:${String(p.minute).padStart(2, "0")} ${p.hour < 12 ? "AM" : "PM"}`;
   const day = businessDate(d);
   return day === today ? clock : `${formatSevaDate(day)}, ${clock}`;
+}
+
+/** Seconds between one row's arrival and the next. */
+const ROW_STEP = 0.035;
+/** Rows after this many arrive together, so a long page is readable within about 450 ms. */
+const STAGGERED_ROWS = 8;
+
+/**
+ * How a register row (table row or phone card) arrives (plan A4P-3): rises and fades in with the module spring, one
+ * after another. A row already on screen keeps its place when the list changes; only new rows arrive.
+ */
+export function rowArrival(index: number): Pick<MotionProps, "variants" | "initial" | "animate" | "transition"> {
+  return {
+    variants: enterVariants,
+    initial: "hidden",
+    animate: "shown",
+    transition: { ...SPRING, delay: Math.min(index, STAGGERED_ROWS) * ROW_STEP },
+  };
 }
 
 /** Status first, then the facts the register filters on: changed amount, duplicate printed, prasadam, refund. */
@@ -83,8 +103,8 @@ export function RegisterTable({ rows, today, onOpen }: RegisterTableProps): JSX.
           </tr>
         </thead>
         <tbody className="divide-y divide-(--border)">
-          {rows.map((row) => (
-            <tr key={row.id} data-status={row.status} className="hover:bg-(--secondary)">
+          {rows.map((row, index) => (
+            <m.tr key={row.id} data-status={row.status} className="hover:bg-(--secondary)" {...rowArrival(index)}>
               <td className={td}>
                 <button
                   type="button"
@@ -105,7 +125,7 @@ export function RegisterTable({ rows, today, onOpen }: RegisterTableProps): JSX.
               <td className={td}>
                 <ReceiptStatusChips row={row} />
               </td>
-            </tr>
+            </m.tr>
           ))}
         </tbody>
       </table>

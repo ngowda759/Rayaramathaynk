@@ -81,6 +81,19 @@ function dashboardFake(): FakeSevaApi {
   return api;
 }
 
+/** Plan A4P-3: a slow answer, so the wait between the click and the new numbers can be watched. */
+const SLOW_MS = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+declare global {
+  interface Window {
+    __dashboardWatch?: { clickAt: number | null; pendingAt: number | null; blank: boolean };
+  }
+}
+
 const dashboardCalls = (api: FakeSevaApi) => api.requests.filter((r) => r.path.startsWith("/api/seva/reports/dashboard"));
 
 async function openDashboard(page: Page, api: FakeSevaApi): Promise<void> {
@@ -198,4 +211,58 @@ test("a receptionist is sent to the counter", async ({ page }) => {
   await signInAs(page, "receptionist", { redirect: "/admin/receipts" });
   await page.waitForURL((url) => url.pathname === "/admin/receipts/counter", { timeout: 60_000 });
   expect(dashboardCalls(api)).toHaveLength(0);
+});
+
+test("period switch never shows a blank dashboard", async ({ page }) => {
+  const api = createFakeSevaApi();
+  api.extend({
+    "GET reports/dashboard": async (req) => {
+      const period = (new URL(req.path, "http://localhost").searchParams.get("period") as Period | null) ?? "today";
+      if (period !== "today") await sleep(SLOW_MS);
+      return answerFor(period);
+    },
+  });
+  await openDashboard(page, api);
+  await expect(page.getByTestId("dashboard-content")).toHaveAttribute("data-pending", "false");
+  await expect(page.getByTestId("period-pending")).toHaveCount(0);
+
+  // Watch, inside the page, every change after the click: the tiles must never leave and no outline may replace them.
+  await page.evaluate(() => {
+    const seen = { clickAt: null as number | null, pendingAt: null as number | null, blank: false };
+    window.__dashboardWatch = seen;
+    const check = () => {
+      if (seen.clickAt === null) return;
+      if (!document.querySelector('[data-testid="tile-total"]') || document.querySelector("[data-page-skeleton]")) seen.blank = true;
+      if (seen.pendingAt === null && document.querySelector('[data-testid="dashboard-content"][data-pending="true"]')) {
+        seen.pendingAt = performance.now();
+      }
+    };
+    document.addEventListener(
+      "click",
+      () => {
+        if (seen.clickAt === null) seen.clickAt = performance.now();
+        check();
+      },
+      { capture: true },
+    );
+    new MutationObserver(check).observe(document.body, { subtree: true, childList: true, attributes: true });
+  });
+
+  await page.getByRole("radio", { name: /week/i }).click();
+  // While the week loads: the switch has moved, the old tiles and charts stay (dimmed), a spinner turns beside it.
+  await expect(page.getByRole("radio", { name: /week/i })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("period-pending")).toBeVisible();
+  await expect(page.getByTestId("dashboard-content")).toHaveAttribute("data-pending", "true");
+  await expect(page.getByTestId("tile-total")).toContainText("Rs 61,196");
+  await expect(page.locator('[data-section="collections"]')).toBeVisible();
+
+  // Then the week's numbers, and the pending marks go.
+  await expect(page.getByTestId("tile-total")).toContainText("Rs 3,84,120", { timeout: 10_000 });
+  await expect(page.getByTestId("dashboard-content")).toHaveAttribute("data-pending", "false");
+  await expect(page.getByTestId("period-pending")).toHaveCount(0);
+
+  const seen = await page.evaluate(() => window.__dashboardWatch);
+  expect(seen?.clickAt).not.toBeNull();
+  expect(seen?.blank).toBe(false);
+  expect((seen?.pendingAt ?? Infinity) - (seen?.clickAt ?? 0)).toBeLessThan(200);
 });

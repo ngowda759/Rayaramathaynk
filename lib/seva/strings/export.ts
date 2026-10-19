@@ -53,6 +53,9 @@ export const EXPORT = {
   },
   audited: { en: 'Who exported what, and when, is recorded in the audit trail.', kn: 'ಯಾರು ಏನನ್ನು ಯಾವಾಗ ರಫ್ತು ಮಾಡಿದರು ಎಂಬುದು ದಾಖಲಾಗುತ್ತದೆ.' },
   preparing: { en: 'Preparing the file...', kn: 'ಫೈಲ್ ಸಿದ್ಧವಾಗುತ್ತಿದೆ...' },
+  preparingShort: { en: 'Preparing...', kn: 'ಸಿದ್ಧವಾಗುತ್ತಿದೆ...' },
+  progress: { en: 'Export progress', kn: 'ರಫ್ತಿನ ಪ್ರಗತಿ' },
+  building: { en: 'Putting the file together...', kn: 'ಫೈಲ್ ಜೋಡಿಸಲಾಗುತ್ತಿದೆ...' },
   saved: { en: 'The file is ready and saved to your downloads.', kn: 'ಫೈಲ್ ಸಿದ್ಧವಾಗಿ ಡೌನ್‌ಲೋಡ್‌ಗಳಿಗೆ ಉಳಿದಿದೆ.' },
   failed: { en: 'The file could not be prepared. Please try again.', kn: 'ಫೈಲ್ ಸಿದ್ಧಪಡಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.' },
   badRange: { en: 'The end date is before the start date.', kn: 'ಕೊನೆಯ ದಿನಾಂಕ ಆರಂಭದ ದಿನಾಂಕಕ್ಕಿಂತ ಮೊದಲಿದೆ.' },
@@ -167,6 +170,11 @@ export const ATTENTION_LABELS: Record<BoardAttentionId, Bi> = {
   cancellations: { en: 'Cancellations', kn: 'ರದ್ದತಿಗಳು' },
   prasadam_pending: { en: 'Prasadam not yet collected', kn: 'ಇನ್ನೂ ಪಡೆಯದ ಪ್ರಸಾದ' },
 };
+
+/** 'Part 2 of 6' while the export pages through its parts (plan A4P-3). */
+export function partOf(n: number, of: number): Bi {
+  return { en: `Part ${n} of ${of}`, kn: `ಭಾಗ ${n} / ${of}` };
+}
 
 /** 'and 4 more - see the Excel export' under a list cut to fit the page. */
 export function moreLine(n: number): Bi {

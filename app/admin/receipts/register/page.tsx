@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import toast from "react-hot-toast";
+import { m } from "framer-motion";
 
+import { SkeletonRows } from "@/components/seva/motion/PageSkeleton";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { ContinuityCard } from "@/components/seva/register/ContinuityCard";
 import { GapResolveDialog } from "@/components/seva/register/GapResolveDialog";
 import { ReceiptCards } from "@/components/seva/register/ReceiptCards";
@@ -46,6 +49,36 @@ function errorText(err: unknown): string {
 function rangeLabel(from: string, to: string, today: string): string {
   if (from === to) return from === today ? "today" : formatSevaDate(from);
   return `${formatSevaDate(from)} - ${formatSevaDate(to)}`;
+}
+
+/**
+ * The inline pending line above the list (plan A4P-3): a 3 px track that always keeps its place, so nothing moves when
+ * it shows. A light sweeps along it while the office is asked; while the search text is still being typed it only
+ * shows, still (nothing moves while a person types).
+ */
+function PendingLine({ pending, sweep }: { pending: boolean; sweep: boolean }): JSX.Element {
+  return (
+    <div aria-hidden={pending ? undefined : true} className="relative h-[3px] overflow-hidden rounded-full">
+      {pending ? (
+        <div
+          role="status"
+          aria-label={REGISTER.loading.en}
+          data-register-pending="true"
+          className="absolute inset-0 overflow-hidden rounded-full bg-(--muted)"
+        >
+          {sweep ? (
+            <m.span
+              aria-hidden="true"
+              className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-(--primary)"
+              initial={{ x: "-100%" }}
+              animate={{ x: "300%" }}
+              transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+            />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** A filter value whose search text has settled (the other filters apply at once). */
@@ -105,6 +138,12 @@ function RegisterScreen(): JSX.Element {
   const listParams = useMemo(() => JSON.parse(paramsText) as ReceiptListParams, [paramsText]);
   const listKey = `${paramsText}|${reloads}`;
   const list: ListState = listResult && listResult.key === listKey ? listResult : { kind: "loading" };
+  // While a new query loads, the last answer stays on screen (dimmed) under the pending line; only the very first load
+  // shows skeleton rows. A stale error is not kept: its retry shows the skeleton rows again.
+  const shownList = listResult && (listResult.key === listKey || listResult.kind === "ready") ? listResult : null;
+  const typing = filters.q !== settled.q;
+  const asking = list.kind === "loading" || (list.kind === "ready" && list.more);
+  const listPending = shownList !== null && (asking || typing);
   const rangeOk = settled.from !== "" && settled.to !== "" && settled.from <= settled.to;
   const continuityKey = `${settled.from}|${settled.to}|${reloads}`;
   const continuity: ContinuityState =
@@ -143,6 +182,7 @@ function RegisterScreen(): JSX.Element {
     };
   }, [reports, rangeOk, settled.from, settled.to, continuityKey]);
 
+  /** The next page of the same query, added under the rows on screen; its button stays pending until it is in. */
   async function showMore(): Promise<void> {
     if (list.kind !== "ready" || !list.nextCursor || list.more) return;
     const key = listKey;
@@ -205,39 +245,48 @@ function RegisterScreen(): JSX.Element {
         </div>
       ) : null}
 
-      {list.kind === "loading" ? (
-        <div role="status" className="py-8 text-center">
-          <Bilingual en={REGISTER.loading.en} kn={REGISTER.loading.kn} className="text-(--muted-foreground)" />
-        </div>
+      <PendingLine pending={listPending} sweep={asking && !typing} />
+      {shownList === null ? (
+        <SkeletonRows rows={8} label={REGISTER.loading.en} data-register-skeleton="" />
       ) : null}
-      {list.kind === "error" ? (
+      {shownList?.kind === "error" ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="font-semibold text-(--destructive)">{list.message}</p>
+          <p className="font-semibold text-(--destructive)">{shownList.message}</p>
           <Button variant="seva-secondary" onClick={() => setReloads((n) => n + 1)}>
             {REGISTER.tryAgain}
           </Button>
         </div>
       ) : null}
-      {list.kind === "ready" && list.rows.length === 0 ? (
-        <div className="py-8 text-center">
-          <Bilingual en={REGISTER.empty.en} kn={REGISTER.empty.kn} className="text-(--muted-foreground)" />
-        </div>
-      ) : null}
-      {list.kind === "ready" && list.rows.length > 0 ? (
-        <>
-          <RegisterTable rows={list.rows} today={today} onOpen={setOpenRow} />
-          <ReceiptCards rows={list.rows} today={today} onOpen={setOpenRow} />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-(length:--text-meta) text-(--muted-foreground)" aria-live="polite">
-              {REGISTER.shown(list.rows.length)}
-            </span>
-            {list.nextCursor ? (
-              <Button variant="seva-secondary" onClick={() => void showMore()} loading={list.more}>
-                {REGISTER.showMore}
-              </Button>
-            ) : null}
-          </div>
-        </>
+      {shownList?.kind === "ready" ? (
+        <m.div
+          data-testid="register-list"
+          aria-busy={asking || undefined}
+          className="flex flex-col gap-4"
+          initial={false}
+          animate={{ opacity: list.kind === "loading" ? 0.55 : 1 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          {shownList.rows.length === 0 ? (
+            <div className="py-8 text-center">
+              <Bilingual en={REGISTER.empty.en} kn={REGISTER.empty.kn} className="text-(--muted-foreground)" />
+            </div>
+          ) : (
+            <>
+              <RegisterTable rows={shownList.rows} today={today} onOpen={setOpenRow} />
+              <ReceiptCards rows={shownList.rows} today={today} onOpen={setOpenRow} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-(length:--text-meta) text-(--muted-foreground)" aria-live="polite">
+                  {REGISTER.shown(shownList.rows.length)}
+                </span>
+                {list.kind === "ready" && list.nextCursor ? (
+                  <PendingButton variant="seva-secondary" pendingLabel={REGISTER.loadingMore} action={showMore}>
+                    {REGISTER.showMore}
+                  </PendingButton>
+                ) : null}
+              </div>
+            </>
+          )}
+        </m.div>
       ) : null}
 
       <ReceiptDrawer row={openRow} today={today} load={loadDetail} onClose={() => setOpenRow(null)} />

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { JSX } from "react";
 
+import { Reveal, Stagger } from "@/components/seva/motion/Reveal";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { attentionText, orderAttention, visibleAttention } from "@/lib/seva/dashboard/attention-text";
 import { DASHBOARD } from "@/lib/seva/strings/dashboard";
@@ -38,7 +39,8 @@ function goText(href: string): string {
 
 /**
  * Needs attention (DB §12.2): critical cards first, each one line of meaning and a link to the filtered screen
- * behind it; the five core cards always show, a calm "0" line when there is nothing to report.
+ * behind it; the five core cards always show, a calm "0" line when there is nothing to report. The cards arrive one
+ * after another with the module spring (plan A4P-3).
  */
 export function NeedsAttention({ cards }: NeedsAttentionProps): JSX.Element {
   const shown = orderAttention(visibleAttention(cards));
@@ -56,7 +58,7 @@ export function NeedsAttention({ cards }: NeedsAttentionProps): JSX.Element {
           {toLook > 0 ? `${toLook} to look at` : DASHBOARD.nothingToLookAt}
         </span>
       </div>
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <Stagger as="ul" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {shown.map((card) => {
           const t = attentionText(card);
           const body = (
@@ -81,7 +83,7 @@ export function NeedsAttention({ cards }: NeedsAttentionProps): JSX.Element {
           );
           const cls = `flex h-full min-w-0 flex-col items-start gap-1.5 rounded-[14px] border p-4 text-(--foreground) no-underline ${CARD_CLASS[card.level]}`;
           return (
-            <li key={card.id} data-testid={`attention-${card.id}`} data-level={card.level}>
+            <Reveal as="li" key={card.id} data-testid={`attention-${card.id}`} data-level={card.level}>
               {t.href ? (
                 <Link href={t.href} className={`${cls} hover:border-(--border-strong)`}>
                   {body}
@@ -89,10 +91,10 @@ export function NeedsAttention({ cards }: NeedsAttentionProps): JSX.Element {
               ) : (
                 <div className={cls}>{body}</div>
               )}
-            </li>
+            </Reveal>
           );
         })}
-      </ul>
+      </Stagger>
     </section>
   );
 }

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useId, useMemo, useState, type JSX } from "react";
+import { m } from "framer-motion";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
-import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +18,7 @@ import {
   forTicks,
   partsFor,
   quickRange,
+  type ExportApi,
   type ExportFormat,
   type ExportTick,
   type QuickRange,
@@ -31,6 +33,7 @@ import {
   RANGE_LABELS,
   SHEET_NAMES_PREVIEW,
   TICK_LABELS,
+  partOf,
 } from "@/lib/seva/strings/export";
 import type { Bi } from "@/lib/seva/strings/common";
 import { SevaClientError } from "@/services/seva/http";
@@ -43,7 +46,8 @@ import { settingsApi } from "@/services/seva/settings.service";
  * C-42). Ranges: Today, This month, Last month, This year, or custom dates. The data is paged out of the export API and
  * the file is built here in the browser (C-41). "Devotee phone numbers" is off by default and offered only to people
  * with `export.with_phones` (C-16). Every download is reported to the export audit before the file is handed over;
- * when the audit cannot be written, nothing is downloaded.
+ * when the audit cannot be written, nothing is downloaded. While the data is paged out a progress bar shows "Part n of
+ * m"; the download button is a pending button from the click until the file is saved (plan A4P-3).
  */
 
 const QUICK: readonly QuickRange[] = ["today", "month", "lastMonth", "year"];
@@ -55,7 +59,10 @@ const MIME: Record<Exclude<ExportFormat, "print">, string> = {
   tally: "text/csv;charset=utf-8",
 };
 
-type Status = { kind: "idle" } | { kind: "busy" } | { kind: "done"; text: Bi } | { kind: "error"; message: string };
+/** While busy: the part being paged out (1-based) of how many, or null once the file itself is being put together. */
+type Step = { part: number; of: number } | null;
+
+type Status = { kind: "idle" } | { kind: "busy"; step: Step } | { kind: "done"; text: Bi } | { kind: "error"; message: string };
 
 /** Hands bytes to the browser's downloads under `name`. */
 function saveFile(content: BlobPart, name: string, type: string): void {
@@ -158,10 +165,19 @@ export function ExportForm(): JSX.Element {
       return;
     }
 
-    setStatus({ kind: "busy" });
+    const parts = partsFor(format, ticks);
+    setStatus({ kind: "busy", step: { part: 1, of: parts.length } });
     try {
-      const parts = partsFor(format, ticks);
-      const raw = await collectExportData({ from: range.from, to: range.to, parts, includePhones: phones }, api);
+      // The progress follows the pages asked for: each request names its part, parts come one after another.
+      const counted: ExportApi = {
+        export: (p) => {
+          const at = parts.indexOf(p.part) + 1;
+          if (at > 0) setStatus({ kind: "busy", step: { part: at, of: parts.length } });
+          return api.export(p);
+        },
+      };
+      const raw = await collectExportData({ from: range.from, to: range.to, parts, includePhones: phones }, counted);
+      setStatus({ kind: "busy", step: null });
       const data = {
         ...forTicks(raw, ticks),
         range: { from: range.from, to: range.to, label: RANGE_LABELS[quick].en },
@@ -315,9 +331,7 @@ export function ExportForm(): JSX.Element {
           </p>
         ) : null}
         <div aria-live="polite">
-          {status.kind === "busy" ? (
-            <Bilingual as="div" en={EXPORT.preparing.en} kn={EXPORT.preparing.kn} className="text-(--muted-foreground)" />
-          ) : null}
+          {status.kind === "busy" ? <ExportProgress step={status.step} /> : null}
           {status.kind === "done" ? (
             <Bilingual as="div" en={status.text.en} kn={status.text.kn} className="rounded-(--radius-surface) bg-(--ok-soft) p-3" />
           ) : null}
@@ -330,11 +344,47 @@ export function ExportForm(): JSX.Element {
           >
             {EXPORT.cancel.en}
           </Link>
-          <Button variant="seva-primary" loading={busy} disabled={busy || badRange} onClick={() => void run()}>
+          <PendingButton
+            variant="seva-primary"
+            pending={busy}
+            pendingLabel={EXPORT.preparingShort.en}
+            disabled={badRange}
+            action={run}
+          >
             {PREPARE_LABELS[format]}
-          </Button>
+          </PendingButton>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** The bar and the "Part n of m" line while the export pages through its parts; full while the file is put together. */
+function ExportProgress({ step }: { step: Step }): JSX.Element {
+  const line = step ? partOf(step.part, step.of) : EXPORT.building;
+  // Half way into the current part, since its number of pages is not known in advance.
+  const done = step ? Math.min(1, Math.max(0, (step.part - 0.5) / step.of)) : 1;
+  return (
+    <div className="flex flex-col gap-2" data-testid="export-progress">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <Bilingual as="div" en={EXPORT.preparing.en} kn={EXPORT.preparing.kn} className="text-(--muted-foreground)" />
+        <Bilingual as="span" en={line.en} kn={line.kn} className="text-(length:--text-meta) font-semibold tabular-nums" />
+      </div>
+      <div
+        role="progressbar"
+        aria-label={EXPORT.progress.en}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(done * 100)}
+        aria-valuetext={line.en}
+        className="h-2 w-full overflow-hidden rounded-full bg-(--muted)"
+      >
+        <m.div
+          className="h-full w-full origin-left rounded-full bg-(--primary)"
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: done }}
+        />
+      </div>
     </div>
   );
 }
