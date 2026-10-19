@@ -222,7 +222,11 @@ describe("RegisterThisPc", () => {
     render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={jest.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("This PC still has 3 waiting to be sent. Send the waiting receipts first.");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("This PC still has 3 waiting to be sent. Send the waiting receipts first.");
+    // Items the office refused stay counted and no screen clears them, so the message says so and names who can.
+    expect(alert).toHaveTextContent("If the counter says the office refused some of them, sending again will not clear those");
+    expect(alert).toHaveTextContent("Only the person who looks after this site can clear them from this PC");
     expect(register).not.toHaveBeenCalled();
     expect(saveDeviceCredentials).not.toHaveBeenCalled();
     expect(db.close).toHaveBeenCalled();
@@ -320,6 +324,24 @@ describe("ReplaceThisPc", () => {
     fireEvent.click(screen.getByRole("button", { name: "Yes, that is the last slip" }));
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
     expect(replace.mock.calls[0][0]).toMatchObject({ lastPrintedOfNo: 7 });
+  });
+
+  it("checks the reason again at the second confirmation", async () => {
+    const replace = jest.fn().mockResolvedValue({ deviceId: "device-new" });
+    render(<ReplaceThisPc counter={COUNTER} lastOfNo={5} year={2026} replace={replace} onReplaced={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Replace this PC/ }));
+    fireEvent.change(screen.getByLabelText(/Last printed offline receipt number/), { target: { value: "1270" } });
+    const reason = screen.getByLabelText(/^Reason/);
+    fireEvent.change(reason, { target: { value: "Old PC stopped working" } });
+    fireEvent.click(screen.getByRole("button", { name: /Move Counter 1 to this PC/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That leaves 1265 numbers");
+
+    // The reason is emptied while the second look is open: Yes must not send it.
+    fireEvent.change(reason, { target: { value: "  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Yes, that is the last slip" }));
+    expect(await screen.findByText(/Give a reason/)).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+    expect(saveDeviceCredentials).not.toHaveBeenCalled();
   });
 
   it("refuses while this PC still has receipts waiting to be sent", async () => {

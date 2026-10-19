@@ -309,11 +309,22 @@ export function officeHasLine(series: string, last: number): Bi {
   return { en: `The office has ${series} up to ${last}.`, kn: `ಕಚೇರಿಯಲ್ಲಿ ${series} ${last} ರವರೆಗೆ ಇದೆ.` };
 }
 
-/** Register and Replace refuse while this PC's outbox still holds unsent items. */
+/**
+ * Register and Replace refuse while this PC's outbox still holds unsent items. Items the office refused stay in the
+ * outbox (a printed slip is never dropped) and count here, but no screen clears them, so the line says so plainly.
+ */
 export function sendWaitingFirst(waiting: number): Bi {
   return {
-    en: `This PC still has ${waiting} waiting to be sent. Send the waiting receipts first.`,
-    kn: `ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಇನ್ನೂ ${waiting} ಕಳುಹಿಸಲು ಕಾಯುತ್ತಿವೆ. ಮೊದಲು ಕಾಯುತ್ತಿರುವ ರಸೀದಿಗಳನ್ನು ಕಳುಹಿಸಿ.`,
+    en:
+      `This PC still has ${waiting} waiting to be sent. Send the waiting receipts first. ` +
+      'If the counter says the office refused some of them, sending again will not clear those, and no screen here can. ' +
+      'Only the person who looks after this site can clear them from this PC: ask a temple admin to arrange it and to ' +
+      'enter those receipts again from the paper slips.',
+    kn:
+      `ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಇನ್ನೂ ${waiting} ಕಳುಹಿಸಲು ಕಾಯುತ್ತಿವೆ. ಮೊದಲು ಕಾಯುತ್ತಿರುವ ರಸೀದಿಗಳನ್ನು ಕಳುಹಿಸಿ. ` +
+      'ಕಚೇರಿ ಅವುಗಳಲ್ಲಿ ಕೆಲವನ್ನು ನಿರಾಕರಿಸಿದೆ ಎಂದು ಕೌಂಟರ್ ಹೇಳಿದರೆ, ಮತ್ತೆ ಕಳುಹಿಸಿದರೂ ಅವು ತೆರವಾಗುವುದಿಲ್ಲ, ಇಲ್ಲಿನ ಯಾವ ಪರದೆಯೂ ಅವನ್ನು ತೆರವುಗೊಳಿಸುವುದಿಲ್ಲ. ' +
+      'ಈ ಜಾಲತಾಣವನ್ನು ನೋಡಿಕೊಳ್ಳುವವರು ಮಾತ್ರ ಅವನ್ನು ಈ ಕಂಪ್ಯೂಟರ್‌ನಿಂದ ತೆರವುಗೊಳಿಸಬಹುದು: ಅದನ್ನು ಏರ್ಪಡಿಸಲು ಮತ್ತು ಆ ರಸೀದಿಗಳನ್ನು ' +
+      'ಕಾಗದದ ಚೀಟಿಗಳಿಂದ ಮತ್ತೆ ನಮೂದಿಸಲು ದೇವಸ್ಥಾನದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.',
   };
 }
 

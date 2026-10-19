@@ -923,22 +923,22 @@ Send this message (it holds no secret): `Section B5 done - staff 001 created`.
 
 ## B6. The backup key
 
-Every night a GitHub job copies the whole database, locks it with a public "lock" key, and keeps the locked file for
-30 days (open item O-15). Only the matching private "unlock" key can open it. If every copy of the unlock key is lost,
-the backups cannot be opened.
+Every night a GitHub job copies the whole database, locks it with public "lock" keys, and keeps the locked file for
+30 days (open item O-15). The private "unlock" key that matches any one of those public keys can open it. If every
+copy of every unlock key is lost, the backups cannot be opened.
 
 Vendor pages read for this section:
 (source: https://github.com/FiloSottile/age, checked 2026-10-18)
 
-### B6.1 Choose who holds a key
+### B6.1 Who holds a key
 
-Pick one and tell Nikhil which:
+**Two keys** (chosen 2026-10-19): one for you and one for Nikhil, each with his own key pair.
 
-| Choice | Who can open a backup | Note |
-|---|---|---|
-| **Two keys** | You and Nikhil, each with his own key | `age` can lock one file for several keys. The public half of a key is safe to share, so Nikhil sends you his public key and keeps his private key himself. The nightly job takes only one public key today; if you choose this, Nikhil's builder changes it to take two before the pull request, and you then put both public keys into the secret in B7. |
-| **You only** | You | Simplest. You do the restore drill (B8) yourself. |
-| **Nikhil only** | Nikhil | He makes the key on his own PC and sends you only the public key (safe to share). He does the restore drill. |
+- `age` locks each backup once for several keys, and either private key opens it alone. So either of you can do the
+  restore drill (B8), and losing one key still leaves the other.
+- Each of you makes his own key pair in B6.2 on his own computer. The public half is safe to share: Nikhil sends you
+  his public key (`age1...`) and keeps his private key himself. Nobody ever sends a private key.
+- In B7.1 you put **both** public keys into the one secret, separated by a space.
 
 And where each holder keeps his private key: **a USB drive in a safe place** (better two drives in two places), or
 **a password manager** (as a secure note or an attached file). Never on a website, in email, or in a synced folder.
@@ -957,8 +957,8 @@ And where each holder keeps his private key: **a USB drive in a safe place** (be
 6. Type `age-keygen -o seva-backup-key.txt` and press **Enter**.
    What you should see now: one line that starts with `Public key: age1` followed by many letters and numbers.
 7. Select the `age1...` text (from `age1` to the end of the line) and press **Ctrl+C**. This public key is safe to
-   share; it cannot open anything. The site owner puts it into GitHub in B7; Nikhil, if he holds a key, sends his
-   public key to the site owner.
+   share; it cannot open anything. The site owner pastes his own public key into Notepad for B7.1; Nikhil sends his
+   public key to the site owner, who pastes it on the same Notepad line after a space.
 8. For a second copy: plug in a second drive and copy `seva-backup-key.txt` onto it in **File Explorer**. Label each
    drive "Seva backup key - do not format", eject them (**Safely Remove Hardware**), and keep them in two different
    places, never with the counter PC.
@@ -968,7 +968,7 @@ anywhere. It holds the private unlock key.
 
 ### Tell Nikhil it is done
 
-Send this message (it holds no secret; fill in the brackets): `Section B6 done - choice <two keys, site owner, Nikhil>, key kept on <USB or password manager>`.
+Send this message (it holds no secret; fill in the brackets): `Section B6 done - two keys, my key kept on <USB or password manager>, Nikhil's public key received`.
 
 ## B7. GitHub secrets on your repository
 
@@ -976,7 +976,7 @@ All of these go into **your** repository's secrets (how-to above), never into Ni
 
 | Name | What it holds | When |
 |---|---|---|
-| `SEVA_BACKUP_AGE_RECIPIENT` | the `age1...` public key from B6 | Now |
+| `SEVA_BACKUP_AGE_RECIPIENT` | both `age1...` public keys from B6 (yours and Nikhil's), separated by a space | Now |
 | `SEVA_BACKUP_DB_URL` | the live database's Session pooler connection string with the password in it (steps below) | Now |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` (and `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_PRIVATE_KEY` if you have them) | the new key | Done in B3 |
 | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY` | for the **Deploy Supabase Migrations** workflow | Checked in B1 |
@@ -987,13 +987,22 @@ Vendor pages read for this section:
 (source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets, checked 2026-10-18)
 (source: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow, checked 2026-10-18)
 
-### B7.1 The backup public key
+### B7.1 The backup public keys
 
-1. Open your repository's secrets and click **New repository secret**.
-2. In **Name**, type `SEVA_BACKUP_AGE_RECIPIENT`.
-3. Click in **Secret** and press **Ctrl+V** to paste the `age1...` public key from B6.2 step 7.
-4. Click **Add secret**.
+1. In the Notepad window from B6.2 step 7, check the one line: your `age1...` key, one space, then Nikhil's `age1...`
+   key. (A comma or a new line between the two keys also works. Both start with `age1`; a line that starts with
+   `AGE-SECRET-KEY` is a private key: stop, close Notepad without saving, and do not put it anywhere.)
+2. Press **Ctrl+A**, then **Ctrl+C**.
+3. Open your repository's secrets and click **New repository secret**.
+4. In **Name**, type `SEVA_BACKUP_AGE_RECIPIENT`.
+5. Click in **Secret** and press **Ctrl+V**.
+6. Click **Add secret**.
    What you should see now: `SEVA_BACKUP_AGE_RECIPIENT` in the list.
+7. Close Notepad and click **Don't save**.
+
+The first step of every backup run checks the secret and its log says `2 age public keys are well formed.` If it says
+`1 age public key`, only one key went in: open the secret, click **Update**, and paste both keys again. A key added
+later opens only the backups made after it; older backups open only with the keys they were made with.
 
 ### B7.2 The database connection string
 

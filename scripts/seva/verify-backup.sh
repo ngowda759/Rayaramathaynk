@@ -3,6 +3,10 @@
 #
 # Usage: scripts/seva/verify-backup.sh <seva-YYYY-MM-DD.dump.age> <age-identity-file>
 #
+# backup.sh locks each backup for every public key in SEVA_BACKUP_AGE_RECIPIENT: two keys since 2026-10-19, the
+# owner's and the site owner's. Either holder runs this with his own private key file; one matching key is enough.
+# A key that was not in the secret on the night of a backup cannot open that backup.
+#
 # 1. When the .sha256 file from the same artifact sits next to the backup, the checksum must match.
 # 2. The whole file is decrypted with age -d -i (age authenticates every chunk, so a damaged, truncated or
 #    wrongly keyed file fails) and the archive's table of contents is read with pg_restore --list.

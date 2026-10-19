@@ -110,6 +110,12 @@ export function ReplaceThisPc({ counter, lastOfNo, year, replace, onReplaced }: 
 
   async function send(lastPrintedOfNo: number) {
     const trimmedReason = reason.trim();
+    // The reason can change while the second look is open, so the check runs again here before anything is sent.
+    if (Array.from(trimmedReason).length < 3) {
+      setChecked(true);
+      setPhase({ kind: "open" });
+      return;
+    }
     setPhase({ kind: "busy" });
     const refusal = await thisPcRefusal("replace");
     if (refusal) {

@@ -5,12 +5,15 @@
 # Usage:
 #   scripts/seva/backup.sh [output-dir]      dump, encrypt and checksum (default output dir: ./seva-backup)
 #   scripts/seva/backup.sh --check-db-url    only check that SEVA_BACKUP_DB_URL is well formed
-#   scripts/seva/backup.sh --check-recipient only check that SEVA_BACKUP_AGE_RECIPIENT is an age public key
+#   scripts/seva/backup.sh --check-recipient only check that SEVA_BACKUP_AGE_RECIPIENT holds age public keys
 #
 # Reads two values from the environment (repository secrets the workflow passes through env:):
 #   SEVA_BACKUP_DB_URL         Supabase *session* pooler connection string, port 5432
 #                              (the transaction pooler on port 6543 cannot run pg_dump)
-#   SEVA_BACKUP_AGE_RECIPIENT  the age public key (age1...); the private key stays offline with the owner (O-15)
+#   SEVA_BACKUP_AGE_RECIPIENT  one or more age public keys (age1...), separated by spaces, commas or new lines;
+#                              each is passed to age as its own -r, so any one of the matching private keys opens
+#                              the backup (the owner's and the site owner's, 2026-10-19). Private keys stay offline
+#                              with their holders (O-15).
 #
 # Writes <output-dir>/seva-<YYYY-MM-DD>.dump.age (IST date) and <same name>.sha256 (sha256sum format).
 # The plain dump exists only inside the pipe from pg_dump to age; it never touches the disk.
@@ -29,7 +32,7 @@ export PGSSLMODE PGCONNECT_TIMEOUT PGAPPNAME
 
 stage='check'
 part=''
-recipient=''
+recipient_args=()
 
 on_exit() {
   local rc=$?
@@ -90,18 +93,24 @@ check_db_url() {
 
 check_recipient() {
   local value="${SEVA_BACKUP_AGE_RECIPIENT:-}"
-  local wrong='SEVA_BACKUP_AGE_RECIPIENT must be the age public key: one line that starts with age1. The private key never goes into GitHub.'
-  value="${value//[[:space:]]/}"
-  if [ -z "$value" ]; then
+  local wrong='SEVA_BACKUP_AGE_RECIPIENT must hold age public keys only: each starts with age1, separated by spaces, commas or new lines. A private key never goes into GitHub.'
+  local keys=() key
+  # Spaces, tabs, carriage returns, new lines and commas all separate keys; read -a splits without glob expansion.
+  value="${value//[[:space:],]/ }"
+  read -r -a keys <<< "$value" || true
+  if [ "${#keys[@]}" -eq 0 ]; then
     fail 'SEVA_BACKUP_AGE_RECIPIENT is not set.'
   fi
-  # age public keys are lower-case bech32 after the age1 prefix.
-  case "$value" in
-    *[!0-9a-z]*) fail "$wrong" ;;
-    age1?*) ;;
-    *) fail "$wrong" ;;
-  esac
-  recipient="$value"
+  recipient_args=()
+  for key in "${keys[@]}"; do
+    # age public keys are lower-case bech32 after the age1 prefix.
+    case "$key" in
+      *[!0-9a-z]*) fail "$wrong" ;;
+      age1?*) ;;
+      *) fail "$wrong" ;;
+    esac
+    recipient_args+=(-r "$key")
+  done
 }
 
 backup() {
@@ -150,7 +159,7 @@ backup() {
   part="${file}.part"
 
   pg_dump --format=custom --no-owner --no-privileges "$SEVA_BACKUP_DB_URL" \
-    | age -r "$recipient" > "$part"
+    | age "${recipient_args[@]}" > "$part"
 
   if [ ! -s "$part" ]; then
     fail 'the encrypted backup is empty.'
@@ -186,7 +195,11 @@ case "${1:-}" in
     ;;
   --check-recipient)
     check_recipient
-    printf 'The age public key is well formed.\n'
+    if [ "${#recipient_args[@]}" -eq 2 ]; then
+      printf '1 age public key is well formed.\n'
+    else
+      printf '%s age public keys are well formed.\n' "$((${#recipient_args[@]} / 2))"
+    fi
     ;;
   -h | --help)
     usage

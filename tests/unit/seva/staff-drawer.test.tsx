@@ -221,6 +221,24 @@ describe("Staff and roles", () => {
     await waitFor(() => expect(sendInvite).toHaveBeenCalledTimes(2));
   });
 
+  it("a row's partial failure is headed by the shared partial_failure message, as in the drawer", async () => {
+    const failure = new SevaClientError("partial_failure", 502, sevaErrorMessage("partial_failure"), {
+      done: ["identity"],
+      failed: "staff",
+      cause: "internal",
+    });
+    const api = fakeApi({
+      list: jest.fn().mockResolvedValue([member({ fullName: "Girish M", staffNo: 19, status: "inactive" })]),
+      update: jest.fn().mockRejectedValue(failure),
+    });
+    render(<StaffList api={api} sendInvite={jest.fn()} me={SA} can={canOf(SA)} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate Girish M" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(`Girish M: ${sevaErrorMessage("partial_failure")}`);
+    expect(alert).not.toHaveTextContent("The change went only part of the way");
+    expect(alert).toHaveTextContent("Failed at: Staff record");
+  });
+
   /* ---------- A3-FIX (security review): reactivating a super admin needs staff.grant_super_admin ---------- */
 
   it("offers Reactivate on a super-admin target only to super admins", async () => {

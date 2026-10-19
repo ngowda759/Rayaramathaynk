@@ -2,7 +2,8 @@
  * @jest-environment node
  */
 import { spawnSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import path from "path";
 
 // Task A2-8: the nightly encrypted backup and the monthly maintenance job (DB 16.1, D9, C-57, C-64).
@@ -107,9 +108,10 @@ describe("seva backup and maintenance workflows", () => {
     expect(script).toContain("--format=custom");
     expect(script).toContain("--no-owner");
     expect(script).toContain("--no-privileges");
-    expect(script).toContain("age -r");
+    // One -r per public key in the secret (A4P-6: two backup keys); the "own -r" test below runs it.
+    expect(script).toContain("recipient_args+=(-r \"$key\")");
     // The plain dump only ever flows through the pipe into age; it is never written to a file.
-    expect(script).toMatch(/pg_dump --format=custom[^|]*\|\s*age -r/);
+    expect(script).toMatch(/pg_dump --format=custom[^|]*\|\s*age "\$\{recipient_args\[@\]\}"/);
     expect(script).not.toMatch(/--file\b/);
     expect(script).toContain("sha256sum");
 
@@ -186,4 +188,73 @@ describe("seva backup and maintenance workflows", () => {
       }
     },
   );
+
+  /* ---------- A4P-6: two backup keys (the owner's and the site owner's) ---------- */
+
+  const KEY_A = `age1${"q".repeat(58)}`;
+  const KEY_B = `age1${"z".repeat(58)}`;
+
+  /**
+   * Runs backup.sh in a temporary folder with stand-ins for psql, pg_dump, age and date in front of PATH, so nothing
+   * talks to a database. The age stand-in writes the arguments it was given, one per line, to `age-args`.
+   */
+  function runBackup(recipients: string): { status: number | null; stderr: string; ageArgs: string[] } {
+    const dir = mkdtempSync(path.join(tmpdir(), "seva-backup-test-"));
+    try {
+      const stubs = path.join(dir, "stubs");
+      mkdirSync(stubs);
+      const stub = (name: string, body: string) => writeFileSync(path.join(stubs, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+      stub("psql", "printf '150008\\n'");
+      stub("pg_dump", 'if [ "${1:-}" = "--version" ]; then printf "pg_dump (PostgreSQL) 15.8\\n"; else printf "dump"; fi');
+      stub("age", "printf '%s\\n' \"$@\" > age-args; cat > /dev/null; printf 'locked'");
+      stub("date", "printf '2026-10-19 +0530\\n'");
+      const result = spawnSync("bash", ["-c", 'PATH="$(cd "$1" && pwd):$PATH" bash "$2" out', "bash", stubs, path.join(ROOT, BACKUP_SCRIPT)], {
+        cwd: dir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GITHUB_OUTPUT: "",
+          SEVA_BACKUP_DB_URL: "postgresql://postgres.ref:pw@aws-0-ap-south-1.pooler.supabase.com:5432/postgres",
+          SEVA_BACKUP_AGE_RECIPIENT: recipients,
+        },
+      });
+      const argsFile = path.join(dir, "age-args");
+      const ageArgs = existsSync(argsFile) ? readFileSync(argsFile, "utf8").split(/\r?\n/).filter(Boolean) : [];
+      return { status: result.status, stderr: result.stderr, ageArgs };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  (hasBash ? it : it.skip)("passes every public key in the secret to age as its own -r", () => {
+    expect(runBackup(KEY_A)).toEqual({ status: 0, stderr: "", ageArgs: ["-r", KEY_A] });
+    expect(runBackup(`${KEY_A} ${KEY_B}`).ageArgs).toEqual(["-r", KEY_A, "-r", KEY_B]);
+    expect(runBackup(`${KEY_A},${KEY_B}`).ageArgs).toEqual(["-r", KEY_A, "-r", KEY_B]);
+    // Pasted with a comma and a space, or on two lines (Windows line ends included).
+    expect(runBackup(` ${KEY_A}, ${KEY_B}\r\n`).ageArgs).toEqual(["-r", KEY_A, "-r", KEY_B]);
+    expect(runBackup(`${KEY_A}\n${KEY_B}`).ageArgs).toEqual(["-r", KEY_A, "-r", KEY_B]);
+  });
+
+  (hasBash ? it : it.skip)("refuses the whole secret when any one key is not an age public key", () => {
+    for (const bad of [`${KEY_A} AGE-SECRET-KEY-1ABC`, `${KEY_A},notakey`, " , ", `${KEY_A} *`]) {
+      const run = runBackup(bad);
+      expect(run.status).toBe(1);
+      expect(run.ageArgs).toEqual([]);
+      expect(run.stderr).toMatch(/^backup: SEVA_BACKUP_AGE_RECIPIENT /);
+      // The refusal never echoes what was in the secret.
+      expect(run.stderr).not.toContain("AGE-SECRET-KEY");
+      expect(run.stderr).not.toContain(KEY_A);
+    }
+  });
+
+  (hasBash ? it : it.skip)("--check-recipient says how many public keys it found", () => {
+    const result = spawnSync("bash", [path.join(ROOT, BACKUP_SCRIPT), "--check-recipient"], {
+      encoding: "utf8",
+      env: { ...process.env, SEVA_BACKUP_AGE_RECIPIENT: `${KEY_A}, ${KEY_B}` },
+    });
+    expect({ status: result.status, stdout: result.stdout }).toEqual({
+      status: 0,
+      stdout: "2 age public keys are well formed.\n",
+    });
+  });
 });

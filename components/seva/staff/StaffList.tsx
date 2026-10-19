@@ -6,6 +6,7 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
 import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
+import { sevaErrorMessage } from "@/lib/seva/errors";
 import { IST } from "@/lib/seva/time";
 import { STAFF_ROLE_LABEL, STAFF_TEXT, staffNoText } from "@/lib/seva/strings/staff";
 import { cn } from "@/lib/utils";
@@ -220,7 +221,7 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
 
       {rowPartial ? (
         <PartialFailureNotice
-          lead={`${STAFF_TEXT.partialTitle}: ${rowPartial.name}`}
+          lead={`${rowPartial.name}: ${sevaErrorMessage("partial_failure")}`}
           done={rowPartial.failure.done}
           failed={rowPartial.failure.failed}
           partly={rowPartial.failure.partly}
