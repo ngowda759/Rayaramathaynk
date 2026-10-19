@@ -4,14 +4,26 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseConfigStatus } from "@/lib/firebase";
+import type { SevaRole } from "@/types/seva";
 
-type Permission = 
-  | "admin" 
-  | "settings" 
-  | "finance" 
-  | "users" 
-  | "billing" 
-  | "administration";
+type Permission =
+  | "admin"
+  | "settings"
+  | "finance"
+  | "users"
+  | "billing"
+  | "administration"
+  // Seva Entry areas (DB §3.3): real role checks on the seva role from AuthContext (C-62 allow-list).
+  | "sevaCounter"
+  | "sevaPrasadam"
+  | "sevaAdmin";
+
+/** Who may open each seva area. View-only and per-action limits are checked by SevaGate and the seva API. */
+const SEVA_AREA_ROLES: Record<"sevaCounter" | "sevaPrasadam" | "sevaAdmin", readonly SevaRole[]> = {
+  sevaCounter: ["receptionist", "temple_admin", "super_admin"],
+  sevaPrasadam: ["prasadam_counter", "temple_admin", "super_admin"],
+  sevaAdmin: ["temple_admin", "super_admin"],
+};
 
 interface AdminAuthGuardProps {
   children: React.ReactNode;
@@ -62,7 +74,7 @@ export default function AdminAuthGuard({
 }: AdminAuthGuardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading, canAccessAdmin } = useAuth();
+  const { user, loading, canAccessAdmin, sevaRole } = useAuth();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -138,6 +150,11 @@ export default function AdminAuthGuard({
       case "billing":
       case "administration":
         hasPermission = canAccessAdmin;
+        break;
+      case "sevaCounter":
+      case "sevaPrasadam":
+      case "sevaAdmin":
+        hasPermission = typeof sevaRole === "string" && SEVA_AREA_ROLES[requiredPermission].includes(sevaRole);
         break;
     }
     

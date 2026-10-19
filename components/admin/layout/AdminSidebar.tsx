@@ -6,7 +6,10 @@ import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookO
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
+import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { cn } from "@/lib/utils";
+import { sevaNavColumn, withSevaNavigation } from "./navigation";
+import type { NavigationGroup, NavigationItem } from "./types";
 
 // Icon mapping
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -34,7 +37,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 // Navigation data
-const allNavigation = [
+const allNavigation: NavigationGroup[] = [
   {
     title: "Dashboard",
     items: [
@@ -125,6 +128,108 @@ function getFilteredNavigation(canManageUsers: boolean, canAccessAdministration:
   return filtered;
 }
 
+/** English label, with the Kannada on its own line under it when the item has one (seva items). */
+function NavLabel({ item }: { item: NavigationItem }) {
+  if (!item.titleKn) return <span>{item.title}</span>;
+  return (
+    <span className="flex flex-col leading-tight">
+      <span>{item.title}</span>
+      <span lang="kn" className="font-kannada text-[13px] font-normal opacity-80">
+        {item.titleKn}
+      </span>
+    </span>
+  );
+}
+
+/** The sub-item the current page belongs to: the longest href that matches, so only one is highlighted. */
+function activeChildHref(children: NavigationItem[], pathname: string): string | null {
+  let best: string | null = null;
+  for (const child of children) {
+    const matches = pathname === child.href || pathname.startsWith(`${child.href}/`);
+    if (matches && (best === null || child.href.length > best.length)) best = child.href;
+  }
+  return best;
+}
+
+function DesktopLink({ item, isActive }: { item: NavigationItem; isActive: boolean }) {
+  const Icon = iconMap[item.icon] || LayoutDashboard;
+  return (
+    <a
+      href={item.href}
+      className={cn(
+        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
+        isActive
+          ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
+          : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
+      )}
+    >
+      {isActive && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-white" />
+      )}
+      <Icon className={cn(
+        "h-4 w-4 transition-transform group-hover:scale-110",
+        isActive ? "" : "text-amber-600"
+      )} />
+      <NavLabel item={item} />
+      {isActive && (
+        <div className="ml-auto">
+          <div className="h-1.5 w-1.5 rounded-full bg-white/80" />
+        </div>
+      )}
+    </a>
+  );
+}
+
+function MobileLink({ item, isActive, onClose }: { item: NavigationItem; isActive: boolean; onClose: () => void }) {
+  const Icon = iconMap[item.icon] || LayoutDashboard;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onClose();
+        window.location.href = item.href;
+      }}
+      className={cn(
+        "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer text-left",
+        isActive
+          ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg"
+          : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
+      )}
+    >
+      <Icon className="h-4 w-4" />
+      <NavLabel item={item} />
+    </button>
+  );
+}
+
+/** An item with sub-items (Receipt Book): a heading, then its pages indented under it. */
+function NavParent({ item, pathname, renderChild }: {
+  item: NavigationItem;
+  pathname: string;
+  renderChild: (child: NavigationItem, isActive: boolean) => React.ReactNode;
+}) {
+  const Icon = iconMap[item.icon] || LayoutDashboard;
+  const children = item.children ?? [];
+  const activeHref = activeChildHref(children, pathname);
+  return (
+    <div role="group" aria-label={item.title}>
+      <div className="flex items-center gap-3 px-3 py-2.5 text-sm font-semibold text-stone-700">
+        <Icon className="h-4 w-4 text-amber-600" />
+        <NavLabel item={item} />
+      </div>
+      <div className="ml-5 space-y-0.5 border-l border-amber-200/70 pl-2">
+        {children.map((child) => (
+          <div key={child.href}>{renderChild(child, child.href === activeHref)}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function isItemActive(item: NavigationItem, pathname: string): boolean {
+  return pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+}
+
 interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -132,14 +237,21 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const { canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance } = useAuthContext();
+  const { canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance, sevaRole } = useAuthContext();
+  const { me } = useSevaMe();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isExpanded, setIsExpanded] = useState(true); // Sidebar expanded by default
 
+  // Seva items follow the seva profile once loaded; until then the Firestore role, view-only assumed (fail closed).
+  const sevaColumn = me ? sevaNavColumn(me.role, me.viewOnly) : sevaNavColumn(sevaRole, null);
+
   // Get filtered navigation based on user permissions (memoized to prevent infinite loops)
-  const navigation = useMemo(() => 
-    getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false),
-    [canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance]
+  const navigation = useMemo(() =>
+    withSevaNavigation(
+      getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false),
+      { column: sevaColumn, administrationShown: canAccessAdministration || false }
+    ),
+    [canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance, sevaColumn]
   );
 
   // Initialize expanded state - show all groups
@@ -211,36 +323,18 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                     className="overflow-hidden"
                   >
                     <div className="mt-1.5 space-y-0.5">
-                      {group.items.map((item) => {
-                        const Icon = iconMap[item.icon] || LayoutDashboard;
-                        const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
-                        return (
-                          <a
+                      {group.items.map((item) =>
+                        item.children ? (
+                          <NavParent
                             key={item.href}
-                            href={item.href}
-                            className={cn(
-                              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
-                              isActive
-                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
-                                : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
-                            )}
-                          >
-                            {isActive && (
-                              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-white" />
-                            )}
-                            <Icon className={cn(
-                              "h-4 w-4 transition-transform group-hover:scale-110",
-                              isActive ? "" : "text-amber-600"
-                            )} />
-                            <span>{item.title}</span>
-                            {isActive && (
-                              <div className="ml-auto">
-                                <div className="h-1.5 w-1.5 rounded-full bg-white/80" />
-                              </div>
-                            )}
-                          </a>
-                        );
-                      })}
+                            item={item}
+                            pathname={pathname}
+                            renderChild={(child, isActive) => <DesktopLink item={child} isActive={isActive} />}
+                          />
+                        ) : (
+                          <DesktopLink key={item.href} item={item} isActive={isItemActive(item, pathname)} />
+                        )
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -339,29 +433,18 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                     className="overflow-hidden"
                   >
                     <div className="mt-1.5 space-y-0.5">
-                      {group.items.map((item) => {
-                        const Icon = iconMap[item.icon] || LayoutDashboard;
-                        const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
-                        return (
-                          <button
-                            type="button"
+                      {group.items.map((item) =>
+                        item.children ? (
+                          <NavParent
                             key={item.href}
-                            onClick={() => {
-                              onClose();
-                              window.location.href = item.href;
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
-                              isActive
-                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg"
-                                : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
-                            )}
-                          >
-                            <Icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </button>
-                        );
-                      })}
+                            item={item}
+                            pathname={pathname}
+                            renderChild={(child, isActive) => <MobileLink item={child} isActive={isActive} onClose={onClose} />}
+                          />
+                        ) : (
+                          <MobileLink key={item.href} item={item} isActive={isItemActive(item, pathname)} onClose={onClose} />
+                        )
+                      )}
                     </div>
                   </motion.div>
                 )}
