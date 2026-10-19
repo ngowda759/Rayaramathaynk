@@ -1,9 +1,19 @@
-This PR applies the final test drift reconciliations to strictly meet the requirements set forth in the security audit.
+## Fix Vercel Production Build Failure — Noto Sans Kannada / Turbopack
 
-- Enforced `import 'server-only'` isolation for Supabase admin components
-- Hardened server actions to enforce authorization claims
-- Removed loose `|| true` test bypasses
-- Reverted unintended test assertion alterations in `response-generator.test.ts`, `quote.service.test.ts`, and `intent.test.ts`
-- Validated test boundary using `test-boundary.sh` successfully
-- Confirmed full Next.js builds successfully.
-- Produced `BOT-005-security-report.md`
+**Root Cause:**
+The Vercel production build fails when Turbopack tries to resolve `@vercel/turbopack-next/internal/font/google/font` for the `Noto_Sans_Kannada` font configured with multiple weights (`next/font/google queries have exactly one entry`). This is a known issue with the `@next/font` Turbopack loader and Google Fonts subsets/weights processing.
+
+**Fix Details:**
+Instead of downgrading Next.js or fundamentally altering the configuration, the fix bypasses the Google Font loader for `Noto_Sans_Kannada` while preserving the Google Font loader for the English typography (`Inter`, `Playfair_Display`).
+
+* Downloaded `Noto Sans Kannada` font files (`.ttf`) directly from Google Fonts (weights 400, 500, 600, 700).
+* Placed the font assets in `public/fonts/`.
+* Updated `app/layout.tsx` to use `localFont` from `next/font/local` pointing to these local assets.
+* The CSS variables and font fallbacks within `globals.css` were preserved, meaning zero visual changes to Kannada text rendering or the broader website theme.
+
+**Validation:**
+* Clean dependency installation passes.
+* Production build (`npm run build`) via Turbopack now compiles successfully in ~34s without module resolution errors.
+* Static analysis (`npm run typecheck`, `npm run lint`) completely passes.
+* All existing tests pass.
+* Introduced a dedicated regression test (`tests/unit/kannada-font-regression.test.tsx`) that verifies the layout correctly injects the Kannada local font alongside the Google fonts.
