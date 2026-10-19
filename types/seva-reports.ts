@@ -82,6 +82,17 @@ export interface NeedsAttentionCard {
   entries?: OfflineCancelEntry[];
 }
 
+/** One open row of `receipt_number_gaps` (DB §8.5): running numbers `fromNo`-`toNo` of a series-year are missing. */
+export interface ContinuityGap {
+  id: number;
+  series: string;
+  year: number;
+  fromNo: number;
+  toNo: number;
+  cause: 'device_replaced' | 'missing_in_sync';
+  detectedAt: string;
+}
+
 export interface ContinuityRow {
   series: string;
   year: number;
@@ -92,4 +103,6 @@ export interface ContinuityRow {
   issued: number;
   cancelled: number;
   openGaps: number;
+  /** The open gaps of this series-year, lowest range first; present only when `openGaps` > 0 (the register's Resolve). */
+  gaps?: ContinuityGap[];
 }

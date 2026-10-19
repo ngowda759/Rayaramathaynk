@@ -31,6 +31,7 @@ import type {
   ExportSevaRow,
 } from "@/types/seva-export";
 import type {
+  ContinuityGap,
   ContinuityRow,
   DashboardData,
   DashboardTotals,
@@ -477,17 +478,55 @@ export async function loadContinuity(from: string, to: string): Promise<Continui
   const numberOf = (series: string, year: number, no: number | null): string | null =>
     no === null ? null : (receiptNos.get(`${series}|${year}|${no}`) ?? null);
 
-  return parsed.map((p) => ({
-    series: p.series,
-    year: p.year,
-    counterName: counterNames.get(p.series) ?? null,
-    firstNo: numberOf(p.series, p.year, p.first),
-    lastNo: numberOf(p.series, p.year, p.last),
-    numbers: p.first !== null && p.last !== null ? p.last - p.first + 1 : 0,
-    issued: p.issued,
-    cancelled: p.cancelled,
-    openGaps: p.openGaps,
-  }));
+  const gaps = await openGapsOf(parsed.filter((p) => p.openGaps > 0));
+
+  return parsed.map((p) => {
+    const row: ContinuityRow = {
+      series: p.series,
+      year: p.year,
+      counterName: counterNames.get(p.series) ?? null,
+      firstNo: numberOf(p.series, p.year, p.first),
+      lastNo: numberOf(p.series, p.year, p.last),
+      numbers: p.first !== null && p.last !== null ? p.last - p.first + 1 : 0,
+      issued: p.issued,
+      cancelled: p.cancelled,
+      openGaps: p.openGaps,
+    };
+    if (p.openGaps > 0) row.gaps = gaps.filter((g) => g.series === p.series && g.year === p.year);
+    return row;
+  });
+}
+
+/** The open gaps of the given series-years (the register resolves them by id, DB 8.5); no read when there are none. */
+async function openGapsOf(seriesYears: { series: string; year: number }[]): Promise<ContinuityGap[]> {
+  if (seriesYears.length === 0) return [];
+  const codes = [...new Set(seriesYears.map((s) => s.series))];
+  const years = [...new Set(seriesYears.map((s) => s.year))];
+  const { data, error } = await createAdminClient()
+    .from("receipt_number_gaps")
+    .select("id, series_code, year, from_no, to_no, cause, detected_at")
+    .eq("status", "open")
+    .in("series_code", codes)
+    .in("year", years)
+    .order("series_code", { ascending: true })
+    .order("from_no", { ascending: true });
+  dbFailed(error);
+  const wanted = new Set(seriesYears.map((s) => `${s.series}|${s.year}`));
+  return rows(data)
+    .map((g): ContinuityGap => {
+      const cause = str(g.cause);
+      if (cause !== "device_replaced" && cause !== "missing_in_sync") throw new SevaError("internal");
+      return {
+        id: int(g.id),
+        series: str(g.series_code),
+        year: int(g.year),
+        fromNo: int(g.from_no),
+        toNo: int(g.to_no),
+        cause,
+        detectedAt: iso(g.detected_at),
+      };
+    })
+    .filter((g) => wanted.has(`${g.series}|${g.year}`));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
