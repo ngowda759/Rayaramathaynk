@@ -6,7 +6,11 @@
  *   failure (5xx) is tried twice more with the SAME clientOrderId (the server returns the stored order if an earlier
  *   attempt got through). Any 4xx answer is a business answer (rate changed, seva switched off, not allowed ...): it
  *   is thrown to the caller and never printed offline.
- * - After three failed attempts the receptionist is asked whether to print offline. No -> nothing is kept.
+ * - After three failed attempts the receptionist is asked whether to print offline. No -> nothing is printed, but
+ *   the office may hold the order: its clientOrderId stays "in doubt" here until the office answers for it. The caller
+ *   keeps that id for the same order, even after an edit (pending-order.ts), so a later online save returns the
+ *   first order, and a later offline save (Work offline, or the line still down) names it in
+ *   `supersedesClientOrderId` so the sync supersedes it if it was never printed (review H-3).
  * - An offline save is a NEW order: new clientOrderId, new client receipt ids and new QR tokens (the office may hold
  *   the in-doubt online order under the old ones, and both are unique there). When an online attempt was made, the
  *   old clientOrderId is recorded as `supersedesClientOrderId` so the office can cancel that order if it was never
@@ -50,7 +54,11 @@ export const ONLINE_ATTEMPTS = 3;
 const MIN_YEAR = 2026;
 const MAX_YEAR = 2100;
 
-export type SubmitResult = { mode: 'online' | 'offline'; receipts: IssuedReceipt[] } | { mode: 'cancelled' };
+export type SubmitResult =
+  /** `duplicate`: the office already held this client order id and returned the order it stored then. */
+  | { mode: 'online'; receipts: IssuedReceipt[]; duplicate: boolean }
+  | { mode: 'offline'; receipts: IssuedReceipt[] }
+  | { mode: 'cancelled' };
 
 export interface CounterSubmitterDeps {
   db: SevaDb;
@@ -298,11 +306,18 @@ async function issueOffline(deps: CounterSubmitterDeps, p: CounterOrderPayload, 
 
 export function createCounterSubmitter(deps: CounterSubmitterDeps): { submit(p: CounterOrderPayload): Promise<SubmitResult> } {
   const inFlight = new Map<string, Promise<SubmitResult>>();
+  /** Client order ids sent online that the office never answered for; the office may hold them. */
+  const inDoubt = new Set<string>();
+
+  async function offline(p: CounterOrderPayload): Promise<SubmitResult> {
+    const receipts = await issueOffline(deps, p, inDoubt.has(p.clientOrderId));
+    // The offline order now names the in-doubt one; the sync supersedes it at the office.
+    inDoubt.delete(p.clientOrderId);
+    return { mode: 'offline', receipts };
+  }
 
   async function submitOnce(p: CounterOrderPayload): Promise<SubmitResult> {
-    if (deps.isForcedOffline()) {
-      return { mode: 'offline', receipts: await issueOffline(deps, p, false) };
-    }
+    if (deps.isForcedOffline()) return offline(p);
 
     let answer: IssueResponse | null = null;
     for (let attempt = 1; attempt <= ONLINE_ATTEMPTS && answer === null; attempt += 1) {
@@ -314,6 +329,7 @@ export function createCounterSubmitter(deps: CounterSubmitterDeps): { submit(p: 
     }
 
     if (answer !== null) {
+      inDoubt.delete(p.clientOrderId);
       connectionStore.markOnline();
       try {
         await rememberReceipts(deps.db, answer.receipts, true);
@@ -321,12 +337,13 @@ export function createCounterSubmitter(deps: CounterSubmitterDeps): { submit(p: 
         // The office already holds these receipts, so the save succeeded and the slips must print;
         // only this PC's local list misses them.
       }
-      return { mode: 'online', receipts: answer.receipts };
+      return { mode: 'online', receipts: answer.receipts, duplicate: answer.duplicate };
     }
 
+    inDoubt.add(p.clientOrderId);
     connectionStore.markOffline(deps.clock());
     if (!(await deps.askPrintOffline())) return { mode: 'cancelled' };
-    return { mode: 'offline', receipts: await issueOffline(deps, p, true) };
+    return offline(p);
   }
 
   return {

@@ -30,6 +30,7 @@ import { deviceHeader, getDeviceCredentials } from "@/lib/seva/offline/device";
 import { startHeartbeat } from "@/lib/seva/offline/heartbeat";
 import { todaysReceipts } from "@/lib/seva/offline/local-receipts";
 import { refreshWaiting } from "@/lib/seva/offline/outbox";
+import { editedSinceInDoubt, markInDoubt, orderIdsFor, type PendingOrder } from "@/lib/seva/offline/pending-order";
 import { cacheProfile, findProfiles } from "@/lib/seva/offline/profiles";
 import { createCounterSubmitter, OfflineIssueError } from "@/lib/seva/offline/submitter";
 import { runSync } from "@/lib/seva/offline/sync";
@@ -93,6 +94,12 @@ export interface UseCounter {
   lastPrinted: { receipts: IssuedReceipt[]; offline: boolean } | null;
   inDoubt: boolean;
   answerInDoubt(printOffline: boolean): void;
+  /**
+   * An order the office may already hold (review H-3): "open" while it is still on the screen (the next save checks
+   * with the office first), "cleared" when the screen was cleared without saving it again; null otherwise.
+   */
+  inDoubtOrder: "open" | "cleared" | null;
+  dismissInDoubtOrder(): void;
   dayClosed: boolean;
   skewMs: number;
   today: { receipts: number; cashPaise: number; upiPaise: number };
@@ -202,7 +209,7 @@ export function useCounter(): UseCounter {
   const excelRef = useRef<ExcelCopyScheduler | null>(null);
   const inDoubtResolve = useRef<((yes: boolean) => void) | null>(null);
   const savingRef = useRef(false);
-  const pendingIdsRef = useRef<{ key: string; ids: { clientOrderId: string; clientReceiptIds: string[]; qrTokens: string[] } } | null>(null);
+  const pendingIdsRef = useRef<PendingOrder | null>(null);
   const dismissedRef = useRef<Set<string>>(new Set());
   const dayClosedRef = useRef(false);
 
@@ -218,6 +225,7 @@ export function useCounter(): UseCounter {
   const [message, setMessage] = useState<CounterMessage | null>(null);
   const [lastPrinted, setLastPrinted] = useState<UseCounter["lastPrinted"]>(null);
   const [inDoubt, setInDoubt] = useState(false);
+  const [inDoubtOrder, setInDoubtOrder] = useState<"open" | "cleared" | null>(null);
   const [dayClosed, setDayClosedState] = useState(false);
   const [skewMs, setSkewMs] = useState(0);
   const [today, setToday] = useState({ receipts: 0, cashPaise: 0, upiPaise: 0 });
@@ -717,29 +725,28 @@ export function useCounter(): UseCounter {
     dispatchRaw({ type: "submitStarted" });
     try {
       const n = groups.receipts.length;
-      // The same order keeps its client ids and QR tokens across retries; a changed order gets new ones.
+      // The same order keeps its client ids and QR tokens across retries; a changed order gets new ones, except an
+      // order in doubt, which keeps its client order id so the office is asked about the first one (H-3).
       const key = JSON.stringify(
         buildCounterOrderPayload(s, { clientOrderId: "", clientReceiptIds: Array(n).fill(""), qrTokens: Array(n).fill("") }),
       );
-      if (pendingIdsRef.current?.key !== key) {
-        pendingIdsRef.current = {
-          key,
-          ids: {
-            clientOrderId: newId(),
-            clientReceiptIds: Array.from({ length: n }, () => newId()),
-            qrTokens: Array.from({ length: n }, () => newQrToken()),
-          },
-        };
-      }
-      const payload = buildCounterOrderPayload(s, pendingIdsRef.current.ids);
+      const pending = orderIdsFor(pendingIdsRef.current, key, n, { id: newId, qrToken: newQrToken });
+      pendingIdsRef.current = pending;
+      const payload = buildCounterOrderPayload(s, pending.ids);
       const result = await submitter.submit(payload);
       if (result.mode === "cancelled") {
+        pendingIdsRef.current = markInDoubt(pending, key);
+        setInDoubtOrder("open");
         dispatchRaw({ type: "submitFinished", ok: false });
         setMessage({ tone: "info", text: COUNTER_TEXT.cancelledNothingSaved });
         return;
       }
+      const firstVersionKept = result.mode === "online" && result.duplicate && editedSinceInDoubt(pending);
       pendingIdsRef.current = null;
+      setInDoubtOrder(null);
       await afterIssue(result.receipts, result.mode === "offline", payload);
+      // The office had saved the order before it was edited: what printed is the first version.
+      if (firstVersionKept) setMessage((m) => m ?? { tone: "info", text: COUNTER_TEXT.inDoubtFirstVersionKept });
       dispatchRaw({ type: "submitFinished", ok: true });
       setFilled(null);
       setSuggestion(null);
@@ -774,6 +781,15 @@ export function useCounter(): UseCounter {
 
   const dispatch = useCallback((a: CounterAction) => dispatchRaw(a), []);
   const dismissMessage = useCallback(() => setMessage(null), []);
+  const dismissInDoubtOrder = useCallback(() => setInDoubtOrder(null), []);
+
+  // An in-doubt order cleared from the screen (double Esc, or every line removed) is let go: the next order is a new
+  // one with new ids. The office may still hold it unprinted, so the counter keeps showing it as needing attention.
+  useEffect(() => {
+    if (state.lines.length > 0 || !pendingIdsRef.current?.inDoubt) return;
+    pendingIdsRef.current = null;
+    setInDoubtOrder("cleared");
+  }, [state.lines.length]);
 
   return {
     state,
@@ -794,6 +810,8 @@ export function useCounter(): UseCounter {
     lastPrinted,
     inDoubt,
     answerInDoubt,
+    inDoubtOrder,
+    dismissInDoubtOrder,
     dayClosed,
     skewMs,
     today,

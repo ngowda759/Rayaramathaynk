@@ -225,6 +225,10 @@ export const COUNTER_TEXT: {
   inDoubtYes: Bi;
   inDoubtNo: Bi;
   cancelledNothingSaved: string;
+  inDoubtFirstVersionKept: string;
+  inDoubtOrderOpen: Bi;
+  inDoubtOrderCleared: Bi;
+  inDoubtOrderDismiss: string;
   registerTitle: Bi;
   registerAdmin: Bi;
   registerAdminLink: Bi;
@@ -380,7 +384,19 @@ export const COUNTER_TEXT: {
   },
   inDoubtYes: { en: 'Yes, print offline', kn: 'ಹೌದು, ಆಫ್‌ಲೈನ್ ಮುದ್ರಿಸಿ' },
   inDoubtNo: { en: 'No, keep the order', kn: 'ಬೇಡ, ಆದೇಶ ಉಳಿಸಿಕೊಳ್ಳಿ' },
-  cancelledNothingSaved: 'Nothing was printed. The order is kept: press Save again when ready.',
+  cancelledNothingSaved:
+    'Nothing was printed. The office may already have saved this order, so do not take the money again. Press Save again when ready: the office is asked about this same order first.',
+  inDoubtFirstVersionKept:
+    "The office had already saved this order before your change, so the slips show it as first saved. To change it, cancel it in Today's receipts and make it again.",
+  inDoubtOrderOpen: {
+    en: 'This order may already be saved at the office. Save it again (even after a change): the office is asked first, so it is never saved twice.',
+    kn: 'ಈ ಆದೇಶ ಈಗಾಗಲೇ ಕಚೇರಿಯಲ್ಲಿ ಉಳಿದಿರಬಹುದು. ಮತ್ತೆ ಉಳಿಸಿ: ಮೊದಲು ಕಚೇರಿಯನ್ನು ಕೇಳಲಾಗುತ್ತದೆ.',
+  },
+  inDoubtOrderCleared: {
+    en: "An order the office may have saved was cleared without a slip. Check Today's receipts: if it is there unprinted, reprint or cancel it.",
+    kn: 'ಕಚೇರಿಯಲ್ಲಿ ಉಳಿದಿರಬಹುದಾದ ಒಂದು ಆದೇಶವನ್ನು ರಸೀದಿ ಇಲ್ಲದೆ ತೆರವುಗೊಳಿಸಲಾಗಿದೆ. ಇಂದಿನ ರಸೀದಿಗಳನ್ನು ನೋಡಿ.',
+  },
+  inDoubtOrderDismiss: 'Checked',
   registerTitle: { en: 'This PC is not a registered counter', kn: 'ಈ ಕಂಪ್ಯೂಟರ್ ನೋಂದಾಯಿತ ಕೌಂಟರ್ ಅಲ್ಲ' },
   registerAdmin: {
     en: 'Receipts can be made only on a registered counter PC. Register this PC in Receipt settings, then come back.',

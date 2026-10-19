@@ -63,7 +63,7 @@ describe('counter submitter', () => {
 
     const result = await submitter.submit(order);
 
-    expect(result).toEqual({ mode: 'online', receipts: answer.receipts });
+    expect(result).toEqual({ mode: 'online', receipts: answer.receipts, duplicate: false });
     expect(issue).toHaveBeenCalledTimes(1);
     expect(issue).toHaveBeenCalledWith(order);
     expect(askPrintOffline).not.toHaveBeenCalled();
@@ -323,5 +323,78 @@ describe('counter submitter', () => {
     const [ra, rb] = await Promise.all([a, b]);
     expect(issue).toHaveBeenCalledTimes(1);
     expect(rb).toEqual(ra);
+  });
+  describe('an in-doubt order (H-3)', () => {
+    function inDoubtSetup() {
+      let forced = false;
+      const issue = jest.fn<Promise<IssueResponse>, [CounterOrderPayload]>();
+      const askPrintOffline = jest.fn(async () => false);
+      const submitter = createCounterSubmitter({
+        db,
+        api: { issue },
+        clock: () => NOW,
+        askPrintOffline,
+        staff: () => STAFF,
+        counter: () => COUNTER,
+        catalogue: () => bootstrap(),
+        isForcedOffline: () => forced,
+        newIds: idSequence(900),
+      });
+      return { submitter, issue, askPrintOffline, goOffline: () => (forced = true) };
+    }
+
+    async function timeOutThreeTimesAndSayNo(s: ReturnType<typeof inDoubtSetup>, order: CounterOrderPayload) {
+      s.issue.mockRejectedValue(new FakeClientError('timeout', 0));
+      await expect(s.submitter.submit(order)).resolves.toEqual({ mode: 'cancelled' });
+      s.issue.mockReset();
+    }
+
+    it('an offline save of the same order after "No" supersedes the first client order id', async () => {
+      const s = inDoubtSetup();
+      const order = bookOrder();
+      await timeOutThreeTimesAndSayNo(s, order);
+
+      s.goOffline();
+      const result = await s.submitter.submit(order);
+
+      expect(result.mode).toBe('offline');
+      const [item] = await pendingItems(db);
+      if (item.kind !== 'order') throw new Error('expected an order');
+      expect(item.payload.supersedesClientOrderId).toBe(uuid(1));
+    });
+
+    it('the same holds when one field was edited (the order keeps its client order id)', async () => {
+      const s = inDoubtSetup();
+      const order = bookOrder();
+      await timeOutThreeTimesAndSayNo(s, order);
+
+      s.goOffline();
+      const edited: CounterOrderPayload = { ...order, devotee: { ...order.devotee, name: 'Venkatesh Rao K' } };
+      await s.submitter.submit(edited);
+
+      const [item] = await pendingItems(db);
+      if (item.kind !== 'order') throw new Error('expected an order');
+      expect(item.payload.supersedesClientOrderId).toBe(uuid(1));
+    });
+
+    it('an online save after "No" sends the same client order id and tells the caller the office already had it', async () => {
+      const s = inDoubtSetup();
+      const order = bookOrder();
+      await timeOutThreeTimesAndSayNo(s, order);
+
+      const stored = { ...onlineAnswer(order), duplicate: true };
+      s.issue.mockResolvedValue(stored);
+      const result = await s.submitter.submit(order);
+
+      expect(s.issue).toHaveBeenCalledWith(expect.objectContaining({ clientOrderId: uuid(1) }));
+      expect(result).toEqual({ mode: 'online', receipts: stored.receipts, duplicate: true });
+
+      // Confirmed by the office: a later offline save of another order under that id supersedes nothing.
+      s.goOffline();
+      await s.submitter.submit(order);
+      const [item] = await pendingItems(db);
+      if (item.kind !== 'order') throw new Error('expected an order');
+      expect(item.payload).not.toHaveProperty('supersedesClientOrderId');
+    });
   });
 });
