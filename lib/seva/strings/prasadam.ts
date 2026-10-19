@@ -29,6 +29,8 @@ export const PRASADAM: {
   sevaDateToday: (date: string) => Bi;
   made: (time: string) => string;
   markGiven: Bi;
+  /** On the tapped give button while the give runs. */
+  giving: Bi;
   notNow: Bi;
   notToday: Bi;
   prasadamIsFor: Bi;
@@ -99,6 +101,7 @@ export const PRASADAM: {
   sevaDateToday: (date) => ({ en: `Seva date: today, ${date}`, kn: `ಸೇವಾ ದಿನಾಂಕ: ಇಂದು, ${date}` }),
   made: (time) => `made ${time}`,
   markGiven: { en: 'Mark given', kn: 'ನೀಡಲಾಗಿದೆ ಎಂದು ಗುರುತಿಸಿ' },
+  giving: { en: 'Marking given...', kn: 'ನೀಡಲಾಗಿದೆ ಎಂದು ಗುರುತಿಸಲಾಗುತ್ತಿದೆ...' },
   notNow: { en: 'Not now', kn: 'ಈಗ ಬೇಡ' },
   notToday: { en: 'Not today', kn: 'ಇಂದಲ್ಲ' },
   prasadamIsFor: { en: 'This prasadam is for', kn: 'ಈ ಪ್ರಸಾದ ಈ ದಿನಕ್ಕೆ' },

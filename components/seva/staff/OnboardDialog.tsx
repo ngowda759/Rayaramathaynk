@@ -2,9 +2,11 @@
 
 import { useEffect, useState, type FormEvent, type JSX } from "react";
 
+import { MotionDialog } from "@/components/seva/motion/MotionDialog";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { STAFF_ROLES, STAFF_TEXT, staffNoText } from "@/lib/seva/strings/staff";
 import { staffOnboardSchema } from "@/lib/seva/schemas";
@@ -41,10 +43,20 @@ export interface OnboardDialogProps {
   onWritten?(): void;
 }
 
-/** Onboard staff (DB §13.6, mockup `onboard-dialog`). Rendered only while open, so each opening starts fresh. */
-export function OnboardDialog(props: OnboardDialogProps): JSX.Element | null {
-  if (!props.open) return null;
-  return <OnboardForm {...props} />;
+/**
+ * Onboard staff (DB §13.6, mockup `onboard-dialog`). The form is rendered only while open, so each opening starts
+ * fresh; MotionDialog springs it in and animates it out (plan A4P-4).
+ */
+export function OnboardDialog(props: OnboardDialogProps): JSX.Element {
+  return (
+    <MotionDialog
+      open={props.open}
+      onOpenChange={(open) => (open ? undefined : props.onClose())}
+      className="max-h-[92dvh] overflow-y-auto"
+    >
+      {props.open ? <OnboardForm {...props} /> : null}
+    </MotionDialog>
+  );
 }
 
 type Field = "staffNo" | "fullName" | "email";
@@ -148,120 +160,118 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
   const shownNo = Number.isInteger(Number(staffNo)) && staffNo.trim() !== "" ? staffNoText(Number(staffNo)) : "";
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent variant="seva" className="max-h-[92dvh] overflow-y-auto">
-        <div className="flex items-start justify-between gap-3 pr-12">
-          <DialogTitle variant="seva" className="pr-0">
-            <Bilingual en={STAFF_TEXT.onboardTitle.en} kn={STAFF_TEXT.onboardTitle.kn} />
-          </DialogTitle>
-          {shownNo ? (
-            <span className="rounded-full bg-(--secondary) px-3 py-1 text-(length:--text-meta) font-semibold tabular-nums">
-              {STAFF_TEXT.staffNo} {shownNo}
-            </span>
-          ) : null}
-        </div>
-        <DialogDescription className="text-(length:--text-meta) text-(--muted-foreground)">
-          {STAFF_TEXT.signInLine}
-        </DialogDescription>
+    <>
+      <div className="flex items-start justify-between gap-3 pr-12">
+        <DialogTitle variant="seva" className="pr-0">
+          <Bilingual en={STAFF_TEXT.onboardTitle.en} kn={STAFF_TEXT.onboardTitle.kn} />
+        </DialogTitle>
+        {shownNo ? (
+          <span className="rounded-full bg-(--secondary) px-3 py-1 text-(length:--text-meta) font-semibold tabular-nums">
+            {STAFF_TEXT.staffNo} {shownNo}
+          </span>
+        ) : null}
+      </div>
+      <DialogDescription className="text-(length:--text-meta) text-(--muted-foreground)">
+        {STAFF_TEXT.signInLine}
+      </DialogDescription>
 
-        <form noValidate onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
-          <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
-            <Input
-              variant="seva"
-              label={STAFF_TEXT.staffNo}
-              inputMode="numeric"
-              type="number"
-              min={1}
-              max={999}
-              value={staffNo}
-              error={errors.staffNo}
-              onChange={(e) => setStaffNo(e.target.value)}
-              disabled={busy || emailPending !== null}
-            />
-            <Input
-              variant="seva"
-              label={STAFF_TEXT.fullName}
-              autoComplete="off"
-              placeholder={STAFF_TEXT.fullNamePlaceholder}
-              maxLength={80}
-              value={fullName}
-              error={errors.fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              disabled={busy || emailPending !== null}
-            />
-          </div>
-          <p className="-mt-3 text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.staffNoHint}</p>
+      <form noValidate onSubmit={(e) => void submit(e)} className="flex flex-col gap-5">
+        <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
           <Input
             variant="seva"
-            label={STAFF_TEXT.email}
-            type="email"
-            autoComplete="off"
-            placeholder={STAFF_TEXT.emailPlaceholder}
-            value={email}
-            error={errors.email}
-            onChange={(e) => setEmail(e.target.value)}
+            label={STAFF_TEXT.staffNo}
+            inputMode="numeric"
+            type="number"
+            min={1}
+            max={999}
+            value={staffNo}
+            error={errors.staffNo}
+            onChange={(e) => setStaffNo(e.target.value)}
             disabled={busy || emailPending !== null}
           />
-
-          <div className="flex flex-col gap-2">
-            <RolePicker name={STAFF_TEXT.role.en} value={role} allowed={allowed} onChange={pickRole} layout="grid" />
-            {!allowed.super_admin ? (
-              <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superAdminRoleNote}</p>
-            ) : null}
-          </div>
-
-          <ViewOnlyRow
-            checked={role === "temple_admin" && viewOnly}
-            disabled={role !== "temple_admin" || busy || emailPending !== null}
-            hint={role === "temple_admin" ? STAFF_TEXT.viewOnlyOnboardHint : STAFF_TEXT.viewOnlyTempleAdminsOnly}
-            onChange={setViewOnly}
+          <Input
+            variant="seva"
+            label={STAFF_TEXT.fullName}
+            autoComplete="off"
+            placeholder={STAFF_TEXT.fullNamePlaceholder}
+            maxLength={80}
+            value={fullName}
+            error={errors.fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            disabled={busy || emailPending !== null}
           />
+        </div>
+        <p className="-mt-3 text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.staffNoHint}</p>
+        <Input
+          variant="seva"
+          label={STAFF_TEXT.email}
+          type="email"
+          autoComplete="off"
+          placeholder={STAFF_TEXT.emailPlaceholder}
+          value={email}
+          error={errors.email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={busy || emailPending !== null}
+        />
 
-          {error ? (
-            <p role="alert" className="rounded-(--radius-control) bg-(--destructive-soft) p-3 text-(--destructive)">
-              {error}
-            </p>
+        <div className="flex flex-col gap-2">
+          <RolePicker name={STAFF_TEXT.role.en} value={role} allowed={allowed} onChange={pickRole} layout="grid" />
+          {!allowed.super_admin ? (
+            <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superAdminRoleNote}</p>
           ) : null}
-          {partial ? <PartialFailureNotice done={partial.done} failed={partial.failed} partly={partial.partly} /> : null}
-          {emailPending ? (
-            <PartialFailureNotice
-              lead={STAFF_TEXT.emailNotSent(staffNoText(emailPending.staffNo))}
-              done={["identity", "staff"]}
-              failed="email"
-            >
-              {emailPending.message ? (
-                <p className="text-(length:--text-meta) text-(--muted-foreground)">{emailPending.message}</p>
-              ) : null}
-              <div>
-                <Button
-                  type="button"
-                  variant="seva-secondary"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => {
-                    setBusy(true);
-                    void invite(emailPending).finally(() => setBusy(false));
-                  }}
-                >
-                  {STAFF_TEXT.sendEmailAgain}
-                </Button>
-              </div>
-            </PartialFailureNotice>
-          ) : null}
+        </div>
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="seva-ghost" onClick={onClose} disabled={busy}>
-              {emailPending ? STAFF_TEXT.close : STAFF_TEXT.cancel}
-            </Button>
-            {emailPending ? null : (
-              <Button type="submit" variant="seva-primary" disabled={busy} aria-busy={busy}>
-                {busy ? STAFF_TEXT.sending : STAFF_TEXT.sendInvite}
-              </Button>
-            )}
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <ViewOnlyRow
+          checked={role === "temple_admin" && viewOnly}
+          disabled={role !== "temple_admin" || busy || emailPending !== null}
+          hint={role === "temple_admin" ? STAFF_TEXT.viewOnlyOnboardHint : STAFF_TEXT.viewOnlyTempleAdminsOnly}
+          onChange={setViewOnly}
+        />
+
+        {error ? (
+          <p role="alert" className="rounded-(--radius-control) bg-(--destructive-soft) p-3 text-(--destructive)">
+            {error}
+          </p>
+        ) : null}
+        {partial ? <PartialFailureNotice done={partial.done} failed={partial.failed} partly={partial.partly} /> : null}
+        {emailPending ? (
+          <PartialFailureNotice
+            lead={STAFF_TEXT.emailNotSent(staffNoText(emailPending.staffNo))}
+            done={["identity", "staff"]}
+            failed="email"
+          >
+            {emailPending.message ? (
+              <p className="text-(length:--text-meta) text-(--muted-foreground)">{emailPending.message}</p>
+            ) : null}
+            <div>
+              <PendingButton
+                variant="seva-secondary"
+                size="sm"
+                pending={busy}
+                pendingLabel={STAFF_TEXT.sending}
+                onClick={() => {
+                  setBusy(true);
+                  void invite(emailPending).finally(() => setBusy(false));
+                }}
+              >
+                {STAFF_TEXT.sendEmailAgain}
+              </PendingButton>
+            </div>
+          </PartialFailureNotice>
+        ) : null}
+
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="seva-ghost" onClick={onClose} disabled={busy}>
+            {emailPending ? STAFF_TEXT.close : STAFF_TEXT.cancel}
+          </Button>
+          {emailPending ? null : (
+            <PendingButton type="submit" pending={busy} pendingLabel={STAFF_TEXT.sending}>
+              {STAFF_TEXT.sendInvite}
+            </PendingButton>
+          )}
+        </div>
+      </form>
+    </>
   );
 }
 

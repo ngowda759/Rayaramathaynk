@@ -59,13 +59,21 @@ function receipt(opts: { series?: string; running: number; sevaDate?: string; na
   };
 }
 
-/** The page's fake, with the prasadam routes answered by `core` (same receipts) and `givenNow` on an own give. */
-function prasadamFake(receipts: IssuedReceipt[]): { api: FakeSevaApi; core: FakeSevaApi } {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The page's fake, with the prasadam routes answered by `core` (same receipts) and `givenNow` on an own give.
+ * `slowMs` holds every give and undo answer back that long (plan A4P-4: the pending state shows meanwhile).
+ */
+function prasadamFake(receipts: IssuedReceipt[], opts: { slowMs?: number } = {}): { api: FakeSevaApi; core: FakeSevaApi } {
   const core = createFakeSevaApi({ receipts });
   const api = createFakeSevaApi({ receipts });
   const forward =
     (method: "GET" | "POST"): FakeHandler =>
     async (req) => {
+      if (method === "POST" && opts.slowMs) await sleep(opts.slowMs);
       const body = req.body as { receiptId?: unknown } | null;
       const target = method === "POST" && body && typeof body.receiptId === "string" ? receipts.find((r) => r.id === body.receiptId) : undefined;
       const givenBefore = target?.prasadam === "given";
@@ -123,6 +131,32 @@ test("typed number -> ready -> Mark given -> Undo within the time", async ({ pag
   await expect(page.getByTestId("prasadam-given-today")).toContainText("Given 0");
   expect(calls(api, "prasadam/undo")).toHaveLength(1);
   expect(r.prasadam).toBe("pending");
+});
+
+test("a slow give shows Marking given... at once, then the tick, and a slow Undo shows Undoing...", async ({ page }) => {
+  const r = receipt({ running: 132 });
+  const { api } = prasadamFake([r], { slowMs: 800 });
+  await openCounter(page, api);
+
+  await typeNumber(page, r.receiptNo);
+  const ready = resultCard(page, "ready");
+  const give = ready.getByRole("button", { name: /Mark given/ });
+  await give.click();
+  // The tapped button answers at once (well before the 800 ms answer); the others wait.
+  const working = ready.locator('button[aria-busy="true"]');
+  await expect(working).toContainText("Marking given...", { timeout: 600 });
+  await expect(working).toBeDisabled();
+  await expect(ready.getByRole("button", { name: /Not now/ })).toBeDisabled();
+
+  const marked = resultCard(page, "marked");
+  await expect(marked).toContainText("Marked given");
+  await expect(marked.locator("[data-tick]")).toBeVisible();
+  expect(calls(api, "prasadam/give")).toHaveLength(1);
+
+  await marked.getByRole("button", { name: /Undo/ }).click();
+  await expect(marked.locator('button[aria-busy="true"]')).toContainText("Undoing...", { timeout: 600 });
+  await expect(resultCard(page, "ready")).toBeVisible();
+  expect(calls(api, "prasadam/undo")).toHaveLength(1);
 });
 
 test("a second lookup says already given, by whom and when", async ({ page }) => {

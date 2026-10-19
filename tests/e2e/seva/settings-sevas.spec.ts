@@ -118,6 +118,33 @@ test("a denomination of Rs 2,500 is refused", async ({ page }) => {
   expect(denominations.items[4]).toEqual({ kind: "note", valuePaise: 200_000, displayOrder: 5, shown: true });
 });
 
+test("a removed denomination leaves the table and a slow save shows Saving... then the saved line", async ({ page }) => {
+  const { fake, denominations } = await open(page, "temple_admin", DENOMINATIONS);
+  // The office takes 800 ms to answer (plan A4P-4).
+  fake.extend({
+    "PUT settings/denominations": async (req) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      denominations.items = (req.body as DenominationsRequest).items;
+      return { ok: true };
+    },
+  });
+  const table = page.getByTestId("denomination-table");
+  await expect(table).toContainText("Rs 500", { timeout: 60_000 });
+
+  // The removed row fades out and is gone (it is never left half-visible in the table).
+  await page.getByRole("button", { name: "Remove Rs 1 coin" }).click();
+  await expect(table.getByRole("row")).toHaveCount(4);
+  await expect(table).not.toContainText(/Rs 1(?![\d,])/);
+
+  await page.getByRole("button", { name: "Save settings" }).click();
+  const saving = page.locator('button[aria-busy="true"]');
+  await expect(saving).toContainText("Saving...", { timeout: 600 });
+  await expect(saving).toBeDisabled();
+  await expect(page.getByText("Denominations saved.", { exact: false })).toBeVisible();
+  expect(denominations.items).toHaveLength(3);
+  expect(fake.requests.filter((r) => r.method === "PUT" && r.path === "/api/seva/settings/denominations")).toHaveLength(1);
+});
+
 test("a festival with three dates appears as a chip source", async ({ page }) => {
   const { fake, festivals } = await open(page, "temple_admin", FESTIVALS);
   await expect(page.getByTestId("festival-table")).toContainText("Aradhane 2026", { timeout: 60_000 });

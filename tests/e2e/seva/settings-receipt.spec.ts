@@ -207,6 +207,27 @@ test("counter rules save and are audited", async ({ page }) => {
   expect(put?.body).toEqual({ cancelWindowMinutes: 45, counterDaysAhead: 365, dayCloseFlagThresholdPaise: 25_000 });
 });
 
+test("a slow save shows Saving... at once and then the saved line", async ({ page }) => {
+  const fake = await open(page, RULES_PAGE);
+  // The office takes 800 ms to answer (plan A4P-4): the button says so meanwhile and cannot send twice.
+  fake.extend({
+    "PUT settings/rules": async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return { ok: true };
+    },
+  });
+  await expect(page.getByLabel(/Cancel window/)).toHaveValue("30", { timeout: 60_000 });
+
+  await page.getByLabel(/Cancel window/).fill("40");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  const saving = page.locator('button[aria-busy="true"]');
+  await expect(saving).toContainText("Saving...", { timeout: 600 });
+  await expect(saving).toBeDisabled();
+  await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save settings" })).toBeEnabled();
+  expect(fake.requests.filter((r) => r.method === "PUT" && r.path === "/api/seva/settings/rules")).toHaveLength(1);
+});
+
 test("view-only temple admins see the settings without anything to change", async ({ page }) => {
   await open(page, RULES_PAGE, "temple_admin_view_only");
   await expect(page.getByLabel(/Cancel window/)).toHaveValue("30", { timeout: 60_000 });

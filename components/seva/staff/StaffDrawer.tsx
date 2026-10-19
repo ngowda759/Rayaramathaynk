@@ -2,9 +2,11 @@
 
 import { useId, useState, type JSX, type ReactNode } from "react";
 
+import { MotionDialog } from "@/components/seva/motion/MotionDialog";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { sevaErrorMessage } from "@/lib/seva/errors";
 import type { PermissionContext } from "@/lib/seva/permissions";
@@ -299,6 +301,13 @@ export interface StaffDrawerProps {
 
 type Pending = null | "offboard" | "remove";
 
+/** The change whose request is running; its button shows the pending state (plan A4P-4). */
+type Doing = "save" | "reactivate" | "offboard" | "remove";
+
+/** The drawer's place: a full-height sheet on the right (a bottom sheet on a phone), over MotionDialog's frame. */
+const DRAWER_CLASS =
+  "top-0 right-0 left-auto flex h-dvh max-h-dvh w-[min(480px,100%)] translate-x-0 translate-y-0 flex-col gap-5 overflow-y-auto rounded-none sm:rounded-l-[22px] max-sm:h-auto max-sm:max-h-[92dvh]";
+
 const REASON_MIN = 3;
 
 function reasonOk(reason: string): boolean {
@@ -310,10 +319,14 @@ function reasonOk(reason: string): boolean {
  * (deactivate)" and "Delete user", each with a reason. The Active switch of the mockup and Offboard do the same thing,
  * so only Offboard is shown (C-09). Only what the server would accept is offered (`staffRights`).
  */
-export function StaffDrawer({ member, ...rest }: StaffDrawerProps): JSX.Element | null {
-  if (!member) return null;
-  // Keyed so that opening another person starts from that person's values.
-  return <DrawerBody key={member.id} member={member} {...rest} />;
+export function StaffDrawer({ member, ...rest }: StaffDrawerProps): JSX.Element {
+  // MotionDialog springs the drawer in and, when `member` turns null, animates out what it last showed.
+  return (
+    <MotionDialog open={member !== null} onOpenChange={(open) => (open ? undefined : rest.onClose())} className={DRAWER_CLASS}>
+      {/* Keyed so that opening another person starts from that person's values. */}
+      {member ? <DrawerBody key={member.id} member={member} {...rest} /> : null}
+    </MotionDialog>
+  );
 }
 
 function DrawerBody({ member, meStaffId, can, api, onClose, onChanged }: StaffDrawerProps & { member: StaffMember }): JSX.Element {
@@ -322,7 +335,8 @@ function DrawerBody({ member, meStaffId, can, api, onClose, onChanged }: StaffDr
   const [viewOnly, setViewOnly] = useState(member.viewOnly);
   const [pending, setPending] = useState<Pending>(null);
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [doing, setDoing] = useState<Doing | null>(null);
+  const busy = doing !== null;
   const [error, setError] = useState<string | null>(null);
   const [partial, setPartial] = useState<StaffPartialFailure | null>(null);
   const offId = useId();
@@ -336,8 +350,9 @@ function DrawerBody({ member, meStaffId, can, api, onClose, onChanged }: StaffDr
   const anyRoleRight = Object.values(rights.roles).some(Boolean);
   const staffNo = staffNoText(member.staffNo);
 
-  async function run(body: Parameters<StaffApi["update"]>[1], notice: StaffNotice): Promise<void> {
-    setBusy(true);
+  async function run(body: Parameters<StaffApi["update"]>[1], notice: StaffNotice, what: Doing): Promise<void> {
+    if (busy) return;
+    setDoing(what);
     setError(null);
     setPartial(null);
     try {
@@ -353,7 +368,7 @@ function DrawerBody({ member, meStaffId, can, api, onClose, onChanged }: StaffDr
         setError(errorText(err));
       }
     } finally {
-      setBusy(false);
+      setDoing(null);
     }
   }
 
@@ -361,7 +376,7 @@ function DrawerBody({ member, meStaffId, can, api, onClose, onChanged }: StaffDr
     const body: { role?: SevaRole; viewOnly?: boolean } = {};
     if (roleChanged && role) body.role = role;
     if (viewOnlyChanged) body.viewOnly = viewOnly;
-    void run(body, { title: STAFF_TEXT.saved(member.fullName) });
+    void run(body, { title: STAFF_TEXT.saved(member.fullName) }, "save");
   }
 
   function choose(next: Pending): void {
@@ -370,179 +385,187 @@ function DrawerBody({ member, meStaffId, can, api, onClose, onChanged }: StaffDr
   }
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent
-        variant="seva"
-        className="top-0 right-0 left-auto flex h-dvh max-h-dvh w-[min(480px,100%)] translate-x-0 translate-y-0 flex-col gap-5 overflow-y-auto rounded-none sm:rounded-l-[22px] max-sm:h-auto max-sm:max-h-[92dvh]"
-      >
-        <div className="flex items-start gap-4 pr-12">
-          <span
-            aria-hidden="true"
-            className="grid size-11 shrink-0 place-items-center rounded-full bg-(--primary-soft) text-(length:--text-meta) font-semibold"
-          >
-            {initials(member.fullName)}
-          </span>
-          <div className="min-w-0">
-            <DialogTitle variant="seva" className="pr-0">
-              {member.fullName}
-            </DialogTitle>
-            <DialogDescription className="text-(length:--text-meta) text-(--muted-foreground)">
-              {STAFF_TEXT.staffNoLine(staffNo, member.email)}
-            </DialogDescription>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <StatusBadge status={member.status} />
-              {member.viewOnly && member.role === "temple_admin" ? <ViewOnlyBadge /> : null}
-            </div>
+    <>
+      <div className="flex items-start gap-4 pr-12">
+        <span
+          aria-hidden="true"
+          className="grid size-11 shrink-0 place-items-center rounded-full bg-(--primary-soft) text-(length:--text-meta) font-semibold"
+        >
+          {initials(member.fullName)}
+        </span>
+        <div className="min-w-0">
+          <DialogTitle variant="seva" className="pr-0">
+            {member.fullName}
+          </DialogTitle>
+          <DialogDescription className="text-(length:--text-meta) text-(--muted-foreground)">
+            {STAFF_TEXT.staffNoLine(staffNo, member.email)}
+          </DialogDescription>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <StatusBadge status={member.status} />
+            {member.viewOnly && member.role === "temple_admin" ? <ViewOnlyBadge /> : null}
           </div>
         </div>
+      </div>
 
-        {rights.self ? <p className="text-(--muted-foreground)">{STAFF_TEXT.selfNote}</p> : null}
-        {member.status === "deleted" ? <p className="text-(--muted-foreground)">{STAFF_TEXT.deletedNote}</p> : null}
+      {rights.self ? <p className="text-(--muted-foreground)">{STAFF_TEXT.selfNote}</p> : null}
+      {member.status === "deleted" ? <p className="text-(--muted-foreground)">{STAFF_TEXT.deletedNote}</p> : null}
 
-        {!rights.self && member.status !== "deleted" ? (
-          <>
-            <div className="flex flex-col gap-2">
-              <RolePicker name={STAFF_TEXT.role.en} value={role} allowed={rights.roles} onChange={setRole} withHints />
-              {!can("staff.grant_super_admin") && anyRoleRight ? (
-                <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superAdminRoleNote}</p>
-              ) : null}
-              {!anyRoleRight ? (
-                <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.roleReadOnly}</p>
-              ) : null}
+      {!rights.self && member.status !== "deleted" ? (
+        <>
+          <div className="flex flex-col gap-2">
+            <RolePicker name={STAFF_TEXT.role.en} value={role} allowed={rights.roles} onChange={setRole} withHints />
+            {!can("staff.grant_super_admin") && anyRoleRight ? (
+              <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superAdminRoleNote}</p>
+            ) : null}
+            {!anyRoleRight ? (
+              <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.roleReadOnly}</p>
+            ) : null}
+          </div>
+
+          <ViewOnlyRow
+            checked={viewOnlyValue}
+            disabled={!rights.viewOnly || !viewOnlyApplies || busy}
+            hint={viewOnlyApplies ? STAFF_TEXT.viewOnlyDrawerHint : STAFF_TEXT.viewOnlyTempleAdminsOnly}
+            onChange={setViewOnly}
+          />
+
+          {anyRoleRight || rights.viewOnly ? (
+            <div className="flex flex-wrap gap-2">
+              <PendingButton
+                disabled={busy || (!roleChanged && !viewOnlyChanged)}
+                pending={doing === "save"}
+                pendingLabel={STAFF_TEXT.saving}
+                onClick={save}
+              >
+                {STAFF_TEXT.save}
+              </PendingButton>
+              <Button variant="seva-ghost" onClick={onClose} disabled={busy}>
+                {STAFF_TEXT.cancel}
+              </Button>
             </div>
+          ) : null}
 
-            <ViewOnlyRow
-              checked={viewOnlyValue}
-              disabled={!rights.viewOnly || !viewOnlyApplies || busy}
-              hint={viewOnlyApplies ? STAFF_TEXT.viewOnlyDrawerHint : STAFF_TEXT.viewOnlyTempleAdminsOnly}
-              onChange={setViewOnly}
-            />
+          <StatusSection
+            member={member}
+            rights={rights}
+            reactivateNeedsSuper={
+              member.status === "inactive" && member.role === "super_admin" && can("staff.reactivate") && !rights.reactivate
+            }
+            busy={busy}
+            pending={doing === "reactivate"}
+            onReactivate={() =>
+              void run(
+                { status: "active" },
+                { title: STAFF_TEXT.reactivated(member.fullName), hint: STAFF_TEXT.reactivatedHint(staffNo) },
+                "reactivate",
+              )
+            }
+          />
+        </>
+      ) : null}
 
-            {anyRoleRight || rights.viewOnly ? (
+      {error ? (
+        <p role="alert" className="rounded-(--radius-control) bg-(--destructive-soft) p-3 text-(--destructive)">
+          {error}
+        </p>
+      ) : null}
+      {partial ? <PartialFailureNotice done={partial.done} failed={partial.failed} partly={partial.partly} /> : null}
+
+      {rights.offboard || rights.remove ? (
+        <section
+          aria-labelledby={`${offId}-title`}
+          className="flex flex-col gap-4 rounded-2xl border border-[color-mix(in_oklab,var(--destructive)_28%,transparent)] p-5"
+        >
+          <div>
+            <h3 id={`${offId}-title`} className="font-semibold">
+              {STAFF_TEXT.superActionsTitle}
+            </h3>
+            <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superActionsHint}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {rights.offboard ? (
+              <Button variant="seva-secondary" size="sm" aria-expanded={pending === "offboard"} onClick={() => choose("offboard")}>
+                {STAFF_TEXT.offboard}
+              </Button>
+            ) : null}
+            {rights.remove && pending !== "remove" ? (
+              <Button variant="seva-secondary" size="sm" aria-expanded={false} onClick={() => choose("remove")}>
+                {STAFF_TEXT.remove}
+              </Button>
+            ) : null}
+          </div>
+
+          {pending === "offboard" ? (
+            <div role="group" aria-label={STAFF_TEXT.offboard} className="flex flex-col gap-3">
+              <ReasonField
+                id={offId}
+                label={STAFF_TEXT.offboardReason(member.fullName)}
+                placeholder={STAFF_TEXT.offboardPlaceholder}
+                hint={STAFF_TEXT.offboardHint(staffNo)}
+                value={reason}
+                onChange={setReason}
+              />
               <div className="flex flex-wrap gap-2">
-                <Button variant="seva-primary" disabled={busy || (!roleChanged && !viewOnlyChanged)} aria-busy={busy} onClick={save}>
-                  {busy ? STAFF_TEXT.saving : STAFF_TEXT.save}
-                </Button>
-                <Button variant="seva-ghost" onClick={onClose} disabled={busy}>
+                <PendingButton
+                  variant="seva-danger"
+                  size="sm"
+                  disabled={busy || !reasonOk(reason)}
+                  pending={doing === "offboard"}
+                  pendingLabel={STAFF_TEXT.saving}
+                  onClick={() =>
+                    void run(
+                      { status: "inactive", reason: reason.trim() },
+                      { title: STAFF_TEXT.offboarded(member.fullName) },
+                      "offboard",
+                    )
+                  }
+                >
+                  {STAFF_TEXT.offboardConfirm(member.fullName)}
+                </PendingButton>
+                <Button variant="seva-ghost" size="sm" onClick={() => choose(null)} disabled={busy}>
                   {STAFF_TEXT.cancel}
                 </Button>
               </div>
-            ) : null}
-
-            <StatusSection
-              member={member}
-              rights={rights}
-              reactivateNeedsSuper={
-                member.status === "inactive" && member.role === "super_admin" && can("staff.reactivate") && !rights.reactivate
-              }
-              busy={busy}
-              onReactivate={() =>
-                void run(
-                  { status: "active" },
-                  { title: STAFF_TEXT.reactivated(member.fullName), hint: STAFF_TEXT.reactivatedHint(staffNo) },
-                )
-              }
-            />
-          </>
-        ) : null}
-
-        {error ? (
-          <p role="alert" className="rounded-(--radius-control) bg-(--destructive-soft) p-3 text-(--destructive)">
-            {error}
-          </p>
-        ) : null}
-        {partial ? <PartialFailureNotice done={partial.done} failed={partial.failed} partly={partial.partly} /> : null}
-
-        {rights.offboard || rights.remove ? (
-          <section
-            aria-labelledby={`${offId}-title`}
-            className="flex flex-col gap-4 rounded-2xl border border-[color-mix(in_oklab,var(--destructive)_28%,transparent)] p-5"
-          >
-            <div>
-              <h3 id={`${offId}-title`} className="font-semibold">
-                {STAFF_TEXT.superActionsTitle}
-              </h3>
-              <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superActionsHint}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {rights.offboard ? (
-                <Button variant="seva-secondary" size="sm" aria-expanded={pending === "offboard"} onClick={() => choose("offboard")}>
-                  {STAFF_TEXT.offboard}
+          ) : null}
+
+          {pending === "remove" ? (
+            <div role="group" aria-label={STAFF_TEXT.remove} className="flex flex-col gap-3">
+              <div role="note" className="rounded-(--radius-control) bg-(--destructive-soft) p-3">
+                <strong>{STAFF_TEXT.removeWarnTitle}</strong>
+                <p className="text-(length:--text-meta)">{STAFF_TEXT.removeWarn}</p>
+              </div>
+              <ReasonField
+                id={delId}
+                label={STAFF_TEXT.removeReason}
+                placeholder={STAFF_TEXT.removePlaceholder}
+                value={reason}
+                onChange={setReason}
+              />
+              <div className="flex flex-wrap gap-2">
+                <PendingButton
+                  variant="seva-danger"
+                  size="sm"
+                  disabled={busy || !reasonOk(reason)}
+                  pending={doing === "remove"}
+                  pendingLabel={STAFF_TEXT.saving}
+                  onClick={() =>
+                    void run({ status: "deleted", reason: reason.trim() }, { title: STAFF_TEXT.removed(member.fullName) }, "remove")
+                  }
+                >
+                  {STAFF_TEXT.removeConfirm}
+                </PendingButton>
+                <Button variant="seva-ghost" size="sm" onClick={() => choose(null)} disabled={busy}>
+                  {STAFF_TEXT.cancel}
                 </Button>
-              ) : null}
-              {rights.remove && pending !== "remove" ? (
-                <Button variant="seva-secondary" size="sm" aria-expanded={false} onClick={() => choose("remove")}>
-                  {STAFF_TEXT.remove}
-                </Button>
-              ) : null}
+              </div>
             </div>
-
-            {pending === "offboard" ? (
-              <div role="group" aria-label={STAFF_TEXT.offboard} className="flex flex-col gap-3">
-                <ReasonField
-                  id={offId}
-                  label={STAFF_TEXT.offboardReason(member.fullName)}
-                  placeholder={STAFF_TEXT.offboardPlaceholder}
-                  hint={STAFF_TEXT.offboardHint(staffNo)}
-                  value={reason}
-                  onChange={setReason}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="seva-danger"
-                    size="sm"
-                    disabled={busy || !reasonOk(reason)}
-                    aria-busy={busy}
-                    onClick={() =>
-                      void run({ status: "inactive", reason: reason.trim() }, { title: STAFF_TEXT.offboarded(member.fullName) })
-                    }
-                  >
-                    {STAFF_TEXT.offboardConfirm(member.fullName)}
-                  </Button>
-                  <Button variant="seva-ghost" size="sm" onClick={() => choose(null)} disabled={busy}>
-                    {STAFF_TEXT.cancel}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {pending === "remove" ? (
-              <div role="group" aria-label={STAFF_TEXT.remove} className="flex flex-col gap-3">
-                <div role="note" className="rounded-(--radius-control) bg-(--destructive-soft) p-3">
-                  <strong>{STAFF_TEXT.removeWarnTitle}</strong>
-                  <p className="text-(length:--text-meta)">{STAFF_TEXT.removeWarn}</p>
-                </div>
-                <ReasonField
-                  id={delId}
-                  label={STAFF_TEXT.removeReason}
-                  placeholder={STAFF_TEXT.removePlaceholder}
-                  value={reason}
-                  onChange={setReason}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="seva-danger"
-                    size="sm"
-                    disabled={busy || !reasonOk(reason)}
-                    aria-busy={busy}
-                    onClick={() =>
-                      void run({ status: "deleted", reason: reason.trim() }, { title: STAFF_TEXT.removed(member.fullName) })
-                    }
-                  >
-                    {STAFF_TEXT.removeConfirm}
-                  </Button>
-                  <Button variant="seva-ghost" size="sm" onClick={() => choose(null)} disabled={busy}>
-                    {STAFF_TEXT.cancel}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        ) : !rights.self && member.status !== "deleted" ? (
-          <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superActionsByOthers}</p>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+          ) : null}
+        </section>
+      ) : !rights.self && member.status !== "deleted" ? (
+        <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.superActionsByOthers}</p>
+      ) : null}
+    </>
   );
 }
 
@@ -551,13 +574,17 @@ function StatusSection({
   rights,
   reactivateNeedsSuper,
   busy,
+  pending,
   onReactivate,
 }: {
   member: StaffMember;
   rights: StaffRights;
   /** Allowed to reactivate others, but this person is a super admin (needs staff.grant_super_admin). */
   reactivateNeedsSuper: boolean;
+  /** Some change is running. */
   busy: boolean;
+  /** The running change is this Reactivate. */
+  pending: boolean;
   onReactivate(): void;
 }): JSX.Element | null {
   if (member.status === "invited") {
@@ -568,9 +595,9 @@ function StatusSection({
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border) pt-4">
       <p className="text-(--muted-foreground)">{STAFF_TEXT.inactiveNote}</p>
       {rights.reactivate ? (
-        <Button variant="seva-secondary" size="sm" disabled={busy} aria-busy={busy} onClick={onReactivate}>
+        <PendingButton variant="seva-secondary" size="sm" disabled={busy} pending={pending} pendingLabel={STAFF_TEXT.saving} onClick={onReactivate}>
           {STAFF_TEXT.reactivate.en}
-        </Button>
+        </PendingButton>
       ) : reactivateNeedsSuper ? (
         <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.reactivateSuperAdminNote}</p>
       ) : null}

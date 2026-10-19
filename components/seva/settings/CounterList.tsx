@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent, type JSX } from "react";
+import { AnimatePresence, m } from "framer-motion";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
+import { enterVariants } from "@/lib/seva/motion";
 import { fromPaise, toPaise } from "@/lib/seva/money";
 import { parseReceiptNo } from "@/lib/seva/numbering";
 import type { Bi } from "@/lib/seva/strings/common";
@@ -126,9 +129,9 @@ function OpeningFloat({
         className="w-full max-w-[16rem]"
       />
       {canEdit ? (
-        <Button type="submit" variant="seva-secondary" disabled={busy}>
+        <PendingButton type="submit" variant="seva-secondary" pending={busy} pendingLabel={RS.saving.en}>
           {RS.saveFloat.en}
-        </Button>
+        </PendingButton>
       ) : null}
       {result ? (
         <div className="w-full">
@@ -190,9 +193,9 @@ function AddCounter({ nextNo, add }: { nextNo: number; add(input: { name: string
       </div>
       {error ? <Notice kind="error" text={error} /> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="seva-primary" size="sm" disabled={busy}>
+        <PendingButton type="submit" size="sm" pending={busy} pendingLabel={RS.saving.en}>
           {label.en}
-        </Button>
+        </PendingButton>
         <Button type="button" variant="seva-ghost" size="sm" disabled={busy} onClick={() => setOpen(false)}>
           {RS.addCounterCancel.en}
         </Button>
@@ -280,61 +283,72 @@ export function CounterList({ api, canEdit, canRegister, thisPcCounterId, year, 
       {notice ? <Notice kind="ok" text={notice} /> : null}
       {load.counters.length === 0 ? <Bilingual as="div" en={RS.noCounters.en} kn={RS.noCounters.kn} className="meta" /> : null}
       <ul className="m-0 flex list-none flex-col p-0">
-        {load.counters.map((c) => {
-          const lastC = c.onlineSeries ? load.last.get(c.onlineSeries) ?? null : null;
-          const lastOf = c.offlineSeries ? load.last.get(c.offlineSeries) ?? null : null;
-          const lastOfNo = lastOf ? parseReceiptNo(lastOf)?.running ?? null : load.last.size > 0 ? 0 : null;
-          const isThisPc = thisPc === c.id;
-          const otherLine =
-            thisPc !== null && !isThisPc
-              ? alreadyOtherCounter(load.counters.find((x) => x.id === thisPc)?.name ?? `Counter ${thisPc}`)
-              : null;
-          return (
-            <li key={c.id} data-counter={c.id} className="flex flex-col gap-3 border-t border-(--border) py-4 first:border-t-0 first:pt-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong>{c.name}</strong>
-                {c.place ? <span className="meta">{`· ${c.place}`}</span> : null}
-                {isThisPc ? (
-                  <span className="rounded-(--radius-pill) bg-(--ok-soft) px-2.5 py-0.5 text-(length:--text-meta) font-semibold">
-                    {RS.thisPc.en}
-                    <span className="kn inline" lang="kn">{` ${RS.thisPc.kn}`}</span>
-                  </span>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <SeriesBadge label={RS.counterOnline} series={c.onlineSeries} />
-                <SeriesBadge label={RS.counterOffline} series={c.offlineSeries} />
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <Bilingual en={RS.lastNumbers.en} kn={RS.lastNumbers.kn} className="meta" />
-                {lastC || lastOf ? (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-(length:--text-ui) tabular-nums">
-                    {lastC ? <span>{lastC}</span> : null}
-                    {lastOf ? <span>{lastOf}</span> : null}
+        {/* A counter added here springs in; the ones there on arrival do not move (plan A4P-4). */}
+        <AnimatePresence initial={false}>
+          {load.counters.map((c) => {
+            const lastC = c.onlineSeries ? load.last.get(c.onlineSeries) ?? null : null;
+            const lastOf = c.offlineSeries ? load.last.get(c.offlineSeries) ?? null : null;
+            const lastOfNo = lastOf ? parseReceiptNo(lastOf)?.running ?? null : load.last.size > 0 ? 0 : null;
+            const isThisPc = thisPc === c.id;
+            const otherLine =
+              thisPc !== null && !isThisPc
+                ? alreadyOtherCounter(load.counters.find((x) => x.id === thisPc)?.name ?? `Counter ${thisPc}`)
+                : null;
+            return (
+              <m.li
+                key={c.id}
+                data-counter={c.id}
+                variants={enterVariants}
+                initial="hidden"
+                animate="shown"
+                exit="hidden"
+                className="flex flex-col gap-3 border-t border-(--border) py-4 first:border-t-0 first:pt-0"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>{c.name}</strong>
+                  {c.place ? <span className="meta">{`· ${c.place}`}</span> : null}
+                  {isThisPc ? (
+                    <span className="rounded-(--radius-pill) bg-(--ok-soft) px-2.5 py-0.5 text-(length:--text-meta) font-semibold">
+                      {RS.thisPc.en}
+                      <span className="kn inline" lang="kn">{` ${RS.thisPc.kn}`}</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <SeriesBadge label={RS.counterOnline} series={c.onlineSeries} />
+                  <SeriesBadge label={RS.counterOffline} series={c.offlineSeries} />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <Bilingual en={RS.lastNumbers.en} kn={RS.lastNumbers.kn} className="meta" />
+                  {lastC || lastOf ? (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-(length:--text-ui) tabular-nums">
+                      {lastC ? <span>{lastC}</span> : null}
+                      {lastOf ? <span>{lastOf}</span> : null}
+                    </div>
+                  ) : (
+                    <Bilingual en={RS.noNumbersYet.en} kn={RS.noNumbersYet.kn} className="meta" />
+                  )}
+                </div>
+                <OpeningFloat counter={c} canEdit={canEdit} save={(paise) => api.updateCounter(c.id, { openingFloatPaise: paise })} />
+                {/* A PC is one counter (A4 security L-1). A PC that is not a counter yet may register as any counter or take
+                    one over; a PC that is already a counter is offered only Replace, for that same counter (a new key), and
+                    nothing on the other rows, so its key and its unsent receipts are never orphaned by a second counter. */}
+                {canRegister && thisPc === null ? (
+                  <div className="flex flex-wrap items-start gap-2">
+                    <RegisterThisPc counter={c} register={api.registerDevice} onRegistered={becameThisPc} />
+                    <ReplaceThisPc counter={c} lastOfNo={lastOfNo} year={year} replace={api.replaceDevice} onReplaced={becameThisPc} />
                   </div>
-                ) : (
-                  <Bilingual en={RS.noNumbersYet.en} kn={RS.noNumbersYet.kn} className="meta" />
-                )}
-              </div>
-              <OpeningFloat counter={c} canEdit={canEdit} save={(paise) => api.updateCounter(c.id, { openingFloatPaise: paise })} />
-              {/* A PC is one counter (A4 security L-1). A PC that is not a counter yet may register as any counter or take
-                  one over; a PC that is already a counter is offered only Replace, for that same counter (a new key), and
-                  nothing on the other rows, so its key and its unsent receipts are never orphaned by a second counter. */}
-              {canRegister && thisPc === null ? (
-                <div className="flex flex-wrap items-start gap-2">
-                  <RegisterThisPc counter={c} register={api.registerDevice} onRegistered={becameThisPc} />
-                  <ReplaceThisPc counter={c} lastOfNo={lastOfNo} year={year} replace={api.replaceDevice} onReplaced={becameThisPc} />
-                </div>
-              ) : null}
-              {canRegister && isThisPc ? (
-                <div className="flex flex-wrap items-start gap-2">
-                  <ReplaceThisPc counter={c} lastOfNo={lastOfNo} year={year} replace={api.replaceDevice} onReplaced={becameThisPc} />
-                </div>
-              ) : null}
-              {canRegister && otherLine ? <Bilingual as="div" en={otherLine.en} kn={otherLine.kn} className="meta" /> : null}
-            </li>
-          );
-        })}
+                ) : null}
+                {canRegister && isThisPc ? (
+                  <div className="flex flex-wrap items-start gap-2">
+                    <ReplaceThisPc counter={c} lastOfNo={lastOfNo} year={year} replace={api.replaceDevice} onReplaced={becameThisPc} />
+                  </div>
+                ) : null}
+                {canRegister && otherLine ? <Bilingual as="div" en={otherLine.en} kn={otherLine.kn} className="meta" /> : null}
+              </m.li>
+            );
+          })}
+        </AnimatePresence>
       </ul>
     </SettingsCard>
   );

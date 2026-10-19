@@ -1,8 +1,10 @@
 "use client";
 
 import { useId, useState, type JSX } from "react";
+import { AnimatePresence, m } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip, type ChipTone } from "@/components/seva/ui/Chip";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,9 @@ import { SETTINGS_TEXT as T } from "@/lib/seva/strings/settings";
 import { formatSevaDate } from "@/lib/seva/time";
 import { cn } from "@/lib/utils";
 import type { FestivalItem } from "@/types/seva-settings";
+
+import { LIST_ROW } from "./listMotion";
+import { SavedLine } from "./ReceiptSettingsFields";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAY_HEAD = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -268,9 +273,11 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
         ) : null}
       </div>
       {savedNote ? (
-        <p role="status" className="text-(--ok)">
-          {T.festivalSaved}
-        </p>
+        <SavedLine>
+          <p role="status" className="text-(--ok)">
+            {T.festivalSaved}
+          </p>
+        </SavedLine>
       ) : null}
 
       <div className={cn("grid grid-cols-1 gap-5", editing && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")}>
@@ -294,12 +301,14 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
                       {T.festivalsEmpty}
                     </td>
                   </tr>
-                ) : (
-                  sorted.map((f) => {
+                ) : null}
+                <AnimatePresence initial={false}>
+                  {sorted.map((f) => {
                     const status = festivalStatus(f, today);
                     return (
-                      <tr
+                      <m.tr
                         key={f.id}
+                        {...LIST_ROW}
                         data-testid={`festival-row-${f.id}`}
                         className={cn(
                           "border-b border-(--border) last:border-b-0",
@@ -321,10 +330,10 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
                             {editable ? T.edit : T.view}
                           </Button>
                         </td>
-                      </tr>
+                      </m.tr>
                     );
-                  })
-                )}
+                  })}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>
@@ -425,22 +434,28 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
                 {T.datesPicked(draft.dates.length)}
               </span>
               <div className="flex flex-wrap gap-2">
-                {draft.dates.map((date) => (
-                  <span key={date} className="inline-flex items-center gap-1 rounded-full bg-(--secondary) py-1 pr-1 pl-3 text-(length:--text-meta)">
-                    {formatSevaDate(date)}
-                    {editable ? (
-                      <button
-                        type="button"
-                        aria-label={T.removeDate(formatSevaDate(date))}
-                        disabled={disabled}
-                        onClick={() => toggleDate(date)}
-                        className="rounded-full p-1 hover:bg-(--card)"
-                      >
-                        <X aria-hidden="true" className="size-3" />
-                      </button>
-                    ) : null}
-                  </span>
-                ))}
+                <AnimatePresence initial={false}>
+                  {draft.dates.map((date) => (
+                    <m.span
+                      key={date}
+                      {...LIST_ROW}
+                      className="inline-flex items-center gap-1 rounded-full bg-(--secondary) py-1 pr-1 pl-3 text-(length:--text-meta)"
+                    >
+                      {formatSevaDate(date)}
+                      {editable ? (
+                        <button
+                          type="button"
+                          aria-label={T.removeDate(formatSevaDate(date))}
+                          disabled={disabled}
+                          onClick={() => toggleDate(date)}
+                          className="rounded-full p-1 hover:bg-(--card)"
+                        >
+                          <X aria-hidden="true" className="size-3" />
+                        </button>
+                      ) : null}
+                    </m.span>
+                  ))}
+                </AnimatePresence>
               </div>
             </div>
 
@@ -476,9 +491,9 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
 
             <div className="flex flex-wrap gap-2">
               {editable ? (
-                <Button type="submit" variant="seva-primary" disabled={busy} aria-busy={busy}>
-                  {busy ? T.saving : T.save}
-                </Button>
+                <PendingButton type="submit" pending={busy} pendingLabel={T.saving}>
+                  {T.save}
+                </PendingButton>
               ) : null}
               <Button type="button" variant="seva-ghost" onClick={() => setEditing(null)}>
                 {editable ? T.cancel : T.close}

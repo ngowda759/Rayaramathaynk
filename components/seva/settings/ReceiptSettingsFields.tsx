@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from "react";
 
+import { Reveal } from "@/components/seva/motion/Reveal";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { sevaControlClass } from "@/components/ui/input";
 import type { Bi } from "@/lib/seva/strings/common";
@@ -117,18 +118,25 @@ export function TextField({
   );
 }
 
-/** A result line: a status for success, an alert for a failure. */
+/** A result line: a status for success (it pops in, plan A4P-4), an alert for a failure (shown at once). */
 export function Notice({ kind, text }: { kind: "ok" | "error"; text: Bi | string }): JSX.Element {
   const bi = typeof text === "string" ? { en: text, kn: "" } : text;
   return kind === "ok" ? (
-    <div role="status" aria-live="polite" className="text-(length:--text-meta) font-semibold text-(--ok)">
-      <Bilingual en={bi.en} kn={bi.kn} />
-    </div>
+    <SavedLine>
+      <div role="status" aria-live="polite" className="text-(length:--text-meta) font-semibold text-(--ok)">
+        <Bilingual en={bi.en} kn={bi.kn} />
+      </div>
+    </SavedLine>
   ) : (
     <div role="alert" className="text-(length:--text-meta) font-semibold text-(--destructive)">
       <Bilingual en={bi.en} kn={bi.kn} />
     </div>
   );
+}
+
+/** The short success line after a save: it pops in with the module spring (plan A4P-4). */
+export function SavedLine({ children }: { children: ReactNode }): JSX.Element {
+  return <Reveal data-testid="saved-line">{children}</Reveal>;
 }
 
 /** The API's plain message when there is one, else the page's own fallback. */

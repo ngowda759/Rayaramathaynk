@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type JSX } from "react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { openSevaDb } from "@/lib/seva/offline/db";
@@ -147,9 +148,9 @@ export function RegisterThisPc({ counter, register, onRegistered }: RegisterThis
       />
       {phase.kind === "error" ? <Notice kind="error" text={phase.message} /> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="seva-primary" size="sm" disabled={busy}>
-          {busy ? RS.registering.en : RS.registerConfirm.en}
-        </Button>
+        <PendingButton type="submit" size="sm" pending={busy} pendingLabel={RS.registering.en}>
+          {RS.registerConfirm.en}
+        </PendingButton>
         <Button type="button" variant="seva-ghost" size="sm" disabled={busy} onClick={() => setPhase({ kind: "closed" })}>
           {RS.cancel.en}
         </Button>

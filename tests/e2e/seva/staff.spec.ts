@@ -149,3 +149,26 @@ test("a partial failure names the step that failed", async ({ page }) => {
   await expect(alert).toContainText("Done: Sign-in account (login and role)");
   await expect(alert).toContainText("Failed at: Staff record");
 });
+
+test("a slow drawer save shows Saving..., then the drawer animates away and the notice pops in", async ({ page }) => {
+  const { fake } = await openStaffPage(page, "super_admin");
+  // The office takes 800 ms to answer (plan A4P-4).
+  fake.extend({
+    "PUT staff/:id": async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return { ok: true };
+    },
+  });
+
+  await page.getByRole("button", { name: "Open Ramesh K" }).click();
+  const drawer = page.getByRole("dialog");
+  await drawer.locator("label").filter({ hasText: "Prasadam counter" }).click();
+  await drawer.getByRole("button", { name: "Save" }).click();
+  const saving = drawer.locator('button[aria-busy="true"]');
+  await expect(saving).toContainText("Saving...", { timeout: 600 });
+  await expect(saving).toBeDisabled();
+
+  await expect(page.getByRole("status").filter({ hasText: "Ramesh K is updated" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(fake.requests.filter((r) => r.method === "PUT" && r.path.startsWith("/api/seva/staff/"))).toHaveLength(1);
+});

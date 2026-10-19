@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type DragEvent, type JSX } from "react";
+import { AnimatePresence, m } from "framer-motion";
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 
 import { Bilingual } from "@/components/seva/ui/Bilingual";
@@ -10,6 +11,8 @@ import { formatRupees } from "@/lib/seva/money";
 import { SETTINGS_TEXT as T, VISIBILITY_CELL } from "@/lib/seva/strings/settings";
 import { cn } from "@/lib/utils";
 import type { CatalogueSeva } from "@/types/seva";
+
+import { LIST_ROW } from "./listMotion";
 
 export interface SevaTableProps {
   /** In counter-key order. */
@@ -92,95 +95,101 @@ export function SevaTable({ sevas, editable, busy, onEdit, onReorder, onToggleAc
             </tr>
           </thead>
           <tbody>
-            {sevas.map((seva, index) => (
-              <tr
-                key={seva.id}
-                data-testid={`seva-row-${seva.id}`}
-                draggable={canMove}
-                onDragStart={(e) => onDragStart(e, index)}
-                onDragOver={(e) => {
-                  if (!canMove) return;
-                  e.preventDefault();
-                  setOver(index);
-                }}
-                onDragLeave={() => setOver((o) => (o === index ? null : o))}
-                onDragEnd={() => {
-                  setDragging(null);
-                  setOver(null);
-                }}
-                onDrop={(e) => onDrop(e, index)}
-                className={cn(
-                  "border-b border-(--border) last:border-b-0",
-                  !seva.active && "text-(--muted-foreground)",
-                  over === index && dragging !== index && "bg-(--primary-soft)",
-                )}
-              >
-                <td className={TD}>
-                  <div className="flex items-center gap-1">
-                    {editable ? (
-                      <span
-                        aria-label={T.dragHandle(seva.nameEn)}
-                        title={T.dragHint}
-                        className={cn("text-(--muted-foreground)", canMove && "cursor-grab")}
-                        data-testid={`seva-handle-${seva.id}`}
-                      >
-                        <GripVertical aria-hidden="true" className="size-4" />
-                      </span>
-                    ) : null}
-                    <span className="min-w-6 font-semibold tabular-nums" data-testid={`seva-key-${seva.id}`}>
-                      {seva.key}
-                    </span>
-                    {editable ? (
-                      <span className="flex flex-col">
-                        <button
-                          type="button"
-                          aria-label={T.moveUp(seva.nameEn)}
-                          disabled={!canMove || index === 0}
-                          onClick={() => move(index, index - 1)}
-                          className="rounded p-0.5 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
+            {/* A reordered row slides to its new key; an added seva springs in (plan A4P-4). The native drag start
+                and end go on the capture listeners: motion components keep onDragStart / onDragEnd for their own
+                drag gesture and would not pass them to the row. */}
+            <AnimatePresence initial={false}>
+              {sevas.map((seva, index) => (
+                <m.tr
+                  key={seva.id}
+                  {...LIST_ROW}
+                  data-testid={`seva-row-${seva.id}`}
+                  draggable={canMove}
+                  onDragStartCapture={(e) => onDragStart(e, index)}
+                  onDragOver={(e) => {
+                    if (!canMove) return;
+                    e.preventDefault();
+                    setOver(index);
+                  }}
+                  onDragLeave={() => setOver((o) => (o === index ? null : o))}
+                  onDragEndCapture={() => {
+                    setDragging(null);
+                    setOver(null);
+                  }}
+                  onDrop={(e) => onDrop(e, index)}
+                  className={cn(
+                    "border-b border-(--border) last:border-b-0",
+                    !seva.active && "text-(--muted-foreground)",
+                    over === index && dragging !== index && "bg-(--primary-soft)",
+                  )}
+                >
+                  <td className={TD}>
+                    <div className="flex items-center gap-1">
+                      {editable ? (
+                        <span
+                          aria-label={T.dragHandle(seva.nameEn)}
+                          title={T.dragHint}
+                          className={cn("text-(--muted-foreground)", canMove && "cursor-grab")}
+                          data-testid={`seva-handle-${seva.id}`}
                         >
-                          <ArrowUp aria-hidden="true" className="size-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={T.moveDown(seva.nameEn)}
-                          disabled={!canMove || index === sevas.length - 1}
-                          onClick={() => move(index, index + 1)}
-                          className="rounded p-0.5 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
-                        >
-                          <ArrowDown aria-hidden="true" className="size-3.5" />
-                        </button>
+                          <GripVertical aria-hidden="true" className="size-4" />
+                        </span>
+                      ) : null}
+                      <span className="min-w-6 font-semibold tabular-nums" data-testid={`seva-key-${seva.id}`}>
+                        {seva.key}
                       </span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className={cn(TD, "font-semibold")}>{seva.code ?? ""}</td>
-                <td className={TD}>
-                  <Bilingual en={seva.nameEn} kn={seva.nameKn} className="font-semibold" />
-                </td>
-                <td className={cn(TD, "text-right tabular-nums")}>{rateCell(seva)}</td>
-                <td className={cn(TD, "whitespace-nowrap")}>{VISIBILITY_CELL[seva.visibility]}</td>
-                <td className={TD}>{seva.multiDate ? T.yes : T.no}</td>
-                <td className={cn(TD, "text-(length:--text-meta) text-(--muted-foreground)")}>
-                  {seva.prasadamGiven ? (seva.prasadamItems ?? T.yes) : T.none}
-                </td>
-                <td className={TD}>
-                  <Switch
-                    variant="seva"
-                    aria-label={T.activeSwitch(seva.nameEn)}
-                    checked={seva.active}
-                    disabled={!editable || busy}
-                    aria-disabled={!editable || busy}
-                    onCheckedChange={(next) => onToggleActive(seva, next)}
-                  />
-                </td>
-                <td className={cn(TD, "text-right")}>
-                  <Button variant="seva-ghost" size="sm" onClick={() => onEdit(seva)} aria-label={`${editable ? T.edit : T.view} ${seva.nameEn}`}>
-                    {editable ? T.edit : T.view}
-                  </Button>
-                </td>
-              </tr>
-            ))}
+                      {editable ? (
+                        <span className="flex flex-col">
+                          <button
+                            type="button"
+                            aria-label={T.moveUp(seva.nameEn)}
+                            disabled={!canMove || index === 0}
+                            onClick={() => move(index, index - 1)}
+                            className="rounded p-0.5 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
+                          >
+                            <ArrowUp aria-hidden="true" className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={T.moveDown(seva.nameEn)}
+                            disabled={!canMove || index === sevas.length - 1}
+                            onClick={() => move(index, index + 1)}
+                            className="rounded p-0.5 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
+                          >
+                            <ArrowDown aria-hidden="true" className="size-3.5" />
+                          </button>
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className={cn(TD, "font-semibold")}>{seva.code ?? ""}</td>
+                  <td className={TD}>
+                    <Bilingual en={seva.nameEn} kn={seva.nameKn} className="font-semibold" />
+                  </td>
+                  <td className={cn(TD, "text-right tabular-nums")}>{rateCell(seva)}</td>
+                  <td className={cn(TD, "whitespace-nowrap")}>{VISIBILITY_CELL[seva.visibility]}</td>
+                  <td className={TD}>{seva.multiDate ? T.yes : T.no}</td>
+                  <td className={cn(TD, "text-(length:--text-meta) text-(--muted-foreground)")}>
+                    {seva.prasadamGiven ? (seva.prasadamItems ?? T.yes) : T.none}
+                  </td>
+                  <td className={TD}>
+                    <Switch
+                      variant="seva"
+                      aria-label={T.activeSwitch(seva.nameEn)}
+                      checked={seva.active}
+                      disabled={!editable || busy}
+                      aria-disabled={!editable || busy}
+                      onCheckedChange={(next) => onToggleActive(seva, next)}
+                    />
+                  </td>
+                  <td className={cn(TD, "text-right")}>
+                    <Button variant="seva-ghost" size="sm" onClick={() => onEdit(seva)} aria-label={`${editable ? T.edit : T.view} ${seva.nameEn}`}>
+                      {editable ? T.edit : T.view}
+                    </Button>
+                  </td>
+                </m.tr>
+              ))}
+            </AnimatePresence>
           </tbody>
         </table>
       </div>

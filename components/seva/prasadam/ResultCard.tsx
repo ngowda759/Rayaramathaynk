@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, type JSX, type ReactNode } from "react";
+import { m } from "framer-motion";
+import { Check } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
+import { enterVariants } from "@/lib/seva/motion";
+import type { Bi } from "@/lib/seva/strings/common";
 import { formatIstTime, PRASADAM } from "@/lib/seva/strings/prasadam";
 import { businessDate, formatSevaDate } from "@/lib/seva/time";
 import type { PrasadamLookupResult, PrasadamReceipt } from "@/types/seva-prasadam";
@@ -47,16 +51,23 @@ const TITLE_CLASS: Record<Tone, string> = {
 
 const BIG = "h-14 w-full text-(length:--text-body-lg)";
 
+/** The action whose request is running, so only the tapped button says it is working (plan A4P-4). */
+type Tapped = "give" | "giveAnyway" | "undo";
+
+/** Each answer springs in already in its state colour (plan A4P-4); the page keys the card per answer. */
 function Card({ state, tone, children }: { state: string; tone: Tone; children: ReactNode }): JSX.Element {
   return (
-    <section
+    <m.section
       data-testid="prasadam-result"
       data-state={state}
       data-tone={tone}
+      variants={enterVariants}
+      initial="hidden"
+      animate="shown"
       className={`flex flex-col gap-4 rounded-(--radius-surface) border p-5 shadow-(--shadow-card) ${TONE_CLASS[tone]}`}
     >
       {children}
-    </section>
+    </m.section>
   );
 }
 
@@ -98,31 +109,39 @@ function GiveLines({ receipt }: { receipt: PrasadamReceipt }): JSX.Element {
   );
 }
 
+/**
+ * A card action. Every action waits while a request runs (`disabled`); the one that started it (`pending`) shows a
+ * spinner and its pending words at once, with aria-busy (PendingButton).
+ */
 function ActionButton({
   label,
   onClick,
   disabled,
+  pending = false,
+  pendingLabel = label,
   variant = "seva-primary",
   big = false,
 }: {
-  label: { en: string; kn: string };
+  label: Bi;
   onClick(): void;
   disabled: boolean;
+  pending?: boolean;
+  pendingLabel?: Bi;
   variant?: "seva-primary" | "seva-ghost" | "seva-secondary";
   big?: boolean;
 }): JSX.Element {
   return (
-    <Button
-      type="button"
+    <PendingButton
       variant={variant}
       disabled={disabled}
-      aria-busy={disabled || undefined}
+      pending={pending}
+      pendingLabel={<Bilingual en={pendingLabel.en} kn={pendingLabel.kn} />}
       data-action={label.en}
       onClick={onClick}
-      className={`flex-col gap-0 ${big ? BIG : "h-12 w-full"}`}
+      className={`${pending ? "gap-2" : "flex-col gap-0"} ${big ? BIG : "h-12 w-full"}`}
     >
       <Bilingual en={label.en} kn={label.kn} />
-    </Button>
+    </PendingButton>
   );
 }
 
@@ -132,19 +151,37 @@ function lastDigits(receiptNo: string): string {
 }
 
 /** "Give anyway" for a slip of another day: the first tap arms it, the second gives (D35). */
-function GiveAnyway({ busy, onGiveAnyway }: { busy: boolean; onGiveAnyway(): void }): JSX.Element {
+function GiveAnyway({ busy, pending, onGiveAnyway }: { busy: boolean; pending: boolean; onGiveAnyway(): void }): JSX.Element {
   const [armed, setArmed] = useState(false);
   return (
     <ActionButton
       label={armed ? PRASADAM.giveAnywayConfirm : PRASADAM.giveAnyway}
+      pendingLabel={PRASADAM.giving}
       variant={armed ? "seva-primary" : "seva-secondary"}
       disabled={busy}
+      pending={pending}
       big={armed}
       onClick={() => {
         if (armed) onGiveAnyway();
         else setArmed(true);
       }}
     />
+  );
+}
+
+/** The tick on "Marked given": it pops in once, a moment after the card. */
+function Tick(): JSX.Element {
+  return (
+    <m.span
+      data-tick=""
+      aria-hidden="true"
+      initial={{ opacity: 0, scale: 0.4 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: "spring", stiffness: 520, damping: 16, delay: 0.08 }}
+      className="grid size-9 shrink-0 place-items-center rounded-full bg-(--ok-soft) text-(--ok) ring-2 ring-(--ok)"
+    >
+      <Check className="size-5" strokeWidth={3} />
+    </m.span>
   );
 }
 
@@ -156,6 +193,8 @@ function GiveAnyway({ busy, onGiveAnyway }: { busy: boolean; onGiveAnyway(): voi
 export function ResultCard(props: ResultCardProps): JSX.Element {
   const { result, busy = false, undoOpen = false } = props;
   const today = props.today ?? businessDate(new Date());
+  const [tapped, setTapped] = useState<Tapped | null>(null);
+  const working = (action: Tapped): boolean => busy && tapped === action;
 
   switch (result.state) {
     case "ready":
@@ -168,7 +207,17 @@ export function ResultCard(props: ResultCardProps): JSX.Element {
           <Who receipt={result.receipt} showMade />
           <GiveLines receipt={result.receipt} />
           <div className="flex flex-col gap-2">
-            <ActionButton label={PRASADAM.markGiven} onClick={props.onMarkGiven} disabled={busy} big />
+            <ActionButton
+              label={PRASADAM.markGiven}
+              pendingLabel={PRASADAM.giving}
+              onClick={() => {
+                setTapped("give");
+                props.onMarkGiven();
+              }}
+              disabled={busy}
+              pending={working("give")}
+              big
+            />
             <ActionButton label={PRASADAM.notNow} onClick={props.onNotNow} disabled={busy} variant="seva-ghost" />
           </div>
         </Card>
@@ -206,7 +255,14 @@ export function ResultCard(props: ResultCardProps): JSX.Element {
           ) : null}
           <div className="flex flex-col gap-2">
             <ActionButton label={PRASADAM.scanNext} onClick={props.onScanNext} disabled={busy} big />
-            <GiveAnyway busy={busy} onGiveAnyway={props.onGiveAnyway} />
+            <GiveAnyway
+              busy={busy}
+              pending={working("giveAnyway")}
+              onGiveAnyway={() => {
+                setTapped("giveAnyway");
+                props.onGiveAnyway();
+              }}
+            />
           </div>
         </Card>
       );
@@ -218,31 +274,38 @@ export function ResultCard(props: ResultCardProps): JSX.Element {
         return (
           <Card state="marked" tone="ok">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <Bilingual
-                  as="div"
-                  en={PRASADAM.markedGiven(time).en}
-                  kn={PRASADAM.markedGiven(time).kn}
-                  className="font-bold text-(--ok)"
-                />
-                <Meta>
-                  <span className="tabular-nums">
-                    {result.receipt.devoteeName} · {result.receipt.receiptNo}
-                  </span>
-                </Meta>
+              <div className="flex min-w-0 items-start gap-3">
+                <Tick />
+                <div className="min-w-0">
+                  <Bilingual
+                    as="div"
+                    en={PRASADAM.markedGiven(time).en}
+                    kn={PRASADAM.markedGiven(time).kn}
+                    className="font-bold text-(--ok)"
+                  />
+                  <Meta>
+                    <span className="tabular-nums">
+                      {result.receipt.devoteeName} · {result.receipt.receiptNo}
+                    </span>
+                  </Meta>
+                </div>
               </div>
               {undoOpen ? (
-                <Button
-                  type="button"
+                <PendingButton
                   variant="seva-secondary"
                   size="sm"
                   disabled={busy}
+                  pending={working("undo")}
+                  pendingLabel={<Bilingual en={PRASADAM.undoing.en} kn={PRASADAM.undoing.kn} />}
                   data-action={PRASADAM.undo.en}
-                  onClick={props.onUndo}
-                  className="h-auto min-h-11 shrink-0 flex-col gap-0 py-1.5"
+                  onClick={() => {
+                    setTapped("undo");
+                    props.onUndo();
+                  }}
+                  className={`h-auto min-h-11 shrink-0 py-1.5 ${working("undo") ? "gap-2" : "flex-col gap-0"}`}
                 >
                   <Bilingual en={PRASADAM.undo.en} kn={PRASADAM.undo.kn} />
-                </Button>
+                </PendingButton>
               ) : null}
             </div>
           </Card>

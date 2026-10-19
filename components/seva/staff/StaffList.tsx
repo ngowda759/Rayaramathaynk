@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
+import { m } from "framer-motion";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
+import { Reveal } from "@/components/seva/motion/Reveal";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
 import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
 import { sevaErrorMessage } from "@/lib/seva/errors";
+import { enterVariants, staggerChildren } from "@/lib/seva/motion";
 import { IST } from "@/lib/seva/time";
 import { STAFF_ROLE_LABEL, STAFF_TEXT, staffNoText } from "@/lib/seva/strings/staff";
 import { cn } from "@/lib/utils";
@@ -109,6 +113,8 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
   const [rowError, setRowError] = useState<{ id: string; text: string } | null>(null);
   const [rowPartial, setRowPartial] = useState<{ name: string; failure: StaffPartialFailure } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** The first rows have staggered in; rows that mount after that do not animate. */
+  const [arrived, setArrived] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadError(null);
@@ -168,18 +174,20 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
   return (
     <div className="flex flex-col gap-5">
       {notice ? (
-        <div
-          role="status"
-          className="flex items-start justify-between gap-3 rounded-(--radius-surface) border border-(--border) bg-(--card) p-4 shadow-(--shadow-raise)"
-        >
-          <div>
-            <strong>{notice.title}</strong>
-            {notice.hint ? <p className="text-(length:--text-meta) text-(--muted-foreground)">{notice.hint}</p> : null}
+        <Reveal key={notice.title}>
+          <div
+            role="status"
+            className="flex items-start justify-between gap-3 rounded-(--radius-surface) border border-(--border) bg-(--card) p-4 shadow-(--shadow-raise)"
+          >
+            <div>
+              <strong>{notice.title}</strong>
+              {notice.hint ? <p className="text-(length:--text-meta) text-(--muted-foreground)">{notice.hint}</p> : null}
+            </div>
+            <Button variant="seva-ghost" size="sm" onClick={() => setNotice(null)}>
+              {STAFF_TEXT.close}
+            </Button>
           </div>
-          <Button variant="seva-ghost" size="sm" onClick={() => setNotice(null)}>
-            {STAFF_TEXT.close}
-          </Button>
-        </div>
+        </Reveal>
       ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -265,7 +273,9 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
                 </th>
               </tr>
             </thead>
-            <tbody>
+            {/* The rows stagger in once, when the list arrives; rows shown later by the search or the filter just
+                appear, so nothing moves while a person types (plan A4P-4). */}
+            <m.tbody variants={staggerChildren()} initial="hidden" animate="shown" onAnimationComplete={() => setArrived(true)}>
               {shown.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-(--muted-foreground)">
@@ -276,6 +286,7 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
                 shown.map((member) => (
                   <StaffRow
                     key={member.id}
+                    arrived={arrived}
                     member={member}
                     meStaffId={me.staffId}
                     can={can}
@@ -286,7 +297,7 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
                   />
                 ))
               )}
-            </tbody>
+            </m.tbody>
           </table>
         </div>
       ) : null}
@@ -315,6 +326,8 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
 }
 
 interface StaffRowProps {
+  /** The list's first rows have staggered in: this row, mounted later, shows at once. */
+  arrived: boolean;
   member: StaffMember;
   meStaffId: string;
   can: StaffCan;
@@ -324,12 +337,16 @@ interface StaffRowProps {
   onReactivate(): void;
 }
 
-function StaffRow({ member, meStaffId, can, busy, error, onOpen, onReactivate }: StaffRowProps): JSX.Element {
+function StaffRow({ arrived, member, meStaffId, can, busy, error, onOpen, onReactivate }: StaffRowProps): JSX.Element {
   const rights = staffRights(can, meStaffId, member);
   const off = member.status === "inactive" || member.status === "deleted";
   const role = member.role ? STAFF_ROLE_LABEL[member.role].en : STAFF_TEXT.noRole;
   return (
-    <tr className={cn("border-t border-(--border) align-top", off && "text-(--muted-foreground)")}>
+    <m.tr
+      variants={enterVariants}
+      initial={arrived ? false : undefined}
+      className={cn("border-t border-(--border) align-top", off && "text-(--muted-foreground)")}
+    >
       <td className="px-4 py-3 font-semibold tabular-nums">{staffNoText(member.staffNo)}</td>
       <td className="px-4 py-3">
         <strong className="block">{member.fullName}</strong>
@@ -351,16 +368,16 @@ function StaffRow({ member, meStaffId, can, busy, error, onOpen, onReactivate }:
             <span className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.you}</span>
           ) : null}
           {rights.reactivate ? (
-            <Button
+            <PendingButton
               variant="seva-secondary"
               size="sm"
-              disabled={busy}
-              aria-busy={busy}
+              pending={busy}
+              pendingLabel={STAFF_TEXT.saving}
               aria-label={STAFF_TEXT.reactivateFor(member.fullName)}
               onClick={onReactivate}
             >
               {STAFF_TEXT.reactivate.en}
-            </Button>
+            </PendingButton>
           ) : null}
           {!rights.self && hasAnyRight(rights) ? (
             <Button variant="seva-ghost" size="sm" aria-label={STAFF_TEXT.rowActionsFor(member.fullName)} onClick={onOpen}>
@@ -377,7 +394,7 @@ function StaffRow({ member, meStaffId, can, busy, error, onOpen, onReactivate }:
           </p>
         ) : null}
       </td>
-    </tr>
+    </m.tr>
   );
 }
 

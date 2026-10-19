@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type JSX } from "react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { parseReceiptNo } from "@/lib/seva/numbering";
@@ -215,9 +216,15 @@ export function ReplaceThisPc({ counter, lastOfNo, year, replace, onReplaced }: 
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant={phase.kind === "confirm" ? "seva-secondary" : "seva-primary"} size="sm" disabled={busy}>
-          {busy ? RS.replacing.en : move.en}
-        </Button>
+        <PendingButton
+          type="submit"
+          variant={phase.kind === "confirm" ? "seva-secondary" : "seva-primary"}
+          size="sm"
+          pending={busy}
+          pendingLabel={RS.replacing.en}
+        >
+          {move.en}
+        </PendingButton>
         <Button type="button" variant="seva-ghost" size="sm" disabled={busy} onClick={() => setPhase({ kind: "closed" })}>
           {RS.cancel.en}
         </Button>

@@ -50,6 +50,7 @@ export const RECEIPT = {
   print: { en: "Print", kn: "ಮುದ್ರಿಸಿ" },
   printDuplicate: { en: "Print a duplicate", kn: "ನಕಲು ಮುದ್ರಿಸಿ" },
   printing: { en: "Sending the slip to the printer...", kn: "ಚೀಟಿಯನ್ನು ಮುದ್ರಕಕ್ಕೆ ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ..." },
+  openingPrint: { en: "Opening the print page...", kn: "ಮುದ್ರಣ ಪುಟ ತೆರೆಯುತ್ತಿದೆ..." },
   printed: { en: "The slip was sent to the printer.", kn: "ಚೀಟಿಯನ್ನು ಮುದ್ರಕಕ್ಕೆ ಕಳುಹಿಸಲಾಗಿದೆ." },
   printAgain: { en: "Print again", kn: "ಮತ್ತೆ ಮುದ್ರಿಸಿ" },
   tryAgain: { en: "Try again", kn: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ" },

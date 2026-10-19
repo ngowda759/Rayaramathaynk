@@ -6,6 +6,7 @@ import type { JSX, ReactNode } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PrasadamShortcut } from "@/components/seva/receipt/PrasadamShortcut";
+import { PrintLink } from "@/components/seva/receipt/PrintLink";
 import { ReceiptHistory } from "@/components/seva/receipt/ReceiptHistory";
 import { useReceiptPage, type SlipSource } from "@/components/seva/receipt/useReceiptPage";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
@@ -113,12 +114,7 @@ function ReceiptDetailView({ receipt, slip }: { receipt: ReceiptDetail; slip: Sl
           </div>
         </div>
         {mayPrint && id !== null ? (
-          <Link
-            href={`/admin/receipts/${encodeURIComponent(id)}/print`}
-            className={buttonVariants({ variant: "seva-primary" })}
-          >
-            <Bilingual en={printLabel.en} kn={printLabel.kn} />
-          </Link>
+          <PrintLink href={`/admin/receipts/${encodeURIComponent(id)}/print`} label={printLabel} />
         ) : null}
       </header>
 

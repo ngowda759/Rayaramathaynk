@@ -14,6 +14,14 @@ export interface PublicReceiptViewProps {
 }
 
 /**
+ * The page's one gentle reveal (plan A4P-4), kept light for a public phone page: a CSS entrance (fade, a small rise
+ * and grow, 300 ms) that starts at first paint with no motion script, so the slip is readable at once even on a slow
+ * phone, and is left out for people whose system asks for less motion (`motion-safe:`).
+ */
+const REVEAL =
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:zoom-in-96 motion-safe:duration-300 motion-safe:ease-out";
+
+/**
  * What a phone camera opens from the slip's QR (DB §10.3, C-50): the printed slip's own details plus Valid or
  * Cancelled and whether prasadam was given. Every value is picked by name, so nothing else - never the phone - can
  * reach the page. Works as a Server Component (no state, no effects).
@@ -33,7 +41,7 @@ export function PublicReceiptView({ receipt: r, children }: PublicReceiptViewPro
   return (
     <article
       aria-label={`${RECEIPT.title.en} ${r.receiptNo}`}
-      className="mx-auto w-full max-w-md rounded-(--radius-surface) border border-(--border) bg-(--card) p-5 text-(--foreground) shadow-(--shadow-card)"
+      className={`mx-auto w-full max-w-md rounded-(--radius-surface) border border-(--border) bg-(--card) p-5 text-(--foreground) shadow-(--shadow-card) ${REVEAL}`}
     >
       <header className="border-b border-(--border) pb-4 text-center">
         <Bilingual as="h1" en={r.templeNameEn} kn={r.templeNameKn} className="text-lg font-semibold" />

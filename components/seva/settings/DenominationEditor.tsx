@@ -1,8 +1,10 @@
 "use client";
 
 import { useId, useState, type JSX } from "react";
+import { AnimatePresence, m } from "framer-motion";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,9 @@ import { sevaControlClass } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { SETTINGS_TEXT as T } from "@/lib/seva/strings/settings";
 import { cn } from "@/lib/utils";
+
+import { LIST_ROW } from "./listMotion";
+import { SavedLine } from "./ReceiptSettingsFields";
 
 export type DenominationKind = "note" | "coin";
 
@@ -132,9 +137,9 @@ export function DenominationEditor({ initial, editable, onSave }: DenominationEd
             <Button variant="seva-ghost" disabled={!dirty || busy} onClick={() => change(saved)}>
               {T.discard}
             </Button>
-            <Button variant="seva-primary" disabled={!dirty || busy || rows.length === 0} aria-busy={busy} onClick={() => void save()}>
-              {busy ? T.saving : T.saveSettings}
-            </Button>
+            <PendingButton disabled={!dirty || rows.length === 0} pending={busy} pendingLabel={T.saving} onClick={() => void save()}>
+              {T.saveSettings}
+            </PendingButton>
           </div>
         ) : null}
       </div>
@@ -144,9 +149,11 @@ export function DenominationEditor({ initial, editable, onSave }: DenominationEd
         </p>
       ) : null}
       {savedNote ? (
-        <p role="status" className="text-(--ok)">
-          {T.denominationsSaved}
-        </p>
+        <SavedLine>
+          <p role="status" className="text-(--ok)">
+            {T.denominationsSaved}
+          </p>
+        </SavedLine>
       ) : null}
       {dirty && editable ? <p className="text-(length:--text-meta) text-(--muted-foreground)">{T.unsaved}</p> : null}
 
@@ -166,66 +173,72 @@ export function DenominationEditor({ initial, editable, onSave }: DenominationEd
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => {
-                  const name = T.denominationName(row.kind, row.valuePaise);
-                  return (
-                    <tr key={`${row.kind}-${row.valuePaise}`} className={cn("border-b border-(--border) last:border-b-0", !row.shown && "text-(--muted-foreground)")}>
-                      <td className={TD}>
-                        <div className="flex items-center gap-1">
-                          <span className="min-w-6 font-semibold tabular-nums">{i + 1}</span>
+                <AnimatePresence initial={false}>
+                  {rows.map((row, i) => {
+                    const name = T.denominationName(row.kind, row.valuePaise);
+                    return (
+                      <m.tr
+                        key={`${row.kind}-${row.valuePaise}`}
+                        {...LIST_ROW}
+                        className={cn("border-b border-(--border) last:border-b-0", !row.shown && "text-(--muted-foreground)")}
+                      >
+                        <td className={TD}>
+                          <div className="flex items-center gap-1">
+                            <span className="min-w-6 font-semibold tabular-nums">{i + 1}</span>
+                            {editable ? (
+                              <>
+                                <button
+                                  type="button"
+                                  aria-label={T.moveUp(name)}
+                                  disabled={disabled || i === 0}
+                                  onClick={() => move(i, i - 1)}
+                                  className="rounded p-1 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
+                                >
+                                  <ArrowUp aria-hidden="true" className="size-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={T.moveDown(name)}
+                                  disabled={disabled || i === rows.length - 1}
+                                  onClick={() => move(i, i + 1)}
+                                  className="rounded p-1 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
+                                >
+                                  <ArrowDown aria-hidden="true" className="size-4" />
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className={cn(TD, "font-semibold tabular-nums")}>{name.replace(/ (note|coin)$/, "")}</td>
+                        <td className={TD}>{row.kind === "note" ? T.note.en : T.coin.en}</td>
+                        <td className={TD}>
+                          <Switch
+                            variant="seva"
+                            aria-label={T.shownSwitch(name)}
+                            checked={row.shown}
+                            disabled={disabled}
+                            aria-disabled={disabled}
+                            onCheckedChange={(next) => change(rows.map((r, j) => (j === i ? { ...r, shown: next } : r)))}
+                          />
+                        </td>
+                        <td className={cn(TD, "text-right")}>
                           {editable ? (
-                            <>
-                              <button
-                                type="button"
-                                aria-label={T.moveUp(name)}
-                                disabled={disabled || i === 0}
-                                onClick={() => move(i, i - 1)}
-                                className="rounded p-1 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
-                              >
-                                <ArrowUp aria-hidden="true" className="size-4" />
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={T.moveDown(name)}
-                                disabled={disabled || i === rows.length - 1}
-                                onClick={() => move(i, i + 1)}
-                                className="rounded p-1 text-(--muted-foreground) hover:text-(--foreground) disabled:opacity-30"
-                              >
-                                <ArrowDown aria-hidden="true" className="size-4" />
-                              </button>
-                            </>
+                            <Button
+                              variant="seva-ghost"
+                              size="sm"
+                              disabled={disabled || rows.length === 1}
+                              title={rows.length === 1 ? T.denominationLast : undefined}
+                              aria-label={`${T.remove} ${name}`}
+                              onClick={() => change(rows.filter((_, j) => j !== i))}
+                            >
+                              {T.remove}
+                            </Button>
                           ) : null}
-                        </div>
-                      </td>
-                      <td className={cn(TD, "font-semibold tabular-nums")}>{name.replace(/ (note|coin)$/, "")}</td>
-                      <td className={TD}>{row.kind === "note" ? T.note.en : T.coin.en}</td>
-                      <td className={TD}>
-                        <Switch
-                          variant="seva"
-                          aria-label={T.shownSwitch(name)}
-                          checked={row.shown}
-                          disabled={disabled}
-                          aria-disabled={disabled}
-                          onCheckedChange={(next) => change(rows.map((r, j) => (j === i ? { ...r, shown: next } : r)))}
-                        />
-                      </td>
-                      <td className={cn(TD, "text-right")}>
-                        {editable ? (
-                          <Button
-                            variant="seva-ghost"
-                            size="sm"
-                            disabled={disabled || rows.length === 1}
-                            title={rows.length === 1 ? T.denominationLast : undefined}
-                            aria-label={`${T.remove} ${name}`}
-                            onClick={() => change(rows.filter((_, j) => j !== i))}
-                          >
-                            {T.remove}
-                          </Button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                      </m.tr>
+                    );
+                  })}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>

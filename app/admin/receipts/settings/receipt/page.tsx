@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { HeaderFooterEditor, templatePatch } from "@/components/seva/settings/HeaderFooterEditor";
 import { NumberingPreview } from "@/components/seva/settings/NumberingPreview";
 import { errorText, Notice } from "@/components/seva/settings/ReceiptSettingsFields";
@@ -108,9 +109,9 @@ function ReceiptSettings(): JSX.Element {
             >
               {RS.discard.en}
             </Button>
-            <Button type="button" variant="seva-primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void save()}>
-              {busy ? RS.saving.en : RS.save.en}
-            </Button>
+            <PendingButton pending={busy} pendingLabel={RS.saving.en} onClick={() => void save()}>
+              {RS.save.en}
+            </PendingButton>
           </div>
         ) : null}
       </div>

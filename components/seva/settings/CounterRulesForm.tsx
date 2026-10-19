@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type JSX } from "react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { fromPaise, toPaise } from "@/lib/seva/money";
@@ -174,9 +175,9 @@ export function CounterRulesForm({ value, readOnly, save, onSaved }: CounterRule
             >
               {RS.discard.en}
             </Button>
-            <Button type="submit" variant="seva-primary" disabled={busy} aria-busy={busy || undefined}>
-              {busy ? RS.saving.en : RS.save.en}
-            </Button>
+            <PendingButton type="submit" pending={busy} pendingLabel={RS.saving.en}>
+              {RS.save.en}
+            </PendingButton>
           </div>
         )}
       </SettingsCard>

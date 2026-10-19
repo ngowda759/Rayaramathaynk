@@ -2,6 +2,7 @@
 
 import { useId, useState, type JSX, type ReactNode } from "react";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { RateHistory } from "@/components/seva/settings/RateHistory";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
@@ -460,9 +461,9 @@ export function SevaDrawer({ seva, nextKey, sevas, readOnly, api, onClose, onSav
 
           <div className="flex flex-wrap gap-2">
             {readOnly ? null : (
-              <Button type="submit" variant="seva-primary" disabled={!valid || busy} aria-busy={busy}>
-                {busy ? T.saving : seva ? T.saveChanges : T.addTheSeva}
-              </Button>
+              <PendingButton type="submit" disabled={!valid} pending={busy} pendingLabel={T.saving}>
+                {seva ? T.saveChanges : T.addTheSeva}
+              </PendingButton>
             )}
             <Button type="button" variant="seva-ghost" onClick={onClose}>
               {readOnly ? T.close : T.cancel}

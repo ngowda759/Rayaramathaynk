@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { ResultCard, type ResultCardProps } from "@/components/seva/prasadam/ResultCard";
 import { CameraError, SCAN_INTERVAL_MS, startScanner } from "@/lib/seva/prasadam/camera";
@@ -413,6 +413,50 @@ describe("prasadam page", () => {
     expect(mockApi.undo).toHaveBeenCalledWith({ receiptId: RECEIPT.id });
     expect(screen.queryByText(/Marked given/)).toBeNull();
     expect(screen.getByTestId("prasadam-given-today")).toHaveTextContent("Given 0");
+  });
+
+  it("Mark given shows Marking given... at once, blocks a second tap, then pops the tick", async () => {
+    let answer: (value: PrasadamLookupResult) => void = () => undefined;
+    mockApi.give.mockImplementation(() => new Promise<PrasadamLookupResult>((resolve) => (answer = resolve)));
+    await findReady();
+    const give = screen.getByRole("button", { name: /Mark given/ });
+    fireEvent.click(give);
+
+    // In the same tick as the tap, before the office answers.
+    expect(give).toHaveAttribute("aria-busy", "true");
+    expect(give).toBeDisabled();
+    expect(give.querySelector("[data-spinner]")).not.toBeNull();
+    expect(give).toHaveTextContent(/Marking given\.\.\./);
+    // The other actions wait, but only the tapped one says it is working.
+    const notNow = screen.getByRole("button", { name: /Not now/ });
+    expect(notNow).toBeDisabled();
+    expect(notNow.querySelector("[data-spinner]")).toBeNull();
+    fireEvent.click(give);
+    expect(mockApi.give).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer(own));
+    const marked = (await screen.findByText(/Marked given · 11:05 AM/)).closest("section") as HTMLElement;
+    expect(marked.querySelector("[data-tick]")).not.toBeNull();
+  });
+
+  it("Undo shows Undoing... while it runs", async () => {
+    mockApi.give.mockResolvedValue(own);
+    let undone: () => void = () => undefined;
+    mockApi.undo.mockImplementation(() => new Promise<void>((resolve) => (undone = resolve)));
+    await findReady();
+    fireEvent.click(screen.getByRole("button", { name: /Mark given/ }));
+    const marked = (await screen.findByText(/Marked given · 11:05 AM/)).closest("section") as HTMLElement;
+
+    const undo = within(marked).getByRole("button", { name: /Undo/ });
+    fireEvent.click(undo);
+    expect(undo).toHaveAttribute("aria-busy", "true");
+    expect(undo.querySelector("[data-spinner]")).not.toBeNull();
+    expect(undo).toHaveTextContent(/Undoing\.\.\./);
+    fireEvent.click(undo);
+    expect(mockApi.undo).toHaveBeenCalledTimes(1);
+
+    await act(async () => undone());
+    await screen.findByRole("button", { name: /Mark given/ });
   });
 
   it("a give answered already_given without givenNow shows who and when, with no Undo and no count", async () => {
