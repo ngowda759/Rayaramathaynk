@@ -315,10 +315,15 @@ describe("GET /api/seva/devotees/search", () => {
 });
 
 describe("POST /api/seva/receipts/cancel", () => {
-  const ownRows = [{ id: RECEIPT_ID, issued_by_staff_id: "staff-9", issued_at: new Date().toISOString() }];
+  const ownRows = [
+    { id: RECEIPT_ID, issued_by_staff_id: "staff-9", issued_at: new Date().toISOString(), order_id: ORDER_ID },
+  ];
+  /** Counter 1's PC (A5-FIX L-4: a receptionist cancels only from the receipt's own counter). */
+  const PC1 = { id: "44444444-4444-4444-8444-444444444444", counterId: 1 };
   /** The ownership read gets ownRows; the register rows read after the cancel get a full row. */
   const cancelAnswers = (call: Call): Row[] => {
     if (call.table === "seva_settings") return [settingsRow];
+    if (call.table === "seva_orders") return [{ id: ORDER_ID, counter_id: 1 }];
     if (call.table !== "seva_receipts") return [];
     return call.columns.includes("seva_orders") ? [receiptRow({ status: "cancelled", refund_state: "done" })] : ownRows;
   };
@@ -328,7 +333,7 @@ describe("POST /api/seva/receipts/cancel", () => {
     mockCallRpc.mockResolvedValue({ receipts: [], cash_back: "0.00" });
 
     // A receptionist's own receipt inside the window: one guard call, p_is_admin false.
-    mockRequireSevaActor.mockResolvedValueOnce(allow(actor("receptionist", "staff-9")));
+    mockRequireSevaActor.mockResolvedValueOnce(allow(actor("receptionist", "staff-9"), PC1));
     const own = await cancelPOST(post("/api/seva/receipts/cancel", { receiptIds: [RECEIPT_ID], reasonCode: "wrong_seva" }));
     expect(own.status).toBe(200);
     // A receptionist cancels from the counter PC only (A3 security gate L-2); an admin may cancel from the office.
@@ -366,6 +371,20 @@ describe("POST /api/seva/receipts/cancel", () => {
     });
   });
 
+  it("refuses a receptionist's own receipt from another counter's PC (A5-FIX L-4)", async () => {
+    mockAnswer = cancelAnswers;
+    mockCallRpc.mockResolvedValue({ receipts: [], cash_back: "0.00" });
+    mockRequireSevaActor.mockResolvedValueOnce(allow(actor("receptionist", "staff-9"), { id: PC1.id, counterId: 2 }));
+    const other = await cancelPOST(post("/api/seva/receipts/cancel", { receiptIds: [RECEIPT_ID], reasonCode: "wrong_seva" }));
+    expect(other.status).toBe(403);
+    expect(await other.json()).toMatchObject({ error: { code: "forbidden" } });
+    expect(mockCallRpc).not.toHaveBeenCalled();
+
+    mockRequireSevaActor.mockResolvedValueOnce(allow(actor("receptionist", "staff-9"), PC1));
+    const own = await cancelPOST(post("/api/seva/receipts/cancel", { receiptIds: [RECEIPT_ID], reasonCode: "wrong_seva" }));
+    expect(own.status).toBe(200);
+  });
+
   it("does not try the admin right when the first refusal is not about the role", async () => {
     mockAnswer = cancelAnswers;
     mockRequireSevaActor.mockResolvedValueOnce(deny("view_only"));
@@ -386,7 +405,7 @@ describe("POST /api/seva/receipts/cancel", () => {
   it("answers the SQL business error with its code", async () => {
     const { SevaError } = jest.requireActual<typeof import("@/lib/seva/errors")>("@/lib/seva/errors");
     mockAnswer = cancelAnswers;
-    mockRequireSevaActor.mockResolvedValue(allow(actor("receptionist", "staff-9")));
+    mockRequireSevaActor.mockResolvedValue(allow(actor("receptionist", "staff-9"), PC1));
     mockCallRpc.mockRejectedValue(new SevaError("cancel_window_passed"));
     const res = await cancelPOST(post("/api/seva/receipts/cancel", { receiptIds: [RECEIPT_ID], reasonCode: "wrong_seva" }));
     expect(res.status).toBe(403);
@@ -399,7 +418,10 @@ describe("POST /api/seva/receipts/[receiptId]/reissue", () => {
     const converted: IssueResponse = { orderId: ORDER_ID, groupNo: "G-2610-0042", duplicate: false, receipts: [] };
     mockAnswer = tableAnswers({
       seva_settings: [settingsRow],
-      seva_receipts: [{ id: RECEIPT_ID, issued_by_staff_id: "staff-9", issued_at: new Date().toISOString() }],
+      seva_receipts: [
+        { id: RECEIPT_ID, issued_by_staff_id: "staff-9", issued_at: new Date().toISOString(), order_id: ORDER_ID },
+      ],
+      seva_orders: [{ id: ORDER_ID, counter_id: 1 }],
     });
     mockRequireSevaActor.mockResolvedValue(allow(actor("receptionist", "staff-9"), { id: "dev-1", counterId: 1 }));
     mockCallRpc.mockResolvedValue({ order_id: ORDER_ID });

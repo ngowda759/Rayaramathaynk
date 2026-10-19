@@ -43,6 +43,7 @@ import {
   textOrNull,
   type Row,
 } from "./read";
+import { sevaErrorResponse } from "./respond";
 import { callRpc } from "./rpc";
 
 /** Ids the database made (any 8-4-4-4-12 hex form, as the shared schemas accept). */
@@ -358,20 +359,35 @@ export async function getReceiptDetail(facts: ReceiptFacts): Promise<ReceiptDeta
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Whose the receipts are and whether every one is still inside the cancel window, for the guard's context. */
-async function readOwnership(ids: string[], now: Date): Promise<{ issuer: string | undefined; withinWindow: boolean }> {
+interface Ownership {
+  issuer: string | undefined;
+  withinWindow: boolean;
+  /** The counter of every receipt's order (null for an online W order); empty when a receipt was not found. */
+  counters: (number | null)[];
+}
+
+async function readOwnership(ids: string[], now: Date): Promise<Ownership> {
   const [result, rules] = await Promise.all([
-    createAdminClient().from("seva_receipts").select("id, issued_by_staff_id, issued_at").in("id", ids),
+    createAdminClient().from("seva_receipts").select("id, issued_by_staff_id, issued_at, order_id").in("id", ids),
     readTimeRules(),
   ]);
   const rows = rowsOf(result);
   const unique = new Set(ids);
-  if (rows.length !== unique.size) return { issuer: undefined, withinWindow: false };
+  if (rows.length !== unique.size) return { issuer: undefined, withinWindow: false, counters: [] };
   const issuers = new Set(rows.map((row) => textOrNull(row, "issued_by_staff_id")));
   const [only] = [...issuers];
   const withinWindow = rows.every(
     (row) => now.getTime() <= cancelDeadline(text(row, "issued_at"), rules.cancelWindowMinutes).getTime(),
   );
-  return { issuer: issuers.size === 1 && only ? only : undefined, withinWindow };
+  const orderIds = [...new Set(rows.map((row) => textOrNull(row, "order_id")).filter((id): id is string => id !== null))];
+  const orders =
+    orderIds.length === 0 ? [] : rowsOf(await createAdminClient().from("seva_orders").select("id, counter_id").in("id", orderIds));
+  const counterOf = new Map(orders.map((o) => [text(o, "id"), intOrNull(o, "counter_id")] as const));
+  const counters = rows.map((row) => {
+    const orderId = textOrNull(row, "order_id");
+    return orderId === null ? null : (counterOf.get(orderId) ?? null);
+  });
+  return { issuer: issuers.size === 1 && only ? only : undefined, withinWindow, counters };
 }
 
 async function isForbidden(result: ActorResult): Promise<boolean> {
@@ -395,11 +411,23 @@ export async function requireCancelRight(
   device: NonNullable<RequireSevaActorOptions["device"]>,
   now: Date = new Date(),
 ): Promise<ActorResult> {
-  const { issuer, withinWindow } = await readOwnership(receiptIds, now);
+  const { issuer, withinWindow, counters } = await readOwnership(receiptIds, now);
   const own = await requireSevaActor(req, "receipt.cancel_own", {
     device,
     ctx: { receiptIssuedByStaffId: issuer, withinCancelWindow: withinWindow },
   });
+  if (own.ok) {
+    // A5-FIX L-4: a counter role cancels its own receipt only from the PC of that receipt's own counter.
+    const onOwnCounter =
+      own.device !== null && counters.length > 0 && counters.every((counterId) => counterId === own.device?.counterId);
+    if (!can(own.actor, "receipt.cancel_any") && !onOwnCounter) {
+      return {
+        ok: false,
+        response: sevaErrorResponse(new SevaError("forbidden", { reason: "another counter's receipt" })),
+      };
+    }
+    return own;
+  }
   if (!(await isForbidden(own))) return own;
   return requireSevaActor(req, "receipt.cancel_any", { device });
 }
