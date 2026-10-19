@@ -12,8 +12,11 @@ import { fromPaise } from "@/lib/seva/money";
 import type { CounterRequest, DenominationsRequest, FestivalRequest, SettingsPatch } from "@/lib/seva/schemas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SlipSettings } from "@/types/seva";
+import type { CounterItem, CounterRules, FestivalItem, NewCounter } from "@/types/seva-settings";
 import { numericToPaise, parseSevaInput } from "./catalogue";
 import { callRpc } from "./rpc";
+
+export type { CounterItem, CounterRules, FestivalItem, NewCounter };
 
 type Row = Record<string, unknown>;
 
@@ -66,19 +69,6 @@ export const RULES_KEYS = {
 } as const satisfies Partial<Record<keyof SettingsPatch, string>>;
 
 export type SettingsPage = "template" | "rules";
-
-export interface CounterRules {
-  cancelWindowMinutes: number;
-  counterDaysAhead: number;
-  onlineDaysAhead: number;
-  onlineSameDayCutoff: string;
-  prasadamUndoSeconds: number;
-  dayCloseFlagThresholdPaise: number;
-  tallyCashLedger: string;
-  tallyUpiLedger: string;
-  tallyOnlineLedger: string;
-  tallyColumns: Record<string, string> | null;
-}
 
 async function readSettingsRow(columns: string): Promise<Row> {
   const result = await createAdminClient().from("seva_settings").select(columns).eq("id", 1).maybeSingle();
@@ -171,14 +161,6 @@ export async function saveDenominations(input: DenominationsRequest, staffId: st
 // Festival days
 // ---------------------------------------------------------------------------------------------------------------
 
-export interface FestivalItem {
-  id: string;
-  nameEn: string;
-  nameKn: string | null;
-  active: boolean;
-  dates: string[];
-}
-
 export async function listFestivals(): Promise<FestivalItem[]> {
   const result = await createAdminClient()
     .from("festival_days")
@@ -213,16 +195,6 @@ export async function saveFestival(input: FestivalRequest, id: string | undefine
 // Counters
 // ---------------------------------------------------------------------------------------------------------------
 
-export interface CounterItem {
-  id: number;
-  name: string;
-  place: string | null;
-  openingFloatPaise: number;
-  active: boolean;
-  onlineSeries: string | null;
-  offlineSeries: string | null;
-}
-
 /** Counter ids in a path: 1..99. */
 export const counterIdSchema = z.coerce.number().int().min(1).max(99);
 
@@ -251,12 +223,6 @@ export async function listCounters(): Promise<CounterItem[]> {
       offlineSeries: seriesOf(id, "counter_offline"),
     };
   });
-}
-
-export interface NewCounter {
-  id: number;
-  onlineSeries: string;
-  offlineSeries: string;
 }
 
 /** Adds the next counter with its series C<n> (online) and OF<n> (offline). */

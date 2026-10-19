@@ -14,7 +14,10 @@ import { fromPaise, toPaise } from "@/lib/seva/money";
 import type { SevaUpsert } from "@/lib/seva/schemas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CatalogueSeva } from "@/types/seva";
+import type { RateHistoryEntry, SaveSevaResult } from "@/types/seva-settings";
 import { callRpc } from "./rpc";
+
+export type { RateHistoryEntry, SaveSevaResult };
 
 /** Ids the database made (any 8-4-4-4-12 hex form, as the shared schemas accept). */
 export const sevaDbIdSchema = z.guid();
@@ -170,11 +173,6 @@ async function mirrorToFirestore(id: string): Promise<boolean> {
   }
 }
 
-export interface SaveSevaResult {
-  id: string;
-  mirror: "ok" | "failed";
-}
-
 /** Creates (no id) or updates one seva, then mirrors it to Firestore. `reason` is required by SQL for a rate change. */
 export async function saveSeva(seva: SevaUpsert, id: string | undefined, staffId: string): Promise<SaveSevaResult> {
   const reason = seva.reason && seva.reason.length > 0 ? seva.reason : null;
@@ -191,14 +189,6 @@ export async function saveSeva(seva: SevaUpsert, id: string | undefined, staffId
 /** Renumbers the counter keys 1..n in the given order (sevas not listed follow). */
 export async function reorderSevas(ids: string[], staffId: string): Promise<void> {
   await callRpc<unknown>("seva_reorder_sevas", { p_ids: ids, p_staff_id: staffId });
-}
-
-export interface RateHistoryEntry {
-  oldPaise: number | null;
-  newPaise: number;
-  reason: string;
-  by: string;
-  at: string;
 }
 
 /** The seva's rate changes, newest first; `by` is the staff member's name ('' when not recorded). */
