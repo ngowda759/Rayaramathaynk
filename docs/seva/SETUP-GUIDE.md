@@ -1,639 +1,539 @@
-# Seva Entry - owner's setup guide
+# Seva Entry - setup guide
 
-For: the owner of the temple website (Sri Raghavendra Swamy Matha). Written 2026-10-18 for Plan A (Phase 1).
-Plans B and C add sections 8 and 9 later.
+For the Seva Entry build of the Sri Raghavendra Swamy Matha website. Rewritten 2026-10-19 (Monday) around who really
+owns what: you develop on your own fork, and the person who runs the live website owns every live account.
 
-This guide is written for someone who has never used Supabase, Vercel, Google Cloud, GitHub secrets or `age`
-before. Follow it one step at a time, top to bottom. You do not need to understand why a step is there; where it
-matters, the reason is given in one line.
+This guide is written for someone who has never used Supabase, Firebase, Vercel, GitHub secrets or `age` before.
+Follow it one step at a time. You do not need to understand why a step is there; where it matters, the reason is
+given in one line.
 
-## 0. How to use this guide
+## 0. Start here
 
-### 0.1 What the marks mean
+### 0.1 Two people, two sets of accounts
 
-- **Bold words** are exactly what you will see on the screen: a button, a menu, a tab or a field name. Look for those
-  words and click them.
+There are two people in this guide. **You** are Nikhil (GitHub `nikhilmn01`): you own the fork
+`https://github.com/nikhilmn01/Rayaramathaynk` and build on this PC. **The site owner** (GitHub `ngowda759`) runs the
+live website: he owns `https://github.com/ngowda759/Rayaramathaynk` and every live account behind it - the live Vercel
+project, the live Firebase project, any live Supabase project and his repository's GitHub secrets. You have none of
+those and you do not need them. Your work reaches his repository only through a pull request that he merges.
+
+So this guide has two parts. **Part A** is your own test setup: free accounts you create yourself, starting from the
+sign-up screen, because your new accounts are empty. **Part B** is for the site owner, after he merges the pull
+request; you forward it to him as it is. Nothing in Part A touches the live website.
+
+### 0.2 Do this next
+
+Only one thing: **A1. Your Supabase test project** (about 30 minutes). When it is done, tell me with the message at
+the end of A1. I will tell you the next step after that.
+
+### 0.3 Every section: who, when, why
+
+| Section | Who | When | Why |
+|---|---|---|---|
+| A1. Your Supabase test project | You | **Now** - the one thing to do next | The build's tables need a real database you control, separate from the live one |
+| A2. Your Firebase test project | You | After A1, before the end of wave A4 | Signing in to a test copy of the site needs a Firebase project you control |
+| A3. Seeing the test site: this PC or your phone | You | At the end of wave A4 (the 10-minute check). The Vercel part only if you want to check on a phone, and for Plan B | You look at the finished screens yourself |
+| A4. Cashfree test account and Expo account | You | Cashfree in Plan B, Expo in Plan C | Test payments and the Android app need accounts you own |
+| A5. The counter PC | You, at the temple | At go-live, when I tell you the counter page is ready for the print test | Printing slips without a dialog, the Excel copy, a locked-down PC |
+| B1. Supabase: add the new tables | Site owner | Right after he merges the pull request | The live database gets the seva tables |
+| B2. Firebase: publish the new rules | Site owner | Right after he merges | The build changed who may create user records |
+| B3. Replace and revoke the old Firebase key | Site owner | After he merges, not before | An old key was written into the code; it must be switched off |
+| B4. Vercel settings for the live website | Site owner | After he merges | Check names, region and plan on the live project |
+| B5. Make yourself staff 001 | Site owner | After B1 to B4 | The first super admin of the seva module |
+| B6. The backup key | Site owner (and you, if he chooses two keys) | Before the first nightly backup | Only this key can open the backups |
+| B7. GitHub secrets on his repository | Site owner | After B6 | The nightly backup and the scripts read these |
+| B8. Restore drill | Whoever holds a backup key | Once a month, first time before go-live | Proves a backup can be opened |
+| B9. Cashfree live | Site owner | Later, after Plan B is merged | Real payments on the live site |
+| Local automated tests | Nobody | - | Nothing to do: they run inside Node.js on this PC with no account (I run them) |
+
+### 0.4 Old section numbers
+
+Some plans and messages still name the old section numbers. This is where each one went:
+
+| Old | Now |
+|---|---|
+| 1 | A1 (the look at the live project's size and region moved to B1) |
+| 2 | A3 for your own Vercel; B4 for the live Vercel project |
+| 3 | B3 |
+| 4 | B6 and B7 |
+| 5 | B8 |
+| 6 | "Local automated tests" in 0.3 - nothing to do |
+| 7 | A5 |
+| 8 | A4.1 |
+| 9 | A4.2 |
+| 10 | B9 |
+
+### 0.5 What the marks mean
+
+- **Bold words** are what you will see on the screen: a button, a menu, a tab or a field name.
 - One numbered step = one action. Do it, then read the next step.
-- A line that starts with "You should now see" tells you what the screen looks like after the step. If your screen
-  looks different, stop and read 0.3.
+- A line that starts with "What you should see now:" tells you what the screen looks like after the step. If your
+  screen looks different, stop and tell me what you see (0.7).
 - `Text in this font` is something you type or copy exactly as it is, letter for letter.
 - `<something in angle brackets>` is a placeholder: type your own value there, without the angle brackets.
-- UNVERIFIED means I could not confirm that exact screen or wording on the vendor's website on the day I wrote it.
-  The step is still right in spirit; the button name may differ slightly. Look for the nearest match.
-- Each platform section names the vendor pages I read, as `(source: <web address>, checked <date>)`. Vendors change
+- UNVERIFIED means I could not confirm that exact screen or wording on the vendor's own pages. The step is still right
+  in spirit; the button name may differ slightly. Where I was not sure of a label, the step describes the button
+  instead of naming it.
+- Each account section names the vendor pages I read, as `(source: <web address>, checked <date>)`. Vendors change
   their screens often; if a screen looks very different, the vendor has probably changed it since that date.
 
-### 0.2 Secrets: the one rule that matters
+### 0.6 Secrets: the one rule that matters
 
-A **secret** is anything that lets someone into the temple's systems: a password, a database connection string, a
-"service role" or "secret" key, an access token, the Firebase key file (`.json`), and the backup key file
-(`seva-backup-key.txt`).
+A **secret** is anything that lets someone into a system: a password, a database connection string, a "service role"
+or "secret" key, an access token, a Firebase key file (`.json`), and a backup key file (`seva-backup-key.txt`).
 
 - **Never paste a secret into chat** - not to me, not to anyone. I never need to see one.
 - **Never paste a secret into git**, a document, an email, WhatsApp, or a screenshot.
-- Secrets go only into these three places, and this guide shows you exactly where:
-  1. **Vercel** environment variables (for the website),
-  2. **GitHub** repository secrets (for the nightly backup and the scripts),
-  3. git-ignored files on this PC (`.firebase-adminsdk.json` in the repository folder) or the two USB drives.
-- Things that are **not** secret and that you may send me: a project ref (20 letters), a region name, a plan name,
-  a database size, a key's creation date, and the "Section N done" messages at the end of each section.
+- Each secret goes to exactly one kind of place, and each section says which:
+  1. **Your test values** go into two git-ignored files on this PC, in the folder `D:\Onboarding\Repos\POCs\seva-entry`:
+     `.env.local` (made in 0.8) and `.firebase-adminsdk.json` (A2). Git ignores both names there (checked on
+     2026-10-19 with `git check-ignore`), so they never go into the code. If you use Vercel (A3), the same test values
+     also go into your own Vercel project.
+  2. **Your passwords** (Supabase database password, sign-in passwords) go into a password manager, or on paper kept
+     at home or in the office.
+  3. **Live values** belong to the site owner only: his Vercel project, his GitHub secrets, his own computer (Part B).
+  4. **The backup key** goes onto a USB drive kept in a safe place, or into a password manager (B6).
+- Things that are **not** secret and that you may send me: a project ref (20 letters), a Firebase project ID, a region
+  name, a plan name, a key's creation date, and the "Section ... done" messages at the end of each section.
 - Take a screenshot for me only if no password, key or connection string is visible on it.
 
-### 0.3 If something looks different or goes wrong
+### 0.7 If something looks different or goes wrong
 
 1. Stop. Do not click around to "fix" it.
-2. Write down the step number you were on (for example "Section 1, step 1.2.4").
+2. Write down the step you were on (for example "A1.3 step 4").
 3. Copy any error text that has no password or key in it.
-4. Tell me the step number and the error text. I will tell you what to do next.
+4. Tell me the step and what you see. I will tell you what to do next.
 
-### 0.4 How to open a PowerShell window in a folder
+### 0.8 How to make your `.env.local` file with Notepad
 
-Some sections ask you to type a command. Do it like this:
+`.env.local` is a small text file that holds your **test** settings, one `NAME=value` per line. The website reads it
+when it runs on this PC, and so do the build's scripts. You make it once (in A1) and add lines to it later (in A2).
+
+1. Click **Start**, type `Notepad`, and click **Notepad**.
+2. Type (or copy from this guide) the lines the section gives you, one per line.
+3. Click **File** > **Save as**.
+4. In the left of the save window, go to `D:\Onboarding\Repos\POCs\seva-entry` (type it into the address bar at the
+   top of the window and press **Enter**).
+5. Next to **Save as type**, choose **All files (\*.\*)**. This stops Notepad adding `.txt` to the name.
+6. In **File name**, type `.env.local` (with the dot at the start).
+7. Click **Save**.
+   What you should see now: Notepad's title bar shows `.env.local`.
+8. To check the name: open **File Explorer**, click **View** > **Show** > **File name extensions**, and open
+   `D:\Onboarding\Repos\POCs\seva-entry`.
+   What you should see now: a file named exactly `.env.local`. If it is `.env.local.txt`, right-click it, click
+   **Rename**, remove `.txt`, press **Enter**, and click **Yes** when Windows asks.
+
+To add lines later: right-click `.env.local` > **Open with** > **Notepad**, add the lines at the end, press **Ctrl+S**,
+and close Notepad. Never send me this file or its contents.
+
+### 0.9 How to open a PowerShell window in a folder
 
 1. Open **File Explorer** (the yellow folder icon on the taskbar).
 2. Go to the folder the section names (for example `D:\Onboarding\Repos\POCs\seva-entry`).
 3. Right-click an empty space inside the folder.
 4. Click **Open in Terminal**.
-   You should now see a dark window whose last line ends with the folder name and a `>` sign. Type commands there and
-   press **Enter** after each one.
+   What you should see now: a dark window whose last line ends with the folder name and a `>` sign. Type commands
+   there and press **Enter** after each one.
 
 When a command asks for a password, the letters you type do not appear on screen. That is normal. Type it and press
 **Enter**.
 
-### 0.5 Which sections to do, and when
+## Part A - Your own test setup (you do these)
 
-| Section | When | Time |
-|---|---|---|
-| 1. Supabase test project | Now (before the build reaches its test stage) | 30 min |
-| 2. Vercel access and settings | Now | 20 min |
-| 3. Revoke the old Firebase key | When I tell you the build is merged into main (see the reason in 3) | 30 min |
-| 4. Backup secrets and the age key | Now; you need two USB drives | 30 min |
-| 5. Restore drill | Once a month, first time before go-live | 20 min |
-| 6. Local database tests | Nothing to do; read only | 2 min |
-| 7. The counter PC | When I tell you the counter page is ready for the print test | 60 min |
+Everything in Part A is free and happens in accounts you create yourself. None of it can touch the live website.
+Start each account from its sign-up page; nothing exists yet in any of them.
 
-### Tell me it is done
+## A1. Your Supabase test project
 
-Send me this message in chat (it holds no secret): `Section 0 done - read`.
+Why: the build must be tried on a real database that you control. Supabase is that database. Your new account is
+empty, so you create the organisation, the project and the tables yourself. The Free plan is enough.
+(source: https://supabase.com/pricing, checked 2026-10-18)
 
-## 1. Supabase test project for the build
-
-Why: the build must be tried on a separate, empty database first. The live database that the website uses today
-stays untouched. Supabase's Free plan allows 2 active projects, so the live project plus this test project fit
-exactly. (source: https://supabase.com/pricing, checked 2026-10-18)
-
-What you need: your Supabase sign-in, this PC, about 30 minutes.
+What you need: an email address (or your GitHub sign-in), this PC, about 30 minutes.
 
 Vendor pages read for this section:
+(source: https://supabase.com/docs/guides/getting-started/quickstarts/nextjs, checked 2026-10-19)
 (source: https://supabase.com/docs/guides/platform/regions, checked 2026-10-18)
-(source: https://supabase.com/docs/guides/deployment/managing-environments, checked 2026-10-18)
-(source: https://supabase.com/docs/reference/cli/supabase-db-push, checked 2026-10-18)
 (source: https://supabase.com/docs/reference/cli/supabase-login, checked 2026-10-18)
+(source: https://supabase.com/docs/reference/cli/supabase-db-push, checked 2026-10-18)
 (source: https://supabase.com/docs/guides/local-development/cli/getting-started, checked 2026-10-18)
-(source: https://supabase.com/docs/guides/platform/database-size, checked 2026-10-18)
 
-### 1.1 Note the live project's size and region (read only)
+### A1.1 Sign up
 
-This answers open items O-16 (region) and O-17 (database size). You only look; you change nothing.
+1. Open `https://supabase.com/dashboard/sign-up` in the browser.
+   What you should see now: a sign-up page with a **Continue with GitHub** button and boxes for an email and a
+   password. (UNVERIFIED: the exact wording of the buttons.)
+2. Click **Continue with GitHub** and sign in to GitHub as `nikhilmn01`, then allow Supabase when GitHub asks.
+   Or type your email and a new password and click the sign-up button; then open the email Supabase sends you and
+   click the confirmation link in it.
+   What you should see now: the Supabase dashboard, asking you to create an organisation, or an empty page with a
+   button to create one. If you see something else, stop and tell me what you see.
 
-1. Open `https://supabase.com/dashboard` in the browser and sign in.
-   You should now see a list of your projects as cards.
-2. Click the card of the **live** temple project (the one the website uses today).
-   You should now see the project's home page with a left-hand menu of icons.
-3. In the left-hand menu, click **SQL Editor**.
-   You should now see a large empty text box with a **Run** button.
-4. Click inside the text box and type exactly: `select pg_size_pretty(pg_database_size(current_database()));`
-5. Click **Run**.
-   You should now see one result row, such as `142 MB`. Write that number down. This query only reads; it changes
-   nothing.
-6. In the left-hand menu, click **Project Settings** (the gear icon at the bottom).
-7. Look for the word **Region** on the **General** page. If it is not there, click **Infrastructure** in the settings
-   menu and look there. (UNVERIFIED: Supabase shows the region on one of these two pages; the docs name the
-   Infrastructure page at `/settings/infrastructure`.)
-   You should now see a region such as **South Asia (Mumbai)** or **Southeast Asia (Singapore)**. Write it down.
-8. Close the SQL Editor tab without saving. Do not touch anything else in the live project.
+### A1.2 Create your organisation
 
-### 1.2 Create the test project
+An organisation is just a folder for your projects. You need one before you can make a project.
 
-1. Go back to `https://supabase.com/dashboard`.
-2. Click **New project**. (UNVERIFIED: the button may read **New Project** or sit under a **+** sign.)
-   You should now see a form with **Organization**, **Project name**, **Database Password** and **Region**.
-3. Under **Organization**, keep the same organization the live project is in.
-4. In **Project name**, type `seva-test`.
-5. Next to **Database Password**, click **Generate a password**. (UNVERIFIED label.)
-6. Click **Copy** next to the password and save it in your password manager, or write it on paper that stays in the
-   office. This is a secret: never paste it into chat. You will type it once more in step 1.4.7.
-7. Under **Region**, choose **South Asia (Mumbai)**. The vendor's code for it is `ap-south-1`. A project's region
+1. If the dashboard does not already show a "create organisation" form, click the button that says **New
+   organization** or similar.
+   What you should see now: a form with boxes such as **Name**, **Type** and **Plan**. (UNVERIFIED labels.)
+2. In **Name**, type `nikhil-test`.
+3. Under **Type**, choose **Personal** (or the nearest choice).
+4. Under **Plan**, choose **Free**. Do not enter any card details; the Free plan needs none.
+5. Click the button at the bottom that creates the organisation (for example **Create organization**).
+   What you should see now: your new organisation with no projects in it, and a button to create a project.
+
+### A1.3 Create the test project
+
+1. Click the button that creates a project (it says **New project** or similar).
+   What you should see now: a form with **Project name**, **Database Password** and **Region**.
+2. In **Project name**, type `seva-test`.
+3. Next to **Database Password**, click the link that generates a password (for example **Generate a password**).
+4. Click **Copy** next to the password and save it in your password manager, or write it on paper that stays at home.
+   This is a secret: never paste it into chat. You type it once more in A1.5.
+5. Under **Region**, choose **South Asia (Mumbai)**. Supabase's code for it is `ap-south-1`. A project's region
    cannot be changed later, so check this twice.
-8. Leave every other option as it is.
-9. Click **Create new project**.
-   You should now see a "Setting up project" screen. Wait 2 to 3 minutes until the project's home page appears.
+   (UNVERIFIED: Supabase may first show broad areas such as "Asia-Pacific", with the exact city under a link or an
+   advanced option. Look for Mumbai there. If you cannot find Mumbai anywhere, stop and tell me what the list shows.)
+6. Leave every other option as it is.
+7. Click the button that creates the project (for example **Create new project**).
+   What you should see now: a "setting up" screen. Wait 2 to 3 minutes until the project's home page appears, with a
+   menu of icons down the left.
 
-If Supabase says you have reached the limit of active projects, stop: you already have two active projects. Tell me
-the names of your projects (names are not secret) and I will tell you which one can be paused.
+Supabase pauses a Free project that nobody uses for a week. If you later open the dashboard and the project says it is
+paused, click the button on that page that resumes or restores it, and wait a few minutes.
 
-### 1.3 Find the test project's ref
+### A1.4 Find the project ref
 
 The **project ref** is the 20-letter name of a project. It is not a secret.
 
 1. Look at the browser's address bar while the `seva-test` project is open.
-   You should now see an address like `https://supabase.com/dashboard/project/abcdefghijklmnopqrst`.
+   What you should see now: an address like `https://supabase.com/dashboard/project/abcdefghijklmnopqrst`.
 2. Copy the 20 letters after `/project/`. That is the project ref. Write it down; you send it to me at the end.
 
-### 1.4 Put the build's tables into the test project
+### A1.5 Put the build's tables into the test project
 
-You run three commands on this PC. They talk only to the `seva-test` project.
+You run a few commands on this PC. They talk only to your `seva-test` project. They apply every table file of the
+site (the older ones and the new seva ones), because your project starts empty.
 
-1. Open a PowerShell window in the folder `D:\Onboarding\Repos\POCs\seva-entry` (see 0.4).
+1. Open a PowerShell window in the folder `D:\Onboarding\Repos\POCs\seva-entry` (see 0.9).
 2. Type `node -v` and press **Enter**.
-   You should now see a version such as `v22.11.0`. The Supabase CLI needs version 20 or later. If you see a lower
-   number or an error, stop and tell me.
+   What you should see now: a version such as `v24.14.0`. The Supabase tools need version 20 or later. If you see a
+   lower number or an error, stop and tell me.
 3. Type `npx supabase login` and press **Enter**.
-   You should now see either a question "Need to install the following packages ... Ok to proceed?" (type `y` and press
-   **Enter**) or a message about opening the browser.
+   What you should see now: either a question "Need to install the following packages ... Ok to proceed?" (type `y`
+   and press **Enter**) or a message about opening the browser.
 4. If it asks to open the browser, press **Enter**.
-   You should now see a Supabase page in the browser asking you to allow the CLI.
-5. Click **Authorize** (or the similar button) in that browser page.
-   You should now see "You are now logged in" or "Finished supabase login" in PowerShell.
-   (UNVERIFIED: the CLI may instead show a short verification code to type back into the PowerShell window, or ask
-   "Enter your access token". If it asks for a token: open `https://supabase.com/dashboard/account/tokens`, click
-   **Generate new token**, name it `seva-pc`, click **Copy**, click in the PowerShell window, press **Ctrl+V**, and
-   press **Enter**. The token is a secret: never paste it into chat.)
-6. Type `npx supabase link --project-ref <your project ref>` with the 20 letters from 1.3, and press **Enter**.
-   You should now see "Enter your database password (or leave blank to skip)".
-7. Type the test project's database password from step 1.2.6 (the letters stay invisible) and press **Enter**.
-   You should now see "Finished supabase link".
+   What you should see now: a Supabase page in the browser asking you to allow the command-line tool.
+5. Click the button on that page that allows it (for example **Authorize**).
+   What you should see now: in PowerShell, a line saying you are logged in.
+   (UNVERIFIED: the browser may instead show a short verification code that PowerShell asks you to type. Type it
+   there. If PowerShell asks for an "access token" instead: open `https://supabase.com/dashboard/account/tokens`,
+   click the button that generates a new token, name it `seva-pc`, copy it, click in the PowerShell window, press
+   **Ctrl+V**, and press **Enter**. The token is a secret: never paste it into chat.)
+6. Type `npx supabase link --project-ref <your project ref>` with the 20 letters from A1.4, and press **Enter**.
+   What you should see now: a question asking for your database password.
+7. Type the database password from A1.3 step 4 (the letters stay invisible) and press **Enter**.
+   What you should see now: "Finished supabase link".
 8. Type `npx supabase db push --dry-run` and press **Enter**.
-   You should now see a list of migration file names that would be applied, ending with names that contain `seva`.
-   Nothing has been changed yet.
+   What you should see now: a list of file names that would be applied, the last ones containing `seva`. Nothing has
+   been changed yet.
 9. Type `npx supabase db push` and press **Enter**.
-   You should now see the same list and a question "Do you want to push these migrations to the remote database?".
+   What you should see now: the same list and a question "Do you want to push these migrations to the remote
+   database?".
 10. Type `Y` and press **Enter**.
-   You should now see each file being applied and then "Finished supabase db push".
+    What you should see now: each file being applied, then "Finished supabase db push".
 11. Close the PowerShell window.
 
 If any step shows red error text, copy the last 20 lines (they do not contain your password) and send them to me with
-the step number. Do not run the command again until I answer.
+the step. Do not run the command again until I answer.
+
+### A1.6 Put the test project's three values into `.env.local`
+
+1. In the Supabase dashboard, with `seva-test` open, click **Project Settings** (the gear icon at the bottom of the
+   left menu), then **API Keys**.
+   What you should see now: a page of keys. (UNVERIFIED: Supabase shows newer "publishable" and "secret" keys, and may
+   show the older **anon** and **service_role** keys on a tab called **Legacy** or similar.)
+2. Make your `.env.local` file as 0.8 shows, with these three lines:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://<your project ref>.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<the anon key, or the publishable key>
+   SUPABASE_SERVICE_ROLE_KEY=<the service_role key, or the secret key>
+   ```
+
+3. For each key, click **Copy** next to it in Supabase, then click after the `=` sign in Notepad and press **Ctrl+V**.
+   If the page has the **Legacy** tab with **anon** and **service_role**, use those two. If it does not, use the
+   **publishable** key and the **secret** key (you may need to click a button that reveals the secret key first).
+4. Press **Ctrl+S** and close Notepad.
+   What you should see now: `.env.local` in `D:\Onboarding\Repos\POCs\seva-entry`, three lines long. The first line
+   is not secret; the third line is. Never send me this file.
 
 ### Tell me it is done
 
 Send me this message in chat (it holds no secret; fill in the brackets):
-`Section 1 done - test ref <20 letters>, live region <region>, live size <size>`.
+`Section A1 done - test ref <20 letters>, region <region>, tables pushed, .env.local has the three Supabase lines`.
 
-## 2. Vercel access and settings
+## A2. Your Firebase test project
 
-Why: Vercel runs the website. The build needs the right settings names in the right place, and the website's code
-should run near the database (Mumbai).
+Why: the website signs people in with Firebase. A test copy of the site needs a Firebase project that you control,
+with its own sign-in and its own small database for user records. The free **Spark** plan is enough. (The build's
+automated tests use Firebase emulators on this PC and need nothing from you.)
 
-What you need: your Vercel sign-in, about 20 minutes.
-
-Vendor pages read for this section:
-(source: https://vercel.com/docs/rbac/managing-team-members, checked 2026-10-18)
-(source: https://vercel.com/docs/environment-variables/managing-environment-variables, checked 2026-10-18)
-(source: https://vercel.com/docs/environment-variables/sensitive-environment-variables, checked 2026-10-18)
-(source: https://vercel.com/docs/functions/configuring-functions/region, checked 2026-10-18)
-(source: https://vercel.com/docs/regions, checked 2026-10-18)
-(source: https://vercel.com/docs/limits/fair-use-guidelines, checked 2026-10-18)
-(source: https://vercel.com/docs/deployments/managing-deployments, checked 2026-10-18)
-(source: https://vercel.com/docs/cli/login, checked 2026-10-18)
-
-### 2.1 Check which Vercel plan you are on
-
-1. Open `https://vercel.com/dashboard` and sign in.
-   You should now see your projects, and at the top left a team name with a small label such as **Hobby** or **Pro**.
-   (UNVERIFIED: the label's position.)
-2. Click your team name, then **Settings**, then **Billing** if you cannot see the label.
-3. Write down the plan name.
-
-Two facts from Vercel's own pages that matter for the temple:
-
-- **Hobby is for non-commercial personal use only.** Vercel counts "any method of requesting or processing payment
-  from visitors of the site" as commercial; asking for donations is not. Phase 1 (the counter) takes no money on the
-  website, but Phase 2 (online seva booking with payment) probably needs **Pro**. This is your decision (open item
-  O-16); nothing changes today.
-- **Inviting another person into the team is available only on Pro and Enterprise.** On Hobby, the builder works on
-  this PC under your own sign-in instead (2.2). On Pro, you may also invite a person through **Settings** >
-  **Members** > enter the email > choose a role > **Invite**.
-
-### 2.2 Give the builder access on this PC
-
-The builder (me) works on this PC. Signing in once here lets me read the project's settings names while I build.
-I never deploy without your word.
-
-1. Open a PowerShell window in the folder `D:\Onboarding\Repos\POCs\seva-entry` (see 0.4).
-2. Type `npx vercel login` and press **Enter**.
-   You should now see a question to install the package (type `y` and press **Enter**) and then a prompt or a browser
-   page asking you to confirm the sign-in.
-3. In the browser page, click the button that confirms the sign-in (for example **Confirm** or **Continue**).
-   (UNVERIFIED: Vercel changed its CLI sign-in flow in 2025; the page wording may differ.)
-   You should now see in PowerShell a line saying you are logged in, with your email.
-4. Type `npx vercel whoami` and press **Enter**.
-   You should now see your Vercel user name. Close the window.
-
-### 2.3 Check the function region (Mumbai)
-
-1. In the Vercel dashboard, click the temple website project (probably named **rayaramathaynk**; UNVERIFIED).
-2. Click **Settings** in the sidebar.
-3. Click **Functions** in the settings menu.
-4. Open the **Function Regions** section.
-   You should now see the selected region. New projects start in **Washington, D.C., USA (iad1)**.
-5. Write down the region that is selected.
-6. If it is not **Mumbai, India (bom1)**, do not change it yet. The live database's region (from 1.1.7) decides the
-   best choice, and changing the region affects the live site. I will tell you whether to change it.
-
-### 2.4 Add the settings names for the test build
-
-Vercel keeps settings ("environment variables") separately for **Production** (the live website) and **Preview**
-(test copies made from the build branch). The test build must point at the `seva-test` database, never the live one.
-
-Where each value comes from:
-
-| Name | Production (live site) | Preview (test build) | Type |
-|---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | keep what is there | `https://<test ref>.supabase.co` | Config |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | keep what is there | test project: **Settings** > **API Keys**, the **anon** / publishable key | Config |
-| `SUPABASE_SERVICE_ROLE_KEY` | keep what is there | test project: **Settings** > **API Keys**, the **service_role** / secret key | Secret |
-| `NEXT_PUBLIC_FIREBASE_*` (six names) | keep what is there | nothing to do if the name already covers **Preview** (same values as Production); see the note under the steps | Config |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | the new key file from section 3 | done in section 3.4 - skip here | Secret |
-| `NEXT_PUBLIC_SITE_URL` | the website's public address, for example `https://<your domain>` | skip | Config |
-
-Names starting with `NEXT_PUBLIC_` are sent to every visitor's browser, so they never hold a secret.
-
-The one rule for this section: **never untick Production on a name that already exists, and never change the value
-of a name that covers Production.** In most Vercel projects one entry holds a name for all environments at once; if
-you took Production away from it, the next live deployment would be built without that setting and the live website
-would break. Instead you take only **Preview** away from the existing entry, and then add a second, Preview-only entry
-with the test value.
-
-Steps for one name (repeat for the three Supabase rows; skip the rows marked "skip"):
-
-1. In the project, click **Settings**, then **Environment Variables** in the sidebar.
-   You should now see an "Add New" form at the top and the list of existing names below it.
-2. Look in the list for the name. Next to it, Vercel shows which environments the entry covers (**Production**,
-   **Preview**, **Development**). Then:
-   - If the name is not in the list at all, go to step 6.
-   - If the name is listed for **Preview** only (no **Production**), click the three dots next to it, click **Edit**,
-     paste the test value into **Value** as step 8 says, keep only **Preview** ticked, click **Save**, and you are done
-     with this name.
-   - If the entry covers **Production** (alone, or together with **Preview** or **Development**), continue at step 3.
-3. Click the three dots next to that entry and click **Edit**.
-4. Under the environments, untick **Preview** only. Keep **Production** ticked, and leave **Development** as it was.
-   Do not touch **Value**.
-5. Click **Save**.
-   You should now see the name still listed for **Production**, but no longer for **Preview**. If **Production** has
-   gone from it, stop and tell me at once (0.3).
-6. Go to the "Add New" form at the top of the page.
-7. Under **Type**, choose **Config** or **Secret** as the table says, and in **Key** (or **Name**) type the name
-   exactly as in the table.
-8. In **Value**, paste the test value. For the URL, type `https://<test ref>.supabase.co` with the 20 letters from 1.3.
-   For the two Supabase keys: open the `seva-test` project in Supabase in another tab, click **Project Settings** >
-   **API Keys**, click **Copy** next to the key, and paste here. (UNVERIFIED: Supabase shows the older **anon** and
-   **service_role** keys under a "Legacy" heading on that page.)
-9. Under the environments, tick **Preview** only and untick **Production** and **Development**.
-10. Click **Save**.
-    You should now see the name listed twice: once for **Production** with the old value, and once for **Preview**
-    with the label **Config** or **Secret**.
-
-Note on the six `NEXT_PUBLIC_FIREBASE_*` names: look at each one in the list. If it already covers **Preview**, there
-is nothing to do. If one covers **Production** but not **Preview**, click its three dots > **Edit**, tick **Preview**
-as well (keep **Production** and **Development** as they are, do not change **Value**), and click **Save**.
-
-A new value only reaches the site after a new deployment. You do not need to redeploy for the Preview values; the next
-test build picks them up. Taking Preview away from an entry does not change the live site.
-
-### Tell me it is done
-
-Send me this message in chat (it holds no secret; fill in the brackets):
-`Section 2 done - plan <Hobby or Pro>, function region <region>, preview settings added`.
-
-## 3. Revoke the old Firebase key
-
-When: after I tell you the build is merged into main, not before.
-
-Why: an old Firebase service-account key was once written into the code, so anyone with a copy of the code could use
-it (open item O-18). In the build, the scripts read the key from a git-ignored file or a secret instead (task A1-5).
-Until the build is merged, the 11 one-off scripts on main still carry the old key inside them, so this section waits
-for the merge: after it, nothing needs the old key and it can be switched off. (Nothing runs those scripts on a
-schedule, so the website and the nightly jobs do not depend on them either way.)
-
-You make a new key, put it everywhere the old one is used, check the site, and only then delete the old key. Deleting
-a key cannot be undone, so the order matters.
-
-What you need: your Google sign-in for the Firebase project, your GitHub and Vercel sign-ins, about 30 minutes.
+What you need: a Google account (any Gmail address), this PC, about 30 minutes.
 
 Vendor pages read for this section:
-(source: https://docs.cloud.google.com/iam/docs/keys-create-delete, checked 2026-10-18)
-(source: https://docs.cloud.google.com/iam/docs/keys-disable-enable, checked 2026-10-18)
+(source: https://firebase.google.com/docs/web/setup, checked 2026-10-19)
+(source: https://firebase.google.com/docs/auth/web/password-auth, checked 2026-10-19)
+(source: https://firebase.google.com/docs/firestore/quickstart, checked 2026-10-19)
 (source: https://firebase.google.com/docs/admin/setup, checked 2026-10-18)
-(source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets, checked 2026-10-18)
-(source: https://vercel.com/docs/environment-variables/managing-environment-variables, checked 2026-10-18)
-(source: https://vercel.com/docs/deployments/managing-deployments, checked 2026-10-18)
 
-### 3.1 Make the new key
+### A2.1 Sign in and create the project
 
-1. Open `https://console.cloud.google.com/iam-admin/serviceaccounts` and sign in with the Google account that owns
-   the Firebase project.
-2. At the top of the page, click the project picker and choose the project with the same name as your Firebase
-   project.
-   You should now see a list of service accounts with their emails.
-3. Click the email that starts with `firebase-adminsdk-`.
-4. Click the **Keys** tab.
-   You should now see a list of the existing keys with their creation dates. Write down how many keys there are and
-   their creation dates.
-5. Click **Add key**, then **Create new key**.
-6. Choose **JSON**.
+1. Open `https://console.firebase.google.com` and sign in with your Google account. If you have no Google account,
+   click **Create account** on the Google sign-in page and follow it first.
+   What you should see now: the Firebase welcome page with no projects, and a large button to create a project or get
+   started. (Firebase's own page only says "click the button to create a new Firebase project"; it does not name it.)
+2. Click that button.
+   What you should see now: a box asking for a project name.
+3. Type `seva-test-nikhil`. Below the name, Firebase shows the **project ID** it will use (for example
+   `seva-test-nikhil` or that name with a few letters added). Write the project ID down; it cannot be changed later.
+4. Accept the Firebase terms if asked, and click **Continue**.
+5. If it offers AI help in the console ("Gemini"), you may switch it off; it does not matter for this build. Click
+   **Continue**.
+6. When it offers **Google Analytics**, switch it **off**. Click the button that creates the project.
+   What you should see now: a short wait, then "Your new project is ready" or similar. Click **Continue**.
+   What you should see now: the project's home page (**Project Overview**) with a menu down the left, and the plan
+   shown as **Spark** (free). If it asks for a card or a paid plan, stop and tell me what you see.
+
+### A2.2 Add a web app and copy its six settings
+
+1. On **Project Overview**, click the web icon (it looks like `</>`) to add an app. It may sit under a button that
+   says **Add app** or similar.
+   What you should see now: a form with **App nickname**.
+2. In **App nickname**, type `seva-test-web`. Leave **Firebase Hosting** unticked.
+3. Click **Register app**.
+   What you should see now: a block of code with `const firebaseConfig = {` and lines such as `apiKey`, `authDomain`,
+   `projectId`, `storageBucket`, `messagingSenderId` and `appId`.
+4. Open your `.env.local` in Notepad (0.8) and add these six lines at the end, each value copied from the line of the
+   same name in that block (copy only what is between the quotes):
+
+   ```
+   NEXT_PUBLIC_FIREBASE_API_KEY=<apiKey>
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<authDomain>
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=<projectId>
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=<storageBucket>
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=<messagingSenderId>
+   NEXT_PUBLIC_FIREBASE_APP_ID=<appId>
+   ```
+
+   These six are not secret (every visitor's browser receives them), but keep them in this file all the same.
+5. Press **Ctrl+S**. Back in Firebase, click **Continue to console**.
+
+You can find the same block again any time: gear icon next to **Project Overview** > **Project settings** >
+**General** > **Your apps** > **Config**.
+
+### A2.3 Turn on sign-in
+
+1. In the left menu, open **Build** (or **Security**; Firebase moves it now and then) and click **Authentication**.
+2. Click **Get started**.
+   What you should see now: the **Sign-in method** tab with a list of providers.
+3. Click **Email/Password**, switch on the first **Enable** switch (leave "Email link" off), and click **Save**.
+   What you should see now: **Email/Password** listed as **Enabled**.
+4. For Plan B later (do it now; it costs nothing): click **Add new provider**, click **Google**, switch on **Enable**,
+   choose your email under **Project support email**, and click **Save**.
+   What you should see now: **Google** listed as **Enabled** as well.
+
+### A2.4 Create the small database for user records (Firestore)
+
+The site keeps each person's role in Firebase's own database, Firestore.
+
+1. In the left menu, under **Build** (or **Databases**), click **Firestore Database**.
+2. Click **Create database**.
+   What you should see now: a few short steps. (UNVERIFIED: the order of the steps.)
+3. If it asks for an **edition**, choose **Standard**.
+4. Keep the database ID `(default)`.
+5. Under **Location**, choose **asia-south1 (Mumbai)**. It cannot be changed later.
+6. When it asks how to start, choose **Start in production mode**.
 7. Click **Create**.
-   You should now see a message that the key was saved, and a `.json` file in your **Downloads** folder. Its name is the
-   project name plus 12 letters and numbers. Google cannot download this file again, so do not lose it.
-8. Look at the **Keys** list again. The new key's ID starts with the same 12 letters and numbers as the file name.
-   Write those 12 characters down so you never delete the new key by mistake. (UNVERIFIED: Google names the file
-   this way today.)
+   What you should see now: an empty database page with tabs such as **Data**, **Rules** and **Indexes**.
 
-(Same result from the Firebase side: Firebase console > gear > **Project settings** > **Service accounts** >
-**Generate new private key** > **Generate key**.)
+### A2.5 Copy the site's security rules into your test project
 
-### 3.2 Put the new key in the git-ignored file on this PC
+1. On this PC, open `D:\Onboarding\Repos\POCs\seva-entry` in **File Explorer**, right-click `firestore.rules`, click
+   **Open with** > **Notepad**.
+2. Press **Ctrl+A**, then **Ctrl+C**. Close Notepad without changing anything.
+3. In Firebase, on the Firestore page, click the **Rules** tab.
+   What you should see now: a text editor with a few lines of rules.
+4. Click in the editor, press **Ctrl+A**, then **Ctrl+V** to replace them with the site's rules.
+5. Click **Publish**.
+   What you should see now: a message that the rules were published, and a new entry in the rules history.
+   If it shows a red error line, stop and tell me the line number and the message (they hold no secret).
 
-1. Open **File Explorer**, click **View** > **Show** > **File name extensions** so you can see the `.json` endings.
-2. Go to `D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected`.
-3. If a file named `.firebase-adminsdk.json` is there (it holds the old key), click it once, hold **Shift** and press
-   **Delete**.
-   You should now see a box asking "Are you sure you want to permanently delete this file?". Click **Yes**. Shift+Delete
-   skips the Recycle Bin, so the old key is gone at once and nothing else is touched.
-4. Open your **Downloads** folder and drag the new `.json` file into
-   `D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected`. Dragging between folders on the same drive moves it;
-   if Downloads is on another drive, it copies, so remove the one left in Downloads afterwards with **Shift**+**Delete**
-   as in step 3.
-5. Right-click the new file, click **Rename**, type `.firebase-adminsdk.json` (with the dot at the start), and press
-   **Enter**.
-   You should now see `.firebase-adminsdk.json` in the folder. Git ignores this exact name, so it never goes into the
-   code.
+### A2.6 The service-account key file
 
-### 3.3 Replace the key in GitHub secrets
+The website's server and the build's scripts sign in to your Firebase project with a key file. This file is a secret.
 
-1. Open `https://github.com/nikhilmn01/Rayaramathaynk` and sign in.
-2. Click **Settings** (under the repository name).
-3. In the left sidebar, under **Security**, click **Secrets and variables**, then **Actions**.
-4. Click the **Secrets** tab.
-   You should now see a list of secret names. The values are hidden; that is normal.
-5. Find `FIREBASE_SERVICE_ACCOUNT_JSON` in the list. If it is there, click the pencil icon next to it (**Update**).
-   If it is not there, click **New repository secret** and type `FIREBASE_SERVICE_ACCOUNT_JSON` in **Name**.
-   (UNVERIFIED: GitHub's page does not name the pencil button. If you cannot find it, delete the secret with the bin
-   icon and add it again with the same name.)
-6. Open `.firebase-adminsdk.json` with **Notepad** (right-click > **Open with** > **Notepad**).
-7. Press **Ctrl+A**, then **Ctrl+C** to copy all of it.
-8. Click in the GitHub **Secret** (or **Value**) box and press **Ctrl+V**.
-9. Click **Update secret** (or **Add secret**).
-   You should now see the secret's "Updated" time change to "now".
-10. If the list also has `FIREBASE_SERVICE_ACCOUNT`, repeat steps 5 to 9 for it with the same whole file.
-11. If the list has `FIREBASE_PRIVATE_KEY`, repeat steps 5 to 9 for it, but paste only the text between the quotes
-    after `"private_key":` in the Notepad file (it starts and ends with five dashes; keep the `\n` marks as they are).
-12. If the list has `FIREBASE_CLIENT_EMAIL`, it stays the same (the email does not change with a new key). Leave it.
-13. Close Notepad without saving changes.
+1. Click the gear icon next to **Project Overview**, then **Project settings**, then the **Service accounts** tab.
+2. Click **Generate new private key**, then **Generate key** in the box that opens.
+   What you should see now: a `.json` file in your **Downloads** folder. Firebase cannot show this file again.
+3. In **File Explorer** (with **File name extensions** on, as in 0.8 step 8), move the file from **Downloads** into
+   `D:\Onboarding\Repos\POCs\seva-entry`: right-click it > **Cut**, open the folder, right-click an empty space >
+   **Paste**.
+4. Right-click the moved file, click **Rename**, type `.firebase-adminsdk.json` (with the dot at the start), press
+   **Enter**, and click **Yes** if Windows asks.
+   What you should see now: `.firebase-adminsdk.json` in the seva-entry folder, and nothing left in **Downloads**.
+   Git ignores this exact name in this folder, so it never goes into the code.
+5. Right-click `.firebase-adminsdk.json` > **Open with** > **Notepad**. Open `.env.local` in a second Notepad window.
+6. Add these three lines at the end of `.env.local`:
 
-### 3.4 Replace the key in Vercel
+   ```
+   FIREBASE_PROJECT_ID=<your project ID>
+   FIREBASE_CLIENT_EMAIL=<the value after "client_email": without its quotes>
+   FIREBASE_PRIVATE_KEY="<the value after "private_key": without its quotes>"
+   ```
 
-1. Open the Vercel project > **Settings** > **Environment Variables**.
-2. Look for these names: `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_PRIVATE_KEY`, `NEXT_PUBLIC_FIREBASE_PRIVATE_KEY`.
-3. If `FIREBASE_SERVICE_ACCOUNT_JSON` is in the list, click the three dots next to it and click **Edit**. If it is not,
-   use the "Add New" form at the top, choose **Secret** under **Type**, and type `FIREBASE_SERVICE_ACCOUNT_JSON` in
-   **Key**.
-4. Open `.firebase-adminsdk.json` in **Notepad**, press **Ctrl+A**, then **Ctrl+C**.
-5. Click in **Value** and press **Ctrl+V**.
-6. Tick **Production** and **Preview**.
-7. Click **Save**.
-   You should now see `FIREBASE_SERVICE_ACCOUNT_JSON` labelled **Secret** for Production and Preview. The website reads
-   this name first, so it uses the new key from the next deployment.
-8. If `FIREBASE_PRIVATE_KEY` is in the list, click its three dots and click **Edit**.
-9. Paste only the text between the quotes after `"private_key":` (as in 3.3.11) into **Value** and click **Save**.
-10. If `NEXT_PUBLIC_FIREBASE_PRIVATE_KEY` is in the list, click its three dots and click **Delete**.
-11. Confirm the delete. A name that starts with `NEXT_PUBLIC_` is sent to every visitor's browser, so a key must never
-    be stored under it.
-12. Close Notepad without saving changes.
-13. Click **Deployments** in the sidebar.
-14. On the newest deployment marked **Production**, click the three dots and click **Redeploy**.
-15. In the **Redeploy to Production** window, click **Redeploy**.
-    You should now see a new deployment that turns to **Ready** after a few minutes.
-
-### 3.5 Check the website works with the new key
-
-1. Open the temple website and sign in to the admin pages as you normally do.
-2. Open **Users** (or any admin page that lists data).
-   You should now see the usual data with no error message.
-3. If you see an error, stop here. Do not delete any key. Tell me the step number and the error text.
-
-### 3.6 Delete the old key
-
-1. Go back to the **Keys** tab of the `firebase-adminsdk-` service account (3.1 steps 1 to 4).
-2. Find each key whose ID does **not** start with the 12 characters you wrote down in 3.1.8 and whose creation date is
-   before today.
-3. If you know of another computer or service that uses one of those old keys, stop and tell me first.
-4. Click the bin icon (**Delete**) next to one old key.
-   You should now see a box asking you to confirm.
-5. Click **Delete** in that box. A deleted key cannot be brought back.
-6. Repeat steps 4 and 5 for each remaining old key.
-   You should now see only the new key in the list.
-7. Repeat 3.5 once more to check the website still works.
+   The private key is one long line that starts and ends with five dashes and contains `\n` marks; copy it exactly
+   as it is, keep the `\n` marks, and put it between double quotes as shown.
+7. Save `.env.local` (**Ctrl+S**). Close the key file's Notepad window without saving changes.
+   What you should see now: `.env.local` with 12 lines: three Supabase, six `NEXT_PUBLIC_FIREBASE_`, three
+   `FIREBASE_`. Never send me either file.
 
 ### Tell me it is done
 
 Send me this message in chat (it holds no secret; fill in the brackets):
-`Section 3 done - new key in file, GitHub and Vercel; <number> old keys deleted; site works`.
+`Section A2 done - Firebase project ID <id>, email sign-in on, Google sign-in <on or off>, rules published, key file and .env.local filled`.
 
-## 4. Backup secrets and the age key
+## A3. Seeing the test site: on this PC or on your phone
 
-Why: every night a GitHub job copies the whole database, locks it with a public "lock" key, and keeps the locked file
-for 30 days (open item O-15). Only the matching private "unlock" key can open it. That unlock key lives on two USB
-drives in the office, never on any computer or website. If both USB drives are lost, the backups cannot be opened.
+When: at the end of wave A4, for the 10-minute check, and again in Plan B. Before that, nothing here is needed.
 
-What you need: two USB drives (any size), a label pen, your Supabase and GitHub sign-ins, about 30 minutes.
-
-Vendor pages read for this section:
-(source: https://github.com/FiloSottile/age, checked 2026-10-18)
-(source: https://supabase.com/docs/guides/database/connecting-to-postgres, checked 2026-10-18)
-(source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets, checked 2026-10-18)
-(source: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow, checked 2026-10-18)
-
-### 4.1 Install age on this PC
-
-1. Click **Start**, type `Terminal`, and click **Terminal**.
-2. Type `winget install --id FiloSottile.age` and press **Enter**.
-   You should now see a download and "Successfully installed". If it asks to accept terms, type `Y` and press
-   **Enter**.
-3. Close the Terminal window and open a new one (so it finds the new program).
-4. Type `age --version` and press **Enter**.
-   You should now see a version number such as `v1.2.1`.
-
-### 4.2 Make the key pair straight onto the first USB drive
-
-The key file is made directly on the USB drive, so it never sits on the PC's own disk.
-
-1. Plug in the first USB drive.
-2. Open **File Explorer** and note its drive letter (for example **USB Drive (E:)**).
-3. In the Terminal window, type `cd E:\` (use your drive letter) and press **Enter**.
-4. Type `age-keygen -o seva-backup-key.txt` and press **Enter**.
-   You should now see one line that starts with `Public key: age1` followed by many letters and numbers.
-5. Select that `age1...` text with the mouse (from `age1` to the end of the line) and press **Ctrl+C** to copy it.
-   This is the public lock key. It is safe to put into GitHub; it cannot open anything.
-6. Keep the Terminal window open; you paste the public key in 4.3.
-
-Never open `seva-backup-key.txt` in an editor that syncs to the internet, never email it, and never paste its
-contents anywhere. The file holds the private unlock key.
-
-### 4.3 Put the public key into GitHub
-
-1. Open `https://github.com/nikhilmn01/Rayaramathaynk` > **Settings** > **Secrets and variables** > **Actions** >
-   **Secrets** tab (as in 3.3 steps 1 to 4).
-2. Click **New repository secret**.
-3. In **Name**, type `SEVA_BACKUP_AGE_RECIPIENT`.
-4. Click in **Secret** and press **Ctrl+V** to paste the `age1...` public key.
-5. Click **Add secret**.
-   You should now see `SEVA_BACKUP_AGE_RECIPIENT` in the list.
-
-### 4.4 Put the database connection string into GitHub
-
-The nightly job needs to read the **live** database. Supabase calls the address it needs the **Session pooler**
-string (port 5432). GitHub's computers need this kind, because it works over the older internet addresses (IPv4).
-
-1. Open `https://supabase.com/dashboard` and click the **live** temple project.
-2. Click **Connect** at the top of the page.
-   You should now see a window with several connection strings.
-3. Choose **Session pooler**. (UNVERIFIED: it may sit under a **Method** or **Type** drop-down.)
-   You should now see a string that looks like
-   `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-<n>-<region>.pooler.supabase.com:5432/postgres`.
-4. Click **Copy**.
-5. Open **Notepad** and press **Ctrl+V**.
-6. Replace `[YOUR-PASSWORD]` (including the square brackets) with the live database password.
-   If the password has any of these signs `@ : / ? # & %` or a space, stop and tell me "Section 4 needs password
-   help" - those signs need special writing and I will tell you how.
-   If you do not know the live database password, stop and tell me "Section 4 blocked - no DB password". Do not reset
-   it yourself: other things use it, and resetting it would break them.
-7. Press **Ctrl+A**, then **Ctrl+C**.
-8. In GitHub (same Secrets page), click **New repository secret**.
-9. In **Name**, type `SEVA_BACKUP_DB_URL`.
-10. Click in **Secret** and press **Ctrl+V**.
-11. Click **Add secret**.
-    You should now see `SEVA_BACKUP_DB_URL` in the list.
-12. Close Notepad and click **Don't save**. The string must not stay in a file on the PC.
-
-### 4.5 Copy the key file to the second USB drive
-
-1. Plug in the second USB drive.
-2. In **File Explorer**, open the first USB drive, right-click `seva-backup-key.txt`, and click **Copy**.
-3. Open the second USB drive, right-click an empty space, and click **Paste**.
-   You should now see `seva-backup-key.txt` on both drives.
-4. Label both drives "Seva backup key - do not format".
-5. Click the **Safely Remove Hardware** icon (bottom right of the taskbar) and eject both drives.
-6. Keep the two drives in two different places (for example the office safe and the trustee's home), never with the
-   counter PC.
-
-### 4.6 First backup run (after I tell you the backup job is on main)
-
-The nightly job runs by itself at 02:30 India time once the build's backup file is part of the main branch. I will
-tell you when that is. Then:
-
-1. Open the repository on GitHub and click **Actions**.
-2. In the left sidebar, click the backup workflow (its name contains "backup").
-3. Click **Run workflow**, keep **Branch** as `main`, and click the green **Run workflow** button.
-   You should now see a new run with a yellow dot that turns into a green tick after a few minutes.
-4. If it turns into a red cross, tell me the run's date and time (not its log).
-
-### Tell me it is done
-
-Send me this message in chat (it holds no secret): `Section 4 done - both secrets added, key on two USB drives`.
-
-## 5. Restore drill (once a month)
-
-Why: a backup is only useful if it can be opened. Once a month (and once before go-live) you check that the latest
-backup opens with the key on the USB drive. This takes about 20 minutes and changes nothing anywhere.
-
-What you need: one of the two USB drives, this PC, your GitHub sign-in.
+You can look at the test site in two ways. **Option 1 (no new account):** on this PC - I start the site and you open
+it in the browser. **Option 2:** your own Vercel account (free Hobby plan) builds a preview link of **your fork** that
+you can open on a phone. Option 2 is needed only if you want to check on a phone, and for the Plan B test payment.
+Both use your test projects from A1 and A2.
 
 Vendor pages read for this section:
-(source: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts, checked 2026-10-18)
-(source: https://github.com/actions/upload-artifact, checked 2026-10-18)
-(source: https://www.postgresql.org/download/windows/, checked 2026-10-18)
-(source: https://enterprisedb.com/docs/supported-open-source/postgresql/installing/windows, checked 2026-10-18)
+(source: https://vercel.com/docs/git/vercel-for-github, checked 2026-10-19)
+(source: https://vercel.com/docs/getting-started-with-vercel/import, checked 2026-10-19)
+(source: https://vercel.com/docs/environment-variables/managing-environment-variables, checked 2026-10-18)
+(source: https://vercel.com/docs/limits/fair-use-guidelines, checked 2026-10-18)
 
-### 5.1 One-time: install the PostgreSQL command line tools
+### A3.1 Option 1: check on this PC
 
-1. Open `https://www.enterprisedb.com/downloads/postgres-postgresql-downloads`.
-2. In the **Windows x86-64** column, click the download for the highest version listed.
-3. Run the downloaded installer and click **Next** on the first screens.
-4. On **Select Components**, untick **PostgreSQL Server**, **pgAdmin 4** and **Stack Builder**, and keep
-   **Command Line Tools** ticked. (UNVERIFIED: if the installer will not continue without the server, keep
-   **PostgreSQL Server** ticked too; it does no harm.)
-5. Click **Next** until **Finish**. Untick the offer to launch Stack Builder.
-   You should now see a folder `C:\Program Files\PostgreSQL\<version>\bin`. Write down the version number.
+1. Tell me you want to check on this PC. I start the site in the seva-entry folder; it reads your `.env.local`.
+2. When I say it is running, open `http://localhost:3000` in the browser.
+   What you should see now: the temple website's home page, running on this PC.
+3. If this is the first time with your test projects, do A3.2 now.
+4. Follow the checklist I give you. When you are finished, tell me and I stop the site.
 
-### 5.2 Download the latest backup
+### A3.2 Make yourself staff 001 on your test projects (once)
 
-1. Open the repository on GitHub and click **Actions**.
-2. In the left sidebar, click the backup workflow.
-3. Click the newest run with a green tick.
-   You should now see the run's summary page with an **Artifacts** section near the bottom.
-4. In **Artifacts**, click the one named `seva-<date>` (the newest date).
-   You should now see a `.zip` file in your **Downloads** folder.
-5. Make a new folder `C:\SevaDrill`.
-6. Right-click the `.zip` file, click **Extract All**, choose `C:\SevaDrill`, and click **Extract**.
-   You should now see two files in `C:\SevaDrill`: one ending in `.dump.age` and one ending in `.sha256`.
+The seva module needs one first super admin. On your test projects, that is you.
 
-### 5.3 Open it with the key
+1. With the site running (A3.1, or your Vercel link from A3.5), open the site's **Register** page (`/register`, for
+   example `http://localhost:3000/register`) and sign up with your own email and a new password.
+   What you should see now: you are signed in to the test site as an ordinary member.
+2. Open a PowerShell window in `D:\Onboarding\Repos\POCs\seva-entry` (0.9).
+3. Type `npx tsx scripts/seva/create-first-super-admin.ts --email <the email you just used>` and press **Enter**.
+   It reads `.env.local` and `.firebase-adminsdk.json` and prints no secret.
+   What you should see now: a few lines ending in a message that staff 001 was created (or already exists). If it
+   prints an error, copy it (it holds no secret) and send it to me.
+4. Sign out of the test site and sign in again.
+   What you should see now: the admin menu, with the seva module in it.
 
-The drill script lives in the build's folder, `D:\Onboarding\Repos\POCs\seva-entry`. The repository folder
-`D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected` does not have it until that folder is brought up to the
-latest main, so do not use that one unless I tell you to.
+### A3.3 Option 2: sign up for Vercel
 
-1. Plug in one of the two USB drives and note its letter (for example `E:`).
-2. In **File Explorer**, open `D:\Onboarding\Repos\POCs\seva-entry`.
-3. Open the folder `scripts`, then `seva`.
-   You should now see a file `verify-backup.sh` (with **File name extensions** on, as in 3.2.1). If the folder
-   `seva-entry`, the folder `seva` or the file is missing, stop and tell me "Section 5 - no drill script"; I will tell
-   you which folder to use instead.
-4. Go back up twice to `D:\Onboarding\Repos\POCs\seva-entry`, right-click an empty space, click **Show more options**,
-   then **Open Git Bash here**.
-   You should now see a window with a `$` sign at the end of the last line.
-5. Type `export PATH="$PATH:/c/Program Files/PostgreSQL/<version>/bin"` with your version number from 5.1.5, and
-   press **Enter**.
-6. Type `bash scripts/seva/verify-backup.sh /c/SevaDrill/<file name>.dump.age /e/seva-backup-key.txt` (use your file
-   name and your USB letter in small letters) and press **Enter**.
-   You should now see these lines, with your own numbers:
-   `Checksum: matches the .sha256 file`, `Decryption: ok (whole file)`, then `Archive entries: <n>`, `Schemas: <n>`,
-   `Tables: <n>` (a number above 0), and lines for table data, sequences, functions, indexes, triggers and
-   row-level security policies. It prints no names or phone numbers.
-   If the first line says `Checksum: not checked (no .sha256 file next to the backup)`, the `.sha256` file is not in
-   `C:\SevaDrill` next to the backup; the drill still counts, but tell me.
-   If a line starts with `verify-backup:` instead, the drill failed. Copy that one line (it holds no secret) and send
-   it to me with the step number.
-7. Close the Git Bash window.
-8. Eject the USB drive (**Safely Remove Hardware**) and put it back in its place.
-9. Delete the folder `C:\SevaDrill` and the `.zip` in **Downloads**: click each one, hold **Shift** and press
-   **Delete**, then click **Yes**. This skips the Recycle Bin, so nothing else of yours is deleted.
+1. Open `https://vercel.com/signup`.
+   What you should see now: a choice between personal and commercial projects. (UNVERIFIED wording.)
+2. Choose the personal (**Hobby**) choice, type your name, and click **Continue**.
+3. Click **Continue with GitHub**, sign in to GitHub as `nikhilmn01` if asked, and click the green button that
+   authorises Vercel.
+   What you should see now: the Vercel dashboard with no projects, and a page or button to import a Git repository.
+   If it asks for a card, stop: the Hobby plan needs none. Tell me what you see.
+
+### A3.4 Import your fork
+
+1. Click the button that adds a project (**Add New...** > **Project**, or the import page shown after sign-up).
+   What you should see now: **Import Git Repository**, with an empty list or a button to install the GitHub app.
+2. Click the button that installs or connects GitHub (for example **Install**, or **Adjust GitHub App Permissions**).
+   What you should see now: a GitHub page about installing **Vercel** on your account.
+3. Choose your account `nikhilmn01` if GitHub asks where to install.
+4. Choose **Only select repositories**, open the **Select repositories** list, and pick `Rayaramathaynk`.
+5. Click the green install button (**Install**, or **Install & Authorize**).
+   What you should see now: back in Vercel, `Rayaramathaynk` in the list with an **Import** button next to it.
+6. Click **Import**.
+   What you should see now: a **Configure Project** page with **Project Name**, **Framework Preset** (it should say
+   **Next.js**), **Root Directory**, **Build and Output Settings** and **Environment Variables**.
+7. Leave **Project Name**, **Framework Preset**, **Root Directory** and the build settings as they are.
+8. Open **Environment Variables**. For each of the 12 lines in your `.env.local`, type the name (the part before `=`)
+   into **Key**, paste the value (the part after `=`; for `FIREBASE_PRIVATE_KEY`, without the outer double quotes)
+   into **Value**, and click **Add**.
+   (UNVERIFIED: Vercel may let you paste the whole contents of `.env.local` into the first **Key** box and fill all
+   rows at once. If it does, check that each row has the right name.)
+9. Click **Deploy**.
+   What you should see now: a build log, and after a few minutes a page that says the project is deployed, with a
+   picture of the site. This first build is of your fork's `main` branch, which does not have the seva module yet;
+   that is expected.
+
+### A3.5 A preview link of the build branch
+
+1. When you want a phone check, tell me. With your go-ahead, the build branch `feature/seva-entry` is pushed to your
+   fork. Vercel builds it on its own as a **Preview**.
+2. In Vercel, open your project and click **Deployments**.
+   What you should see now: a deployment for the branch `feature/seva-entry` that turns **Ready** after a few
+   minutes.
+3. Click it, then click the link next to **Domains** (or **Visit**).
+   What you should see now: your test site at an address ending in `.vercel.app`. Vercel keeps preview links
+   private: on your phone it may ask you to sign in to Vercel first. That is expected.
+4. If this is the first time with your test projects, do A3.2 on this link.
+
+Two notes:
+
+- **Your fork's GitHub Actions stay off.** GitHub switches off workflows on a new fork ("Workflows aren't being run on
+  this forked repository"). Leave them off: the site owner's jobs (daily updates, backups, deploys) belong to his
+  repository, and your fork has none of his secrets.
+- Vercel's Hobby plan is for personal, non-commercial use. A test copy of your own fork fits that.
 
 ### Tell me it is done
 
 Send me this message in chat (it holds no secret; fill in the brackets):
-`Section 5 done - backup of <date> opened, counts shown`.
+`Section A3 done - checked on <this PC or phone>, staff 001 <yes or no>, Vercel project <name or none>`.
 
-## 6. Local database tests need no set-up
+## A4. Cashfree test account and Expo account (later)
 
-Nothing to install and no account to make. The build's database tests run a small copy of Postgres inside Node.js on
-this PC (PGlite), so there is no Docker, no extra program, and no connection to the live or the test database. I run
-them myself (`npm run test:db`) and tell you the result.
+### A4.1 Cashfree test account (Plan B)
 
-### Tell me it is done
+Written in Plan B (task B0-1), with every screen click by click. What it will cover, so you know what is coming:
 
-Send me this message in chat (it holds no secret): `Section 6 done - read`.
+1. Create a Cashfree merchant account from its sign-up page, with your own email and phone. Test mode works before
+   any business papers are checked.
+2. Switch the dashboard to **Test** mode and find the test App ID and Secret Key. Copy each straight into your own
+   Vercel project (A3) for **Preview** only, never into chat: `PAYMENTS_PROVIDER=cashfree`, `PAYMENTS_MODE=test`,
+   `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`. Then redeploy your preview.
+3. Let Cashfree reach your preview: turn on Vercel's **Protection Bypass for Automation** in your own Vercel project.
+4. Google sign-in in your own Firebase test project (A2.3 step 4), plus your preview's address under
+   **Authentication** > **Settings** > **Authorized domains**.
+5. Payment alerts need no set-up; where to see them in Cashfree's test dashboard.
+6. The test UPI ids that succeed and fail, for the Plan B test payment on your preview.
 
-## 7. The counter PC
+The live Cashfree account, the reconcile secret and the live keys are the site owner's (B9).
 
-Do this section when I tell you the counter page is ready for the print test. Some steps (7.6 to 7.8) need the
-counter page itself.
+### A4.2 Expo account (Plan C)
+
+Written in Plan C (task C0-1). What it will cover: a free Expo account from its sign-up page, linking the Android app
+project, a preview build (an APK file), and installing it on an Android phone.
+
+## A5. The counter PC (for go-live at the temple)
+
+Do this at the temple, when I tell you the counter page is ready for the print test. It uses the live website, so it
+comes after the site owner has merged the pull request and done Part B. Some steps (A5.6 to A5.8) need the counter page
+itself.
 
 Why: the counter PC holds devotees' names and the day's receipts, prints the 99 x 210 mm slips without a print dialog,
 and keeps an Excel copy of each day (open items O-05, O-07, O-08, O-09).
 
-What you need: the counter PC, its printer and driver CD or download, a temple admin sign-in, about 60 minutes.
+What you need: the counter PC, its printer and driver CD or download, a temple admin sign-in on the live site, about
+60 minutes.
 
 Vendor pages read for this section:
 (source: https://support.microsoft.com/en-us/accounts-billing/security/sign-in-options-in-windows, checked 2026-10-18)
@@ -644,57 +544,57 @@ Vendor pages read for this section:
 (source: https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/silentprintingenabled, checked 2026-10-18)
 (source: https://developer.chrome.com/blog/persistent-permissions-for-the-file-system-access-api, checked 2026-10-18; dated 2024-01-09, possibly stale)
 
-### 7.1 A Windows password for the counter account
+### A5.1 A Windows password for the counter account
 
 1. Click **Start** > **Settings** > **Accounts** > **Sign-in options**.
 2. Click **Password**.
-   You should now see a button **Add** (no password yet) or **Change** (a password is already set). If it says
-   **Change**, skip to 7.2.
+   What you should see now: a button **Add** (no password yet) or **Change** (a password is already set). If it says
+   **Change**, skip to A5.2.
 3. Click **Add**.
 4. Type a new password in both password boxes.
 5. Type a hint that does not give the password away.
 6. Click **Next**, then **Finish**.
-   You should now see that Windows asks for this password the next time the PC starts.
+   What you should see now: Windows asks for this password the next time the PC starts.
 7. Write the password on paper kept in the office safe, not on the counter.
 
-### 7.2 Encrypt the disk (BitLocker or Device encryption)
+### A5.2 Encrypt the disk (BitLocker or Device encryption)
 
 1. Click **Start** > **Settings** > **Privacy & security**.
 2. Click **Device encryption**. (On Windows Pro you may instead see **BitLocker drive encryption** under
    **Settings** > **System** > **Storage** > **Advanced storage settings**, or in **Control Panel**; UNVERIFIED path.)
    If neither appears, this PC cannot encrypt; tell me in the final message ("no encryption").
 3. Switch **Device encryption** to **On**.
-   You should now see "Encrypting..." and later "On".
+   What you should see now: "Encrypting..." and later "On".
 4. When Windows offers to save the **recovery key**, save it to a USB drive or print it, and keep it in the office
-   safe, separate from the backup-key drives. Without it, a broken PC's disk cannot be read.
+   safe, apart from any backup-key drive. Without it, a broken PC's disk cannot be read.
 
-### 7.3 Install the printer and make the slip paper size
+### A5.3 Install the printer and make the slip paper size
 
 1. Install the printer with its driver from the maker's website or CD, as its manual says.
 2. Click **Start** > **Settings** > **Bluetooth & devices** > **Printers & scanners**.
 3. Scroll down to **Related settings** and click **Print server properties**.
-   You should now see a small window with a **Forms** tab.
+   What you should see now: a small window with a **Forms** tab.
 4. On the **Forms** tab, tick **Create a new form**.
 5. In **Form name**, type `Seva slip 99x210`.
 6. Under **Units**, choose **Metric**.
 7. Set **Width** to `9.90cm` and **Height** to `21.00cm`. Set all four printer area margins to `0.00cm`.
 8. Click **Save Form**, then **Close**.
-   You should now see `Seva slip 99x210` in the forms list the next time you open this window.
+   What you should see now: `Seva slip 99x210` in the forms list the next time you open this window.
 9. Back in **Printers & scanners**, click the printer, then **Printing preferences**.
-10. Set the paper size to **Seva slip 99x210** and the paper source (tray) to the **Bypass tray** (some printers call it
-    **Manual feed** or **Multi-purpose tray**). Set orientation to **Portrait**.
+10. Set the paper size to **Seva slip 99x210** and the paper source (tray) to the **Bypass tray** (some printers call
+    it **Manual feed** or **Multi-purpose tray**). Set orientation to **Portrait**.
 11. Click **OK**.
     (UNVERIFIED on the temple printer: some printer drivers do not show forms made here; if the size is missing in
     step 10, tell me the printer model.)
 
-### 7.4 Make it the default printer
+### A5.4 Make it the default printer
 
 1. In **Printers & scanners**, under **Printer preferences**, switch **Let Windows manage my default printer** to
    **Off**.
 2. Click the printer, then click **Set as default**.
-   You should now see "Default" under the printer's name.
+   What you should see now: "Default" under the printer's name.
 
-### 7.5 Stop Edge running in the background
+### A5.5 Stop Edge running in the background
 
 The silent printing switch only works when Edge starts fresh, so Edge must not keep running in the background.
 (UNVERIFIED: the setting names below come from guides other than Microsoft's.)
@@ -705,42 +605,42 @@ The silent printing switch only works when Edge starts fresh, so Edge must not k
 4. Switch **Continue running background extensions and apps when Microsoft Edge is closed** to **Off**.
 5. Close every Edge window.
 
-### 7.6 Install the counter as an app
+### A5.6 Install the counter as an app
 
 1. Open Edge and go to the counter address I give you (it ends with `/admin/receipts/counter`).
 2. Sign in with your temple admin account.
 3. In the address bar, click the **App available** icon, then click **Install**.
-   You should now see the counter open in its own window, and a small window after installing.
+   What you should see now: the counter open in its own window, and a small window after installing.
 4. In that small window, tick **Pin to taskbar** and leave **Auto-start on device login** unticked (the shortcut in
-   7.7 starts the counter instead).
+   A5.7 starts the counter instead).
 5. Close the app window and every Edge window.
 
-### 7.7 The kiosk-printing shortcut
+### A5.7 The kiosk-printing shortcut
 
 1. Right-click an empty space on the desktop, then click **New** > **Shortcut**.
-   You should now see a box "Type the location of the item".
-2. Type, all on one line, with your site address in place of `<site>`:
+   What you should see now: a box "Type the location of the item".
+2. Type, all on one line, with the live site's address in place of `<site>`:
    `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk-printing --app=https://<site>/admin/receipts/counter`
 3. Click **Next**.
 4. In "Type a name for this shortcut", type `Seva counter`.
 5. Click **Finish**.
-   You should now see a **Seva counter** icon on the desktop.
+   What you should see now: a **Seva counter** icon on the desktop.
 6. Make sure every Edge window is closed, then double-click **Seva counter**.
-   You should now see the counter page in its own window without an address bar.
+   What you should see now: the counter page in its own window without an address bar.
 7. On the counter, issue one test receipt as I describe at the print test.
-   You should now see the slip come out of the bypass tray with no print window on screen.
+   What you should see now: the slip comes out of the bypass tray with no print window on screen.
 8. If a print window appears instead, tell me. The fallback is an Edge setting called "Enable Silent Printing"
    (Edge version 144 or later), which I will walk you through. (UNVERIFIED on the temple PC.)
 
-### 7.8 Register the PC and choose the Excel folder
+### A5.8 Register the PC and choose the Excel folder
 
 1. In **File Explorer**, make a folder `D:\Seva receipts` (or `C:\Seva receipts` if the PC has no D: drive).
 2. Open the counter (**Seva counter** shortcut) and sign in as a temple admin.
 3. Go to **Settings** > **Receipts** > **Counters** and click **Register this PC** for **Counter 1**.
-   (UNVERIFIED: the exact screen is built later in this project; I will confirm the wording at the print test.)
-   You should now see Counter 1 marked as registered to this PC.
+   (UNVERIFIED: I will confirm the exact wording at the print test.)
+   What you should see now: Counter 1 marked as registered to this PC.
 4. On the counter, click **Choose folder**.
-   You should now see the Windows folder picker.
+   What you should see now: the Windows folder picker.
 5. Pick the `Seva receipts` folder and click **Select Folder**.
 6. When the browser asks whether the site may view and edit files in that folder, click **Edit files** (or **Allow**).
    If it offers **Allow on every visit**, choose that.
@@ -751,12 +651,458 @@ The silent printing switch only works when Edge starts fresh, so Edge must not k
 ### Tell me it is done
 
 Send me this message in chat (it holds no secret; fill in the brackets):
-`Section 7 done - password set, encryption <on or none>, slip printed without a dialog <yes or no>, folder asked again after restart <yes or no>`.
+`Section A5 done - password set, encryption <on or none>, slip printed without a dialog <yes or no>, folder asked again after restart <yes or no>`.
 
-## 8. Cashfree test account (Phase 2)
+## Part B - For the site owner (after the pull request is merged)
 
-Written in Plan B.
+**Nikhil: forward everything from here to the end of B9 to the site owner as it is.**
 
-## 9. Expo account (Android app)
+This part is written for **you, the person who runs the live temple website** (GitHub `ngowda759`). Nikhil built the
+Seva Entry module on his fork and sent it to you as a pull request. Once you merge it, these steps switch it on in
+your live accounts. Nikhil has no access to your Vercel, Firebase, Supabase or GitHub settings, and does not need any:
+only you do these steps.
 
-Written in Plan C.
+The one rule: **never send a key, password or connection string to anyone** - not to Nikhil, not in WhatsApp, not in
+an email. Each step says where a secret goes: your Vercel project, your repository's GitHub secrets, or a git-ignored
+file on your own computer. Things that are not secret (a project ref, a region, a plan name, the "Section ... done"
+messages) are fine to send. If a screen looks different from a step, stop and tell Nikhil what you see; do not click
+around to fix it.
+
+Three small how-tos used below:
+
+- **Open your repository's secrets:** `https://github.com/ngowda759/Rayaramathaynk` > **Settings** > in the left
+  sidebar under **Security**, **Secrets and variables** > **Actions** > the **Secrets** tab. To add one, click **New
+  repository secret**, type the **Name**, paste the value into **Secret**, and click **Add secret**. To change one,
+  click the pencil icon next to it, paste the new value, and click **Update secret**. (UNVERIFIED: GitHub's page does
+  not name the pencil button. If you cannot find it, delete the secret with the bin icon and add it again with the
+  same name.)
+- **Open your Vercel settings:** `https://vercel.com/dashboard` > the temple website project > **Settings** >
+  **Environment Variables**. To change a value, click the three dots next to the name > **Edit**. To add one, use the
+  form at the top. A changed value reaches the site only after a new deployment: **Deployments** > three dots on the
+  newest **Production** deployment > **Redeploy** > **Redeploy**.
+- **A copy of the repository on your computer** (needed for B5 and B8 only): install Git and Node.js 20 or later if
+  you do not have them, open a terminal in a folder of your choice, and run
+  `git clone https://github.com/ngowda759/Rayaramathaynk` and then `npm install` inside the new `Rayaramathaynk`
+  folder. If you already have a copy, run `git pull` in it after the merge.
+
+## B1. Supabase: add the new tables
+
+Do this right after you merge. Until it is done, the new seva pages show an error; the tables it adds are new, so
+nothing that already exists changes.
+
+Vendor pages read for this section:
+(source: https://supabase.com/docs/reference/cli/supabase-db-push, checked 2026-10-18)
+(source: https://supabase.com/docs/guides/platform/database-size, checked 2026-10-18)
+(source: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow, checked 2026-10-18)
+
+### B1.1 Note the live project's size and region (read only)
+
+This answers open items O-16 (region) and O-17 (database size). You only look; you change nothing.
+
+1. Open `https://supabase.com/dashboard` and click the live temple project.
+2. In the left-hand menu, click **SQL Editor**.
+   What you should see now: a large text box with a **Run** button.
+3. Type exactly: `select pg_size_pretty(pg_database_size(current_database()));` and click **Run**.
+   What you should see now: one result row, such as `142 MB`. Write it down. This query only reads.
+4. Click **Project Settings** (the gear icon), and look for **Region** on the **General** page or the
+   **Infrastructure** page. (UNVERIFIED which of the two.)
+   What you should see now: a region such as **South Asia (Mumbai)**. Write it down.
+5. Close the SQL Editor tab without saving.
+
+### B1.2 Apply the new tables
+
+Your repository has a workflow for this, **Deploy Supabase Migrations**. It uses four secrets you may already have:
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` and `SUPABASE_SERVICE_ROLE_KEY`.
+
+1. Open your repository's secrets (how-to above).
+   What you should see now: the list of secret names. If any of those four names is missing, stop and tell Nikhil
+   which ones (names are not secret); he will send you the steps to add it.
+2. Click **Actions** at the top of the repository.
+3. In the left sidebar, click **Deploy Supabase Migrations**.
+4. Click **Run workflow**, keep **Branch** as `main`, and click the green **Run workflow** button.
+   What you should see now: a new run with a yellow dot that turns into a green tick after a few minutes. Its steps
+   include a dry run, then "Apply Supabase migrations", then "Verify Supabase migrations".
+5. If it turns into a red cross, do not run it again. Tell Nikhil the run's date and time (not its log).
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret; fill in the brackets): `Section B1 done - size <size>, region <region>, migrations run green`.
+
+## B2. Firebase: publish the new rules
+
+The build changed the Firestore rules (who may create a user record and which roles exist). Your repository has no
+job that publishes them, so you publish them once by hand.
+
+Vendor pages read for this section:
+(source: https://firebase.google.com/docs/firestore/quickstart, checked 2026-10-19)
+
+1. Open `https://github.com/ngowda759/Rayaramathaynk/blob/main/firestore.rules`.
+2. Click the **Raw** button (or the copy icon at the top right of the file) and copy the whole file.
+3. Open `https://console.firebase.google.com`, click the live temple project, then **Firestore Database** in the left
+   menu, then the **Rules** tab.
+   What you should see now: the rules your site uses today in an editor.
+4. Click in the editor, press **Ctrl+A**, then **Ctrl+V**.
+5. Click **Publish**.
+   What you should see now: a message that the rules were published. If a red error line appears, stop and tell
+   Nikhil the line number and message (they hold no secret).
+6. Open the website, sign in as you normally do, and open an admin page.
+   What you should see now: your usual pages with no error.
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret): `Section B2 done - rules published, site works`.
+
+## B3. Replace and revoke the old Firebase key
+
+When: after the merge, not before.
+
+Why: an old Firebase service-account key was once written into the code, so anyone with a copy of the code could use
+it (open item O-18). The merged code reads the key from a secret or a git-ignored file instead. Before the merge, 11
+one-off scripts on `main` still carried the old key, so this waits for the merge; after it, nothing needs the old key.
+(Nothing runs those scripts on a schedule, so the website and the nightly jobs do not depend on them either way.)
+
+You make a new key, put it everywhere the old one is used, check the site, and only then delete the old key. Deleting
+a key cannot be undone, so the order matters.
+
+What you need: the Google sign-in that owns the Firebase project, your GitHub and Vercel sign-ins, about 30 minutes.
+
+Vendor pages read for this section:
+(source: https://docs.cloud.google.com/iam/docs/keys-create-delete, checked 2026-10-18)
+(source: https://docs.cloud.google.com/iam/docs/keys-disable-enable, checked 2026-10-18)
+(source: https://firebase.google.com/docs/admin/setup, checked 2026-10-18)
+(source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets, checked 2026-10-18)
+(source: https://vercel.com/docs/environment-variables/managing-environment-variables, checked 2026-10-18)
+(source: https://vercel.com/docs/deployments/managing-deployments, checked 2026-10-18)
+
+### B3.1 Make the new key
+
+1. Open `https://console.cloud.google.com/iam-admin/serviceaccounts` and sign in with the Google account that owns
+   the Firebase project.
+2. At the top of the page, click the project picker and choose the project with the same name as your Firebase
+   project.
+   What you should see now: a list of service accounts with their emails.
+3. Click the email that starts with `firebase-adminsdk-`.
+4. Click the **Keys** tab.
+   What you should see now: the existing keys with their creation dates. Write down how many there are and their
+   dates.
+5. Click **Add key**, then **Create new key**, choose **JSON**, and click **Create**.
+   What you should see now: a `.json` file in your **Downloads** folder. Google cannot download it again.
+6. Look at the **Keys** list again. The new key's ID starts with the same 12 letters and numbers as the end of the file
+   name. Write those 12 characters down so you never delete the new key by mistake. (UNVERIFIED: Google names the
+   file this way today.)
+
+(Same result from the Firebase side: Firebase console > gear > **Project settings** > **Service accounts** >
+**Generate new private key** > **Generate key**.)
+
+### B3.2 Put the new key into GitHub
+
+1. Open your repository's secrets (how-to above).
+2. Open the new `.json` file with **Notepad** (right-click > **Open with** > **Notepad**), press **Ctrl+A**, then
+   **Ctrl+C**.
+3. Update `FIREBASE_SERVICE_ACCOUNT_JSON` with it (pencil icon). If it is not in the list, add it with **New
+   repository secret**.
+   What you should see now: its "Updated" time changes to "now".
+4. If the list also has `FIREBASE_SERVICE_ACCOUNT`, update it with the same whole file.
+5. If the list has `FIREBASE_PRIVATE_KEY`, update it with only the text between the quotes after `"private_key":`
+   (it starts and ends with five dashes; keep the `\n` marks as they are).
+6. `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PROJECT_ID` stay the same. Leave them.
+
+### B3.3 Put the new key into Vercel
+
+1. Open your Vercel settings (how-to above).
+2. If `FIREBASE_SERVICE_ACCOUNT_JSON` is listed, click its three dots > **Edit**. If not, use the form at the top,
+   choose **Secret** (or tick **Sensitive**) and type `FIREBASE_SERVICE_ACCOUNT_JSON` as the **Key**.
+3. Paste the whole file (still copied from B3.2) into **Value**, tick **Production** and **Preview**, and click
+   **Save**.
+   What you should see now: `FIREBASE_SERVICE_ACCOUNT_JSON` for Production and Preview. The website reads this name
+   first.
+4. If `FIREBASE_PRIVATE_KEY` is listed, edit it the same way with only the private key text (as in B3.2 step 5).
+5. If `NEXT_PUBLIC_FIREBASE_PRIVATE_KEY` is listed, click its three dots > **Delete** and confirm. A name that starts
+   with `NEXT_PUBLIC_` is sent to every visitor's browser, so a key must never be stored under it.
+6. Close Notepad without saving. Redeploy the newest Production deployment (how-to above).
+   What you should see now: a new deployment that turns **Ready** after a few minutes.
+
+### B3.4 Check the website works with the new key
+
+1. Open the website and sign in to the admin pages as you normally do.
+2. Open **Users** (or any admin page that lists data).
+   What you should see now: the usual data with no error message.
+3. If you see an error, stop here. Do not delete any key. Tell Nikhil the step and the error text.
+
+### B3.5 Delete the old key
+
+1. Go back to the **Keys** tab of the `firebase-adminsdk-` service account (B3.1 steps 1 to 4).
+2. Find each key whose ID does **not** start with the 12 characters you wrote down in B3.1 step 6 and whose creation
+   date is before today.
+3. If another computer or service of yours uses one of those old keys, stop and tell Nikhil first.
+4. Click the bin icon (**Delete**) next to one old key.
+   What you should see now: a box asking you to confirm.
+5. Click **Delete**. A deleted key cannot be brought back.
+6. Repeat steps 4 and 5 for each remaining old key.
+   What you should see now: only the new key in the list.
+7. Repeat B3.4 once more.
+8. The new `.json` file: if you will do B5, move it into your copy of the repository and rename it
+   `.firebase-adminsdk.json` (git ignores that exact name). Otherwise delete it: click it, hold **Shift** and press
+   **Delete**, then click **Yes**.
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret; fill in the brackets):
+`Section B3 done - new key in GitHub and Vercel; <number> old keys deleted; site works`.
+
+## B4. Vercel settings for the live website
+
+Vendor pages read for this section:
+(source: https://vercel.com/docs/environment-variables/managing-environment-variables, checked 2026-10-18)
+(source: https://vercel.com/docs/functions/configuring-functions/region, checked 2026-10-18)
+(source: https://vercel.com/docs/regions, checked 2026-10-18)
+(source: https://vercel.com/docs/limits/fair-use-guidelines, checked 2026-10-18)
+
+### B4.1 Check the names the merged code reads
+
+1. Open your Vercel settings (how-to above).
+2. Check that each name below is listed for **Production**. Names starting with `NEXT_PUBLIC_` are sent to every
+   visitor's browser, so they never hold a secret.
+
+| Name | What it holds | Kind |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<live project ref>.supabase.co` | Not secret |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the live project's anon (publishable) key | Not secret |
+| `SUPABASE_SERVICE_ROLE_KEY` | the live project's service_role (secret) key | Secret |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_STORAGE_BUCKET`, `_MESSAGING_SENDER_ID`, `_APP_ID` | the live Firebase web app's settings | Not secret |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | the new key file from B3 | Secret |
+| `NEXT_PUBLIC_SITE_URL` | the website's public address, for example `https://<your domain>` | Not secret |
+
+3. If one is missing, add it with the form at the top for **Production** (and **Preview** if your other names have
+   it), choosing **Secret** or ticking **Sensitive** for the secret ones, then redeploy.
+   What you should see now: every name in the table listed for Production.
+
+Plan B adds five more later (`PAYMENTS_PROVIDER`, `PAYMENTS_MODE`, `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`,
+`SEVA_CRON_SECRET`); they are set in B9, not now.
+
+### B4.2 Check the function region and the plan
+
+1. In the project, click **Settings** > **Functions** > **Function Regions**.
+   What you should see now: the selected region. New projects start in **Washington, D.C., USA (iad1)**.
+2. If your Supabase region from B1.1 is Mumbai and this is not **Mumbai, India (bom1)**, the site runs slower than it
+   could. Changing it is your call; tell Nikhil both regions and he will say whether it is worth it.
+3. Click your team name at the top left, then **Settings** > **Billing**, and note the plan (**Hobby** or **Pro**).
+   Vercel's Hobby plan is for non-commercial use: the seva counter takes no money on the website, but online payments
+   (Plan B, B9) probably need **Pro** (open item O-16). Nothing changes today.
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret; fill in the brackets):
+`Section B4 done - names checked, function region <region>, plan <Hobby or Pro>`.
+
+## B5. Make yourself staff 001
+
+The seva module needs one first super admin, staff number 001. On the live site that is you (or the person you
+choose; the account must already be able to sign in to the site).
+
+What you need: your copy of the repository (how-to above), the new key file from B3 saved in it as
+`.firebase-adminsdk.json`, about 15 minutes.
+
+1. In your copy of the repository, make a file `.env.local` with Notepad (save it with **Save as type** set to **All
+   files**), holding two lines: `NEXT_PUBLIC_SUPABASE_URL=https://<live project ref>.supabase.co` and
+   `SUPABASE_SERVICE_ROLE_KEY=<the live service_role key>`. Git ignores `.env.local`.
+2. Open a terminal in that folder and type
+   `npx tsx scripts/seva/create-first-super-admin.ts --email <the email you sign in with>`, then press **Enter**.
+   It prints no secret.
+   What you should see now: a message that staff 001 was created. If it prints an error, send Nikhil the error text
+   (it holds no secret).
+3. Sign out of the website and sign in again.
+   What you should see now: the seva module in the admin menu. From here, everyone else is added on the **Staff and
+   roles** page.
+4. Delete `.env.local` (click it, hold **Shift**, press **Delete**, click **Yes**) unless you will run another script
+   soon.
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret): `Section B5 done - staff 001 created`.
+
+## B6. The backup key
+
+Every night a GitHub job copies the whole database, locks it with a public "lock" key, and keeps the locked file for
+30 days (open item O-15). Only the matching private "unlock" key can open it. If every copy of the unlock key is lost,
+the backups cannot be opened.
+
+Vendor pages read for this section:
+(source: https://github.com/FiloSottile/age, checked 2026-10-18)
+
+### B6.1 Choose who holds a key
+
+Pick one and tell Nikhil which:
+
+| Choice | Who can open a backup | Note |
+|---|---|---|
+| **Two keys** | You and Nikhil, each with his own key | `age` can lock one file for several keys. The public half of a key is safe to share, so Nikhil sends you his public key and keeps his private key himself. The nightly job takes only one public key today; if you choose this, Nikhil's builder changes it to take two before the pull request, and you then put both public keys into the secret in B7. |
+| **You only** | You | Simplest. You do the restore drill (B8) yourself. |
+| **Nikhil only** | Nikhil | He makes the key on his own PC and sends you only the public key (safe to share). He does the restore drill. |
+
+And where each holder keeps his private key: **a USB drive in a safe place** (better two drives in two places), or
+**a password manager** (as a secure note or an attached file). Never on a website, in email, or in a synced folder.
+
+### B6.2 Make a key pair (each key holder does this on his own computer)
+
+1. Click **Start**, type `Terminal`, and click **Terminal**.
+2. Type `winget install --id FiloSottile.age` and press **Enter**.
+   What you should see now: a download and "Successfully installed". If it asks to accept terms, type `Y`.
+3. Close the Terminal window and open a new one.
+4. Type `age --version` and press **Enter**.
+   What you should see now: a version number such as `v1.2.1`.
+5. Plug in the USB drive and note its letter in **File Explorer** (for example **E:**). Type `cd E:\` (your letter)
+   and press **Enter**. (Keeping the key in a password manager instead: still make it on the USB drive, then attach
+   the file to a secure note and delete it from the drive.)
+6. Type `age-keygen -o seva-backup-key.txt` and press **Enter**.
+   What you should see now: one line that starts with `Public key: age1` followed by many letters and numbers.
+7. Select the `age1...` text (from `age1` to the end of the line) and press **Ctrl+C**. This public key is safe to
+   share; it cannot open anything. The site owner puts it into GitHub in B7; Nikhil, if he holds a key, sends his
+   public key to the site owner.
+8. For a second copy: plug in a second drive and copy `seva-backup-key.txt` onto it in **File Explorer**. Label each
+   drive "Seva backup key - do not format", eject them (**Safely Remove Hardware**), and keep them in two different
+   places, never with the counter PC.
+
+Never open `seva-backup-key.txt` in an editor that syncs to the internet, never email it, and never paste its contents
+anywhere. It holds the private unlock key.
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret; fill in the brackets): `Section B6 done - choice <two keys, site owner, Nikhil>, key kept on <USB or password manager>`.
+
+## B7. GitHub secrets on your repository
+
+All of these go into **your** repository's secrets (how-to above), never into Nikhil's fork.
+
+| Name | What it holds | When |
+|---|---|---|
+| `SEVA_BACKUP_AGE_RECIPIENT` | the `age1...` public key from B6 | Now |
+| `SEVA_BACKUP_DB_URL` | the live database's Session pooler connection string with the password in it (steps below) | Now |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` (and `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_PRIVATE_KEY` if you have them) | the new key | Done in B3 |
+| `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY` | for the **Deploy Supabase Migrations** workflow | Checked in B1 |
+| `SEVA_CRON_SECRET` (secret) and `SEVA_SITE_URL` (a **variable**, on the **Variables** tab) | the payment check every 5 minutes | Later, in B9 |
+
+Vendor pages read for this section:
+(source: https://supabase.com/docs/guides/database/connecting-to-postgres, checked 2026-10-18)
+(source: https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets, checked 2026-10-18)
+(source: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow, checked 2026-10-18)
+
+### B7.1 The backup public key
+
+1. Open your repository's secrets and click **New repository secret**.
+2. In **Name**, type `SEVA_BACKUP_AGE_RECIPIENT`.
+3. Click in **Secret** and press **Ctrl+V** to paste the `age1...` public key from B6.2 step 7.
+4. Click **Add secret**.
+   What you should see now: `SEVA_BACKUP_AGE_RECIPIENT` in the list.
+
+### B7.2 The database connection string
+
+The nightly job reads the live database through Supabase's **Session pooler** address (port 5432), because GitHub's
+computers need the older kind of internet address (IPv4).
+
+1. Open `https://supabase.com/dashboard`, click the live temple project, then **Connect** at the top of the page.
+   What you should see now: a window with several connection strings.
+2. Choose **Session pooler**. (UNVERIFIED: it may sit under a **Method** or **Type** drop-down.)
+   What you should see now: a string like
+   `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-<n>-<region>.pooler.supabase.com:5432/postgres`.
+3. Click **Copy**, open **Notepad**, and press **Ctrl+V**.
+4. Replace `[YOUR-PASSWORD]` (with the square brackets) by the live database password. If the password has any of
+   `@ : / ? # & %` or a space, stop and ask Nikhil for help with the special writing first (do not send him the
+   password). If you do not know the password, do not reset it without thinking: other things use it.
+5. Press **Ctrl+A**, then **Ctrl+C**.
+6. In GitHub, click **New repository secret**, type `SEVA_BACKUP_DB_URL` in **Name**, paste into **Secret**, and click
+   **Add secret**.
+   What you should see now: `SEVA_BACKUP_DB_URL` in the list.
+7. Close Notepad and click **Don't save**. The string must not stay in a file.
+
+### B7.3 First backup run
+
+1. Click **Actions** at the top of the repository.
+2. In the left sidebar, click the backup workflow (its name contains "backup").
+3. Click **Run workflow**, keep **Branch** as `main`, and click the green **Run workflow** button.
+   What you should see now: a new run with a yellow dot that turns into a green tick after a few minutes. From now on
+   it runs by itself every night at 02:30 India time.
+4. If it turns into a red cross, tell Nikhil the run's date and time (not its log).
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret): `Section B7 done - both backup secrets added, first backup run green`.
+
+## B8. Restore drill (once a month)
+
+Who: whoever holds a backup key (B6). Once a month, and once before go-live, check that the latest backup opens with
+the key. About 20 minutes; it changes nothing anywhere.
+
+What you need: your key (USB drive or password manager), a copy of the repository (how-to above; Nikhil can use his
+seva-entry folder), your GitHub sign-in.
+
+Vendor pages read for this section:
+(source: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts, checked 2026-10-18)
+(source: https://github.com/actions/upload-artifact, checked 2026-10-18)
+(source: https://www.postgresql.org/download/windows/, checked 2026-10-18)
+(source: https://enterprisedb.com/docs/supported-open-source/postgresql/installing/windows, checked 2026-10-18)
+
+### B8.1 One-time: install the PostgreSQL command line tools
+
+1. Open `https://www.enterprisedb.com/downloads/postgres-postgresql-downloads`.
+2. In the **Windows x86-64** column, click the download for the highest version listed.
+3. Run the installer and click **Next** on the first screens.
+4. On **Select Components**, untick **PostgreSQL Server**, **pgAdmin 4** and **Stack Builder**, and keep **Command Line
+   Tools** ticked. (UNVERIFIED: if the installer will not continue without the server, keep it ticked; it does no
+   harm.)
+5. Click **Next** until **Finish**. Untick the offer to launch Stack Builder.
+   What you should see now: a folder `C:\Program Files\PostgreSQL\<version>\bin`. Write down the version number.
+
+Also install `age` once, as in B6.2 steps 1 to 4, if this computer does not have it.
+
+### B8.2 Download the latest backup
+
+1. Open `https://github.com/ngowda759/Rayaramathaynk` and click **Actions**.
+2. In the left sidebar, click the backup workflow, then the newest run with a green tick.
+   What you should see now: the run's summary page with an **Artifacts** section near the bottom.
+3. In **Artifacts**, click the one named `seva-<date>` (the newest date).
+   What you should see now: a `.zip` file in your **Downloads** folder. (UNVERIFIED: GitHub lets anyone signed in
+   download artifacts of a public repository. If there is no download for you, ask the site owner to download it.)
+4. Make a new folder `C:\SevaDrill`. Right-click the `.zip` file, click **Extract All**, choose `C:\SevaDrill`, and
+   click **Extract**.
+   What you should see now: two files in `C:\SevaDrill`: one ending in `.dump.age` and one ending in `.sha256`.
+
+### B8.3 Open it with the key
+
+1. Plug in the USB drive with your key and note its letter (for example `E:`). (Key in a password manager: save the
+   attached file into `C:\SevaDrill` for the drill, and delete it in step 7.)
+2. In **File Explorer**, open your copy of the repository, then `scripts`, then `seva`.
+   What you should see now: a file `verify-backup.sh`. If it is missing, run `git pull` in the repository first.
+3. Go back up twice to the repository folder, right-click an empty space, click **Show more options**, then **Open
+   Git Bash here**.
+   What you should see now: a window with a `$` sign at the end of the last line.
+4. Type `export PATH="$PATH:/c/Program Files/PostgreSQL/<version>/bin"` with your version number from B8.1, and press
+   **Enter**.
+5. Type `bash scripts/seva/verify-backup.sh /c/SevaDrill/<file name>.dump.age /e/seva-backup-key.txt` (your file name
+   and your drive letter in small letters, or `/c/SevaDrill/seva-backup-key.txt`) and press **Enter**.
+   What you should see now: `Checksum: matches the .sha256 file`, `Decryption: ok (whole file)`, then
+   `Archive entries: <n>`, `Schemas: <n>`, `Tables: <n>` (above 0), and lines for table data, sequences, functions,
+   indexes, triggers and row-level security policies. It prints no names or phone numbers.
+   If the first line says `Checksum: not checked (no .sha256 file next to the backup)`, the drill still counts.
+   If a line starts with `verify-backup:` instead, the drill failed: send that one line (it holds no secret).
+6. Close Git Bash, eject the USB drive, and put it back in its place.
+7. Delete `C:\SevaDrill` and the `.zip` in **Downloads**: click each one, hold **Shift**, press **Delete**, click
+   **Yes**.
+
+### Tell Nikhil it is done
+
+Send this message (it holds no secret; fill in the brackets): `Section B8 done - backup of <date> opened, counts shown`.
+
+## B9. Cashfree live (later)
+
+Written in Plan B (task B0-1), for after the Plan B pull request is merged. What it will cover:
+
+1. Before going live: the temple's own Cashfree account with its activation papers (trust deed or registration
+   certificate, 80G/12A, trust PAN, bank details), Cashfree's written answer on UPI charges up to Rs 2,000, the CA's
+   answers (open items O-13, O-14), and the Vercel plan (B4.2).
+2. The reconcile secret: a long random `SEVA_CRON_SECRET` in your Vercel project (**Production**) and the same value
+   as a secret in your repository, plus a repository **variable** `SEVA_SITE_URL` with the site's address. The
+   5-minute payment check runs only from `main`.
+3. In your Vercel project, for **Production**: `PAYMENTS_PROVIDER=cashfree`, `PAYMENTS_MODE=live`, and the live
+   `CASHFREE_APP_ID` and `CASHFREE_SECRET_KEY`; then **Redeploy**.
+4. One small real payment, check its receipt, and refund it.

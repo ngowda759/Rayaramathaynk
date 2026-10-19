@@ -31,7 +31,7 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | **A3** API and shell | A2 | A3-1 Counter routes (H); A3-2 Receipt, devotee, prasadam, gap routes (H); A3-3 Day-close and report routes (M); A3-4 Catalogue and settings routes + Firestore mirror (M); A3-5 Staff routes + legacy user routes + first super admin (X); A3-6 Module shell, navigation, role landing (H); A3-7 Counter Excel copy, service worker, manifest (H) | Wave gate + **security gate** (Opus xhigh review of every `/api/seva/*` route against DB §3.3) + owner checklist |
 | **A4** Screens | A3 | A4-1 Counter screens (H); A4-2 Today's receipts, cancel, reprint, spoiled (H); A4-3 Close day (M); A4-4 Receipt detail/print + public QR page (M); A4-5 Prasadam counter (H); A4-6 Dashboard (H); A4-7 Register, continuity, reports, day closes (H); A4-8 Export + board summary (M); A4-9 Settings: sevas, festivals, denominations (M); A4-10 Settings: receipt template, counters, devices, rules (H); A4-11 Staff and roles (H) | Wave gate + **owner gate**: the DB §19.2 10-minute checklist on a preview build |
 | **A5** Switch-over and final | A4 (A5-3 after A5-1 and A5-2) | A5-1 Retire the Firestore Receipt Book code (H); A5-2 Documentation (H); A5-3 Final verification and whole-branch review (X) | Final report + **owner gate**: merge now or after Plan B |
-| **B0** Setup (sequential) | A5 | B0-1 Gateway facts check + SETUP-GUIDE sections 8 and 10 (H); B0-2 Packages, env names, Postgres 15 test runner (M) | Report; no owner checklist beyond reading the facts summary |
+| **B0** Setup (sequential) | A5 | B0-1 Gateway facts check + SETUP-GUIDE A4.1 and B9 (H); B0-2 Packages, env names, Postgres 15 test runner (M) | Report; no owner checklist beyond reading the facts summary |
 | **B1** Core | B0 | B1-1 Payment tables and SQL functions (X); B1-2 Provider interface, Cashfree adapter, gateway mock (X); B1-3 Booking rules, schemas, wire types, error codes (M); B1-4 Payment orchestration with injected dependencies (X); B1-5 Google sign-in, CSP for Google and Cashfree, e2e devotee account (H) | Wave gate |
 | **B2** API | B1 | B2-1 Devotee routes: catalogue, order, status, checkout, My seva bookings, booked before (X); B2-2 Payment webhook (X); B2-3 Payments page routes: status, refunds, fee rule, test payment (H); B2-4 Reconcile sweep on GitHub Actions (H); B2-5 Payment cards in Needs attention (M) | Wave gate + **security gate** (webhook signature, idempotency, amount and currency against the server's order, no client-trusted amounts, ownership, secrets) |
 | **B3** Screens + e2e | B2 (B3-4 after B3-1 and B3-2) | B3-1 Website booking flow (H); B3-2 My seva bookings, e-receipts, old public receipts retired (M); B3-3 Admin Payments page (H); B3-4 Test-mode end to end, DB flow test, docs (H) | Wave gate + **owner gate** (10-minute test payment on the preview site) |
@@ -46,7 +46,7 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 
 - **Every task:** a spec-compliance review, then a code-quality review (superpowers:subagent-driven-development), at the implementer's tier or higher - a cheaper checker would confirm whatever it is shown (complexity card).
 - **Security gates (Opus xhigh):** after A1 (allow-list, Firestore rule, key removal, RLS), after A3 (every seva route against the DB §3.3 matrix, device token, view-only), in A5-3 (whole branch), after B2 (webhook, devotee routes, refunds).
-- **Owner gates:** after A4 (10-minute checklist), A5 (merge decision), B3 (test payment), C3 (APK). Before A5-3's full-stack smoke the owner gives an explicit go-ahead and supplies the Supabase test project (SETUP-GUIDE section 1).
+- **Owner gates:** after A4 (10-minute checklist), A5 (merge decision), B3 (test payment), C3 (APK). Before A5-3's full-stack smoke Nikhil gives an explicit go-ahead and supplies his own Supabase and Firebase test projects (SETUP-GUIDE A1, A2).
 - A new failure at a wave gate gets a fix task (Opus high) before the next wave starts.
 
 ## Window estimate
@@ -87,17 +87,44 @@ Rows 3-6 updated 2026-10-19 when Plan B was detailed (16 tasks instead of 13; Pl
 
 ## Owner actions the build waits on
 
+Two people (corrected 2026-10-19, GUIDE-FIX): **you** = Nikhil, who builds on his fork `nikhilmn01/Rayaramathaynk`
+(remote `origin`) with his own new, empty, free accounts; **the site owner** (`ngowda759`, remote `upstream`), who holds
+the live Vercel, Firebase and any live Supabase project and his repository's GitHub secrets. Changes reach the site owner
+only through a pull request he merges. Nothing below assumes Nikhil can see or join any of the site owner's accounts.
+Section ids are the rewritten SETUP-GUIDE's (its 0.4 maps the old numbers).
+
+**You (test accounts)**
+
 | When | Action | Guide |
 |---|---|---|
-| After A1 merges | Revoke the old Firebase service-account key (O-18) | SETUP-GUIDE section 3 (written in A2-9) |
-| During A3 | Create the Supabase test project for the build (O-16, O-17) | Section 1 |
-| Before A5 ends | Generate the `age` backup key; set `SEVA_BACKUP_DB_URL` and `SEVA_BACKUP_AGE_RECIPIENT` (O-15) | Section 4 |
-| A4 owner gate | Allow pushing `feature/seva-entry` for a Vercel preview, or check on the builder's PC | Section 2 |
-| During Plan B waves B1-B2 (needed by the B3 owner gate, not before) | Cashfree test account; test keys and `PAYMENTS_PROVIDER`/`PAYMENTS_MODE` in Vercel **Preview**; Vercel Protection Bypass for Automation; Google sign-in on in Firebase with the preview host authorised | Sections 8.1-8.5 (B0-1) |
-| B3 owner gate | Allow pushing `feature/seva-entry` for a preview; make the test payment, refund, Rs 1 test payment | Section 8.7; Plan B's B3 checklist |
-| After merging to `main` | `SEVA_CRON_SECRET` in Vercel and as a GitHub secret, `SEVA_SITE_URL` as a GitHub variable (the 5-minute sweep runs only from `main`) | Section 8.8 |
-| Before going live (Phase 2) | Cashfree activation papers, written answer on UPI charges, CA answers, Vercel plan (O-16: Hobby is non-commercial) | Section 10 |
-| Before Plan C | Expo account | Section 9 (C0-1) |
+| Now | Create your own Supabase account, organisation and `seva-test` project (Mumbai), push the tables, fill `.env.local` | SETUP-GUIDE A1 |
+| Before the A4 owner gate | Your own Firebase test project (Spark): email sign-in (and Google for Plan B), Firestore, the site's rules, key file and `.env.local` | A2 |
+| A4 owner gate | Check the screens with your own Supabase and Firebase test projects, either on this PC (`http://localhost:3000`, the builder starts it) or on your own Vercel preview of the fork (allow pushing `feature/seva-entry` to `origin`); staff 001 on the test projects | A3 |
+| Before the A5-3 full-stack smoke | Your explicit go-ahead; the smoke uses your A1 and A2 test projects and your `.env.local` | A1, A2 |
+| During Plan B waves B1-B2 (needed by the B3 owner gate, not before) | Your Cashfree test account; test keys and `PAYMENTS_PROVIDER`/`PAYMENTS_MODE` in **your** Vercel project's **Preview**; Protection Bypass for Automation on your Vercel project; Google sign-in on in **your** Firebase test project with your preview host authorised | A4.1 (written in B0-1) |
+| B3 owner gate | Allow pushing `feature/seva-entry` to your fork for a preview; make the test payment, refund, Rs 1 test payment | A4.1; Plan B's B3 checklist |
+| Before Plan C | Your Expo account | A4.2 (C0-1) |
+| Go-live at the temple | The counter PC | A5 |
+
+**Site owner (after merge)**
+
+| When | Action | Guide |
+|---|---|---|
+| Right after merging Plan A | Apply the new Supabase tables on the live project (and note its size and region, O-16, O-17) | B1 |
+| Right after merging | Publish the new Firestore rules on the live Firebase project | B2 |
+| After merging, not before | Make a new Firebase key, put it in his GitHub secrets and Vercel, then revoke the old key (O-18) | B3 |
+| After merging | Check the live Vercel names, function region and plan (O-16) | B4 |
+| After B1-B4 | Make himself staff 001 on the live site | B5 |
+| Before the first nightly backup | Choose who holds the `age` backup key (two keys, site owner only, or Nikhil only; USB or password manager) and make it (O-15) | B6 |
+| After B6 | `SEVA_BACKUP_AGE_RECIPIENT` and `SEVA_BACKUP_DB_URL` as secrets on his repository; first backup run | B7 |
+| Monthly, first before go-live | Restore drill (whoever holds a key) | B8 |
+| After merging Plan B to `main` | `SEVA_CRON_SECRET` in his Vercel and as a secret on his repository, `SEVA_SITE_URL` as a variable (the 5-minute sweep runs only from `main`) | B9 (written in B0-1) |
+| Before going live (Phase 2) | The temple's Cashfree account and activation papers, written answer on UPI charges, CA answers, Vercel plan (O-16: Hobby is non-commercial); live keys and `PAYMENTS_MODE=live` in his Vercel | B9 |
+
+**Both / office**
+
+| When | Action | Guide |
+|---|---|---|
 | Before go-live (not in these plans) | Office data O-01 to O-12, CA answers O-13, printer test O-05 to O-08 | Design Book §23 |
 
 ## Assumptions made while planning (for the owner to confirm or change)
@@ -151,6 +178,4 @@ Rows 3-6 updated 2026-10-19 when Plan B was detailed (16 tasks instead of 13; Pl
 - **U-7 The 5-minute sweep runs only from `main`** (GitHub schedules); on the preview, the return page and the Payments
   page re-check by themselves, so the B3 test does not need the sweep.
 - **U-8 Vercel plan (O-16):** previews in test mode move no money; taking real payments on Hobby is outside Vercel's
-  non-commercial terms, so the plan question returns at go-live (SETUP-GUIDE section 10).
-
-END OF REPORT
+  non-commercial terms, so the plan question returns at go-live (SETUP-GUIDE B9).

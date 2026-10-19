@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let signed-in devotees book online sevas on the website and pay by UPI through Cashfree in test mode, with server-verified payments, W/WT e-receipts (one per seva date), refunds by admins, a Payments status page and payment cards in Needs attention - built in full, so going live is the owner's two steps (DB §14.6).
+**Goal:** Let signed-in devotees book online sevas on the website and pay by UPI through Cashfree in test mode, with server-verified payments, W/WT e-receipts (one per seva date), refunds by admins, a Payments status page and payment cards in Needs attention - built in full, so going live is the site owner's two steps (DB §14.6; SETUP-GUIDE B9).
+
+**Who sets up what (corrected 2026-10-19, GUIDE-FIX):** every test step of this plan uses **Nikhil's own** new, free accounts - his Cashfree test account, his own Firebase test project (SETUP-GUIDE A2) and his own Vercel project of the fork `nikhilmn01/Rayaramathaynk` (A3) - never the live site's. Everything live (Vercel production env, GitHub secrets and variables, the live Cashfree account) belongs to the **site owner** (`ngowda759`) and happens only after he merges the pull request (SETUP-GUIDE Part B). Old guide section numbers map to the new ids in SETUP-GUIDE 0.4 (8 -> A4.1, 10 -> B9).
 
 **Architecture:** Same shape as Plan A: pages call only `app/api/seva/**`; every money write is one SQL function; the gateway sits behind one `PaymentProvider` interface (`lib/seva/payments/*`, DB §14.2) with a Cashfree implementation picked by `PAYMENTS_PROVIDER` / `PAYMENTS_MODE`. The payment orchestration (`lib/seva/payments/core.ts`) takes its provider, SQL caller and clock as arguments, so the same code runs in routes, in the reconcile sweep and in a database flow test. A webhook never creates a receipt from its payload: it is verified (raw-body HMAC), recorded once by event key, and only triggers a server re-fetch of the order from the gateway; receipts are issued only when the re-fetched order is paid in full, in INR, for our own order ref (DB §14.3).
 
@@ -63,7 +65,7 @@ Verified (R1V, 2026-10-18), used as fact: webhook signing is HMAC-SHA256 over `t
 | CF-6 | Refund create and get | body `{ refund_amount, refund_id, refund_note }` (`refund_id` 3-40 chars), answer `cf_refund_id`, `refund_status SUCCESS|PENDING|CANCELLED|ONHOLD`; `GET /orders/{order_id}/refunds/{refund_id}` |
 | CF-7 | PG webhook format | headers `x-webhook-signature`, `x-webhook-timestamp`, and an event id header (`x-idempotency-key`?) - else the event key is SHA-256 of the raw body (DB §7.7); body `{ type, event_time, data: { order: { order_id, ... }, payment: {...}, refund?: { refund_id, ... } } }`; types `PAYMENT_SUCCESS_WEBHOOK`, `PAYMENT_FAILED_WEBHOOK`, `PAYMENT_USER_DROPPED_WEBHOOK`, `REFUND_STATUS_WEBHOOK` |
 | CF-8 | Browser checkout | npm `@cashfreepayments/cashfree-js`: `load({ mode: 'sandbox' | 'production' })` then `checkout({ paymentSessionId, redirectTarget: '_self' })`; the script and page hosts it uses (for the CSP) |
-| CF-9 | Sandbox UPI test ids | one id that succeeds, one that fails (for the owner's checklist and SETUP-GUIDE 8) |
+| CF-9 | Sandbox UPI test ids | one id that succeeds, one that fails (for the owner's checklist and SETUP-GUIDE A4.1) |
 | CF-10 | Per-order `notify_url` | honoured in sandbox, so no dashboard webhook set-up is needed for previews |
 | CF-11 | `return_url` | must be https; whether `{order_id}` is substituted (the plan does not rely on it) |
 | V-1 | Vercel system env | `VERCEL_ENV` (`preview`), `VERCEL_BRANCH_URL` (host without scheme) available to functions |
@@ -100,7 +102,7 @@ Also on the B2 security gate's list (each pinned): another account's order ref (
 | Area | Files | Responsibility | Task |
 |---|---|---|---|
 | Facts | `docs/seva/PAYMENTS-FACTS.md` | Checked gateway, Vercel, Firebase and GitHub facts with sources | B0-1 |
-| Owner guide | `docs/seva/SETUP-GUIDE.md` sections 8 and 10 | Cashfree test account, Google sign-in, preview access, reconcile secrets; going live | B0-1 |
+| Setup guide | `docs/seva/SETUP-GUIDE.md` A4.1 and B9 | A4.1 (Nikhil, own accounts): Cashfree test account, Google sign-in in his Firebase test project, preview access on his Vercel project of the fork. B9 (site owner, after merge): reconcile secret and variable, going live | B0-1 |
 | Test DB | `tests/db/pg15.ts`, `tests/db/harness.ts` (exports) | Real Postgres 15 for two-connection tests and the PG15 migration check | B0-2 |
 | Schema + SQL | `supabase/migrations/20261101000000_seva_payments.sql`, `20261101000100_seva_functions_payments.sql`, `20261101000200_seva_payment_attention.sql` | Payment tables, order/issue/refund/event functions; payment attention cards | B1-1, B2-5 |
 | Provider | `lib/seva/payments/{types,index,cashfree,signature}.ts` | Interface, env selection, Cashfree adapter, HMAC check | B1-2 |
@@ -254,18 +256,18 @@ New error codes [B1-3] (`lib/seva/errors.ts`; SQL raises them as `SEVA:<code>` -
 
 ## Wave B0 - Setup (sequential: B0-1, then B0-2)
 
-### Task B0-1: Gateway facts check and SETUP-GUIDE sections 8 and 10
+### Task B0-1: Gateway facts check and SETUP-GUIDE A4.1 and B9
 
-Tier: **Opus high** - web research against vendors' own pages, then a click-by-click guide for an owner who has never used Cashfree, Vercel protection settings or Firebase providers (DECISIONS "accounts": "has no clue about these platforms").
+Tier: **Opus high** - web research against vendors' own pages, then a click-by-click guide for readers who have never used Cashfree, Vercel protection settings or Firebase providers (DECISIONS "accounts": "has no clue about these platforms").
 
 **Files:**
 - Create: `docs/seva/PAYMENTS-FACTS.md`
-- Modify: `docs/seva/SETUP-GUIDE.md` (replace the section 8 placeholder; add `## 10. Going live with Cashfree (later)` after section 9)
+- Modify: `docs/seva/SETUP-GUIDE.md` (replace the A4.1 outline with the full click-by-click steps for Nikhil's own accounts; replace the B9 outline with the site owner's steps)
 - Test: `tests/unit/seva/payments-facts.test.ts`, `tests/unit/seva/setup-guide.test.ts` (extend)
 
 **Interfaces:**
-- Consumes: the **Gateway facts** table above; R1V (verified rows); SETUP-GUIDE writing rules (section 0: numbered steps, "You should now see" lines, `(source: <url>, checked <date>)`, "Tell me it is done", never a secret in chat).
-- Produces: `docs/seva/PAYMENTS-FACTS.md` - one `### <Id>` block per check (CF-1..CF-11, V-1, V-2, F-1, G-1), each with `Verdict: CONFIRMED | DIFFERENT | UNVERIFIED`, the exact values found (header names, paths, field names, enum values, hosts), `(source: <url>, checked 2026-10-DD)`, and `Plan impact:` (none, or the task text that must change). Later tasks read their CF/V/F rows from this file. SETUP-GUIDE section 8 and section 10 for the owner.
+- Consumes: the **Gateway facts** table above; R1V (verified rows); SETUP-GUIDE writing rules (section 0: numbered steps, "What you should see now:" lines, `(source: <url>, checked <date>)`, "Tell me it is done" in Part A and "Tell Nikhil it is done" in Part B, never a secret in chat; every account step starts from the sign-up screen and assumes nothing exists).
+- Produces: `docs/seva/PAYMENTS-FACTS.md` - one `### <Id>` block per check (CF-1..CF-11, V-1, V-2, F-1, G-1), each with `Verdict: CONFIRMED | DIFFERENT | UNVERIFIED`, the exact values found (header names, paths, field names, enum values, hosts), `(source: <url>, checked 2026-10-DD)`, and `Plan impact:` (none, or the task text that must change). Later tasks read their CF/V/F rows from this file. SETUP-GUIDE A4.1 for Nikhil (his own test accounts) and B9 for the site owner.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -274,40 +276,39 @@ Tier: **Opus high** - web research against vendors' own pages, then a click-by-c
 it('has a block for every check id')            // ['CF-1'..'CF-11','V-1','V-2','F-1','G-1'] each as '### <id>'
 it('gives every block a verdict and a checked source') // /Verdict: (CONFIRMED|DIFFERENT|UNVERIFIED)/ and /\(source: https:\/\/[^)]+, checked 2026-\d\d-\d\d\)/ per block
 it('holds no secret material')                   // no 'PRIVATE KEY', 'AGE-SECRET-KEY', 'eyJ', /cfsk_/i, /TEST[0-9a-f]{20,}/
-// setup-guide.test.ts - HEADINGS gains '## 10. Going live with Cashfree (later)'; HANDS_ON becomes [1, 2, 3, 4, 5, 7, 8]
-it('cites a checked vendor source in sections 8 and 10')
-it('keeps section 9 as the placeholder for Plan C')      // replaces the "sections 8 and 9" placeholder test
-it('section 8 names the four Vercel settings and the Preview environment only') // PAYMENTS_PROVIDER, PAYMENTS_MODE, CASHFREE_APP_ID, CASHFREE_SECRET_KEY, 'Preview'
-it('section 8 never asks for the secret key in chat')    // no line pairs 'Secret Key' with 'send me' / 'paste here' / 'chat'
-it('section 10 lists the two going-live steps')          // 'replace the test keys with the live keys', 'PAYMENTS_MODE=live', 'Redeploy'
+// setup-guide.test.ts - headings unchanged; HANDS_ON gains 'A4' and 'B9'
+it('cites a checked vendor source in A4.1 and B9')
+it('keeps A4.2 as the outline for Plan C')               // replaces the A4/B9 "Written in Plan B" part of the outline test
+it('A4.1 names the four Vercel settings and the Preview environment only of Nikhil\'s own Vercel project') // PAYMENTS_PROVIDER, PAYMENTS_MODE, CASHFREE_APP_ID, CASHFREE_SECRET_KEY, 'Preview'
+it('A4.1 never asks for the secret key in chat')         // no line pairs 'Secret Key' with 'send me' / 'paste here' / 'chat'
+it('B9 lists the two going-live steps for the site owner') // 'replace the test keys with the live keys', 'PAYMENTS_MODE=live', 'Redeploy'
 ```
 
 - [ ] **Step 2: Run them and see them fail**
 
-Run: `npx jest --ci --watchman=false --forceExit tests/unit/seva/payments-facts.test.ts tests/unit/seva/setup-guide.test.ts`. Expected: FAIL (file missing; section 8 still the placeholder).
+Run: `npx jest --ci --watchman=false --forceExit tests/unit/seva/payments-facts.test.ts tests/unit/seva/setup-guide.test.ts`. Expected: FAIL (file missing; A4.1 and B9 still outlines).
 
 - [ ] **Step 3: Check every row on the vendors' own pages and write `docs/seva/PAYMENTS-FACTS.md`**
 
 Use only primary pages (cashfree.com/docs, vercel.com/docs, firebase.google.com/docs, docs.github.com), record the URL and today's date per row. A value the page does not show stays UNVERIFIED with what was searched. Any DIFFERENT row: stop after writing the file and report UNCLEAR naming the row and the plan text it changes.
 
-- [ ] **Step 4: Write SETUP-GUIDE section 8 and section 10**
+- [ ] **Step 4: Write SETUP-GUIDE A4.1 and B9**
 
-Section 8 subsections, each numbered steps with "You should now see", vendor sources, and UNVERIFIED marks where screens could not be confirmed:
-- 8.1 Create a Cashfree merchant account (what it asks for; test mode works before activation - R1V C5).
-- 8.2 Switch the dashboard to Test mode and find the test App ID and Secret Key (where they are; copy each straight into Vercel, never into chat).
-- 8.3 Put them in Vercel for **Preview only**: `PAYMENTS_PROVIDER=cashfree`, `PAYMENTS_MODE=test`, `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY` (mark it Sensitive), then redeploy the preview.
-- 8.4 Let Cashfree reach the preview: turn on Vercel's Protection Bypass for Automation (V-2) - nothing to copy; the site adds it to the payment alert address itself.
-- 8.5 Turn on Google sign-in in Firebase (F-1) and add the preview host to Authorized domains.
-- 8.6 Payment alerts need no set-up: the site sends its own alert address with each order (CF-10); where to see delivered alerts in the Cashfree dashboard.
-- 8.7 The test UPI ids (CF-9) and how to pay with them on the preview (used in the B3 owner checklist).
-- 8.8 Later, after the branch is merged to `main`: a long random `SEVA_CRON_SECRET` in Vercel (Production and Preview) and the same value as a GitHub repository secret, plus the repository variable `SEVA_SITE_URL` (G-1: the 5-minute sweep runs only from `main`).
-- "Tell me it is done": `Section 8 done - test keys in Vercel Preview <yes/no>, bypass on <yes/no>, Google sign-in on <yes/no>`.
+A4.1 (Nikhil, on his own new accounts only - never the live site's) subsections, each numbered steps with "What you should see now:", vendor sources, and UNVERIFIED marks where screens could not be confirmed:
+- A4.1.1 Create a Cashfree merchant account from the sign-up page (what it asks for; test mode works before activation - R1V C5).
+- A4.1.2 Switch the dashboard to Test mode and find the test App ID and Secret Key (where they are; copy each straight into his Vercel project, never into chat).
+- A4.1.3 Put them in **his own Vercel project of the fork** (SETUP-GUIDE A3) for **Preview only**: `PAYMENTS_PROVIDER=cashfree`, `PAYMENTS_MODE=test`, `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY` (mark it Sensitive), then redeploy his preview.
+- A4.1.4 Let Cashfree reach his preview: turn on Vercel's Protection Bypass for Automation (V-2) in his own Vercel project - nothing to copy; the site adds it to the payment alert address itself.
+- A4.1.5 Google sign-in in **his own Firebase test project** (F-1; enabled in A2.3 step 4 if he did it then) and his preview host added to that project's Authorized domains.
+- A4.1.6 Payment alerts need no set-up: the site sends its own alert address with each order (CF-10); where to see delivered alerts in the Cashfree dashboard.
+- A4.1.7 The test UPI ids (CF-9) and how to pay with them on his preview (used in the B3 owner checklist).
+- "Tell me it is done": `Section A4 done - test keys in my Vercel Preview <yes/no>, bypass on <yes/no>, Google sign-in on <yes/no>`.
 
-Section 10 (read-only for now): prerequisites (trust activation papers per R1V C5; Cashfree's written answer on UPI charges up to Rs 2,000; the CA questions of DB §14.7; Vercel plan per O-16 - Hobby is non-commercial), then the two steps of DB §14.6: (1) in Vercel replace the test keys with the live keys and set `PAYMENTS_MODE=live`, (2) Redeploy; then one small real payment, check the receipt, refund it.
+B9 (the site owner, after he merges; written to him, forwardable as it is; read-only until go-live): prerequisites (the temple's own Cashfree account with trust activation papers per R1V C5; Cashfree's written answer on UPI charges up to Rs 2,000; the CA questions of DB §14.7; Vercel plan per O-16 - Hobby is non-commercial); after Plan B is merged to `main`: a long random `SEVA_CRON_SECRET` in **his** Vercel project (Production) and the same value as a secret on **his** repository, plus the repository variable `SEVA_SITE_URL` (G-1: the 5-minute sweep runs only from `main`); then the two steps of DB §14.6: (1) in his Vercel replace the test keys with the live keys and set `PAYMENTS_MODE=live`, (2) Redeploy; then one small real payment, check the receipt, refund it. "Tell Nikhil it is done": `Section B9 done - ...`.
 
 - [ ] **Step 5: Run the tests and see them pass** (same command). Expected: PASS.
 
-- [ ] **Step 6: Commit** - paths: `docs/seva/PAYMENTS-FACTS.md docs/seva/SETUP-GUIDE.md tests/unit/seva/payments-facts.test.ts tests/unit/seva/setup-guide.test.ts`; subject: `docs(seva): check the Cashfree, Vercel and Firebase facts and write SETUP-GUIDE sections 8 and 10`.
+- [ ] **Step 6: Commit** - paths: `docs/seva/PAYMENTS-FACTS.md docs/seva/SETUP-GUIDE.md tests/unit/seva/payments-facts.test.ts tests/unit/seva/setup-guide.test.ts`; subject: `docs(seva): check the Cashfree, Vercel and Firebase facts and write SETUP-GUIDE A4.1 and B9`.
 
 ### Task B0-2: Packages, env names and the Postgres 15 test runner
 
@@ -350,7 +351,7 @@ Run: `npm run test:db -- --ci --watchman=false --forceExit tests/db/pg15-migrati
 
 - [ ] **Step 5: Commit** - paths: `package.json package-lock.json .env.example tests/db/harness.ts tests/db/pg15.ts tests/db/pg15-migrations.test.ts`; subject: `chore(seva): add the Cashfree checkout loader, payment env names and a Postgres 15 test runner`.
 
-**Wave B0 gate:** `$STATE/test-reports/B0-TEST-REPORT.md` with the facts verdict counts and the PG15 test result. Owner checklist (2 minutes): read PAYMENTS-FACTS' verdict summary; when convenient, follow SETUP-GUIDE 8.1-8.5 (needed before the B3 owner gate, not before B1).
+**Wave B0 gate:** `$STATE/test-reports/B0-TEST-REPORT.md` with the facts verdict counts and the PG15 test result. Owner checklist (2 minutes): read PAYMENTS-FACTS' verdict summary; when convenient, Nikhil follows SETUP-GUIDE A4.1.1-A4.1.5 on his own Cashfree, Vercel (fork) and Firebase test accounts (needed before the B3 owner gate, not before B1).
 
 ---
 
@@ -702,7 +703,7 @@ Run: `npx jest --ci --watchman=false --forceExit tests/unit/auth-google.test.ts 
 
 **Wave B1 gate - owner's 5-minute checklist**
 1. Read `B1-TEST-REPORT.md`: the DB suite (with the two Postgres 15 concurrency tests) and the unit suite pass.
-2. If not done yet, follow SETUP-GUIDE 8.1-8.5 (Cashfree test keys in Vercel Preview, bypass, Google sign-in).
+2. If not done yet, Nikhil follows SETUP-GUIDE A4.1 on his own accounts (Cashfree test keys in the Preview of his own Vercel project of the fork, bypass on that project, Google sign-in and the preview host in his own Firebase test project).
 
 ---
 
@@ -1174,7 +1175,7 @@ test('the test-mode banner shows on review, checkout and the receipts')
 
 Run: `npm run test:db -- --ci --watchman=false --forceExit tests/db/seva-payments-flow.test.ts`. Expected: FAIL (`rpc-bridge.ts` missing).
 
-- [ ] **Step 3: Implement** the bridge, delete `SevaBooking.tsx`, and write the docs: `docs/API.md` (every `devotee/*` and `payments/*` route: method, who, body, answer, error codes); `docs/SECURITY.md` (webhook trust boundary, idempotency keys, secrets, the reconcile secret, Vercel preview bypass); `docs/DATA-MODEL.md` (the five payment tables and their functions); `docs/seva/README.md` payments runbook: a failed refund, a possible double payment, paid but not issued (how to check in the Cashfree dashboard, then the Payments page), running the sweep by hand (`workflow_dispatch`), and switching test to live (SETUP-GUIDE section 10).
+- [ ] **Step 3: Implement** the bridge, delete `SevaBooking.tsx`, and write the docs: `docs/API.md` (every `devotee/*` and `payments/*` route: method, who, body, answer, error codes); `docs/SECURITY.md` (webhook trust boundary, idempotency keys, secrets, the reconcile secret, Vercel preview bypass); `docs/DATA-MODEL.md` (the five payment tables and their functions); `docs/seva/README.md` payments runbook: a failed refund, a possible double payment, paid but not issued (how to check in the Cashfree dashboard, then the Payments page), running the sweep by hand (`workflow_dispatch`), and switching test to live (SETUP-GUIDE B9, the site owner's).
 
 - [ ] **Step 4: Run them and see them pass**: the DB command above; then `npm run test:e2e:seva -- --grep "checkout-test-mode|devotee-booking|payments"` (this task's and the wave's specs); `npm run typecheck`. Expected: PASS.
 
@@ -1182,12 +1183,12 @@ Run: `npm run test:db -- --ci --watchman=false --forceExit tests/db/seva-payment
 
 **Wave B3 gate - full suites, then the owner gate**
 
-Run every wave-gate command including `npm run test:e2e:seva` and `npm run build`; write `B3-TEST-REPORT.md`. Then the preview: the orchestrator asks the owner to allow pushing `feature/seva-entry` for a Vercel preview (or uses the existing preview branch), after SETUP-GUIDE section 8 is done.
+Run every wave-gate command including `npm run test:e2e:seva` and `npm run build`; write `B3-TEST-REPORT.md`. Then the preview: the orchestrator asks Nikhil to allow pushing `feature/seva-entry` to his fork (`origin`) for a preview on his own Vercel project (or uses the existing preview branch there), after SETUP-GUIDE A3 and A4.1 are done. Nothing here touches the site owner's Vercel, Firebase or Cashfree.
 
 **Owner's 10-minute checklist (a test payment on the preview site)**
 1. Open the preview site, go to Special Sevas, press Book on a multi-date seva, and sign in with Google (or email + password). You come back to the booking.
 2. Fill a name, pick two dates (try today after 12:00: it is closed), and on Review check "Test mode: no real money moves", "No extra charges" and "Pay Rs <2 x rate> by UPI".
-3. Pay on Cashfree's test page with the success test UPI id from SETUP-GUIDE 8.7. You land on "Payment not confirmed yet. Do not pay again." and within a minute see two e-receipts numbered `WT-WEB-...`.
+3. Pay on Cashfree's test page with the success test UPI id from SETUP-GUIDE A4.1.7. You land on "Payment not confirmed yet. Do not pay again." and within a minute see two e-receipts numbered `WT-WEB-...`.
 4. Open My seva bookings: both receipts are there; Share one and open the link on your phone - it shows the `/r/...` page without your phone number.
 5. In the admin area open Payments: "Test mode" at the top, "Keys found in Vercel", the last payment alert with "Signature verified", and your payment as Paid.
 6. Refund one of the two receipts with a reason. It shows as refunded within a few minutes; the other receipt stays valid.
@@ -1215,7 +1216,7 @@ Run every wave-gate command including `npm run test:e2e:seva` and `npm run build
 | §14.3 refunds (reason, cancel `refunded`, idempotent ref, failed is critical C-46, six months) | B1-1, B1-4, B2-3, B2-5, B3-3 |
 | §14.4 env-only keys, WT series, test banner (C-18) | B0-2, B1-2, B1-1, B3-1, B3-3 |
 | §14.5 e-receipts in the account; send stub retired | B3-2 (stub: Plan A A5-1) |
-| §14.6 going live in two steps; §14.7 legal prerequisites | B0-1 (section 10), B3-3 (GoingLive) |
+| §14.6 going live in two steps; §14.7 legal prerequisites | B0-1 (SETUP-GUIDE B9), B3-3 (GoingLive) |
 | §13.5 Payments status page | B2-3, B3-3 |
 | §12.1 Online tile never counts WT; §12.2 payments row | B1-1, B2-5 |
 | §3.3 rows 24-27 | B2-1, B2-3, B3-3 |
