@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseConfigStatus } from "@/lib/firebase";
+import { signInPath } from "@/lib/seva/routes";
 import type { SevaRole } from "@/types/seva";
 
 type Permission =
@@ -29,6 +30,11 @@ interface AdminAuthGuardProps {
   children: React.ReactNode;
   requiredPermission?: Permission;
   fallback?: React.ReactNode;
+  /**
+   * The page (path and query) to come back to after signing in. Seva Entry passes the page that was opened; without
+   * it a signed-out visitor goes to sign-in returning to the address's `redirect` or `/admin`, as before.
+   */
+  returnTo?: string;
 }
 
 // Simple loading spinner component
@@ -71,6 +77,7 @@ function AccessDenied() {
 export default function AdminAuthGuard({ 
   children, 
   requiredPermission,
+  returnTo,
 }: AdminAuthGuardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -125,8 +132,12 @@ export default function AdminAuthGuard({
   // Check if user is logged in
   if (!user) {
     // Redirect to login with the return URL
-    const redirect = searchParams.get("redirect") || "/admin";
-    router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+    if (returnTo) {
+      router.replace(signInPath(returnTo));
+    } else {
+      const redirect = searchParams.get("redirect") || "/admin";
+      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+    }
     return <LoadingSpinner />;
   }
 

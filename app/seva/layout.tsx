@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 import { PrintRoot } from "@/components/seva/slip/PrintRoot";
 import { RouteProgress } from "@/components/seva/motion/RouteProgress";
@@ -31,24 +32,36 @@ function SevaLoading() {
  * every call. The Suspense boundary is needed because AdminAuthGuard reads useSearchParams. The `.seva` wrapper scopes
  * the module look (styles/seva/tokens.css); PrintRoot is where receipt slips are printed from. SevaMotion gives every
  * seva screen the module spring; RouteProgress is the top bar shown while a seva link is loading (plan A4P-1).
- * `main#main-content` is the skip link's target.
+ * The frames come from the two route groups (plan A4S-2): `(desk)` draws the header, section rail and phone bar,
+ * `(counter)` the full-screen counter; each holds the page's `main#main-content`, the skip link's target.
  */
 export default function SevaLayout({ children }: SevaLayoutProps) {
   return (
     <Suspense fallback={<SevaLoading />}>
-      <AdminAuthGuard requiredPermission="billing">
-        <SevaMeProvider>
-          <SevaMotion>
-            <div className="seva">
-              <RouteProgress />
-              <main id="main-content" tabIndex={-1}>
-                {children}
-              </main>
-            </div>
-          </SevaMotion>
-          <PrintRoot />
-        </SevaMeProvider>
-      </AdminAuthGuard>
+      <GuardedSeva>{children}</GuardedSeva>
     </Suspense>
+  );
+}
+
+/**
+ * Inside the Suspense boundary, because it reads the address. A signed-out visitor is sent to sign in and comes back
+ * to the page they opened, with its query (plan A4S-2), not to the website admin.
+ */
+function GuardedSeva({ children }: SevaLayoutProps) {
+  const pathname = usePathname() ?? "";
+  const search = useSearchParams()?.toString() ?? "";
+  const returnTo = search ? `${pathname}?${search}` : pathname;
+  return (
+    <AdminAuthGuard requiredPermission="billing" returnTo={returnTo}>
+      <SevaMeProvider>
+        <SevaMotion>
+          <div className="seva">
+            <RouteProgress />
+            {children}
+          </div>
+        </SevaMotion>
+        <PrintRoot />
+      </SevaMeProvider>
+    </AdminAuthGuard>
   );
 }
