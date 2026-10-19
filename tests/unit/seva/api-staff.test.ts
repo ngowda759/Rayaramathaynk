@@ -111,8 +111,14 @@ const mockIdentity: jest.Mocked<IdentityAdapter> = {
 };
 jest.mock("@/lib/seva/server/identity", () => ({ getIdentityAdapter: () => mockIdentity }));
 
+// ---- Firebase Admin, for the real Firebase adapter's createLogin -----------------------------------------------------
+const mockFirebaseAuth = { createUser: jest.fn() };
+jest.mock("firebase-admin/auth", () => ({ getAuth: () => mockFirebaseAuth }));
+jest.mock("@/lib/admin-firebase", () => ({ getAdminApp: async () => ({}) }));
+
 import { GET, POST } from "../../../app/api/seva/staff/route";
 import { PUT } from "../../../app/api/seva/staff/[id]/route";
+import { firebaseIdentityAdapter } from "@/lib/seva/server/identity-firebase";
 import { staffApi } from "@/services/seva/staff.service";
 
 // ---- Fixtures -------------------------------------------------------------------------------------------------------
@@ -369,6 +375,23 @@ describe("POST /api/seva/staff (onboard)", () => {
     expect(identityWrites()).toBe(0);
   });
 
+  it("answers 400 on the email field when the email already has a sign-in account, with no other writes", async () => {
+    mockSession.actor = ADMIN;
+    // The real Firebase adapter behind the route, with Firebase Auth refusing the email.
+    mockIdentity.createLogin.mockImplementationOnce((login) => firebaseIdentityAdapter.createLogin(login));
+    mockFirebaseAuth.createUser.mockRejectedValueOnce(Object.assign(new Error("exists"), { code: "auth/email-already-exists" }));
+
+    const refused = await errorOf(await POST(post(lakshmi)));
+    expect(refused).toMatchObject({
+      status: 400,
+      code: "validation",
+      detail: { field: "email", message: "This email already has a sign-in account." },
+    });
+    expect(mockFirebaseAuth.createUser).toHaveBeenCalledTimes(1);
+    expect(mockIdentity.setAccessProfile).not.toHaveBeenCalled();
+    expect(mockCalls).toEqual(["rpc.seva_next_staff_no"]);
+  });
+
   it("reports a partial failure loudly when the staff row cannot be written after the login was made", async () => {
     mockSession.actor = ADMIN;
     mockRpcAnswers.seva_staff_onboard = () => {
@@ -444,8 +467,12 @@ describe("PUT /api/seva/staff/[id]", () => {
     const res = await put(ID.girish, { status: "deleted", reason: "Asked to be removed" });
     expect(res.status).toBe(200);
     expect(mockCalls).toEqual(["identity.setAccessProfile", "identity.deleteLogin", "rpc.seva_staff_update"]);
-    // A deleted person stays deleted.
-    expect(await errorOf(await put(ID.shobha, { status: "active" }))).toMatchObject({ status: 400, code: "validation" });
+    // A deleted person stays deleted; their email stays on the row, so only a different email can come back.
+    expect(await errorOf(await put(ID.shobha, { status: "active" }))).toMatchObject({
+      status: 400,
+      code: "validation",
+      detail: { field: "status", message: expect.stringContaining("different email") },
+    });
   });
 
   it("a temple admin can reactivate", async () => {
@@ -485,6 +512,25 @@ describe("PUT /api/seva/staff/[id]", () => {
     mockSession.actor = SUPER;
     expect((await errorOf(await put("0f6e2b1a-1c1d-4e5f-8a9b-000000000999", { status: "active" }))).status).toBe(404);
     expect((await errorOf(await put("not-an-id", { status: "active" }))).status).toBe(404);
+  });
+});
+
+describe("Firebase identity adapter: createLogin", () => {
+  const login = { email: "ramesh@example.org", displayName: "Ramesh K" };
+
+  it("turns an email Firebase refuses into a validation error on the email field", async () => {
+    for (const code of ["auth/email-already-exists", "auth/invalid-email"]) {
+      mockFirebaseAuth.createUser.mockRejectedValueOnce(Object.assign(new Error("refused"), { code }));
+      const error: unknown = await firebaseIdentityAdapter.createLogin(login).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(SevaError);
+      expect(error).toMatchObject({ code: "validation", detail: { field: "email" } });
+    }
+  });
+
+  it("passes any other Firebase failure through, so the route answers 500", async () => {
+    const outage = Object.assign(new Error("down"), { code: "auth/internal-error" });
+    mockFirebaseAuth.createUser.mockRejectedValueOnce(outage);
+    await expect(firebaseIdentityAdapter.createLogin(login)).rejects.toBe(outage);
   });
 });
 

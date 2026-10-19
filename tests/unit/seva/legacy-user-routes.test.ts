@@ -184,6 +184,33 @@ describe("POST /api/admin/users/set-role", () => {
     expect(mockRpc).toHaveBeenCalledWith("seva_audit", expect.objectContaining({ p_staff_id: ADMIN.staffId }));
   });
 
+  it("keeps roles with no seva meaning to a super admin, even for staff within a temple admin's reach (C-17, C-62)", async () => {
+    mockSession.actor = ADMIN;
+    for (const role of ["billing", "devotee", "volunteer"]) {
+      expect(await errorOf(await setRole(request("/api/admin/users/set-role", { email: "ramesh@example.org", role })))).toEqual({
+        status: 403,
+        code: "forbidden",
+      });
+    }
+    expect(mockIdentity.setAccessProfile).not.toHaveBeenCalled();
+    expect(mockRpc).not.toHaveBeenCalled();
+
+    mockSession.actor = SUPER;
+    const res = await setRole(request("/api/admin/users/set-role", { email: "ramesh@example.org", role: "billing" }));
+    expect(res.status).toBe(200);
+    expect(mockCalls).toEqual(["identity.setAccessProfile", "rpc.seva_audit"]);
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-ramesh", { role: "billing" });
+    expect(mockRpc).toHaveBeenCalledWith(
+      "seva_audit",
+      expect.objectContaining({
+        p_entity_id: RAMESH_ID,
+        p_before: { role: "receptionist" },
+        p_after: { role: "billing" },
+        p_staff_id: SUPER.staffId,
+      }),
+    );
+  });
+
   it("lets a super admin change an account without a staff row, with no audit row", async () => {
     mockSession.actor = SUPER;
     const res = await setRole(request("/api/admin/users/set-role", { email: "devotee@example.org", role: "volunteer" }));

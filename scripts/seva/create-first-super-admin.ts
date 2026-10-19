@@ -12,7 +12,8 @@
  * The account must already exist in Firebase Authentication (sign in to the site once). In the staff API's order
  * (DB §3.2) the script then writes:
  *   1. Firestore users/{uid}: role super_admin, isActive true;
- *   2. Supabase staff: row 001 for that login, status active (the owner's own account, so no invitation step);
+ *   2. Supabase staff: row 001 for that login, status active and first signed in now (the owner's own account, so no
+ *      invitation step);
  *   3. audit_log: staff.onboard, with no acting staff member (a script, not a person in the app).
  *
  * Safe to run again, and never a way to grant anything twice:
@@ -52,7 +53,7 @@ export interface FirstSuperAdminStore {
   findLoginByEmail(email: string): Promise<LoginInfo | null>;
   setSuperAdminProfile(uid: string, profile: { email: string; name: string }): Promise<void>;
   listStaff(): Promise<StaffSummary[]>;
-  /** Inserts staff no. 001, status active. */
+  /** Inserts staff no. 001, status active, first signed in now (the owner's own, already used login). */
   insertStaff(row: { firebaseUid: string; fullName: string; email: string }): Promise<{ id: string }>;
   hasOnboardAudit(staffId: string): Promise<boolean>;
   writeOnboardAudit(staffId: string, after: Record<string, unknown>): Promise<void>;
@@ -216,6 +217,7 @@ async function openStore(): Promise<{ store: FirstSuperAdminStore; close: () => 
     },
 
     async insertStaff(row) {
+      const now = new Date().toISOString();
       const { data, error } = await db
         .from("staff")
         .insert({
@@ -225,7 +227,10 @@ async function openStore(): Promise<{ store: FirstSuperAdminStore; close: () => 
           email: row.email,
           view_only: false,
           status: "active",
-          status_changed_at: new Date().toISOString(),
+          status_changed_at: now,
+          // The login exists and the owner has signed in with it. Without this, a later deactivate-then-reactivate
+          // would put 001 back to 'invited' (seva_staff_update) and the staff list would show no first sign-in.
+          first_signed_in_at: now,
         })
         .select("id")
         .single();

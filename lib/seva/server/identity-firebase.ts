@@ -46,8 +46,21 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async createLogin({ email, displayName }) {
-    const user = await (await adminAuth()).createUser({ email, displayName, emailVerified: false, disabled: false });
-    return { externalUid: user.uid };
+    try {
+      const user = await (await adminAuth()).createUser({ email, displayName, emailVerified: false, disabled: false });
+      return { externalUid: user.uid };
+    } catch (error) {
+      // An email Firebase refuses is the form's to fix (400 on the email field), not a server failure: someone who
+      // signed in before, a legacy account (C-62), or a retry after a partial onboarding. Nothing was written yet.
+      const code = errorCode(error);
+      if (code === "auth/email-already-exists") {
+        throw new SevaError("validation", { field: "email", message: "This email already has a sign-in account." });
+      }
+      if (code === "auth/invalid-email") {
+        throw new SevaError("validation", { field: "email", message: "This email address is not valid." });
+      }
+      throw error;
+    }
   },
 
   async setAccessProfile(externalUid, patch) {

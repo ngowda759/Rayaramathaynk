@@ -220,6 +220,12 @@ function staffNoText(no: number): string {
   return String(no).padStart(3, "0");
 }
 
+/**
+ * A deleted row keeps its email, and staff.email is unique, so the same email can never be onboarded again (DB §3.4).
+ */
+const DELETED_STAYS_DELETED =
+  "A deleted staff member stays deleted. To bring them back, onboard them with a different email.";
+
 interface Write {
   /** What this write changes, for the partial-failure detail: 'login', 'profile', 'row'. */
   name: string;
@@ -283,7 +289,9 @@ export async function onboardStaff(
   const db = createAdminClient();
   const staffNo = input.staffNo ?? (await nextStaffNo());
   // Checked before any write so that a taken number or email never leaves a login behind. The SQL function checks
-  // both again under its table lock; losing that race to another onboarding answers partial_failure.
+  // both again under its table lock. Known race (accepted): two onboardings at the same moment read the same next
+  // number; the second loses inside seva_staff_onboard after its login exists, so it answers partial_failure
+  // (done ['identity'], failed 'staff') and that login has no staff row until the office sorts it out.
   const [sameNo, sameEmail] = await Promise.all([findStaff(db, "staff_no", staffNo), findStaff(db, "email", input.email)]);
   if (sameNo) throw invalid("staffNo", `Staff no. ${staffNoText(staffNo)} is already taken`);
   if (sameEmail) throw invalid("email", "This email already belongs to a staff member");
@@ -388,9 +396,7 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
   const db = createAdminClient();
   const target = await findStaff(db, "id", staffId);
   if (!target) throw new SevaError("not_found", { entity: "staff" });
-  if (target.status === "deleted") {
-    throw invalid("status", "A deleted staff member stays deleted. Onboard them again as a new staff member.");
-  }
+  if (target.status === "deleted") throw invalid("status", DELETED_STAYS_DELETED);
   if (target.id === actor.staffId) throw new SevaError("forbidden");
 
   const identity = getIdentityAdapter();
@@ -462,7 +468,8 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
 /**
  * The older set-role route: writes a role (one of that route's own role names) to a person's Firestore profile under
  * the same rules - super admin only by a super admin (row 19); a temple admin only for another person who has a staff
- * row and is below super admin (row 20, C-17; legacy roles are a super admin's call, C-62). An account without a
+ * row and is below super admin, and only to `admin` (temple admin) (row 20, C-17); `billing`, `devotee` and
+ * `volunteer` are a super admin's call (C-62). An account without a
  * profile has never signed in and is not found, as before. A person with a staff row gets the staff.role_change audit
  * row (and loses a view-only switch that no longer applies).
  */
@@ -478,12 +485,14 @@ export async function setAccountRole(
   ]);
   if (!profile) throw new SevaError("not_found", { entity: "user" });
   if (input.externalUid === actor.uid || target?.id === actor.staffId) throw new SevaError("forbidden");
-  if (target?.status === "deleted") {
-    throw invalid("status", "A deleted staff member stays deleted. Onboard them again as a new staff member.");
-  }
+  if (target?.status === "deleted") throw invalid("status", DELETED_STAYS_DELETED);
 
   const currentRole = mapFirestoreRole(profile.role) ?? undefined;
   const newRole = mapFirestoreRole(input.role) ?? undefined;
+  // A role with no seva meaning (billing, devotee, volunteer) is outside the three a temple admin may give (C-17): it
+  // takes a person's seva access away or hands out an admin-console role, so it is a super admin's call (C-62). can()
+  // reads a missing newRole as "no role change", so this is refused here, before any write.
+  if (newRole === undefined && actor.role !== "super_admin") throw new SevaError("forbidden");
   if (newRole === "super_admin") allow(actor, "staff.grant_super_admin");
   allow(actor, "staff.change_role", { targetRole: currentRole, targetStaffId: target?.id, newRole });
 
