@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, type JSX, type KeyboardEvent } from "react";
+import { useId, useRef, type JSX, type KeyboardEvent } from "react";
+import { m } from "framer-motion";
+
+import { PRESS } from "@/lib/seva/motion";
 
 import { Bilingual } from "./Bilingual";
 
@@ -25,9 +28,12 @@ export interface SegmentedProps<T extends string> {
 /**
  * One-of-few choice (payment mode, period) as an ARIA radiogroup with a roving tab stop:
  * Tab enters on the chosen option, arrow keys move and choose, Home/End jump to the ends.
+ * The chosen option's raised pill slides to a new choice (a shared `layoutId`), and options spring when pressed.
  */
 export function Segmented<T extends string>({ name, label, options, value, onChange }: SegmentedProps<T>): JSX.Element {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  // One pill per group, so two Segmented controls on a page never trade pills.
+  const pillId = `segmented-pill-${useId()}`;
   const chosen = options.findIndex((o) => o.value === value);
   const tabStop = chosen >= 0 ? chosen : 0;
 
@@ -77,7 +83,7 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
       {options.map((o, i) => {
         const checked = o.value === value;
         return (
-          <button
+          <m.button
             key={o.value}
             ref={(el) => {
               refs.current[i] = el;
@@ -92,14 +98,25 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
               if (!checked && !o.disabled) onChange(o.value);
             }}
             onKeyDown={(e) => handleKeyDown(e, i)}
+            whileTap={o.disabled ? undefined : PRESS}
             className={
               checked
-                ? "min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-(--card) px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--foreground) shadow-(--shadow-card)"
-                : "min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-transparent px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--muted-foreground) hover:text-(--foreground) disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-(--muted-foreground)"
+                ? "relative min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-transparent px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--foreground)"
+                : "relative min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-transparent px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--muted-foreground) hover:text-(--foreground) disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-(--muted-foreground)"
             }
           >
-            <Bilingual en={o.en} kn={o.kn} />
-          </button>
+            {checked ? (
+              <m.span
+                layoutId={pillId}
+                data-segmented-pill=""
+                aria-hidden="true"
+                className="absolute inset-0 rounded-[10px] bg-(--card) shadow-(--shadow-card)"
+              />
+            ) : null}
+            <span className="relative">
+              <Bilingual en={o.en} kn={o.kn} />
+            </span>
+          </m.button>
         );
       })}
     </div>

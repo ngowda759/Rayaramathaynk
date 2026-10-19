@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent, type JSX, type KeyboardEvent } from "react";
+import { m, type Variants } from "framer-motion";
 
 import { Bilingual } from "./Bilingual";
 
@@ -32,6 +33,14 @@ export interface SearchSelectProps {
 }
 
 type Item = { kind: "option"; option: SearchOption } | { kind: "typed"; text: string };
+
+/** The list springs open from just under the field. */
+const LIST_OPEN = { initial: { opacity: 0, y: -6, scale: 0.98 }, animate: { opacity: 1, y: 0, scale: 1 } } as const;
+/** Options arrive one after another when the list opens; the wave is capped so the last is readable within 0.2 s. */
+const OPTION_VARIANTS: Variants = {
+  hidden: { opacity: 0, y: -4 },
+  shown: (i: number) => ({ opacity: 1, y: 0, transition: { delay: Math.min(i, 8) * 0.025 } }),
+};
 
 /** Lower case, accents removed, so "Kṛttikā" and "krittika" compare equal. */
 function fold(s: string): string {
@@ -71,6 +80,8 @@ function valueKey(v: SearchSelectValue | null): string | null {
  * Searchable dropdown (ARIA 1.2 combobox with a listbox popup) for gotra, nakshatra, rashi and seva search.
  * Finds by prefix of the English name, the Kannada name, any word in them, or an alias. ArrowUp/ArrowDown move,
  * Enter picks, Escape closes. With `allowTyped`, the typed text can be kept "as entered".
+ * The list springs open and its options stagger in when it opens from focus or the arrow key; while the person types,
+ * new matches appear at once, so typing never waits on an animation.
  */
 export function SearchSelect({
   id,
@@ -256,15 +267,21 @@ export function SearchSelect({
           className="h-[46px] w-full rounded-(--radius-control) border border-(--border-strong) bg-(--input) px-4 text-(length:--text-body) text-(--foreground) transition-[border-color,box-shadow] duration-[120ms] placeholder:text-(--muted-foreground) hover:border-[color-mix(in_oklab,var(--foreground)_35%,var(--border-strong))] focus:border-(--primary-press) focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--primary)_30%,transparent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
         {showList ? (
-          <ul
+          <m.ul
             id={listId}
             role="listbox"
             aria-label={label.en}
+            initial={LIST_OPEN.initial}
+            animate={LIST_OPEN.animate}
             className="absolute inset-x-0 top-[calc(100%+6px)] z-20 m-0 max-h-[280px] list-none overflow-auto rounded-[14px] border border-(--border) bg-(--card) p-1.5 shadow-(--shadow-raise)"
           >
             {items.map((item, i) => (
-              <li
+              <m.li
                 key={item.kind === "typed" ? "__typed" : item.option.value}
+                custom={i}
+                variants={OPTION_VARIANTS}
+                initial={editing ? false : "hidden"}
+                animate="shown"
                 id={optionId(i)}
                 role="option"
                 aria-selected={i === activeIndex}
@@ -285,9 +302,9 @@ export function SearchSelect({
                 ) : (
                   <Bilingual en={item.option.en} kn={item.option.kn} className="[&_.kn]:text-(length:--text-meta)" />
                 )}
-              </li>
+              </m.li>
             ))}
-          </ul>
+          </m.ul>
         ) : null}
       </div>
       {selected?.kn ? (

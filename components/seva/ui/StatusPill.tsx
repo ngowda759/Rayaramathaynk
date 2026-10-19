@@ -1,4 +1,9 @@
+"use client";
+
 import type { JSX, ReactNode } from "react";
+import { AnimatePresence, m } from "framer-motion";
+
+import { PRESS } from "@/lib/seva/motion";
 
 export type StatusPillTone = "online" | "offline" | "closed";
 
@@ -15,18 +20,28 @@ const DOTS: Record<StatusPillTone, string> = {
 
 /**
  * Counter connection / day state ("Online", "Offline - 3 waiting", "Day closed").
- * A polite live region, so a change is read out without moving focus.
+ * A polite live region, so a change is read out without moving focus. The region itself is never replaced; only its
+ * dot pops with the module spring when the state changes (not on first show), and the pill gives under a press.
  */
 export function StatusPill({ tone, children }: StatusPillProps): JSX.Element {
   return (
-    <span
+    <m.span
       role="status"
       data-tone={tone}
-      className="inline-flex h-[34px] items-center gap-2 rounded-full border border-(--border) bg-(--card) px-3.5 text-(length:--text-meta) font-semibold whitespace-nowrap text-(--foreground)"
+      whileTap={PRESS}
+      className="relative inline-flex h-[34px] items-center gap-2 rounded-full border border-(--border) bg-(--card) px-3.5 text-(length:--text-meta) font-semibold whitespace-nowrap text-(--foreground)"
     >
-      <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${DOTS[tone]}`} />
+      <AnimatePresence initial={false} mode="popLayout">
+        <m.span
+          key={tone}
+          aria-hidden="true"
+          className={`size-2 shrink-0 rounded-full ${DOTS[tone]}`}
+          initial={{ scale: 0.2 }}
+          animate={{ scale: 1 }}
+        />
+      </AnimatePresence>
       {children}
-    </span>
+    </m.span>
   );
 }
 

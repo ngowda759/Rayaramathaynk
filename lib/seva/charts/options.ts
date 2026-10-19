@@ -6,6 +6,8 @@
  * Shared rules applied to every option: tooltips `triggerOn: 'mousemove|click'` with `confine: true`,
  * labels at least 13 px, amounts in Indian grouping ('Rs 1,00,000'), `animation: false` under reduced motion,
  * the previous period in neutral dashed grey.
+ * Motion (plan A4P-1): bars grow with a little bounce ('backOut', 700 ms, 30 ms apart per data point), lines and pies
+ * ease out ('cubicOut'), and a data change moves in 500 ms ('cubicInOut').
  */
 import type { EChartsCoreOption } from "echarts/core";
 
@@ -111,9 +113,20 @@ function tooltipFormatter(format: (n: number) => string, suffix = "", itemLabel 
   };
 }
 
+/** Bars grow with a little bounce, one data point after another. */
+const BAR_MOTION = {
+  animationEasing: "backOut",
+  animationDuration: 700,
+  animationDelay: (idx: number) => idx * 30,
+} as const;
+/** Lines and pies ease out. */
+const EASE_OUT_MOTION = { animationEasing: "cubicOut" } as const;
+
 function base(o: Opts, tooltip: Record<string, unknown>): Record<string, unknown> {
   return {
     animation: !o.reducedMotion,
+    animationDurationUpdate: 500,
+    animationEasingUpdate: "cubicInOut",
     color: o.colors.length > 0 ? o.colors : [...FALLBACK_CHART_COLORS],
     textStyle: { fontSize: CHART_FONT_SIZE },
     tooltip: { triggerOn: "mousemove|click", confine: true, textStyle: { fontSize: CHART_FONT_SIZE }, ...tooltip },
@@ -133,6 +146,7 @@ export function heroOption(d: HeroInput, o: Opts): EChartsCoreOption {
     type: "bar",
     stack: "collections",
     barMaxWidth: 40,
+    ...BAR_MOTION,
     itemStyle: { color: color(o, i) },
     emphasis: { focus: "series" },
     data: d.buckets.map(pick),
@@ -164,6 +178,7 @@ export function heroOption(d: HeroInput, o: Opts): EChartsCoreOption {
         name: PREV_NAME,
         type: "line",
         symbol: "none",
+        ...EASE_OUT_MOTION,
         z: 3,
         lineStyle: { type: "dashed", width: 2, color: CHART_PREV_COLOR },
         itemStyle: { color: CHART_PREV_COLOR },
@@ -200,6 +215,7 @@ export function topSevasOption(
         name: "This period",
         type: "bar",
         barMaxWidth: 22,
+        ...BAR_MOTION,
         itemStyle: { color: color(o, 0) },
         label: {
           show: true,
@@ -239,6 +255,7 @@ export function modeOption(d: ModeInput, period: Period, o: Opts): EChartsCoreOp
           name: "Payment mode",
           type: "pie",
           radius: ["50%", "75%"],
+          ...EASE_OUT_MOTION,
           center: ["50%", "45%"],
           avoidLabelOverlap: true,
           label: { show: true, fontSize: CHART_FONT_SIZE, formatter: "{b}\n{d}%" },
@@ -271,6 +288,7 @@ export function modeOption(d: ModeInput, period: Period, o: Opts): EChartsCoreOp
       type: "bar",
       stack: "mode",
       barMaxWidth: 48,
+      ...BAR_MOTION,
       itemStyle: p.itemStyle,
       label: { show: true, fontSize: SMALL_FONT_SIZE, formatter: "{c}%" },
       data: [share(p.value)],
@@ -432,6 +450,7 @@ export function festivalBarsOption(
       name: "This year",
       type: "bar",
       barMaxWidth: 32,
+      ...BAR_MOTION,
       itemStyle: { color: color(o, 0) },
       label: { show: true, position: "top", fontSize: SMALL_FONT_SIZE, formatter: (p: { value: unknown }) => chartCount(pointNumber(p.value) ?? 0) },
       data: d.days.map((x) => x.thisYear),
@@ -442,6 +461,7 @@ export function festivalBarsOption(
       name: "Compare year",
       type: "bar",
       barMaxWidth: 32,
+      ...BAR_MOTION,
       itemStyle: { color: CHART_PREV_COLOR, opacity: 0.6 },
       data: d.days.map((x) => x.compareYear),
     });

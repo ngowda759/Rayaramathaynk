@@ -1,12 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { X, ChevronDown, LayoutDashboard, Calendar, Heart, Clock, Flower2, BookOpen, Images, Bell, Users, Settings, Sparkles, Receipt, ReceiptText, ClipboardList, FileText, Info, MessageSquareQuote, BarChart3, HelpCircle, Compass } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
+import { SevaLink, navigateWithProgress } from "@/components/seva/motion/SevaLink";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
+import { isSevaHref } from "@/lib/seva/motion";
 import { cn } from "@/lib/utils";
 import { sevaNavColumn, withSevaNavigation } from "./navigation";
 import type { NavigationGroup, NavigationItem } from "./types";
@@ -153,16 +155,14 @@ function activeChildHref(children: NavigationItem[], pathname: string): string |
 
 function DesktopLink({ item, isActive }: { item: NavigationItem; isActive: boolean }) {
   const Icon = iconMap[item.icon] || LayoutDashboard;
-  return (
-    <a
-      href={item.href}
-      className={cn(
-        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
-        isActive
-          ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
-          : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
-      )}
-    >
+  const className = cn(
+    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
+    isActive
+      ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
+      : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
+  );
+  const content = (
+    <>
       {isActive && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-white" />
       )}
@@ -176,25 +176,42 @@ function DesktopLink({ item, isActive }: { item: NavigationItem; isActive: boole
           <div className="h-1.5 w-1.5 rounded-full bg-white/80" />
         </div>
       )}
+    </>
+  );
+  // Seva pages open in place (client navigation) with the module's progress bar and page outline (plan A4P-1).
+  if (isSevaHref(item.href)) {
+    return (
+      <SevaLink href={item.href} className={className}>
+        {content}
+      </SevaLink>
+    );
+  }
+  return (
+    <a href={item.href} className={className}>
+      {content}
     </a>
   );
 }
 
 function MobileLink({ item, isActive, onClose }: { item: NavigationItem; isActive: boolean; onClose: () => void }) {
   const Icon = iconMap[item.icon] || LayoutDashboard;
+  const className = cn(
+    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer text-left",
+    isActive
+      ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg"
+      : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
+  );
+  const router = useRouter();
   return (
     <button
       type="button"
       onClick={() => {
         onClose();
-        window.location.href = item.href;
+        // Seva pages open in place with the module's progress bar (plan A4P-1); others load as before.
+        if (isSevaHref(item.href)) navigateWithProgress(router, item.href);
+        else window.location.href = item.href;
       }}
-      className={cn(
-        "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer text-left",
-        isActive
-          ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg"
-          : "text-stone-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-amber-800"
-      )}
+      className={className}
     >
       <Icon className="h-4 w-4" />
       <NavLabel item={item} />
