@@ -290,6 +290,11 @@ export const dayCloseSchema = z.object({
   upiBankTotalPaise: paise.nullable().optional(),
   /** Required (>= 3 characters) by the SQL function when cash or UPI differs (difference_note_required). */
   note: z.string().trim().max(1000).optional(),
+  /**
+   * A temple admin closes although the counter PC has not been seen for over 2 minutes (A5-FIX M-2), so its "nothing
+   * waiting" cannot be trusted. Honoured only for an admin; audited on the close.
+   */
+  counterOfflineOk: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------------------------------------------

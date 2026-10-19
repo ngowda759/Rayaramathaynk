@@ -216,6 +216,33 @@ describe('seva day close functions (A2-2)', () => {
     await expect(close(db, ramesh, EXACT)).resolves.toEqual(expect.any(String));
   });
 
+  it('needs the counter online: a live PC not seen for over 2 minutes refuses the close (A5-FIX M-2)', async () => {
+    // The PC last reported 0 waiting 10 minutes ago, so that 0 can no longer be trusted.
+    await db.query(`update counter_devices set last_seen_at = now() - interval '10 minutes' where id = $1::uuid`, [deviceId]);
+    await expect(close(db, ramesh, EXACT)).rejects.toThrow('SEVA:outbox_not_empty');
+    const n = await db.query<{ n: number }>('select count(*)::int as n from day_closes');
+    expect(n.rows[0].n).toBe(0);
+
+    await db.query(`update counter_devices set last_seen_at = now() - interval '30 seconds' where id = $1::uuid`, [deviceId]);
+    await expect(close(db, ramesh, EXACT)).resolves.toEqual(expect.any(String));
+  });
+
+  it('lets an admin close with the counter offline, audited (A5-FIX M-2)', async () => {
+    await db.query(`update counter_devices set last_seen_at = now() - interval '10 minutes' where id = $1::uuid`, [deviceId]);
+    const r = await db.query<{ id: string }>(
+      `select seva_close_day(1::smallint, (select business_date from seva_ist_parts(now())), $1::jsonb,
+                             null, null, $2::uuid, true) as id`,
+      [JSON.stringify(EXACT), admin],
+    );
+    const audit = await db.query<{ after: Record<string, unknown> }>(
+      `select after from audit_log where action = 'dayclose.close' and entity_id = $1`,
+      [r.rows[0].id],
+    );
+    expect(audit.rows).toEqual([
+      { after: expect.objectContaining({ counter_offline_override: true, counter_last_seen_at: expect.any(String) }) },
+    ]);
+  });
+
   it('stores counts with snapshot values and generated amounts', async () => {
     const id = await close(db, ramesh, EXACT);
     const counts = await db.query<{ kind: string; value: string; count: number; amount: string }>(

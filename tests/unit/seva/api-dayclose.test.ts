@@ -205,6 +205,22 @@ describe("day close routes", () => {
     });
   });
 
+  it("passes the counter-offline override only for an admin who asks for it (A5-FIX M-2)", async () => {
+    mockRpc.mockResolvedValue("dc-9");
+    const body = { counterId: 1, businessDate: TODAY, counts: [], upiBankTotalPaise: null, counterOfflineOk: true };
+
+    await POST(post("/api/seva/day-close", body));
+    expect(mockRpc).toHaveBeenLastCalledWith("seva_close_day", expect.not.objectContaining({ p_counter_offline_ok: true }));
+
+    mockGuard.mockResolvedValueOnce({ ok: true, actor: { ...ACTOR, role: "temple_admin" }, device: null });
+    await POST(post("/api/seva/day-close", body));
+    expect(mockRpc).toHaveBeenLastCalledWith("seva_close_day", expect.objectContaining({ p_counter_offline_ok: true }));
+
+    mockGuard.mockResolvedValueOnce({ ok: true, actor: { ...ACTOR, role: "temple_admin" }, device: null });
+    await POST(post("/api/seva/day-close", { ...body, counterOfflineOk: undefined }));
+    expect(mockRpc).toHaveBeenLastCalledWith("seva_close_day", expect.not.objectContaining({ p_counter_offline_ok: true }));
+  });
+
   it("maps difference_note_required and outbox_not_empty to 400 and 409", async () => {
     const body = { counterId: 1, businessDate: TODAY, counts: [], upiBankTotalPaise: null };
 

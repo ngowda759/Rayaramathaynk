@@ -185,6 +185,20 @@ function words(card: NeedsAttentionCard): { title: string; line: string; href: s
         href: COUNTERS,
       };
     }
+    case "synced_into_closed_day": {
+      const amount = num(d, "amountPaise");
+      const oldest = text(d, "oldest_date");
+      return {
+        title: plural(n, "offline receipt after day close", "offline receipts after day close"),
+        line:
+          n > 0
+            ? `${formatRupees(amount, { decimals: amount % 100 !== 0 })} reached the office after the day was closed${
+                oldest ? ` (from ${day(oldest)})` : ""
+              }; reopen that day and close it again`
+            : "No offline receipt arrived after its day was closed",
+        href: DAY_CLOSES,
+      };
+    }
     default: {
       const unknown: never = card.id;
       return { title: String(unknown), line: "", href: null };

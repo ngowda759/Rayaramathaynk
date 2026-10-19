@@ -387,7 +387,7 @@ describe('seva needs attention (A2-3)', () => {
     expect(cards.map((c) => c.id)).toEqual([
       'changed_amounts', 'cancellations', 'day_close_difference', 'day_not_closed', 'waiting_to_sync', 'number_gaps',
       'prasadam_pending', 'upi_refunds_due', 'clock_skew', 'backup', 'database_size', 'in_doubt_duplicates',
-      'future_offline', 'offline_cancels', 'upi_changed',
+      'future_offline', 'offline_cancels', 'upi_changed', 'synced_into_closed_day',
     ]);
     for (const c of cards) {
       expect({ id: c.id, level: c.level, count: c.count }).toEqual({ id: c.id, level: 'ok', count: 0 });

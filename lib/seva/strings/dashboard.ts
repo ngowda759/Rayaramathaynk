@@ -145,4 +145,5 @@ export const ATTENTION_KN: Record<string, string> = {
   future_offline: 'ಮುಂದಿನ ಸಮಯದ ಆಫ್‌ಲೈನ್ ರಸೀದಿ',
   offline_cancels: 'ಆಫ್‌ಲೈನ್ ರದ್ದತಿಗಳು',
   upi_changed: 'ಯುಪಿಐ ಐಡಿ ಬದಲಾವಣೆ',
+  synced_into_closed_day: 'ಮುಕ್ತಾಯವಾದ ದಿನಕ್ಕೆ ಬಂದ ಆಫ್‌ಲೈನ್ ರಸೀದಿ',
 };

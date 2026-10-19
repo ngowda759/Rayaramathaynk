@@ -58,7 +58,9 @@ export type NeedsAttentionId =
   /** Cancels sent by a counter outbox; attention when sent by someone else or late (A3 security gate M-2). */
   | 'offline_cancels'
   /** The counter's UPI payee changed in the finance settings (A3 security gate H-1). */
-  | 'upi_changed';
+  | 'upi_changed'
+  /** Offline receipts that reached the office after their counter-day was closed (A5-FIX M-2). */
+  | 'synced_into_closed_day';
 
 /** One offline cancel on the `offline_cancels` card, newest first. */
 export interface OfflineCancelEntry {

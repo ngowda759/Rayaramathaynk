@@ -57,6 +57,8 @@ interface OrderResult {
   group_no: string;
   duplicate: boolean;
   receipts: SqlReceipt[];
+  /** Present (true) only when the order was stored into an already-closed counter-day (A5-FIX M-2). */
+  in_closed_day?: boolean;
 }
 
 interface OfflineLine {
@@ -655,6 +657,54 @@ describe('seva_sync_offline_order (A2-1)', () => {
       expect(receipt.has_changed_amount).toBe(false);
       expect(receipt.lines[0]).toMatchObject({ catalogue_rate: '505.00', unit_rate: '505.00', changed: false });
       expect(await changedAudits(c)).toHaveLength(0);
+    });
+  });
+
+  describe('M-2: an offline order that syncs into a closed day is stored and flagged', () => {
+    async function card(c: Ctx, id: string): Promise<{ level: string; count: number; detail: Record<string, unknown> }> {
+      const r = await asRole(c.db, 'service_role', (d) =>
+        d.query<{ r: { id: string; level: string; count: number; detail: Record<string, unknown> }[] }>(
+          `select seva_needs_attention(now() - interval '1 day', now() + interval '1 day',
+                                       (select business_date from seva_ist_parts(now()))) as r`,
+        ),
+      );
+      const found = r.rows[0].r.find((x) => x.id === id);
+      if (!found) throw new Error(`no card ${id}`);
+      return found;
+    }
+
+    it('writes receipt.synced_into_closed_day and raises a critical card', async () => {
+      const c = await setup();
+      expect(await card(c, 'synced_into_closed_day')).toMatchObject({ level: 'ok', count: 0 });
+      // Counter 1 closed 18 October (ISSUED's IST date) before the PC sent its outbox.
+      await c.db.query(
+        `insert into day_closes (counter_id, business_date, status, cash_expected, cash_counted, series_ranges,
+                                 outbox_pending, closed_by_staff_id, closed_at)
+         values (1, '2026-10-18', 'closed', 0, 0, '[]'::jsonb, 0, $1::uuid, now())`,
+        [c.staffId],
+      );
+      const res = await syncNo(c, 1);
+      expect(res.in_closed_day).toBe(true);
+      const audit = await auditRows(c.db, `action = 'receipt.synced_into_closed_day'`);
+      expect(audit).toEqual([
+        expect.objectContaining({
+          entity_id: res.receipts[0].id,
+          actor_staff_id: c.staffId,
+          after: expect.objectContaining({ business_date: '2026-10-18', counter_id: 1, total: '105.00', payment_mode: 'cash' }),
+        }),
+      ]);
+      expect(await card(c, 'synced_into_closed_day')).toMatchObject({
+        level: 'critical',
+        count: 1,
+        detail: expect.objectContaining({ amount: '105.00' }),
+      });
+    });
+
+    it('an open day is not flagged', async () => {
+      const c = await setup();
+      const res = await syncNo(c, 1);
+      expect(res.in_closed_day).toBeUndefined();
+      expect(await auditRows(c.db, `action = 'receipt.synced_into_closed_day'`)).toEqual([]);
     });
   });
 
