@@ -10,6 +10,8 @@ Written 2026-10-18 (Sunday) from the signed Design Book (`.claude/state/seva/boo
 | `2026-10-18-seva-entry-plan-A-phase1-part2.md` | Plan A part 2 of 2, full detail: waves A3-A5 and the self-review. **Split by wave because Plan A passed 2,200 lines** (about 2,640 lines in all) |
 | `2026-10-18-seva-entry-plan-B-phase2-web.md` | Plan B, full detail (detailed 2026-10-19 against the code at `f0f8aec`): header, Global Constraints, gateway facts to check, Review Focus, file map, shared contracts, waves B0-B3 (16 tasks), self-review and what changed from the outline. One file - about 1,250 lines, under the 2,200-line split point |
 | `2026-10-18-seva-entry-plan-C-android.md` | Plan C outline, same level |
+| `2026-10-19-seva-entry-A4-polish.md` | Wave A4P (added 2026-10-19 after the owner tried the A4 screens): spring motion and instant loading, the gotra/nakshatra/rashi lists page, tidy items. Done, closed at `2a8a4ed` |
+| `2026-10-19-seva-entry-A4S-shell.md` | Wave A4S (owner's deck `shell`, 2026-10-19): Seva Entry moves to its own screens at `/seva` in the same website - module header, section rail, phone bar, full-screen counter, one routes constant, forwarding from the old addresses. 6 tasks in 3 runs |
 
 All paths inside the plans are relative to the worktree `D:/Onboarding/Repos/POCs/seva-entry` (branch `feature/seva-entry` off `main`, created in Task A0-1; the main checkout is never switched). Test reports and build notes go to `.claude/state/seva/test-reports/` and `.claude/state/seva/build/` (git-ignored).
 
@@ -30,7 +32,9 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | **A2** Core logic | A1 | A2-1 SQL issue/sync/prints/cancel/reissue (X); A2-2 SQL prasadam/devices/gaps/heartbeat/day close (H); A2-3 SQL catalogue/settings/staff/reports/attention (H); A2-4 Identity adapter, permission matrix, route guard, RPC, HTTP client (X); A2-5 Counter order engine (H); A2-6 Offline engine (X); A2-7 Export builders (M); A2-8 Nightly encrypted backup + monthly purge (X); A2-9 Owner SETUP-GUIDE (H); A2-10 Chart foundation (M); A2-11 Slip and print engine (H); A2-12 Playwright + Firebase emulator harness, fake API (H) | Wave gate (first Playwright smoke) + owner checklist |
 | **A3** API and shell | A2 | A3-1 Counter routes (H); A3-2 Receipt, devotee, prasadam, gap routes (H); A3-3 Day-close and report routes (M); A3-4 Catalogue and settings routes + Firestore mirror (M); A3-5 Staff routes + legacy user routes + first super admin (X); A3-6 Module shell, navigation, role landing (H); A3-7 Counter Excel copy, service worker, manifest (H) | Wave gate + **security gate** (Opus xhigh review of every `/api/seva/*` route against DB §3.3) + owner checklist |
 | **A4** Screens | A3 | A4-1 Counter screens (H); A4-2 Today's receipts, cancel, reprint, spoiled (H); A4-3 Close day (M); A4-4 Receipt detail/print + public QR page (M); A4-5 Prasadam counter (H); A4-6 Dashboard (H); A4-7 Register, continuity, reports, day closes (H); A4-8 Export + board summary (M); A4-9 Settings: sevas, festivals, denominations (M); A4-10 Settings: receipt template, counters, devices, rules (H); A4-11 Staff and roles (H) | Wave gate + **owner gate**: the DB §19.2 10-minute checklist on a preview build |
-| **A5** Switch-over and final | A4 (A5-3 after A5-1 and A5-2) | A5-1 Retire the Firestore Receipt Book code (H); A5-2 Documentation (H); A5-3 Final verification and whole-branch review (X) | Final report + **owner gate**: merge now or after Plan B |
+| **A4P** Motion and polish (added) | A4 | A4P-1 Motion and loading foundation (H); A4P-2 Counter, today, close day (H); A4P-3 Dashboard, register, reports, export (H); A4P-4 Settings, staff, prasadam, receipts, QR page (H); A4P-5 Gotra, nakshatra and rashi lists page (H); A4P-6 Tidy LOW items, two backup keys (M) | Done: gate passed, re-review PASS at `2a8a4ed` |
+| **A4S** Own screens at /seva (added) | A4P | Run 1: A4S-1 Move to `/seva`, routes constant, forwarding (H). Run 2, parallel: A4S-2 Module frames (H); A4S-3 Role landing, one website menu item (M); A4S-4 Installed counter moves (M); A4S-5 Links in seva components (S). Run 3: A4S-6 Browser tests and full run (H) | Wave gate (with `npm run build`) + **owner gate**: sign in as each role on this PC |
+| **A5** Switch-over and final | A4S (A5-3 after A5-1 and A5-2) | A5-1 Retire the Firestore Receipt Book code (H); A5-2 Documentation (H); A5-3 Final verification and whole-branch review (X) | Final report + **owner gate**: merge now or after Plan B |
 | **B0** Setup (sequential) | A5 | B0-1 Gateway facts check + SETUP-GUIDE A4.1 and B9 (H); B0-2 Packages, env names, Postgres 15 test runner (M) | Report; no owner checklist beyond reading the facts summary |
 | **B1** Core | B0 | B1-1 Payment tables and SQL functions (X); B1-2 Provider interface, Cashfree adapter, gateway mock (X); B1-3 Booking rules, schemas, wire types, error codes (M); B1-4 Payment orchestration with injected dependencies (X); B1-5 Google sign-in, CSP for Google and Cashfree, e2e devotee account (H) | Wave gate |
 | **B2** API | B1 | B2-1 Devotee routes: catalogue, order, status, checkout, My seva bookings, booked before (X); B2-2 Payment webhook (X); B2-3 Payments page routes: status, refunds, fee rule, test payment (H); B2-4 Reconcile sweep on GitHub Actions (H); B2-5 Payment cards in Needs attention (M) | Wave gate + **security gate** (webhook signature, idempotency, amount and currency against the server's order, no client-trusted amounts, ownership, secrets) |
@@ -40,7 +44,7 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | **C2** Screens | C1 | C2-1 Booking screens (H); C2-2 In-app checkout + deep-link return (H); C2-3 My bookings and e-receipts (M) | Wave gate |
 | **C3** Verification | C2 | C3-1 App tests, EAS Android preview build, docs (H) | **Owner gate** (install the APK, pay in test mode) |
 
-**Task count per wave:** A0 2, A1 6, A2 12, A3 7, A4 11, A5 3 (Plan A **41**: 1 S, 10 M, 21 H, 9 X); B0 2, B1 5, B2 5, B3 4 (Plan B **16**: 4 M, 7 H, 5 X - was 13 in the outline; see "Changed from the outline" at the end of Plan B); C0 1, C1 2, C2 3, C3 1 (Plan C **7**: 2 M, 5 H). Total **64**.
+**Task count per wave:** A0 2, A1 6, A2 12, A3 7, A4 11, A4P 6, A4S 6, A5 3 (Plan A **53**: 2 S, 13 M, 29 H, 9 X - was 41 before the two added waves A4P and A4S); B0 2, B1 5, B2 5, B3 4 (Plan B **16**: 4 M, 7 H, 5 X - was 13 in the outline; see "Changed from the outline" at the end of Plan B); C0 1, C1 2, C2 3, C3 1 (Plan C **7**: 2 M, 5 H). Total **76** (was 64).
 
 ## Reviewer gates
 
@@ -62,15 +66,17 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | A2 | 12 | 53.0 + 14.4 + 4.8 + 7.9 + 3 | 83% |
 | A3 | 7 | 27.0 + 8.4 + 2.8 + 4.0 + 4 + 2.5 | 49% |
 | A4 | 11 | 38.0 + 13.2 + 4.4 + 5.7 + 5 | 66% |
+| A4P (added) | 6 | 22.5 + 7.2 + 2.4 + 3.4 + 5 | 40% planned; about 35% used (about 3.5M subagent tokens) |
+| A4S (added) | 6 | 17.5 + 7.2 + 2.4 + 2.6 + 5 | **35%** (range 31-45%) |
 | A5 | 3 | 14.0 + 3.6 + 1.2 + 2.1 + 5 | 26% |
-| **Plan A** | **41** | | **about 2.8 windows** (range 2.5-3.6), about USD 840-1,230 |
+| **Plan A** | **53** | | **about 3.55 windows** (range 3.15-4.4), about USD 1,065-1,560 (was 2.8 for 41 tasks) |
 | B0 | 2 | 6.5 + 2.4 + 0.8 + 1.0 + 0 | 11% |
 | B1 | 5 | 24.5 + 6.0 + 2.0 + 3.7 + 3 | 39% |
 | B2 | 5 | 22.5 + 6.0 + 2.0 + 3.4 + 4 + 2.5 | 40% |
 | B3 | 4 | 14.5 + 4.8 + 1.6 + 2.2 + 5 | 28% |
 | **Plan B** | **16** | 68.0 + 19.2 + 6.4 + 10.2 + 12 + 2.5 = 118.3 | **about 1.2 windows** (range 1.05-1.55), about USD 355-520 (was 0.95 for the 13-task outline) |
 | C0-C3 | 7 | 25.0 + 8.4 + 2.8 + 3.8 + 11 | **about 0.5 window** (range 0.45-0.7), about USD 150-225 |
-| **All** | **64** | | **about 4.5 windows** (range 4.0-5.85), about USD 1,345-1,975 |
+| **All** | **76** | | **about 5.25 windows** (range 4.65-6.65), about USD 1,575-2,310 (was 4.5 for 64 tasks) |
 
 **How that maps onto real windows** (waves should not straddle a window when avoidable; A2's twelve tasks are independent and can be split):
 
@@ -79,11 +85,13 @@ Tier key (complexity card): **S** = Sonnet, **M** = Opus medium, **H** = Opus hi
 | 1 | A0, A1, and about half of A2's tasks | ~95% |
 | 2 | Rest of A2, A2 gate, A3 | ~90% |
 | 3 | A4 part 1 (owner's split, DECISIONS 2026-10-19) | done |
-| 4 | A4 part 2 (A4-6..A4-10), A4 gate and owner gate, A5 | per Plan A |
-| 5 | Plan B waves B0, B1, B2 and the B2 security gate (Plan B already detailed, 2026-10-19) | ~90% |
-| 6 | B3 and its owner gate (~28%), then Plan C (detail it first, ~3%; ~50%) | ~80% |
+| 4 | A4 part 2 (A4-6..A4-10), A4 gate and owner gate | done |
+| 5 | A4P (done, about 35%), then A4S (about 35%) | ~75% |
+| 6 | A5 (~26%), then Plan B waves B0 and B1 (~50%) | ~76% |
+| 7 | B2 and its security gate (~40%), B3 and its owner gate (~28%) | ~68% |
+| 8 | Plan C (detail it first, ~3%; ~50%) | ~53% |
 
-Rows 3-6 updated 2026-10-19 when Plan B was detailed (16 tasks instead of 13; Plan B no longer fits one window). So: **plan on six build windows, the sixth about four-fifths used**; the Design Book's earlier figure (Phase 1 about 2.5, Phase 2 about 1) was close for Phase 1 and low for Phase 2 because the app is now its own plan. The owner said more windows are fine (Design Book deck `cut-order`). Ask for the remaining percentage at every wave boundary (working style).
+Rows 4-8 updated 2026-10-19 (evening) for the added waves A4P and A4S: **plan on eight build windows, the last about half used.** Earlier note: rows 3-6 were updated 2026-10-19 when Plan B was detailed (16 tasks instead of 13; Plan B no longer fits one window). So: **plan on six build windows, the sixth about four-fifths used**; the Design Book's earlier figure (Phase 1 about 2.5, Phase 2 about 1) was close for Phase 1 and low for Phase 2 because the app is now its own plan. The owner said more windows are fine (Design Book deck `cut-order`). Ask for the remaining percentage at every wave boundary (working style).
 
 ## Owner actions the build waits on
 

@@ -884,7 +884,7 @@ Tier: **Opus high** - wide deletion across pages, APIs, services and tests; must
 
 **Files:**
 - Delete: `app/api/admin/receipts/**` (includes the `send` stub), `app/api/admin/receipt-sevas/**`, `lib/receipt/admin.ts`, `lib/receipt/numbering.ts`, `lib/receipt/validation.ts`, `lib/receipt/pdf.ts`, `services/receipt.service.ts`, `services/receiptSeva.service.ts`, `types/receipt.ts`, `types/receiptSeva.ts`, `types/receipt-extensions.ts`, `scripts/seed-receipt-sevas.ts`, `tests/unit/receipt-numbering.test.ts`, `tests/unit/receipt-validation.test.ts`, and the PDF cases of `tests/unit/receipt-payment.test.ts` (keep its UPI URL cases - `lib/receipt/upi.ts` stays, the counter uses it)
-- Modify: `app/admin/receipts/create/page.tsx` (redirect to `/admin/receipts/counter`), `app/admin/reports/page.tsx:103,185-332` (remove the Firestore receipt loader and CSV; the Receipts card links to `/admin/receipts/reports`), `app/actions/sevas.ts` and `services/seva.service.ts` (filter `visibility in ('online','both')`), `package.json` (remove the `seed-receipt-sevas` script)
+- Modify: `app/seva/(desk)/create/page.tsx` (redirect to `/seva/counter`; wave A4S moved the module to `/seva`), `app/admin/reports/page.tsx:103,185-332` (remove the Firestore receipt loader and CSV; the Receipts card links to `/seva/reports`), `app/actions/sevas.ts` and `services/seva.service.ts` (filter `visibility in ('online','both')`), `package.json` (remove the `seed-receipt-sevas` script)
 - Test: `tests/unit/seva/public-sevas-visibility.test.ts`, `tests/unit/seva/no-old-receipt-imports.test.ts`
 
 **Interfaces:**
@@ -907,7 +907,7 @@ it('no file imports the retired Receipt Book modules')                   // scan
 - [ ] **Step 5: Commit**
 
 ```bash
-git add -A app/api/admin app/admin/receipts/create app/admin/reports app/actions/sevas.ts services lib/receipt types scripts tests package.json
+git add -A app/api/admin "app/seva/(desk)/create" app/admin/reports app/actions/sevas.ts services lib/receipt types scripts tests package.json
 git commit -m "refactor(seva): retire the Firestore Receipt Book code; public sevas follow visibility"
 ```
 
@@ -963,7 +963,7 @@ Tier: **Opus xhigh** - the last gate before the owner's dry run; reviews securit
 
 - [ ] **Step 2: Whole-branch review**
 
-Review `git diff main...feature/seva-entry` against the Design Book: every row of DB §3.3 enforced on the server; no browser path to Supabase (`git grep -n "lib/supabase/client" -- app/admin/receipts app/admin/prasadam components/seva hooks/seva services/seva` returns nothing); no phone in any slip, prasadam answer, audit JSON or default export; no secret values; no office-company naming. Record each finding with file:line, fix it test-first, commit.
+Review `git diff main...feature/seva-entry` against the Design Book: every row of DB §3.3 enforced on the server; no browser path to Supabase (`git grep -n "lib/supabase/client" -- app/seva components/seva hooks/seva services/seva` returns nothing); no phone in any slip, prasadam answer, audit JSON or default export; no secret values; no office-company naming. Record each finding with file:line, fix it test-first, commit.
 
 - [ ] **Step 3: Full-stack smoke (only with the owner's go-ahead in that session)**
 

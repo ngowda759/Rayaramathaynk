@@ -113,7 +113,7 @@ Also on the B2 security gate's list (each pinned): another account's order ref (
 | API | `app/api/seva/devotee/**`, `app/api/seva/payments/**` | Thin routes | B2-1..B2-4 |
 | Browser clients | `services/seva/{devotee,payments}.service.ts` | `sevaFetch` wrappers | B2-1, B2-3 |
 | Sign-in | `services/auth.service.ts`, `context/AuthContext.tsx`, `app/(auth)/{login,register}/page.tsx`, `next.config.ts`, `proxy.ts` | Google sign-in; CSP for Google and Cashfree | B1-5 |
-| Pages | `app/(public)/sevas/**`, `app/(public)/profile/seva-bookings/page.tsx`, `app/admin/receipts/payments/page.tsx`, `components/seva/{devotee,payments}/*`, `lib/seva/strings/{devotee,payments}.ts` | Booking flow, My seva bookings, Payments page | B3-1..B3-3 |
+| Pages | `app/(public)/sevas/**`, `app/(public)/profile/seva-bookings/page.tsx`, `app/seva/(desk)/payments/page.tsx` (A4S: `/seva/payments`), `components/seva/{devotee,payments}/*`, `lib/seva/strings/{devotee,payments}.ts` | Booking flow, My seva bookings, Payments page | B3-1..B3-3 |
 | Ops | `.github/workflows/seva-payments-reconcile.yml` | 5-minute sweep (default branch only) | B2-4 |
 | Tests | `tests/support/cashfree-mock.ts`, `tests/unit/seva/*payments*`, `tests/db/seva-payments*.test.ts`, `tests/e2e/seva/fixtures/{devotee,fake-devotee,fake-payments,cashfree-checkout}.ts`, `tests/e2e/seva/*.spec.ts` | Mock gateway, unit/route/DB/browser tests | per task |
 
@@ -929,7 +929,7 @@ Tier: **Opus medium** - one new SQL function and mapper changes; the existing at
 
 **Files:**
 - Create: `supabase/migrations/20261101000200_seva_payment_attention.sql`
-- Modify: `types/seva-reports.ts` (five `NeedsAttentionId` values), `lib/seva/server/reports.ts` (`NEEDS_ATTENTION_IDS` gains them; `loadDashboard` also calls `seva_payment_attention` with the period span and `readPaymentsEnv().mode`, and appends its cards after the existing ones), `lib/seva/dashboard/attention-text.ts` (A4-6: titles, Kannada titles, lines, link `/admin/receipts/payments`)
+- Modify: `types/seva-reports.ts` (five `NeedsAttentionId` values), `lib/seva/server/reports.ts` (`NEEDS_ATTENTION_IDS` gains them; `loadDashboard` also calls `seva_payment_attention` with the period span and `readPaymentsEnv().mode`, and appends its cards after the existing ones), `lib/seva/dashboard/attention-text.ts` (A4-6: titles, Kannada titles, lines, link `SEVA_ROUTES.payments` = `/seva/payments`; B2-5 adds `payments: '/seva/payments'` to `lib/seva/routes.ts`, because A4S moved the module to `/seva` and B3-3 builds the page later)
 - Test: `tests/db/seva-attention-payments.test.ts`, `tests/unit/seva/attention-text.test.ts` (extend), `tests/unit/seva/api-reports.test.ts` (extend)
 
 **Interfaces:**
@@ -1099,8 +1099,8 @@ Run: `npx jest --ci --watchman=false --forceExit tests/unit/seva/e-receipt.test.
 Tier: **Opus high** - refunds and the fee rule are money controls; the page must never show a key.
 
 **Files:**
-- Create: `app/admin/receipts/payments/page.tsx`, `components/seva/payments/{ProviderStatus,RecentPayments,RefundDialog,FeeRuleCard,GoingLive}.tsx`, `lib/seva/strings/payments.ts`
-- Modify: `components/admin/layout/navigation.ts` (item "Payments", `href '/admin/receipts/payments'`, columns TA, TV, SA), `lib/seva/strings/shell.ts` (`SHELL_NAV.payments`)
+- Create: `app/seva/(desk)/payments/page.tsx` and its `loading.tsx` (address `/seva/payments`, wave A4S), `components/seva/payments/{ProviderStatus,RecentPayments,RefundDialog,FeeRuleCard,GoingLive}.tsx`, `lib/seva/strings/payments.ts`
+- Modify (uses `SEVA_ROUTES.payments`, added in B2-5): `components/seva/shell/sections.ts` (section "Payments" after Reports, `href SEVA_ROUTES.payments`, columns TA, TV, SA; since A4S the module rail, not `navigation.ts`, lists the sections), `lib/seva/strings/shell.ts` (`SHELL_NAV.payments`)
 - Test: `tests/unit/seva/payments-page.test.tsx`, `tests/unit/seva/shell.test.tsx` (extend), `tests/e2e/seva/payments.spec.ts`
 
 **Interfaces:**
