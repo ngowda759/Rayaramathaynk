@@ -1,310 +1,211 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Settings, ReceiptText, Eye, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
-import toast from "react-hot-toast";
-import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
-import SearchBox from "@/components/admin/common/SearchBox";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { receiptService, ReceiptListParams } from "@/services/receipt.service";
-import { receiptSevaService } from "@/services/receiptSeva.service";
-import { ReceiptSeva } from "@/types/receiptSeva";
-import { useAuth } from "@/hooks/useAuth";
-import { Receipt } from "@/types/receipt";
-import { formatDate } from "@/lib/format";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+import { DetailCharts } from "@/components/seva/dashboard/DetailCharts";
+import { HeroChart } from "@/components/seva/dashboard/HeroChart";
+import { NeedsAttention } from "@/components/seva/dashboard/NeedsAttention";
+import { PeriodSwitch } from "@/components/seva/dashboard/PeriodSwitch";
+import { SummaryTiles } from "@/components/seva/dashboard/SummaryTiles";
+import { SevaGate } from "@/components/seva/shell/SevaGate";
+import { Bilingual } from "@/components/seva/ui/Bilingual";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { useSevaMe } from "@/hooks/seva/useSevaMe";
+import { FALLBACK_CHART_COLORS, readChartColors } from "@/lib/seva/charts/colors";
+import { asOfClock } from "@/lib/seva/dashboard/format";
+import { DASHBOARD } from "@/lib/seva/strings/dashboard";
+import { businessDate, formatSevaDate, type Period } from "@/lib/seva/time";
+import { SevaClientError } from "@/services/seva/http";
+import { reportsApi, type DashboardAnswer } from "@/services/seva/reports.service";
+
+/**
+ * Seva dashboard (`/admin/receipts`, DB §12.1; plan Task A4-6). Same order on desktop (1366 px) and phone (390 px):
+ * title, date and "as of", the period switch first; Needs attention; the summary tiles; the Collections hero chart;
+ * the details. Every number follows the period, which is kept in `?period=` so other screens can link to it.
+ * The route's 60-second browser cache keeps switching back and forth quick. Receptionists see only their counter's
+ * day, never the dashboard (C-59), so they are sent to the counter. The old Firestore receipt list moved to the
+ * register (Task A4-7).
+ */
+
+const PERIODS: readonly Period[] = ["today", "week", "month", "year"];
+const COUNTER_PATH = "/admin/receipts/counter";
+
+function toPeriod(value: string | null): Period {
+  return PERIODS.includes(value as Period) ? (value as Period) : "today";
 }
 
-export default function ReceiptsPage() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [sevaId, setSevaId] = useState("");
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [sevas, setSevas] = useState<ReceiptSeva[]>([]);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
-  const loadReceipts = useCallback(async (params: ReceiptListParams, token: string) => {
-    try {
-      setLoading(true);
-      const data = await receiptService.getReceipts(params, token);
-      setReceipts(data);
-      setHasMore(data.length === (params.pageSize || 50));
-    } catch {
-      toast.error("Failed to load receipts.");
-    } finally {
-      setLoading(false);
-    }
+/** The answer has the shape the screen reads (a server of another version could send something else). */
+function isDashboardAnswer(value: unknown): value is DashboardAnswer {
+  if (!isRecord(value) || !isRecord(value.data) || !Array.isArray(value.attention)) return false;
+  const d = value.data;
+  return (
+    typeof d.asOf === "string" &&
+    isRecord(d.tiles) &&
+    isRecord(d.hero) &&
+    Array.isArray(d.hero.buckets) &&
+    Array.isArray(d.hero.prev) &&
+    Array.isArray(d.topSevas) &&
+    isRecord(d.mode) &&
+    Array.isArray(d.rush) &&
+    Array.isArray(d.calendar) &&
+    Array.isArray(d.festivalDates)
+  );
+}
+
+/** The last answer, tagged with the request it answers (`period:reload`), so a newer request shows as "Updating". */
+type Load =
+  | { kind: "loading" }
+  | { kind: "ready"; key: string; answer: DashboardAnswer; period: Period }
+  | { kind: "error"; key: string; message: string };
+
+function Dashboard(): JSX.Element {
+  const { user } = useAuth();
+  const router = useRouter();
+  const params = useSearchParams();
+  const queryPeriod = toPeriod(params.get("period"));
+  // The period just picked shows at once, before the URL catches up; a link or the back button (a new `?period=`)
+  // wins over it.
+  const [picked, setPicked] = useState<{ period: Period; forQuery: Period } | null>(null);
+  const period = picked && picked.forQuery === queryPeriod ? picked.period : queryPeriod;
+  const [load, setLoad] = useState<Load>({ kind: "loading" });
+  const [reloads, setReloads] = useState(0);
+  const requestKey = `${period}:${reloads}`;
+  const refreshing = load.kind === "loading" || load.key !== requestKey;
+  const [colors, setColors] = useState<string[]>([...FALLBACK_CHART_COLORS]);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const token = useCallback(async (): Promise<string> => {
+    if (!user) throw new SevaClientError("unauthenticated", 401, "Sign in again.");
+    return user.getIdToken();
+  }, [user]);
+  const api = useMemo(() => reportsApi(token), [token]);
+
+  // Chart colours come from the module's tokens (DB §12.5); EChart re-reads them on a theme change.
+  useEffect(() => {
+    if (rootRef.current) setColors(readChartColors(rootRef.current));
+    if (typeof window.matchMedia === "function") setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }, []);
 
-  const refresh = useCallback(async () => {
-    if (!user) return;
-    const token = await user.getIdToken();
-    const params: ReceiptListParams = {};
-    if (from) params.from = from;
-    if (to) params.to = to;
-    if (sevaId) params.sevaId = sevaId;
-    if (page > 1) params.page = page;
-    params.pageSize = 50;
-    await loadReceipts(params, token);
-  }, [user, from, to, sevaId, page, loadReceipts]);
+  useEffect(() => {
+    if (!user) return undefined;
+    let alive = true;
+    const key = `${period}:${reloads}`;
+    void (async () => {
+      try {
+        const answer: unknown = await api.dashboard(period);
+        if (!alive) return;
+        if (!isDashboardAnswer(answer)) {
+          setLoad({ kind: "error", key, message: DASHBOARD.badAnswer });
+          return;
+        }
+        setLoad({ kind: "ready", key, answer, period });
+      } catch (error) {
+        if (!alive) return;
+        const message = error instanceof Error && error.message ? error.message : DASHBOARD.loadFailed.en;
+        setLoad({ kind: "error", key, message });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [api, period, reloads, user]);
+
+  const choosePeriod = useCallback(
+    (next: Period) => {
+      setPicked({ period: next, forQuery: queryPeriod });
+      router.replace(next === "today" ? "/admin/receipts" : `/admin/receipts?period=${next}`, { scroll: false });
+    },
+    [queryPeriod, router],
+  );
+
+  const today = formatSevaDate(businessDate(new Date()));
+  const ready = load.kind === "ready" ? load : null;
+
+  return (
+    <div ref={rootRef} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8" aria-busy={refreshing}>
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-1">
+          <Bilingual as="h1" en={DASHBOARD.title.en} kn={DASHBOARD.title.kn} />
+          <p className="meta text-(--muted-foreground)" data-testid="dashboard-as-of">
+            {today}
+            {ready ? ` · ${DASHBOARD.asOf} ${asOfClock(ready.answer.data.asOf)}` : ""}
+            {refreshing && ready ? ` · ${DASHBOARD.refreshing}` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodSwitch value={period} onChange={choosePeriod} />
+          <Link href="/admin/receipts/reports/export" className={buttonVariants({ variant: "seva-ghost" })}>
+            {DASHBOARD.export.en}
+          </Link>
+        </div>
+      </header>
+
+      {load.kind === "loading" ? (
+        <div role="status" aria-live="polite" className="flex min-h-[30vh] items-center justify-center">
+          <Bilingual en={DASHBOARD.loading.en} kn={DASHBOARD.loading.kn} className="text-(--muted-foreground)" />
+        </div>
+      ) : null}
+
+      {load.kind === "error" ? (
+        <div role="alert" className="flex flex-col items-start gap-3 rounded-[18px] border border-(--border) bg-(--destructive-soft) p-5">
+          <p className="font-semibold">{load.message}</p>
+          <Bilingual as="div" en={DASHBOARD.loadFailed.en} kn={DASHBOARD.loadFailed.kn} className="text-(--muted-foreground)" />
+          <Button variant="seva-primary" onClick={() => setReloads((n) => n + 1)}>
+            {DASHBOARD.tryAgain}
+          </Button>
+        </div>
+      ) : null}
+
+      {ready ? (
+        <>
+          <NeedsAttention cards={ready.answer.attention} />
+          <SummaryTiles tiles={ready.answer.data.tiles} period={ready.period} />
+          <h2 className="sr-only">{DASHBOARD.details}</h2>
+          <HeroChart data={ready.answer.data} period={ready.period} colors={colors} reducedMotion={reducedMotion} />
+          <DetailCharts data={ready.answer.data} period={ready.period} colors={colors} reducedMotion={reducedMotion} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Receptionists go to the counter (C-59); everyone else needs `reports.view`. */
+function DashboardEntry(): JSX.Element {
+  const { me } = useSevaMe();
+  const router = useRouter();
+  const isReceptionist = me?.role === "receptionist";
 
   useEffect(() => {
-    if (!user) return;
-    const uid = user;
-    let cancelled = false;
-    async function init() {
-      try {
-        const token = await uid.getIdToken();
-        const data = await receiptSevaService.getActiveSevas(token);
-        if (!cancelled) setSevas(data);
-      } catch {
-        // allow list to work without sevas
-      }
-    }
-    void init();
-    const timer = setTimeout(() => {
-      void refresh();
-    }, 0);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [user, refresh]);
+    if (isReceptionist) router.replace(COUNTER_PATH);
+  }, [isReceptionist, router]);
 
-  const filteredReceipts = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
-    if (!keyword) return receipts;
-    return receipts.filter((receipt) =>
-      [
-        receipt.receiptNumber,
-        receipt.devoteeName,
-        receipt.devoteePhone,
-        receipt.devoteeEmail,
-      ].some((value) => value?.toLowerCase().includes(keyword))
-    );
-  }, [receipts, search]);
-
-  const stats = useMemo(() => {
-    const totalCount = receipts.length;
-    const totalAmount = receipts.reduce((sum, receipt) => sum + receipt.totalAmount, 0);
-    const today = new Date().toDateString();
-    const todayCount = receipts.filter((receipt) =>
-      new Date(receipt.createdAt).toDateString() === today
-    ).length;
-    const todayAmount = receipts.filter((receipt) =>
-      new Date(receipt.createdAt).toDateString() === today
-    ).reduce((sum, receipt) => sum + receipt.totalAmount, 0);
-    return { totalCount, totalAmount, todayCount, todayAmount };
-  }, [receipts]);
-
-  if (loading) {
+  if (isReceptionist) {
     return (
-      <div className="space-y-6">
-        <AdminPageHeader title="Receipt Book" description="Manage receipt issuance for sevas and offerings." />
-        <div className="rounded-xl border bg-white p-8 text-center text-stone-500">
-          Loading receipts...
-        </div>
+      <div role="status" aria-live="polite" className="flex min-h-[40vh] items-center justify-center p-6">
+        <Bilingual en={DASHBOARD.openingCounter.en} kn={DASHBOARD.openingCounter.kn} className="text-(--muted-foreground)" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <AdminPageHeader
-          title="Receipt Book"
-          description="Issue and manage official receipts for temple sevas."
-        />
-        <div className="flex flex-wrap gap-3">
-          <Link href="/admin/receipts/seva-settings">
-            <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
-              <Settings className="mr-2 h-4 w-4" />
-              Seva Settings
-            </Button>
-          </Link>
-          <Link href="/admin/receipts/create">
-            <Button className="bg-orange-600 hover:bg-orange-700">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Receipt
-            </Button>
-          </Link>
-        </div>
-      </div>
+    <SevaGate action="reports.view">
+      <Dashboard />
+    </SevaGate>
+  );
+}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-white p-5">
-          <p className="text-sm text-stone-500">Total Receipts</p>
-          <h2 className="mt-2 text-2xl font-bold">{stats.totalCount}</h2>
-        </div>
-        <div className="rounded-xl border bg-white p-5">
-          <p className="text-sm text-stone-500">Total Amount</p>
-          <h2 className="mt-2 text-2xl font-bold">{formatCurrency(stats.totalAmount)}</h2>
-        </div>
-        <div className="rounded-xl border bg-white p-5">
-          <p className="text-sm text-stone-500">Receipts Today</p>
-          <h2 className="mt-2 text-2xl font-bold">{stats.todayCount}</h2>
-        </div>
-        <div className="rounded-xl border bg-white p-5">
-          <p className="text-sm text-stone-500">Collected Today</p>
-          <h2 className="mt-2 text-2xl font-bold text-green-600">{formatCurrency(stats.todayAmount)}</h2>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="flex-1">
-          <SearchBox
-            value={search}
-            onChange={setSearch}
-            placeholder="Search by receipt number, devotee name, phone or email..."
-          />
-        </div>
-        <div>
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => { setFrom(e.target.value); setPage(1); }}
-            aria-label="From date"
-          />
-        </div>
-        <div>
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => { setTo(e.target.value); setPage(1); }}
-            aria-label="To date"
-          />
-        </div>
-        <div>
-          <select
-            value={sevaId}
-            onChange={(e) => { setSevaId(e.target.value); setPage(1); }}
-            aria-label="Filter by seva"
-            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
-          >
-            <option value="">All Sevas</option>
-            {sevas.map((seva) => (
-              <option key={seva.id} value={seva.id}>{seva.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refresh}
-          disabled={loading}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />Apply Filters
-        </Button>
-      </div>
-
-      {filteredReceipts.length === 0 ? (
-        <div className="rounded-xl border bg-white p-12 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
-            <ReceiptText className="h-8 w-8 text-orange-600" />
-          </div>
-          <h2 className="mt-4 text-xl font-semibold text-stone-900">No receipts yet</h2>
-          <p className="mt-2 text-stone-500">
-            Create your first receipt to start the Receipt Book.
-          </p>
-          <Link href="/admin/receipts/create" className="mt-6 inline-block">
-            <Button className="bg-orange-600 hover:bg-orange-700">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Receipt
-            </Button>
-          </Link>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Receipt #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Devotee</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Seva</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Amount</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-stone-500">Payment</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-200">
-                {filteredReceipts.map((receipt) => (
-                  <tr key={receipt.id} className="hover:bg-stone-50">
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <span className="font-mono text-sm font-medium text-orange-600">{receipt.receiptNumber}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-stone-900">{receipt.devoteeName}</p>
-                      {receipt.devoteePhone && <p className="text-sm text-stone-500">{receipt.devoteePhone}</p>}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-600">
-                      {receipt.createdAt ? formatDate(receipt.createdAt) : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-stone-600">
-                      {receipt.items[0]?.sevaName || "-"}
-                      {receipt.items.length > 1 && (
-                        <span className="text-stone-400">+{receipt.items.length - 1}</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-stone-900">
-                      {formatCurrency(receipt.totalAmount)}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center">
-                      <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                        UPI
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        onClick={() => router.push(`/admin/receipts/${receipt.id}`)}
-                        className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
-                        title="View receipt"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center justify-end gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1 || loading}
-          onClick={() => { setPage((p) => Math.max(1, p - 1)); }}
-        >
-          <ChevronLeft className="h-4 w-4" />Prev
-        </Button>
-        <span className="text-sm text-stone-500">Page {page}</span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!hasMore || loading}
-          onClick={() => { setPage((p) => p + 1); }}
-        >
-          Next<ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+export default function ReceiptsDashboardPage(): JSX.Element {
+  return (
+    <Suspense fallback={null}>
+      <DashboardEntry />
+    </Suspense>
   );
 }
