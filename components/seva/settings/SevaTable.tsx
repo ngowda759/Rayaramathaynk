@@ -128,7 +128,7 @@ export function SevaTable({ sevas, editable, busy, onEdit, onReorder, onToggleAc
                       </span>
                     ) : null}
                     <span className="min-w-6 font-semibold tabular-nums" data-testid={`seva-key-${seva.id}`}>
-                      {index + 1}
+                      {seva.key}
                     </span>
                     {editable ? (
                       <span className="flex flex-col">

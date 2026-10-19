@@ -26,6 +26,8 @@ export interface SevaDrawerProps {
   seva: CatalogueSeva | null;
   /** The counter key a new seva gets unless changed (the next free key). */
   nextKey: number;
+  /** Every seva in the catalogue, so a key another seva already uses is refused. */
+  sevas: readonly CatalogueSeva[];
   /** View-only temple admins: every field is shown but nothing can be changed (DB §13). */
   readOnly: boolean;
   api: SevaDrawerApi;
@@ -106,12 +108,29 @@ interface Problems {
   reason?: string;
 }
 
-function problemsOf(form: Form, seva: CatalogueSeva | null): Problems {
+/**
+ * Whether the typed key is the seva's stored one, untouched. A migrated seva may keep a legacy key of 0, which the
+ * drawer leaves alone rather than forcing the admin to invent a new one.
+ */
+function keyUntouched(form: Pick<Form, "key">, seva: CatalogueSeva | null): boolean {
+  return seva !== null && form.key.trim() === String(seva.key);
+}
+
+/** The problem with the typed counter key, if any: out of range, or already used by another seva. */
+export function keyProblem(form: Pick<Form, "key">, seva: CatalogueSeva | null, sevas: readonly CatalogueSeva[]): string | undefined {
+  if (keyUntouched(form, seva)) return undefined;
+  const key = Number(form.key);
+  if (!/^\d+$/.test(form.key.trim()) || key < 1 || key > 999) return T.errKey;
+  const taken = sevas.find((s) => s.key === key && s.id !== seva?.id);
+  return taken ? T.errKeyTaken(key, taken.nameEn) : undefined;
+}
+
+function problemsOf(form: Form, seva: CatalogueSeva | null, sevas: readonly CatalogueSeva[]): Problems {
   const p: Problems = {};
   const code = form.code.trim();
   if (code !== "" && !/^[A-Z]{2,3}$/.test(code)) p.code = T.errCode;
-  const key = Number(form.key);
-  if (!/^\d+$/.test(form.key.trim()) || key < 1 || key > 999) p.key = T.errKey;
+  const keyErr = keyProblem(form, seva, sevas);
+  if (keyErr) p.key = keyErr;
   const nameEn = form.nameEn.trim();
   if (nameEn.length < 1 || nameEn.length > 80) p.nameEn = T.errName;
   if (form.nameKn.trim().length > 80) p.nameKn = T.errName;
@@ -122,14 +141,16 @@ function problemsOf(form: Form, seva: CatalogueSeva | null): Problems {
   return p;
 }
 
-/** The SevaUpsert the routes take (lib/seva/schemas.ts sevaUpsertSchema); `reason` goes separately. */
+/**
+ * The SevaUpsert the routes take (lib/seva/schemas.ts sevaUpsertSchema); `reason` goes separately. The key is sent only
+ * when it changes (or for a new seva): the office then leaves display_order alone, so a legacy key of 0 still saves.
+ */
 export function toUpsert(form: Form, seva: CatalogueSeva | null): SevaUpsert {
   const nameKn = form.nameKn.trim();
   const items = form.prasadamItems.trim();
   const code = form.code.trim();
   const upsert: SevaUpsert = {
     code: code === "" ? null : code,
-    key: Number(form.key),
     nameEn: form.nameEn.trim(),
     nameKn: nameKn === "" ? null : nameKn,
     ratePaise: form.anyAmount ? null : parseRate(form.rate),
@@ -137,7 +158,8 @@ export function toUpsert(form: Form, seva: CatalogueSeva | null): SevaUpsert {
     // Other Seva / Karnike is always counter-only (C-38).
     visibility: form.anyAmount ? "counter" : form.visibility,
     multiDate: form.multiDate,
-    allowAmountChange: form.allowAmountChange,
+    // An any-amount seva always lets the counter change the amount; the drawer shows it on and locked.
+    allowAmountChange: form.anyAmount ? true : form.allowAmountChange,
     prasadamGiven: form.prasadamGiven,
     prasadamItems: items === "" ? null : items,
     category: seva?.category ?? NEW_SEVA_CATEGORY,
@@ -145,10 +167,11 @@ export function toUpsert(form: Form, seva: CatalogueSeva | null): SevaUpsert {
     active: form.active,
   };
   if (seva) upsert.id = seva.id;
+  if (!keyUntouched(form, seva)) upsert.key = Number(form.key);
   return upsert;
 }
 
-/** A catalogue seva as it is, ready to save again (the list's Active switch changes only `active`). */
+/** A catalogue seva as it is, ready to save again (the list's Active switch changes only `active`; no key is sent). */
 export function catalogueToUpsert(seva: CatalogueSeva): SevaUpsert {
   return toUpsert(formOf(seva, seva.key), seva);
 }
@@ -221,13 +244,13 @@ function SwitchRow({
  * rate and needs a reason, C-35), shown on, several dates, amount change, prasadam, active and the rate history. Other
  * Seva / Karnike - an any-amount seva - is always counter-only (C-38). Sevas are switched off, never deleted.
  */
-export function SevaDrawer({ seva, nextKey, readOnly, api, onClose, onSaved }: SevaDrawerProps): JSX.Element {
+export function SevaDrawer({ seva, nextKey, sevas, readOnly, api, onClose, onSaved }: SevaDrawerProps): JSX.Element {
   const id = useId();
   const [form, setForm] = useState<Form>(() => formOf(seva, nextKey));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const problems = problemsOf(form, seva);
+  const problems = problemsOf(form, seva, sevas);
   const valid = Object.keys(problems).length === 0;
   const newRate = form.anyAmount ? null : parseRate(form.rate);
   const changingRate = rateChanges(seva, form.anyAmount, newRate);

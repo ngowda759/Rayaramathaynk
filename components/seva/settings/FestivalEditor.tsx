@@ -184,6 +184,7 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
   const [draft, setDraft] = useState<Draft>(() => draftOf(null));
   const [month, setMonth] = useState(today.slice(0, 8) + "01");
   const [copyOpen, setCopyOpen] = useState(false);
+  /** Calendar entries chosen to copy, keyed `${date}|${festival}` so two entries on one date toggle apart. */
   const [copyPicked, setCopyPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,6 +194,7 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
   const picked = new Set(draft.dates);
   const upcoming = calendar.filter((c) => c.date >= today).sort((a, b) => a.date.localeCompare(b.date));
   const nameOk = draft.nameEn.trim().length >= 1 && draft.nameEn.trim().length <= 80 && draft.nameKn.trim().length <= 80;
+  const copyDates = [...new Set([...copyPicked].map((k) => k.slice(0, k.indexOf("|"))))];
   const datesOk = draft.dates.length >= 1 && draft.dates.length <= MAX_DATES;
 
   function open(target: FestivalItem | "new"): void {
@@ -214,7 +216,7 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
   }
 
   function applyCopied(): void {
-    setDraft((d) => ({ ...d, dates: [...new Set([...d.dates, ...copyPicked])].sort() }));
+    setDraft((d) => ({ ...d, dates: [...new Set([...d.dates, ...copyDates])].sort() }));
     setCopyOpen(false);
     setCopyPicked(new Set());
   }
@@ -357,7 +359,8 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
                 ) : (
                   <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
                     {upcoming.map((c) => {
-                      const on = copyPicked.has(c.date);
+                      const pickKey = `${c.date}|${c.festival}`;
+                      const on = copyPicked.has(pickKey);
                       return (
                         <button
                           key={`${c.date}-${c.festival}`}
@@ -366,8 +369,8 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
                           onClick={() =>
                             setCopyPicked((s) => {
                               const next = new Set(s);
-                              if (on) next.delete(c.date);
-                              else next.add(c.date);
+                              if (on) next.delete(pickKey);
+                              else next.add(pickKey);
                               return next;
                             })
                           }
@@ -382,8 +385,8 @@ export function FestivalEditor({ festivals, today, editable, calendar, onSave }:
                     })}
                   </div>
                 )}
-                <Button type="button" variant="seva-secondary" size="sm" className="self-start" disabled={copyPicked.size === 0} onClick={applyCopied}>
-                  {T.copyUse(copyPicked.size)}
+                <Button type="button" variant="seva-secondary" size="sm" className="self-start" disabled={copyDates.length === 0} onClick={applyCopied}>
+                  {T.copyUse(copyDates.length)}
                 </Button>
               </div>
             ) : null}

@@ -142,6 +142,7 @@ function SevaSettings(): JSX.Element {
           key={drawer.seva?.id ?? "new"}
           seva={drawer.seva}
           nextKey={nextKey}
+          sevas={sevas}
           readOnly={!editable}
           api={api}
           onClose={() => setDrawer(null)}

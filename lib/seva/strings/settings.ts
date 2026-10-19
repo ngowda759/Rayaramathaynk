@@ -109,6 +109,7 @@ export const SETTINGS_TEXT = {
   historyChanged: (date: string, from: string, to: string): string => `${date} · ${from} to ${to}`,
   errCode: 'Use 2 or 3 capital letters.',
   errKey: 'Type a key from 1 to 999.',
+  errKeyTaken: (key: number, name: string): string => `Key ${key} is used by ${name}.`,
   errName: 'Type the name (up to 80 characters).',
   errRate: 'Type the rate in rupees, more than 0.',
   errPrasadam: 'Keep this to 200 characters or fewer.',

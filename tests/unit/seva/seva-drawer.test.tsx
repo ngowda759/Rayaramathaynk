@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { SevaDrawer, type SevaDrawerApi } from "@/components/seva/settings/SevaDrawer";
+import { SevaDrawer, catalogueToUpsert, type SevaDrawerApi } from "@/components/seva/settings/SevaDrawer";
 import type { CatalogueSeva } from "@/types/seva";
 
 /**
@@ -50,10 +50,12 @@ function fakeApi(): SevaDrawerApi & { save: jest.Mock; history: jest.Mock } {
   };
 }
 
-function renderDrawer(target: CatalogueSeva | null, api = fakeApi(), readOnly = false) {
+function renderDrawer(target: CatalogueSeva | null, api = fakeApi(), readOnly = false, sevas: CatalogueSeva[] = []) {
   const onSaved = jest.fn();
   const onClose = jest.fn();
-  render(<SevaDrawer seva={target} nextKey={15} readOnly={readOnly} api={api} onClose={onClose} onSaved={onSaved} />);
+  render(
+    <SevaDrawer seva={target} nextKey={15} sevas={sevas} readOnly={readOnly} api={api} onClose={onClose} onSaved={onSaved} />,
+  );
   return { api, onSaved, onClose };
 }
 
@@ -115,7 +117,8 @@ describe("Seva drawer", () => {
     expect(screen.queryByLabelText(/^Rate/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(api.save.mock.calls[0][0]).toMatchObject({ anyAmount: true, ratePaise: null, visibility: "counter" });
+    // The amount-change switch is shown on and locked for any amount, so it is saved on too.
+    expect(api.save.mock.calls[0][0]).toMatchObject({ anyAmount: true, ratePaise: null, visibility: "counter", allowAmountChange: true });
     expect(api.save.mock.calls[0][1]).toBeUndefined();
   });
 
@@ -124,5 +127,46 @@ describe("Seva drawer", () => {
     await waitFor(() => expect(api.history).toHaveBeenCalled());
     expect(screen.getByLabelText(/Name in English/)).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Save changes/ })).not.toBeInTheDocument();
+  });
+
+  it("refuses a counter key another seva already uses", async () => {
+    const archana = seva({ id: "00000000-0000-4000-8000-000000000007", key: 7, code: "AR", nameEn: "Archana" });
+    const { api, onSaved } = renderDrawer(seva(), fakeApi(), false, [seva(), archana]);
+    await waitFor(() => expect(api.history).toHaveBeenCalled());
+    const keyBox = screen.getByLabelText(/Counter key/);
+    fireEvent.change(keyBox, { target: { value: "7" } });
+    expect(screen.getByText("Key 7 is used by Archana.")).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: /Save changes/ });
+    expect(save).toBeDisabled();
+
+    fireEvent.change(keyBox, { target: { value: "9" } });
+    expect(screen.queryByText(/is used by/)).not.toBeInTheDocument();
+    fireEvent.click(save);
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(api.save.mock.calls[0][0]).toMatchObject({ key: 9 });
+  });
+
+  it("sends no key for a seva whose key is unchanged, so a legacy key of 0 still saves", async () => {
+    const legacy = seva({ key: 0 });
+    // The list's Active switch.
+    expect(catalogueToUpsert(legacy)).not.toHaveProperty("key");
+    expect(catalogueToUpsert(seva())).not.toHaveProperty("key");
+
+    // The drawer: an untouched legacy 0 shows no key error and saves without a key.
+    const { api, onSaved } = renderDrawer(legacy);
+    await waitFor(() => expect(api.history).toHaveBeenCalled());
+    expect(screen.queryByText("Type a key from 1 to 999.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(api.save.mock.calls[0][0]).not.toHaveProperty("key");
+  });
+
+  it("sends the key for a new seva", async () => {
+    const { api, onSaved } = renderDrawer(null);
+    fireEvent.change(screen.getByLabelText(/Name in English/), { target: { value: "Tulasi Archane" } });
+    fireEvent.change(screen.getByLabelText(/^Rate/), { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Add seva/ }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(api.save.mock.calls[0][0]).toMatchObject({ key: 15, nameEn: "Tulasi Archane", ratePaise: 5000 });
   });
 });
