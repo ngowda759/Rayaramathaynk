@@ -906,6 +906,52 @@ describe('seva_cancel_receipts - offline cancels from the outbox (A2-FIX2)', () 
   });
 });
 
+describe('seva_cancel_receipts - an online cancel on a closed day (A5-FIX M-1)', () => {
+  async function closeDay(c: Ctx, day: string): Promise<void> {
+    await c.db.query(
+      `insert into day_closes (counter_id, business_date, status, cash_expected, cash_counted, series_ranges,
+                               outbox_pending, closed_by_staff_id, closed_at)
+       values (1, $1::date, 'closed', 0, 0, '[]'::jsonb, 0, $2::uuid, now())`,
+      [day, c.adminId],
+    );
+  }
+
+  it('refuses the receptionist inside the window once the day is closed', async () => {
+    const c = await setup();
+    const order = await issue(c, { days: [1] });
+    await closeDay(c, c.today);
+    expect(await failure(cancel(c, { ids: [order.receipts[0].id], reason: 'wrong_seva' }))).toMatchObject({
+      code: 'day_closed',
+      detail: { business_date: c.today },
+    });
+    expect(await count(c.db, 'seva_receipts', `status = 'cancelled'`)).toBe(0);
+  });
+
+  it('lets an admin cancel, but the cash of a closed day is a refund due, not handed back from the drawer', async () => {
+    const c = await setup();
+    const order = await issue(c, { days: [1] });
+    const id = order.receipts[0].id;
+    await closeDay(c, c.today);
+    const res = await cancel(c, { ids: [id], reason: 'entered_twice', staffId: c.adminId, isAdmin: true });
+    expect(res.cash_back).toBe('0.00');
+    expect(res.receipts).toEqual([
+      expect.objectContaining({ id, status: 'cancelled', refund_state: 'due', refund_note: null, in_closed_day: true }),
+    ]);
+    const audit = (await auditRows(c.db)).filter((r) => r.action === 'receipt.cancel');
+    expect(audit.map((r) => [r.entity_id, r.after?.in_closed_day, r.after?.closed_business_date])).toEqual([
+      [id, true, c.today],
+    ]);
+  });
+
+  it('an open day still hands the cash back', async () => {
+    const c = await setup();
+    const order = await issue(c, { days: [1] });
+    const res = await cancel(c, { ids: [order.receipts[0].id], reason: 'wrong_seva' });
+    expect(res.cash_back).toBe('105.00');
+    expect(res.receipts).toEqual([expect.objectContaining({ refund_state: 'done', in_closed_day: false })]);
+  });
+});
+
 describe('seva_reissue_spoiled (A2-1)', () => {
   it('spoiled reissue cancels with spoiled_print and issues the next number on the same order', async () => {
     const c = await setup();
