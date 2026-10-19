@@ -7,10 +7,11 @@ import { CounterRulesForm } from "@/components/seva/settings/CounterRulesForm";
 import { HeaderFooterEditor } from "@/components/seva/settings/HeaderFooterEditor";
 import { NumberingPreview } from "@/components/seva/settings/NumberingPreview";
 import { RegisterThisPc } from "@/components/seva/settings/RegisterThisPc";
-import { ReplaceThisPc, parseLastSlip } from "@/components/seva/settings/ReplaceThisPc";
+import { LARGE_GAP, ReplaceThisPc, parseLastSlip, secondLookLine } from "@/components/seva/settings/ReplaceThisPc";
 import { SlipPreview } from "@/components/seva/settings/SlipPreview";
 import { openSevaDb } from "@/lib/seva/offline/db";
-import { saveDeviceCredentials } from "@/lib/seva/offline/device";
+import { getDeviceCredentials, saveDeviceCredentials } from "@/lib/seva/offline/device";
+import { pendingCount } from "@/lib/seva/offline/outbox";
 import { SevaClientError } from "@/services/seva/http";
 import type { SlipSettings } from "@/types/seva";
 import type { CounterItem, CounterRules } from "@/types/seva-settings";
@@ -29,8 +30,10 @@ jest.mock("@/lib/seva/offline/device", () => {
     newDeviceSecret: jest.fn(() => "S".repeat(20) + "ecret-0123456789_abcdefg"),
     sha256HexBrowser: jest.fn(async (text: string) => hash("sha256").update(text, "utf8").digest("hex")),
     saveDeviceCredentials: jest.fn(async () => undefined),
+    getDeviceCredentials: jest.fn(async () => null),
   };
 });
+jest.mock("@/lib/seva/offline/outbox", () => ({ pendingCount: jest.fn(async () => 0) }));
 jest.mock("@/components/ui/ImageUploader", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   return {
@@ -83,6 +86,8 @@ const db = { close: jest.fn() };
 
 beforeEach(() => {
   (openSevaDb as jest.Mock).mockResolvedValue(db);
+  (getDeviceCredentials as jest.Mock).mockResolvedValue(null);
+  (pendingCount as jest.Mock).mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -170,7 +175,7 @@ describe("RegisterThisPc", () => {
   it("register this PC sends only the hash and stores the secret locally", async () => {
     const register = jest.fn().mockResolvedValue({ deviceId: "device-123" });
     const onRegistered = jest.fn();
-    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={onRegistered} alreadyRegistered={false} />);
+    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={onRegistered} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
     fireEvent.change(screen.getByLabelText(/Name for this PC/), { target: { value: "Office PC" } });
@@ -194,7 +199,7 @@ describe("RegisterThisPc", () => {
     (saveDeviceCredentials as jest.Mock).mockRejectedValueOnce(new Error("quota"));
     const onRegistered = jest.fn();
     render(
-      <RegisterThisPc counter={COUNTER} register={jest.fn().mockResolvedValue({ deviceId: "d" })} onRegistered={onRegistered} alreadyRegistered={false} />,
+      <RegisterThisPc counter={COUNTER} register={jest.fn().mockResolvedValue({ deviceId: "d" })} onRegistered={onRegistered} />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
@@ -204,31 +209,136 @@ describe("RegisterThisPc", () => {
 
   it("shows the server's message when registration is refused", async () => {
     const register = jest.fn().mockRejectedValue(new SevaClientError("forbidden", 403, "You may not register counters."));
-    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={jest.fn()} alreadyRegistered={false} />);
+    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={jest.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("You may not register counters.");
     expect(saveDeviceCredentials).not.toHaveBeenCalled();
   });
+
+  it("refuses while this PC still has receipts waiting to be sent", async () => {
+    (pendingCount as jest.Mock).mockResolvedValue(3);
+    const register = jest.fn().mockResolvedValue({ deviceId: "device-123" });
+    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This PC still has 3 waiting to be sent. Send the waiting receipts first.");
+    expect(register).not.toHaveBeenCalled();
+    expect(saveDeviceCredentials).not.toHaveBeenCalled();
+    expect(db.close).toHaveBeenCalled();
+  });
+
+  it("refuses a PC that already keeps a counter key, as the office would", async () => {
+    (getDeviceCredentials as jest.Mock).mockResolvedValue({ deviceId: "device-old", secret: "A".repeat(43) });
+    const register = jest.fn().mockResolvedValue({ deviceId: "device-123" });
+    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The office allows one PC per counter and refuses a second registration.");
+    expect(alert).toHaveTextContent("use Replace this PC on that counter");
+    expect(register).not.toHaveBeenCalled();
+    expect(saveDeviceCredentials).not.toHaveBeenCalled();
+  });
+
+  it("refuses when this PC's counter storage cannot be read", async () => {
+    (openSevaDb as jest.Mock).mockRejectedValueOnce(new Error("blocked"));
+    const register = jest.fn();
+    render(<RegisterThisPc counter={COUNTER} register={register} onRegistered={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Register this PC/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be read, so nothing was sent/);
+    expect(register).not.toHaveBeenCalled();
+  });
 });
 
 describe("ReplaceThisPc", () => {
   it("reads the last slip as a full OF number or a running number", () => {
-    expect(parseLastSlip("OF1-023-10-2026/000007", "OF1")).toBe(7);
-    expect(parseLastSlip(" of1-023-10-2026/000012 ", "OF1")).toBe(12);
-    expect(parseLastSlip("7", "OF1")).toBe(7);
-    expect(parseLastSlip("0", "OF1")).toBe(0);
-    expect(parseLastSlip("C1-023-10-2026/000227", "OF1")).toBeNull();
-    expect(parseLastSlip("OF2-023-10-2026/000007", "OF1")).toBeNull();
-    expect(parseLastSlip("", "OF1")).toBeNull();
-    expect(parseLastSlip("abc", "OF1")).toBeNull();
-    expect(parseLastSlip("1000000", "OF1")).toBeNull();
+    expect(parseLastSlip("OF1-023-10-2026/000007", "OF1", 2026)).toBe(7);
+    expect(parseLastSlip(" of1-023-10-2026/000012 ", "OF1", 2026)).toBe(12);
+    expect(parseLastSlip("7", "OF1", 2026)).toBe(7);
+    expect(parseLastSlip("0", "OF1", 2026)).toBe(0);
+    expect(parseLastSlip("C1-023-10-2026/000227", "OF1", 2026)).toBeNull();
+    expect(parseLastSlip("OF2-023-10-2026/000007", "OF1", 2026)).toBeNull();
+    expect(parseLastSlip("", "OF1", 2026)).toBeNull();
+    expect(parseLastSlip("abc", "OF1", 2026)).toBeNull();
+    expect(parseLastSlip("1000000", "OF1", 2026)).toBeNull();
+  });
+
+  it("refuses a full slip number of another year", () => {
+    // Last year's slip would set this year's running number to 500: the number restarts on 1 January.
+    expect(parseLastSlip("OF1-023-12-2025/000500", "OF1", 2026)).toBeNull();
+    expect(parseLastSlip("OF1-023-01-2027/000001", "OF1", 2026)).toBeNull();
+    expect(parseLastSlip("OF1-023-12-2025/000500", "OF1", 2025)).toBe(500);
+  });
+
+  it("asks for a second look when the gap is large or the office's last number is unknown", () => {
+    expect(LARGE_GAP).toBe(200);
+    expect(secondLookLine("OF1", 9, 5)).toBeNull();
+    expect(secondLookLine("OF1", 5 + LARGE_GAP, 5)).toBeNull();
+    expect(secondLookLine("OF1", 6 + LARGE_GAP, 5)?.en).toBe(
+      "That leaves 201 numbers, OF1 6 to 206, as a gap. Check the last slip again before you go on.",
+    );
+    expect(secondLookLine("OF1", 7, null)?.en).toMatch(/cannot tell its last OF1 number this year/);
+    expect(secondLookLine("OF1", 0, null)).toBeNull();
+  });
+
+  it("a large gap is sent only after the second confirmation, which shows the range", async () => {
+    const replace = jest.fn().mockResolvedValue({ deviceId: "device-new" });
+    const onReplaced = jest.fn();
+    render(<ReplaceThisPc counter={COUNTER} lastOfNo={5} year={2026} replace={replace} onReplaced={onReplaced} />);
+    fireEvent.click(screen.getByRole("button", { name: /Replace this PC/ }));
+    const last = screen.getByLabelText(/Last printed offline receipt number/);
+    fireEvent.change(last, { target: { value: "1270" } });
+    fireEvent.change(screen.getByLabelText(/^Reason/), { target: { value: "Old PC stopped working" } });
+    fireEvent.click(screen.getByRole("button", { name: /Move Counter 1 to this PC/ }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("That leaves 1265 numbers, OF1 6 to 1270, as a gap.");
+    expect(replace).not.toHaveBeenCalled();
+
+    // A changed number needs its own look: the confirmation goes away until the form is sent again.
+    fireEvent.change(last, { target: { value: "127" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.change(last, { target: { value: "1270" } });
+    fireEvent.click(screen.getByRole("button", { name: /Move Counter 1 to this PC/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, that is the last slip" }));
+    await waitFor(() => expect(onReplaced).toHaveBeenCalledWith(1));
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace.mock.calls[0][0]).toMatchObject({ counterId: 1, lastPrintedOfNo: 1270 });
+  });
+
+  it("asks for a second look when the office's last number is unknown", async () => {
+    const replace = jest.fn().mockResolvedValue({ deviceId: "device-new" });
+    render(<ReplaceThisPc counter={COUNTER} lastOfNo={null} year={2026} replace={replace} onReplaced={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Replace this PC/ }));
+    fireEvent.change(screen.getByLabelText(/Last printed offline receipt number/), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText(/^Reason/), { target: { value: "Old PC stopped working" } });
+    fireEvent.click(screen.getByRole("button", { name: /Move Counter 1 to this PC/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/cannot tell its last OF1 number this year/);
+    expect(replace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, that is the last slip" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(replace.mock.calls[0][0]).toMatchObject({ lastPrintedOfNo: 7 });
+  });
+
+  it("refuses while this PC still has receipts waiting to be sent", async () => {
+    (pendingCount as jest.Mock).mockResolvedValue(2);
+    const replace = jest.fn().mockResolvedValue({ deviceId: "device-new" });
+    render(<ReplaceThisPc counter={COUNTER} lastOfNo={5} year={2026} replace={replace} onReplaced={jest.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Replace this PC/ }));
+    fireEvent.change(screen.getByLabelText(/Last printed offline receipt number/), { target: { value: "9" } });
+    fireEvent.change(screen.getByLabelText(/^Reason/), { target: { value: "Old PC stopped working" } });
+    fireEvent.click(screen.getByRole("button", { name: /Move Counter 1 to this PC/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Send the waiting receipts first.");
+    expect(replace).not.toHaveBeenCalled();
+    expect(saveDeviceCredentials).not.toHaveBeenCalled();
   });
 
   it("replace this PC needs the last slip number and a reason", async () => {
     const replace = jest.fn().mockResolvedValue({ deviceId: "device-new" });
     const onReplaced = jest.fn();
-    render(<ReplaceThisPc counter={COUNTER} lastOfNo={5} replace={replace} onReplaced={onReplaced} />);
+    render(<ReplaceThisPc counter={COUNTER} lastOfNo={5} year={2026} replace={replace} onReplaced={onReplaced} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Replace this PC/ }));
     expect(screen.getByText(/never sent become a gap/)).toBeInTheDocument();
@@ -340,5 +450,49 @@ describe("CounterList", () => {
     expect(screen.queryByRole("button", { name: /Register this PC/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Replace this PC/ })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Opening float/)).toHaveAttribute("readonly");
+  });
+
+  it("a view-only opening float sends nothing when its form is submitted with Enter", async () => {
+    const a = api();
+    render(<CounterList api={a} canEdit={false} canRegister={false} thisPcCounterId={null} year={2026} today="2026-10-18" />);
+    const float = await screen.findByLabelText(/Opening float/);
+    const form = float.closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(a.updateCounter).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("a PC that is already a counter is offered only Replace, and only on its own counter", async () => {
+    const second: CounterItem = { ...COUNTER, id: 2, name: "Counter 2", place: null, onlineSeries: "C2", offlineSeries: "OF2" };
+    const a = api({ listCounters: jest.fn().mockResolvedValue([COUNTER, second]) });
+    const { container } = render(<CounterList api={a} canEdit canRegister thisPcCounterId={1} year={2026} today="2026-10-18" />);
+    await screen.findByText("C1-023-10-2026/000227");
+    const own = container.querySelector('li[data-counter="1"]') as HTMLElement;
+    const other = container.querySelector('li[data-counter="2"]') as HTMLElement;
+    expect(within(own).queryByRole("button", { name: /Register this PC/ })).not.toBeInTheDocument();
+    expect(within(own).getByRole("button", { name: /Replace this PC/ })).toBeInTheDocument();
+    expect(within(other).queryByRole("button", { name: /Register this PC/ })).not.toBeInTheDocument();
+    expect(within(other).queryByRole("button", { name: /Replace this PC/ })).not.toBeInTheDocument();
+    expect(other).toHaveTextContent("This PC is already Counter 1.");
+  });
+
+  it("a PC that is not a counter yet may register as or take over any counter", async () => {
+    render(<CounterList api={api()} canEdit canRegister thisPcCounterId={null} year={2026} today="2026-10-18" />);
+    await screen.findByText("C1-023-10-2026/000227");
+    expect(screen.getByRole("button", { name: /Register this PC/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Replace this PC/ })).toBeInTheDocument();
+  });
+
+  it("after registering, the list says so and offers only Replace on that counter", async () => {
+    const a = api();
+    render(<CounterList api={a} canEdit canRegister thisPcCounterId={null} year={2026} today="2026-10-18" />);
+    fireEvent.click(await screen.findByRole("button", { name: /Register this PC/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
+    expect(await screen.findByText("This PC is now Counter 1.")).toBeInTheDocument();
+    expect(a.registerDevice).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /Register this PC/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Replace this PC/ })).toBeInTheDocument();
   });
 });

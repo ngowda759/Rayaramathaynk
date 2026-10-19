@@ -5,11 +5,21 @@ import { useState, type FormEvent, type JSX } from "react";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { parseReceiptNo } from "@/lib/seva/numbering";
-import { gapRangeLine, moveCounterLabel, nowThisPc, officeHasLine, replaceTitle, RS } from "@/lib/seva/strings/receipt-settings";
+import type { Bi } from "@/lib/seva/strings/common";
+import {
+  gapRangeLine,
+  largeGapConfirm,
+  moveCounterLabel,
+  nowThisPc,
+  officeHasLine,
+  replaceTitle,
+  RS,
+  unknownLastConfirm,
+} from "@/lib/seva/strings/receipt-settings";
 import type { CounterItem } from "@/types/seva-settings";
 
 import { errorText, Notice, TextField } from "./ReceiptSettingsFields";
-import { keepDeviceKey, makeDeviceKey } from "./RegisterThisPc";
+import { keepDeviceKey, makeDeviceKey, thisPcRefusal } from "./RegisterThisPc";
 
 /**
  * "Replace this PC" (DB §8.4, C-52): on the new PC, a temple admin types the number on the last offline slip the old
@@ -20,13 +30,16 @@ import { keepDeviceKey, makeDeviceKey } from "./RegisterThisPc";
 
 const MAX_RUNNING = 999_999;
 const RUNNING_ONLY = /^\d{1,7}$/;
+/** A gap wider than this many numbers needs a second confirmation (A4 security L-2). */
+export const LARGE_GAP = 200;
 
 /**
- * The running number of the last offline slip: a full receipt number of this counter's OF series
- * ('OF1-023-10-2026/000007' -> 7) or the running number alone ('7'). Null for anything else, including a number of
- * another series (a C1 slip is never sent offline, so it says nothing about the gap).
+ * The running number of the last offline slip: a full receipt number of this counter's OF series for this IST year
+ * ('OF1-023-10-2026/000007' -> 7 in 2026) or the running number alone ('7'). Null for anything else: a number of
+ * another series (a C1 slip is never sent offline, so it says nothing about the gap) or of another year (the running
+ * number starts again on 1 January, so last year's slip would set this year's number far too high).
  */
-export function parseLastSlip(text: string, offlineSeries: string): number | null {
+export function parseLastSlip(text: string, offlineSeries: string, year: number): number | null {
   const t = text.trim();
   if (t === "") return null;
   if (RUNNING_ONLY.test(t)) {
@@ -34,8 +47,17 @@ export function parseLastSlip(text: string, offlineSeries: string): number | nul
     return n <= MAX_RUNNING ? n : null;
   }
   const parts = parseReceiptNo(t);
-  if (!parts || parts.series !== offlineSeries.toUpperCase()) return null;
+  if (!parts || parts.series !== offlineSeries.toUpperCase() || parts.year !== year) return null;
   return parts.running;
+}
+
+/**
+ * The line to confirm a second time before Replace, or null when none is needed: when the office's last number is
+ * not known (and the typed one is above 0), or when the typed number leaves more than LARGE_GAP numbers as a gap.
+ */
+export function secondLookLine(series: string, typed: number, lastOfNo: number | null): Bi | null {
+  if (lastOfNo === null) return typed > 0 ? unknownLastConfirm(series, typed) : null;
+  return typed - lastOfNo > LARGE_GAP ? largeGapConfirm(series, lastOfNo + 1, typed) : null;
 }
 
 type ReplaceBody = { counterId: number; secretHash: string; label: string; lastPrintedOfNo: number; reason: string };
@@ -44,13 +66,21 @@ export interface ReplaceThisPcProps {
   counter: CounterItem;
   /** The last OF running number the office holds this year, when known (from the continuity report). */
   lastOfNo: number | null;
+  /** The current IST year: a full slip number of another year is refused. */
+  year: number;
   replace(b: ReplaceBody): Promise<{ deviceId: string }>;
   onReplaced(counterId: number): void;
 }
 
-type Phase = { kind: "closed" } | { kind: "open" } | { kind: "busy" } | { kind: "done" } | { kind: "error"; message: string };
+type Phase =
+  | { kind: "closed" }
+  | { kind: "open" }
+  | { kind: "confirm"; typed: number; line: Bi }
+  | { kind: "busy" }
+  | { kind: "done" }
+  | { kind: "error"; message: string };
 
-export function ReplaceThisPc({ counter, lastOfNo, replace, onReplaced }: ReplaceThisPcProps): JSX.Element {
+export function ReplaceThisPc({ counter, lastOfNo, year, replace, onReplaced }: ReplaceThisPcProps): JSX.Element {
   const [phase, setPhase] = useState<Phase>({ kind: "closed" });
   const [lastText, setLastText] = useState("");
   const [reason, setReason] = useState("");
@@ -59,7 +89,7 @@ export function ReplaceThisPc({ counter, lastOfNo, replace, onReplaced }: Replac
   const series = counter.offlineSeries ?? `OF${counter.id}`;
   const formId = `replace-pc-${counter.id}`;
 
-  const typed = parseLastSlip(lastText, series);
+  const typed = parseLastSlip(lastText, series, year);
   const lastError = checked && typed === null ? RS.lastSlipInvalid.en : null;
   const reasonError = checked && Array.from(reason.trim()).length < 3 ? RS.reasonTooShort.en : null;
   const gap = typed !== null && lastOfNo !== null && typed > lastOfNo ? gapRangeLine(series, lastOfNo + 1, typed) : null;
@@ -69,9 +99,23 @@ export function ReplaceThisPc({ counter, lastOfNo, replace, onReplaced }: Replac
     e.preventDefault();
     if (phase.kind === "busy") return;
     setChecked(true);
+    if (typed === null || Array.from(reason.trim()).length < 3) return;
+    const line = secondLookLine(series, typed, lastOfNo);
+    if (line) {
+      setPhase({ kind: "confirm", typed, line });
+      return;
+    }
+    await send(typed);
+  }
+
+  async function send(lastPrintedOfNo: number) {
     const trimmedReason = reason.trim();
-    if (typed === null || Array.from(trimmedReason).length < 3) return;
     setPhase({ kind: "busy" });
+    const refusal = await thisPcRefusal("replace");
+    if (refusal) {
+      setPhase({ kind: "error", message: refusal });
+      return;
+    }
     let deviceId: string;
     let secret: string;
     try {
@@ -81,7 +125,7 @@ export function ReplaceThisPc({ counter, lastOfNo, replace, onReplaced }: Replac
         counterId: counter.id,
         secretHash: key.secretHash,
         label: label.trim(),
-        lastPrintedOfNo: typed,
+        lastPrintedOfNo,
         reason: trimmedReason,
       });
       deviceId = answer.deviceId;
@@ -124,7 +168,11 @@ export function ReplaceThisPc({ counter, lastOfNo, replace, onReplaced }: Replac
         label={RS.lastSlip}
         hint={RS.lastSlipHint}
         value={lastText}
-        onChange={setLastText}
+        onChange={(v) => {
+          setLastText(v);
+          // A changed number needs its own second look.
+          if (phase.kind === "confirm") setPhase({ kind: "open" });
+        }}
         placeholder={`${series}-000-00-0000/000000`}
         maxLength={40}
         error={lastError}
@@ -150,8 +198,18 @@ export function ReplaceThisPc({ counter, lastOfNo, replace, onReplaced }: Replac
         {gap ? <Bilingual as="div" en={gap.en} kn={gap.kn} className="font-semibold" /> : null}
       </div>
       {phase.kind === "error" ? <Notice kind="error" text={phase.message} /> : null}
+      {phase.kind === "confirm" ? (
+        <div role="alert" className="flex flex-col gap-2 rounded-(--radius-control) border border-(--border-strong) bg-(--attn-soft) p-3">
+          <Bilingual as="div" en={phase.line.en} kn={phase.line.kn} className="font-semibold" />
+          <div>
+            <Button type="button" variant="seva-primary" size="sm" onClick={() => void send(phase.typed)}>
+              {RS.confirmLastSlip.en}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="seva-primary" size="sm" disabled={busy}>
+        <Button type="submit" variant={phase.kind === "confirm" ? "seva-secondary" : "seva-primary"} size="sm" disabled={busy}>
           {busy ? RS.replacing.en : move.en}
         </Button>
         <Button type="button" variant="seva-ghost" size="sm" disabled={busy} onClick={() => setPhase({ kind: "closed" })}>

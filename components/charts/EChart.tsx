@@ -115,27 +115,31 @@ export default function EChart({ option, height, title, asOf, table }: EChartPro
       <Bilingual as="h3" en={title.en} kn={title.kn} className="text-base font-semibold" />
       <div ref={boxRef} role="img" aria-label={title.en} className="w-full" style={{ height }} />
       <figcaption className="text-sm text-muted-foreground">as of {asOfLabel(asOf)}</figcaption>
-      <table className="sr-only">
-        <caption>{table.caption}</caption>
-        <thead>
-          <tr>
-            {table.columns.map((c) => (
-              <th key={c} scope="col">
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {table.rows.map((row, i) => (
-            <tr key={i}>
-              {row.map((cell, j) => (
-                <td key={j}>{cell}</td>
+      {/* A table ignores `width: 1px`, so an sr-only table alone still takes its full width and, being absolutely
+          placed, widened the phone page past the screen. The sr-only wrapper is a 1 px clipped box that holds it. */}
+      <div className="sr-only">
+        <table className="sr-only">
+          <caption>{table.caption}</caption>
+          <thead>
+            <tr>
+              {table.columns.map((c) => (
+                <th key={c} scope="col">
+                  {c}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {table.rows.map((row, i) => (
+              <tr key={i}>
+                {row.map((cell, j) => (
+                  <td key={j}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

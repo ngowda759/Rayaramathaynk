@@ -1,3 +1,7 @@
+/**
+ * @jest-environment node
+ */
+import * as echarts from "echarts";
 import {
   calendarOption,
   festivalBarsOption,
@@ -168,5 +172,47 @@ describe("chart option builders", () => {
     const tooltip = (option.tooltip as Rec).formatter as (p: unknown) => string;
     const html = tooltip([{ seriesName: "Cash", value: 50_000, marker: "", axisValueLabel: "10:00", dataIndex: 1 }]);
     expect(html).toContain("▲ 25% against previous");
+  });
+});
+
+describe("chart options draw in ECharts", () => {
+  // The full ECharts build (CommonJS dist, development mode) runs the same render checks the browser does,
+  // e.g. "Heatmap must use with visualMap". SSR mode draws to an SVG string, so no canvas is needed.
+  function draw(option: Rec): string {
+    const chart = echarts.init(null, null, { renderer: "svg", ssr: true, width: 720, height: 320 });
+    try {
+      chart.setOption(option as echarts.EChartsCoreOption);
+      return chart.renderToSVGString();
+    } finally {
+      chart.dispose();
+    }
+  }
+
+  it("the festival calendar with festival days draws without throwing", () => {
+    const option = calendarOption(
+      {
+        year: 2026,
+        days: [
+          { date: "2026-08-28", totalPaise: 9_000_000 },
+          { date: "2026-10-18", totalPaise: 500_000 },
+        ],
+        festivals: ["2026-08-28", "2026-08-29"],
+      },
+      OPTS,
+    ) as unknown as Rec;
+    expect(() => draw(option)).not.toThrow();
+    // The festival series (index 1) is drawn as outlined cells with a clear fill, over the coloured totals.
+    const festivalCells = draw(option).match(/<path[^>]*ecmeta_series_index="1"[^>]*>/g) ?? [];
+    expect(festivalCells).toHaveLength(2);
+    for (const cell of festivalCells) {
+      expect(cell).toContain('fill-opacity="0"');
+      expect(cell).toContain(`stroke="${COLORS[4]}"`);
+    }
+  });
+
+  it("every dashboard option draws without throwing", () => {
+    for (const option of allOptions(false)) {
+      expect(() => draw(option)).not.toThrow();
+    }
   });
 });

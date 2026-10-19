@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { fromPaise, toPaise } from "@/lib/seva/money";
 import { parseReceiptNo } from "@/lib/seva/numbering";
 import type { Bi } from "@/lib/seva/strings/common";
-import { addCounterLabel, RS } from "@/lib/seva/strings/receipt-settings";
+import { addCounterLabel, alreadyOtherCounter, nowThisPc, RS } from "@/lib/seva/strings/receipt-settings";
 import type { CounterRequest } from "@/lib/seva/schemas";
 import type { ContinuityRow } from "@/types/seva-reports";
 import type { CounterItem, NewCounter } from "@/types/seva-settings";
@@ -92,6 +92,8 @@ function OpeningFloat({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    // A view-only admin's field is read-only with no button, but a one-field form still submits on Enter.
+    if (!canEdit) return;
     setChecked(true);
     if (paise === null || busy) return;
     setBusy(true);
@@ -229,6 +231,9 @@ export function CounterList({ api, canEdit, canRegister, thisPcCounterId, year, 
 
   function becameThisPc(counterId: number) {
     setRegisteredHere(counterId);
+    // The row's Register form goes away once this PC is a counter, so the list says what happened.
+    const name = load.kind === "ready" ? load.counters.find((c) => c.id === counterId)?.name : undefined;
+    setNotice(nowThisPc(name ?? `Counter ${counterId}`));
     onThisPcChanged?.(counterId);
     void refresh();
   }
@@ -280,6 +285,10 @@ export function CounterList({ api, canEdit, canRegister, thisPcCounterId, year, 
           const lastOf = c.offlineSeries ? load.last.get(c.offlineSeries) ?? null : null;
           const lastOfNo = lastOf ? parseReceiptNo(lastOf)?.running ?? null : load.last.size > 0 ? 0 : null;
           const isThisPc = thisPc === c.id;
+          const otherLine =
+            thisPc !== null && !isThisPc
+              ? alreadyOtherCounter(load.counters.find((x) => x.id === thisPc)?.name ?? `Counter ${thisPc}`)
+              : null;
           return (
             <li key={c.id} data-counter={c.id} className="flex flex-col gap-3 border-t border-(--border) py-4 first:border-t-0 first:pt-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -308,17 +317,21 @@ export function CounterList({ api, canEdit, canRegister, thisPcCounterId, year, 
                 )}
               </div>
               <OpeningFloat counter={c} canEdit={canEdit} save={(paise) => api.updateCounter(c.id, { openingFloatPaise: paise })} />
-              {canRegister ? (
+              {/* A PC is one counter (A4 security L-1). A PC that is not a counter yet may register as any counter or take
+                  one over; a PC that is already a counter is offered only Replace, for that same counter (a new key), and
+                  nothing on the other rows, so its key and its unsent receipts are never orphaned by a second counter. */}
+              {canRegister && thisPc === null ? (
                 <div className="flex flex-wrap items-start gap-2">
-                  <RegisterThisPc
-                    counter={c}
-                    register={api.registerDevice}
-                    onRegistered={becameThisPc}
-                    alreadyRegistered={thisPc !== null}
-                  />
-                  <ReplaceThisPc counter={c} lastOfNo={lastOfNo} replace={api.replaceDevice} onReplaced={becameThisPc} />
+                  <RegisterThisPc counter={c} register={api.registerDevice} onRegistered={becameThisPc} />
+                  <ReplaceThisPc counter={c} lastOfNo={lastOfNo} year={year} replace={api.replaceDevice} onReplaced={becameThisPc} />
                 </div>
               ) : null}
+              {canRegister && isThisPc ? (
+                <div className="flex flex-wrap items-start gap-2">
+                  <ReplaceThisPc counter={c} lastOfNo={lastOfNo} year={year} replace={api.replaceDevice} onReplaced={becameThisPc} />
+                </div>
+              ) : null}
+              {canRegister && otherLine ? <Bilingual as="div" en={otherLine.en} kn={otherLine.kn} className="meta" /> : null}
             </li>
           );
         })}

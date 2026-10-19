@@ -198,9 +198,13 @@ class Refusal extends Error {
   }
 }
 
-function errorBody(code: string, detail?: Record<string, unknown>): { error: { code: string; message: string } } {
+/** The routes' error shape (lib/seva/server/respond.ts): `{ error: { code, message, detail? } }`. */
+function errorBody(
+  code: string,
+  detail?: Record<string, unknown>,
+): { error: { code: string; message: string; detail?: Record<string, unknown> } } {
   const message = isSevaErrorCode(code) ? sevaErrorMessage(code, detail) : "Something went wrong.";
-  return { error: { code, message } };
+  return { error: { code, message, ...(detail ? { detail } : {}) } };
 }
 
 function errorResult(code: string, detail?: Record<string, unknown>, status?: number): FakeResult {

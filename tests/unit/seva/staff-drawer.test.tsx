@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { OnboardDialog, onboardRoleAllowed } from "@/components/seva/staff/OnboardDialog";
 import { StaffDrawer, staffRights, type StaffCan } from "@/components/seva/staff/StaffDrawer";
 import { StaffList } from "@/components/seva/staff/StaffList";
+import { sevaErrorMessage } from "@/lib/seva/errors";
 import { can as matrixCan } from "@/lib/seva/permissions";
 import { SevaClientError } from "@/services/seva/http";
 import type { StaffApi } from "@/services/seva/staff.service";
@@ -190,7 +191,7 @@ describe("Staff and roles", () => {
   });
 
   it("a partial failure names the step that failed", async () => {
-    const failure = new SevaClientError("partial_failure", 502, "The change went only part of the way.", {
+    const failure = new SevaClientError("partial_failure", 502, sevaErrorMessage("partial_failure"), {
       done: ["identity"],
       failed: "staff",
       cause: "internal",
@@ -199,7 +200,8 @@ describe("Staff and roles", () => {
     fireEvent.click(roleRadio(/^Temple admin/));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("The change went only part of the way");
+    // The shared partial_failure message heads the notice, with each step's line under it.
+    expect(alert).toHaveTextContent("Only part of this change was saved. Check the details and try again.");
     expect(alert).toHaveTextContent("Done: Sign-in account (login and role)");
     expect(alert).toHaveTextContent("Failed at: Staff record");
     cleanup();

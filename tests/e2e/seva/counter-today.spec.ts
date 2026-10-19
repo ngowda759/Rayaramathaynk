@@ -182,7 +182,7 @@ test("a group cancel can take one date only, from this PC with its device header
 
   const groupCard = card(page, `Group ${group[0].groupNo}`);
   await expect(groupCard).toBeVisible({ timeout: 60_000 });
-  await groupCard.getByRole("button", { name: "Cancel" }).click();
+  await groupCard.getByRole("button", { name: "Cancel", exact: true }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel(/^All 3 receipts/)).toBeChecked();

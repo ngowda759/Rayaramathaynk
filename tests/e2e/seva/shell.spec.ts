@@ -45,7 +45,11 @@ test.describe("saves a sidebar screenshot per role", () => {
       const mark = SIDEBAR_MARKS[role];
       await expect(sidebar.locator(`a[href="${mark.shown}"]`)).toBeVisible({ timeout: 60_000 });
       await expect(sidebar.locator(`a[href="${mark.hidden}"]`)).toHaveCount(0);
-      await sidebar.screenshot({ path: path.join(shotsDir ?? "", `sidebar-${role}.png`) });
+      // The owner's screenshots: the whole page, without the Next.js dev indicator (its <nextjs-portal> host exists only
+      // under `next dev`; hidden here in the test, the app's config is unchanged).
+      await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+      await expect(page.locator("nextjs-portal").first()).toBeHidden();
+      await page.screenshot({ path: path.join(shotsDir ?? "", `sidebar-${role}.png`), fullPage: true });
     });
   }
 });

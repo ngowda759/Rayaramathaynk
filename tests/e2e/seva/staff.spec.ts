@@ -144,7 +144,8 @@ test("a partial failure names the step that failed", async ({ page }) => {
   await drawer.getByRole("button", { name: "Save" }).click();
 
   const alert = drawer.getByRole("alert");
-  await expect(alert).toContainText("The change went only part of the way");
+  // The shared partial_failure message (lib/seva/errors.ts), then each step's line under it.
+  await expect(alert).toContainText("Only part of this change was saved. Check the details and try again.");
   await expect(alert).toContainText("Done: Sign-in account (login and role)");
   await expect(alert).toContainText("Failed at: Staff record");
 });

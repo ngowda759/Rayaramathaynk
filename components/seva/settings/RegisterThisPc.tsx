@@ -5,8 +5,9 @@ import { useState, type FormEvent, type JSX } from "react";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { openSevaDb } from "@/lib/seva/offline/db";
-import { newDeviceSecret, saveDeviceCredentials, sha256HexBrowser } from "@/lib/seva/offline/device";
-import { nowThisPc, RS } from "@/lib/seva/strings/receipt-settings";
+import { getDeviceCredentials, newDeviceSecret, saveDeviceCredentials, sha256HexBrowser } from "@/lib/seva/offline/device";
+import { pendingCount } from "@/lib/seva/offline/outbox";
+import { nowThisPc, RS, sendWaitingFirst } from "@/lib/seva/strings/receipt-settings";
 import type { CounterItem } from "@/types/seva-settings";
 
 import { errorText, Notice, TextField } from "./ReceiptSettingsFields";
@@ -39,19 +40,52 @@ export async function keepDeviceKey(deviceId: string, secret: string): Promise<v
   }
 }
 
+/** What this PC holds before Register or Replace: a counter key, and outbox items not sent yet. */
+export interface ThisPcState {
+  hasKey: boolean;
+  waiting: number;
+}
+
+/** Reads this PC's stored device credentials and the outbox's pending count; throws when the database cannot open. */
+export async function readThisPc(): Promise<ThisPcState> {
+  const db = await openSevaDb();
+  try {
+    const [credentials, waiting] = await Promise.all([getDeviceCredentials(db), pendingCount(db)]);
+    return { hasKey: credentials !== null, waiting };
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Why this PC may not take a new counter key now, or null when it may (A4 security L-1). A PC whose outbox still holds
+ * items must send them first: they carry its present key, and once that key is overwritten the office refuses them and
+ * they can only be typed in again from the paper slips. Register also refuses a PC that already keeps a key, because
+ * the office allows one live PC per counter; Replace is the way to give a counter a new PC or a new key.
+ */
+export async function thisPcRefusal(action: "register" | "replace"): Promise<string | null> {
+  let pc: ThisPcState;
+  try {
+    pc = await readThisPc();
+  } catch {
+    return RS.pcNotRead.en;
+  }
+  if (pc.waiting > 0) return sendWaitingFirst(pc.waiting).en;
+  if (action === "register" && pc.hasKey) return RS.alreadyRegistered.en;
+  return null;
+}
+
 type RegisterBody = { counterId: number; secretHash: string; label: string };
 
 export interface RegisterThisPcProps {
   counter: CounterItem;
   register(b: RegisterBody): Promise<{ deviceId: string }>;
   onRegistered(counterId: number): void;
-  /** True when this PC already holds counter credentials (registering again replaces them). */
-  alreadyRegistered: boolean;
 }
 
 type Phase = { kind: "closed" } | { kind: "open" } | { kind: "busy" } | { kind: "done" } | { kind: "error"; message: string };
 
-export function RegisterThisPc({ counter, register, onRegistered, alreadyRegistered }: RegisterThisPcProps): JSX.Element {
+export function RegisterThisPc({ counter, register, onRegistered }: RegisterThisPcProps): JSX.Element {
   const [phase, setPhase] = useState<Phase>({ kind: "closed" });
   const [label, setLabel] = useState(counter.place ?? "");
   const formId = `register-pc-${counter.id}`;
@@ -60,6 +94,11 @@ export function RegisterThisPc({ counter, register, onRegistered, alreadyRegiste
     e.preventDefault();
     if (phase.kind === "busy") return;
     setPhase({ kind: "busy" });
+    const refusal = await thisPcRefusal("register");
+    if (refusal) {
+      setPhase({ kind: "error", message: refusal });
+      return;
+    }
     let deviceId: string;
     let secret: string;
     try {
@@ -97,7 +136,6 @@ export function RegisterThisPc({ counter, register, onRegistered, alreadyRegiste
   return (
     <form id={formId} onSubmit={submit} noValidate className="flex w-full flex-col gap-3 rounded-(--radius-control) border border-(--border) bg-(--muted) p-3">
       <Bilingual as="div" en={RS.registerHint.en} kn={RS.registerHint.kn} className="meta" />
-      {alreadyRegistered ? <Bilingual as="div" en={RS.alreadyRegistered.en} kn={RS.alreadyRegistered.kn} className="font-semibold" /> : null}
       <TextField
         id={`${formId}-label`}
         label={RS.pcLabel}

@@ -6,6 +6,7 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { sevaErrorMessage } from "@/lib/seva/errors";
 import type { PermissionContext } from "@/lib/seva/permissions";
 import {
   STAFF_ROLE_HINT,
@@ -200,7 +201,10 @@ export interface PartialFailureNoticeProps {
   done: readonly string[];
   failed: string;
   partly?: readonly string[];
-  /** A first line before the steps, e.g. "Staff no. 035 is onboarded, but ..." */
+  /**
+   * A first line before the steps, e.g. "Staff no. 035 is onboarded, but ...". Without one, the shared
+   * `partial_failure` message (lib/seva/errors.ts) heads the Done / Failed at lines.
+   */
   lead?: string;
   children?: ReactNode;
 }
@@ -216,7 +220,7 @@ export function PartialFailureNotice({ done, failed, partly, lead, children }: P
       role="alert"
       className="flex flex-col gap-2 rounded-(--radius-control) border border-[color-mix(in_oklab,var(--destructive)_35%,transparent)] bg-(--destructive-soft) p-4 text-(length:--text-ui)"
     >
-      <strong className="text-(--destructive)">{lead ?? STAFF_TEXT.partialTitle}</strong>
+      <strong className="text-(--destructive)">{lead ?? sevaErrorMessage("partial_failure")}</strong>
       <p>
         {STAFF_TEXT.partialDone}: {done.length > 0 ? done.map(stepLabel).join(", ") : STAFF_TEXT.partialNothingDone}
       </p>

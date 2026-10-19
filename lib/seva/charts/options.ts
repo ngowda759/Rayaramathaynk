@@ -337,18 +337,31 @@ export function calendarOption(
   };
   return {
     ...base(o, { trigger: "item", formatter }),
-    visualMap: {
-      min: 0,
-      max,
-      seriesIndex: 0,
-      calculable: false,
-      orient: "horizontal",
-      left: "center",
-      bottom: 0,
-      textStyle: { fontSize: SMALL_FONT_SIZE },
-      formatter: (v: number) => chartRupees(v),
-      inRange: { color: ["rgba(150, 150, 150, 0.08)", color(o, 0), color(o, 1), color(o, 4)] },
-    },
+    // ECharts draws every heatmap series through a visualMap ("Heatmap must use with visualMap"), so each series
+    // gets its own: the shown one colours the daily totals; a hidden one keeps the festival cells' fill clear, so
+    // only their itemStyle border (the outline) shows over the totals.
+    visualMap: [
+      {
+        min: 0,
+        max,
+        seriesIndex: 0,
+        calculable: false,
+        orient: "horizontal",
+        left: "center",
+        bottom: 0,
+        textStyle: { fontSize: SMALL_FONT_SIZE },
+        formatter: (v: number) => chartRupees(v),
+        inRange: { color: ["rgba(150, 150, 150, 0.08)", color(o, 0), color(o, 1), color(o, 4)] },
+      },
+      {
+        show: false,
+        min: 0,
+        max,
+        seriesIndex: 1,
+        inRange: { color: ["rgba(0, 0, 0, 0)"] },
+        outOfRange: { color: ["rgba(0, 0, 0, 0)"] },
+      },
+    ],
     calendar: {
       range: String(d.year),
       top: 40,

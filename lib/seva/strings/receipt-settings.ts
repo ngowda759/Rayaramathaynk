@@ -87,6 +87,7 @@ export const RS: {
   registering: Bi;
   registerNotKept: Bi;
   alreadyRegistered: Bi;
+  pcNotRead: Bi;
   cancel: Bi;
   // Replace this PC
   replace: Bi;
@@ -99,6 +100,7 @@ export const RS: {
   reasonTooShort: Bi;
   gapWarning: Bi;
   replacing: Bi;
+  confirmLastSlip: Bi;
   // Counter rules
   cancelWindow: Bi;
   cancelWindowHint: Bi;
@@ -216,8 +218,12 @@ export const RS: {
     kn: 'ಕಚೇರಿ ನೋಂದಾಯಿಸಿದೆ, ಆದರೆ ಕಂಪ್ಯೂಟರ್ ತನ್ನ ಕೀಲಿಯನ್ನು ಇಡಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ನೋಂದಾಯಿಸಿ.',
   },
   alreadyRegistered: {
-    en: 'This PC is already a counter. Registering it again replaces its key.',
-    kn: 'ಈ ಕಂಪ್ಯೂಟರ್ ಈಗಾಗಲೇ ಕೌಂಟರ್ ಆಗಿದೆ. ಮತ್ತೆ ನೋಂದಾಯಿಸಿದರೆ ಅದರ ಕೀಲಿ ಬದಲಾಗುತ್ತದೆ.',
+    en: 'This PC already keeps a counter key. The office allows one PC per counter and refuses a second registration. To give a counter a new PC or a new key, use Replace this PC on that counter.',
+    kn: 'ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಈಗಾಗಲೇ ಕೌಂಟರ್ ಕೀಲಿ ಇದೆ. ಕಚೇರಿ ಒಂದು ಕೌಂಟರ್‌ಗೆ ಒಂದೇ ಕಂಪ್ಯೂಟರ್ ಒಪ್ಪುತ್ತದೆ, ಎರಡನೇ ನೋಂದಣಿಯನ್ನು ನಿರಾಕರಿಸುತ್ತದೆ. ಕೌಂಟರ್‌ಗೆ ಹೊಸ ಕಂಪ್ಯೂಟರ್ ಅಥವಾ ಹೊಸ ಕೀಲಿ ಬೇಕಿದ್ದರೆ, ಆ ಕೌಂಟರ್‌ನಲ್ಲಿ "ಈ ಕಂಪ್ಯೂಟರ್ ಬದಲಿಸಿ" ಬಳಸಿ.',
+  },
+  pcNotRead: {
+    en: "This PC's counter storage could not be read, so nothing was sent. Try again.",
+    kn: 'ಈ ಕಂಪ್ಯೂಟರ್‌ನ ಕೌಂಟರ್ ಸಂಗ್ರಹವನ್ನು ಓದಲಾಗಲಿಲ್ಲ, ಆದ್ದರಿಂದ ಏನನ್ನೂ ಕಳುಹಿಸಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
   },
   cancel: { en: 'Cancel', kn: 'ರದ್ದುಮಾಡಿ' },
 
@@ -232,8 +238,8 @@ export const RS: {
     kn: 'ಪೂರ್ಣ ಸಂಖ್ಯೆ ಅಥವಾ ಕ್ರಮ ಸಂಖ್ಯೆ ಮಾತ್ರ. ಈ ವರ್ಷ ಆಫ್‌ಲೈನ್ ರಸೀದಿ ಮುದ್ರಿಸದಿದ್ದರೆ 0 ಬರೆಯಿರಿ.',
   },
   lastSlipInvalid: {
-    en: "Check the number: it must be this counter's offline series, or just its running number.",
-    kn: 'ಸಂಖ್ಯೆ ಪರಿಶೀಲಿಸಿ: ಇದು ಈ ಕೌಂಟರ್‌ನ ಆಫ್‌ಲೈನ್ ಸರಣಿ ಅಥವಾ ಕ್ರಮ ಸಂಖ್ಯೆ ಮಾತ್ರ ಆಗಿರಬೇಕು.',
+    en: "Check the number: it must be this counter's offline series for this year, or just its running number.",
+    kn: 'ಸಂಖ್ಯೆ ಪರಿಶೀಲಿಸಿ: ಇದು ಈ ವರ್ಷದ ಈ ಕೌಂಟರ್‌ನ ಆಫ್‌ಲೈನ್ ಸರಣಿ ಅಥವಾ ಕ್ರಮ ಸಂಖ್ಯೆ ಮಾತ್ರ ಆಗಿರಬೇಕು.',
   },
   reason: { en: 'Reason', kn: 'ಕಾರಣ' },
   reasonHint: { en: 'For example: old PC stopped working', kn: 'ಉದಾಹರಣೆ: ಹಳೆಯ ಕಂಪ್ಯೂಟರ್ ಕೆಟ್ಟುಹೋಗಿದೆ' },
@@ -243,6 +249,7 @@ export const RS: {
     kn: 'ಹಳೆಯ ಕಂಪ್ಯೂಟರ್ ಮುದ್ರಿಸಿ ಕಳುಹಿಸದ ಆಫ್‌ಲೈನ್ ರಸೀದಿಗಳು ಅಂತರವಾಗುತ್ತವೆ. ನಿರ್ವಾಹಕರು ಅವನ್ನು ಕಾಗದದಿಂದ ನಮೂದಿಸಬೇಕು ಅಥವಾ ಕಳೆದುಹೋಗಿವೆ ಎಂದು ಘೋಷಿಸಬೇಕು.',
   },
   replacing: { en: 'Moving the counter...', kn: 'ಕೌಂಟರ್ ವರ್ಗಾಯಿಸಲಾಗುತ್ತಿದೆ...' },
+  confirmLastSlip: { en: 'Yes, that is the last slip', kn: 'ಹೌದು, ಅದೇ ಕೊನೆಯ ರಸೀದಿ' },
 
   cancelWindow: { en: 'Cancel window', kn: 'ರದ್ದತಿ ಸಮಯ' },
   cancelWindowHint: {
@@ -300,4 +307,37 @@ export function gapRangeLine(series: string, from: number, to: number): Bi {
 /** 'The office has OF1 up to 5.' */
 export function officeHasLine(series: string, last: number): Bi {
   return { en: `The office has ${series} up to ${last}.`, kn: `ಕಚೇರಿಯಲ್ಲಿ ${series} ${last} ರವರೆಗೆ ಇದೆ.` };
+}
+
+/** Register and Replace refuse while this PC's outbox still holds unsent items. */
+export function sendWaitingFirst(waiting: number): Bi {
+  return {
+    en: `This PC still has ${waiting} waiting to be sent. Send the waiting receipts first.`,
+    kn: `ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಇನ್ನೂ ${waiting} ಕಳುಹಿಸಲು ಕಾಯುತ್ತಿವೆ. ಮೊದಲು ಕಾಯುತ್ತಿರುವ ರಸೀದಿಗಳನ್ನು ಕಳುಹಿಸಿ.`,
+  };
+}
+
+/** On another counter's row when this PC is already a counter: 'This PC is already Counter 1. ...' */
+export function alreadyOtherCounter(counterName: string): Bi {
+  return {
+    en: `This PC is already ${counterName}. A PC is one counter only.`,
+    kn: `ಈ ಕಂಪ್ಯೂಟರ್ ಈಗಾಗಲೇ ${counterName}. ಒಂದು ಕಂಪ್ಯೂಟರ್ ಒಂದೇ ಕೌಂಟರ್.`,
+  };
+}
+
+/** The second confirmation before Replace when the gap is large. */
+export function largeGapConfirm(series: string, from: number, to: number): Bi {
+  const count = to - from + 1;
+  return {
+    en: `That leaves ${count} numbers, ${series} ${from} to ${to}, as a gap. Check the last slip again before you go on.`,
+    kn: `ಇದರಿಂದ ${count} ಸಂಖ್ಯೆಗಳು, ${series} ${from} ರಿಂದ ${to}, ಅಂತರವಾಗುತ್ತವೆ. ಮುಂದುವರಿಯುವ ಮೊದಲು ಕೊನೆಯ ರಸೀದಿಯನ್ನು ಮತ್ತೆ ಪರಿಶೀಲಿಸಿ.`,
+  };
+}
+
+/** The second confirmation before Replace when the office's last number is not known. */
+export function unknownLastConfirm(series: string, typed: number): Bi {
+  return {
+    en: `The office cannot tell its last ${series} number this year, so it cannot show the gap. Any ${series} numbers up to ${typed} it never received will be listed as a gap. Check the last slip again before you go on.`,
+    kn: `ಕಚೇರಿಗೆ ಈ ವರ್ಷದ ಕೊನೆಯ ${series} ಸಂಖ್ಯೆ ತಿಳಿಯದು, ಆದ್ದರಿಂದ ಅಂತರ ತೋರಿಸಲಾಗದು. ${typed} ರವರೆಗೆ ಕಚೇರಿಗೆ ಬಾರದ ${series} ಸಂಖ್ಯೆಗಳು ಅಂತರವಾಗಿ ಪಟ್ಟಿಯಾಗುತ್ತವೆ. ಮುಂದುವರಿಯುವ ಮೊದಲು ಕೊನೆಯ ರಸೀದಿಯನ್ನು ಮತ್ತೆ ಪರಿಶೀಲಿಸಿ.`,
+  };
 }

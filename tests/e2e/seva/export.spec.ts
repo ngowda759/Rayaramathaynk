@@ -240,8 +240,11 @@ test("CSV parts download as one zip; Tally has its header row", async ({ page })
   expect(names.some((n) => n.startsWith("prasadam-"))).toBe(false);
   const receiptsName = names.find((n) => n.startsWith("receipts-"));
   expect(receiptsName).toBeDefined();
-  const receiptsCsv = strFromU8(files[receiptsName as string]);
-  expect(receiptsCsv.split("\r\n")[0]).toBe("﻿receipt_no,series,date,seva_code,amount,mode,status,seva_name,quantity,unit_rate,income_ledger");
+  const receiptsBytes = files[receiptsName as string];
+  // Excel needs the UTF-8 BOM to read Kannada. Check the raw bytes: strFromU8 (TextDecoder) drops a leading BOM.
+  expect(Array.from(receiptsBytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+  const receiptsCsv = strFromU8(receiptsBytes.slice(3));
+  expect(receiptsCsv.split("\r\n")[0]).toBe("receipt_no,series,date,seva_code,amount,mode,status,seva_name,quantity,unit_rate,income_ledger");
 
   await page.getByRole("radio", { name: /^Tally import/ }).click();
   const tally = await download(page, /Prepare Tally file/);

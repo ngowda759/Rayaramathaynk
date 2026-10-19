@@ -88,8 +88,10 @@ async function openDashboard(page: Page, api: FakeSevaApi): Promise<void> {
   await signInAs(page, "temple_admin", { redirect: "/admin/receipts" });
   await expect(page.getByRole("heading", { level: 1, name: /Dashboard/ })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("tile-total")).toBeVisible();
-  // The charts are loaded on demand; wait for the last one's title.
-  await expect(page.locator('[data-section="festival-peaks"] h3')).toBeVisible();
+  // The charts are loaded on demand, and each chart's title comes with it. Festival peaks keeps a plain heading until
+  // its calendar is asked for, so wait for the four charts every period draws, not for that heading.
+  await expect(page.locator(".seva figure h3")).toHaveCount(4);
+  await expect(page.locator('[data-section="rush-hours"] figure h3')).toBeVisible();
 }
 
 /** Top edge of each landmark in page order: the period switch, Needs attention, tiles, hero, details. */

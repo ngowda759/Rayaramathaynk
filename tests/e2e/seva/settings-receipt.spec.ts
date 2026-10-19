@@ -50,6 +50,9 @@ function continuity(): ContinuityRow[] {
 /** The fake with the settings routes in their real shapes. */
 function settingsFake(): FakeSevaApi {
   const fake = createFakeSevaApi();
+  // This browser keeps no counter key, so it sends no device header and the real /me names no counter for it.
+  fake.state.me.temple_admin.counter = null;
+  fake.state.me.temple_admin_view_only.counter = null;
   let template = { ...DEFAULT_SLIP };
   let rules = { ...RULES };
   fake.extend({

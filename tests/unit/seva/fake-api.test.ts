@@ -53,10 +53,11 @@ describe("fake seva API", () => {
     api.setNow(NOW);
     const stale = { ...order("o-stale"), expectedTotalPaise: 4000 };
     const res = await api.handle({ method: "POST", path: "/api/seva/counter/orders", body: stale, role: "receptionist" });
+    // The error carries its detail, as lib/seva/server/respond.ts sends it.
     expect(res).toEqual({
       kind: "json",
       status: 409,
-      body: { error: { code: "price_changed", message: "The rate changed - check the total." } },
+      body: { error: { code: "price_changed", message: "The rate changed - check the total.", detail: { lines: expect.any(Array) } } },
     });
     expect(api.state.receipts).toHaveLength(0);
   });
