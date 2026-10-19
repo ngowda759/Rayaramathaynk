@@ -1602,3 +1602,76 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION seva_issue_fill_gap(bigint, integer, timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_fill_gap(bigint, integer, timestamptz) TO service_role;
+
+-- =====================================================================================================
+-- L-2. Receipt numbering rows are guarded like day closes (defence in depth)
+-- =====================================================================================================
+
+-- receipt_number_gaps: never deleted; a gap that is no longer open never changes; an open gap keeps its series, year,
+-- cause, detection time and device, and only shrinks (from_no rises, to_no falls) or is resolved.
+CREATE OR REPLACE FUNCTION seva_gaps_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'seva guard: DELETE on receipt_number_gaps is not allowed'
+      USING ERRCODE = 'restrict_violation', HINT = 'A gap is never hidden: resolve it with a note instead.';
+  END IF;
+  IF OLD.status <> 'open' THEN
+    RAISE EXCEPTION 'seva guard: a resolved gap never changes'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.series_code IS DISTINCT FROM OLD.series_code
+     OR NEW.year IS DISTINCT FROM OLD.year OR NEW.cause IS DISTINCT FROM OLD.cause
+     OR NEW.detected_at IS DISTINCT FROM OLD.detected_at OR NEW.device_id IS DISTINCT FROM OLD.device_id
+     OR NEW.from_no < OLD.from_no OR NEW.to_no > OLD.to_no THEN
+    RAISE EXCEPTION 'seva guard: an open gap only shrinks or is resolved'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- receipt_series_years: never deleted; its series and year never change and last_no only rises.
+CREATE OR REPLACE FUNCTION seva_series_years_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'seva guard: DELETE on receipt_series_years is not allowed'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  IF NEW.series_code IS DISTINCT FROM OLD.series_code OR NEW.year IS DISTINCT FROM OLD.year
+     OR NEW.last_no < OLD.last_no THEN
+    RAISE EXCEPTION 'seva guard: a series year keeps its series and year, and its last number only rises'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER seva_receipt_number_gaps_guard
+  BEFORE UPDATE OR DELETE ON receipt_number_gaps
+  FOR EACH ROW EXECUTE FUNCTION seva_gaps_guard();
+CREATE OR REPLACE TRIGGER seva_receipt_number_gaps_no_truncate
+  BEFORE TRUNCATE ON receipt_number_gaps
+  FOR EACH STATEMENT EXECUTE FUNCTION seva_forbid_change();
+CREATE OR REPLACE TRIGGER seva_receipt_series_years_guard
+  BEFORE UPDATE OR DELETE ON receipt_series_years
+  FOR EACH ROW EXECUTE FUNCTION seva_series_years_guard();
+CREATE OR REPLACE TRIGGER seva_receipt_series_years_no_truncate
+  BEFORE TRUNCATE ON receipt_series_years
+  FOR EACH STATEMENT EXECUTE FUNCTION seva_forbid_change();
+
+REVOKE DELETE, TRUNCATE ON receipt_number_gaps, receipt_series_years FROM service_role;
+
+REVOKE EXECUTE ON FUNCTION seva_gaps_guard() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_gaps_guard() TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_series_years_guard() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_series_years_guard() TO service_role;

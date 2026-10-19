@@ -533,6 +533,33 @@ describe('seva_sync_offline_order (A2-1)', () => {
     expect(split.rows[0].n).toBe(1);
   });
 
+  it('a gap is never deleted and only shrinks while open; last_no only rises (A5-FIX L-2)', async () => {
+    const c = await setup();
+    await syncNo(c, 1);
+    await syncNo(c, 4); // 2-3 missing_in_sync
+    for (const sql of [
+      'delete from receipt_number_gaps',
+      'truncate receipt_number_gaps',
+      'update receipt_number_gaps set from_no = 1',
+      'update receipt_number_gaps set to_no = 9',
+      `update receipt_series_years set last_no = 0 where series_code = 'OF1'`,
+      `delete from receipt_series_years where series_code = 'OF1'`,
+    ]) {
+      await expect(asRole(c.db, 'service_role', (d) => d.query(sql))).rejects.toThrow(/seva guard|permission denied/);
+    }
+    // The guard holds for the table owner too.
+    await expect(c.db.query(`update receipt_series_years set last_no = 0 where series_code = 'OF1'`)).rejects.toThrow(
+      /seva guard/,
+    );
+    expect(await lastNo(c.db, 'OF1', 2026)).toBe(4);
+    // Resolving an open gap still works; a resolved gap never changes again.
+    await c.db.query(
+      `update receipt_number_gaps set status = 'declared_lost', resolution_note = 'Slips lost in the rain', resolved_at = now()`,
+    );
+    await expect(c.db.query(`update receipt_number_gaps set resolution_note = 'Rewritten'`)).rejects.toThrow(/seva guard/);
+    expect(await gaps(c.db)).toEqual([{ from_no: 2, to_no: 3, cause: 'missing_in_sync', status: 'declared_lost' }]);
+  });
+
   describe("M-4: Replace this PC records the slip's own year", () => {
     async function replaceInYear(c: Ctx, lastPrinted: number, year: number): Promise<string> {
       return asRole(c.db, 'service_role', async (d) => {
