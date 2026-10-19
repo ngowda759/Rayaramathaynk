@@ -16,7 +16,7 @@ import { sevaControlClass } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { issuedToExportRow } from "@/lib/seva/excel/copyScheduler";
-import { buildDayWorkbookBytes, downloadDayExcel } from "@/lib/seva/excel/download";
+import { buildDayWorkbookBytes, dayExcelFileName } from "@/lib/seva/excel/download";
 import { writeDayCopy } from "@/lib/seva/excel/folder";
 import { isUnreachable } from "@/lib/seva/offline/connection";
 import { openSevaDb, type SevaDb } from "@/lib/seva/offline/db";
@@ -26,7 +26,7 @@ import { pruneClosedDays, todaysReceipts } from "@/lib/seva/offline/local-receip
 import { pendingCount } from "@/lib/seva/offline/outbox";
 import { runSync } from "@/lib/seva/offline/sync";
 import { closedAtLine, DAYCLOSE, dayLine } from "@/lib/seva/strings/dayclose";
-import { formatSevaDate } from "@/lib/seva/time";
+import { businessDate, formatSevaDate } from "@/lib/seva/time";
 import { counterApi } from "@/services/seva/counter.service";
 import { dayCloseApi } from "@/services/seva/dayclose.service";
 import { SevaClientError } from "@/services/seva/http";
@@ -43,6 +43,10 @@ import type { DayClosePrep } from "@/types/seva-dayclose";
  * (`seva_prepare_day_close`, `seva_close_day`); the page only shows it and checks the form before sending.
  *
  * Query: `?counterId&date` (admins, from Reports - Day closes); without them the counter PC's own counter, today.
+ *
+ * "This PC" counts as the counter being closed only when it holds device credentials AND the counter asked for is the
+ * device's own (`me.counter`, verified by the device header). Only then does the page use this PC's outbox, heartbeat,
+ * "Send now", Excel copy and pruning; for any other counter it shows the office's figures and makes no copy here.
  */
 
 type Phase = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; prep: DayClosePrep };
@@ -65,18 +69,38 @@ interface DayApis {
   counter: ReturnType<typeof counterApi>;
 }
 
+const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** Hands already-built workbook bytes to the browser's downloads (no second build). */
+function downloadBytes(bytes: ArrayBuffer, meta: { date: string; counterName: string }): void {
+  const url = URL.createObjectURL(new Blob([bytes], { type: XLSX_TYPE }));
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = dayExcelFileName(meta);
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+}
+
 /**
- * One load of the day: on the counter PC a heartbeat with this PC's outbox count first (so the office's count is
- * current, DB §9.10 step 4), then the office's figures. `waiting` is this PC's own count there, else the office's.
+ * One load of the day: when this PC is the counter being closed, a heartbeat with this PC's outbox count first (so
+ * the office's count is current, DB §9.10 step 4), then the office's figures. `waiting` is this PC's own count there,
+ * else the office's count for that counter.
  */
 async function loadDay(
   local: Local,
+  thisCounter: boolean,
   apis: DayApis,
   q: { counterId?: number; date?: string },
 ): Promise<{ phase: Phase; waiting: number | null; offline: boolean }> {
   let localWaiting: number | null = null;
   let reached = true;
-  if (local.db && local.header) {
+  if (local.db && thisCounter) {
     try {
       localWaiting = await pendingCount(local.db);
       await apis.counter.heartbeat({ outboxCount: localWaiting, clockSkewMs: 0, appVersion: COUNTER_APP_VERSION });
@@ -161,12 +185,16 @@ function DayCloseScreen(): JSX.Element {
   const date = queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate) ? queryDate : undefined;
   const fallbackCounter = me?.counter?.id;
   const noCounter = local !== null && counterId === undefined && !local.header && fallbackCounter === undefined;
+  // This PC is the counter being closed: it has device credentials and no other counter was asked for.
+  const thisCounterAsked = Boolean(local?.header) && (counterId === undefined || fallbackCounter === counterId);
+  const meKnown = me !== null && me !== undefined;
 
   useEffect(() => {
-    // Runs once the local database is known, again when the query or the person changes, and on every reload.
-    if (!local || noCounter) return;
+    // Runs once the local database and the person are known, again when the query changes, and on every reload.
+    if (!local || !meKnown || noCounter) return;
     let alive = true;
-    void loadDay(local, apis, { counterId: counterId ?? (local.header ? undefined : fallbackCounter), date }).then((result) => {
+    const q = { counterId: counterId ?? (local.header ? undefined : fallbackCounter), date };
+    void loadDay(local, thisCounterAsked, apis, q).then((result) => {
       if (!alive) return;
       setOffline(result.offline);
       setWaiting(result.waiting);
@@ -175,7 +203,7 @@ function DayCloseScreen(): JSX.Element {
     return () => {
       alive = false;
     };
-  }, [local, apis, counterId, date, fallbackCounter, noCounter, reloads]);
+  }, [local, meKnown, thisCounterAsked, apis, counterId, date, fallbackCounter, noCounter, reloads]);
 
   const reload = (): void => setReloads((n) => n + 1);
 
@@ -215,6 +243,8 @@ function DayCloseScreen(): JSX.Element {
   const prep = phase.prep;
   const counterName = me.counter && me.counter.id === prep.counterId ? me.counter.name : `Counter ${prep.counterId}`;
   const closed = prep.status === "closed";
+  const isThisCounter = thisCounterAsked && (me.counter ? me.counter.id === prep.counterId : counterId === undefined);
+  const thisDb = isThisCounter ? (local?.db ?? null) : null;
 
   const counted = countedPaise(prep.denominations, counts);
   const cashDiff = cashDifference(counted, prep.cashExpectedPaise);
@@ -224,17 +254,19 @@ function DayCloseScreen(): JSX.Element {
   const upiMissing = prep.upiCount > 0 && (bankPaise === null || Number.isNaN(bankPaise));
 
   let blocker: Bi | null = null;
-  if (waiting === null || waiting > 0) blocker = DAYCLOSE.whyWaiting;
+  // Just closed here: the Close button stays off until the reload brings back the closed day.
+  if (lastClose && lastClose.counterId === prep.counterId && lastClose.date === prep.businessDate) blocker = DAYCLOSE.closing;
+  else if (waiting === null || waiting > 0) blocker = DAYCLOSE.whyWaiting;
   else if (hasInvalidCount(prep.denominations, counts)) blocker = DAYCLOSE.whyCounts;
   else if (upiMissing) blocker = DAYCLOSE.whyUpi;
   else if (differs && !noteIsEnough(note)) blocker = DAYCLOSE.whyNote;
 
   const sendNow = async (): Promise<void> => {
-    if (!local?.db || !local.header) return;
+    if (!thisDb) return;
     setBusy("send");
     setActionError(null);
     try {
-      await runSync({ db: local.db, api: apis.counter });
+      await runSync({ db: thisDb, api: apis.counter });
     } catch (err) {
       setActionError(errorMessage(err));
     } finally {
@@ -243,19 +275,22 @@ function DayCloseScreen(): JSX.Element {
     reload();
   };
 
-  const saveExcelCopy = async (businessDate: string): Promise<Bi> => {
-    const db = local?.db ?? null;
-    if (!db) return DAYCLOSE.excelNone;
+  /**
+   * The day's Excel copy (DB §9.11), made only on this counter's own PC for its own business day: an earlier day's
+   * local receipts may already be pruned, and an empty or partial workbook must never replace the folder's good copy.
+   */
+  const saveExcelCopy = async (day: string): Promise<Bi> => {
+    if (!thisDb) return DAYCLOSE.excelNone;
+    if (day !== businessDate(new Date())) return DAYCLOSE.excelNotToday;
     try {
-      const receipts = await todaysReceipts(db, businessDate);
-      if (!local?.header && receipts.length === 0) return DAYCLOSE.excelNone;
-      const rows = receipts.map(issuedToExportRow);
-      const meta = { date: businessDate, counterName };
-      const bytes = await buildDayWorkbookBytes(rows, meta);
-      const written = await writeDayCopy(db, businessDate, bytes);
+      const receipts = await todaysReceipts(thisDb, day);
+      if (receipts.length === 0) return DAYCLOSE.excelNone;
+      const meta = { date: day, counterName };
+      const bytes = await buildDayWorkbookBytes(receipts.map(issuedToExportRow), meta);
+      const written = await writeDayCopy(thisDb, day, bytes);
       if (written === "written") return DAYCLOSE.excelWritten;
-      await downloadDayExcel(rows, meta);
-      return DAYCLOSE.excelDownloaded;
+      downloadBytes(bytes, meta);
+      return written === "needs_permission" ? DAYCLOSE.excelNeedsPermission : DAYCLOSE.excelDownloaded;
     } catch {
       return DAYCLOSE.excelFailed;
     }
@@ -286,6 +321,7 @@ function DayCloseScreen(): JSX.Element {
       return;
     }
 
+    setLastClose({ id: dayCloseId, counterId: prep.counterId, date: prep.businessDate });
     const closedAt = new Date().toISOString();
     const notesAfter: Bi[] = [];
     const model: DayCloseSummaryModel = {
@@ -312,16 +348,15 @@ function DayCloseScreen(): JSX.Element {
       notesAfter.push(DAYCLOSE.printFailed);
     }
     notesAfter.push(await saveExcelCopy(prep.businessDate));
-    if (local?.db) {
+    if (thisDb) {
       // Earlier days' receipts the office already has are no longer needed on this PC (DB §9.11).
-      await pruneClosedDays(local.db, prep.businessDate).catch(() => undefined);
+      await pruneClosedDays(thisDb, prep.businessDate).catch(() => undefined);
     }
 
     const time = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true })
       .format(new Date(closedAt))
       .toUpperCase();
     setClosedNotes([closedAtLine(time), ...notesAfter]);
-    setLastClose({ id: dayCloseId, counterId: prep.counterId, date: prep.businessDate });
     setCounts({});
     setNote("");
     setBankText("");
@@ -450,7 +485,7 @@ function DayCloseScreen(): JSX.Element {
                 onBankChange={setBankText}
                 disabled={busy === "close"}
               />
-              <SentCheck waiting={waiting} canSend={Boolean(local?.db && local.header)} sending={busy === "send"} onSendNow={() => void sendNow()} />
+              <SentCheck waiting={waiting} canSend={thisDb !== null} sending={busy === "send"} onSendNow={() => void sendNow()} />
               <SeriesSummary ranges={prep.seriesRanges} />
             </div>
           </div>

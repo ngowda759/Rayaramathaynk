@@ -56,6 +56,8 @@ export const DAYCLOSE: {
   excelDownloaded: Bi;
   excelFailed: Bi;
   excelNone: Bi;
+  excelNeedsPermission: Bi;
+  excelNotToday: Bi;
   printFailed: Bi;
   summaryTitle: Bi;
   summaryClosedBy: Bi;
@@ -64,6 +66,7 @@ export const DAYCLOSE: {
   summaryChanged: Bi;
   summaryNote: Bi;
   summarySignature: Bi;
+  summaryUpiReceipts: Bi;
   loadFailed: Bi;
   tryAgain: Bi;
   loading: Bi;
@@ -158,6 +161,14 @@ export const DAYCLOSE: {
     en: 'This PC keeps no receipts of this counter, so no Excel copy was made here.',
     kn: 'ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಈ ಕೌಂಟರ್‌ನ ರಸೀದಿಗಳಿಲ್ಲ, ಆದ್ದರಿಂದ ಇಲ್ಲಿ ಎಕ್ಸೆಲ್ ಪ್ರತಿ ಮಾಡಲಿಲ್ಲ.',
   },
+  excelNeedsPermission: {
+    en: "The Excel folder needs permission again, so the copy was downloaded. Use 'Allow saving' on the counter page.",
+    kn: "ಎಕ್ಸೆಲ್ ಫೋಲ್ಡರ್‌ಗೆ ಮತ್ತೆ ಅನುಮತಿ ಬೇಕು, ಆದ್ದರಿಂದ ಪ್ರತಿಯನ್ನು ಡೌನ್‌ಲೋಡ್ ಮಾಡಲಾಗಿದೆ. ಕೌಂಟರ್ ಪುಟದಲ್ಲಿ 'ಉಳಿಸಲು ಅನುಮತಿಸಿ' ಬಳಸಿ.",
+  },
+  excelNotToday: {
+    en: 'The Excel copy is made only when closing today on the counter PC, so the earlier copy was kept.',
+    kn: 'ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಇಂದಿನ ದಿನ ಮುಕ್ತಾಯಗೊಳಿಸುವಾಗ ಮಾತ್ರ ಎಕ್ಸೆಲ್ ಪ್ರತಿ ಮಾಡಲಾಗುತ್ತದೆ, ಆದ್ದರಿಂದ ಹಿಂದಿನ ಪ್ರತಿಯನ್ನು ಉಳಿಸಲಾಗಿದೆ.',
+  },
   printFailed: {
     en: 'The day is closed, but the summary could not be printed.',
     kn: 'ದಿನ ಮುಕ್ತಾಯವಾಗಿದೆ, ಆದರೆ ಸಾರಾಂಶ ಮುದ್ರಿಸಲಾಗಲಿಲ್ಲ.',
@@ -169,6 +180,7 @@ export const DAYCLOSE: {
   summaryChanged: { en: 'Amounts changed', kn: 'ಮೊತ್ತ ಬದಲಾದವು' },
   summaryNote: { en: 'Note', kn: 'ಟಿಪ್ಪಣಿ' },
   summarySignature: { en: 'Signature', kn: 'ಸಹಿ' },
+  summaryUpiReceipts: { en: 'UPI receipts', kn: 'ಯುಪಿಐ ರಸೀದಿಗಳು' },
   loadFailed: { en: 'Could not load the day. Try again.', kn: 'ದಿನದ ವಿವರ ತೆರೆಯಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.' },
   tryAgain: { en: 'Try again', kn: 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ' },
   loading: { en: 'Loading...', kn: 'ಲೋಡ್ ಆಗುತ್ತಿದೆ...' },

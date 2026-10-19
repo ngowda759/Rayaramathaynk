@@ -7,7 +7,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { clearPrintJob, PRINT_ROOT_ID } from "@/lib/seva/print/printSlips";
 import { formatSevaDate } from "@/lib/seva/time";
-import { DAYCLOSE } from "@/lib/seva/strings/dayclose";
+import { DAYCLOSE, extraBy, gapsLine, seriesLine, shortBy } from "@/lib/seva/strings/dayclose";
+import type { Bi } from "@/lib/seva/strings/common";
 import type { DayClosePrep } from "@/types/seva-dayclose";
 import { cashDifference, formatAmount, type CashDifference } from "./CashCount";
 import { rangeText } from "./SeriesSummary";
@@ -47,18 +48,21 @@ function istTime(iso: string): string {
     .toUpperCase();
 }
 
-function diffText(diff: CashDifference): string {
-  if (diff.kind === "balanced") return DAYCLOSE.matches.en;
-  return `${diff.kind === "short" ? "Short" : "Extra"} ${formatAmount(diff.paise)}`;
+function diffText(diff: CashDifference): Bi {
+  if (diff.kind === "balanced") return DAYCLOSE.matches;
+  const rupees = formatAmount(diff.paise);
+  return diff.kind === "short" ? shortBy(rupees) : extraBy(rupees);
 }
 
-function Row({ label, value }: { label: { en: string; kn: string }; value: string }): JSX.Element {
+function Row({ label, value }: { label: Bi; value: string | Bi }): JSX.Element {
   return (
     <tr>
       <td className="py-[0.6mm] align-top">
         <Bilingual en={label.en} kn={label.kn} />
       </td>
-      <td className="py-[0.6mm] text-right align-top font-bold">{value}</td>
+      <td className="py-[0.6mm] text-right align-top font-bold">
+        {typeof value === "string" ? value : <Bilingual en={value.en} kn={value.kn} />}
+      </td>
     </tr>
   );
 }
@@ -113,7 +117,7 @@ export function DayCloseSummaryPrint({ model }: { model: DayCloseSummaryModel })
       </div>
       <table className={table}>
         <tbody>
-          <Row label={{ en: "UPI receipts", kn: "ಯುಪಿಐ ರಸೀದಿಗಳು" }} value={String(model.upiCount)} />
+          <Row label={DAYCLOSE.summaryUpiReceipts} value={String(model.upiCount)} />
           <Row label={DAYCLOSE.upiExpected} value={formatAmount(model.upiExpectedPaise)} />
           <Row label={DAYCLOSE.upiBankTotal} value={model.upiBankTotalPaise === null ? "-" : formatAmount(model.upiBankTotalPaise)} />
           {upiDiff ? <Row label={DAYCLOSE.difference} value={diffText(upiDiff)} /> : null}
@@ -132,14 +136,17 @@ export function DayCloseSummaryPrint({ model }: { model: DayCloseSummaryModel })
       <div className={heading}>
         <Bilingual en={DAYCLOSE.numbers.en} kn={DAYCLOSE.numbers.kn} />
       </div>
-      {model.seriesRanges.map((r) => (
-        <div key={r.series} className="mt-[1.5mm]">
-          <div className="font-bold">{rangeText(r.first, r.last) ?? `${r.series}: -`}</div>
-          <div>
-            {r.issued} issued, {r.cancelled} cancelled, {r.openGaps === 0 ? "no gaps" : `${r.openGaps} open gaps`}
+      {model.seriesRanges.map((r) => {
+        const counts = seriesLine({ issued: r.issued, cancelled: r.cancelled });
+        const gaps = r.openGaps === 0 ? DAYCLOSE.noGaps : gapsLine(r.openGaps);
+        return (
+          <div key={r.series} className="mt-[1.5mm]">
+            <div className="font-bold">{rangeText(r.first, r.last) ?? `${r.series}: -`}</div>
+            <Bilingual as="div" en={counts.en} kn={counts.kn} />
+            <Bilingual as="div" en={gaps.en} kn={gaps.kn} />
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       <div className="mt-[10mm] border-t-[0.3mm] border-solid border-black pt-[1mm]">
         <Bilingual en={DAYCLOSE.summarySignature.en} kn={DAYCLOSE.summarySignature.kn} />
