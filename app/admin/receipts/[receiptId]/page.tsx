@@ -1,230 +1,232 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User, Phone, Mail, MapPin, ReceiptText, Printer, Download } from "lucide-react";
-import toast from "react-hot-toast";
-import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
-import { receiptService } from "@/services/receipt.service";
-import { Receipt } from "@/types/receipt";
+import { useParams } from "next/navigation";
+import type { JSX, ReactNode } from "react";
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+import { Button, buttonVariants } from "@/components/ui/button";
+import { PrasadamShortcut } from "@/components/seva/receipt/PrasadamShortcut";
+import { ReceiptHistory } from "@/components/seva/receipt/ReceiptHistory";
+import { useReceiptPage, type SlipSource } from "@/components/seva/receipt/useReceiptPage";
+import { SevaGate } from "@/components/seva/shell/SevaGate";
+import { ReceiptSlip } from "@/components/seva/slip/ReceiptSlip";
+import { Bilingual } from "@/components/seva/ui/Bilingual";
+import { Chip } from "@/components/seva/ui/Chip";
+import { useSevaMe } from "@/hooks/seva/useSevaMe";
+import { formatRupees } from "@/lib/seva/money";
+import { toSlipModel } from "@/lib/seva/print/slip-model";
+import {
+  CANCEL_REASON_LABEL,
+  PAYMENT_MODE_LABEL,
+  RECEIPT,
+  REFUND_STATE_LABEL,
+  prasadamLabel,
+} from "@/lib/seva/strings/receipt";
+import { businessDate } from "@/lib/seva/time";
+import type { ReceiptDetail } from "@/types/seva-receipts";
+
+const TIME = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function Card({
+  title,
+  children,
+  testId,
+}: {
+  title: { en: string; kn: string };
+  children: ReactNode;
+  testId: string;
+}): JSX.Element {
+  return (
+    <section
+      data-testid={testId}
+      className="space-y-2 rounded-(--radius-surface) border border-(--border) bg-(--card) p-4 shadow-(--shadow-card)"
+    >
+      <Bilingual as="h2" en={title.en} kn={title.kn} className="text-base font-semibold" />
+      {children}
+    </section>
+  );
 }
 
-export default function ReceiptDetailPage() {
-  // The folder is [receiptId], so the id arrives as params.receiptId.
-  const { receiptId } = useParams<{ receiptId: string }>();
-  const router = useRouter();
-  const { user } = useAuth();
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadReceipt() {
-      if (!user || !receiptId) return;
-      try {
-        const token = await user.getIdToken();
-        const data = await receiptService.getReceipt(receiptId, token);
-        setReceipt(data);
-      } catch (error) {
-        console.error("Failed to load receipt:", error);
-        toast.error("Failed to load receipt");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadReceipt();
-  }, [user, receiptId]);
-
-  if (loading) {
+function SlipPreview({ receipt, slip }: { receipt: ReceiptDetail; slip: SlipSource | null }): JSX.Element {
+  if (!slip) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-600 border-t-transparent"></div>
-      </div>
+      <Bilingual
+        as="div"
+        en={RECEIPT.slipUnavailable.en}
+        kn={RECEIPT.slipUnavailable.kn}
+        className="text-(--muted-foreground)"
+      />
     );
   }
+  const model = toSlipModel(receipt, slip.settings, { siteUrl: slip.siteUrl });
+  return (
+    <div className="overflow-x-auto">
+      <ReceiptSlip model={model} />
+    </div>
+  );
+}
 
-  if (!receipt) {
-    return (
-      <div className="rounded-xl border bg-white p-8 text-center">
-        <p className="text-stone-500">Receipt not found</p>
-        <Link href="/admin/receipts" className="mt-4 inline-block text-orange-600 hover:underline">
-          Back to Receipts
-        </Link>
-      </div>
-    );
-  }
+function ReceiptDetailView({ receipt, slip }: { receipt: ReceiptDetail; slip: SlipSource | null }): JSX.Element {
+  const { me, can } = useSevaMe();
+  const cancelled = receipt.status === "cancelled";
+  const changed = receipt.lines.some((l) => l.changed);
+  const mode = PAYMENT_MODE_LABEL[receipt.payment.mode];
+  const prasadam = prasadamLabel(receipt.prasadam);
+  const refund = REFUND_STATE_LABEL[receipt.refundState];
+  const id = receipt.id;
+
+  // A receptionist only ever sees receipts of their own counter and today (the API refuses others), so that is the
+  // scope the reprint check is asked in. Hiding only: the prints API checks again.
+  const scope = { receiptCounterId: me?.counter?.id, receiptBusinessDate: businessDate(new Date()) };
+  const mayPrint =
+    !cancelled &&
+    id !== null &&
+    me?.counter != null &&
+    can("counter.issue") &&
+    (receipt.printCount === 0 || can("receipt.reprint", scope));
+  const printLabel = receipt.printCount > 0 ? RECEIPT.printDuplicate : RECEIPT.print;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
+      <Link href="/admin/receipts" className="text-(--link) underline-offset-2 hover:underline">
+        <Bilingual en={RECEIPT.backToList.en} kn={RECEIPT.backToList.kn} />
+      </Link>
+
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Bilingual as="div" en={RECEIPT.title.en} kn={RECEIPT.title.kn} className="text-(--muted-foreground)" />
+          <h1 className="font-mono text-xl font-semibold break-all">{receipt.receiptNo}</h1>
+          <div className="flex flex-wrap gap-2">
+            <Chip tone={cancelled ? "critical" : "ok"}>{cancelled ? RECEIPT.cancelled.en : RECEIPT.valid.en}</Chip>
+            {changed ? <Chip tone="attention">{RECEIPT.changed.en}</Chip> : null}
+            {receipt.issuedOffline ? <Chip tone="neutral">{RECEIPT.offline.en}</Chip> : null}
+            <Chip tone="neutral">
+              {RECEIPT.printedTimes.en} x {receipt.printCount}
+            </Chip>
+          </div>
+        </div>
+        {mayPrint && id !== null ? (
           <Link
-            href="/admin/receipts"
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+            href={`/admin/receipts/${encodeURIComponent(id)}/print`}
+            className={buttonVariants({ variant: "seva-primary" })}
           >
-            <ArrowLeft className="h-5 w-5" />
+            <Bilingual en={printLabel.en} kn={printLabel.kn} />
           </Link>
-          <AdminPageHeader
-            title={`Receipt ${receipt.receiptNumber}`}
-            description="Receipt details for temple records."
-          />
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/admin/receipts/${receipt.id}/print`)}
-          >
-            <Printer className="mr-2 h-4 w-4" />Print Receipt
-          </Button>
-          <Button
-            variant="outline"
-            loading={downloading}
-            onClick={async () => {
-              if (!user) return;
-              try {
-                setDownloading(true);
-                const token = await user.getIdToken();
-                const blob = await receiptService.getReceiptPdf(receipt.id, token);
-                const url = window.URL.createObjectURL(blob);
-                const a = window.document.createElement("a");
-                a.href = url;
-                a.download = `${receipt.receiptNumber}.pdf`;
-                window.document.body.appendChild(a);
-                a.click();
-                window.document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-              } catch {
-                toast.error("Failed to download PDF");
-              } finally {
-                setDownloading(false);
-              }
-            }}
-          >
-            <Download className="mr-2 h-4 w-4" />Download PDF
-          </Button>
-          <Button variant="outline" onClick={() => router.push("/admin/receipts/create")}>
-            New Receipt
-          </Button>
-        </div>
-      </div>
+        ) : null}
+      </header>
 
-      <div className="rounded-xl border bg-white shadow-sm">
-        <div className="border-b border-stone-200 px-6 py-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
-                <ReceiptText className="h-5 w-5 text-orange-600" />
+      <div className="grid gap-6 lg:grid-cols-[auto_1fr]">
+        <SlipPreview receipt={receipt} slip={slip} />
+
+        <div className="min-w-0 space-y-4">
+          <Card title={RECEIPT.payment} testId="receipt-payment">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+              <dt className="text-(--muted-foreground)">{RECEIPT.payment.en}</dt>
+              <dd>
+                <Bilingual en={mode.en} kn={mode.kn} />
+              </dd>
+              <dt className="text-(--muted-foreground)">{RECEIPT.sevas.en}</dt>
+              <dd className="font-semibold">{formatRupees(receipt.totalPaise)}</dd>
+              {receipt.count > 1 ? (
+                <>
+                  <dt className="text-(--muted-foreground)">{RECEIPT.paidTogether.en}</dt>
+                  <dd>
+                    {formatRupees(receipt.orderTotalPaise)} - {receipt.position} / {receipt.count} - {receipt.groupNo}
+                  </dd>
+                </>
+              ) : null}
+              {receipt.payment.upiRefLast6 ? (
+                <>
+                  <dt className="text-(--muted-foreground)">{RECEIPT.upiRef.en}</dt>
+                  <dd className="font-mono">{receipt.payment.upiRefLast6}</dd>
+                </>
+              ) : null}
+              {receipt.refundState !== "none" ? (
+                <>
+                  <dt className="text-(--muted-foreground)">{RECEIPT.refund.en}</dt>
+                  <dd>
+                    <Bilingual en={refund.en} kn={refund.kn} />
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+          </Card>
+
+          {receipt.cancel ? (
+            <Card title={RECEIPT.cancelHeading} testId="receipt-cancel">
+              <Bilingual
+                as="div"
+                en={CANCEL_REASON_LABEL[receipt.cancel.reasonCode].en}
+                kn={CANCEL_REASON_LABEL[receipt.cancel.reasonCode].kn}
+              />
+              {receipt.cancel.note ? <div>&ldquo;{receipt.cancel.note}&rdquo;</div> : null}
+              <div className="text-(length:--text-meta) text-(--muted-foreground)">
+                <time dateTime={receipt.cancel.at}>{TIME.format(new Date(receipt.cancel.at))}</time> -{" "}
+                {receipt.cancel.by}
               </div>
-              <div>
-                <p className="font-mono text-lg font-bold text-orange-600">{receipt.receiptNumber}</p>
-                <p className="text-sm text-stone-500">
-                  Issued {receipt.createdAt ? new Date(receipt.createdAt).toLocaleString() : "-"}
-                </p>
-              </div>
-            </div>
-            <span className="inline-flex w-fit items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-              UPI
-            </span>
-          </div>
-        </div>
+            </Card>
+          ) : null}
 
-        <div className="grid gap-6 px-6 py-5 md:grid-cols-2">
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-400">Devotee</h3>
-            <div className="space-y-2 text-sm">
-              <p className="flex items-center gap-2 text-stone-700">
-                <User className="h-4 w-4 text-stone-400" />
-                <span className="font-medium">{receipt.devoteeName}</span>
-              </p>
-              {receipt.devoteePhone && (
-                <p className="flex items-center gap-2 text-stone-600">
-                  <Phone className="h-4 w-4 text-stone-400" />
-                  {receipt.devoteePhone}
-                </p>
-              )}
-              {receipt.devoteeEmail && (
-                <p className="flex items-center gap-2 text-stone-600">
-                  <Mail className="h-4 w-4 text-stone-400" />
-                  {receipt.devoteeEmail}
-                </p>
-              )}
-              {receipt.devoteeAddress && (
-                <p className="flex items-center gap-2 text-stone-600">
-                  <MapPin className="h-4 w-4 text-stone-400" />
-                  {receipt.devoteeAddress}
-                </p>
-              )}
-            </div>
-          </div>
+          <Card title={RECEIPT.prasadam} testId="receipt-prasadam">
+            <Bilingual as="div" en={prasadam.en} kn={prasadam.kn} />
+            {!cancelled && receipt.prasadam === "pending" ? <PrasadamShortcut token={receipt.qrToken} /> : null}
+          </Card>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-stone-400">Payment</h3>
-            <div className="space-y-2 text-sm">
-              <p className="flex items-center justify-between text-stone-600">
-                <span>Payment Mode</span>
-                <span className="font-medium text-green-700">UPI</span>
-              </p>
-              {receipt.paymentReference && (
-                <p className="text-stone-600">
-                  <span className="text-stone-400">Reference:</span> <span className="font-mono">{receipt.paymentReference}</span>
-                </p>
-              )}
-              {receipt.notes && (
-                <p className="text-stone-600">
-                  <span className="text-stone-400">Notes:</span> {receipt.notes}
-                </p>
-              )}
-              <p className="text-xs text-stone-400">Created by {receipt.createdBy}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto border-t border-stone-200">
-          <table className="w-full">
-            <thead className="bg-stone-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Seva</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Rate</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Qty</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-stone-500">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {receipt.items.map((item, index) => (
-                <tr key={`${item.sevaId}-${index}`}>
-                  <td className="px-6 py-3 text-sm font-medium text-stone-800">{item.sevaName}</td>
-                  <td className="px-6 py-3 text-right text-sm text-stone-600">{formatCurrency(item.rate)}</td>
-                  <td className="px-6 py-3 text-right text-sm text-stone-600">{item.quantity}</td>
-                  <td className="px-6 py-3 text-right text-sm font-medium text-stone-800">{formatCurrency(item.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="border-t border-stone-200 px-6 py-5">
-          <div className="ml-auto w-full max-w-xs space-y-2">
-            <div className="flex items-center justify-between text-sm text-stone-600">
-              <span>Subtotal</span>
-              <span>{formatCurrency(receipt.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between border-t border-dashed border-stone-200 pt-2 text-lg font-semibold text-stone-900">
-              <span>Total</span>
-              <span className="text-orange-600">{formatCurrency(receipt.totalAmount)}</span>
-            </div>
-          </div>
+          <ReceiptHistory history={receipt.history} />
         </div>
       </div>
     </div>
+  );
+}
+
+function ReceiptDetailBody(): JSX.Element {
+  // The folder is [receiptId], so the id arrives as params.receiptId.
+  const { receiptId } = useParams<{ receiptId: string }>();
+  const { state, reload } = useReceiptPage(receiptId);
+
+  if (state.kind === "loading") {
+    return (
+      <div role="status" aria-live="polite" className="p-6">
+        <Bilingual en={RECEIPT.loading.en} kn={RECEIPT.loading.kn} className="text-(--muted-foreground)" />
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
+        <p role="alert" className="font-semibold">
+          {state.message}
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button variant="seva-secondary" onClick={reload}>
+            {RECEIPT.tryAgain.en}
+          </Button>
+          <Link href="/admin/receipts" className={buttonVariants({ variant: "seva-ghost" })}>
+            {RECEIPT.backToList.en}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <ReceiptDetailView receipt={state.receipt} slip={state.slip} />;
+}
+
+/** One receipt from Supabase (DB §9.9, §12.3): the slip, payment, prasadam state and history, newest first. */
+export default function ReceiptDetailPage(): JSX.Element {
+  return (
+    <SevaGate action="receipts.list">
+      <div className="mx-auto w-full max-w-6xl p-4 md:p-6">
+        <ReceiptDetailBody />
+      </div>
+    </SevaGate>
   );
 }

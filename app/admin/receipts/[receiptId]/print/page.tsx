@@ -1,145 +1,167 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { receiptService } from "@/services/receipt.service";
-import { Receipt } from "@/types/receipt";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+import { Button } from "@/components/ui/button";
+import { useReceiptPage, type SlipSource } from "@/components/seva/receipt/useReceiptPage";
+import { SevaGate } from "@/components/seva/shell/SevaGate";
+import { ReceiptSlip } from "@/components/seva/slip/ReceiptSlip";
+import { Bilingual } from "@/components/seva/ui/Bilingual";
+import { useSevaMe } from "@/hooks/seva/useSevaMe";
+import { printSlips } from "@/lib/seva/print/printSlips";
+import { toSlipModel } from "@/lib/seva/print/slip-model";
+import { RECEIPT } from "@/lib/seva/strings/receipt";
+import { counterApi } from "@/services/seva/counter.service";
+import { SevaClientError } from "@/services/seva/http";
+import type { ReceiptDetail } from "@/types/seva-receipts";
+
+type PrintState = { kind: "idle" } | { kind: "printing" } | { kind: "printed" } | { kind: "error"; message: string };
+
+interface PrintViewProps {
+  receiptId: string;
+  receipt: ReceiptDetail;
+  slip: SlipSource | null;
+  device: string | null;
+  token: () => Promise<string>;
 }
 
-function formatDateTime(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
+/**
+ * Prints one slip through the counter's print rules (DB §9.8, C-22): the print is recorded first with
+ * `counterApi.prints`, and its answer decides the DUPLICATE band. The server refuses what this person or PC may not
+ * print - a reprint outside a receptionist's own counter and day, and since A3-FIX a FIRST print of another counter's
+ * receipt (online W receipts are allowed) - and the page then shows the API's message and stays usable.
+ */
+function PrintView({ receiptId, receipt, slip, device, token }: PrintViewProps): JSX.Element {
+  const { me } = useSevaMe();
+  const [print, setPrint] = useState<PrintState>({ kind: "idle" });
+  const started = useRef(false);
+
+  const cancelled = receipt.status === "cancelled";
+  const ready = !cancelled && device !== null && me?.counter != null;
+
+  const run = useCallback(async (): Promise<void> => {
+    if (!device || !me) return;
+    if (!slip) {
+      setPrint({ kind: "error", message: RECEIPT.slipUnavailable.en });
+      return;
+    }
+    setPrint({ kind: "printing" });
+    try {
+      const answer = await counterApi(token, () => device).prints([receiptId]);
+      const row = answer.receipts.find((r) => r.id === receiptId);
+      const duplicate = row ? row.duplicate : receipt.printCount > 0;
+      const model = toSlipModel(receipt, slip.settings, {
+        siteUrl: slip.siteUrl,
+        reprint: duplicate ? { at: new Date(), byStaffNo: me.staffNo } : undefined,
+      });
+      await printSlips([model]);
+      setPrint({ kind: "printed" });
+    } catch (err) {
+      setPrint({ kind: "error", message: err instanceof SevaClientError ? err.message : RECEIPT.printFailed.en });
+    }
+  }, [device, me, slip, token, receiptId, receipt]);
+
+  // Print once when the page opens; a ref keeps a re-run effect from recording a second print.
+  useEffect(() => {
+    if (!ready || started.current) return;
+    started.current = true;
+    void run();
+  }, [ready, run]);
+
+  const backHref = `/admin/receipts/${encodeURIComponent(receiptId)}`;
+
+  return (
+    <div className="space-y-6">
+      <Link href={backHref} className="text-(--link) underline-offset-2 hover:underline">
+        <Bilingual en={RECEIPT.backToReceipt.en} kn={RECEIPT.backToReceipt.kn} />
+      </Link>
+
+      <header className="space-y-1">
+        <Bilingual as="div" en={RECEIPT.title.en} kn={RECEIPT.title.kn} className="text-(--muted-foreground)" />
+        <h1 className="font-mono text-xl font-semibold break-all">{receipt.receiptNo}</h1>
+      </header>
+
+      {cancelled ? (
+        <Bilingual as="div" en={RECEIPT.cancelledNoPrint.en} kn={RECEIPT.cancelledNoPrint.kn} className="font-semibold" />
+      ) : !ready ? (
+        <Bilingual as="div" en={RECEIPT.printNeedsCounter.en} kn={RECEIPT.printNeedsCounter.kn} className="font-semibold" />
+      ) : (
+        <div className="space-y-3">
+          {print.kind === "printing" ? (
+            <div role="status" aria-live="polite">
+              <Bilingual en={RECEIPT.printing.en} kn={RECEIPT.printing.kn} />
+            </div>
+          ) : null}
+          {print.kind === "printed" ? (
+            <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-3">
+              <Bilingual en={RECEIPT.printed.en} kn={RECEIPT.printed.kn} />
+              <Button variant="seva-secondary" size="sm" onClick={() => void run()}>
+                {RECEIPT.printAgain.en}
+              </Button>
+            </div>
+          ) : null}
+          {print.kind === "error" ? (
+            <div className="space-y-3 rounded-(--radius-surface) border border-(--destructive) bg-(--destructive-soft) p-4">
+              <p role="alert" className="font-semibold text-(--destructive)">
+                {print.message}
+              </p>
+              <Button variant="seva-secondary" onClick={() => void run()}>
+                {RECEIPT.tryAgain.en}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {slip ? (
+        <div className="overflow-x-auto">
+          <ReceiptSlip model={toSlipModel(receipt, slip.settings, { siteUrl: slip.siteUrl })} />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-export default function ReceiptPrintPage() {
+function ReceiptPrintBody(): JSX.Element {
   // The folder is [receiptId], so the id arrives as params.receiptId.
   const { receiptId } = useParams<{ receiptId: string }>();
-  const { user } = useAuth();
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const { state, token, reload } = useReceiptPage(receiptId);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!user || !receiptId) return;
-      try {
-        const token = await user.getIdToken();
-        const data = await receiptService.getReceipt(receiptId, token);
-        if (!cancelled) setReceipt(data);
-      } catch {
-        if (!cancelled) setReceipt(null);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [user, receiptId]);
-
-  useEffect(() => {
-    if (!receipt) return;
-    const id = window.setTimeout(() => window.print(), 300);
-    return () => window.clearTimeout(id);
-  }, [receipt]);
-
-  if (!receipt) {
+  if (state.kind === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white text-stone-500">
-        Loading receipt...
+      <div role="status" aria-live="polite" className="p-6">
+        <Bilingual en={RECEIPT.loading.en} kn={RECEIPT.loading.kn} className="text-(--muted-foreground)" />
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
+        <p role="alert" className="font-semibold">
+          {state.message}
+        </p>
+        <Button variant="seva-secondary" onClick={reload}>
+          {RECEIPT.tryAgain.en}
+        </Button>
       </div>
     );
   }
 
   return (
-    <>
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .print-area, .print-area * { visibility: visible; }
-          .print-area { position: absolute; left:  0; top:  0; width:  100%; }
-        }
-      `}</style>
-      <div className="flex min-h-screen items-start justify-center bg-stone-100 p-8 print:bg-white print:p-0">
-        <div className="print-area w-full max-w-3xl rounded-lg border border-stone-200 bg-white p-8 shadow-sm">
-          <div className="flex items-start justify-between border-b border-stone-200 pb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-stone-900">Sri Raghavendra Swamy Matha</h1>
-              <p className="text-sm text-stone-500">Temple Receipt</p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-lg font-bold text-orange-600">{receipt.receiptNumber}</p>
-              <p className="mt-1 text-sm text-stone-500">{formatDateTime(receipt.createdAt)}</p>
-            </div>
-          </div>
+    <PrintView receiptId={receiptId} receipt={state.receipt} slip={state.slip} device={state.device} token={token} />
+  );
+}
 
-          <div className="grid gap-6 py-6 sm:grid-cols-2">
-            <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-400">Devotee</h2>
-              <p className="mt-2 font-medium text-stone-900">{receipt.devoteeName}</p>
-              {receipt.devoteePhone && <p className="mt-1 text-sm text-stone-600">{receipt.devoteePhone}</p>}
-              {receipt.devoteeEmail && <p className="mt-1 text-sm text-stone-600">{receipt.devoteeEmail}</p>}
-              {receipt.devoteeAddress && <p className="mt-1 text-sm text-stone-600">{receipt.devoteeAddress}</p>}
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-stone-500">Payment Mode:</p>
-              <p className="font-medium text-green-700">UPI (QR)</p>
-              {receipt.paymentReference && (
-                <p className="mt-2 text-sm text-stone-500">Reference: {receipt.paymentReference}</p>
-              )}
-            </div>
-          </div>
-
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-stone-200 text-left text-xs uppercase tracking-wider text-stone-400">
-                <th className="py-2">Seva</th>
-                <th className="py-2 text-right">Rate</th>
-                <th className="py-2 text-right">Qty</th>
-                <th className="py-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {receipt.items.map((item, index) => (
-                <tr key={`${item.sevaId}-${index}`} className="border-b border-stone-100">
-                  <td className="py-2 font-medium text-stone-800">{item.sevaName}</td>
-                  <td className="py-2 text-right text-stone-600">{formatCurrency(item.rate)}</td>
-                  <td className="py-2 text-right text-stone-600">{item.quantity}</td>
-                  <td className="py-2 text-right font-medium text-stone-800">{formatCurrency(item.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="ml-auto mt-6 w-full max-w-xs space-y-2">
-            <div className="flex items-center justify-between text-sm text-stone-600">
-              <span>Subtotal</span>
-              <span>{formatCurrency(receipt.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between border-t border-dashed border-stone-200 pt-2 text-lg font-semibold">
-              <span className="text-stone-900">Total</span>
-              <span className="text-orange-600">{formatCurrency(receipt.totalAmount)}</span>
-            </div>
-          </div>
-
-          {receipt.notes && (
-            <p className="mt-6 border-t border-stone-200 pt-4 text-sm text-stone-500">
-              Notes: {receipt.notes}
-            </p>
-          )}
-
-          <div className="mt-8 border-t border-stone-200 pt-4 text-center text-xs text-stone-400">
-            Thank you for your contribution. Sri Raghavendra Swamy Matha, Yelahanka New Town, Bengaluru.
-          </div>
-        </div>
+/** Prints one receipt's slip from Supabase on a registered counter PC (a reprint is the DUPLICATE slip). */
+export default function ReceiptPrintPage(): JSX.Element {
+  return (
+    <SevaGate action="receipts.list">
+      <div className="mx-auto w-full max-w-3xl p-4 md:p-6">
+        <ReceiptPrintBody />
       </div>
-    </>
+    </SevaGate>
   );
 }
