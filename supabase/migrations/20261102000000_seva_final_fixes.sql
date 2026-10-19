@@ -92,6 +92,7 @@ DECLARE
   v_catalogue numeric;
   v_trusted boolean;
   v_in_closed_day boolean;
+  v_existing_counter smallint;
   v_changed boolean;
   v_reason text;
   v_amount numeric;
@@ -125,8 +126,13 @@ BEGIN
   v_device := seva_issue_device(p_device_id, true);
 
   PERFORM pg_advisory_xact_lock(hashtextextended('seva_order:' || v_client_order_id::text, 0));
-  SELECT o.id INTO v_existing FROM seva_orders o WHERE o.client_order_id = v_client_order_id;
+  SELECT o.id, o.counter_id INTO v_existing, v_existing_counter FROM seva_orders o WHERE o.client_order_id = v_client_order_id;
   IF FOUND THEN
+    -- L-8: only this counter's own order comes back; another counter's id is a conflict, never its receipts.
+    IF v_existing_counter IS DISTINCT FROM v_device.counter_id THEN
+      RAISE EXCEPTION 'SEVA:number_conflict'
+        USING DETAIL = jsonb_build_object('field', 'client_order_id', 'reason', 'another counter''s order')::text;
+    END IF;
     RETURN seva_order_json(v_existing, true);
   END IF;
 
@@ -160,12 +166,17 @@ BEGIN
     RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'receipts')::text;
   END IF;
   -- Printed receipts already stored (same client_receipt_id) are ignored as a duplicate (DB 8.3).
-  SELECT r.order_id INTO v_existing
+  SELECT r.order_id, o.counter_id INTO v_existing, v_existing_counter
     FROM jsonb_array_elements(p_order->'receipts') AS x(value)
     JOIN seva_receipts r ON r.client_receipt_id = seva_issue_arg_uuid(x.value->>'client_receipt_id', 'client_receipt_id')
+    JOIN seva_orders o ON o.id = r.order_id
    WHERE jsonb_typeof(x.value) = 'object'
    LIMIT 1;
   IF FOUND THEN
+    IF v_existing_counter IS DISTINCT FROM v_device.counter_id THEN
+      RAISE EXCEPTION 'SEVA:number_conflict'
+        USING DETAIL = jsonb_build_object('field', 'client_receipt_id', 'reason', 'another counter''s receipt')::text;
+    END IF;
     RETURN seva_order_json(v_existing, true);
   END IF;
 
@@ -1256,3 +1267,289 @@ REVOKE EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, smalli
 GRANT EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, smallint, text, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, text, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, text, uuid) TO service_role;
+
+-- =====================================================================================================
+-- L-8. A repeated client id returns the stored order only to its own counter
+-- =====================================================================================================
+
+-- As in 20261021000000_seva_functions_issue.sql, with one change (L-8): a repeated client_order_id returns the stored
+-- order only when it is this PC's counter's order; another counter's id is SEVA:number_conflict (field
+-- client_order_id), so its receipts and QR tokens never go to another counter. (seva_sync_offline_order above does
+-- the same for a repeated client_order_id or client_receipt_id.)
+CREATE OR REPLACE FUNCTION seva_issue_counter_order(p_order jsonb, p_staff_id uuid, p_device_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_year smallint;
+  v_month smallint;
+  v_today date;
+  v_staff staff%ROWTYPE;
+  v_device counter_devices%ROWTYPE;
+  v_series text;
+  v_client_order_id uuid;
+  v_existing uuid;
+  v_existing_counter smallint;
+  v_days_ahead integer;
+  v_devotee jsonb;
+  v_payment jsonb;
+  v_expected numeric;
+  v_receipt record;
+  v_line record;
+  v_seva sevas%ROWTYPE;
+  v_client_receipt_id uuid;
+  v_seva_date date;
+  v_qr text;
+  v_quantity integer;
+  v_unit_in numeric;
+  v_unit numeric;
+  v_catalogue numeric;
+  v_changed boolean;
+  v_reason text;
+  v_amount numeric;
+  v_lines jsonb;
+  v_receipt_total numeric;
+  v_receipt_changed boolean;
+  v_receipt_prasadam boolean;
+  v_prepared jsonb := '[]'::jsonb;
+  v_rates jsonb := '[]'::jsonb;
+  v_total numeric := 0;
+  v_count integer;
+  v_group_no text;
+  v_first integer;
+  v_order_id uuid;
+  v_position integer := 0;
+  v_running integer;
+  v_receipt_no text;
+  v_receipt_id uuid;
+BEGIN
+  IF p_order IS NULL OR jsonb_typeof(p_order) <> 'object' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'order')::text;
+  END IF;
+  v_client_order_id := seva_issue_arg_uuid(p_order->>'client_order_id', 'client_order_id');
+  IF v_client_order_id IS NULL THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'client_order_id')::text;
+  END IF;
+
+  v_staff := seva_issue_staff(p_staff_id);
+  v_device := seva_issue_device(p_device_id, false);
+
+  -- One order per client_order_id (Review Focus 3). The lock makes a concurrent retry wait for the first call to
+  -- commit, then return what it stored.
+  PERFORM pg_advisory_xact_lock(hashtextextended('seva_order:' || v_client_order_id::text, 0));
+  SELECT o.id, o.counter_id INTO v_existing, v_existing_counter FROM seva_orders o WHERE o.client_order_id = v_client_order_id;
+  IF FOUND THEN
+    IF v_existing_counter IS DISTINCT FROM v_device.counter_id THEN
+      RAISE EXCEPTION 'SEVA:number_conflict'
+        USING DETAIL = jsonb_build_object('field', 'client_order_id', 'reason', 'another counter''s order')::text;
+    END IF;
+    RETURN seva_order_json(v_existing, true);
+  END IF;
+
+  SELECT p.year, p.month, p.business_date INTO v_year, v_month, v_today FROM seva_ist_parts(v_now) AS p;
+  PERFORM seva_issue_check_day_open(v_device.counter_id, v_today);
+  v_series := seva_issue_counter_series(v_device.counter_id, 'counter_online');
+
+  SELECT s.counter_days_ahead INTO v_days_ahead FROM seva_settings s WHERE s.id = 1;
+  v_days_ahead := coalesce(v_days_ahead, 365);
+
+  v_devotee := seva_issue_devotee(p_order->'devotee');
+  v_expected := seva_issue_arg_money(p_order->>'expected_total', 'expected_total');
+  IF v_expected IS NULL THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'expected_total')::text;
+  END IF;
+  IF jsonb_typeof(p_order->'receipts') IS DISTINCT FROM 'array'
+     OR jsonb_array_length(p_order->'receipts') NOT BETWEEN 1 AND 31 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'receipts')::text;
+  END IF;
+
+  -- Check and price every receipt and line before anything is written.
+  FOR v_receipt IN
+    SELECT r.value AS body, r.ord FROM jsonb_array_elements(p_order->'receipts') WITH ORDINALITY AS r(value, ord)
+     ORDER BY r.ord
+  LOOP
+    IF jsonb_typeof(v_receipt.body) <> 'object' THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'receipts')::text;
+    END IF;
+    v_client_receipt_id := seva_issue_arg_uuid(v_receipt.body->>'client_receipt_id', 'client_receipt_id');
+    IF v_client_receipt_id IS NULL THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'client_receipt_id')::text;
+    END IF;
+    v_seva_date := seva_issue_arg_date(v_receipt.body->>'seva_date', 'seva_date');
+    IF v_seva_date IS NULL THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'seva_date')::text;
+    END IF;
+    v_qr := v_receipt.body->>'qr_token';
+    IF v_qr IS NULL OR v_qr !~ '^[A-Za-z0-9_-]{22}$' THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'qr_token')::text;
+    END IF;
+    -- Counter seva dates run from the IST business date to counter_days_ahead days later, never a past date (C-29).
+    IF v_seva_date < v_today OR v_seva_date > v_today + v_days_ahead THEN
+      RAISE EXCEPTION 'SEVA:date_out_of_range'
+        USING DETAIL = jsonb_build_object('seva_date', v_seva_date, 'first', v_today,
+                                          'last', v_today + v_days_ahead)::text;
+    END IF;
+    IF jsonb_typeof(v_receipt.body->'lines') IS DISTINCT FROM 'array'
+       OR jsonb_array_length(v_receipt.body->'lines') NOT BETWEEN 1 AND 8 THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'lines')::text;
+    END IF;
+
+    v_lines := '[]'::jsonb;
+    v_receipt_total := 0;
+    v_receipt_changed := false;
+    v_receipt_prasadam := false;
+    FOR v_line IN
+      SELECT l.value AS body FROM jsonb_array_elements(v_receipt.body->'lines') WITH ORDINALITY AS l(value, ord)
+       ORDER BY l.ord
+    LOOP
+      IF jsonb_typeof(v_line.body) <> 'object' THEN
+        RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'lines')::text;
+      END IF;
+      v_quantity := seva_issue_arg_int(v_line.body->>'quantity', 'quantity');
+      IF v_quantity IS NULL OR v_quantity NOT BETWEEN 1 AND 99 THEN
+        RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'quantity')::text;
+      END IF;
+      v_unit_in := seva_issue_arg_money(v_line.body->>'unit_rate', 'unit_rate');
+      v_reason := seva_issue_arg_text(v_line.body->>'change_reason', 'change_reason', 200);
+
+      SELECT s.* INTO v_seva FROM sevas s WHERE s.id = seva_issue_arg_uuid(v_line.body->>'seva_id', 'seva_id');
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'seva_id')::text;
+      END IF;
+      IF NOT v_seva.active THEN
+        RAISE EXCEPTION 'SEVA:seva_inactive' USING DETAIL = jsonb_build_object('name', v_seva.name)::text;
+      END IF;
+      IF v_seva.visibility NOT IN ('counter', 'both') THEN
+        RAISE EXCEPTION 'SEVA:seva_not_on_counter' USING DETAIL = jsonb_build_object('name', v_seva.name)::text;
+      END IF;
+      v_rates := v_rates || jsonb_build_array(jsonb_build_object(
+        'seva_id', v_seva.id,
+        'rate', CASE WHEN v_seva.any_amount THEN NULL ELSE v_seva.amount::text END
+      ));
+
+      IF v_seva.any_amount THEN
+        -- Told by the flag: the stored 0.00 is never a price. The typed amount is the price and never a change.
+        v_catalogue := NULL;
+        v_unit := v_unit_in;
+        IF v_unit IS NULL THEN
+          RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'unit_rate')::text;
+        END IF;
+      ELSE
+        v_catalogue := v_seva.amount;
+        IF v_unit_in IS NULL THEN
+          v_unit := v_catalogue;
+        ELSE
+          IF NOT v_seva.allow_amount_change THEN
+            RAISE EXCEPTION 'SEVA:amount_change_not_allowed' USING DETAIL = jsonb_build_object('name', v_seva.name)::text;
+          END IF;
+          v_unit := v_unit_in;
+        END IF;
+      END IF;
+      IF v_unit <= 0 OR v_unit > 99999999.99 THEN
+        RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'unit_rate')::text;
+      END IF;
+
+      v_changed := v_catalogue IS NOT NULL AND v_unit <> v_catalogue;
+      IF v_changed THEN
+        -- A changed amount always needs a reason of at least 3 characters. The table check
+        -- seva_receipt_lines_change_reason (DB 7.4) requires one whatever seva_settings.amount_change_reason_required
+        -- says, so that setting cannot relax it here.
+        IF coalesce(char_length(v_reason), 0) < 3 THEN
+          RAISE EXCEPTION 'SEVA:change_reason_required' USING DETAIL = jsonb_build_object('name', v_seva.name)::text;
+        END IF;
+      ELSE
+        v_reason := NULL;
+      END IF;
+
+      v_amount := v_quantity * v_unit;
+      v_receipt_total := v_receipt_total + v_amount;
+      v_receipt_changed := v_receipt_changed OR v_changed;
+      v_receipt_prasadam := v_receipt_prasadam OR v_seva.prasadam_given;
+      v_lines := v_lines || jsonb_build_array(jsonb_build_object(
+        'seva_id', v_seva.id,
+        'code', v_seva.code,
+        'name_en', v_seva.name,
+        'name_kn', v_seva.name_kn,
+        'quantity', v_quantity,
+        'catalogue_rate', v_catalogue,
+        'unit_rate', v_unit,
+        'amount', v_amount,
+        'changed', v_changed,
+        'change_reason', v_reason,
+        'prasadam_items', v_seva.prasadam_items
+      ));
+    END LOOP;
+
+    v_prepared := v_prepared || jsonb_build_array(jsonb_build_object(
+      'ord', v_receipt.ord,
+      'client_receipt_id', v_client_receipt_id,
+      'seva_date', v_seva_date,
+      'qr_token', v_qr,
+      'total', v_receipt_total,
+      'changed', v_receipt_changed,
+      'prasadam', v_receipt_prasadam,
+      'lines', v_lines
+    ));
+    v_total := v_total + v_receipt_total;
+  END LOOP;
+
+  v_count := jsonb_array_length(v_prepared);
+  PERFORM seva_issue_check_receipt_keys(v_prepared, true);
+  IF v_total > 9999999999.99 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'total')::text;
+  END IF;
+  IF v_total <> v_expected THEN
+    RAISE EXCEPTION 'SEVA:price_changed'
+      USING DETAIL = jsonb_build_object(
+        'lines', (SELECT jsonb_agg(DISTINCT x.value) FROM jsonb_array_elements(v_rates) AS x(value))
+      )::text;
+  END IF;
+  v_payment := seva_issue_payment(p_order->'payment', v_total);
+
+  -- Everything is valid: take the numbers and write. A failure from here on still rolls back the numbers too.
+  v_group_no := seva_next_group_no(v_now);
+  v_first := seva_take_numbers(v_series, v_year, v_count);
+
+  INSERT INTO seva_orders (group_no, client_order_id, channel, counter_id, device_id, issued_by_staff_id, devotee_name,
+                           gotra, gotra_id, nakshatra_id, nakshatra_text, rashi_id, rashi_text, phone_e164,
+                           receipts_count, amount_total, payment_mode, cash_received, change_returned, upi_ref_last6,
+                           upi_seen_confirmed, issued_offline, issued_at)
+  VALUES (v_group_no, v_client_order_id, 'counter', v_device.counter_id, v_device.id, v_staff.id, v_devotee->>'name',
+          v_devotee->>'gotra', (v_devotee->>'gotra_id')::smallint, (v_devotee->>'nakshatra_id')::smallint,
+          v_devotee->>'nakshatra_text', (v_devotee->>'rashi_id')::smallint, v_devotee->>'rashi_text',
+          v_devotee->>'phone_e164', v_count, v_total, v_payment->>'mode', (v_payment->>'cash_received')::numeric,
+          (v_payment->>'change_returned')::numeric, v_payment->>'upi_ref_last6',
+          (v_payment->>'upi_seen_confirmed')::boolean, false, v_now)
+  RETURNING id INTO v_order_id;
+
+  FOR v_receipt IN
+    SELECT x.value AS body FROM jsonb_array_elements(v_prepared) WITH ORDINALITY AS x(value, ord)
+     ORDER BY (x.value->>'seva_date')::date, x.ord
+  LOOP
+    v_position := v_position + 1;
+    v_running := v_first + v_position - 1;
+    v_receipt_no := seva_receipt_no(v_series, v_staff.staff_no, NULL, v_month, v_year, v_running);
+    INSERT INTO seva_receipts (receipt_no, series_code, year, month, running_no, staff_no, order_id, position,
+                               client_receipt_id, seva_date, business_date, total, qr_token, prasadam_state, issued_at,
+                               issued_by_staff_id, issued_by_name, issued_offline, has_changed_amount)
+    VALUES (v_receipt_no, v_series, v_year, v_month, v_running, v_staff.staff_no, v_order_id, v_position,
+            (v_receipt.body->>'client_receipt_id')::uuid, (v_receipt.body->>'seva_date')::date, v_today,
+            (v_receipt.body->>'total')::numeric, v_receipt.body->>'qr_token',
+            CASE WHEN (v_receipt.body->>'prasadam')::boolean THEN 'pending' ELSE 'none' END,
+            v_now, v_staff.id, v_staff.full_name, false, (v_receipt.body->>'changed')::boolean)
+    RETURNING id INTO v_receipt_id;
+    PERFORM seva_issue_write_lines(v_receipt_id, v_receipt.body->'lines');
+    PERFORM seva_issue_audit_lines(v_receipt_id, v_receipt_no, v_receipt.body->'lines', v_staff.id);
+  END LOOP;
+
+  PERFORM seva_issue_save_profile(v_devotee, v_now);
+  RETURN seva_order_json(v_order_id, false);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_issue_counter_order(jsonb, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_issue_counter_order(jsonb, uuid, uuid) TO service_role;

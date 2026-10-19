@@ -310,6 +310,22 @@ describe('seva_issue_counter_order (A2-1)', () => {
     expect(await lastNo(c.db, 'C1', Number(c.year))).toBe(3);
   });
 
+  it("a repeated client_order_id from another counter's PC is a conflict, not the stored order (A5-FIX L-8)", async () => {
+    const c = await setup();
+    const order = bookOrder(c, '820.00');
+    await issue(c, order);
+    await c.db.query(`insert into counters (id, name, place) values (2, 'Counter 2', 'Hall')`);
+    await c.db.query(
+      `insert into receipt_series (code, kind, counter_id) values ('C2', 'counter_online', 2), ('OF2', 'counter_offline', 2)`,
+    );
+    const pc2 = await seedDevice(c.db, { counterId: 2, staffId: c.staffId });
+    expect(await failure(issue(c, order, c.staffId, pc2))).toMatchObject({
+      code: 'number_conflict',
+      detail: { field: 'client_order_id' },
+    });
+    expect(await count(c.db, 'seva_orders')).toBe(1);
+  });
+
   it('rejects an order whose expected total no longer matches the catalogue', async () => {
     const c = await setup();
     const f = await failure(issue(c, bookOrder(c, '800.00')));

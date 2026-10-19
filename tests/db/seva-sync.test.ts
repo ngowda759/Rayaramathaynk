@@ -759,6 +759,24 @@ describe('seva_sync_offline_order (A2-1)', () => {
     });
   });
 
+  it("a repeated client order or receipt id from another counter's PC is a conflict (A5-FIX L-8)", async () => {
+    const c = await setup();
+    const order = offlineOrder(c, { issuedAt: ISSUED, receipts: [{ runningNo: 1 }] });
+    await sync(c, order);
+    await c.db.query(`insert into counters (id, name, place) values (2, 'Counter 2', 'Hall')`);
+    await c.db.query(
+      `insert into receipt_series (code, kind, counter_id) values ('C2', 'counter_online', 2), ('OF2', 'counter_offline', 2)`,
+    );
+    const pc2 = await seedDevice(c.db, { counterId: 2, staffId: c.staffId });
+    expect(await failure(sync(c, order, pc2))).toMatchObject({ code: 'number_conflict', detail: { field: 'client_order_id' } });
+    expect(await failure(sync(c, { ...order, client_order_id: randomUUID() }, pc2))).toMatchObject({
+      code: 'number_conflict',
+      detail: { field: 'client_receipt_id' },
+    });
+    // Counter 1's own retry still gets its stored order back.
+    expect((await sync(c, order)).duplicate).toBe(true);
+  });
+
   it('refuses a group number another order already uses', async () => {
     const c = await setup();
     await sync(c, offlineOrder(c, { issuedAt: ISSUED, groupNo: 'G-2610-OF1-001', receipts: [{ runningNo: 1 }] }));
