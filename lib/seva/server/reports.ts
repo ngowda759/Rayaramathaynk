@@ -1021,8 +1021,10 @@ export async function writeExportAudit(actor: SevaActor, b: ExportAuditRequest):
 
 /**
  * A phone export is audited by the server, whatever the browser reports afterwards (A3 security gate M-3, DB 12.6,
- * C-16): `export.phones_read` with the part and range, written on the first page of each part (no cursor) before any
- * row is read, so a failed write means no phone number leaves the server.
+ * C-16): `export.phones_read` with the part, range and cursor, written on every page that includes phones before any
+ * row is read, so a failed write means no phone number leaves the server. The cursor is a number the client chooses,
+ * so a page is never trusted to have been audited by an earlier one (M-3 re-review: `cursor=0`, a later cursor on its
+ * own, a cursor over another range).
  */
 export async function writePhoneExportAudit(actor: SevaActor, q: ExportQuery): Promise<void> {
   await callRpc<unknown>("seva_audit", {
@@ -1032,7 +1034,7 @@ export async function writePhoneExportAudit(actor: SevaActor, q: ExportQuery): P
     p_receipt_no: null,
     p_reason: null,
     p_before: null,
-    p_after: { part: q.part, from: q.from, to: q.to, include_phones: true },
+    p_after: { part: q.part, from: q.from, to: q.to, cursor: q.cursor ?? null, include_phones: true },
     p_staff_id: actor.staffId,
   });
 }

@@ -370,29 +370,32 @@ describe("report routes", () => {
     expect(mockCalls).toContainEqual({ table: "day_closes", method: "range", args: [0, 999] });
   });
 
-  it("audits a phone export on the server, once per part, before any row is read (A3 security gate M-3)", async () => {
+  /** The `seva_audit` call one phone export page must make (A3 security gate M-3 and its re-review). */
+  const phoneAuditCall = (part: string, from: string, to: string, cursor: string | null) => [
+    "seva_audit",
+    {
+      p_action: "export.phones_read",
+      p_entity: "export",
+      p_entity_id: part,
+      p_receipt_no: null,
+      p_reason: null,
+      p_before: null,
+      p_after: { part, from, to, cursor, include_phones: true },
+      p_staff_id: "staff-a",
+    },
+  ];
+
+  it("audits every phone export page on the server, before any row is read (A3 security gate M-3)", async () => {
     mockRpc.mockResolvedValue(1);
     mockTables.seva_receipts = { data: [receiptRow(1)], error: null };
     const range = "from=2026-10-01&to=2026-10-21";
-    const auditCall = (part: string) => [
-      "seva_audit",
-      {
-        p_action: "export.phones_read",
-        p_entity: "export",
-        p_entity_id: part,
-        p_receipt_no: null,
-        p_reason: null,
-        p_before: null,
-        p_after: { part, from: "2026-10-01", to: "2026-10-21", include_phones: true },
-        p_staff_id: "staff-a",
-      },
-    ];
+    const auditCall = (part: string, cursor: string | null) => phoneAuditCall(part, "2026-10-01", "2026-10-21", cursor);
 
-    // The first page of each part writes one row; later pages do not.
+    // Every page of every part writes its own row, a later page included.
     expect((await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}&includePhones=true`))).status).toBe(200);
     expect((await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}&includePhones=true&cursor=1000`))).status).toBe(200);
     expect((await EXPORT(get(`/api/seva/reports/export?part=cancelled&${range}&includePhones=true`))).status).toBe(200);
-    expect(mockRpc.mock.calls).toEqual([auditCall("receipts"), auditCall("cancelled")]);
+    expect(mockRpc.mock.calls).toEqual([auditCall("receipts", null), auditCall("receipts", "1000"), auditCall("cancelled", null)]);
 
     // Without phones the browser's own export.download row is the record; the GET writes nothing.
     mockRpc.mockClear();
@@ -404,6 +407,57 @@ describe("report routes", () => {
     mockRpc.mockRejectedValueOnce(new Error("database down"));
     mockCalls.length = 0;
     const failed = await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}&includePhones=true`));
+    expect(failed.status).toBe(500);
+    expect(mockCalls.filter((c) => c.table === "seva_receipts")).toEqual([]);
+    errorLog.mockRestore();
+  });
+
+  it("no cursor skips the phone export audit: cursor=0, a later cursor alone, a cursor on another range (M-3 re-review)", async () => {
+    const withPhone = receiptRow(1);
+    withPhone.seva_orders = { ...(withPhone.seva_orders as Record<string, unknown>), phone_e164: "+919845012345" };
+    mockTables.seva_receipts = { data: [withPhone], error: null };
+    /** Asks for one page; records how many receipt reads had already happened when the audit row was written. */
+    const exportPage = async (query: string) => {
+      mockRpc.mockReset();
+      mockCalls.length = 0;
+      const readsBeforeAudit: number[] = [];
+      mockRpc.mockImplementation(() => {
+        readsBeforeAudit.push(mockCalls.filter((c) => c.table === "seva_receipts").length);
+        return Promise.resolve(1);
+      });
+      const res = await EXPORT(get(`/api/seva/reports/export?${query}`));
+      const readsAfter = mockCalls.filter((c) => c.table === "seva_receipts").length;
+      return { res, readsBeforeAudit, readsAfter };
+    };
+
+    // 1. cursor=0 is the first page under another name: it writes a row, before any read.
+    const zero = await exportPage("part=receipts&from=2026-10-01&to=2026-10-21&includePhones=true&cursor=0");
+    expect(zero.res.status).toBe(200);
+    expect(((await zero.res.json()) as { rows: { phone: string }[] }).rows[0].phone).toBe("+919845012345");
+    expect(mockRpc.mock.calls).toEqual([phoneAuditCall("receipts", "2026-10-01", "2026-10-21", "0")]);
+    expect(zero.readsBeforeAudit).toEqual([0]);
+    expect(zero.readsAfter).toBeGreaterThan(0);
+
+    // 2. A later page asked for on its own, with no first page before it.
+    const later = await exportPage("part=receipts&from=2026-10-01&to=2026-10-21&includePhones=true&cursor=2000");
+    expect(later.res.status).toBe(200);
+    expect(mockRpc.mock.calls).toEqual([phoneAuditCall("receipts", "2026-10-01", "2026-10-21", "2000")]);
+    expect(later.readsBeforeAudit).toEqual([0]);
+
+    // 3. An audited one-day first page, then a cursor over a whole year: that page's own row names the year.
+    await exportPage("part=receipts&from=2026-10-21&to=2026-10-21&includePhones=true");
+    expect(mockRpc.mock.calls).toEqual([phoneAuditCall("receipts", "2026-10-21", "2026-10-21", null)]);
+    const wider = await exportPage("part=receipts&from=2025-10-22&to=2026-10-21&includePhones=true&cursor=1000");
+    expect(wider.res.status).toBe(200);
+    expect(mockRpc.mock.calls).toEqual([phoneAuditCall("receipts", "2025-10-22", "2026-10-21", "1000")]);
+    expect(wider.readsBeforeAudit).toEqual([0]);
+
+    // A failed write on a cursor page fails closed too.
+    const errorLog = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockRpc.mockReset();
+    mockRpc.mockRejectedValueOnce(new Error("database down"));
+    mockCalls.length = 0;
+    const failed = await EXPORT(get("/api/seva/reports/export?part=receipts&from=2026-10-01&to=2026-10-21&includePhones=true&cursor=0"));
     expect(failed.status).toBe(500);
     expect(mockCalls.filter((c) => c.table === "seva_receipts")).toEqual([]);
     errorLog.mockRestore();

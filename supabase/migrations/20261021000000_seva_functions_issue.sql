@@ -1557,6 +1557,8 @@ $$;
 -- then the person who syncs, who may be someone else. The canceller is checked like an offline issuer
 -- (seva_issue_offline_issuer: may use the counter; active, or inactive because offboarded since) and always under the
 -- counter rule - own receipt, inside the window up to p_at - because offline only one's own receipts are cancelled;
+-- both the offboarding rule and the window are checked per receipt at the cancel time as stored (p_at held between
+-- the receipt's issued_at and now()), never at the raw p_at (A3 re-review hardening);
 -- p_is_admin is not used. The canceller is recorded as cancelled_by_staff_id and is the actor of receipt.cancel (with
 -- p_canceller_role as actor_role, and offline and synced_by_staff_id in its after); an inactive canceller adds
 -- receipt.issuer_inactive_at_sync by the syncer. When the IST business date of the cancel's recorded time is already
@@ -1564,8 +1566,11 @@ $$;
 -- the PC - but flagged for the office: in_closed_day true in the answer and in the audit row's after, which also
 -- carries closed_business_date. Every receipt of the answer carries in_closed_day (false for an online cancel).
 -- The server cannot verify what an outbox says (A3 security gate M-2), so an offline cash cancel that reaches it more
--- than the cancel window after its recorded time (late_sync true in the audit row's after), or that is in a closed
--- day, is refund_state due for the office rather than done; the Needs attention card offline_cancels lists them all.
+-- than the cancel window after the receipt's issue time (late_sync true in the audit row's after), or that is in a
+-- closed day, is refund_state due for the office rather than done; the Needs attention card offline_cancels lists
+-- them all and flags the late ones. Lateness is measured from issued_at, not from the recorded time the PC sends, so
+-- an offline cancel that arrives after the online window would have closed is always late (A3 re-review N-2); the
+-- recorded time is never earlier than issued_at, so this also covers arriving a window after the recorded time.
 DROP FUNCTION IF EXISTS seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz);
 CREATE OR REPLACE FUNCTION seva_cancel_receipts(
   p_receipt_ids uuid[],
@@ -1617,7 +1622,7 @@ BEGIN
     IF p_at IS NULL THEN
       RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'at')::text;
     END IF;
-    v_staff := seva_issue_offline_issuer(p_cancelled_by_staff_no::text, p_canceller_role, 'cancelled_by_staff_no', p_at);
+    -- The canceller is checked per receipt, at the clamped cancel time (below).
     v_is_admin := false;
   END IF;
   IF p_reason_code IS NULL OR p_reason_code NOT IN (
@@ -1648,6 +1653,10 @@ BEGIN
     END IF;
 
     v_at := least(greatest(coalesce(p_at, v_now), v_receipt.issued_at), v_now);
+    IF v_offline THEN
+      -- The offboarding rule is checked at v_at, the time the cancel is stored with, not at the raw p_at.
+      v_staff := seva_issue_offline_issuer(p_cancelled_by_staff_no::text, p_canceller_role, 'cancelled_by_staff_no', v_at);
+    END IF;
     IF NOT v_is_admin THEN
       IF v_receipt.issued_by_staff_id IS DISTINCT FROM v_staff.id THEN
         RAISE EXCEPTION 'SEVA:forbidden' USING DETAIL = jsonb_build_object('receipt_no', v_receipt.receipt_no)::text;
@@ -1666,8 +1675,10 @@ BEGIN
       SELECT 1 FROM day_closes dc
        WHERE dc.counter_id = v_counter_id AND dc.business_date = v_at_date AND dc.status = 'closed'
     );
-    -- An offline cancel that reached the server more than the cancel window after its recorded time (A3 gate M-2).
-    v_late := v_offline AND v_now > v_at + make_interval(mins => v_window);
+    -- An offline cancel that reached the server after the online cancel window had closed: more than the window after
+    -- the receipt's issue time (A3 gate M-2, re-review N-2). v_at >= issued_at, so this includes arriving more than
+    -- the window after the recorded time.
+    v_late := v_offline AND v_now > v_receipt.issued_at + make_interval(mins => v_window);
     -- Such a late offline cash cancel, and one recorded in a closed day, are left for the office: the drawer cannot
     -- be trusted to have handed the cash back.
     IF v_mode = 'cash' AND v_receipt.business_date = v_at_date AND NOT v_late AND NOT v_in_closed_day THEN

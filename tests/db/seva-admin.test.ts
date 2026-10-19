@@ -368,6 +368,45 @@ describe('seva admin functions (A2-3)', () => {
       await expect(note('not a upi id', 'X')).rejects.toThrow(/SEVA:validation/);
     });
 
+    it('keeps every UPI payee change of the last 30 days on the card, whatever period is chosen (A3 re-review N-1)', async () => {
+      const own = await freshDb();
+      try {
+        const change = (daysAgo: number, from: string | null, to: string): Promise<unknown> =>
+          own.query(
+            `insert into audit_log (at, action, entity, entity_id, before, after)
+             values (now() - make_interval(days => $1::int), 'settings.upi_changed', 'seva_settings', '1',
+                     jsonb_build_object('vpa', $2::text), jsonb_build_object('vpa', $3::text))`,
+            [daysAgo, from, to],
+          );
+        await change(40, null, '**********1111@okaxis');
+        await change(20, '**********1111@okaxis', '**********2222@ybl');
+        await change(10, '**********2222@ybl', '**********3333@ybl');
+        const upiCard = async (from: string, to: string): Promise<Row> => {
+          const [{ cards }] = await svc<{ cards: Row[] }>(
+            own,
+            `select seva_needs_attention(now() + $1::interval, now() + $2::interval,
+                                         (now() at time zone 'Asia/Kolkata')::date) as cards`,
+            [from, to],
+          );
+          const card = cards.find((c) => c.id === 'upi_changed');
+          if (!card) throw new Error('card upi_changed missing');
+          return card;
+        };
+        const expected = {
+          level: 'attention',
+          count: 2,
+          detail: { from_vpa: '**********2222@ybl', to_vpa: '**********3333@ybl', window_days: 30 },
+        };
+        // Today's dashboard: both changes inside 30 days are still there, though neither happened today.
+        expect(await upiCard('-1 hour', '1 hour')).toMatchObject(expected);
+        // A period long before them, and one that holds only the 40-day-old change, show the same card.
+        expect(await upiCard('-100 days', '-99 days')).toMatchObject(expected);
+        expect(await upiCard('-41 days', '-39 days')).toMatchObject(expected);
+      } finally {
+        await own.close();
+      }
+    });
+
     it('replaces denominations and audits', async () => {
       const rows = [
         { kind: 'note', value: 2000 },

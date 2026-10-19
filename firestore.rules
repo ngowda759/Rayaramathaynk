@@ -18,10 +18,14 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'temple_admin', 'admin', 'Billing'];
     }
     
+    // A deactivated super admin keeps a valid ID token for up to an hour and the
+    // rules cannot see token revocation, so the user doc's `isActive` must not be
+    // false. A doc without the field keeps working (A3 security re-review).
     function isSuperAdmin() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isActive', true) != false;
     }
     
     function isPriestOrAbove() {

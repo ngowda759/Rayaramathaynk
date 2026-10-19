@@ -786,6 +786,69 @@ describe('seva_cancel_receipts - offline cancels from the outbox (A2-FIX2)', () 
     expect(inClosed).toMatchObject({ receipts: [{ id: closedDay, refund_state: 'due', in_closed_day: true }], cash_back: '0.00' });
   });
 
+  it('makes an offline cancel late when it reaches the server after issue time + window (A3 re-review N-2)', async () => {
+    const c = await setup();
+    // Issued 40 minutes ago; "cancelled on the PC" 25 minutes after issue (inside the window) and sent now, only 15
+    // minutes after that recorded time. The online window closed 10 minutes ago, so the drawer cannot be trusted.
+    const stretched = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const answer = await cancel(c, {
+      ids: [stretched],
+      reason: 'wrong_seva',
+      at: await issuedAtPlus(c, stretched, '25 minutes'),
+      ...OFFLINE_23,
+    });
+    expect(answer).toMatchObject({ receipts: [{ id: stretched, refund_state: 'due', refund_note: null }], cash_back: '0.00' });
+    expect(await receiptRow(c.db, stretched)).toMatchObject({ refund_state: 'due' });
+    const audit = (await auditRows(c.db)).filter((r) => r.action === 'receipt.cancel');
+    expect(audit.map((r) => [r.entity_id, r.after?.refund_state, r.after?.late_sync])).toEqual([[stretched, 'due', true]]);
+
+    // The Needs attention card flags it, though canceller and syncer are the same person.
+    const cards = await asRole(c.db, 'service_role', async (d) =>
+      (
+        await d.query<{ cards: { id: string; level: string; count: number; detail: Record<string, unknown>; entries?: Record<string, unknown>[] }[] }>(
+          `select seva_needs_attention(now() - interval '1 hour', now() + interval '1 hour', $1::date) as cards`,
+          [c.today],
+        )
+      ).rows[0].cards,
+    );
+    expect(cards.find((x) => x.id === 'offline_cancels')).toMatchObject({
+      level: 'attention',
+      count: 1,
+      detail: { flagged: 1 },
+      entries: [expect.objectContaining({ cancelled_by: 'Ramesh', synced_by: 'Ramesh', flagged: true })],
+    });
+  });
+
+  it('checks an offboarded canceller against the clamped cancel time, not the raw one (A3 re-review hardening)', async () => {
+    const c = await setup();
+    const receipt = await insertPastReceipt(c, { minutesAgo: 10, mode: 'cash' });
+    // A crafted row: offboarded 5 minutes before the receipt's issue time. The outbox claims a time 10 minutes before
+    // issue, which is before the offboarding - but the cancel is held at the issue time, which is after it.
+    await c.db.query(
+      `update staff set status = 'inactive', status_reason = 'Left', status_changed_at = $2::timestamptz where id = $1`,
+      [c.staffId, await issuedAtPlus(c, receipt, '-5 minutes')],
+    );
+    expect(
+      await failure(
+        cancel(c, { ids: [receipt], reason: 'wrong_seva', at: await issuedAtPlus(c, receipt, '-10 minutes'), staffId: c.sureshId, ...OFFLINE_23 }),
+      ),
+    ).toEqual({
+      code: 'validation',
+      detail: expect.objectContaining({ field: 'cancelled_by_staff_no', reason: expect.stringContaining('offboarded') }),
+    });
+    expect(await count(c.db, 'seva_receipts', `status = 'cancelled'`)).toBe(0);
+    expect(await count(c.db, 'audit_log')).toBe(0);
+
+    // Offboarded after the issue time: the same claimed time is held at the issue time, before the offboarding.
+    await c.db.query(`update staff set status_changed_at = $2::timestamptz where id = $1`, [
+      c.staffId,
+      await issuedAtPlus(c, receipt, '2 minutes'),
+    ]);
+    await expect(
+      cancel(c, { ids: [receipt], reason: 'wrong_seva', at: await issuedAtPlus(c, receipt, '-10 minutes'), staffId: c.sureshId, ...OFFLINE_23 }),
+    ).resolves.toMatchObject({ receipts: [{ id: receipt, status: 'cancelled' }] });
+  });
+
   it('lists offline cancels in Needs attention, flagging another syncer or a late sync (A3 gate M-2 b)', async () => {
     const c = await setup();
     const offlineCard = async (): Promise<{ level: string; count: number; detail: Record<string, unknown>; entries?: Record<string, unknown>[] }> => {

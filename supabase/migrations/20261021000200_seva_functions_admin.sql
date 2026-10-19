@@ -1317,8 +1317,9 @@ BEGIN
   -- offline_cancels: cancels the outbox sent in the period (receipt.cancel audit rows marked offline), newest first,
   -- each with the receipt, the time recorded on the PC, the time it reached the server, who cancelled and who sent it
   -- (at most 50 entries; count is all of them). The server cannot verify an offline claim, so it shows it: attention
-  -- when one was sent by someone other than the canceller, or arrived more than the cancel window after its recorded
-  -- time (A3 security gate M-2).
+  -- when one was sent by someone other than the canceller, arrived more than the cancel window after its recorded
+  -- time (A3 security gate M-2), or was late_sync - it arrived after the receipt's issue time plus the window (A3
+  -- re-review N-2).
   SELECT count(*)::int,
          (count(*) FILTER (WHERE x.flagged))::int,
          coalesce(jsonb_agg(jsonb_build_object('receipt_no', x.receipt_no, 'recorded_at', x.recorded_at,
@@ -1332,7 +1333,8 @@ BEGIN
       SELECT a.id, a.receipt_no, a.at AS received_at, (a.after ->> 'cancelled_at')::timestamptz AS recorded_at,
              a.actor_staff_id AS canceller_id, (a.after ->> 'synced_by_staff_id')::uuid AS syncer_id,
              (a.actor_staff_id IS DISTINCT FROM (a.after ->> 'synced_by_staff_id')::uuid
-              OR a.at > (a.after ->> 'cancelled_at')::timestamptz + make_interval(mins => v_window)) AS flagged,
+              OR a.at > (a.after ->> 'cancelled_at')::timestamptz + make_interval(mins => v_window)
+              OR coalesce((a.after ->> 'late_sync')::boolean, false)) AS flagged,
              row_number() OVER (ORDER BY a.id DESC) AS rn
         FROM audit_log a
        WHERE a.action = 'receipt.cancel' AND a.after ->> 'offline' = 'true' AND a.at >= p_from AND a.at < p_to
@@ -1343,18 +1345,20 @@ BEGIN
                                            'count', v_n, 'detail', jsonb_build_object('flagged', v_m),
                                            'entries', v_entries);
 
-  -- upi_changed: the counter's UPI payee changed in the period (settings.upi_changed rows written by
-  -- seva_note_counter_upi); the detail names the latest change, masked (A3 security gate H-1).
+  -- upi_changed: every change of the counter's UPI payee in the last 30 days (settings.upi_changed rows written by
+  -- seva_note_counter_upi), whatever period the dashboard shows, so a change made on a day nobody opened the
+  -- dashboard stays on the card (A3 security gate H-1, re-review N-1); count is all of them, the detail names the
+  -- latest, masked, and window_days says how far back the card looks.
   SELECT count(*)::int INTO v_n
-    FROM audit_log a WHERE a.action = 'settings.upi_changed' AND a.at >= p_from AND a.at < p_to;
+    FROM audit_log a WHERE a.action = 'settings.upi_changed' AND a.at >= now() - interval '30 days';
   SELECT a.* INTO v_upi
-    FROM audit_log a WHERE a.action = 'settings.upi_changed' AND a.at >= p_from AND a.at < p_to
-   ORDER BY a.id DESC LIMIT 1;
+    FROM audit_log a WHERE a.action = 'settings.upi_changed' AND a.at >= now() - interval '30 days'
+   ORDER BY a.at DESC, a.id DESC LIMIT 1;
   v_cards := v_cards || jsonb_build_object('id', 'upi_changed', 'level', CASE WHEN v_n > 0 THEN 'attention' ELSE 'ok' END,
                                            'count', v_n,
                                            'detail', jsonb_strip_nulls(jsonb_build_object(
                                              'from_vpa', v_upi.before ->> 'vpa', 'to_vpa', v_upi.after ->> 'vpa',
-                                             'changed_at', v_upi.at)));
+                                             'changed_at', v_upi.at, 'window_days', 30)));
 
   RETURN v_cards;
 END;

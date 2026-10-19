@@ -3,8 +3,9 @@
  * One part a call, 1000 rows a page, test mode excluded. `includePhones=true` needs `export.with_phones` (non-view-only
  * temple admins and super admins, C-16); without it `export.basic` is enough and the phone is never read. The wanted
  * right depends on the query, so the query is read before the guard. A phone export writes its own audit row here,
- * on the first page of each part, before any row is read (A3 security gate M-3); the browser still reports the
- * finished file through POST export/audit.
+ * on EVERY page of every part (the cursor is the client's own number, so no cursor value may skip it), before any
+ * row is read (A3 security gate M-3 and its re-review); the browser still reports the finished file through
+ * POST export/audit.
  */
 
 import type { NextRequest } from "next/server";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     const guard = await requireSevaActor(req, q.includePhones ? "export.with_phones" : "export.basic");
     if (!guard.ok) return guard.response;
 
-    if (q.includePhones && q.cursor === undefined) await writePhoneExportAudit(guard.actor, q);
+    if (q.includePhones) await writePhoneExportAudit(guard.actor, q);
     return sevaJson(await loadExportPage(q));
   } catch (error) {
     return sevaErrorResponse(error);

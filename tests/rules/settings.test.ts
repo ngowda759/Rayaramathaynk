@@ -97,6 +97,32 @@ describe("firestore.rules - settings writes are admin-only", () => {
   });
 });
 
+describe("firestore.rules - a deactivated super admin is not a super admin (A3 re-review note)", () => {
+  const INACTIVE_SA = "inactive-sa-uid";
+  const NO_FLAG_SA = "no-flag-sa-uid";
+
+  beforeEach(async () => {
+    const withoutFlag = userProfile(NO_FLAG_SA, "super_admin");
+    delete withoutFlag.isActive;
+    await seedDocs(env, {
+      [`users/${INACTIVE_SA}`]: { ...userProfile(INACTIVE_SA, "super_admin"), isActive: false },
+      [`users/${NO_FLAG_SA}`]: withoutFlag,
+    });
+  });
+
+  it("a super admin whose user doc says isActive false cannot write settings/financeSettings or sevas", async () => {
+    const db = env.authenticatedContext(INACTIVE_SA).firestore();
+    await assertFails(db.doc("settings/financeSettings").update({ "upi.id": "outsider@examplebank" }));
+    await assertFails(db.doc("sevas/new-seva").set({ name: "Seva" }));
+  });
+
+  it("a super admin doc without the isActive field keeps working", async () => {
+    const db = env.authenticatedContext(NO_FLAG_SA).firestore();
+    await assertSucceeds(db.doc("settings/financeSettings").update({ "upi.displayName": "Temple" }));
+    await assertSucceeds(db.doc("sevas/new-seva").set({ name: "Seva" }));
+  });
+});
+
 describe("firestore.rules - settings reads stay public", () => {
   it("an unauthenticated visitor can read public settings docs", async () => {
     const db = env.unauthenticatedContext().firestore();
