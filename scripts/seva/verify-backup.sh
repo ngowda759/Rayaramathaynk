@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks one downloaded nightly backup for the owner's restore drill (SETUP-GUIDE section 5, DB 16.1).
+# Checks one downloaded nightly backup for the owner's restore drill (SETUP-GUIDE B8, DB 16.1).
 #
 # Usage: scripts/seva/verify-backup.sh <seva-YYYY-MM-DD.dump.age> <age-identity-file>
 #

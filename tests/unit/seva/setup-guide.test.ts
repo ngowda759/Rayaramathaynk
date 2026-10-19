@@ -142,6 +142,31 @@ describe("docs/seva/SETUP-GUIDE.md", () => {
     expect(askingToPasteInChat).toEqual([]);
   });
 
+  it("matches the screens met on 2026-10-19 and the module's /seva address (A5-2 carry)", () => {
+    const text = readGuide();
+    const a1 = section(text, "A1");
+    expect(a1).toContain("Asia-Pacific (recommended)");
+    expect(a1).toMatch(/Data API/);
+    expect(a1).toMatch(/already (existed|exists)/i);
+    const a2 = section(text, "A2");
+    expect(a2).toContain(".firebase-adminsdk.json.json");
+    expect(a2).toContain("**File name extensions**");
+    expect(a2).toMatch(/Google Developer Program/);
+    expect(a2).toMatch(/Gemini/);
+    expect(a2).toMatch(/Blaze/);
+    const a3 = section(text, "A3");
+    expect(a3).toMatch(/`\/seva`/);
+    expect(a3).toMatch(/no admin link|no sign-out/i);
+    // The developer pushes every new migration to his own test project himself.
+    expect(a1).toMatch(/new migration/i);
+    expect(a1).toContain("npx supabase db push");
+    // The counter lives at /seva/counter now; the old address only forwards.
+    expect(text).not.toContain("/admin/receipts/counter");
+    expect(section(text, "A5")).toContain("/seva/counter");
+    expect(section(text, "A5")).toMatch(/\bA5\b[^\n]*148/);
+    expect(section(text, "B6")).toMatch(/two keys/i);
+  });
+
   it("keeps the Cashfree and Expo parts as outlines for Plans B and C", () => {
     const text = readGuide();
     expect(section(text, "A4")).toContain("Written in Plan B");

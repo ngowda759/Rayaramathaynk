@@ -6,7 +6,7 @@ Sri Raghavendra Swamy Matha temple portal. One document to plan and build Seva E
 
 | Item | Value |
 |---|---|
-| Status | **SIGNED by the owner on 2026-10-18** (Design Book deck, 11 of 11). Nothing here is built yet. Sign-off answers: stay on Firebase sign-in, built to move later (C-66); build order Phase 1, then website, then app, more windows acceptable; app Android first with email + password; account setup with step-by-step guides; QR page shows the slip's details (C-50). |
+| Status | **SIGNED by the owner on 2026-10-18** (Design Book deck, 11 of 11). Phase 1 built on `feature/seva-entry` (2026-10-18 to 2026-10-20); see "Changes after sign-off". Sign-off answers: stay on Firebase sign-in, built to move later (C-66); build order Phase 1, then website, then app, more windows acceptable; app Android first with email + password; account setup with step-by-step guides; QR page shows the slip's details (C-50). |
 | Date | 2026-10-18 (Sunday) |
 | Owner | Nikhil (decides); the temple office supplies real data before go-live |
 | Written from | `.claude/state/seva/DECISIONS.md` (wins on any conflict), `STATE.md`, `briefs/M6-round-c.md`, `briefs/M6c-dashboard.md`, `design/DATA-MODEL-draft.md` (stale, updated here), `research/R1-payments.md` + `R1V-verify.md` (R1V wins), `R2-counter-setup.md`, `R3-repo-facts.md`, `R4-prior-art-domain.md`, `R5-chart-library.md`, mockups `desk/mockups/{counter,dashboard,settings-devotee}.html`, `desk/architecture.html`, `AGENTS.md`, `docs/rearchitecture/UI-REDESIGN-PLAN.md` sections 2-5, and spot checks of the code (path:line given where used) |
@@ -16,8 +16,8 @@ Sri Raghavendra Swamy Matha temple portal. One document to plan and build Seva E
 **In plain words.** The temple's seva counter today uses a paper receipt book. Seva Entry replaces it with a fast,
 keyboard-driven counter screen on the office Windows PC. The receptionist types the devotee's name (gotra, nakshatra,
 rashi and phone are optional), picks sevas by number key or code, picks one or more seva dates, takes cash or UPI once,
-and presses one key. The office A4 printer prints one portrait slip (99 x 210 mm, a third of an A4 sheet) per seva date,
-each with its own receipt number and a QR code. Receipt numbers look like `C1-023-10-2026/000124`: counter series,
+and presses one key. The office printer prints one portrait receipt per seva date on the paper size the office picks (A5
+by default; A6, one-third A4, 80 or 58 mm rolls, or custom), each with its own receipt number and a QR code. Receipt numbers look like `C1-023-10-2026/000124`: counter series,
 staff number, month and year, and a running number that never skips and restarts each January. If the internet drops,
 the counter keeps working on its own offline series (`OF1-...`) and sends the receipts when the line returns; an Excel
 copy of the day is saved on the PC by itself. At the prasadam counter a volunteer scans the QR (or types the number) and
@@ -27,6 +27,50 @@ CSV, Tally and print-ready exports. All data lives in Supabase Postgres, reached
 Firebase. Phase 2 lets devotees book and pay online by UPI (Cashfree) on the website and in the temple app, built in
 full against the gateway's test mode, with online receipts in their own series (`W-WEB-...`, `W-APP-...`). The existing
 Receipt Book is extended, not duplicated, and the known security holes are fixed on the way.
+
+## Changes after sign-off
+
+The book was signed on 2026-10-18. What changed while Phase 1 was built (waves A1 to A4S, 2026-10-18 to 2026-10-20),
+one line each; the sections named are corrected in place. `DECISIONS.md` and the code win where this list is short.
+
+- 2026-10-19, A3 security work (A3-FIX, A3-FIX2):
+  - §3.3: a receptionist cancels only from the registered counter PC; reactivating a super admin needs a super admin.
+  - §6.5: search and cancel need the PC for receptionists; devotee search has a per-person rate limit (60 a minute);
+    sync accepts a retired PC, for orders inside its gap only; the export GET writes `export.phones_read` on every
+    page that includes phones.
+  - §7.2: `seva_settings` gains `counter_upi_vpa` and `counter_upi_payee_name` (the last payee read, written only by
+    `seva_note_counter_upi`), and the counter UPI change detection is described there.
+  - §7.6: new audit actions `settings.upi_changed`, `export.phones_read` and `settings.list_item`; offline cancel
+    rows carry `late_sync` and `in_closed_day` in `after`.
+  - §7.8: new and changed functions and signatures; a first print only on the PC's own counter or the W series;
+    a spoiled reissue only on the PC's own counter; `seva_upsert_seva` sets `firestore_id`.
+  - §8.3: offboarding is compared with `status_changed_at`; §8.4: a retired PC reaches the sync route only, with
+    orders only.
+  - §9.2: search from the PC, with the rate limit; §9.8: the first-print rule.
+  - §9.9 and §9.11: a late or closed-day offline cash cancel becomes refund-due, decided by the server's received time
+    against the receipt's issue time plus the cancel window.
+  - §11: the give answer carries `givenNow`.
+  - §12.2: new cards `offline_cancels` and `upi_changed` (a 30-day look-back); §12.6: the server-side phone export
+    audit.
+  - §13.1: the Firestore id is set by the function; Firestore `sevas` and `settings/financeSettings` writes are super
+    admin only.
+  - §15.1 and §15.2: the rules changes and the rate limit; §17.4: UPI change detection.
+- 2026-10-19, owner card `upi`: the counter UPI id may be changed only by the super admin (as built).
+- 2026-10-19, motion and feedback (A4P, owner card `motion-feel`): Lively springs (stiffness 380, damping 22), a loading
+  outline on every page, a top progress bar, pending buttons, and reduced motion respected (§18).
+- 2026-10-19, the gotra, nakshatra and rashi list page (A4P-5, owner card `lists`): the table `seva_list_items` with
+  its guard trigger (§7.2, §13.7); slips print the names kept in the database.
+- 2026-10-19, own screens (A4S, deck `shell`): Seva Entry lives at `/seva` with its own frames (header, section rail,
+  phone bar), a full-screen counter, role landing, one website-admin menu item, and the old `/admin/receipts/*` and
+  `/admin/prasadam` addresses forwarding (D8, C-40, §6.1, §6.4, §9, §11, §12, §13, §17, §18, §20.1).
+- 2026-10-20, installable app: one app for every role; manifest `start_url` `/seva` and scope `/seva`; offline, the
+  service worker opens the cached counter (§6.1, §20.1).
+- 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
+  the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
+  (D11, §10, §13.2); the Follow-ups `paper` decision is superseded.
+- 2026-10-19, two backup keys (owner card `backup-who`): one key for Nikhil and one for the site owner;
+  `scripts/seva/backup.sh` takes several recipients (§16.1, §20.2).
+- 2026-10-19, demo data: `scripts/seva/seed-demo-data.ts`, guarded and for test projects only (`docs/seva/README.md`).
 
 ## 1. Purpose and why
 
@@ -58,7 +102,8 @@ Receipt Book is extended, not duplicated, and the known security holes are fixed
 
 - Donation receipts and 80G certificates (seva receipts are not donations; see section 14.7).
 - Prasadam stock or inventory, expenses, accounting ledgers (Tally export only, no sync).
-- Thermal 80 mm printing (Round A - counter-kit: rejected).
+- Thermal 80 mm printing as the counter's default (Round A - counter-kit: rejected). Since 2026-10-19 the 80 mm and
+  58 mm rolls are presets the office may pick (card `a5`, section 10.2).
 - Card payments, net banking, wallets online (Round B - devotee: UPI only for now).
 - Migrating old receipts (Round B - history: none exist).
 
@@ -120,7 +165,7 @@ Y = allowed, - = not allowed. The server enforces every cell; the client only hi
 |---|---|---|---|---|---|---|---|
 | 1 | Use the counter: make and print receipts | Y | - | Y | - | Y | Round A - roles; TA/SA at counter: C-15 |
 | 2 | Change one seva's amount on a receipt (reason required) | Y | - | Y | - | Y | Round B - override |
-| 3 | Cancel own receipt within the cancel window (30 min), with reason | Y | - | Y | - | Y | Round B - cancel |
+| 3 | Cancel own receipt within the cancel window (30 min), with reason | Y (from the registered counter PC only) | - | Y | - | Y | Round B - cancel; A3 security gate L-2 |
 | 4 | Cancel any receipt at any time, with reason | - | - | Y | - | Y | Round B - cancel |
 | 5 | Reprint (prints DUPLICATE) | Y (own counter, today) | - | Y | - | Y | brief "Printing" |
 | 6 | Close the day for a counter | Y (own counter) | - | Y | - | Y | Round B - cancel / dayclose |
@@ -138,7 +183,7 @@ Y = allowed, - = not allowed. The server enforces every cell; the client only hi
 | 18 | Onboard staff as Receptionist, Prasadam counter or Temple admin | - | - | Y | - | Y | Round B - view-only |
 | 19 | Give the Super admin role | - | - | - | - | Y | staff mockup |
 | 20 | Change another person's role or view-only switch | - | - | Y (not SA, not self) | - | Y | C-17 |
-| 21 | Reactivate an inactive person | - | - | Y | - | Y | C-09 |
+| 21 | Reactivate an inactive person | - | - | Y (not a super admin) | - | Y | C-09; reactivating a super admin needs a super admin (A3 security gate) |
 | 22 | Offboard (deactivate) a person, with reason | - | - | - | - | Y | Round B - view-only |
 | 23 | Delete a user, with reason | - | - | - | - | Y | Round B - view-only |
 | 24 | Payments page (Phase 2): view | - | - | Y | Y | Y | settings mockup |
@@ -178,10 +223,10 @@ Every owner decision, with its card. "Owner" rows come from `DECISIONS.md`; "My 
 | D5 | Scope: Phase 1 + full Phase 2 in test mode | Step 0 - scope | Owner |
 | D6 | All 8 ideas: QR at prasadam, day-close tally, returning-devotee fill, Kannada + English receipt, void-with-reason audit, festival-day view, SMS/WhatsApp e-receipt (P2), Tally export | Step 0 - ideas | Owner |
 | D7 | `.claude/state/seva/` stays git-ignored; Design Book committed under `docs/` | Step 0 - checkpoints | Owner |
-| D8 | Extend the Receipt Book; its storage moves to Supabase; it keeps its menu place | Round A - receipt-book | Owner |
+| D8 | Extend the Receipt Book; its storage moves to Supabase; one menu link in the website admin opens its own screens at `/seva` (changed 2026-10-19, deck `shell`) | Round A - receipt-book; deck `shell` | Owner |
 | D9 | Supabase Free plan plus our own free backups; security from server-only access; Pro only if ever needed | Round A - supabase; Follow-ups - supabase-cost | Owner |
 | D10 | 80 mm thermal rejected; temple header template (name and address centred, photo left and right) and footer on the counter form and the receipt | Round A - counter-kit | Owner |
-| D11 | Receipt = one-third A4 slip, portrait, 99 x 210 mm, `@page { size: 99mm 210mm }`, office A4 printer | Follow-ups - paper | Owner |
+| D11 | Receipt = one-third A4 slip, portrait, 99 x 210 mm, `@page { size: 99mm 210mm }`, office A4 printer. **Superseded 2026-10-19** by card `a5`: configurable paper size, A5 default, portrait, one receipt per sheet (section 10.2) | Follow-ups - paper; card `a5` | Owner |
 | D12 | Offline only as a fallback and only if audit-safe; numbers never conflict; data kept locally; Excel copy on the PC kept in sync automatically | Round A - offline; Follow-ups - offline-safe | Owner |
 | D13 | Four roles: Receptionist, Prasadam counter, Temple admin, Super admin | Round A - roles | Owner |
 | D14 | Gateway Cashfree, Razorpay as spare | Round A - gateway | Owner |
@@ -219,7 +264,7 @@ Every owner decision, with its card. "Owner" rows come from `DECISIONS.md`; "My 
 | # | Disagreement | Resolution |
 |---|---|---|
 | 1 | R2 recommends an 80 mm thermal printer and Supabase Pro | Owner rejected 80 mm (Round A - counter-kit; Follow-ups - paper) and chose Free + own backups (Follow-ups - supabase-cost) |
-| 2 | R3 lists the Receipt Book code under "leave alone" | Owner chose to extend it with storage moved to Supabase (Round A - receipt-book); same feature and menu place, Firestore implementation replaced (17.2) |
+| 2 | R3 lists the Receipt Book code under "leave alone" | Owner chose to extend it with storage moved to Supabase (Round A - receipt-book); same feature, one menu link to its own screens at `/seva` (D8), Firestore implementation replaced (17.2) |
 | 3 | DATA-MODEL-draft: financial-year numbers `RM/2026-27/000123`, counters by FY, reserved number blocks for offline, a `committee` role | Calendar year (D22), series C/OF/W (D33), offline uses its own series instead of reserved blocks (D18 g), four roles (D13) |
 | 4 | Round B - numbering asked "does the running number restart monthly?"; mockups say "continues all year (to be confirmed)" | Confirmed in Round C - numbers: continues all year, restarts in January |
 | 5 | Owner's Round B example `OF12/<user id 023>/2026-2027/000124` is financial-year style | His calendar-year format applies: `OF1-023-10-2026/000007` (M6 decision 4) |
@@ -259,9 +304,9 @@ Four lanes, as in the approved diagram (`desk/architecture.html`, Round C - diag
 | | Prasadam phone or PC (camera or USB scanner) | No device registration |
 | | Admin phone or PC | Dashboard on phone works at 390 px |
 | | Devotee phone or PC: website and temple app (Phase 2) | |
-| App on Vercel (Next.js ^16.2.9, React 19.2.4) | Counter pages `/admin/receipts/counter` + service worker + IndexedDB outbox + Excel worker | Client components |
-| | Prasadam page `/admin/prasadam` | Phone-first |
-| | Admin pages under `/admin/receipts/*` and `/admin/users` | Receipt Book keeps its menu place (D8) |
+| App on Vercel (Next.js ^16.2.9, React 19.2.4) | Counter pages `/seva/counter` (full-screen frame) + service worker + IndexedDB outbox + Excel worker | Client components; one installable app for every role (manifest `start_url` and scope `/seva`); offline, the service worker opens the cached counter |
+| | Prasadam page `/seva/prasadam` | Phone-first |
+| | Module pages under `/seva/*` (own header, section rail, phone bar) and Staff at `/admin/users` | One "Seva Entry" item in the website admin (D8); role landing at `/seva`; old `/admin/receipts/*` and `/admin/prasadam` addresses forward (`next.config.ts`) |
 | | Devotee pages under `/sevas/*` and `/r/[token]` (Phase 2) | Extends today's public `/sevas` |
 | | API layer: route handlers `app/api/seva/**` | Verify Firebase token -> role allow-list + staff status -> validate (zod) -> service -> SQL function |
 | | Server services `lib/seva/server/*` | Only place that calls `createAdminClient()` (`lib/supabase/admin.ts:4-19`) |
@@ -327,10 +372,14 @@ in the account -> prasadam counter as F3.
 ### 6.4 Code layout (new and extended)
 
 ```
-app/admin/receipts/            (extended)  page.tsx = seva dashboard; counter/; register/; [receiptId]/; day-close/;
-                                           day-closes/; seva-settings/ (extended); settings/; reports/; payments/
-app/admin/prasadam/            (new)       phone-first prasadam page
-app/admin/users/               (extended)  staff and roles
+app/seva/                      (moved from app/admin/receipts and app/admin/prasadam in A4S)  layout.tsx = module gate;
+  (counter)/                               full-screen frame: counter/, counter/today/, day-close/
+  (desk)/                                  header, section rail and phone bar: page.tsx = dashboard; register/;
+                                           [receiptId]/ (+ print/); day-closes/; reports/; seva-settings/; settings/;
+                                           prasadam/; create/ (forwards to the counter); payments/ (Phase 2)
+app/admin/users/               (extended)  staff and roles (the module links here)
+components/seva/shell/         (new)       SevaHeader, SectionRail, PhoneBar, DeskFrame, FocusFrame, SevaGate
+lib/seva/routes.ts             (new)       every module address in one constant (SEVA_ROUTES, sevaHomePath)
 app/api/seva/**                (new)       route handlers (list in 6.5)
 app/(public)/sevas/**          (extended, Phase 2)  booking flow; app/r/[token]/ (new) QR landing
 lib/seva/*.ts                  (new)       pure logic: numbering format, grouping by date, amount in words, period maths,
@@ -352,21 +401,21 @@ tests/unit/seva/**, tests/db/**, tests/e2e/seva/**   (new)
 | `me` | GET | any staff | Role, staff no., view-only, allowed actions, counter binding |
 | `counter/bootstrap` | GET | R, TA, SA + device | Catalogue, settings, header, denominations, festival chips, next numbers, today's totals |
 | `counter/orders` | POST | R, TA, SA + device | Issue an online order (F1) |
-| `counter/sync` | POST | R, TA, SA + device | Send offline orders and offline cancels (F2) |
+| `counter/sync` | POST | R, TA, SA + device (a retired PC too: orders inside its gap only, cancels refused) | Send offline orders and offline cancels (F2) |
 | `counter/prints` | POST | R, TA, SA + device | Record a print or reprint |
 | `counter/heartbeat` | POST | device | Outbox size, clock skew, app version, every 60 s |
 | `counter/devices` | POST | TA, SA | Register this PC; Replace this PC |
 | `receipts` | GET | TA, TV, SA; R (own counter today) | Register list with filters |
 | `receipts/[receiptId]` | GET | as above | One receipt with history |
-| `receipts/cancel` | POST | R (own, window), TA, SA | Cancel one or more receipts |
+| `receipts/cancel` | POST | R (own, window, from the registered PC), TA, SA | Cancel one or more receipts |
 | `receipts/[receiptId]/reissue` | POST | R (own, window), TA, SA | Spoiled print: cancel and reissue (today's receipts only, 9.8) |
-| `devotees/search` | GET | R, TA, SA | Returning-devotee matches |
+| `devotees/search` | GET | R (from the registered PC), TA, SA | Returning-devotee matches; 60 a minute per person (per server instance) |
 | `prasadam/lookup` | GET | P, TA, SA | Find by token or number |
 | `prasadam/give`, `prasadam/undo` | POST | P, TA, SA | Mark or undo |
 | `day-close` | GET, POST | R (own counter), TA, SA | Prepare and close; `day-close/reopen` TA, SA |
-| `reports/*` | GET | TA, TV, SA | dashboard, continuity, seva-summary, festival, audit, day-closes, export pages |
+| `reports/*` | GET | TA, TV, SA | dashboard, continuity, seva-summary, festival, audit, day-closes, export pages (a page with phones: TA, SA, and the GET writes `export.phones_read` on every page); `reports/export/audit` POST records the finished file |
 | `sevas`, `sevas/[id]`, `sevas/reorder` | GET, POST, PUT | TA, SA (GET also R) | Catalogue |
-| `settings/*` | GET, PUT | TA, SA | receipt template, rules, denominations, festival days, counters |
+| `settings/*` | GET, PUT, POST | TA, SA (GET also TV) | receipt template and paper size, rules, denominations, festival days, counters, gotra / nakshatra / rashi lists |
 | `staff`, `staff/[id]` | GET, POST, PUT | TA, SA (offboard and delete SA) | Staff and roles |
 | `gaps/[id]` | POST | TA, SA | Resolve a number gap |
 | `devotee/orders`, `devotee/orders/[ref]` | POST, GET | signed-in devotee | Phase 2 booking and status |
@@ -506,12 +555,18 @@ Partial unique index `(counter_id) where retired_at is null`: one live PC per co
 | `day_close_flag_threshold` | numeric(10,2) | 0 (C-26) |
 | `tally_cash_ledger`, `tally_upi_ledger`, `tally_online_ledger` | text | 'Cash', 'Bank - UPI', 'Gateway clearing' (samples) |
 | `tally_columns` | jsonb | null; header names from the temple's Tally mapping (R4 s5) |
+| `paper_size` | text | `'a5'`; check in (`a5`,`a6`,`third_a4`,`roll_80`,`roll_58`,`custom`) (card `a5`, section 10.2) |
+| `paper_custom_w_mm`, `paper_custom_h_mm` | smallint | null; width 50..216, height 80..356, height >= width; both set when `custom` |
+| `counter_upi_vpa`, `counter_upi_payee_name` | text | null; the last counter payee read from Firestore, written only by `seva_note_counter_upi` (never by the settings PUT) |
 | `updated_at`, `updated_by_staff_id` | | trigger; audit row on every change |
 
 The counter UPI id and payee name are **not** copied here: the server reads them from the existing finance settings
 behind `hooks/useFinanceSettings.ts` and serves them in `counter/bootstrap`. If no UPI id is set, UPI is disabled at the
 counter; there is no hard-coded fallback (today `lib/receipt/upi.ts:1` and `components/home/SevaBooking.tsx:114` carry
-one, section 17.4).
+one, section 17.4). Only a super admin may write that Firestore document (`firestore.rules`, owner card `upi`). Every
+read is compared with the last payee recorded in `counter_upi_vpa` / `counter_upi_payee_name`: a change writes one
+`settings.upi_changed` audit row (old and new VPA masked to the last 4 characters before `@`) and shows on the Needs
+attention card `upi_changed` for 30 days; a read that cannot be recorded is not used (A3 security gate H-1).
 
 **`cash_denominations`**
 
@@ -530,6 +585,13 @@ Unique `(kind, value)`. Seed: notes 500, 200, 100, 50, 20, 10; coins 20, 10, 5, 
 true`, `updated_by_staff_id uuid null fk`, timestamps. **`festival_day_dates`**: `festival_id uuid fk on delete cascade`,
 `day date not null`, pk `(festival_id, day)`, index `(day)`. A festival's chip shows in date pickers until its last date
 has passed (C-61).
+
+**`seva_list_items`** (A4P-5, owner card `lists`): the gotra, nakshatra and rashi lists temple admins keep. `kind`
+(`gotra`,`nakshatra`,`rashi`), `item_id`, `name_en`, `name_kn`, `kn_checked` (true once a person saved the Kannada),
+`active`, `display_order`, `updated_at`, `updated_by`; pk `(kind, item_id)`. Seeded from `lib/seva/domain/*`. A guard
+trigger (`seva_list_items_guard`) keeps the 27 nakshatras and 12 rashis fixed except their Kannada spelling and refuses
+deletes; gotras can be added, renamed and switched off. Written only by `seva_list_item_save`, which audits
+`settings.list_item`. Slips and the counter use these names (section 13.7).
 
 ### 7.3 Numbering
 
@@ -741,12 +803,16 @@ DELETE and TRUNCATE; `REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM service_
 `prasadam.undo`, `prasadam.reversed`, `dayclose.close`, `dayclose.reopen`, `seva.create`, `seva.update`,
 `seva.rate_change`, `settings.update`, `denominations.update`, `festival.update`, `device.register`, `device.replace`,
 `gap.resolve`, `staff.onboard`, `staff.role_change`, `staff.view_only_change`, `staff.deactivate`, `staff.reactivate`,
-`staff.delete`, `export.download`, `payment.refund`, `payment.fee_rule_change`, `payment.amount_mismatch`. A normal
+`staff.delete`, `export.download`, `export.phones_read` (the export GET, every page with phones: part, range, cursor),
+`settings.upi_changed` (no actor: the change was made in Firestore), `settings.list_item`, `payment.refund`,
+`payment.fee_rule_change`, `payment.amount_mismatch`. A normal
 receipt issue writes no audit row (C-36). Work done offline and synced later is audited as the person who did it on
 the PC, with their role: a synced order's `receipt.amount_changed` rows name its issuer, an offline cancel's
 `receipt.cancel` names whoever cancelled (and records the syncer in `after.synced_by_staff_id`). What the sync itself
 does (`receipt.superseded`, `receipt.issuer_inactive_at_sync` when that person was offboarded before the sync) names
-the person who synced.
+the person who synced. An offline cancel's `after` also carries `offline`, `cancelled_at`, `in_closed_day` (with
+`closed_business_date`) and `late_sync` (it reached the server more than the cancel window after the receipt's issue
+time). The demo seeder writes `demo.seed_started` / `demo.seed_finished` on test projects only.
 
 **`ops_backup_runs`**: `id bigint identity pk`, `started_at`, `finished_at`, `ok boolean`, `bytes bigint`, `sha256
 text`, `error text`. Written by the backup job; read by Needs attention.
@@ -812,29 +878,42 @@ seva_sync_offline_order(p_order jsonb, p_staff_id uuid, p_device_id uuid, p_issu
   -- p_order carries issuer_staff_no; p_staff_id is the syncer; p_issuer_role is the issuer's role read by the route
 seva_issue_online_order(p_payment_order_id uuid) returns jsonb
 seva_record_prints(p_receipt_ids uuid[], p_staff_id uuid, p_device_id uuid) returns jsonb
+  -- a first print only for a receipt of this PC's own counter or of the W series (else SEVA:forbidden)
 seva_cancel_receipts(p_receipt_ids uuid[], p_reason_code text, p_note text, p_staff_id uuid, p_is_admin boolean,
                      p_at timestamptz default null, p_cancelled_by_staff_no integer default null,
                      p_canceller_role text default null) returns jsonb
   -- offline cancel: p_cancelled_by_staff_no and p_canceller_role name who cancelled on the PC, p_at when; p_staff_id syncs
-seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text) returns jsonb  -- today's receipts only
+seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text) returns jsonb
+  -- today's receipts of this PC's own counter only (another counter: SEVA:validation)
+seva_issue_device(p_device_id uuid, p_allow_retired boolean) returns counter_devices  -- retired only for sync, inside its gap
 seva_heartbeat(p_device_id uuid, p_outbox_count int, p_clock_skew_ms int, p_app_version text) returns jsonb
   -- { server_time, of_series, last_of_no, last_of_group_no, day_closed }
 seva_offline_group_floor(p_counter_id smallint, p_device_id uuid, p_at timestamptz) returns int  -- 8.3; heartbeat and bootstrap
 seva_mark_prasadam(p_receipt_id uuid, p_staff_id uuid, p_confirm_off_date boolean) returns jsonb
-seva_undo_prasadam(p_receipt_id uuid, p_staff_id uuid, p_reason text) returns jsonb
+seva_undo_prasadam(p_receipt_id uuid, p_staff_id uuid, p_reason text, p_is_admin boolean) returns jsonb
 seva_prepare_day_close(p_counter_id smallint, p_business_date date) returns jsonb
 seva_close_day(p_counter_id smallint, p_business_date date, p_counts jsonb, p_upi_bank_total numeric, p_note text, p_staff_id uuid) returns uuid
 seva_reopen_day(p_day_close_id uuid, p_reason text, p_staff_id uuid) returns void
 seva_register_device(p_counter_id smallint, p_secret_hash text, p_label text, p_staff_id uuid) returns uuid
 seva_replace_device(p_counter_id smallint, p_secret_hash text, p_label text, p_last_printed_of_no int, p_reason text, p_staff_id uuid) returns uuid
 seva_resolve_gap(p_gap_id bigint, p_status text, p_note text, p_staff_id uuid) returns void
-seva_upsert_seva(p_seva jsonb, p_reason text, p_staff_id uuid) returns uuid
+seva_upsert_seva(p_seva jsonb, p_reason text, p_staff_id uuid) returns uuid  -- also sets firestore_id of a new seva
+seva_update_settings(p_patch jsonb, p_staff_id uuid) returns void              -- redefined for the paper size
+seva_note_counter_upi(p_vpa text, p_payee_name text) returns boolean           -- true when the payee changed (audited)
+seva_mask_vpa(p_vpa text) returns text
+seva_list_items_get() returns jsonb
+seva_list_item_save(p_item jsonb, p_staff_id uuid) returns jsonb
 seva_reorder_sevas(p_ids uuid[], p_staff_id uuid) returns void
 seva_next_staff_no() returns smallint
 seva_audit(p_action text, p_entity text, p_entity_id text, p_receipt_no text, p_reason text, p_before jsonb, p_after jsonb, p_staff_id uuid) returns bigint
 seva_continuity(p_from date, p_to date) returns table(series_code text, year smallint, first_no int, last_no int, issued int, cancelled int, open_gaps int)
 seva_dashboard(p_from timestamptz, p_to timestamptz, p_prev_from timestamptz, p_prev_to timestamptz, p_bucket text) returns jsonb
 seva_needs_attention(p_from timestamptz, p_to timestamptz, p_today date) returns jsonb
+```
+
+The full list of the 75 built functions, file by file, is in `docs/DATA-MODEL.md` (Seva Entry section).
+
+```sql
 seva_create_payment_order(p_devotee_uid text, p_channel text, p_draft jsonb, p_provider text, p_mode text) returns jsonb  -- prices from sevas
 seva_record_payment_event(p_provider text, p_mode text, p_event_key text, p_event_type text, p_signature_ok boolean, p_order_ref text, p_payload jsonb) returns bigint
 seva_request_refund(p_payment_order_id uuid, p_receipt_ids uuid[], p_reason text, p_staff_id uuid) returns uuid
@@ -842,11 +921,15 @@ seva_request_refund(p_payment_order_id uuid, p_receipt_ids uuid[], p_reason text
 
 ### 7.9 Migration files and sizing
 
-- Files (timestamps set at build time, Builder's call): `..._seva_core.sql` (staff, counters, devices, series, years,
-  gaps, group counters, settings, denominations, festival days, `sevas` columns, rate history, audit log, ops),
-  `..._seva_receipts.sql` (orders, receipts, lines, day closes, counts, devotee profiles), `..._seva_functions.sql`,
-  `..._seva_seed.sql` (series C1/OF1/W/WT, Counter 1, denominations, a settings row with sample text), and in Phase 2
-  `..._seva_payments.sql`. The first super admin `staff` row (001) is created by a one-off script, not a migration.
+- Files as built: `20261020000000_seva_core.sql` (staff, counters, devices, series, years, gaps, group counters,
+  settings, denominations, festival days, `sevas` columns, rate history, audit log, ops),
+  `20261020000100_seva_receipts.sql` (orders, receipts, lines, day closes, counts, devotee profiles),
+  `20261020000200_seva_seed.sql` (series C1/OF1/W/WT, Counter 1, denominations, a settings row with sample text), the
+  functions in three files `20261021000000_seva_functions_issue.sql`, `20261021000100_seva_functions_ops.sql` and
+  `20261021000200_seva_functions_admin.sql`, then `20261029235900_seva_privilege_hardening.sql`,
+  `20261030000000_seva_lists.sql` and `20261031000000_seva_paper_size.sql`; in Phase 2 `..._seva_payments.sql`.
+  Files up to `20261030000000_seva_lists.sql` are frozen (applied on the owner's test project, 2026-10-19): a change is
+  a new, additive file with a later timestamp. The first super admin `staff` row (001) is created by a one-off script, not a migration.
 - Deploying: today `.github/workflows/supabase-migrations.yml` runs only on `workflow_dispatch` (manual), not on merge
   (R3 3.2 said "on merge"; section 5.1 item 9). Either way a migration lands on the live project, so additive
   only, and each file is first run in PGlite by the database test layer.
@@ -900,7 +983,8 @@ R3 1.4). Each counter has its own series, so counters never wait on each other.
   as the syncer (`seva_orders.synced_by_staff_id`; for a cancel, `synced_by_staff_id` in its audit row). The person
   must be a staff member who may use the counter (3.3 row 1, role read from Firestore by the route) whose staff row is
   active, or inactive because they were offboarded after doing the work - then an audit row
-  `receipt.issuer_inactive_at_sync` says so; invited and deleted rows are refused. An offline cancel always follows the
+  `receipt.issuer_inactive_at_sync` says so; invited and deleted rows are refused, and so is an inactive person whose
+  item's recorded time (`issued_at`, or the cancel's time) is later than their `status_changed_at` (A3 security gate). An offline cancel always follows the
   counter rule: own receipt only, inside the cancel window measured from the receipt's issue time to the cancel's
   recorded time (9.9).
 - **Group labels.** An offline order's group label is `G-YYMM-OF<n>-NNN`, numbered by the PC per series and IST month.
@@ -920,7 +1004,8 @@ R3 1.4). Each counter has its own series, so counters never wait on each other.
   new one, sets the OF `last_no` to the typed number, and records any range between the last number the server received
   and the typed number as an open gap (`device_replaced`). An admin then enters those receipts from the paper slips or
   declares them lost with a reason (C-52). A retired device's later uploads are accepted only for numbers inside that
-  gap; anything else is refused and flagged.
+  gap; anything else is refused and flagged. A retired PC reaches `POST /api/seva/counter/sync` only, and only with
+  orders (its cancels are refused); every other route answers `device_unknown` (A3 security gate L-4).
 - **Group label floor on replace.** The dead PC may have printed orders it never sent, each with a group label above
   what the office holds. `seva_replace_device()` stores on the new device a floor for the current IST month
   (`of_group_floor_yymm`, `of_group_floor_no`): the old PC's floor (the highest label received this month for the OF
@@ -951,7 +1036,8 @@ admin to cancel one. Every number stays accounted for.
 
 ## 9. Counter
 
-Route `/admin/receipts/counter`, designed at 1366 px, keyboard first (M6 Agent A). Layout: temple header band (photo
+Route `/seva/counter` in the full-screen counter frame (the receipt screen, Today's receipts, Close day and Sign out;
+no section menu; deck `shell`), designed at 1366 px, keyboard first (M6 Agent A). Layout: temple header band (photo
 left, name and address centred, photo right); a slim status strip; a step indicator (1 Devotee - 2 Sevas and dates -
 3 Pay and print); the current step large on the left; a sticky "This receipt" summary on the right with the devotee,
 lines grouped by date, total and the primary action.
@@ -984,7 +1070,9 @@ Rashi (id - English - Kannada): 1 Mesha ಮೇಷ; 2 Vrishabha ವೃಷಭ; 3 M
 
 **Returning devotee.** Typing 3+ letters of a name, or a full phone, calls `devotees/search` (debounced 250 ms) and shows
 one suggestion: "Venkatesh Rao - Bharadwaja - Rohini - phone ending 2345 - last visit 2026-09-12" with "Use these
-details" / "Not this person" and an Undo after use. Offline, matching uses the PC's cached profiles, where phones are
+details" / "Not this person" and an Undo after use. A receptionist searches from the registered counter PC only, and
+every person is held to 60 searches a minute (per server instance), so the profiles cannot be listed by walking name
+prefixes (A3 security gate L-2). Offline, matching uses the PC's cached profiles, where phones are
 stored only as a salted hash plus the last 4 digits (C-32).
 
 ### 9.3 Step 2 - Sevas and dates (Round B - counter c, d, e; Round C - multidate)
@@ -1044,7 +1132,9 @@ back as codes with plain messages ("Paaduka Pooja was switched off in Seva setti
 ### 9.8 Printing and reprint
 
 - Save -> the receipts come back (online) or are created locally (offline) -> one print job with one page per slip ->
-  `window.print()` under kiosk printing -> `counter/prints` records the first print.
+  `window.print()` under kiosk printing -> `counter/prints` records the first print. A first print is part of issuing,
+  so it is allowed only for a receipt of this PC's own counter or of the online W series; another counter's receipt
+  answers `forbidden`.
 - **Reprint** from Today's receipts prints the same slip with the DUPLICATE band (ನಕಲು) and "Reprinted <date time> by
   <staff no.>", same number, same QR. Any second print is a duplicate, even after a jam (C-22). Cancelled receipts cannot
   be reprinted (C-23).
@@ -1053,7 +1143,8 @@ back as codes with plain messages ("Paaduka Pooja was switched off in Seva setti
   only:** only a receipt of the counter's current IST business date is reissued, so the new receipt has the same
   business date and today's day close counts the payment once (the spoiled number cancelled, the new one issued, no
   hole in the series). An earlier day's slip is refused (`validation`, field `reissue_only_today`) and the counter
-  offers a DUPLICATE reprint instead, which needs no new number.
+  offers a DUPLICATE reprint instead, which needs no new number. A reissue is also limited to a receipt of this PC's
+  own counter.
 
 ### 9.9 Today's receipts and cancel (Round B - cancel)
 
@@ -1072,7 +1163,11 @@ back as codes with plain messages ("Paaduka Pooja was switched off in Seva setti
   cancel is of one's own receipt only, carries the canceller's staff no. (`cancelledByStaffNo`) and the time it was
   made, and is checked at sync against that person and that time, not against whoever is signed in when it is sent
   (8.3): the cancel window runs from the receipt's issue time to the recorded cancel time. The canceller is recorded as
-  `cancelled_by_staff_id`; the syncer is recorded in the audit row.
+  `cancelled_by_staff_id`; the syncer is recorded in the audit row. The server cannot verify what an outbox says, so
+  an offline **cash** cancel that reaches the server later than the receipt's issue time plus the cancel window
+  (measured by the server's received time, not the PC's clock), or that falls in a day already closed for that counter,
+  is stored with `refund_state = due` instead of `done`: the office checks the drawer and marks it. Needs attention
+  lists every offline cancel (card `offline_cancels`) and flags the late ones and those synced by someone else.
 
 ### 9.10 Close day (Round B - counter i, j; Round B - cancel; Round C - cash)
 
@@ -1087,8 +1182,8 @@ One close per counter per business date (C-24), done by the receptionist of that
 4. **Sent to the office.** Must show "Nothing is waiting to send"; closing needs the counter online.
 5. **Receipt numbers today.** Per series first-last, issued, cancelled with reasons, gaps.
 6. **Close day and print summary.** Writes `day_closes` and counts, writes the audit row, prints the summary, and
-   saves the day's Excel copy. The summary prints on A4 if the printer picks the tray by page size, otherwise on slips
-   (UNVERIFIED until the printer test, Builder's call after it).
+   saves the day's Excel copy. The summary prints on the receipt paper chosen in settings (section 10.2; owner card
+   `a5`).
 7. After close the counter shows "Day closed"; a temple admin can reopen with a reason (C-24).
 
 ### 9.11 Offline outbox and Excel copy (Round A - offline; Follow-ups - offline-safe)
@@ -1100,7 +1195,8 @@ One close per counter per business date (C-24), done by the receptionist of that
   plus offline cancels. Sending happens on the `online` event, every 30 s while the page is open, and through
   Background Sync where the browser offers it (R2 s5). Each send is idempotent.
 - **What works offline:** making and printing receipts, cash and UPI recording (UPI is still checked on the devotee's
-  phone), returning-devotee matches from the local copy, Today's receipts, cancel of own receipts. **What needs the
+  phone), returning-devotee matches from the local copy, Today's receipts, cancel of own receipts (a late or
+  closed-day cash cancel becomes refund-due when it arrives, 9.9). **What needs the
   network:** sign-in of a different person, day close, settings, prasadam (C-28).
 - **Local data kept:** the catalogue, settings and header photos (as blobs), denominations and festival chips; today's
   receipts (online and offline) for the list and the Excel copy; the outbox; cached devotee profiles (hashed phones).
@@ -1153,23 +1249,21 @@ prints"). Header, footer, the prasadam line and which devotee details print come
 
 ### 10.2 Layout and print CSS
 
-- Paper: one-third of A4 cut lengthwise, **99 mm wide x 210 mm tall, portrait**, fed upright from the bypass tray of the
-  office A4 printer (Follow-ups - paper). One receipt per slip; a group of 3 prints 3 slips in one job.
-- CSS (print):
-
-```css
-@media print {
-  @page { size: 99mm 210mm; margin: 5mm; }
-  .slip { width: 89mm; height: 199mm; break-after: page; overflow: hidden; }
-}
-```
-
-  The 199 mm body avoids a blank second page (M5 note, untested on a real printer).
-- Type: Inter for Latin, Noto Sans Kannada for Kannada (already loaded by `app/layout.tsx:24-25`, so no new download);
-  body 10 pt (about 13 px), seva date 18 pt bold, receipt number 12 pt bold, total 14 pt bold; Kannada never below
-  10 pt. Pure black on white; no light greys or hairlines. Print waits for `document.fonts.ready` and the photos.
-- The Windows driver needs a custom paper size of 99 x 210 mm set on the bypass tray (UNVERIFIED on the temple printer;
-  open item O-05). Kiosk printing sends to the Windows default printer with no dialog (R2 s2).
+- Paper (owner card `a5`, 2026-10-19; replaces the fixed 99 x 210 mm slip of D11): **configurable in Settings -
+  Receipts**, portrait only, one receipt per sheet; a group of 3 prints 3 sheets in one job. Presets: **A5 148 x 210 mm
+  (default)**, A6 105 x 148 mm, one-third A4 99 x 210 mm, 80 mm roll, 58 mm roll (height fitted to the content plus a
+  6 mm tear margin), and custom (width 50-216 mm, height 80-356 mm, height at least the width). Stored in
+  `seva_settings.paper_size` and `paper_custom_w_mm` / `paper_custom_h_mm`; a missing or bad value prints on A5. The day
+  close summary follows the receipt paper; the board summary stays A4.
+- CSS (print): the print job writes one `@page { size: <w>mm <h>mm; margin: 0 }` rule for the chosen paper at print
+  time (`lib/seva/print/paper.ts`, `printSlips.ts`); the slip's inner padding replaces the page margin, and a fixed
+  page keeps 1 mm of slack so rounding never pushes a slip onto a second sheet. A slip too long for a fixed page is
+  shrunk (not below 70%), never clipped.
+- Type: Inter for Latin, Noto Sans Kannada for Kannada (already loaded by `app/layout.tsx:24-25`, so no new download).
+  The type sizes, the QR size and whether the header photos print are picked per paper (`slipLayout`); no text below
+  9 pt, and on A5 the body is about 10 pt with the seva date the largest line. Pure black on white; no light greys or hairlines. Print waits for `document.fonts.ready` and the photos.
+- A5 and A6 are standard driver sizes; one-third A4 and custom need a custom form on the Windows driver
+  (SETUP-GUIDE A5.3; UNVERIFIED on the temple printer, open item O-05). Kiosk printing sends to the Windows default printer with no dialog (R2 s2).
 
 ### 10.3 QR token rules
 
@@ -1186,7 +1280,8 @@ prints"). Header, footer, the prasadam line and which devotee details print come
 
 ## 11. Prasadam counter
 
-Route `/admin/prasadam`, phone first (390 px), also usable on a PC with a USB scanner (Round B - prasadam).
+Route `/seva/prasadam` (the prasadam role lands here), phone first (390 px), also usable on a PC with a USB scanner
+(Round B - prasadam).
 
 | Screen | When | What it shows | Actions |
 |---|---|---|---|
@@ -1200,6 +1295,8 @@ Route `/admin/prasadam`, phone first (390 px), also usable on a PC with a USB sc
 | Not found | No match | "Nothing matches C1-023-10-2026/009999. Check the number and type it again." | Type again, Scan QR instead |
 
 Rules:
+- The answer to the caller's own successful give carries `givenNow: true`, so the screen shows "Marked given" with
+  Undo; a receipt given earlier answers with `givenNow: false` and shows "Already given".
 - Prasadam is marked **once per receipt** (all its lines together). The state moves `pending -> given`; undo returns it
   to `pending` within 120 s by the same person; later only a temple admin can reverse it, with a reason.
 - Before and after the seva date: allowed with a warning and a second tap; `prasadam_off_date` records which, and the
@@ -1213,7 +1310,7 @@ Rules:
 
 ## 12. Dashboard, register, reports, audit, exports
 
-### 12.1 Dashboard (`/admin/receipts`, Round B - dashboard; M6c)
+### 12.1 Dashboard (`/seva`, Round B - dashboard; M6c)
 
 Top to bottom, desktop 1366 px and phone 390 px in the same order:
 
@@ -1267,11 +1364,13 @@ year there is no previous-year data; the tile says so (section 5.1 item 12).
 | Clock skew | A counter PC more than 2 minutes off | attention | Settings - Counters |
 | Backup | Last nightly backup failed or older than 36 hours | critical | (text only) |
 | Database size | Above 400 MB | attention | (text only) |
+| Offline cancels (`offline_cancels`) | Every offline cancel in the period: receipt, recorded time, received time, canceller, syncer | attention when the canceller is not the syncer or the cancel arrived late | Register |
+| Counter UPI changed (`upi_changed`) | Every change of the counter UPI payee in the last 30 days, whatever period is chosen; names the latest, masked | attention | Audit trail |
 | Phase 2: payments | Paid but not issued; pending over 30 minutes; refund failed; possible double payment (same account, seva and dates, two paid orders within 30 minutes) | critical / attention | Payments |
 
 A card with nothing to report shows a calm "0" line (as the mockup's "0 waiting to sync").
 
-### 12.3 Receipts register (`/admin/receipts/register`)
+### 12.3 Receipts register (`/seva/register`)
 
 Every receipt number in order with its status. Filters: from, to, seva, payment (cash and UPI, cash, UPI, online),
 status (issued, cancelled, changed amount, duplicate printed, prasadam pending), search by number or name. **Number
@@ -1280,7 +1379,7 @@ continuity card**, one line per series for the chosen range: "C1 Counter 1 onlin
 `seva_continuity()`. A row opens the receipt with its history (prints, cancel, prasadam, audit rows). Below 768 px rows
 become cards.
 
-### 12.4 Reports (`/admin/receipts/reports`)
+### 12.4 Reports (`/seva/reports`)
 
 - **Seva summary:** count and amount per seva for a range against the same days last year; a treemap "Where the money
   comes from / ಸೇವಾ ಪಾಲು" (category, then seva). Counts by **seva date** for planning (C-63). Rate changes show under
@@ -1323,15 +1422,19 @@ title with Kannada under it. Charts receive small pre-bucketed arrays from the s
 
 Ranges: Today, This month, Last month, This year, or custom. "Devotee phone numbers" is off by default and offered only
 to non-view-only temple admins and super admins (C-16). Files are built in the browser from paged API data (C-41).
-Every export writes `export.download` to the audit (format, range, parts, whether phones were included).
+Every export writes `export.download` to the audit (format, range, parts, whether phones were included). An export
+with phone numbers is also audited on the server: the export GET writes `export.phones_read` (part, range, cursor) on
+every page that includes phones, before any row is read, and refuses the page when that write fails (A3 security gate
+M-3).
 
 ## 13. Settings
 
-All under `/admin/receipts/seva-settings`, `/admin/receipts/settings` and `/admin/users`; temple admin and super admin
+All under `/seva/seva-settings`, `/seva/settings/*` and `/admin/users` (Staff stays in the website admin and is linked
+from the module); temple admin and super admin
 edit, view-only temple admins see read-only. Every save writes an audit row. "Changes apply to receipts made after you
 save."
 
-### 13.1 Sevas (extends the existing `app/admin/receipts/seva-settings/page.tsx`)
+### 13.1 Sevas (`/seva/seva-settings`, extends the old `app/admin/receipts/seva-settings/page.tsx`)
 
 List columns: Key (drag to reorder; it is the counter number key), Code, Seva (English, Kannada under), Rate, Counter /
 online / both, Several dates, Prasadam, Active, Edit. Edit drawer: short code (2-3 letters), counter key, name in English,
@@ -1339,7 +1442,9 @@ name in Kannada, rate (when it changes: "Was Rs 1,005. Receipts already made kee
 shown on (Counter, Online, Both), "Can be booked for several dates - each date gets its own receipt", "Counter may change
 the amount", "Prasadam given", "What the prasadam counter gives", Active, and the rate history. Other Seva / Karnike is
 always counter-only and takes any amount. Sevas are never deleted, only switched off. Rate changes apply when saved
-(C-35).
+(C-35). A save goes through `seva_upsert_seva`, which also sets a new seva's `firestore_id`; the server then mirrors
+the public fields to Firestore `sevas` with the admin SDK (C-39). Client writes to Firestore `sevas` and to
+`settings/financeSettings` are super admin only in `firestore.rules` (A3 security gate).
 
 ### 13.2 Receipts (template and numbering)
 
@@ -1352,6 +1457,8 @@ always counter-only and takes any amount. Sevas are never deleted, only switched
   slip preview. The header is also the band on the counter screen (D10).
 - **Counter rules:** cancel window (minutes), note required for a cash difference, reason required for a changed amount,
   days ahead for counter dates, day-close flag threshold.
+- **Paper size** (`/seva/settings/receipt`, card `a5`): A5 (default), A6, one-third A4, 80 mm roll, 58 mm roll, or custom
+  width and height, with the live preview drawn at that size (section 10.2).
 
 ### 13.3 Cash denominations
 
@@ -1385,6 +1492,14 @@ reason, and "Going live: 2 steps" (section 14.6).
   and for super admins only "Offboard (deactivate)" and "Delete user", both needing a reason; delete warns that
   deactivating is usually right and that past receipts keep the name and staff no.
 - The existing `app/api/admin/users/create-admin` and `set-role` routes are brought under the same rules (section 17).
+- Reactivating a person whose role is Super admin needs a super admin (A3 security gate).
+
+### 13.7 Gotra, nakshatra and rashi lists (`/seva/settings/lists`, A4P-5)
+
+Temple admins add gotras, correct a gotra's English or Kannada name and switch one off; nakshatra and rashi names are
+fixed, only their Kannada spelling can be corrected. A Kannada name saved by a person is marked checked; nothing is
+deleted. Every change is audited (`settings.list_item`). The counter, slips and reports use these names (the table
+`seva_list_items`, section 7.2); view-only temple admins see the page read-only.
 
 ## 14. Phase 2: devotee booking and payments
 
@@ -1505,7 +1620,9 @@ Sources: R1V (verified 2026-10-18) where it differs from R1.
 | Database access | Only server code, only `createAdminClient()` (service role, `import 'server-only'`, `lib/supabase/admin.ts:1`). RLS deny-all and `REVOKE` on every new table; functions executable by `service_role` only |
 | Identity | Firebase ID token verified server-side on every call (`getAuth(adminApp).verifyIdToken`), then the Firestore user doc |
 | Authorisation | Allow-list per route (section 3.3) in `lib/seva/server/auth.ts`; `lib/auth/admin-auth.ts` `BLOCKED_ROLES` replaced by an explicit allow-list (section 17.4). Unknown, empty or misspelt roles are denied. Staff status must be `active`; view-only blocks every write |
-| Counter binding | Device token for every counter call (C-37) |
+| Counter binding | Device token for every counter call (C-37); a receptionist's devotee search and cancel need it too; a retired PC reaches only the sync route, with orders inside its gap (A3 security gate L-2, L-4); the PC is read only after the sign-in is verified (L-1) |
+| Rate limits | `/r/<token>` 30 a minute per IP; devotee search 60 a minute per person; in memory, so per server instance |
+| Counter UPI id | Firestore `settings/financeSettings` writable by super admins only; every read compared with the last recorded payee, a change audited (`settings.upi_changed`) and shown in Needs attention (`upi_changed`) |
 | Integrity | Prices from the catalogue on the server; immutable receipts and lines (triggers); append-only audit; numbers in the same transaction as the insert |
 | Idempotency | `client_order_id`, `client_receipt_id`, webhook `event_key`, `refund_ref` all unique |
 | Webhooks | Raw-body HMAC check, constant-time compare, then server re-fetch before any receipt (section 14.3) |
@@ -1513,7 +1630,7 @@ Sources: R1V (verified 2026-10-18) where it differs from R1.
 | Public surfaces | `/r/<token>`: unguessable 128-bit token; shows what the slip already shows, never the phone; rate-limited per IP. `/api/public/receipts` fixed (section 17.4). Devotee order creation needs sign-in and is rate-limited per account |
 | Browser | React escaping; no `dangerouslySetInnerHTML` with user text; Bearer tokens in headers (no cookie session, so no CSRF surface for these routes) |
 | Errors and logs | Error codes and plain messages to the client; server logs carry ids, never names or phone numbers |
-| Firestore rules | `users` create may not set `role` other than `devotee`, nor `isActive`/`isApproved` (fix for `firestore.rules:39`) |
+| Firestore rules | `users` create may not set `role` other than `devotee`, nor `isActive`/`isApproved` (fix for `firestore.rules:39`); `sevas` and `settings/financeSettings` writes super admin only; `isSuperAdmin()` also needs `isActive` not false |
 
 ### 15.2 Personal data
 
@@ -1526,7 +1643,8 @@ Sources: R1V (verified 2026-10-18) where it differs from R1.
 | Staff email and name | Firebase, Firestore, `staff` | Admins | Kept for audit, even after delete |
 
 Phone numbers never print, never appear in audit JSON, and are excluded from exports unless explicitly ticked by a
-permitted person (audited). The counter PC holds personal data: it needs a Windows password, an account per PC, and
+permitted person (audited on the server for every page, `export.phones_read`, and for the finished file,
+`export.download`). The counter PC holds personal data: it needs a Windows password, an account per PC, and
 BitLocker if available (open item O-09). A short notice at the counter and on the booking page says why details are
 kept ("to fill them faster next time and to find your receipt"); wording for the owner to approve (O-19).
 
@@ -1537,8 +1655,9 @@ kept ("to fill them faster next time and to find your receipt"); wording for the
 1. **Supabase** itself - the Free plan has no downloadable backups (R2 s6).
 2. **Nightly encrypted backup** - GitHub Actions at 02:30 IST: `pg_dump` of the database (seva tables and the rest) using
    a pooler connection string from a repository secret (GitHub runners lack IPv6, so the direct connection may fail -
-   UNVERIFIED), compress, encrypt with `age` to a public key whose private key the owner keeps offline, upload as a
-   workflow artifact kept 30 days plus a monthly copy kept 12 months (destination UNCLEAR, C-57), and write a row to
+   UNVERIFIED), compress, encrypt with `age` to two public keys (one for Nikhil, one for the site owner; owner card `backup-who`,
+   2026-10-19), either private key opening it alone, the private keys kept offline by their holders, upload as a
+   workflow artifact kept 30 days plus the first-of-month copy kept 90 days as built (C-57), and write a row to
    `ops_backup_runs`. The `pg_dump` client version must match the server's (UNCLEAR: config says 15, R3 3.5).
 3. **Counter Excel copy** of each day in a chosen folder (section 9.11), plus "Download Excel" any time.
 4. **Counter outbox and today's receipts** in IndexedDB.
@@ -1570,10 +1689,10 @@ time: a few hours (new project, restore, update env, redeploy).
 
 | Path | Change |
 |---|---|
-| `app/admin/receipts/layout.tsx` (`:12`) | Real permission check for seva pages; module wrapper class `.seva` |
-| `app/admin/receipts/page.tsx` | Becomes the seva dashboard (list moves to `register/`) |
-| `app/admin/receipts/seva-settings/page.tsx` | Writes Supabase through `/api/seva/sevas`; new fields (section 13.1) |
-| `app/admin/receipts/[receiptId]/page.tsx`, `[receiptId]/print/page.tsx` | Read `params.receiptId` from Supabase; slip print view |
+| `app/admin/receipts/**`, `app/admin/prasadam` (moved to `app/seva/**` in A4S) | `app/seva/layout.tsx`: real permission check for seva pages, module wrapper class `.seva`, own frames; old addresses forward from `next.config.ts` |
+| `app/seva/(desk)/page.tsx` (was `app/admin/receipts/page.tsx`) | The seva dashboard (the list moved to `register/`) |
+| `app/seva/(desk)/seva-settings/page.tsx` | Writes Supabase through `/api/seva/sevas`; new fields (section 13.1) |
+| `app/seva/(desk)/[receiptId]/page.tsx`, `[receiptId]/print/page.tsx` | Read `params.receiptId` from Supabase; slip print view |
 | `app/admin/users/**`, `app/api/admin/users/{create-admin,set-role}` | Staff no., view-only, lifecycle, onboarding rules |
 | `app/admin/reports/page.tsx` (`:185-332`) | Receipts card links to seva reports; its Firestore receipt CSV is removed |
 | `app/(public)/sevas/**`, `components/home/SevaBooking.tsx` (Phase 2) | Booking flow replaced by the gateway-verified flow; today it lets the devotee mark payment "completed" from the browser (`SevaBooking.tsx:182-193`) |
@@ -1582,7 +1701,7 @@ time: a few hours (new project, restore, update env, redeploy).
 | `types/user.ts` (`:3-44`) | Roles `receptionist`, `prasadam_counter`; normaliser cases |
 | `context/AuthContext.tsx` (`:155-161`) | Seva capability flags (from `/api/seva/me`) |
 | `components/admin/layout/AdminAuthGuard.tsx` (`:8-14`, `:129-143`) | Real permission cases instead of mapping all to `canAccessAdmin` |
-| `components/admin/layout/AdminSidebar.tsx` (`:56`), `navigation.ts` (`:55-58`) | Receipt Book keeps its place; sub-items per role; filtering made real |
+| `components/admin/layout/AdminSidebar.tsx` (`:56`), `navigation.ts` (`:55-58`) | One "Seva Entry" item that opens `/seva` (no sub-items; the module has its own section rail); filtering made real; `app/admin/page.tsx` sends seva-only roles to `/seva` |
 | `components/ui/button.tsx`, `input.tsx`, `select.tsx`, `switch.tsx`, `card.tsx`, `dialog.tsx` | Token-based variants used by the module (section 18) |
 | `lib/receipt/upi.ts` | Reused for the counter UPI link; hard-coded default VPA no longer used by seva code |
 | `lib/format.ts` | Reused (`formatCurrency`, `formatDate`) with IST |
@@ -1592,7 +1711,8 @@ time: a few hours (new project, restore, update env, redeploy).
 
 ### 17.2 Replace (superseded by the new flow, removed in the same pull request that switches its consumers)
 
-`app/admin/receipts/create/page.tsx` (becomes a redirect to the counter); `app/api/admin/receipts/**` and
+`app/admin/receipts/create/page.tsx` (now `app/seva/(desk)/create/page.tsx`, a redirect to the counter); the old
+`/admin/receipts/*` and `/admin/prasadam` pages (moved to `/seva`, their addresses forward, deck `shell`); `app/api/admin/receipts/**` and
 `app/api/admin/receipt-sevas/**` (replaced by `/api/seva/*`, C-40); `lib/receipt/admin.ts`, `lib/receipt/numbering.ts`,
 `lib/receipt/validation.ts`, `lib/receipt/pdf.ts` (Firestore numbering and the Kannada-less PDF; their tests move with
 them); `services/receipt.service.ts`, `services/receiptSeva.service.ts`, `types/receipt.ts`, `types/receiptSeva.ts`,
@@ -1617,6 +1737,7 @@ Raya AI (`lib/ai/**`), events, gallery, panchanga, donations, `seva_bookings` ta
 | Committed service-account key | 11 tracked files under `scripts/` contain a private-key marker; 9 of them appear to embed key material (pattern count on 2026-10-18, values not read) (M11-F02) | Owner revokes the key in the Google Cloud console; scripts read credentials from env or the git-ignored `.firebase-adminsdk.json` (`.gitignore:41`); history rewrite optional once revoked |
 | Hard-coded UPI fallback | `lib/receipt/upi.ts:1`, `components/home/SevaBooking.tsx:114` | Seva code never falls back; UPI disabled when not configured |
 | Role checks inconsistent | `firestore.rules:18` lists `'Billing'` not `'billing'`; `AdminAuthGuard.tsx:129-143` maps everything to `canAccessAdmin` (R3 4.3, 4.5) | Seva pages use real flags; the rules list is noted for the site-wide cleanup |
+| Counter UPI id could change unseen (found 2026-10-19, A3 security gate H-1) | `settings/financeSettings` was writable by every admin, and the counter read it without a record | Super admin only in `firestore.rules`; every read compared with `seva_settings.counter_upi_*` (`seva_note_counter_upi`), a change audited and raised in Needs attention |
 
 Noted, not fixed here (out of scope): AGENTS.md says `npm run type-check` (the script is `typecheck`) and "Next.js 14"
 (package.json has ^16.2.9); `services/settings.service.ts` and `services/event.service.ts` read deny-all tables with the
@@ -1651,6 +1772,15 @@ boundary rule (CLAUDE.md, 2026-10-18).
   UI-REDESIGN-PLAN 5.1-5.4 already specifies), so they can become site defaults later. Toasts stay `react-hot-toast`.
 - Slip and e-receipt use the same fonts; no new font downloads; no external CSS.
 - Contrast: chart gold on white is 1.98:1 (fills only, offset by labels and data tables; C-12).
+- **Motion and feedback** (A4P, owner card `motion-feel`, 2026-10-19): Framer Motion springs, "Lively" (stiffness 380,
+  damping 22, `lib/seva/motion.ts`) on presses, dialogs, tabs, switches and numbers; a loading outline
+  (`loading.tsx` skeleton) on every page, a top progress bar on navigation, and pending buttons and lines for every
+  wait, so nothing ever looks frozen. `prefers-reduced-motion` turns the movement off (the content still appears).
+- **Module shell** (A4S, deck `shell`, 2026-10-19): Seva Entry has its own frames inside the same website: a header
+  (temple name, "Ramesh - 023", Sign out always visible, "Website admin" for admin roles), a section rail on desktop and
+  a bottom bar on the phone (`components/seva/shell/*`, sections per role), and the full-screen counter frame (receipt
+  screen, Today's receipts, Close day, Sign out). Role landing: receptionist to `/seva/counter`, prasadam counter to
+  `/seva/prasadam`, temple admin and super admin to `/seva`.
 
 ## 19. Testing strategy and run policy
 
@@ -1693,8 +1823,9 @@ Notes:
 2. Build Phase 1 against samples (D29); migrations run in PGlite and on a test Supabase project first.
 3. The owner revokes the committed service-account key as soon as the scripts stop using it.
 4. Office sends real data (open items); the super admin enters sevas, header, photos, festival days, denominations.
-5. Printer set-up on the counter PC: custom 99 x 210 mm paper on the bypass tray, set as the Windows default; kiosk
-   shortcut; install the web app; register the PC as Counter 1; choose the Excel folder.
+5. Printer set-up on the counter PC: the paper size picked in Settings - Receipts (A5 by default; a custom form for
+   one-third A4 or a custom size), set as the Windows default; kiosk shortcut to `/seva/counter`; install the app from
+   `/seva` (one app for every role); register the PC as Counter 1; choose the Excel folder.
 6. Onboard staff; each signs in once (invited -> active).
 7. Dry run: one or two days alongside the paper book; compare totals at day close.
 8. Go live at the counter (paper book retired the same day, last paper number noted in the audit).
@@ -1713,7 +1844,8 @@ Notes:
 - [ ] Offline rehearsal: 3 offline receipts sent on reconnect; numbers continuous.
 - [ ] Prasadam phone: camera scan and typed number both work.
 - [ ] Day close rehearsal with real notes and coins; summary prints.
-- [ ] Nightly backup ran twice; a restore drill passed; the `age` private key is stored offline by the owner.
+- [ ] Nightly backup ran twice; a restore drill passed; both `age` private keys (Nikhil's and the site owner's) are
+      stored offline by their holders.
 - [ ] Dashboard figures match the dry-run paper totals.
 - [ ] Owner's 10-minute checklist passed and signed.
 
@@ -1738,8 +1870,8 @@ Notes:
    or QZ Tray, R2); File System Access permission prompts after restart; Supabase Free size and pausing (7.9, 16.2);
    PGlite fidelity; Firebase and Supabase drift for staff (fails closed, 3.2); gateway webhook format for PG orders
    (14.3, UNCLEAR); legal questions on gateway fees (14.7); Vercel plan terms for a trust taking payments (UNCLEAR, O-16).
-7. **Assumptions.** One counter at first; Chrome or Edge on Windows 10/11; the office printer accepts a custom 99 x 210 mm
-   size from the bypass tray; Firebase stays the sign-in provider; Supabase project reachable from Vercel; Node 24 and
+7. **Assumptions.** One counter at first; Chrome or Edge on Windows 10/11; the office printer takes the paper size chosen in
+   settings (A5 by default; card `a5`); Firebase stays the sign-in provider; Supabase project reachable from Vercel; Node 24 and
    npm 11 locally; the builder reads `node_modules/next/dist/docs/` after `npm ci` before writing Next.js code (AGENTS.md).
 8. **Testing.** Section 19.
 
@@ -1788,7 +1920,7 @@ Each is a decision the owner did not explicitly make. He can accept, change or r
 | C-37 | Online counter receipts need a registered counter PC as well as a signed-in user | Stops counter receipts from other machines | 8.4 |
 | C-38 | Existing Supabase sevas get visibility 'both' | The public site keeps working | 7.1 |
 | C-39 | No migration of Firestore `sevas` rows; real list entered from the office; public fields mirrored to Firestore until its other readers move | Site not live; avoids breaking Raya AI and other readers | 17.2 |
-| C-40 | APIs at `/api/seva/*`; pages keep `/admin/receipts/*`; old receipt APIs removed with their pages | One namespace, no duplicates | 6.5, 17.2 |
+| C-40 | APIs at `/api/seva/*`; pages at `/seva/*` (moved from `/admin/receipts/*` on 2026-10-19, deck `shell`; the old addresses forward); old receipt APIs removed with their pages | One namespace, no duplicates | 6.5, 17.2 |
 | C-41 | Exports and the counter Excel copy are built in the browser from paged data with one Excel library | Avoids server time limits; one code path | 12.6 |
 | C-42 | Board summary and day-close summary are print-styled HTML (Save as PDF), not pdf-lib | pdf-lib here cannot print Kannada (R3 1.6) | 12.6 |
 | C-43 | Razorpay adapter is Later: switching to Razorpay would need that one adapter written (small) as well as new keys - the Round A card's "new keys, not new code" holds only once it exists | Owner chose "Cashfree, Razorpay as the spare", not "build both" | 14.2 |
@@ -1828,7 +1960,7 @@ the day-close summary prints on A4 or slips after the printer test.
 | O-02 | Header: temple name (English and Kannada), address, registration number, Photo 1 and Photo 2, footer lines, blessing | Office | Before go-live |
 | O-03 | Kannada proof-reading: seva names, gotra list (R4 marks all Kannada spellings UNCERTAIN), nakshatras 25-26, receipt words, ನಕಲು, the prasadam line; spelling "Karnike" vs "Kanike" (ಕಾಣಿಕೆ) | Priest or committee member | Before go-live |
 | O-04 | Festival dates, Aradhane included | Office | Before go-live |
-| O-05 | Printer: model; custom 99 x 210 mm size from the bypass tray; how slips are cut (trimmer or pre-cut stock) | Owner | Before the print test |
+| O-05 | Printer: model; the paper size chosen in settings (A5 by default; one-third A4 or custom need a custom size from the bypass tray); how slips are cut if not A5 or A6 | Owner | Before the print test |
 | O-06 | Test the QR with 2-3 older phones from the printed slip | Owner | Print test |
 | O-07 | Kiosk printing shortcut on the real PC (installed app or `--app=` shortcut) | Owner + builder | Print test |
 | O-08 | Excel copy folder and whether folder permission survives a restart | Owner | Before go-live |

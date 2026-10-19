@@ -173,6 +173,9 @@ Vendor pages read for this section:
 
 An organisation is just a folder for your projects. You need one before you can make a project.
 
+On 2026-10-19 an organisation already existed when the dashboard first opened: Supabase had created one automatically
+at sign-up, and the create-project form opened directly. If that happens to you, skip to A1.3; the Free plan applies.
+
 1. If the dashboard does not already show a "create organisation" form, click the button that says **New
    organization** or similar.
    What you should see now: a form with boxes such as **Name**, **Type** and **Plan**. (UNVERIFIED labels.)
@@ -192,12 +195,17 @@ An organisation is just a folder for your projects. You need one before you can 
    This is a secret: never paste it into chat. You type it once more in A1.5.
 5. Under **Region**, choose **South Asia (Mumbai)**. Supabase's code for it is `ap-south-1`. A project's region
    cannot be changed later, so check this twice.
-   (UNVERIFIED: Supabase may first show broad areas such as "Asia-Pacific", with the exact city under a link or an
-   advanced option. Look for Mumbai there. If you cannot find Mumbai anywhere, stop and tell me what the list shows.)
-6. Leave every other option as it is.
-7. Click the button that creates the project (for example **Create new project**).
-   What you should see now: a "setting up" screen. Wait 2 to 3 minutes until the project's home page appears, with a
-   menu of icons down the left.
+   On 2026-10-19 the **Region** dropdown showed **Asia-Pacific (recommended)** first; **South Asia (Mumbai)** was in
+   the list of specific regions below it. Pick Mumbai there. If you cannot find Mumbai anywhere, stop and tell me what
+   the list shows.
+6. The form also had a **Security** section with three switches: **Data API** on, automatic exposing of new tables on,
+   and automatic row level security off. Leave all three as they are: the seva tables switch on their own row level
+   security and lock themselves away from the browser in their table files.
+7. Leave every other option as it is.
+8. Click the button that creates the project (for example **Create new project**).
+   What you should see now: a "setting up" screen, then the project's home page with a menu of icons down the left
+   and the project shown as **Healthy**. On 2026-10-19 this took about 10 seconds; it can take 2 to 3 minutes.
+   (The Postgres version is not shown on the **Infrastructure** page; you do not need it.)
 
 Supabase pauses a Free project that nobody uses for a week. If you later open the dashboard and the project says it is
 paused, click the button on that page that resumes or restores it, and wait a few minutes.
@@ -268,6 +276,21 @@ the step. Do not run the command again until I answer.
    What you should see now: `.env.local` in `D:\Onboarding\Repos\POCs\seva-entry`, three lines long. The first line
    is not secret; the third line is. Never send me this file.
 
+### A1.7 After each new migration (your step)
+
+The build adds a new table file (a migration) now and then, for example the paper size on 2026-10-19. I never push
+to your test project myself. When I tell you a new migration is ready, you push it:
+
+1. Open a PowerShell window in `D:\Onboarding\Repos\POCs\seva-entry` (0.9).
+2. Type `npx supabase db push` and press **Enter**.
+   What you should see now: only the new file names in the list, and the question "Do you want to push these
+   migrations to the remote database?". If it asks for your database password, type it (A1.3 step 4).
+3. Type `Y` and press **Enter**.
+   What you should see now: "Finished supabase db push". Tell me "db push done".
+
+The project stays linked from A1.5, so `npx supabase login` and `link` are not needed again. Files already pushed are
+never changed; every change comes as a new file, so pushing twice does no harm.
+
 ### Tell me it is done
 
 Send me this message in chat (it holds no secret; fill in the brackets):
@@ -291,15 +314,17 @@ Vendor pages read for this section:
 
 1. Open `https://console.firebase.google.com` and sign in with your Google account. If you have no Google account,
    click **Create account** on the Google sign-in page and follow it first.
-   What you should see now: the Firebase welcome page with no projects, and a large button to create a project or get
-   started. (Firebase's own page only says "click the button to create a new Firebase project"; it does not name it.)
+   What you should see now: the Firebase welcome page with a large button to create a project or get started.
+   (Firebase's own page only says "click the button to create a new Firebase project"; it does not name it.) On
+   2026-10-19 other projects of the same Google account were also listed there; leave them alone.
 2. Click that button.
    What you should see now: a box asking for a project name.
 3. Type `seva-test-nikhil`. Below the name, Firebase shows the **project ID** it will use (for example
    `seva-test-nikhil` or that name with a few letters added). Write the project ID down; it cannot be changed later.
-4. Accept the Firebase terms if asked, and click **Continue**.
-5. If it offers AI help in the console ("Gemini"), you may switch it off; it does not matter for this build. Click
-   **Continue**.
+4. Accept the Firebase terms if asked. If a **Join the Google Developer Program** switch is shown (it was on by
+   default on 2026-10-19), switch it **off**. Click **Continue**.
+5. If it offers AI help in the console (a **Gemini** switch, on by default), switch it **off**; this build does not use
+   it. Click **Continue**.
 6. When it offers **Google Analytics**, switch it **off**. Click the button that creates the project.
    What you should see now: a short wait, then "Your new project is ready" or similar. Click **Continue**.
    What you should see now: the project's home page (**Project Overview**) with a menu down the left, and the plan
@@ -307,8 +332,8 @@ Vendor pages read for this section:
 
 ### A2.2 Add a web app and copy its six settings
 
-1. On **Project Overview**, click the web icon (it looks like `</>`) to add an app. It may sit under a button that
-   says **Add app** or similar.
+1. On **Project Overview**, click **Add app** first, then the web icon (it looks like `</>`). (On 2026-10-19 the icon
+   appeared only after **Add app**.)
    What you should see now: a form with **App nickname**.
 2. In **App nickname**, type `seva-test-web`. Leave **Firebase Hosting** unticked.
 3. Click **Register app**.
@@ -340,7 +365,8 @@ You can find the same block again any time: gear icon next to **Project Overview
 3. Click **Email/Password**, switch on the first **Enable** switch (leave "Email link" off), and click **Save**.
    What you should see now: **Email/Password** listed as **Enabled**.
 4. For Plan B later (do it now; it costs nothing): click **Add new provider**, click **Google**, switch on **Enable**,
-   choose your email under **Project support email**, and click **Save**.
+   choose your email under **Project support email** (on 2026-10-19 the dropdown showed "Not configured" and one
+   address: pick the address), and click **Save**.
    What you should see now: **Google** listed as **Enabled** as well.
 
 ### A2.4 Create the small database for user records (Firestore)
@@ -349,11 +375,13 @@ The site keeps each person's role in Firebase's own database, Firestore.
 
 1. In the left menu, under **Build** (or **Databases**), click **Firestore Database**.
 2. Click **Create database**.
-   What you should see now: a few short steps. (UNVERIFIED: the order of the steps.)
-3. If it asks for an **edition**, choose **Standard**.
-4. Keep the database ID `(default)`.
-5. Under **Location**, choose **asia-south1 (Mumbai)**. It cannot be changed later.
-6. When it asks how to start, choose **Start in production mode**.
+   What you should see now: a few short steps. On 2026-10-19 they were **Edition**, **ID and location**,
+   **Configure**, and then **Scheduled backups**.
+3. **Edition:** choose **Standard**.
+4. **ID and location:** keep the database ID `(default)`, and under **Location** choose **asia-south1 (Mumbai)**. It
+   cannot be changed later.
+5. **Configure:** when it asks how to start, choose **Start in production mode**.
+6. **Scheduled backups:** this needs the paid **Blaze** plan. Skip it; leave it off.
 7. Click **Create**.
    What you should see now: an empty database page with tabs such as **Data**, **Rules** and **Indexes**.
 
@@ -373,6 +401,11 @@ The site keeps each person's role in Firebase's own database, Firestore.
 
 The website's server and the build's scripts sign in to your Firebase project with a key file. This file is a secret.
 
+Before you start: Windows hides file extensions unless you switch them on, so a file you rename to
+`.firebase-adminsdk.json` can end up named `.firebase-adminsdk.json.json` without you seeing it. That wrong name is
+**not** ignored by git and the build cannot find it. So first open **File Explorer**, click **View** > **Show** >
+**File name extensions** (as in 0.8 step 8) and leave it on.
+
 1. Click the gear icon next to **Project Overview**, then **Project settings**, then the **Service accounts** tab.
 2. Click **Generate new private key**, then **Generate key** in the box that opens.
    What you should see now: a `.json` file in your **Downloads** folder. Firebase cannot show this file again.
@@ -382,7 +415,8 @@ The website's server and the build's scripts sign in to your Firebase project wi
 4. Right-click the moved file, click **Rename**, type `.firebase-adminsdk.json` (with the dot at the start), press
    **Enter**, and click **Yes** if Windows asks.
    What you should see now: `.firebase-adminsdk.json` in the seva-entry folder, and nothing left in **Downloads**.
-   Git ignores this exact name in this folder, so it never goes into the code.
+   Check the name letter by letter: it must end in `.json` once. If it shows `.firebase-adminsdk.json.json`, rename it
+   again and remove the second `.json`. Git ignores only the exact name `.firebase-adminsdk.json` in this folder.
 5. Right-click `.firebase-adminsdk.json` > **Open with** > **Notepad**. Open `.env.local` in a second Notepad window.
 6. Add these three lines at the end of `.env.local`:
 
@@ -397,6 +431,10 @@ The website's server and the build's scripts sign in to your Firebase project wi
 7. Save `.env.local` (**Ctrl+S**). Close the key file's Notepad window without saving changes.
    What you should see now: `.env.local` with 12 lines: three Supabase, six `NEXT_PUBLIC_FIREBASE_`, three
    `FIREBASE_`. Never send me either file.
+
+If steps 5 to 7 are fiddly (the private key is one very long line), you may instead ask me to add the three
+`FIREBASE_` lines: I copy them from `.firebase-adminsdk.json` into `.env.local` on this PC without printing them, and
+neither file leaves the PC.
 
 ### Tell me it is done
 
@@ -422,7 +460,9 @@ Vendor pages read for this section:
 
 1. Tell me you want to check on this PC. I start the site in the seva-entry folder; it reads your `.env.local`.
 2. When I say it is running, open `http://localhost:3000` in the browser.
-   What you should see now: the temple website's home page, running on this PC.
+   What you should see now: the temple website's home page, running on this PC. Seva Entry itself opens at `/seva`
+   (`http://localhost:3000/seva`): receptionists land on the counter, the prasadam counter on the prasadam page, and
+   temple admins and super admins on the dashboard.
 3. If this is the first time with your test projects, do A3.2 now.
 4. Follow the checklist I give you. When you are finished, tell me and I stop the site.
 
@@ -438,8 +478,11 @@ The seva module needs one first super admin. On your test projects, that is you.
    It reads `.env.local` and `.firebase-adminsdk.json` and prints no secret.
    What you should see now: a few lines ending in a message that staff 001 was created (or already exists). If it
    prints an error, copy it (it holds no secret) and send it to me.
-4. Sign out of the test site and sign in again.
-   What you should see now: the admin menu, with the seva module in it.
+4. Open `http://localhost:3000/seva` (or `/seva` on your Vercel link). The public pages have no admin link and no
+   sign-out, so always type the address: `/seva` for Seva Entry, `/admin` for the website admin.
+   What you should see now: the Seva Entry dashboard with your name and staff number 001 in the header. If it says you
+   have no access, open `/admin`, click **Sign out** in the account menu at the top right, sign in again at `/login`,
+   and open `/seva` again.
 
 ### A3.3 Option 2: sign up for Vercel
 
@@ -529,7 +572,7 @@ Do this at the temple, when I tell you the counter page is ready for the print t
 comes after the site owner has merged the pull request and done Part B. Some steps (A5.6 to A5.8) need the counter page
 itself.
 
-Why: the counter PC holds devotees' names and the day's receipts, prints the 99 x 210 mm slips without a print dialog,
+Why: the counter PC holds devotees' names and the day's receipts, prints the receipts without a print dialog,
 and keeps an Excel copy of each day (open items O-05, O-07, O-08, O-09).
 
 What you need: the counter PC, its printer and driver CD or download, a temple admin sign-in on the live site, about
@@ -568,7 +611,13 @@ Vendor pages read for this section:
 4. When Windows offers to save the **recovery key**, save it to a USB drive or print it, and keep it in the office
    safe, apart from any backup-key drive. Without it, a broken PC's disk cannot be read.
 
-### A5.3 Install the printer and make the slip paper size
+### A5.3 Install the printer and set the receipt paper size
+
+The receipt paper size is chosen in Seva Entry under **Settings** > **Receipts** > **Paper size**: **A5** (148 x 210
+mm, the default), **A6** (105 x 148 mm), **One-third A4** (99 x 210 mm), an **80 mm** or **58 mm** roll, or a custom
+size. Every size prints upright (portrait), one receipt per sheet. A5 and A6 are sizes the printer driver already
+knows: for them, do steps 1 and 2, then step 9 and 10 choosing **A5** (or **A6**) as the paper size, and skip the form
+in steps 3 to 8. For one-third A4 or a custom size, do every step and make the form with your size.
 
 1. Install the printer with its driver from the maker's website or CD, as its manual says.
 2. Click **Start** > **Settings** > **Bluetooth & devices** > **Printers & scanners**.
@@ -607,10 +656,13 @@ The silent printing switch only works when Edge starts fresh, so Edge must not k
 
 ### A5.6 Install the counter as an app
 
-1. Open Edge and go to the counter address I give you (it ends with `/admin/receipts/counter`).
+1. Open Edge and go to the counter address I give you (it ends with `/seva/counter`).
 2. Sign in with your temple admin account.
 3. In the address bar, click the **App available** icon, then click **Install**.
-   What you should see now: the counter open in its own window, and a small window after installing.
+   What you should see now: the counter open in its own window, and a small window after installing. Seva Entry
+   installs as one app for every role: it opens at `/seva`, which takes a receptionist to the counter (and a temple
+   admin to the dashboard). Phones install the same app from `/seva` with the browser's **Install** or **Add to Home
+   screen**.
 4. In that small window, tick **Pin to taskbar** and leave **Auto-start on device login** unticked (the shortcut in
    A5.7 starts the counter instead).
 5. Close the app window and every Edge window.
@@ -620,7 +672,7 @@ The silent printing switch only works when Edge starts fresh, so Edge must not k
 1. Right-click an empty space on the desktop, then click **New** > **Shortcut**.
    What you should see now: a box "Type the location of the item".
 2. Type, all on one line, with the live site's address in place of `<site>`:
-   `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk-printing --app=https://<site>/admin/receipts/counter`
+   `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk-printing --app=https://<site>/seva/counter`
 3. Click **Next**.
 4. In "Type a name for this shortcut", type `Seva counter`.
 5. Click **Finish**.
@@ -912,8 +964,8 @@ What you need: your copy of the repository (how-to above), the new key file from
    What you should see now: a message that staff 001 was created. If it prints an error, send Nikhil the error text
    (it holds no secret).
 3. Sign out of the website and sign in again.
-   What you should see now: the seva module in the admin menu. From here, everyone else is added on the **Staff and
-   roles** page.
+   What you should see now: a **Seva Entry** item in the admin menu; it opens `/seva`. From here, everyone else is
+   added on the **Staff and roles** page.
 4. Delete `.env.local` (click it, hold **Shift**, press **Delete**, click **Yes**) unless you will run another script
    soon.
 

@@ -37,11 +37,11 @@ Starts after Plan B's wave B3 is merged. Needs: `/api/seva/devotee/orders` (POST
 
 ## Wave C0 - Setup
 
-### C0-1: SETUP-GUIDE section 9 - Expo account and the Android preview build
+### C0-1: SETUP-GUIDE A4.2 - Expo account and the Android preview build
 - Tier: **Opus high** - a click-by-click guide for someone who has never used Expo; check expo.dev's current screens and EAS docs on the web first (cite URL + date; mark unconfirmed steps UNVERIFIED).
-- Files: `docs/seva/SETUP-GUIDE.md` (replace the section 9 placeholder).
+- Files: `docs/seva/SETUP-GUIDE.md` (replace the A4.2 placeholder).
 - Content: create a free Expo account, create the project link for `apps/mobile`, give the builder access, run an EAS preview build for Android (APK), install the APK on an Android phone (allow installs from this source), and where the build list lives; the free plan's build queue may be slow (UNVERIFIED limits, check the pricing page).
-- Test intent: `tests/unit/seva/setup-guide.test.ts` extended - section 9 cites a checked source and holds no secrets.
+- Test intent: `tests/unit/seva/setup-guide.test.ts` extended - A4.2 cites a checked source and holds no secrets.
 
 ## Wave C1 - Foundations (2 tasks in parallel; needs C0)
 

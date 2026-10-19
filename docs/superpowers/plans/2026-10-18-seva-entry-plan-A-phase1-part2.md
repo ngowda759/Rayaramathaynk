@@ -402,7 +402,7 @@ git commit -m "feat(seva): add the counter Excel copy, service worker and instal
 **Wave A3 gate - owner's 10-minute checklist**
 1. Read the A3 test report summary and the security review note (gate after A3).
 2. Look at the sidebar screenshots per role saved with the report (`$STATE/test-reports/A3-shots/`) and confirm each person sees the right menu.
-3. When convenient, follow SETUP-GUIDE section 1 to create the Supabase test project (needed before the A5 smoke test).
+3. When convenient, follow SETUP-GUIDE A1 to create the Supabase test project (needed before the A5 smoke test).
 
 ---
 
@@ -967,7 +967,7 @@ Review `git diff main...feature/seva-entry` against the Design Book: every row o
 
 - [ ] **Step 3: Full-stack smoke (only with the owner's go-ahead in that session)**
 
-With the Supabase test project from SETUP-GUIDE section 1 and the owner's own `.env.local` in `$WT` (never copied by the builder): apply the six seva migrations to the test project, create staff 001 with `scripts/seva/create-first-super-admin.ts`, run the counter once end to end against it, and record the result. Without the go-ahead, mark it "not yet" in the report.
+With the Supabase test project from SETUP-GUIDE A1 and the owner's own `.env.local` in `$WT` (never copied by the builder): apply the six seva migrations to the test project, create staff 001 with `scripts/seva/create-first-super-admin.ts`, run the counter once end to end against it, and record the result. Without the go-ahead, mark it "not yet" in the report.
 
 - [ ] **Step 4: Write the final report** with the contents listed under Produces.
 
@@ -976,7 +976,7 @@ With the Supabase test project from SETUP-GUIDE section 1 and the owner's own `.
 **Wave A5 gate - owner's 10-minute checklist**
 1. Read the final report's first page (suite counts and the go-live checklist status).
 2. Repeat the A4 checklist on the full-stack smoke build if Step 3 ran.
-3. Generate the backup key (SETUP-GUIDE section 4) and set the two backup secrets; the next night's run should appear in "Needs attention" as a fresh backup.
+3. Generate the backup keys (SETUP-GUIDE B6) and set the two backup secrets (B7); the next night's run should appear in "Needs attention" as a fresh backup.
 4. Decide whether to merge `feature/seva-entry` now or after Plan B.
 
 ---

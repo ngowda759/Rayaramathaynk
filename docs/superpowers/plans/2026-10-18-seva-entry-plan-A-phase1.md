@@ -704,7 +704,7 @@ git add scripts lib/auth/verify-id-token.ts app/api/public/receipts/route.ts "ap
 git commit -m "fix(security): load the service account from env or a git-ignored file, require sign-in for public receipts, fix receipt page params"
 ```
 
-After merge the owner revokes the old key (SETUP-GUIDE section 3, Task A2-9; open item O-18). History rewrite is optional and not part of this plan.
+After merge the owner revokes the old key (SETUP-GUIDE B3, Task A2-9; open item O-18). History rewrite is optional and not part of this plan.
 
 ### Task A1-6: Module tokens and shared UI primitives
 
@@ -766,7 +766,7 @@ git commit -m "feat(seva): add module tokens under .seva and shared bilingual, s
 **Wave A1 gate - owner's 10-minute checklist**
 1. Read the A1 test report summary (top 10 lines).
 2. Check the Kannada lists printed in the report (27 nakshatras, 12 rashis, 57 gotras) for spelling; mark any wrong one (O-03).
-3. Confirm the 11 scripts no longer hold the key: the report shows `no-embedded-keys` passing. Then follow SETUP-GUIDE section 3 when it lands in wave A2 to revoke the old key.
+3. Confirm the 11 scripts no longer hold the key: the report shows `no-embedded-keys` passing. Then follow SETUP-GUIDE B3 (the site owner's step after the merge) to revoke the old key.
 4. Read the one-paragraph note in the report on who can reach `/api/admin/*` now (seven roles) and who reaches only the seva pages (receptionist, prasadam counter).
 
 ---
@@ -1393,7 +1393,7 @@ Tier: **Opus xhigh** - the backup holds every devotee's details; secret handling
 Decisions:
 - `seva-backup.yml`: `on: schedule: cron '0 21 * * *'` (02:30 IST) and `workflow_dispatch`; `permissions: contents: read`; ubuntu-latest; install `age` and the PostgreSQL client whose major version equals the server's (`psql -Atc 'show server_version_num'` with the default client first, then install `postgresql-client-<major>` from the PGDG apt repository); run `scripts/seva/backup.sh`; upload `seva-<YYYY-MM-DD>.dump.age` and its `.sha256` with `retention-days: 30`; on the 1st of the month upload a second artifact `seva-monthly-<YYYY-MM>` with `retention-days: 90` (the most GitHub allows on default settings; the 12-month destination of C-57 stays UNCLEAR for the owner).
 - `backup.sh`: `set -euo pipefail` (never `set -x`); `pg_dump --format=custom --no-owner --no-privileges "$SEVA_BACKUP_DB_URL" | age -r "$SEVA_BACKUP_AGE_RECIPIENT" > file`; size and SHA-256; insert one `ops_backup_runs` row (started, finished, ok, bytes, sha256, error) in an `if: always()` step so failures are recorded too. Secrets only through `env:`; never echoed.
-- `verify-backup.sh <file> <identity-file>`: decrypt with `age -d -i` and run `pg_restore --list`; prints only counts (for the owner's restore drill, SETUP-GUIDE section 5).
+- `verify-backup.sh <file> <identity-file>`: decrypt with `age -d -i` and run `pg_restore --list`; prints only counts (for the owner's restore drill, SETUP-GUIDE B8).
 - `seva-maintenance.yml`: `cron '30 21 1 * *'` (03:00 IST on the 1st) runs `psql "$SEVA_BACKUP_DB_URL" -c "select seva_purge_devotee_profiles();"`.
 
 - [ ] **Step 1: Write the failing tests** (read the files as text)
@@ -1627,7 +1627,7 @@ git commit -m "test(seva): add the Firebase-emulator Playwright harness and the 
 
 **Wave A2 gate - owner's 10-minute checklist**
 1. Read the A2 test report summary.
-2. Open `docs/seva/SETUP-GUIDE.md` section 3 and revoke the old Firebase key (about 5 minutes).
+2. Open `docs/seva/SETUP-GUIDE.md` B3 and revoke the old Firebase key (about 5 minutes).
 3. Read section 4 and say whether keeping the backup key on two USB drives works for you (the key itself can wait until wave A5).
 4. Check five amount-in-words samples listed in the report (for example Rs 2,50,005 -> "Rupees Two Lakh Fifty Thousand Five only").
 

@@ -334,3 +334,72 @@ return NextResponse.json(
 ---
 
 *Document maintained by: Development Team*
+
+---
+
+## Seva Entry (counter receipts module)
+
+Seva Entry replaces the temple's paper receipt book: a keyboard-first counter on the office PC, a prasadam counter, a
+dashboard, a receipt register, reports, exports, settings and staff roles. It extends the old Receipt Book, whose
+Firestore code is retired by plan task A5-1. The signed spec is `docs/seva/DESIGN-BOOK.md`; the module map and runbook are
+`docs/seva/README.md`. Written from the code on 2026-10-20.
+
+### Lanes
+
+| Lane | What runs there |
+|---|---|
+| People and devices | The counter PC (Windows, Edge or Chrome, the installed app, kiosk printing); the prasadam phone or PC (camera or USB scanner); admins' phones and PCs |
+| App on Vercel (this Next.js app) | Module pages under `/seva` (`app/seva/**`): the full-screen counter frame (`(counter)`: counter, today's receipts, close day) and the desk frame (`(desk)`: dashboard, register, receipt pages, reports, settings, prasadam) with its own header, section rail and phone bar (`components/seva/shell/*`). Staff stays at `/admin/users`. Route handlers `app/api/seva/**`; server services `lib/seva/server/*`; pure logic `lib/seva/*`; browser clients `services/seva/*` |
+| Data | Supabase Postgres: the seva tables and `seva_*` SQL functions (see `docs/DATA-MODEL.md`) |
+| Outside services | Firebase Auth and Firestore `users` (sign-in, role, `isActive`); Firestore `settings/financeSettings` (the counter UPI id) and a mirror of `sevas`; GitHub Actions (CI, the nightly encrypted backup `seva-backup.yml`, the monthly purge `seva-maintenance.yml`); the counter PC's disk (the Excel copy) |
+
+All module addresses come from one constant, `SEVA_ROUTES` in `lib/seva/routes.ts`. The website admin has one
+"Seva Entry" menu item; `/seva` sends each role to its landing page (`sevaHomePath`): receptionist to `/seva/counter`,
+prasadam counter to `/seva/prasadam`, temple admin and super admin to the dashboard. The old `/admin/receipts/*` and
+`/admin/prasadam` addresses forward to `/seva` from `next.config.ts`.
+
+### Server-only data access
+
+- The browser never talks to Supabase for seva data. Route handlers verify the caller and then call services in
+  `lib/seva/server/*`, the only code that calls `createAdminClient()` (service role, `import "server-only"`).
+- Every multi-row write is one `seva_*` SQL function called through `callRpc` (`lib/seva/server/rpc.ts`), so receipt
+  numbers are taken in the same transaction as the insert. `SEVA:<code>` errors become typed `SevaError`s; any other
+  database error becomes `internal` and only its code is logged.
+- Every route starts with the guard `requireSevaActor` (`lib/seva/server/auth.ts`) and the allow-list `can()` of
+  `lib/seva/permissions.ts`; the browser uses the same `can()` only to hide what is not allowed.
+
+### Identity adapter
+
+`lib/seva/server/identity.ts` is the only seva code that knows the sign-in provider (`lib/seva/server/identity-firebase.ts`
+today). Everything else works with a provider-neutral `externalUid` (stored as `staff.firebase_uid`) and an access
+profile (`role`, `isActive`). The adapter verifies the request's token, reads the access profile, creates, enables,
+disables and deletes logins. Moving away from Firebase later means a new adapter, not new routes. A person is let in
+only when both stores agree: Firestore `isActive` and an allowed role, and Supabase `staff.status = 'active'`.
+
+### Flows
+
+- **F1 Counter receipt (online).** The counter (`components/seva/counter/*`, state in `lib/seva/counter/*`) builds the
+  order with a `client_order_id` and one `client_receipt_id` per seva date, and posts it with the sign-in token and the
+  PC header to `POST /api/seva/counter/orders`. `seva_issue_counter_order` re-prices every line from the catalogue,
+  takes the next numbers of the counter's C series, writes order, receipts and lines, and answers the receipts; a
+  repeat of the same order answers the same receipts. The PC prints one page per receipt (`lib/seva/print/*`, the
+  paper size from settings) and records the first print with `POST /api/seva/counter/prints`.
+- **F2 Counter receipt (offline).** When the office cannot be reached, the PC numbers the receipt in its own OF series
+  (`lib/seva/offline/*`), stores it in the IndexedDB outbox, prints at once, and keeps an Excel copy of the day in a
+  chosen folder (`lib/seva/excel/*`, a Web Worker). When the line is back, the outbox goes to
+  `POST /api/seva/counter/sync`; `seva_sync_offline_order` stores each order exactly as printed, ignores duplicates and
+  records any number gap.
+- **F3 Prasadam.** The volunteer scans the QR (`/r/<token>`) or types the number on `/seva/prasadam`;
+  `GET /api/seva/prasadam/lookup` answers the screen to show (no amounts), and `POST /api/seva/prasadam/give` marks it
+  given once per receipt (`seva_mark_prasadam`).
+- **F4 Temple admin.** The dashboard and reports read pre-bucketed summaries from SQL functions through
+  `/api/seva/reports/*`; exports page the data through the API and build Excel, CSV, Tally and the board summary in the
+  browser; every export is audited.
+- **F5 Devotee (Phase 2, not built yet).** Online booking and UPI payments through a provider adapter (Plan B).
+
+### Installable app and service worker
+
+Seva Entry installs as one app for every role (`public/seva-counter.webmanifest`: `start_url` and `scope` `/seva`).
+The service worker `public/seva-sw.js`, registered by `components/seva/counter/RegisterServiceWorker.tsx`, caches only
+the counter page and its files; offline, an app start opens the cached counter so the counter PC can keep issuing OF
+receipts. Every other page needs the network.

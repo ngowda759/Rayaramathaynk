@@ -1246,5 +1246,3 @@ Run every wave-gate command including `npm run test:e2e:seva` and `npm run build
 - Refunds also cover online receipts already cancelled with `refund_state 'due'` (the register's cancel sets `due` for online receipts since A2).
 - Preview webhooks: Vercel's preview protection would answer the gateway 401, so the alert address carries the automation bypass (V-2) and the base URL comes from `VERCEL_BRANCH_URL` (V-1).
 - Concurrency (Review Focus 5) runs on a real Postgres 15 (`embedded-postgres`), which also checks every seva migration on Postgres 15 at each gate.
-
-END OF REPORT
