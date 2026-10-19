@@ -8,6 +8,8 @@
  */
 import type { TargetAndTransition, Transition, Variants } from "framer-motion";
 
+import { SEVA_ROUTES } from "./routes";
+
 /** The owner's Lively choice from the motion demo (2026-10-19). */
 export const SPRING = { type: "spring", stiffness: 380, damping: 22, mass: 1 } as const satisfies Transition;
 
@@ -53,10 +55,10 @@ export const pageVariants = {
 
 export type SkeletonVariant = "dashboard" | "list" | "form" | "detail" | "counter";
 
-const RECEIPTS = "/admin/receipts";
-const PRASADAM = "/admin/prasadam";
+const RECEIPTS: string = SEVA_ROUTES.dashboard;
+const PRASADAM: string = SEVA_ROUTES.prasadam;
 
-/** Receipt Book paths (below /admin/receipts) and their skeleton; the longest match wins. */
+/** Receipt Book paths (below /seva, relative to it) and their skeleton; the longest match wins. */
 const RECEIPT_SKELETONS: readonly (readonly [string, SkeletonVariant])[] = [
   ["", "dashboard"],
   ["/counter", "counter"],
@@ -86,13 +88,13 @@ export function hrefPath(href: string): string {
   return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
-/** True for the module's own pages (Receipt Book and Prasadam), which get the seva motion and progress bar. */
+/** True for the module's own pages (everything at /seva and below), which get the seva motion and progress bar. */
 export function isSevaHref(href: string): boolean {
   const path = hrefPath(href);
   return [RECEIPTS, PRASADAM].some((root) => path === root || path.startsWith(`${root}/`));
 }
 
-/** The skeleton shaped like the screen at `href`. Any other path below /admin/receipts is one receipt (detail). */
+/** The skeleton shaped like the screen at `href`. Any other path below /seva is one receipt (detail). */
 export function skeletonFor(href: string): SkeletonVariant {
   const path = hrefPath(href);
   if (path === PRASADAM || path.startsWith(`${PRASADAM}/`)) return "form";

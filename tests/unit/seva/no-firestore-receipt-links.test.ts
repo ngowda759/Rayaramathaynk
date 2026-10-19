@@ -37,7 +37,7 @@ describe("no screen links to Firestore receipt ids", () => {
   const files = SCREEN_DIRS.flatMap((d) => sourceFiles(path.join(ROOT, d)));
 
   it("the Receipt Book home no longer lists Firestore receipts", () => {
-    const home = readFileSync(path.join(ROOT, "app/admin/receipts/page.tsx"), "utf8");
+    const home = readFileSync(path.join(ROOT, "app/seva/(desk)/page.tsx"), "utf8");
     for (const spec of FIRESTORE_RECEIPT_IMPORTS) expect(home).not.toContain(spec);
     expect(home).not.toMatch(RECEIPT_LINK);
   });
@@ -53,6 +53,6 @@ describe("no screen links to Firestore receipt ids", () => {
   });
 
   it("the receipts register exists where the old list's readers are sent", () => {
-    expect(files.map(rel)).toContain("app/admin/receipts/register/page.tsx");
+    expect(files.map(rel)).toContain("app/seva/(desk)/register/page.tsx");
   });
 });

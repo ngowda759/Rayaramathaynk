@@ -9,7 +9,16 @@ import { Segmented } from "@/components/seva/ui/Segmented";
 import { DialogTitle } from "@/components/ui/dialog";
 import { useAsyncAction } from "@/hooks/seva/useAsyncAction";
 import { heroOption, modeOption, type HeroInput } from "@/lib/seva/charts/options";
-import { MIN_PENDING_MS, PRESS, SPRING, enterVariants, skeletonFor, slideIn, staggerChildren } from "@/lib/seva/motion";
+import {
+  MIN_PENDING_MS,
+  PRESS,
+  SPRING,
+  enterVariants,
+  isSevaHref,
+  skeletonFor,
+  slideIn,
+  staggerChildren,
+} from "@/lib/seva/motion";
 
 type Rec = Record<string, unknown>;
 
@@ -34,14 +43,19 @@ describe("motion constants", () => {
     expect(MIN_PENDING_MS).toBe(300);
   });
 
-  it("maps each seva route to the skeleton shaped like it", () => {
-    expect(skeletonFor("/admin/receipts")).toBe("dashboard");
-    expect(skeletonFor("/admin/receipts/counter")).toBe("counter");
-    expect(skeletonFor("/admin/receipts/counter/today")).toBe("list");
-    expect(skeletonFor("/admin/receipts/register?status=changed")).toBe("list");
-    expect(skeletonFor("/admin/receipts/settings/receipt")).toBe("form");
-    expect(skeletonFor("/admin/receipts/2b1c9a3e-0000-4000-8000-000000000001")).toBe("detail");
-    expect(skeletonFor("/admin/prasadam")).toBe("form");
+  it("skeletonFor and isSevaHref know the /seva pages", () => {
+    expect(skeletonFor("/seva")).toBe("dashboard");
+    expect(skeletonFor("/seva/counter")).toBe("counter");
+    expect(skeletonFor("/seva/counter/today")).toBe("list");
+    expect(skeletonFor("/seva/register?status=changed")).toBe("list");
+    expect(skeletonFor("/seva/settings/receipt")).toBe("form");
+    expect(skeletonFor("/seva/2b1c9a3e-0000-4000-8000-000000000001")).toBe("detail");
+    expect(skeletonFor("/seva/prasadam")).toBe("form");
+    expect(isSevaHref("/seva")).toBe(true);
+    expect(isSevaHref("/seva/counter?x=1")).toBe(true);
+    expect(isSevaHref("/seva/prasadam?token=abc")).toBe(true);
+    expect(isSevaHref("/sevas")).toBe(false);
+    expect(isSevaHref("/admin/receipts")).toBe(false);
   });
 });
 

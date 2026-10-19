@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import RegisterPage from "@/app/admin/receipts/register/page";
+import RegisterPage from "@/app/seva/(desk)/register/page";
 import type { ReceiptListParams } from "@/services/seva/receipts.service";
 import type { ReceiptListItem } from "@/types/seva-receipts";
 
@@ -37,7 +37,7 @@ jest.mock("@/services/seva/catalogue.service", () => ({ catalogueApi: () => ({ l
 jest.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
-  usePathname: () => "/admin/receipts/register",
+  usePathname: () => "/seva/register",
 }));
 
 function item(n: number): ReceiptListItem {

@@ -22,7 +22,7 @@ const mockUser = { uid: "u1", getIdToken: () => Promise.resolve("id-token") };
 jest.mock("next/navigation", () => ({
   useParams: () => ({ receiptId: "r1" }),
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  usePathname: () => "/admin/receipts/r1",
+  usePathname: () => "/seva/r1",
 }));
 
 jest.mock("@/hooks/useAuth", () => ({
@@ -65,8 +65,8 @@ jest.mock("@/lib/seva/print/printSlips", () => ({
   printSlips: (...a: unknown[]) => mockPrintSlips(...a),
 }));
 
-import ReceiptDetailPage from "@/app/admin/receipts/[receiptId]/page";
-import ReceiptPrintPage from "@/app/admin/receipts/[receiptId]/print/page";
+import ReceiptDetailPage from "@/app/seva/(desk)/[receiptId]/page";
+import ReceiptPrintPage from "@/app/seva/(desk)/[receiptId]/print/page";
 import { PrasadamShortcut } from "@/components/seva/receipt/PrasadamShortcut";
 import { ReceiptHistory } from "@/components/seva/receipt/ReceiptHistory";
 
@@ -271,7 +271,7 @@ describe("receipt print page", () => {
     expect(mockPrintSlips).not.toHaveBeenCalled();
     // Still usable: the receipt is on screen, the person can go back or try again.
     expect(screen.getAllByText("C1-023-10-2026/000124").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /Back to the receipt/ })).toHaveAttribute("href", "/admin/receipts/r1");
+    expect(screen.getByRole("link", { name: /Back to the receipt/ })).toHaveAttribute("href", "/seva/r1");
 
     mockPrints.mockResolvedValue({ receipts: [{ id: "r1", printCount: 1, duplicate: false }] });
     await act(async () => {

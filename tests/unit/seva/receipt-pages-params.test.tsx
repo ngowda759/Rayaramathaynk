@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
-import ReceiptDetailPage from "@/app/admin/receipts/[receiptId]/page";
-import ReceiptPrintPage from "@/app/admin/receipts/[receiptId]/print/page";
+import ReceiptDetailPage from "@/app/seva/(desk)/[receiptId]/page";
+import ReceiptPrintPage from "@/app/seva/(desk)/[receiptId]/print/page";
 
 // The pages were rebuilt on Supabase in Task A4-4; this keeps the original check that the folder's id arrives as
 // params.receiptId. The full page behaviour is in receipt-detail.test.tsx.
@@ -42,7 +42,7 @@ beforeEach(() => {
   mockGet.mockReturnValue(new Promise(() => undefined));
 });
 
-describe("receipt pages under app/admin/receipts/[receiptId]", () => {
+describe("receipt pages under app/seva/(desk)/[receiptId]", () => {
   it("detail page loads the receipt from params.receiptId", async () => {
     render(<ReceiptDetailPage />);
     await waitFor(() => expect(mockGet).toHaveBeenCalledWith("r1"));

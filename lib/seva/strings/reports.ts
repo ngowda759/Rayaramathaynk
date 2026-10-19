@@ -3,6 +3,7 @@
  * and the day-close list (Design Book 12.3-12.4). English first, Kannada on its own line under it (C-49). The Kannada
  * is to be proof-read by the temple office (O-03). Buttons are English only, like the rest of the module.
  */
+import { SEVA_ROUTES } from '@/lib/seva/routes';
 import type { AuditType } from '@/lib/seva/server/reports';
 import type { PaymentMode } from '@/types/seva';
 import type { ReceiptStatusFilter } from '@/types/seva-receipts';
@@ -145,11 +146,11 @@ export const GAP_NOTE_MIN = 3;
 export const REPORTS = {
   title: { en: 'Reports', kn: 'ವರದಿಗಳು' },
   tabs: [
-    { href: '/admin/receipts/reports', en: 'Seva summary', kn: 'ಸೇವಾ ಸಾರಾಂಶ' },
-    { href: '/admin/receipts/reports/festival', en: 'Festival view', kn: 'ಹಬ್ಬದ ನೋಟ' },
-    { href: '/admin/receipts/reports/audit', en: 'Audit trail', kn: 'ಲೆಕ್ಕಪರಿಶೋಧನೆ ದಾಖಲೆ' },
-    { href: '/admin/receipts/reports/export', en: 'Export', kn: 'ರಫ್ತು' },
-    { href: '/admin/receipts/reports/summary', en: 'Board summary', kn: 'ಮಂಡಳಿ ಸಾರಾಂಶ' },
+    { href: SEVA_ROUTES.reports, en: 'Seva summary', kn: 'ಸೇವಾ ಸಾರಾಂಶ' },
+    { href: SEVA_ROUTES.reportsFestival, en: 'Festival view', kn: 'ಹಬ್ಬದ ನೋಟ' },
+    { href: SEVA_ROUTES.reportsAudit, en: 'Audit trail', kn: 'ಲೆಕ್ಕಪರಿಶೋಧನೆ ದಾಖಲೆ' },
+    { href: SEVA_ROUTES.reportsExport, en: 'Export', kn: 'ರಫ್ತು' },
+    { href: SEVA_ROUTES.reportsSummary, en: 'Board summary', kn: 'ಮಂಡಳಿ ಸಾರಾಂಶ' },
   ],
   tabsLabel: 'Report pages',
   loading: { en: 'Loading the report...', kn: 'ವರದಿ ತರಲಾಗುತ್ತಿದೆ...' },

@@ -2,14 +2,14 @@ import "@testing-library/jest-dom";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import ReportsLayout from "@/app/admin/receipts/reports/layout";
+import ReportsLayout from "@/app/seva/(desk)/reports/layout";
 
 /**
  * Reports tabs (plan A4P-3): the open tab is marked by one indicator that slides to a tab the moment it is clicked,
  * before the new report has loaded; `aria-current` stays on the page actually open.
  */
 
-const mockPath = { current: "/admin/receipts/reports" };
+const mockPath = { current: "/seva/reports" };
 
 jest.mock("next/navigation", () => ({ usePathname: () => mockPath.current }));
 // A plain anchor: the test checks the tab feedback, not Next's navigation.
@@ -36,7 +36,7 @@ function indicatorTab(): HTMLElement | null {
 
 afterEach(() => {
   cleanup();
-  mockPath.current = "/admin/receipts/reports";
+  mockPath.current = "/seva/reports";
 });
 
 describe("reports tabs", () => {
@@ -58,7 +58,7 @@ describe("reports tabs", () => {
     expect(summary).toHaveAttribute("aria-current", "page");
     expect(audit).not.toHaveAttribute("aria-current");
 
-    mockPath.current = "/admin/receipts/reports/audit";
+    mockPath.current = "/seva/reports/audit";
     rerender(
       <ReportsLayout>
         <p>audit</p>

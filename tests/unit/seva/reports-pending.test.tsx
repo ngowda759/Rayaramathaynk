@@ -1,10 +1,10 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import SevaSummaryPage from "@/app/admin/receipts/reports/page";
-import FestivalPage from "@/app/admin/receipts/reports/festival/page";
-import AuditPage from "@/app/admin/receipts/reports/audit/page";
-import BoardSummaryPage from "@/app/admin/receipts/reports/summary/page";
+import SevaSummaryPage from "@/app/seva/(desk)/reports/page";
+import FestivalPage from "@/app/seva/(desk)/reports/festival/page";
+import AuditPage from "@/app/seva/(desk)/reports/audit/page";
+import BoardSummaryPage from "@/app/seva/(desk)/reports/summary/page";
 import type { AuditEntry } from "@/services/seva/reports.service";
 
 /**
@@ -35,7 +35,7 @@ jest.mock("@/hooks/seva/useSevaMe", () => ({ useSevaMe: () => mockMe }));
 jest.mock("next/navigation", () => ({
   useSearchParams: () => mockParams.current,
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
-  usePathname: () => "/admin/receipts/reports",
+  usePathname: () => "/seva/reports",
 }));
 jest.mock("@/services/seva/reports.service", () => ({
   reportsApi: () => ({

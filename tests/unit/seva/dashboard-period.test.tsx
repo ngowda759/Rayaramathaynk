@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import ReceiptsDashboardPage from "@/app/admin/receipts/page";
+import ReceiptsDashboardPage from "@/app/seva/(desk)/page";
 import type { Period } from "@/lib/seva/time";
 import type { DashboardData, NeedsAttentionCard } from "@/types/seva-reports";
 
@@ -36,7 +36,7 @@ jest.mock("@/services/seva/reports.service", () => ({ reportsApi: () => mockApi 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockNav.replace, push: jest.fn() }),
   useSearchParams: () => mockNav.search,
-  usePathname: () => "/admin/receipts",
+  usePathname: () => "/seva",
 }));
 // The charts draw with ECharts in a browser; here a marker shows they stay mounted.
 jest.mock("@/components/seva/dashboard/HeroChart", () => ({
@@ -117,7 +117,7 @@ describe("dashboard period switch", () => {
     expect(screen.getByTestId("tile-receipts")).toHaveTextContent("811");
     await waitFor(() => expect(screen.getByTestId("dashboard-content")).toHaveAttribute("data-pending", "false"));
     expect(screen.queryByTestId("period-pending")).toBeNull();
-    expect(mockNav.replace).toHaveBeenCalledWith("/admin/receipts?period=week", { scroll: false });
+    expect(mockNav.replace).toHaveBeenCalledWith("/seva?period=week", { scroll: false });
   });
 
   it("from the error box, Try again shows the spinner and a busy button until the answer arrives", async () => {

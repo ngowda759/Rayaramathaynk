@@ -2,7 +2,7 @@ import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import type { CameraScannerProps } from "@/components/seva/prasadam/CameraScanner";
-import PrasadamPage from "@/app/admin/prasadam/page";
+import PrasadamPage from "@/app/seva/(desk)/prasadam/page";
 import { SevaClientError } from "@/services/seva/http";
 import type { PrasadamLookupResult, PrasadamReceipt } from "@/types/seva-prasadam";
 

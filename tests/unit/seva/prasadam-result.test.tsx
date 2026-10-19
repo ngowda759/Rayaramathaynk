@@ -380,7 +380,7 @@ jest.mock("@/hooks/seva/useSevaMe", () => {
 
 describe("prasadam page", () => {
   // Imported here so the mocks above apply.
-  const PrasadamPage = (require("@/app/admin/prasadam/page") as typeof import("@/app/admin/prasadam/page")).default;
+  const PrasadamPage = (require("@/app/seva/(desk)/prasadam/page") as typeof import("@/app/seva/(desk)/prasadam/page")).default;
   const own: PrasadamLookupResult = { state: "already_given", receipt: RECEIPT, givenAt: GIVEN_AT, givenBy: "Govinda P", givenNow: true };
 
   beforeEach(() => {

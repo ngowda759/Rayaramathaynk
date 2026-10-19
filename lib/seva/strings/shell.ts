@@ -5,6 +5,7 @@
 import type { Bi } from './common';
 
 export const SHELL_NAV: {
+  sevaEntry: Bi;
   receiptBook: Bi;
   dashboard: Bi;
   counter: Bi;
@@ -18,6 +19,7 @@ export const SHELL_NAV: {
   prasadam: Bi;
   staffRoles: Bi;
 } = {
+  sevaEntry: { en: 'Seva Entry', kn: 'ಸೇವಾ ನಮೂದು' },
   receiptBook: { en: 'Receipt Book', kn: 'ರಸೀದಿ ಪುಸ್ತಕ' },
   dashboard: { en: 'Dashboard', kn: 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್' },
   counter: { en: 'Counter', kn: 'ಕೌಂಟರ್' },
@@ -49,4 +51,26 @@ export const SHELL: {
   loadFailed: { en: 'Could not load your seva access. Try again.', kn: 'ನಿಮ್ಮ ಸೇವಾ ಅನುಮತಿ ತೆರೆಯಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.' },
   tryAgain: { en: 'Try again', kn: 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ' },
   opening: { en: 'Opening your page...', kn: 'ನಿಮ್ಮ ಪುಟ ತೆರೆಯುತ್ತಿದೆ...' },
+};
+
+/** Parts of the module frames at /seva (plan A4S-1 adds them; A4S-2 draws the header, rail and phone bar). */
+export type ShellFrameKey =
+  | 'templeName'
+  | 'counterTitle'
+  | 'signOut'
+  | 'signingOut'
+  | 'websiteAdmin'
+  | 'more'
+  | 'sectionsLabel'
+  | 'opensWebsiteAdmin';
+
+export const SHELL_FRAME: Record<ShellFrameKey, Bi> = {
+  templeName: { en: 'Sri Raghavendra Swamy Matha', kn: 'ಶ್ರೀ ರಾಘವೇಂದ್ರ ಸ್ವಾಮಿ ಮಠ' },
+  counterTitle: { en: 'Seva Counter', kn: 'ಸೇವಾ ಕೌಂಟರ್' },
+  signOut: { en: 'Sign out', kn: 'ಸೈನ್ ಔಟ್' },
+  signingOut: { en: 'Signing out...', kn: 'ಸೈನ್ ಔಟ್ ಆಗುತ್ತಿದೆ...' },
+  websiteAdmin: { en: 'Website admin', kn: 'ವೆಬ್‌ಸೈಟ್ ನಿರ್ವಹಣೆ' },
+  more: { en: 'More', kn: 'ಇನ್ನಷ್ಟು' },
+  sectionsLabel: { en: 'Seva Entry sections', kn: 'ಸೇವಾ ನಮೂದು ವಿಭಾಗಗಳು' },
+  opensWebsiteAdmin: { en: 'Opens in the website admin', kn: 'ವೆಬ್‌ಸೈಟ್ ನಿರ್ವಹಣೆಯಲ್ಲಿ ತೆರೆಯುತ್ತದೆ' },
 };
