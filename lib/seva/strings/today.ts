@@ -55,7 +55,11 @@ export const TODAY = {
   },
   /** Buttons are English only, like the rest of the module's buttons. */
   reprint: 'Reprint',
+  /** A reprint while the office records it and the slip goes to the printer. */
+  reprinting: 'Printing...',
   cancel: 'Cancel',
+  /** The list is catching up with a search: shown above the old results, never a blank list. */
+  searching: { en: 'Searching...', kn: 'ಹುಡುಕಲಾಗುತ್ತಿದೆ...' },
   spoiled: 'Spoiled - cancel and reissue',
   waitingCount: (n: number): Bi => ({
     en: `${n} waiting to send to the office`,
@@ -105,6 +109,8 @@ export const CANCEL_DIALOG = {
   keep: 'Keep',
   goMany: 'Cancel receipts',
   goOne: 'Cancel receipt',
+  /** The cancel button while the office answers. */
+  cancelling: 'Cancelling...',
   inCash: 'in cash',
   byUpi: 'by UPI',
   online: 'paid online',
@@ -130,6 +136,7 @@ export const SPOILED = {
   },
   keep: 'Keep',
   go: 'Cancel and reissue',
+  reissuing: 'Reissuing...',
   done: (newNo: string, oldShort: string): Bi => ({
     en: `New receipt ${newNo} printed. ${oldShort} is cancelled as a spoiled print.`,
     kn: `ಹೊಸ ರಸೀದಿ ${newNo} ಮುದ್ರಣವಾಗಿದೆ. ${oldShort} ಹಾಳಾದ ಮುದ್ರಣವಾಗಿ ರದ್ದಾಗಿದೆ.`,

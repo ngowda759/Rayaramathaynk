@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import type { JSX } from "react";
+import { AnimatePresence, m } from "framer-motion";
 
+import { SevaLink } from "@/components/seva/motion/SevaLink";
 import { StatusPill } from "@/components/seva/ui/StatusPill";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Switch } from "@/components/ui/switch";
@@ -23,10 +24,21 @@ export interface StatusStripProps {
   onForcedOffline(on: boolean): void;
 }
 
+/** A count that springs (a quick grow and settle) each time it changes, never on first show. */
+function PoppingCount({ value }: { value: number }): JSX.Element {
+  return (
+    <AnimatePresence initial={false}>
+      <m.b key={value} className="num inline-block" initial={{ scale: 1.35, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }}>
+        {value}
+      </m.b>
+    </AnimatePresence>
+  );
+}
+
 /**
  * The slim counter status strip (Design Book 9.1): counter and person, connection, the next number, today's count and
  * cash/UPI totals, what is waiting to send, the "Work offline" switch and "Close day". Warns when the PC clock is
- * more than 2 minutes off (8.3).
+ * more than 2 minutes off (8.3). Plan A4P-2: the connection pill and the waiting count spring when they change.
  */
 export function StatusStrip({
   counterName,
@@ -75,7 +87,7 @@ export function StatusStrip({
         <b className="amount">{rupees(today.upiPaise)}</b>
       </span>
       <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap" data-testid="counter-waiting">
-        <b className="num">{connection.waiting}</b> <span className="meta">{COUNTER_TEXT.waiting.en}</span>
+        <PoppingCount value={connection.waiting} /> <span className="meta">{COUNTER_TEXT.waiting.en}</span>
       </span>
       {skew ? (
         <span role="alert" className="rounded-full bg-(--destructive-soft) px-3 py-1 text-(length:--text-meta) font-semibold text-(--destructive)">
@@ -92,9 +104,9 @@ export function StatusStrip({
         />
         <Bilingual en={COUNTER_TEXT.workOffline.en} kn={COUNTER_TEXT.workOffline.kn} className="leading-tight" />
       </label>
-      <Link href="/admin/receipts/day-close" className={buttonVariants({ variant: "seva-secondary", size: "sm" })}>
+      <SevaLink href="/admin/receipts/day-close" className={buttonVariants({ variant: "seva-secondary", size: "sm" })}>
         {COUNTER_TEXT.closeDay.en}
-      </Link>
+      </SevaLink>
     </div>
   );
 }

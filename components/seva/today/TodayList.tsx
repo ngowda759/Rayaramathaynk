@@ -1,11 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type JSX } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type JSX,
+} from "react";
+import { m } from "framer-motion";
 
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip } from "@/components/seva/ui/Chip";
 import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
+import { enterVariants, staggerChildren } from "@/lib/seva/motion";
 import { connectionStore, isUnreachable, type ConnectionState } from "@/lib/seva/offline/connection";
 import { runTransaction, type SevaDb } from "@/lib/seva/offline/db";
 import { rememberReceipts, todaysReceipts, updateLocalReceipts } from "@/lib/seva/offline/local-receipts";
@@ -303,6 +316,9 @@ export interface TodayListProps {
  * together with each date's number, search by number, name or seva, cancel (all of a group or one date), reprint as a
  * DUPLICATE and the spoiled-print reissue. Offline it shows this PC's copies and queues an own-receipt cancel in the
  * outbox, which is sent on reconnect.
+ * Plan A4P-2: the cards stagger in once when the list first shows; a search keeps the last results on screen (dimmed,
+ * with a "Searching..." line) until the new ones are ready, so the list is never blank; cancel, reprint and the
+ * spoiled reissue show their pending state from the click; the cancel dialog springs in and out.
  */
 export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: TodayListProps): JSX.Element {
   const ids = useId();
@@ -322,6 +338,11 @@ export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: T
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // The cards follow the typed search a moment later, so typing never waits on the list (useDeferredValue).
+  const shownQuery = useDeferredValue(query);
+  const searching = shownQuery !== query;
+  /** True once the first cards finished their entrance: cards that show up later are simply there. */
+  const [entered, setEntered] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [clock, setClock] = useState<Date>(() => now());
   const [bootWindow, setBootWindow] = useState<number | null>(null);
@@ -437,7 +458,7 @@ export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: T
   }, [load, now, sync]);
 
   const rows = useMemo(() => mergeRows(server, local.receipts, local.waiting, me.counter), [server, local, me.counter]);
-  const cards = useMemo(() => toCards(rows).filter((card) => matches(card, query)), [rows, query]);
+  const cards = useMemo(() => toCards(rows).filter((card) => matches(card, shownQuery)), [rows, shownQuery]);
   const rowContext: RowContext = { me, can, now: clock, windowMinutes, offline };
 
   async function markLocalCancelled(targets: TodayRow[]): Promise<void> {
@@ -631,8 +652,10 @@ export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: T
     const note = actions.find((a, i) => card[i].status === "issued")?.note ?? null;
 
     return (
-      <article
+      <m.article
         key={isGroup ? `group:${first.groupNo}` : first.key}
+        variants={enterVariants}
+        initial={entered ? false : undefined}
         aria-label={isGroup ? TODAY.group(first.groupNo) : first.receiptNo}
         className="flex flex-col gap-2 rounded-(--radius-surface) border border-(--border) bg-(--card) p-4 shadow-(--shadow-card)"
       >
@@ -689,7 +712,7 @@ export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: T
             {note ? <span className="text-(length:--text-meta) text-(--muted-foreground)">{note.en}</span> : null}
           </div>
         ) : null}
-      </article>
+      </m.article>
     );
   }
 
@@ -765,43 +788,70 @@ export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: T
         </div>
       ) : rows.length === 0 ? (
         <Bilingual as="div" en={TODAY.empty.en} kn={TODAY.empty.kn} className="py-8 text-center text-(--muted-foreground)" />
-      ) : cards.length === 0 ? (
-        <Bilingual as="div" en={TODAY.noMatch.en} kn={TODAY.noMatch.kn} className="py-8 text-center text-(--muted-foreground)" />
       ) : (
-        <div className="flex flex-col gap-3">{cards.map(renderCard)}</div>
+        <div className="flex flex-col gap-3">
+          {searching ? (
+            // Shown only when the search takes a noticeable moment (the fade waits 150 ms), so it never flickers.
+            <m.p
+              role="status"
+              data-testid="today-searching"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { delay: 0.15, duration: 0.15 } }}
+              className="m-0 flex items-center gap-2 text-(length:--text-meta) text-(--muted-foreground)"
+            >
+              <span
+                aria-hidden="true"
+                className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+              />
+              <Bilingual en={TODAY.searching.en} kn={TODAY.searching.kn} />
+            </m.p>
+          ) : null}
+          {cards.length === 0 ? (
+            <Bilingual as="div" en={TODAY.noMatch.en} kn={TODAY.noMatch.kn} className="py-8 text-center text-(--muted-foreground)" />
+          ) : (
+            <m.div
+              variants={staggerChildren()}
+              initial={entered ? false : "hidden"}
+              animate="shown"
+              onAnimationComplete={() => setEntered(true)}
+              aria-busy={searching || undefined}
+              className={`flex flex-col gap-3 transition-opacity duration-150 ${searching ? "opacity-60 delay-150" : ""}`}
+            >
+              {cards.map(renderCard)}
+            </m.div>
+          )}
+        </div>
       )}
 
       {!loading && !offline && server?.nextCursor ? (
-        <Button
-          type="button"
+        <PendingButton
           variant="seva-secondary"
-          loading={loadingMore}
+          pending={loadingMore}
+          pendingLabel={TODAY.loading.en}
           onClick={() => {
             const cursor = server.nextCursor;
-            if (!cursor) return;
+            if (!cursor || loadingMore) return;
             setLoadingMore(true);
             void load(cursor).finally(() => setLoadingMore(false));
           }}
         >
           {TODAY.showMore}
-        </Button>
+        </PendingButton>
       ) : null}
 
       <Bilingual as="div" en={TODAY.footer.en} kn={TODAY.footer.kn} className="text-(length:--text-meta) text-(--muted-foreground)" />
 
-      {cancelFor ? (
-        <CancelDialog
-          key={cancelFor.map((r) => r.key).join("|")}
-          open
-          receipts={cancelFor}
-          today={today}
-          offline={offline}
-          busy={cancelBusy}
-          error={cancelError}
-          onConfirm={(choice) => void confirmCancel(choice)}
-          onClose={() => setCancelFor(null)}
-        />
-      ) : null}
+      {/* Always mounted, so the dialog can animate out after a cancel (it resets its form for each new card). */}
+      <CancelDialog
+        open={cancelFor !== null}
+        receipts={cancelFor ?? []}
+        today={today}
+        offline={offline}
+        busy={cancelBusy}
+        error={cancelError}
+        onConfirm={(choice) => void confirmCancel(choice)}
+        onClose={() => setCancelFor(null)}
+      />
       {spoiledFor ? (
         <SpoiledDialog
           open

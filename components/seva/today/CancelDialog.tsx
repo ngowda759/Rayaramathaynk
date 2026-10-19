@@ -2,9 +2,11 @@
 
 import { useId, useMemo, useState, type JSX } from "react";
 
+import { MotionDialog } from "@/components/seva/motion/MotionDialog";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { sevaControlClass } from "@/components/ui/input";
 import { formatRupees } from "@/lib/seva/money";
 import type { Bi } from "@/lib/seva/strings/common";
@@ -102,8 +104,20 @@ const ALL = "all";
 /**
  * Cancel one receipt or a group (DB §9.9): for a group, "All 3 receipts" or "Only 000124, Sat 28 Aug" (C-01); one of
  * the eight reasons (C-60), "Other" with a note; and the money-back line for what is chosen.
+ * Plan A4P-2: the dialog springs in and out (MotionDialog; it stays mounted so it can animate out after a cancel), and
+ * the cancel button shows "Cancelling..." with a spinner from the click until the office answers.
  */
-export function CancelDialog({ open, receipts, today, offline, busy, error, onConfirm, onClose }: CancelDialogProps): JSX.Element {
+export function CancelDialog(props: CancelDialogProps): JSX.Element {
+  const { open, receipts, onClose } = props;
+  return (
+    <MotionDialog open={open && receipts.length > 0} onOpenChange={(next) => (next ? undefined : onClose())} showCloseButton={false}>
+      {/* A fresh form (scope, reason, note) for each receipt or group the dialog is opened for. */}
+      <CancelForm key={receipts.map((r) => r.key).join("|")} {...props} />
+    </MotionDialog>
+  );
+}
+
+function CancelForm({ receipts, today, offline, busy, error, onConfirm, onClose }: CancelDialogProps): JSX.Element | null {
   const ids = useId();
   const [scope, setScope] = useState<string>(ALL);
   const [reason, setReason] = useState<ChosenCancelReason | "">("");
@@ -126,125 +140,129 @@ export function CancelDialog({ open, receipts, today, offline, busy, error, onCo
     onConfirm({ receipts: chosen, reasonCode: reason, ...(trimmed !== "" ? { note: trimmed } : {}) });
   }
 
-  if (!first) return <></>;
+  if (!first) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent variant="seva" showCloseButton={false}>
-        <div className="flex flex-col gap-1">
-          <DialogTitle variant="seva">
-            {isGroup ? CANCEL_DIALOG.titleGroup(first.groupNo) : CANCEL_DIALOG.titleOne(shortNo(first.receiptNo))}
-          </DialogTitle>
-          <DialogDescription className="text-(length:--text-meta) text-(--muted-foreground)">
-            {CANCEL_DIALOG.subtitle(first.devoteeName, rupees(groupTotal), modeWords(first.mode), istClock(first.issuedAt))}
-          </DialogDescription>
-        </div>
+    <>
+      <div className="flex flex-col gap-1">
+        <DialogTitle variant="seva">
+          {isGroup ? CANCEL_DIALOG.titleGroup(first.groupNo) : CANCEL_DIALOG.titleOne(shortNo(first.receiptNo))}
+        </DialogTitle>
+        <DialogDescription className="text-(length:--text-meta) text-(--muted-foreground)">
+          {CANCEL_DIALOG.subtitle(first.devoteeName, rupees(groupTotal), modeWords(first.mode), istClock(first.issuedAt))}
+        </DialogDescription>
+      </div>
 
-        {isGroup ? (
-          <fieldset className="flex flex-col gap-2" aria-labelledby={`${ids}-scope`}>
-            <legend id={`${ids}-scope`} className="mb-1 text-(length:--text-meta) font-semibold text-(--foreground)">
-              <Bilingual en={CANCEL_DIALOG.scope.en} kn={CANCEL_DIALOG.scope.kn} />
-            </legend>
-            {[{ key: ALL, label: CANCEL_DIALOG.all(receipts.length, rupees(groupTotal)) }]
-              .concat(
-                receipts.map((r) => ({
-                  key: r.key,
-                  label: CANCEL_DIALOG.only(shortNo(r.receiptNo), r.sevaDate ? shortDate(r.sevaDate) : null, rupees(r.totalPaise)),
-                })),
-              )
-              .map((option) => (
-                <label
-                  key={option.key}
-                  htmlFor={`${ids}-scope-${option.key}`}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-(--radius-control) border border-(--border) px-3 py-2 text-(length:--text-ui) has-checked:border-(--primary-press) has-checked:bg-(--primary-soft)"
-                >
-                  <input
-                    id={`${ids}-scope-${option.key}`}
-                    type="radio"
-                    name={`${ids}-scope`}
-                    value={option.key}
-                    checked={scope === option.key}
-                    onChange={() => setScope(option.key)}
-                    className="size-4 accent-(--primary-press)"
-                  />
-                  <span className="tabular-nums">{option.label}</span>
-                </label>
-              ))}
-          </fieldset>
-        ) : null}
+      {isGroup ? (
+        <fieldset className="flex flex-col gap-2" aria-labelledby={`${ids}-scope`}>
+          <legend id={`${ids}-scope`} className="mb-1 text-(length:--text-meta) font-semibold text-(--foreground)">
+            <Bilingual en={CANCEL_DIALOG.scope.en} kn={CANCEL_DIALOG.scope.kn} />
+          </legend>
+          {[{ key: ALL, label: CANCEL_DIALOG.all(receipts.length, rupees(groupTotal)) }]
+            .concat(
+              receipts.map((r) => ({
+                key: r.key,
+                label: CANCEL_DIALOG.only(shortNo(r.receiptNo), r.sevaDate ? shortDate(r.sevaDate) : null, rupees(r.totalPaise)),
+              })),
+            )
+            .map((option) => (
+              <label
+                key={option.key}
+                htmlFor={`${ids}-scope-${option.key}`}
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-(--radius-control) border border-(--border) px-3 py-2 text-(length:--text-ui) has-checked:border-(--primary-press) has-checked:bg-(--primary-soft)"
+              >
+                <input
+                  id={`${ids}-scope-${option.key}`}
+                  type="radio"
+                  name={`${ids}-scope`}
+                  value={option.key}
+                  checked={scope === option.key}
+                  onChange={() => setScope(option.key)}
+                  className="size-4 accent-(--primary-press)"
+                />
+                <span className="tabular-nums">{option.label}</span>
+              </label>
+            ))}
+        </fieldset>
+      ) : null}
 
+      <div className="flex flex-col gap-1.5">
+        <Bilingual
+          as="label"
+          htmlFor={`${ids}-reason`}
+          en={CANCEL_DIALOG.reason.en}
+          kn={CANCEL_DIALOG.reason.kn}
+          className="text-(length:--text-meta) font-semibold text-(--foreground)"
+        />
+        <select
+          id={`${ids}-reason`}
+          value={reason}
+          onChange={(e) => setReason(e.target.value as ChosenCancelReason | "")}
+          className={sevaControlClass}
+        >
+          <option value="">{CANCEL_DIALOG.chooseReason}</option>
+          {CANCEL_REASONS.map((r) => (
+            <option key={r.code} value={r.code}>
+              {r.label.en}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {reason === "other" ? (
         <div className="flex flex-col gap-1.5">
           <Bilingual
             as="label"
-            htmlFor={`${ids}-reason`}
-            en={CANCEL_DIALOG.reason.en}
-            kn={CANCEL_DIALOG.reason.kn}
+            htmlFor={`${ids}-note`}
+            en={CANCEL_DIALOG.note.en}
+            kn={CANCEL_DIALOG.note.kn}
             className="text-(length:--text-meta) font-semibold text-(--foreground)"
           />
-          <select
-            id={`${ids}-reason`}
-            value={reason}
-            onChange={(e) => setReason(e.target.value as ChosenCancelReason | "")}
-            className={sevaControlClass}
-          >
-            <option value="">{CANCEL_DIALOG.chooseReason}</option>
-            {CANCEL_REASONS.map((r) => (
-              <option key={r.code} value={r.code}>
-                {r.label.en}
-              </option>
-            ))}
-          </select>
+          <textarea
+            id={`${ids}-note`}
+            value={note}
+            maxLength={500}
+            rows={3}
+            aria-describedby={`${ids}-note-hint`}
+            onChange={(e) => setNote(e.target.value)}
+            className={cn(sevaControlClass, "h-auto min-h-24 py-3")}
+          />
+          <span id={`${ids}-note-hint`} className="text-(length:--text-meta) text-(--muted-foreground)">
+            {CANCEL_DIALOG.noteHint}
+          </span>
         </div>
+      ) : null}
 
-        {reason === "other" ? (
-          <div className="flex flex-col gap-1.5">
-            <Bilingual
-              as="label"
-              htmlFor={`${ids}-note`}
-              en={CANCEL_DIALOG.note.en}
-              kn={CANCEL_DIALOG.note.kn}
-              className="text-(length:--text-meta) font-semibold text-(--foreground)"
-            />
-            <textarea
-              id={`${ids}-note`}
-              value={note}
-              maxLength={500}
-              rows={3}
-              aria-describedby={`${ids}-note-hint`}
-              onChange={(e) => setNote(e.target.value)}
-              className={cn(sevaControlClass, "h-auto min-h-24 py-3")}
-            />
-            <span id={`${ids}-note-hint`} className="text-(length:--text-meta) text-(--muted-foreground)">
-              {CANCEL_DIALOG.noteHint}
-            </span>
-          </div>
-        ) : null}
+      {money ? (
+        <p
+          aria-live="polite"
+          className="rounded-(--radius-control) border border-(--border) bg-(--attn-soft) px-4 py-3 text-(length:--text-ui) font-semibold text-(--foreground)"
+        >
+          <Bilingual en={money.en} kn={money.kn} />
+        </p>
+      ) : null}
 
-        {money ? (
-          <p
-            aria-live="polite"
-            className="rounded-(--radius-control) border border-(--border) bg-(--attn-soft) px-4 py-3 text-(length:--text-ui) font-semibold text-(--foreground)"
-          >
-            <Bilingual en={money.en} kn={money.kn} />
-          </p>
-        ) : null}
+      {error ? (
+        <p role="alert" className="text-(length:--text-meta) font-semibold text-(--destructive)">
+          {error}
+        </p>
+      ) : null}
 
-        {error ? (
-          <p role="alert" className="text-(length:--text-meta) font-semibold text-(--destructive)">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="seva-secondary" onClick={onClose} disabled={busy}>
-            {CANCEL_DIALOG.keep}
-          </Button>
-          <Button type="button" variant="seva-danger" onClick={confirm} disabled={!ready} loading={busy}>
-            {isGroup ? CANCEL_DIALOG.goMany : CANCEL_DIALOG.goOne}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button type="button" variant="seva-secondary" onClick={onClose} disabled={busy}>
+          {CANCEL_DIALOG.keep}
+        </Button>
+        <PendingButton
+          variant="seva-danger"
+          onClick={confirm}
+          disabled={!ready}
+          pending={busy}
+          pendingLabel={CANCEL_DIALOG.cancelling}
+        >
+          {isGroup ? CANCEL_DIALOG.goMany : CANCEL_DIALOG.goOne}
+        </PendingButton>
+      </div>
+    </>
   );
 }
 

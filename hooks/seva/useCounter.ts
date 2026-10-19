@@ -98,6 +98,8 @@ export interface UseCounter {
   today: { receipts: number; cashPaise: number; upiPaise: number };
   setForcedOffline(on: boolean): void;
   suggestion: DevoteeSuggestion | null;
+  /** True while the returning-devotee search runs (after the typing pause), for the spinner in the Name box. */
+  searching: boolean;
   acceptSuggestion(): void;
   rejectSuggestion(): void;
   filledFrom: { lastVisit: string } | null;
@@ -223,6 +225,7 @@ export function useCounter(): UseCounter {
   const [ofNext, setOfNext] = useState(1);
   const [focusTick, setFocusTick] = useState(0);
   const [suggestion, setSuggestion] = useState<DevoteeSuggestion | null>(null);
+  const [searching, setSearching] = useState(false);
   const [filled, setFilled] = useState<{ lastVisit: string; previous: DevoteeDraft } | null>(null);
   const [excelStatus, setExcelStatus] = useState<FolderStatus | "written">("not_set");
   const [excelFolder, setExcelFolder] = useState<string | null>(null);
@@ -558,8 +561,10 @@ export function useCounter(): UseCounter {
       () => {
         if (!wanted || !db) {
           setSuggestion(null);
+          setSearching(false);
           return;
         }
+        setSearching(true);
         void (async () => {
           const query = { name: Array.from(name).length >= SUGGEST_MIN_LETTERS ? name : undefined, phone: phone ?? undefined };
           let found: DevoteeSuggestion[] = [];
@@ -582,6 +587,7 @@ export function useCounter(): UseCounter {
             }
           }
           if (stale) return;
+          setSearching(false);
           const first = found.find((m) => !dismissedRef.current.has(`${m.name}|${m.phoneLast4 ?? ""}|${m.lastVisit}`));
           setSuggestion(first ?? null);
         })();
@@ -789,6 +795,7 @@ export function useCounter(): UseCounter {
     today,
     setForcedOffline,
     suggestion,
+    searching,
     acceptSuggestion,
     rejectSuggestion,
     filledFrom: filled && state.devotee.name.trim() !== "" ? { lastVisit: filled.lastVisit } : null,

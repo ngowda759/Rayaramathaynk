@@ -1,14 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { AnimatePresence, m } from "framer-motion";
 
+import { StepPane } from "@/components/seva/counter/StepPane";
 import { CashCount, cashDifference, countedPaise, denominationKey, hasInvalidCount, noteIsEnough, parseCount } from "@/components/seva/dayclose/CashCount";
 import { printDayCloseSummary, type DayCloseSummaryModel } from "@/components/seva/dayclose/DayCloseSummaryPrint";
 import { SentCheck } from "@/components/seva/dayclose/SentCheck";
 import { SeriesSummary } from "@/components/seva/dayclose/SeriesSummary";
 import { parseRupeeText, UpiCheck, upiDifference } from "@/components/seva/dayclose/UpiCheck";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
+import { Reveal } from "@/components/seva/motion/Reveal";
+import { SevaLink } from "@/components/seva/motion/SevaLink";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
@@ -22,6 +26,7 @@ import { isUnreachable } from "@/lib/seva/offline/connection";
 import { openSevaDb, type SevaDb } from "@/lib/seva/offline/db";
 import { deviceHeader, getDeviceCredentials } from "@/lib/seva/offline/device";
 import { COUNTER_APP_VERSION } from "@/lib/seva/offline/heartbeat";
+import { slideIn } from "@/lib/seva/motion";
 import { pruneClosedDays, todaysReceipts } from "@/lib/seva/offline/local-receipts";
 import { pendingCount } from "@/lib/seva/offline/outbox";
 import { runSync } from "@/lib/seva/offline/sync";
@@ -47,6 +52,9 @@ import type { DayClosePrep } from "@/types/seva-dayclose";
  * "This PC" counts as the counter being closed only when it holds device credentials AND the counter asked for is the
  * device's own (`me.counter`, verified by the device header). Only then does the page use this PC's outbox, heartbeat,
  * "Send now", Excel copy and pruning; for any other counter it shows the office's figures and makes no copy here.
+ *
+ * Motion (plan A4P-2): the amounts count to their values, Close and Reopen answer the click at once with their
+ * pending words, and moving from the count to "Day closed" (and back after a reopen) slides.
  */
 
 type Phase = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; prep: DayClosePrep };
@@ -406,17 +414,22 @@ function DayCloseScreen(): JSX.Element {
           </h1>
           <BiLine text={day} className="text-(length:--text-meta) text-(--muted-foreground)" />
         </div>
-        <Link href="/admin/receipts/counter" className="text-(length:--text-ui) text-(--link) underline">
+        <SevaLink href="/admin/receipts/counter" className="text-(length:--text-ui) text-(--link) underline">
           {DAYCLOSE.backToCounter.en}
-        </Link>
+        </SevaLink>
       </div>
 
       {closedNotes.length > 0 ? (
-        <div role="status" className="flex flex-col gap-1 rounded-(--radius-card) border border-(--border) bg-(--ok-soft) p-4" data-testid="dc-done">
+        <Reveal
+          key={closedNotes.map((n) => n.en).join("|")}
+          role="status"
+          className="flex flex-col gap-1 rounded-(--radius-card) border border-(--border) bg-(--ok-soft) p-4"
+          data-testid="dc-done"
+        >
           {closedNotes.map((n) => (
             <BiLine key={n.en} text={n} />
           ))}
-        </div>
+        </Reveal>
       ) : null}
 
       {actionError ? (
@@ -425,89 +438,105 @@ function DayCloseScreen(): JSX.Element {
         </p>
       ) : null}
 
-      {closed ? (
-        <section aria-label={DAYCLOSE.dayClosed.en} className="flex flex-col gap-3 rounded-(--radius-card) border border-(--border) bg-(--card) p-5 shadow-(--shadow-card)">
-          <Bilingual as="h2" en={DAYCLOSE.dayClosed.en} kn={DAYCLOSE.dayClosed.kn} className="text-(length:--text-h2) font-semibold" />
-          <BiLine text={DAYCLOSE.dayClosedHint} className="text-(--muted-foreground)" />
-          {can("dayclose.reopen") ? (
-            reopenOpen ? (
-              <div className="flex max-w-lg flex-col gap-2">
-                <Bilingual as="label" htmlFor="dc-reopen-reason" en={DAYCLOSE.reopenReason.en} kn={DAYCLOSE.reopenReason.kn} className="text-(length:--text-meta) font-semibold" />
-                <textarea
-                  id="dc-reopen-reason"
-                  className={`${sevaControlClass} h-auto min-h-20 py-2.5`}
-                  value={reason}
-                  maxLength={500}
-                  aria-describedby="dc-reopen-hint"
-                  onChange={(e) => setReason(e.target.value)}
+      <div className="relative">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {closed ? (
+            <StepPane
+              key="closed"
+              role="region"
+              aria-label={DAYCLOSE.dayClosed.en}
+              className="flex flex-col gap-3 rounded-(--radius-card) border border-(--border) bg-(--card) p-5 shadow-(--shadow-card)"
+            >
+              <Bilingual as="h2" en={DAYCLOSE.dayClosed.en} kn={DAYCLOSE.dayClosed.kn} className="text-(length:--text-h2) font-semibold" />
+              <BiLine text={DAYCLOSE.dayClosedHint} className="text-(--muted-foreground)" />
+              {can("dayclose.reopen") ? (
+                reopenOpen ? (
+                  <m.div variants={slideIn} initial="hidden" animate="shown" className="flex max-w-lg flex-col gap-2">
+                    <Bilingual as="label" htmlFor="dc-reopen-reason" en={DAYCLOSE.reopenReason.en} kn={DAYCLOSE.reopenReason.kn} className="text-(length:--text-meta) font-semibold" />
+                    <textarea
+                      id="dc-reopen-reason"
+                      className={`${sevaControlClass} h-auto min-h-20 py-2.5`}
+                      value={reason}
+                      maxLength={500}
+                      aria-describedby="dc-reopen-hint"
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                    <span id="dc-reopen-hint" className="text-(length:--text-meta) text-(--muted-foreground)">
+                      {DAYCLOSE.reopenReasonHint.en}
+                    </span>
+                    <div className="flex gap-2">
+                      <PendingButton
+                        variant="seva-primary"
+                        pending={busy === "reopen"}
+                        pendingLabel={DAYCLOSE.reopening.en}
+                        disabled={reason.trim().length < 3}
+                        action={reopen}
+                      >
+                        {DAYCLOSE.reopenConfirm.en}
+                      </PendingButton>
+                      <Button variant="seva-ghost" disabled={busy === "reopen"} onClick={() => setReopenOpen(false)}>
+                        {DAYCLOSE.cancel.en}
+                      </Button>
+                    </div>
+                  </m.div>
+                ) : (
+                  <div>
+                    <Button variant="seva-secondary" onClick={() => setReopenOpen(true)}>
+                      {DAYCLOSE.reopen.en}
+                    </Button>
+                  </div>
+                )
+              ) : null}
+              <SeriesSummary ranges={prep.seriesRanges} />
+            </StepPane>
+          ) : (
+            <StepPane key="open" className="flex flex-col gap-6">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <CashCount
+                  denominations={prep.denominations}
+                  expectedPaise={prep.cashExpectedPaise}
+                  counts={counts}
+                  onCountChange={(key, value) => setCounts((c) => ({ ...c, [key]: value }))}
+                  note={note}
+                  onNoteChange={setNote}
+                  canManageDenominations={can("settings.edit")}
+                  otherDifference={upiDiff !== null && upiDiff.kind !== "balanced"}
+                  disabled={busy === "close"}
                 />
-                <span id="dc-reopen-hint" className="text-(length:--text-meta) text-(--muted-foreground)">
-                  {DAYCLOSE.reopenReasonHint.en}
-                </span>
-                <div className="flex gap-2">
-                  <Button variant="seva-primary" loading={busy === "reopen"} disabled={reason.trim().length < 3} onClick={() => void reopen()}>
-                    {DAYCLOSE.reopenConfirm.en}
-                  </Button>
-                  <Button variant="seva-ghost" onClick={() => setReopenOpen(false)}>
-                    {DAYCLOSE.cancel.en}
-                  </Button>
+                <div className="flex flex-col gap-6">
+                  <UpiCheck
+                    upiCount={prep.upiCount}
+                    expectedPaise={prep.upiExpectedPaise}
+                    bankText={bankText}
+                    onBankChange={setBankText}
+                    disabled={busy === "close"}
+                  />
+                  <SentCheck waiting={waiting} canSend={thisDb !== null} sending={busy === "send"} onSendNow={() => void sendNow()} />
+                  <SeriesSummary ranges={prep.seriesRanges} />
                 </div>
               </div>
-            ) : (
-              <div>
-                <Button variant="seva-secondary" onClick={() => setReopenOpen(true)}>
-                  {DAYCLOSE.reopen.en}
-                </Button>
+              <div className="flex flex-wrap items-center gap-4">
+                <PendingButton
+                  variant="seva-primary"
+                  className="h-14 px-8 text-(length:--text-body-lg)"
+                  disabled={blocker !== null}
+                  pending={busy === "close"}
+                  pendingLabel={DAYCLOSE.closing.en}
+                  aria-describedby={blocker ? "dc-why" : undefined}
+                  action={closeDay}
+                >
+                  {DAYCLOSE.closeButton.en}
+                </PendingButton>
+                {blocker ? (
+                  <span id="dc-why" className="text-(length:--text-meta) text-(--muted-foreground)">
+                    {blocker.en}
+                  </span>
+                ) : null}
               </div>
-            )
-          ) : null}
-          <SeriesSummary ranges={prep.seriesRanges} />
-        </section>
-      ) : (
-        <>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <CashCount
-              denominations={prep.denominations}
-              expectedPaise={prep.cashExpectedPaise}
-              counts={counts}
-              onCountChange={(key, value) => setCounts((c) => ({ ...c, [key]: value }))}
-              note={note}
-              onNoteChange={setNote}
-              canManageDenominations={can("settings.edit")}
-              otherDifference={upiDiff !== null && upiDiff.kind !== "balanced"}
-              disabled={busy === "close"}
-            />
-            <div className="flex flex-col gap-6">
-              <UpiCheck
-                upiCount={prep.upiCount}
-                expectedPaise={prep.upiExpectedPaise}
-                bankText={bankText}
-                onBankChange={setBankText}
-                disabled={busy === "close"}
-              />
-              <SentCheck waiting={waiting} canSend={thisDb !== null} sending={busy === "send"} onSendNow={() => void sendNow()} />
-              <SeriesSummary ranges={prep.seriesRanges} />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <Button
-              variant="seva-primary"
-              className="h-14 px-8 text-(length:--text-body-lg)"
-              disabled={blocker !== null}
-              loading={busy === "close"}
-              aria-describedby={blocker ? "dc-why" : undefined}
-              onClick={() => void closeDay()}
-            >
-              {DAYCLOSE.closeButton.en}
-            </Button>
-            {blocker ? (
-              <span id="dc-why" className="text-(length:--text-meta) text-(--muted-foreground)">
-                {blocker.en}
-              </span>
-            ) : null}
-          </div>
-        </>
-      )}
+            </StepPane>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

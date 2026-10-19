@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, type JSX } from "react";
 
 import { sevaControlClass } from "@/components/ui/input";
+import { AnimatedNumber } from "@/components/seva/motion/AnimatedNumber";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip } from "@/components/seva/ui/Chip";
 import { formatRupees } from "@/lib/seva/money";
@@ -14,6 +15,7 @@ import type { DayClosePrep } from "@/types/seva-dayclose";
  * Close day, steps 1 and 2 (DB §9.10): the drawer counted by denomination (notes, then coins by value, both from
  * settings), each row value x count = amount, the counted total against the expected cash, and the note a difference
  * needs (D23). Controlled: the page keeps the counts and the note, because the close request and the summary use them.
+ * Plan A4P-2: each row's amount, the counted total and the difference count to their new values as counts are typed.
  */
 
 export type Denomination = DayClosePrep["denominations"][number];
@@ -41,6 +43,19 @@ export function formatAmount(paise: number): string {
   return formatRupees(paise, { decimals: paise % 100 !== 0 });
 }
 
+/**
+ * The rupee text of an amount that counts up to `finalPaise` (AnimatedNumber): whole rupees while it counts, exactly
+ * `formatAmount(finalPaise)` once it lands.
+ */
+export function countingAmount(finalPaise: number): (paise: number) => string {
+  return (paise) => formatAmount(paise === finalPaise ? finalPaise : Math.round(paise / 100) * 100);
+}
+
+/** An amount that counts to its new value (plan A4P-2); screen readers hear only the final amount. */
+function CountingAmount({ paise }: { paise: number }): JSX.Element {
+  return <AnimatedNumber value={paise} format={countingAmount(paise)} />;
+}
+
 /** The counted cash: the sum of value x count over the shown denominations; invalid counts count as 0. */
 export function countedPaise(denominations: readonly Denomination[], counts: Readonly<Record<string, string>>): number {
   return denominations.reduce((sum, d) => {
@@ -66,15 +81,42 @@ export function noteIsEnough(note: string): boolean {
   return note.trim().length >= 3;
 }
 
-/** The chip for a difference: 'Matches', 'Short Rs 80' or 'Extra Rs 20'. */
+/** Where the amount goes in the difference words. */
+const AMOUNT_MARK = "{amount}";
+
+/**
+ * The chip for a difference: 'Matches', 'Short Rs 80' or 'Extra Rs 20'. While it stays short (or extra) the amount
+ * counts to its new value (plan A4P-2); a change of kind shows the new words at once, and the chip's dot pops.
+ */
 export function DifferenceChip({ diff, testId }: { diff: CashDifference; testId?: string }): JSX.Element {
-  const text = diff.kind === "balanced" ? DAYCLOSE.matches : diff.kind === "short" ? shortBy(formatAmount(diff.paise)) : extraBy(formatAmount(diff.paise));
+  const words = diff.kind === "short" ? shortBy(AMOUNT_MARK) : diff.kind === "extra" ? extraBy(AMOUNT_MARK) : null;
   return (
     <span data-testid={testId}>
       <Chip tone={diff.kind === "balanced" ? "ok" : diff.kind === "short" ? "critical" : "attention"}>
-        <Bilingual en={text.en} kn={text.kn} />
+        {words ? (
+          <span key={diff.kind}>
+            <AmountWords text={words.en} paise={diff.paise} />
+            <span className="kn" lang="kn">
+              <AmountWords text={words.kn} paise={diff.paise} />
+            </span>
+          </span>
+        ) : (
+          <Bilingual en={DAYCLOSE.matches.en} kn={DAYCLOSE.matches.kn} />
+        )}
       </Chip>
     </span>
+  );
+}
+
+/** Words with the amount in its place (AMOUNT_MARK): 'Short <Rs 80>', '<Rs 80> ಕಡಿಮೆ'. */
+function AmountWords({ text, paise }: { text: string; paise: number }): JSX.Element {
+  const [before, after = ""] = text.split(AMOUNT_MARK);
+  return (
+    <>
+      {before}
+      <CountingAmount paise={paise} />
+      {after}
+    </>
   );
 }
 
@@ -132,7 +174,7 @@ function DenominationRows({
               />
             </td>
             <td className="py-2 pl-2 text-right tabular-nums" data-testid={`dc-row-${key}`}>
-              {formatAmount(d.valuePaise * (count ?? 0))}
+              <CountingAmount paise={d.valuePaise * (count ?? 0)} />
             </td>
           </tr>
         );
@@ -212,7 +254,7 @@ export function CashCount({
                 <Bilingual en={DAYCLOSE.counted.en} kn={DAYCLOSE.counted.kn} />
               </td>
               <td className="pt-3 text-right text-(length:--text-h3) font-bold tabular-nums" data-testid="dc-counted">
-                {formatAmount(counted)}
+                <CountingAmount paise={counted} />
               </td>
             </tr>
           </tfoot>

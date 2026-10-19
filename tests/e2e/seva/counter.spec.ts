@@ -15,9 +15,22 @@ import {
 /**
  * The counter screens (plan A4-1, Design Book 9): keyboard flow, save and print, UPI, a catalogue change under the
  * order and a PC that is not registered. Every /api/seva/** call is answered by the fake API.
+ * Plan A4P-2: the steps slide and the save answers at once, so the keyboard flow must still work under motion.
  */
 
-test("makes a 3-date receipt by keyboard only", async ({ page }) => {
+const SLOW_MS = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+declare global {
+  interface Window {
+    __sevaSave?: { clickAt: number | null; savingAt: number | null; printedAt: number | null };
+  }
+}
+
+test("the keyboard-only 3-date receipt still works", async ({ page }) => {
   const fake = createFakeSevaApi();
   await openCounter(page, fake);
 
@@ -32,6 +45,57 @@ test("makes a 3-date receipt by keyboard only", async ({ page }) => {
   expect(await printCount(page)).toBe(1);
   await expect(page.locator("#counter-name")).toBeFocused();
   await expect(page.locator("#counter-name")).toHaveValue("");
+});
+
+test("saving shows Saving... within 150 ms and the printed panel after", async ({ page }) => {
+  const crashes: string[] = [];
+  page.on("pageerror", (err) => crashes.push(err.message));
+  const fake = createFakeSevaApi();
+  await openCounter(page, fake);
+  // The office takes 800 ms to answer the order; the fake answers it after that (registered last, so it runs first).
+  await page.route("**/api/seva/counter/orders", async (route) => {
+    await sleep(SLOW_MS);
+    await route.fallback();
+  });
+  await quickOrder(page, "Lakshmi Devi", 1);
+
+  // Note, inside the page, when the click lands, when "Saving" shows and when the printed panel appears.
+  await page.evaluate(() => {
+    const seen = { clickAt: null as number | null, savingAt: null as number | null, printedAt: null as number | null };
+    window.__sevaSave = seen;
+    const check = () => {
+      if (seen.clickAt === null) return;
+      const now = performance.now();
+      const busy = document.querySelector('button[aria-busy="true"]');
+      if (seen.savingAt === null && busy && /Saving/.test(busy.textContent ?? "")) seen.savingAt = now;
+      if (seen.printedAt === null && document.querySelector('[data-testid="printed-receipt-no"]')) seen.printedAt = now;
+    };
+    document.addEventListener(
+      "click",
+      () => {
+        if (seen.clickAt === null) seen.clickAt = performance.now();
+        queueMicrotask(check);
+      },
+      { capture: true },
+    );
+    new MutationObserver(check).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+  });
+
+  await page.getByRole("button", { name: /Save and print 1 receipt/ }).click();
+  await expect(page.getByRole("button", { name: /Saving/ })).toBeVisible();
+  await expect(page.getByTestId("printed-receipt-no")).toHaveCount(0);
+
+  await expect(page.getByTestId("printed-receipt-no")).toHaveCount(1, { timeout: 10_000 });
+  const seen = await page.evaluate(() => window.__sevaSave);
+  expect(seen?.clickAt).not.toBeNull();
+  expect(seen?.savingAt).not.toBeNull();
+  expect((seen?.savingAt ?? Infinity) - (seen?.clickAt ?? 0)).toBeLessThan(150);
+  // The printed panel waits for the office's answer.
+  expect((seen?.printedAt ?? 0) - (seen?.clickAt ?? 0)).toBeGreaterThanOrEqual(SLOW_MS - 50);
+  expect(ordersPosted(fake)).toHaveLength(1);
+  expect(await printCount(page)).toBe(1);
+  await expect(page.locator("#counter-name")).toBeFocused();
+  expect(crashes).toEqual([]);
 });
 
 test("Ctrl+Enter twice posts once", async ({ page }) => {

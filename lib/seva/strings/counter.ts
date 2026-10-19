@@ -14,6 +14,14 @@ export function rupees(paise: number): string {
   return formatRupees(paise, { decimals: paise % 100 !== 0 });
 }
 
+/**
+ * The rupee text of an amount that counts up to `finalPaise` (AnimatedNumber): whole rupees while it counts, so no
+ * stray paise flicker past, and exactly `rupees(finalPaise)` once it lands.
+ */
+export function countingRupees(finalPaise: number): (paise: number) => string {
+  return (paise) => (paise === finalPaise ? rupees(finalPaise) : rupees(Math.round(paise / 100) * 100));
+}
+
 /** 'Sat 28 Aug' - the seva date without the year, as the summary line reads it. */
 export function shortSevaDate(date: string): string {
   return formatSevaDate(date).split(' ').slice(0, 3).join(' ');

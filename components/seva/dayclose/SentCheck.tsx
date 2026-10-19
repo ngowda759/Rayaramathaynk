@@ -2,7 +2,7 @@
 
 import type { JSX } from "react";
 
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { DAYCLOSE, waitingLine } from "@/lib/seva/strings/dayclose";
 
@@ -10,6 +10,7 @@ import { DAYCLOSE, waitingLine } from "@/lib/seva/strings/dayclose";
  * Close day, step 4 (DB §9.10, C-24): it must read "Nothing is waiting to send" before the day can close. On the
  * counter PC the page sends a heartbeat first, so the office's count is this PC's own outbox; with items waiting it
  * shows the count and "Send now". Elsewhere it shows the office's last count from that counter.
+ * Plan A4P-2: "Send now" shows "Sending..." with a spinner from the click until the outbox went.
  */
 
 export interface SentCheckProps {
@@ -42,9 +43,9 @@ export function SentCheck({ waiting, canSend, sending, onSendNow }: SentCheckPro
       {waiting !== null && waiting > 0 ? (
         canSend ? (
           <div>
-            <Button variant="seva-secondary" size="sm" loading={sending} onClick={onSendNow}>
+            <PendingButton variant="seva-secondary" size="sm" pending={sending} pendingLabel={DAYCLOSE.sending.en} onClick={onSendNow}>
               {DAYCLOSE.sendNow.en}
-            </Button>
+            </PendingButton>
           </div>
         ) : (
           <p className="text-(length:--text-meta) text-(--muted-foreground)">{DAYCLOSE.sendFromCounter.en}</p>

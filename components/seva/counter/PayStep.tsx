@@ -2,13 +2,14 @@
 
 import type { JSX } from "react";
 
+import { AnimatedNumber } from "@/components/seva/motion/AnimatedNumber";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
 import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
 import type { PaymentDraft } from "@/lib/seva/counter/state";
 import { toPaise } from "@/lib/seva/money";
-import { COUNTER_TEXT, rupees, toPayText } from "@/lib/seva/strings/counter";
+import { COUNTER_TEXT, countingRupees, toPayText } from "@/lib/seva/strings/counter";
 import type { CounterBootstrap } from "@/types/seva";
 import { UpiPanel } from "./UpiPanel";
 
@@ -45,6 +46,7 @@ function cleanRupees(text: string): string {
 /**
  * Step 3 - Pay and print (Design Book 9.5, counter mockup `#counter-pay`): one payment for the whole order, cash with
  * the change to return, or UPI with the temple's QR. UPI is switched off with a reason when the counter has no UPI id.
+ * Plan A4P-2: the amount to pay and the change count to their values (screen readers hear only the final amount).
  */
 export function PayStep({
   totalPaise,
@@ -70,7 +72,9 @@ export function PayStep({
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-[16px] bg-(--secondary) p-6">
         <div className="flex flex-col gap-1">
           <Bilingual en={COUNTER_TEXT.toPay.en} kn={COUNTER_TEXT.toPay.kn} className="text-(length:--text-meta) font-semibold" />
-          <span className="amount text-[52px] leading-[1.05] font-bold tracking-[-0.02em]">{rupees(totalPaise)}</span>
+          <span className="amount text-[52px] leading-[1.05] font-bold tracking-[-0.02em]">
+            <AnimatedNumber value={totalPaise} format={countingRupees(totalPaise)} />
+          </span>
           <span className="meta">{toPayText(totalPaise, receiptCount)}</span>
         </div>
         <Segmented<"cash" | "upi">
@@ -133,12 +137,16 @@ export function PayStep({
             {change !== null && change >= 0 ? (
               <>
                 <Bilingual en={COUNTER_TEXT.returnChange.en} kn={COUNTER_TEXT.returnChange.kn} className="text-(length:--text-meta) font-semibold" />
-                <span className="amount text-(length:--text-h1) leading-[46px] font-bold">{rupees(change)}</span>
+                <span className="amount text-(length:--text-h1) leading-[46px] font-bold" data-testid="counter-change">
+                  <AnimatedNumber value={change} format={countingRupees(change)} />
+                </span>
               </>
             ) : change !== null ? (
               <>
                 <Bilingual en={COUNTER_TEXT.short.en} kn={COUNTER_TEXT.short.kn} className="text-(length:--text-meta) font-semibold text-(--destructive)" />
-                <span className="amount text-(length:--text-h1) leading-[46px] font-bold text-(--destructive)">{rupees(-change)}</span>
+                <span className="amount text-(length:--text-h1) leading-[46px] font-bold text-(--destructive)">
+                  <AnimatedNumber value={-change} format={countingRupees(-change)} />
+                </span>
               </>
             ) : null}
           </div>

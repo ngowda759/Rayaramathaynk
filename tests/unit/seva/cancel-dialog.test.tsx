@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
+import { SevaMotion } from "@/components/seva/motion/SevaMotion";
 import { CancelDialog, moneyBackLine, type CancelCandidate } from "@/components/seva/today/CancelDialog";
 import { cancelledLine, cancelResultLines, rowActions, TodayList, type TodayRow } from "@/components/seva/today/TodayList";
 import { connectionStore } from "@/lib/seva/offline/connection";
@@ -300,5 +301,61 @@ describe("TodayList", () => {
     expect(cancel?.headers["x-seva-device"]).toBe("device-1.secret");
     expect(cancel?.headers.Authorization).toBe("Bearer id-token");
     expect(await screen.findByText(/Give back Rs 505 in cash/)).toBeInTheDocument();
+  });
+
+  it("cancel shows its pending state and the dialog animates out on success", async () => {
+    let answer: () => void = () => undefined;
+    const office = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith("/api/seva/receipts/cancel")) {
+        await office;
+        return json({ receipts: [{ ...ITEM, status: "cancelled", cancelDeadline: null, refundState: "done" }] });
+      }
+      if (path.startsWith("/api/seva/receipts")) return json({ rows: [ITEM], nextCursor: null });
+      return json({ error: { code: "not_found", message: "Not found" } }, 404);
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    act(() => connectionStore.markOnline());
+
+    const me = person("receptionist");
+    render(
+      <SevaMotion>
+        <TodayList
+          me={me}
+          can={canFor(me, INSIDE_WINDOW)}
+          token={async () => "id-token"}
+          deviceHeader="device-1.secret"
+          db={null}
+          now={() => INSIDE_WINDOW}
+        />
+      </SevaMotion>,
+    );
+
+    expect(await screen.findByText("Lakshmi Narayan")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.change(await screen.findByLabelText(/Reason/), { target: { value: "wrong_seva" } });
+    const go = screen.getByRole("button", { name: "Cancel receipt" });
+    fireEvent.click(go);
+
+    // Before the office answers: a spinner and "Cancelling...", and Keep is held too.
+    expect(go).toHaveAttribute("aria-busy", "true");
+    expect(go).toBeDisabled();
+    expect(go).toHaveTextContent("Cancelling...");
+    expect(go.querySelector("[data-spinner]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeDisabled();
+    fireEvent.click(go);
+
+    await act(async () => {
+      answer();
+      await office;
+    });
+    // The dialog plays its exit (it no longer takes clicks while it goes) and is then removed.
+    await waitFor(() => expect(screen.getByRole("dialog").className).toContain("pointer-events-none"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 3000 });
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === "/api/seva/receipts/cancel")).toHaveLength(1);
+    expect(screen.getByText(/Receipt cancelled\./)).toBeInTheDocument();
   });
 });

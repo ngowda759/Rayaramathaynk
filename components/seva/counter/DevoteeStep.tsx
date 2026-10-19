@@ -37,6 +37,8 @@ export interface DevoteeStepProps {
   /** Set after "Use these details", until the next devotee. */
   filledFrom: { lastVisit: string } | null;
   onUndo(): void;
+  /** True while the returning-devotee search runs: a small spinner sits in the Name box (typing never waits on it). */
+  searching?: boolean;
 }
 
 /** Field ids in the order Enter moves through them (Design Book 9.2, 9.6). */
@@ -76,6 +78,7 @@ export function DevoteeStep({
   onRejectSuggestion,
   filledFrom,
   onUndo,
+  searching = false,
 }: DevoteeStepProps): JSX.Element {
   return (
     <section aria-label={COUNTER_TEXT.devoteeTitle.en} className="flex flex-col gap-6">
@@ -93,17 +96,27 @@ export function DevoteeStep({
             kn={COMMON.name.kn}
             className="text-(length:--text-meta) font-semibold"
           />
-          <input
-            ref={nameRef}
-            id="counter-name"
-            className={`${sevaControlClass} h-[54px] text-(length:--text-body-lg)`}
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={80}
-            required
-            value={devotee.name}
-            onChange={(e) => onDevotee({ name: e.target.value })}
-          />
+          <div className="relative">
+            <input
+              ref={nameRef}
+              id="counter-name"
+              className={`${sevaControlClass} h-[54px] pr-12 text-(length:--text-body-lg)`}
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={80}
+              required
+              aria-busy={searching || undefined}
+              value={devotee.name}
+              onChange={(e) => onDevotee({ name: e.target.value })}
+            />
+            {searching ? (
+              <span
+                aria-hidden="true"
+                data-testid="devotee-searching"
+                className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 animate-spin rounded-full border-2 border-(--border-strong) border-t-(--primary-press)"
+              />
+            ) : null}
+          </div>
         </div>
 
         {suggestion ? (

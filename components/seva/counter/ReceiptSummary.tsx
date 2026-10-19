@@ -2,13 +2,15 @@
 
 import type { JSX } from "react";
 
+import { AnimatedNumber } from "@/components/seva/motion/AnimatedNumber";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip } from "@/components/seva/ui/Chip";
 import { Button } from "@/components/ui/button";
 import type { GroupResult } from "@/lib/seva/grouping";
 import type { CatalogueIndex, CounterStep, DevoteeDraft, SaveBlock } from "@/lib/seva/counter/state";
 import { formatSevaDate } from "@/lib/seva/time";
-import { COUNTER_TEXT, SAVE_BLOCK_TEXT, orderSummaryText, rupees, saveButtonText } from "@/lib/seva/strings/counter";
+import { COUNTER_TEXT, SAVE_BLOCK_TEXT, countingRupees, orderSummaryText, rupees, saveButtonText } from "@/lib/seva/strings/counter";
 
 export interface ReceiptSummaryProps {
   devotee: DevoteeDraft;
@@ -18,7 +20,8 @@ export interface ReceiptSummaryProps {
   canSave: { ok: true } | { ok: false; block: SaveBlock };
   submitting: boolean;
   onNext(): void;
-  onSave(): void;
+  /** Saves and prints; the button is pending from the click until this settles. */
+  onSave(): void | Promise<void>;
   /** A plain message from the last save (refused by the office, nothing printed ...). */
   message?: { tone: "error" | "info"; text: string } | null;
   /** True when no new receipt may be saved (day closed). */
@@ -35,6 +38,8 @@ function devoteeDetails(d: DevoteeDraft): string {
 /**
  * "This receipt" (Design Book 9, counter mockup): the devotee, the order grouped by seva date - one card per receipt,
  * changed lines marked - the total and the step's main action. Sticky beside the current step.
+ * Plan A4P-2: the total counts to its new value, and Save and print answers the click at once ("Saving and
+ * printing..." with a spinner, pressed only once) while the office has not answered yet.
  */
 export function ReceiptSummary({
   devotee,
@@ -134,24 +139,26 @@ export function ReceiptSummary({
       <div className="flex items-end justify-between gap-3 border-t border-(--border) pt-4">
         <Bilingual en={COUNTER_TEXT.total.en} kn={COUNTER_TEXT.total.kn} className="text-(length:--text-meta) font-semibold" />
         <span className="amount text-(length:--text-display) leading-[1.1] font-bold tracking-[-0.02em]" data-testid="counter-total">
-          {rupees(totalPaise)}
+          <AnimatedNumber value={totalPaise} format={countingRupees(totalPaise)} />
         </span>
       </div>
 
       {step === 3 ? (
-        <Button
-          type="button"
+        <PendingButton
           variant="seva-primary"
           className="h-14 w-full text-(length:--text-body)"
-          disabled={!canSave.ok || submitting || saveDisabled}
-          aria-busy={submitting || undefined}
+          disabled={!canSave.ok || saveDisabled}
+          pending={submitting}
+          pendingLabel={COUNTER_TEXT.saving.en}
+          action={async () => {
+            await onSave();
+          }}
           aria-keyshortcuts="Control+Enter"
           aria-describedby={block ? "counter-save-why" : undefined}
-          onClick={onSave}
         >
-          {submitting ? COUNTER_TEXT.saving.en : saveButtonText(receipts.length)}
+          {saveButtonText(receipts.length)}
           <span className="kbd text-(length:--text-meta) opacity-70">Ctrl+Enter</span>
-        </Button>
+        </PendingButton>
       ) : (
         <Button
           type="button"

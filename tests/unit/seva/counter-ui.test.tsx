@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { DevoteeStep } from "@/components/seva/counter/DevoteeStep";
 import { OfflineBanner } from "@/components/seva/counter/OfflineBanner";
 import { PayStep } from "@/components/seva/counter/PayStep";
 import { ReceiptSummary } from "@/components/seva/counter/ReceiptSummary";
@@ -137,5 +138,64 @@ describe("counter screens", () => {
     expect(screen.getByLabelText(/last 6 digits/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /I saw the payment succeed/ })).toBeInTheDocument();
     expect(screen.getByText("temple@upi")).toBeInTheDocument();
+  });
+
+  it("Save and print shows Saving... before the API answers and blocks a double save", async () => {
+    const s = reduce(reduce(bookExample(), { type: "goStep", step: 3 }), { type: "setPayment", patch: { cashReceived: "820" } });
+    expect(selectCanSave(s).ok).toBe(true);
+    let answer: () => void = () => undefined;
+    const office = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const onSave = jest.fn(() => office);
+    render(
+      <ReceiptSummary
+        devotee={s.devotee}
+        groups={selectGroups(s)}
+        catalogue={CAT}
+        step={3}
+        canSave={selectCanSave(s)}
+        submitting={false}
+        onNext={() => undefined}
+        onSave={onSave}
+      />,
+    );
+    const save = screen.getByRole("button", { name: /Save and print 3 receipts/ });
+
+    // The office has not answered yet: the button already says so and cannot be pressed again.
+    fireEvent.click(save);
+    expect(save).toHaveAttribute("aria-busy", "true");
+    expect(save).toBeDisabled();
+    expect(save).toHaveTextContent(/Saving/);
+    expect(save.querySelector("[data-spinner]")).not.toBeNull();
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      answer();
+      await office;
+    });
+    await waitFor(() => expect(save).not.toHaveAttribute("aria-busy"));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a small spinner in the name field while the returning-devotee search runs", () => {
+    const props = {
+      devotee: initialCounterState(TODAY).devotee,
+      onDevotee: () => undefined,
+      nameRef: { current: null },
+      onEnterNext: () => undefined,
+      suggestion: null,
+      onUseSuggestion: () => undefined,
+      onRejectSuggestion: () => undefined,
+      filledFrom: null,
+      onUndo: () => undefined,
+    };
+    const { rerender } = render(<DevoteeStep {...props} searching={false} />);
+    expect(screen.queryByTestId("devotee-searching")).toBeNull();
+    rerender(<DevoteeStep {...props} searching />);
+    const spinner = screen.getByTestId("devotee-searching");
+    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByLabelText(/Name/)).toHaveAttribute("aria-busy", "true");
   });
 });

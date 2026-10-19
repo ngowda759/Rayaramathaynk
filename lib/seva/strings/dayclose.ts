@@ -37,6 +37,8 @@ export const DAYCLOSE: {
   noGaps: Bi;
   closeButton: Bi;
   closing: Bi;
+  reopening: Bi;
+  sending: Bi;
   dayClosed: Bi;
   dayClosedHint: Bi;
   reopen: Bi;
@@ -118,6 +120,8 @@ export const DAYCLOSE: {
   noGaps: { en: 'No gaps', kn: 'ಯಾವುದೇ ಅಂತರವಿಲ್ಲ' },
   closeButton: { en: 'Close day and print summary', kn: 'ದಿನ ಮುಕ್ತಾಯಗೊಳಿಸಿ ಮತ್ತು ಸಾರಾಂಶ ಮುದ್ರಿಸಿ' },
   closing: { en: 'Closing the day...', kn: 'ದಿನ ಮುಕ್ತಾಯಗೊಳಿಸಲಾಗುತ್ತಿದೆ...' },
+  reopening: { en: 'Reopening...', kn: 'ಮತ್ತೆ ತೆರೆಯಲಾಗುತ್ತಿದೆ...' },
+  sending: { en: 'Sending...', kn: 'ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ...' },
   dayClosed: { en: 'Day closed', kn: 'ದಿನ ಮುಕ್ತಾಯವಾಗಿದೆ' },
   dayClosedHint: {
     en: 'No more receipts can be made on this counter today. A temple admin can reopen the day with a reason.',

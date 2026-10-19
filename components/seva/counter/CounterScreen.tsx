@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type JSX, type KeyboardEvent } from "react";
+import { AnimatePresence } from "framer-motion";
 
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { RegisterPrompt } from "./RegisterPrompt";
 import { SevasStep } from "./SevasStep";
 import { StatusStrip } from "./StatusStrip";
 import { StepIndicator } from "./StepIndicator";
+import { StepPane } from "./StepPane";
 import { TempleHeaderBand } from "./TempleHeaderBand";
 
 const ZONES: readonly KeyZone[] = ["name", "field", "search", "tiles", "pay", "other"];
@@ -41,6 +43,8 @@ function inDialog(target: EventTarget | null): boolean {
  * `#offline`): temple header band, status strip, step indicator, the current step large on the left and the sticky
  * "This receipt" summary on the right. Keyboard first (9.6): Enter moves on, 1-9 on the tiles adds, Ctrl+Enter saves,
  * Alt+1/2/3 jump, Esc twice clears; after printing the cursor is back in Name.
+ * Plan A4P-2: the steps slide (StepPane) while focus lands where it always did, the offline strip slides down, the
+ * printed panel rises in, and the in-doubt question springs in and out.
  */
 export function CounterScreen(): JSX.Element {
   const counter = useCounter();
@@ -164,11 +168,22 @@ export function CounterScreen(): JSX.Element {
 
       <div className="flex flex-col gap-6 p-8 max-md:p-4">
         {counter.dayClosed ? <DayClosedNotice date={bootstrap.today.businessDate} /> : null}
-        {offline ? (
-          <OfflineBanner since={connection.since} waiting={connection.waiting} series={bootstrap.counter.offlineSeries} />
-        ) : null}
+        <AnimatePresence initial={false}>
+          {offline ? (
+            <OfflineBanner
+              key="offline"
+              since={connection.since}
+              waiting={connection.waiting}
+              series={bootstrap.counter.offlineSeries}
+            />
+          ) : null}
+        </AnimatePresence>
         {counter.lastPrinted && state.lines.length === 0 && state.devotee.name === "" ? (
-          <PrintedPanel receipts={counter.lastPrinted.receipts} offline={counter.lastPrinted.offline} />
+          <PrintedPanel
+            key={counter.lastPrinted.receipts[0]?.clientReceiptId ?? "printed"}
+            receipts={counter.lastPrinted.receipts}
+            offline={counter.lastPrinted.offline}
+          />
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -177,62 +192,67 @@ export function CounterScreen(): JSX.Element {
         </div>
 
         <div className="grid grid-cols-[minmax(0,1fr)_380px] items-start gap-8 max-lg:grid-cols-1">
-          <div className="flex flex-col gap-6 rounded-(--radius-surface) border border-(--border) bg-(--card) p-8 shadow-(--shadow-card) max-md:p-5">
-            {state.step === 1 ? (
-              <DevoteeStep
-                devotee={state.devotee}
-                onDevotee={(patch) => dispatch({ type: "setDevotee", patch })}
-                nameRef={nameRef}
-                onEnterNext={focusNextField}
-                suggestion={counter.suggestion}
-                onUseSuggestion={counter.acceptSuggestion}
-                onRejectSuggestion={counter.rejectSuggestion}
-                filledFrom={counter.filledFrom}
-                onUndo={counter.undoSuggestion}
-              />
-            ) : state.step === 2 ? (
-              <SevasStep
-                search={state.search}
-                onSearch={(text) => dispatch({ type: "setSearch", text })}
-                searchRef={searchRef}
-                matches={matchSevas(counter.catalogue, state.search)}
-                lines={state.lines}
-                catalogue={counter.catalogue}
-                today={state.today}
-                maxDate={counterMaxDate(bootstrap, state.today)}
-                festivals={bootstrap.festivalChips}
-                canChangeAmount={can("counter.change_amount")}
-                onAdd={(key) => dispatch({ type: "addByKey", key })}
-                onRemove={(lineKey) => dispatch({ type: "removeLine", lineKey })}
-                onQuantity={(lineKey, quantity) => dispatch({ type: "setQuantity", lineKey, quantity })}
-                onDates={(lineKey, dates) => dispatch({ type: "setDates", lineKey, dates })}
-                onAmount={(lineKey, unitRatePaise, reason) => dispatch({ type: "changeAmount", lineKey, unitRatePaise, reason })}
-                onBack={() => goStep(1)}
-              />
-            ) : (
-              <>
-                <PayStep
-                  totalPaise={totalPaise}
-                  receiptCount={receiptCount}
-                  payment={state.payment}
-                  onPayment={(patch) => dispatch({ type: "setPayment", patch })}
-                  upi={bootstrap.upi}
-                  upiDisabledReason={bootstrap.upiDisabledReason}
-                  upiNote={`Seva ${bootstrap.counter.name}`}
-                  largeCash={{
-                    required: totalPaise >= LARGE_CASH_PAISE,
-                    confirmed: state.confirmLargeCash,
-                    onConfirm: () => dispatch({ type: "confirmLargeCash" }),
-                  }}
-                />
-                <div className="flex items-center justify-between gap-4 border-t border-(--border) pt-5">
-                  <Button type="button" variant="seva-secondary" onClick={() => goStep(2)}>
-                    {COUNTER_TEXT.back.en}
-                  </Button>
-                  <span className="meta">{COUNTER_TEXT.stepOf(3)}</span>
-                </div>
-              </>
-            )}
+          <div className="relative flex flex-col gap-6 rounded-(--radius-surface) border border-(--border) bg-(--card) p-8 shadow-(--shadow-card) max-md:p-5">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <StepPane key={state.step} className="flex flex-col gap-6">
+                {state.step === 1 ? (
+                  <DevoteeStep
+                    devotee={state.devotee}
+                    onDevotee={(patch) => dispatch({ type: "setDevotee", patch })}
+                    nameRef={nameRef}
+                    onEnterNext={focusNextField}
+                    suggestion={counter.suggestion}
+                    onUseSuggestion={counter.acceptSuggestion}
+                    onRejectSuggestion={counter.rejectSuggestion}
+                    filledFrom={counter.filledFrom}
+                    onUndo={counter.undoSuggestion}
+                    searching={counter.searching}
+                  />
+                ) : state.step === 2 ? (
+                  <SevasStep
+                    search={state.search}
+                    onSearch={(text) => dispatch({ type: "setSearch", text })}
+                    searchRef={searchRef}
+                    matches={matchSevas(counter.catalogue, state.search)}
+                    lines={state.lines}
+                    catalogue={counter.catalogue}
+                    today={state.today}
+                    maxDate={counterMaxDate(bootstrap, state.today)}
+                    festivals={bootstrap.festivalChips}
+                    canChangeAmount={can("counter.change_amount")}
+                    onAdd={(key) => dispatch({ type: "addByKey", key })}
+                    onRemove={(lineKey) => dispatch({ type: "removeLine", lineKey })}
+                    onQuantity={(lineKey, quantity) => dispatch({ type: "setQuantity", lineKey, quantity })}
+                    onDates={(lineKey, dates) => dispatch({ type: "setDates", lineKey, dates })}
+                    onAmount={(lineKey, unitRatePaise, reason) => dispatch({ type: "changeAmount", lineKey, unitRatePaise, reason })}
+                    onBack={() => goStep(1)}
+                  />
+                ) : (
+                  <>
+                    <PayStep
+                      totalPaise={totalPaise}
+                      receiptCount={receiptCount}
+                      payment={state.payment}
+                      onPayment={(patch) => dispatch({ type: "setPayment", patch })}
+                      upi={bootstrap.upi}
+                      upiDisabledReason={bootstrap.upiDisabledReason}
+                      upiNote={`Seva ${bootstrap.counter.name}`}
+                      largeCash={{
+                        required: totalPaise >= LARGE_CASH_PAISE,
+                        confirmed: state.confirmLargeCash,
+                        onConfirm: () => dispatch({ type: "confirmLargeCash" }),
+                      }}
+                    />
+                    <div className="flex items-center justify-between gap-4 border-t border-(--border) pt-5">
+                      <Button type="button" variant="seva-secondary" onClick={() => goStep(2)}>
+                        {COUNTER_TEXT.back.en}
+                      </Button>
+                      <span className="meta">{COUNTER_TEXT.stepOf(3)}</span>
+                    </div>
+                  </>
+                )}
+              </StepPane>
+            </AnimatePresence>
           </div>
 
           <ReceiptSummary
@@ -243,7 +263,7 @@ export function CounterScreen(): JSX.Element {
             canSave={counter.canSave}
             submitting={state.submitting}
             onNext={() => goStep(state.step === 1 ? 2 : 3)}
-            onSave={() => void counter.save()}
+            onSave={counter.save}
             message={counter.message}
             saveDisabled={counter.dayClosed}
           />

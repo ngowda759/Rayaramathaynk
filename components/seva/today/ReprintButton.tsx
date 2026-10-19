@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, type JSX } from "react";
+import type { JSX } from "react";
 
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { TODAY } from "@/lib/seva/strings/today";
 
 export interface ReprintButtonProps {
@@ -15,38 +15,22 @@ export interface ReprintButtonProps {
 
 /**
  * Reprint from Today's receipts (DB §9.8, C-22): same number, same QR, with the DUPLICATE band. A second press while
- * the first is still printing is ignored, so one press is one recorded print.
+ * the first is still printing is ignored, so one press is one recorded print. Plan A4P-2: "Printing..." with a
+ * spinner shows from the press until the slip went to the printer (and for at least 300 ms, so it never flickers).
  */
 export function ReprintButton({ onReprint, label, disabled = false }: ReprintButtonProps): JSX.Element {
-  const [busy, setBusy] = useState(false);
-  const running = useRef(false);
-
-  async function press(): Promise<void> {
-    if (running.current) return;
-    running.current = true;
-    setBusy(true);
-    try {
-      await onReprint();
-    } catch {
-      // The caller shows the reason; the button only stops spinning.
-    } finally {
-      running.current = false;
-      setBusy(false);
-    }
-  }
-
   return (
-    <Button
-      type="button"
+    <PendingButton
       variant="seva-secondary"
       size="sm"
       aria-label={label}
       disabled={disabled}
-      loading={busy}
-      onClick={() => void press()}
+      pendingLabel={TODAY.reprinting}
+      // The caller shows the reason a reprint failed; the button only stops spinning.
+      action={onReprint}
     >
       {TODAY.reprint}
-    </Button>
+    </PendingButton>
   );
 }
 
