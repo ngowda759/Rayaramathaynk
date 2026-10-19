@@ -2,6 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import { freshDb } from './harness';
 import { seedDevice, seedSeva, seedStaff } from './fixtures';
 import {
+  COUNTER_OPEN_MESSAGE,
   DemoSeedError,
   RECEIPT_RANGES,
   runDemoSeed,
@@ -116,8 +117,9 @@ async function scalar<T>(sql: string, params: unknown[] = []): Promise<T> {
   return r.rows[0].v;
 }
 
-beforeAll(async () => {
-  db = await freshDb();
+/** A fresh database with the fixture catalogue, staff 001 and Counter 1's PC, and its service-role port. */
+async function setup(): Promise<{ db: PGlite; port: SeedPort; deviceId: string }> {
+  const db = await freshDb();
   const staffId = await seedStaff(db, { staffNo: 1, name: 'Demo Owner', uid: 'UID-DEMO-001' });
   await seedSeva(db, { code: 'ARC', nameEn: 'Archane', amount: '10.00' });
   await seedSeva(db, { code: 'KUM', nameEn: 'Kumkumarchane', amount: '20.00' });
@@ -130,8 +132,12 @@ beforeAll(async () => {
   await seedSeva(db, { code: 'SAR', nameEn: 'Sarva Seva', amount: '2500.00', multiDate: true });
   await seedSeva(db, { code: 'ANN', nameEn: 'Annadana', amount: null });
   await seedSeva(db, { code: 'WEB', nameEn: 'Online Pooja', amount: '300.00', visibility: 'online' });
-  await seedDevice(db, { staffId });
-  port = await pglitePort(db);
+  const deviceId = await seedDevice(db, { staffId });
+  return { db, port: await pglitePort(db), deviceId };
+}
+
+beforeAll(async () => {
+  ({ db, port } = await setup());
   summary = await runDemoSeed(port, { ...OPTIONS, log: () => undefined });
 }, 600_000);
 
@@ -314,4 +320,108 @@ describe('seva demo seed (--days 5)', () => {
     expect(lines.some((l) => l.startsWith(today))).toBe(true);
     expect(await scalar<number>('select (select count(*) from seva_receipts) + (select count(*) from audit_log) as v')).toBe(before);
   });
+});
+
+const SMALL: Omit<RunOptions, 'log'> = { ...OPTIONS, days: 2, festival: false };
+
+async function count(on: PGlite, sql: string): Promise<number> {
+  const r = await on.query<{ v: number }>(sql);
+  return r.rows[0].v;
+}
+
+describe('seva demo seed - an open counter page', () => {
+  it('refuses while the counter PC was seen in the last 3 minutes, writing nothing; a dry run still reads', async () => {
+    const t = await setup();
+    try {
+      await t.port.rpc('seva_heartbeat', { p_device_id: t.deviceId, p_outbox_count: 0, p_clock_skew_ms: 0, p_app_version: 'test' });
+      await expect(runDemoSeed(t.port, { ...SMALL, log: () => undefined })).rejects.toThrow(COUNTER_OPEN_MESSAGE);
+      expect(await count(t.db, 'select ((select count(*) from seva_receipts) + (select count(*) from audit_log))::int as v')).toBe(0);
+      expect((await runDemoSeed(t.port, { ...SMALL, dryRun: true, log: () => undefined })).dryRun).toBe(true);
+
+      // Once the tabs are closed for 3 minutes it goes ahead, and ends with the counter advice and the OF1 last number.
+      const lines: string[] = [];
+      const later = await runDemoSeed(t.port, {
+        ...SMALL,
+        now: () => new Date(Date.now() + 4 * 60_000),
+        log: (l) => lines.push(l),
+      });
+      const last = await count(t.db, `select coalesce(max(last_no), 0)::int as v from receipt_series_years where series_code = 'OF1'`);
+      expect(later.totals.offlineReceipts).toBe(last);
+      expect(lines[lines.length - 1]).toBe(
+        `Before using the counter, open the counter page fresh while online. It will pick up OF1 last number ${last}. ` +
+          'Do not use Work offline in a tab that was open during seeding.',
+      );
+    } finally {
+      await t.db.close();
+    }
+  }, 600_000);
+});
+
+describe('seva demo seed - retries and stops', () => {
+  it('takes a retried call that was already stored (duplicate: true) as success', async () => {
+    const t = await setup();
+    try {
+      const sent = new Map<string, number>();
+      const duplicates: string[] = [];
+      const retrying: SeedPort = {
+        select: t.port.select,
+        // The 3rd offline sync and the 1st online issue are sent twice, as after a lost reply: the second answer is
+        // the stored order with duplicate: true, and that is what the seeder gets.
+        async rpc(fn, args) {
+          const first = await t.port.rpc(fn, args);
+          const n = (sent.get(fn) ?? 0) + 1;
+          sent.set(fn, n);
+          if ((fn === 'seva_sync_offline_order' && n === 3) || (fn === 'seva_issue_counter_order' && n === 1)) {
+            const again = await t.port.rpc(fn, args);
+            if ((again as { duplicate?: unknown }).duplicate === true) duplicates.push(fn);
+            return again;
+          }
+          return first;
+        },
+      };
+      const s = await runDemoSeed(retrying, { ...SMALL, log: () => undefined });
+      expect(duplicates).toEqual(['seva_sync_offline_order', 'seva_issue_counter_order']);
+      const planned = s.days.reduce((n, d) => n + d.receipts, 0);
+      expect(s.totals.receipts).toBe(planned);
+      expect(await count(t.db, 'select count(*)::int as v from seva_receipts')).toBe(planned);
+      expect(await count(t.db, 'select count(*)::int as v from receipt_number_gaps')).toBe(0);
+      expect(await count(t.db, `select count(*)::int as v from day_closes where status = 'closed'`)).toBe(2);
+    } finally {
+      await t.db.close();
+    }
+  }, 600_000);
+
+  it('when a call fails part-way, says which date was in progress and what to do next', async () => {
+    const t = await setup();
+    try {
+      let syncs = 0;
+      let failedOn = '';
+      const failing: SeedPort = {
+        select: t.port.select,
+        async rpc(fn, args) {
+          if (fn === 'seva_sync_offline_order') {
+            syncs += 1;
+            if (syncs === 5) {
+              failedOn = String((args.p_order as { issued_at: string }).issued_at);
+              throw new SeedRpcError(fn, 'database code 08006', '');
+            }
+          }
+          return t.port.rpc(fn, args);
+        },
+      };
+      const lines: string[] = [];
+      await expect(runDemoSeed(failing, { ...SMALL, log: (l) => lines.push(l) })).rejects.toBeInstanceOf(SeedRpcError);
+      const date = businessDate(new Date(failedOn));
+      const text = lines.join('\n');
+      expect(text).toContain(`Stopped while working on ${date} (syncing its receipts).`);
+      expect(text).toContain(`${date} has some of its receipts and no day close yet.`);
+      expect(text).toContain('--again');
+      expect(lines[lines.length - 1]).toMatch(/^Before using the counter, open the counter page fresh while online\. It will pick up OF1 last number \d+\./);
+      // The date in progress is left open, with what was stored before the failure.
+      expect(await count(t.db, `select count(*)::int as v from day_closes where business_date = '${date}'`)).toBe(0);
+      expect(await count(t.db, `select count(*)::int as v from seva_receipts where business_date = '${date}'`)).toBeGreaterThan(0);
+    } finally {
+      await t.db.close();
+    }
+  }, 600_000);
 });

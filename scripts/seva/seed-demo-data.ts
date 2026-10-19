@@ -725,16 +725,43 @@ function rupees(paise: number | null): string | null {
   return paise === null ? null : fromPaise(paise);
 }
 
+const COUNTER_OPEN_MS = 3 * 60 * 1000;
+export const COUNTER_OPEN_MESSAGE =
+  "The counter page is open on the PC. Close every counter tab, wait 3 minutes, then run again.";
+
+/** A timestamptz as Supabase ('2026-10-19T04:30:00+00:00') or Postgres text ('2026-10-19 04:30:00.1+00') gives it. */
+export function parseTimestamp(text: string): Date | null {
+  if (text.trim() === "") return null;
+  const iso = text.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** What to do with the counter after a run that wrote OF numbers. */
+export function counterAdvice(series: string, lastNo: number): string {
+  return (
+    `Before using the counter, open the counter page fresh while online. It will pick up ${series} last number ${lastNo}. ` +
+    "Do not use Work offline in a tab that was open during seeding."
+  );
+}
+
 async function loadContext(port: SeedPort, options: RunOptions, today: string): Promise<Context> {
   const staff = await port.select("staff", ["id", "staff_no", "status", "view_only"], { staff_no: options.staffNo });
   if (staff.length === 0 || str(staff[0], "status") !== "active" || bool(staff[0], "view_only")) {
     throw new DemoSeedError(`Staff no. ${options.staffNo} must exist, be active and not view-only. Nothing was changed.`);
   }
 
-  const devices = (await port.select("counter_devices", ["id", "retired_at", "last_outbox_count"], { counter_id: options.counterId }))
-    .filter((d) => d.retired_at === null || d.retired_at === undefined);
+  const devices = (await port.select("counter_devices", ["id", "retired_at", "last_outbox_count", "last_seen_at"], { counter_id: options.counterId }))
+    .filter((d) => d.retired_at === null || d.retired_at === undefined || d.retired_at === "");
   if (devices.length === 0) {
     throw new DemoSeedError(`Counter ${options.counterId} has no registered PC. Register this PC on the counter first.`);
+  }
+  // An open counter tab (above all one in Work offline, whose heartbeat stops) never learns the OF numbers written
+  // here, so its next offline receipt would reuse a taken number. Every open tab heartbeats at least every minute.
+  const seen = parseTimestamp(str(devices[0], "last_seen_at"));
+  const now = (options.now ?? (() => new Date()))();
+  if (!options.dryRun && seen !== null && now.getTime() - seen.getTime() < COUNTER_OPEN_MS) {
+    throw new DemoSeedError(COUNTER_OPEN_MESSAGE);
   }
   if (Number(devices[0].last_outbox_count ?? 0) > 0) {
     throw new DemoSeedError(
@@ -910,8 +937,11 @@ class Runner {
   private collect(day: PlanDay, order: PlanOrder, answer: unknown): Row[] {
     const receipts = asObject(answer).receipts;
     const rows = Array.isArray(receipts) ? receipts.map(asObject) : [];
-    if (rows.length !== order.receipts.length || asObject(answer).duplicate === true) {
-      throw new DemoSeedError(`The order of ${day.date} came back with ${rows.length} receipts; stopping.`);
+    // duplicate: true is a retried call whose first try had already been stored: its stored rows are used. They must
+    // be this order's own receipts, all of them.
+    const ids = new Set(rows.map((r) => str(r, "client_receipt_id")));
+    if (rows.length !== order.receipts.length || !order.receipts.every((r) => ids.has(r.clientReceiptId))) {
+      throw new DemoSeedError(`An order of ${day.date} came back with ${rows.length} other receipts.`);
     }
     for (const row of rows) {
       const planned = order.receipts.find((r) => r.clientReceiptId === str(row, "client_receipt_id"));
@@ -1016,13 +1046,18 @@ class Runner {
       }
     }
     for (const c of cancels) {
-      await this.port.rpc("seva_cancel_receipts", {
-        p_receipt_ids: [c.id],
-        p_reason_code: c.cancel.reasonCode,
-        p_note: c.cancel.note,
-        p_staff_id: this.ctx.staffId,
-        p_is_admin: c.cancel.byAdmin,
-      });
+      try {
+        await this.port.rpc("seva_cancel_receipts", {
+          p_receipt_ids: [c.id],
+          p_reason_code: c.cancel.reasonCode,
+          p_note: c.cancel.note,
+          p_staff_id: this.ctx.staffId,
+          p_is_admin: c.cancel.byAdmin,
+        });
+      } catch (error) {
+        // A retried cancel whose first try was stored.
+        if (!(error instanceof SeedRpcError && error.code === "already_cancelled")) throw error;
+      }
       this.totals.cancelled += 1;
     }
   }
@@ -1087,6 +1122,55 @@ export async function runDemoSeed(port: SeedPort, options: RunOptions): Promise<
   });
   if (options.dryRun) return summaryOf(null);
 
+  const runner = new Runner(port, ctx, options);
+  let stage: { date: string | null; what: string } = { date: null, what: "writing the start marker" };
+  try {
+    await writeAll(port, options, ctx, plan, runner, firstDate, planned, (next) => {
+      stage = next;
+    });
+  } catch (error) {
+    log(stopAdvice(stage, today));
+    throw error;
+  } finally {
+    const rows = await port
+      .select("receipt_series_years", ["last_no"], { series_code: ctx.offlineSeries, year: istParts(now()).year })
+      .catch(() => []);
+    log(counterAdvice(ctx.offlineSeries, Number(rows[0]?.last_no ?? 0)));
+  }
+  return summaryOf(runner);
+}
+
+/** What to tell the owner when a run stops part-way. */
+export function stopAdvice(stage: { date: string | null; what: string }, today: string): string {
+  const where = stage.date ? `${stage.date} (${stage.what})` : stage.what;
+  const lines = [`Stopped while working on ${where}. Everything stored before this point stays; days with a day close are complete.`];
+  if (stage.date && stage.date !== today) {
+    lines.push(
+      `${stage.date} has some of its receipts and no day close yet. Either close it on the Close day page and run ` +
+        "again with --again (closed days are skipped), or run again with --again straight away, which adds a full day " +
+        `of receipts to ${stage.date} on top of what it has.`,
+    );
+  } else {
+    lines.push(
+      "The past days are done. Running again with --again adds a new set of receipts for today; for the prasadam " +
+        "that was not given yet, use the Prasadam page.",
+    );
+  }
+  return lines.join("\n");
+}
+
+async function writeAll(
+  port: SeedPort,
+  options: RunOptions,
+  ctx: Context,
+  plan: DemoPlan,
+  runner: Runner,
+  firstDate: string,
+  planned: number,
+  setStage: (stage: { date: string | null; what: string }) => void,
+): Promise<void> {
+  const log = options.log;
+  const today = plan.today;
   await port.rpc("seva_audit", {
     p_action: "demo.seed_started",
     p_entity: MARKER_ENTITY,
@@ -1099,28 +1183,33 @@ export async function runDemoSeed(port: SeedPort, options: RunOptions): Promise<
   });
 
   if (plan.festivalDates.length > 0) {
+    setStage({ date: null, what: "saving the Aradhane festival days" });
     await port.rpc("seva_save_festival", {
       p_festival: { name_en: FESTIVAL_NAME, name_kn: "ಆರಾಧನೆ", active: true, days: plan.festivalDates },
       p_staff_id: ctx.staffId,
     });
   }
 
-  const runner = new Runner(port, ctx, options);
   const started = Date.now();
   for (const day of plan.days) {
     if (day.today) continue;
+    setStage({ date: day.date, what: "syncing its receipts" });
     for (const order of day.orders) await runner.syncPastOrder(day, order);
+    setStage({ date: day.date, what: "closing the day" });
     const closed = await runner.closeDay(day);
     log(`${day.date}: ${day.orders.reduce((n, o) => n + o.receipts.length, 0)} receipts synced, day close ${closed} (${Math.round((Date.now() - started) / 1000)} s)`);
   }
   const todayDay = plan.days.find((d) => d.today);
   if (todayDay) {
+    setStage({ date: today, what: "issuing today's receipts" });
     await runner.issueToday(todayDay);
     log(`${today}: ${todayDay.orders.reduce((n, o) => n + o.receipts.length, 0)} receipts issued online, ${runner.totals.cancelled} cancelled`);
   }
+  setStage({ date: today, what: "giving prasadam" });
   await runner.givePrasadam();
   log(`Prasadam given on ${runner.totals.prasadamGiven} receipts.`);
 
+  setStage({ date: null, what: "writing the finish marker" });
   await port.rpc("seva_audit", {
     p_action: "demo.seed_finished",
     p_entity: MARKER_ENTITY,
@@ -1131,7 +1220,6 @@ export async function runDemoSeed(port: SeedPort, options: RunOptions): Promise<
     p_after: { ...runner.totals, seconds: Math.round((Date.now() - started) / 1000) },
     p_staff_id: null,
   });
-  return summaryOf(runner);
 }
 
 // =====================================================================================================================
@@ -1142,24 +1230,66 @@ const BUSINESS_ERROR = /^SEVA:([a-z_]+)$/;
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const PAGE = 1000;
 
+/**
+ * Calls that are safe to send again after a failure whose reply was lost: a repeat of a stored one answers
+ * duplicate: true (orders), already_given (prasadam), day_already_closed (close) or already_cancelled (cancel), which
+ * the seeder takes as success, or only reads. Prints (a repeat is a DUPLICATE reprint), the festival (a second one)
+ * and the audit markers are sent once.
+ */
+export const RETRYABLE = new Set([
+  "seva_sync_offline_order",
+  "seva_issue_counter_order",
+  "seva_mark_prasadam",
+  "seva_close_day",
+  "seva_cancel_receipts",
+  "seva_prepare_day_close",
+  "seva_offline_group_floor",
+  "seva_list_items_get",
+]);
+
+export interface RawRpcResult {
+  data: unknown;
+  error: { message?: unknown; details?: unknown; code?: unknown } | null;
+}
+
+/**
+ * The rpc of the Supabase port: a SEVA business refusal becomes SeedRpcError at once; a database or network failure
+ * is tried up to 3 times for a RETRYABLE call, else once. Failures are named by code only (database text can hold
+ * personal data).
+ */
+export function retryingRpc(
+  raw: (fn: string, args: Record<string, unknown>) => Promise<RawRpcResult>,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): SeedPort["rpc"] {
+  return async (fn, args) => {
+    if (!/^seva_[a-z0-9_]+$/.test(fn)) throw new DemoSeedError(`Only seva_* functions are called (${fn}).`);
+    const attempts = RETRYABLE.has(fn) ? 3 : 1;
+    let lastError: SeedRpcError | null = null;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      let result: RawRpcResult;
+      try {
+        result = await raw(fn, args);
+      } catch (error) {
+        result = { data: null, error: { code: error instanceof Error ? error.name : "network" } };
+      }
+      if (!result.error) return result.data;
+      const match = BUSINESS_ERROR.exec(String(result.error.message ?? "").trim());
+      if (match) throw new SeedRpcError(fn, match[1], typeof result.error.details === "string" ? result.error.details : "");
+      lastError = new SeedRpcError(fn, `database code ${String(result.error.code ?? "unknown")}`, "");
+      if (attempt < attempts) await sleep(1000 * attempt);
+    }
+    throw lastError as SeedRpcError;
+  };
+}
+
 async function supabasePort(url: string, key: string): Promise<SeedPort> {
   const { createClient } = await import("@supabase/supabase-js");
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const port: SeedPort = {
-      async rpc(fn, args) {
-        if (!/^seva_[a-z0-9_]+$/.test(fn)) throw new DemoSeedError(`Only seva_* functions are called (${fn}).`);
-        let lastError: SeedRpcError | null = null;
-        for (let attempt = 1; attempt <= 3; attempt += 1) {
-          const { data, error } = await db.rpc(fn, args);
-          if (!error) return data;
-          const match = BUSINESS_ERROR.exec(String(error.message ?? "").trim());
-          if (match) throw new SeedRpcError(fn, match[1], typeof error.details === "string" ? error.details : "");
-          // A database or network failure: named by its code only (database text can hold personal data).
-          lastError = new SeedRpcError(fn, `database code ${String(error.code ?? "unknown")}`, "");
-          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
-        }
-        throw lastError as SeedRpcError;
-      },
+      rpc: retryingRpc(async (fn, args) => {
+        const { data, error } = await db.rpc(fn, args);
+        return { data, error };
+      }),
       async select(table, columns, filters = {}) {
         if (!IDENTIFIER.test(table) || !columns.every((c) => IDENTIFIER.test(c))) throw new DemoSeedError("Bad table or column name.");
         const rows: Row[] = [];
