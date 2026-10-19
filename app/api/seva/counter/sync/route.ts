@@ -3,6 +3,9 @@
  * offline cancels, stored in `seq` order. Each item is answered on its own; a business refusal does not stop the
  * rest. Any other failure stops at that item and answers 503 with the results so far, so the PC keeps that item and
  * everything after it and tries again later (every item is idempotent on the server).
+ *
+ * This is the only route a retired PC may reach (DB 8.4, A3 security gate L-4): its late orders go to
+ * seva_sync_offline_order, which accepts only numbers inside its device_replaced gap; its cancels are refused.
  */
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
@@ -13,7 +16,7 @@ import { liveDevice, parseBody, readJsonBody, syncOutbox } from "@/lib/seva/serv
 import { sevaErrorResponse, sevaJson } from "@/lib/seva/server/respond";
 
 export async function POST(req: NextRequest) {
-  const guard = await requireSevaActor(req, "counter.issue", { device: "required" });
+  const guard = await requireSevaActor(req, "counter.issue", { device: "required", retiredDevice: "allow" });
   if (!guard.ok) return guard.response;
   try {
     const device = liveDevice(guard.device);

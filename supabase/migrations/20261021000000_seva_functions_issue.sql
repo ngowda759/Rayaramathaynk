@@ -184,12 +184,15 @@ $$;
 -- carries (an order's issuer_staff_no, the one inside its OF numbers; a cancel's cancelled_by_staff_no). Someone else
 -- may sync it later. That person must be a staff member who may use the counter (DB 3.3 row 1): a receptionist,
 -- temple admin or super admin who is not view-only, whose staff row is active, or inactive because they were
--- offboarded after the work was done on the PC (the caller audits that case). An invited or deleted row is refused.
--- The role is kept in Firestore, not here (DB 3.2), so the route reads it for this staff member and passes it as
--- p_role ('receptionist' | 'prasadam_counter' | 'temple_admin' | 'super_admin'; null when unknown). Anything else is
+-- offboarded after the work was done on the PC (the caller audits that case). p_at is when the outbox item says the
+-- work was done (an order's issued_at, a cancel's at): an inactive row is accepted only when p_at is not later than
+-- its status_changed_at, and refused when that time is unknown (A3 security gate M-2). An invited or deleted row is
+-- refused. The role is kept in Firestore, not here (DB 3.2), so the route reads it for this staff member and passes it
+-- as p_role ('receptionist' | 'prasadam_counter' | 'temple_admin' | 'super_admin'; null when unknown). Anything else is
 -- SEVA:validation naming p_field.
 DROP FUNCTION IF EXISTS seva_issue_offline_issuer(text, text);
-CREATE OR REPLACE FUNCTION seva_issue_offline_issuer(p_staff_no text, p_role text, p_field text)
+DROP FUNCTION IF EXISTS seva_issue_offline_issuer(text, text, text);
+CREATE OR REPLACE FUNCTION seva_issue_offline_issuer(p_staff_no text, p_role text, p_field text, p_at timestamptz)
 RETURNS staff
 LANGUAGE plpgsql
 STABLE
@@ -212,6 +215,11 @@ BEGIN
   IF v_staff.view_only OR p_role IS NULL OR p_role NOT IN ('receptionist', 'temple_admin', 'super_admin') THEN
     RAISE EXCEPTION 'SEVA:validation'
       USING DETAIL = jsonb_build_object('field', p_field, 'reason', 'may not use the counter')::text;
+  END IF;
+  IF v_staff.status = 'inactive'
+     AND (p_at IS NULL OR v_staff.status_changed_at IS NULL OR p_at > v_staff.status_changed_at) THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', p_field, 'reason', 'offboarded before this was done on the PC')::text;
   END IF;
   RETURN v_staff;
 END;
@@ -1171,7 +1179,7 @@ BEGIN
   END IF;
 
   -- Who printed these receipts: their numbers carry this person's staff number.
-  v_issuer := seva_issue_offline_issuer(p_order->>'issuer_staff_no', p_issuer_role, 'issuer_staff_no');
+  v_issuer := seva_issue_offline_issuer(p_order->>'issuer_staff_no', p_issuer_role, 'issuer_staff_no', v_issued_at);
 
   v_devotee := seva_issue_devotee(p_order->'devotee');
   v_expected := seva_issue_arg_money(p_order->>'expected_total', 'expected_total');
@@ -1457,7 +1465,9 @@ $$;
 
 -- Records one print of each receipt (an id given twice counts once). The first print sets print_count 1; any later
 -- print is a duplicate (the slip carries the DUPLICATE band) and writes audit receipt.reprint. A cancelled receipt is
--- never printed again (SEVA:cannot_reprint_cancelled). Who may reprint is checked by the route (DB 3.3 row 5).
+-- never printed again (SEVA:cannot_reprint_cancelled). A first print belongs to issuing, so it is allowed only for a
+-- receipt of this PC's own counter or of the online W series; another counter's receipt is SEVA:forbidden. Who may
+-- reprint is checked by the route (DB 3.3 row 5).
 CREATE OR REPLACE FUNCTION seva_record_prints(p_receipt_ids uuid[], p_staff_id uuid, p_device_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -1471,6 +1481,7 @@ DECLARE
   v_device counter_devices%ROWTYPE;
   v_id uuid;
   v_receipt seva_receipts%ROWTYPE;
+  v_order_counter smallint;
   v_new_count smallint;
   v_out jsonb := '[]'::jsonb;
 BEGIN
@@ -1491,6 +1502,13 @@ BEGIN
     IF v_receipt.status = 'cancelled' THEN
       RAISE EXCEPTION 'SEVA:cannot_reprint_cancelled'
         USING DETAIL = jsonb_build_object('receipt_no', v_receipt.receipt_no)::text;
+    END IF;
+    -- A first print is part of issuing: only a receipt of this PC's own counter, or of the online W series.
+    IF v_receipt.print_count = 0 AND v_receipt.series_code <> 'W' THEN
+      SELECT o.counter_id INTO v_order_counter FROM seva_orders o WHERE o.id = v_receipt.order_id;
+      IF v_order_counter IS DISTINCT FROM v_device.counter_id THEN
+        RAISE EXCEPTION 'SEVA:forbidden' USING DETAIL = jsonb_build_object('receipt_no', v_receipt.receipt_no)::text;
+      END IF;
     END IF;
 
     UPDATE seva_receipts r
@@ -1545,6 +1563,9 @@ $$;
 -- closed for the receipt's counter (day_closes status closed), the cancel is still stored - the slip was cancelled on
 -- the PC - but flagged for the office: in_closed_day true in the answer and in the audit row's after, which also
 -- carries closed_business_date. Every receipt of the answer carries in_closed_day (false for an online cancel).
+-- The server cannot verify what an outbox says (A3 security gate M-2), so an offline cash cancel that reaches it more
+-- than the cancel window after its recorded time (late_sync true in the audit row's after), or that is in a closed
+-- day, is refund_state due for the office rather than done; the Needs attention card offline_cancels lists them all.
 DROP FUNCTION IF EXISTS seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz);
 CREATE OR REPLACE FUNCTION seva_cancel_receipts(
   p_receipt_ids uuid[],
@@ -1577,6 +1598,7 @@ DECLARE
   v_at timestamptz;
   v_at_date date;
   v_in_closed_day boolean;
+  v_late boolean;
   v_refund text;
   v_refund_note text;
   v_after jsonb;
@@ -1595,7 +1617,7 @@ BEGIN
     IF p_at IS NULL THEN
       RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'at')::text;
     END IF;
-    v_staff := seva_issue_offline_issuer(p_cancelled_by_staff_no::text, p_canceller_role, 'cancelled_by_staff_no');
+    v_staff := seva_issue_offline_issuer(p_cancelled_by_staff_no::text, p_canceller_role, 'cancelled_by_staff_no', p_at);
     v_is_admin := false;
   END IF;
   IF p_reason_code IS NULL OR p_reason_code NOT IN (
@@ -1644,7 +1666,11 @@ BEGIN
       SELECT 1 FROM day_closes dc
        WHERE dc.counter_id = v_counter_id AND dc.business_date = v_at_date AND dc.status = 'closed'
     );
-    IF v_mode = 'cash' AND v_receipt.business_date = v_at_date THEN
+    -- An offline cancel that reached the server more than the cancel window after its recorded time (A3 gate M-2).
+    v_late := v_offline AND v_now > v_at + make_interval(mins => v_window);
+    -- Such a late offline cash cancel, and one recorded in a closed day, are left for the office: the drawer cannot
+    -- be trusted to have handed the cash back.
+    IF v_mode = 'cash' AND v_receipt.business_date = v_at_date AND NOT v_late AND NOT v_in_closed_day THEN
       v_refund := 'done';
       v_refund_note := 'Given back from the drawer';
       v_cash_back := v_cash_back + v_receipt.total;
@@ -1668,7 +1694,7 @@ BEGIN
     IF v_offline THEN
       -- The person who cancelled on the PC is the actor, with their role; the syncer is recorded beside it.
       v_after := v_after || jsonb_build_object('offline', true, 'synced_by_staff_id', v_syncer.id,
-                                               'in_closed_day', v_in_closed_day);
+                                               'in_closed_day', v_in_closed_day, 'late_sync', v_late);
       IF v_in_closed_day THEN
         v_after := v_after || jsonb_build_object('closed_business_date', v_at_date);
       END IF;
@@ -1720,7 +1746,8 @@ $$;
 -- the spoiled one. Only a receipt of the current IST business date is reissued (SEVA:validation, field
 -- reissue_only_today, otherwise): an earlier day's slip is reprinted as a DUPLICATE instead, which needs no new
 -- number. So the new receipt has today's business date, the same as the spoiled one, and today's day close counts
--- the payment once: the spoiled number as cancelled, the new one as issued. Audit receipt.reissue_spoiled.
+-- the payment once: the spoiled number as cancelled, the new one as issued. Only a receipt of this PC's own counter is
+-- reissued (SEVA:validation, field receipt_id, otherwise). Audit receipt.reissue_spoiled.
 -- Returns the order (seva_order_json) plus new_receipt_id and replaced_receipt_id.
 CREATE OR REPLACE FUNCTION seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text)
 RETURNS jsonb
@@ -1738,6 +1765,7 @@ DECLARE
   v_device counter_devices%ROWTYPE;
   v_old seva_receipts%ROWTYPE;
   v_channel text;
+  v_order_counter smallint;
   v_series text;
   v_running integer;
   v_receipt_no text;
@@ -1757,10 +1785,16 @@ BEGIN
   IF v_old.status = 'cancelled' THEN
     RAISE EXCEPTION 'SEVA:already_cancelled' USING DETAIL = jsonb_build_object('receipt_no', v_old.receipt_no)::text;
   END IF;
-  SELECT o.channel INTO v_channel FROM seva_orders o WHERE o.id = v_old.order_id;
+  SELECT o.channel, o.counter_id INTO v_channel, v_order_counter FROM seva_orders o WHERE o.id = v_old.order_id;
   IF v_channel IS DISTINCT FROM 'counter' THEN
     RAISE EXCEPTION 'SEVA:validation'
       USING DETAIL = jsonb_build_object('field', 'receipt_id', 'reason', 'only counter receipts are reissued')::text;
+  END IF;
+  -- The new number comes from this PC's counter, so only that counter's receipts are reissued here (A3 gate L-3).
+  IF v_order_counter IS DISTINCT FROM v_device.counter_id THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'receipt_id', 'reason', 'another counter''s receipt',
+                                        'receipt_no', v_old.receipt_no)::text;
   END IF;
 
   SELECT p.year, p.month, p.business_date INTO v_year, v_month, v_today FROM seva_ist_parts(v_now) AS p;
@@ -1830,8 +1864,8 @@ REVOKE EXECUTE ON FUNCTION seva_issue_arg_text(text, text, integer) FROM PUBLIC,
 GRANT EXECUTE ON FUNCTION seva_issue_arg_text(text, text, integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_staff(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_staff(uuid) TO service_role;
-REVOKE EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text, text) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text, text, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text, text, timestamptz) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_actor_role(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_actor_role(text) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_issue_device(uuid, boolean) FROM PUBLIC, anon, authenticated;

@@ -30,7 +30,14 @@ import type {
   ExportReceiptRow,
   ExportSevaRow,
 } from "@/types/seva-export";
-import type { ContinuityRow, DashboardData, DashboardTotals, NeedsAttentionCard, NeedsAttentionId } from "@/types/seva-reports";
+import type {
+  ContinuityRow,
+  DashboardData,
+  DashboardTotals,
+  NeedsAttentionCard,
+  NeedsAttentionId,
+  OfflineCancelEntry,
+} from "@/types/seva-reports";
 import { callRpc } from "./rpc";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -197,9 +204,10 @@ export const AUDIT_TYPES = {
     "device.register",
     "device.replace",
     "gap.resolve",
+    "settings.upi_changed",
   ],
   prasadam: ["prasadam.given_off_date", "prasadam.undo", "prasadam.reversed"],
-  exports: ["export.download"],
+  exports: ["export.download", "export.phones_read"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type AuditType = keyof typeof AUDIT_TYPES;
@@ -375,7 +383,23 @@ const NEEDS_ATTENTION_IDS: ReadonlySet<string> = new Set<NeedsAttentionId>([
   "database_size",
   "in_doubt_duplicates",
   "future_offline",
+  "offline_cancels",
+  "upi_changed",
 ]);
+
+/** One entry of the offline_cancels card; the times pass through as the SQL wrote them. */
+function offlineCancelEntry(value: unknown): OfflineCancelEntry {
+  const e = rec(value);
+  if (typeof e.flagged !== "boolean") throw new SevaError("internal");
+  return {
+    receiptNo: str(e.receipt_no),
+    recordedAt: str(e.recorded_at),
+    receivedAt: str(e.received_at),
+    cancelledBy: str(e.cancelled_by),
+    syncedBy: str(e.synced_by),
+    flagged: e.flagged,
+  };
+}
 
 /** Cards as the SQL gives them; a money detail ('amount', rupees) goes out as 'amountPaise'. */
 export function fromSqlAttention(raw: unknown): NeedsAttentionCard[] {
@@ -390,7 +414,9 @@ export function fromSqlAttention(raw: unknown): NeedsAttentionCard[] {
       if (key === "amount") detail.amountPaise = paise(value);
       else if (typeof value === "string" || typeof value === "number") detail[key] = value;
     }
-    return { id: id as NeedsAttentionId, level, count: int(card.count), detail };
+    const out: NeedsAttentionCard = { id: id as NeedsAttentionId, level, count: int(card.count), detail };
+    if (card.entries !== undefined && card.entries !== null) out.entries = rows(card.entries).map(offlineCancelEntry);
+    return out;
   });
 }
 
@@ -989,6 +1015,24 @@ export async function writeExportAudit(actor: SevaActor, b: ExportAuditRequest):
     p_reason: null,
     p_before: null,
     p_after: { format: b.format, from: b.from, to: b.to, parts: b.parts, include_phones: b.includePhones },
+    p_staff_id: actor.staffId,
+  });
+}
+
+/**
+ * A phone export is audited by the server, whatever the browser reports afterwards (A3 security gate M-3, DB 12.6,
+ * C-16): `export.phones_read` with the part and range, written on the first page of each part (no cursor) before any
+ * row is read, so a failed write means no phone number leaves the server.
+ */
+export async function writePhoneExportAudit(actor: SevaActor, q: ExportQuery): Promise<void> {
+  await callRpc<unknown>("seva_audit", {
+    p_action: "export.phones_read",
+    p_entity: "export",
+    p_entity_id: q.part,
+    p_receipt_no: null,
+    p_reason: null,
+    p_before: null,
+    p_after: { part: q.part, from: q.from, to: q.to, include_phones: true },
     p_staff_id: actor.staffId,
   });
 }

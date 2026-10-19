@@ -409,6 +409,8 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
   }
   if (patch.role === "super_admin") allow(actor, "staff.grant_super_admin");
   if (patch.status !== undefined) allow(actor, STATUS_ACTION[patch.status]);
+  // Reactivating a super admin gives super admin access back, so it needs the right to give it (A3 security gate M-1).
+  if (patch.status === "active" && currentRole === "super_admin") allow(actor, "staff.grant_super_admin");
 
   const newRole = patch.role !== undefined && patch.role !== currentRole ? patch.role : undefined;
   const resultingRole = patch.role ?? currentRole;

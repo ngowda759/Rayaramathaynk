@@ -54,13 +54,32 @@ export type NeedsAttentionId =
   | 'backup'
   | 'database_size'
   | 'in_doubt_duplicates'
-  | 'future_offline';
+  | 'future_offline'
+  /** Cancels sent by a counter outbox; attention when sent by someone else or late (A3 security gate M-2). */
+  | 'offline_cancels'
+  /** The counter's UPI payee changed in the finance settings (A3 security gate H-1). */
+  | 'upi_changed';
+
+/** One offline cancel on the `offline_cancels` card, newest first. */
+export interface OfflineCancelEntry {
+  receiptNo: string;
+  /** When it was cancelled on the PC, as the outbox says. */
+  recordedAt: string;
+  /** When the outbox sent it to the server. */
+  receivedAt: string;
+  cancelledBy: string;
+  syncedBy: string;
+  /** Sent by someone other than the canceller, or more than the cancel window after `recordedAt`. */
+  flagged: boolean;
+}
 
 export interface NeedsAttentionCard {
   id: NeedsAttentionId;
   level: 'ok' | 'attention' | 'critical';
   count: number;
   detail: Record<string, string | number>;
+  /** Only on `offline_cancels`: at most 50 entries. */
+  entries?: OfflineCancelEntry[];
 }
 
 export interface ContinuityRow {

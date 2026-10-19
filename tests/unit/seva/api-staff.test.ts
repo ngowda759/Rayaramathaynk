@@ -489,6 +489,23 @@ describe("PUT /api/seva/staff/[id]", () => {
     });
   });
 
+  it("only a super admin can reactivate a super admin (A3 security gate M-1)", async () => {
+    // Lakshmi was a super admin and has been offboarded; her Firestore role is still super_admin.
+    mockDb.tables.staff.push(staffRow(ID.lakshmi, "uid-lakshmi", 35, "Lakshmi S", { status: "inactive" }));
+    mockProfiles["uid-lakshmi"] = { role: "super_admin", isActive: false };
+
+    mockSession.actor = ADMIN;
+    expect(await errorOf(await put(ID.lakshmi, { status: "active" }))).toMatchObject({ status: 403, code: "forbidden" });
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalled();
+
+    mockSession.actor = SUPER;
+    const res = await put(ID.lakshmi, { status: "active" });
+    expect(res.status).toBe(200);
+    expect(mockCalls).toEqual(["identity.setAccessProfile", "identity.setLoginEnabled:true", "rpc.seva_staff_update"]);
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-lakshmi", { isActive: true });
+  });
+
   it("a view-only switch is for temple admins and changes only the staff row", async () => {
     mockSession.actor = ADMIN;
     expect(await errorOf(await put(ID.ramesh, { viewOnly: true }))).toMatchObject({ status: 400, code: "validation" });

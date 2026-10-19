@@ -82,14 +82,17 @@ describe("day close routes", () => {
     });
     expect(mockRpc).toHaveBeenLastCalledWith("seva_prepare_day_close", { p_counter_id: 1, p_business_date: TODAY });
 
-    // No counter given: the verified device's counter is the one asked about.
-    mockVerifyDevice.mockResolvedValue({ id: DEVICE.id, counterId: 2 });
+    // No counter given: the guard's verified device names the counter, after the sign-in is checked (A3 gate L-1).
+    mockGuard.mockResolvedValueOnce({ ok: true, actor: ACTOR, device: { id: DEVICE.id, counterId: 2 } });
     await GET(get("/api/seva/day-close", { "x-seva-device": "dev.secret" }));
-    expect(mockVerifyDevice).toHaveBeenCalledWith("dev.secret");
     expect(mockGuard).toHaveBeenLastCalledWith(expect.any(NextRequest), "dayclose.close", {
       device: "optional",
-      ctx: { receiptCounterId: 2, receiptBusinessDate: TODAY },
+      counterFromDevice: true,
+      ctx: { receiptBusinessDate: TODAY },
     });
+    expect(mockRpc).toHaveBeenLastCalledWith("seva_prepare_day_close", { p_counter_id: 2, p_business_date: TODAY });
+    // The route never reads the device header itself.
+    expect(mockVerifyDevice).not.toHaveBeenCalled();
 
     // Close: the counter and the date of the body are what the guard judges.
     mockRpc.mockResolvedValue("dc-1");
@@ -130,10 +133,23 @@ describe("day close routes", () => {
   });
 
   it("asks for a counter when none is given and no PC is registered", async () => {
-    mockVerifyDevice.mockResolvedValue(null);
+    mockGuard.mockResolvedValue({ ok: true, actor: { ...ACTOR, role: "temple_admin" }, device: null });
     const res = await GET(get("/api/seva/day-close"));
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({ error: { code: "validation" } });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("answers a caller who is not signed in before looking at any PC (A3 security gate L-1)", async () => {
+    mockGuard.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ error: { code: "unauthenticated", message: "x" } }, { status: 401 }),
+    });
+    for (const headers of [{ "x-seva-device": "dev.secret" }, { "x-seva-device": "retired.secret" }, {}]) {
+      const res = await GET(get("/api/seva/day-close", headers));
+      expect(res.status).toBe(401);
+    }
+    expect(mockVerifyDevice).not.toHaveBeenCalled();
     expect(mockRpc).not.toHaveBeenCalled();
   });
 

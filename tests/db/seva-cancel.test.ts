@@ -134,7 +134,7 @@ function uuidArray(ids: string[]): string {
 /** Issues through the function: one receipt per day offset, each with PAN (and PAA on the first when asked). */
 async function issue(
   c: Ctx,
-  p: { days: number[]; mode?: 'cash' | 'upi'; withPaa?: boolean; staffId?: string },
+  p: { days: number[]; mode?: 'cash' | 'upi'; withPaa?: boolean; staffId?: string; deviceId?: string },
 ): Promise<OrderResult> {
   const receipts = p.days.map((d, i) => ({
     client_receipt_id: randomUUID(),
@@ -157,10 +157,42 @@ async function issue(
     const r = await d.query<{ r: OrderResult }>('select seva_issue_counter_order($1::jsonb, $2::uuid, $3::uuid) as r', [
       JSON.stringify(order),
       p.staffId ?? c.staffId,
-      c.deviceId,
+      p.deviceId ?? c.deviceId,
     ]);
     return r.rows[0].r;
   });
+}
+
+/** Counter 2 with its C2 and OF2 series and a live PC, written as fixtures; answers the PC's device id. */
+async function secondCounter(c: Ctx): Promise<string> {
+  await c.db.query(`insert into counters (id, name, place) values (2, 'Counter 2', 'Hall')`);
+  await c.db.query(
+    `insert into receipt_series (code, kind, counter_id) values ('C2', 'counter_online', 2), ('OF2', 'counter_offline', 2)`,
+  );
+  return seedDevice(c.db, { counterId: 2, staffId: c.staffId });
+}
+
+/** A Rs 105 online (W series) receipt of today, written directly as a fixture. */
+async function insertOnlineReceipt(c: Ctx): Promise<string> {
+  pastNo += 1;
+  const r = await c.db.query<{ id: string }>(
+    `with parts as (select p.year, p.month, p.business_date from seva_ist_parts(now()) p),
+          o as (
+            insert into seva_orders (group_no, client_order_id, channel, devotee_name, receipts_count, amount_total,
+                                     payment_mode, payment_order_id, issued_at)
+            values ('G-WEB-' || $1::text, gen_random_uuid(), 'web', 'Online Devotee', 1, 105, 'online',
+                    gen_random_uuid(), now())
+            returning id, issued_at)
+     insert into seva_receipts (receipt_no, series_code, year, month, running_no, order_id, position, client_receipt_id,
+                                seva_date, business_date, total, qr_token, prasadam_state, issued_at)
+     select 'W-WEB-' || lpad(parts.month::text, 2, '0') || '-' || parts.year::text || '/' || lpad($1::text, 6, '0'),
+            'W', parts.year, parts.month, $1::int, o.id, 1, gen_random_uuid(), parts.business_date, parts.business_date,
+            105, $2, 'pending', o.issued_at
+       from o, parts
+     returning id`,
+    [pastNo, qrToken()],
+  );
+  return r.rows[0].id;
 }
 
 /** A Rs 105 cash or UPI receipt issued by `staffId` the given minutes ago, written directly as a fixture. */
@@ -372,6 +404,26 @@ describe('seva_record_prints (A2-1)', () => {
     expect((await failure(prints(c, []))).code).toBe('validation');
     expect((await failure(prints(c, [id], randomUUID()))).code).toBe('device_unknown');
     expect(await count(c.db, 'seva_receipts', 'print_count > 0')).toBe(0);
+  });
+
+  it("prints another counter's receipt for the first time only from that counter's PC; online W receipts anywhere (A3-FIX 10)", async () => {
+    const c = await setup();
+    const pc2 = await secondCounter(c);
+    const atCounter2 = (await issue(c, { days: [1], deviceId: pc2 })).receipts[0].id;
+    const online = await insertOnlineReceipt(c);
+    const own = (await issue(c, { days: [1] })).receipts[0].id;
+
+    // Counter 1's PC may not give a Counter 2 receipt its first print, even alongside its own: nothing is printed.
+    expect(await failure(prints(c, [own, atCounter2]))).toMatchObject({ code: 'forbidden' });
+    expect(await count(c.db, 'seva_receipts', 'print_count > 0')).toBe(0);
+    // Its own counter's receipt and an online W receipt are fine.
+    expect((await prints(c, [own, online])).receipts.map((r) => [r.id, r.print_count])).toEqual([
+      [own, 1],
+      [online, 1],
+    ]);
+    // Counter 2's own PC prints it; after that a reprint from elsewhere is the route's decision (receipt.reprint).
+    expect((await prints(c, [atCounter2], pc2)).receipts.map((r) => r.print_count)).toEqual([1]);
+    expect((await prints(c, [atCounter2])).receipts.map((r) => [r.print_count, r.duplicate])).toEqual([[2, true]]);
   });
 });
 
@@ -598,7 +650,10 @@ describe('seva_cancel_receipts - offline cancels from the outbox (A2-FIX2)', () 
     expect(await count(c.db, 'audit_log')).toBe(0);
 
     // Offboarded after cancelling on the PC: still accepted, and the audit trail says so.
-    await c.db.query(`update staff set status = 'inactive', status_reason = 'Left the temple office' where id = $1`, [c.staffId]);
+    await c.db.query(
+      `update staff set status = 'inactive', status_reason = 'Left the temple office', status_changed_at = now() where id = $1`,
+      [c.staffId],
+    );
     await expect(offline({ no: 23, role: 'receptionist' })).resolves.toMatchObject({ receipts: [{ id: receipt, status: 'cancelled' }] });
     expect((await receiptRow(c.db, receipt)).cancelled_by_staff_id).toBe(c.staffId);
     expect(await auditRows(c.db)).toEqual([
@@ -663,6 +718,129 @@ describe('seva_cancel_receipts - offline cancels from the outbox (A2-FIX2)', () 
       [second, true, day],
     ]);
   });
+
+  it('refuses an inactive canceller whose cancel is dated after they were offboarded (A3 gate M-2 a)', async () => {
+    const c = await setup();
+    const receipt = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const at10 = await issuedAtPlus(c, receipt, '10 minutes');
+    const offline = (): Promise<CancelResult> =>
+      cancel(c, { ids: [receipt], reason: 'wrong_seva', staffId: c.sureshId, at: at10, ...OFFLINE_23 });
+
+    // Offboarded 5 minutes after issuing, so a cancel "made" 10 minutes after issuing came after the offboarding.
+    await c.db.query(
+      `update staff set status = 'inactive', status_reason = 'Left', status_changed_at = $2::timestamptz where id = $1`,
+      [c.staffId, await issuedAtPlus(c, receipt, '5 minutes')],
+    );
+    expect(await failure(offline())).toEqual({
+      code: 'validation',
+      detail: expect.objectContaining({ field: 'cancelled_by_staff_no', reason: expect.stringContaining('offboarded') }),
+    });
+    // An inactive row with no offboarding time is refused too: the time cannot be compared.
+    await c.db.query(`update staff set status_changed_at = null where id = $1`, [c.staffId]);
+    expect((await failure(offline())).code).toBe('validation');
+    expect(await count(c.db, 'seva_receipts', `status = 'cancelled'`)).toBe(0);
+    expect(await count(c.db, 'audit_log')).toBe(0);
+  });
+
+  it('makes a late offline cash cancel, or one in a closed day, a refund due for the office (A3 gate M-2 c)', async () => {
+    const c = await setup();
+    // Cancelled on the PC 5 minutes after issue and sent 5 minutes later: cash handed back from the drawer.
+    const onTime = await insertPastReceipt(c, { minutesAgo: 10, mode: 'cash' });
+    // Cancelled on the PC 5 minutes after issue but sent 35 minutes later, past the 30-minute window.
+    const late = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const fast = await cancel(c, {
+      ids: [onTime],
+      reason: 'wrong_seva',
+      at: await issuedAtPlus(c, onTime, '5 minutes'),
+      ...OFFLINE_23,
+    });
+    expect(fast).toMatchObject({ receipts: [{ id: onTime, refund_state: 'done' }], cash_back: '105.00' });
+    const slow = await cancel(c, {
+      ids: [late],
+      reason: 'wrong_seva',
+      at: await issuedAtPlus(c, late, '5 minutes'),
+      ...OFFLINE_23,
+    });
+    expect(slow).toMatchObject({ receipts: [{ id: late, refund_state: 'due', refund_note: null }], cash_back: '0.00' });
+    expect(await receiptRow(c.db, late)).toMatchObject({ refund_state: 'due' });
+    const audit = (await auditRows(c.db)).filter((r) => r.action === 'receipt.cancel');
+    expect(audit.map((r) => [r.entity_id, r.after?.refund_state, r.after?.late_sync])).toEqual([
+      [onTime, 'done', false],
+      [late, 'due', true],
+    ]);
+
+    // An offline cash cancel recorded in a day the counter has already closed is due as well, even when on time.
+    const closedDay = await insertPastReceipt(c, { minutesAgo: 10, mode: 'cash' });
+    await c.db.query(
+      `insert into day_closes (counter_id, business_date, status, cash_expected, cash_counted, series_ranges,
+                               outbox_pending, closed_by_staff_id, closed_at)
+       select 1, r.business_date, 'closed', 0, 0, '[]'::jsonb, 0, $2::uuid, now() from seva_receipts r where r.id = $1`,
+      [closedDay, c.adminId],
+    );
+    const inClosed = await cancel(c, {
+      ids: [closedDay],
+      reason: 'wrong_seva',
+      at: await issuedAtPlus(c, closedDay, '5 minutes'),
+      ...OFFLINE_23,
+    });
+    expect(inClosed).toMatchObject({ receipts: [{ id: closedDay, refund_state: 'due', in_closed_day: true }], cash_back: '0.00' });
+  });
+
+  it('lists offline cancels in Needs attention, flagging another syncer or a late sync (A3 gate M-2 b)', async () => {
+    const c = await setup();
+    const offlineCard = async (): Promise<{ level: string; count: number; detail: Record<string, unknown>; entries?: Record<string, unknown>[] }> => {
+      const cards = await asRole(c.db, 'service_role', async (d) =>
+        (
+          await d.query<{ cards: { id: string; level: string; count: number; detail: Record<string, unknown> }[] }>(
+            `select seva_needs_attention(now() - interval '1 hour', now() + interval '1 hour', $1::date) as cards`,
+            [c.today],
+          )
+        ).rows[0].cards,
+      );
+      const found = cards.find((x) => x.id === 'offline_cancels');
+      if (!found) throw new Error('card offline_cancels missing');
+      return found;
+    };
+    expect(await offlineCard()).toMatchObject({ level: 'ok', count: 0, entries: [] });
+
+    // Ramesh cancels his own receipt on the PC and sends it himself, in time: listed, not flagged.
+    const own = await insertPastReceipt(c, { minutesAgo: 10, mode: 'cash' });
+    const ownAt = await issuedAtPlus(c, own, '5 minutes');
+    await cancel(c, { ids: [own], reason: 'wrong_seva', at: ownAt, ...OFFLINE_23 });
+    // An online cancel is not an offline cancel.
+    const online = await insertPastReceipt(c, { minutesAgo: 10, mode: 'cash' });
+    await cancel(c, { ids: [online], reason: 'wrong_seva' });
+    expect(await offlineCard()).toMatchObject({ level: 'ok', count: 1, detail: { flagged: 0 } });
+
+    // Suresh sends a cancel in Ramesh's name; and Ramesh's own cancel arrives 35 minutes after it was made.
+    const other = await insertPastReceipt(c, { minutesAgo: 10, mode: 'cash' });
+    await cancel(c, { ids: [other], reason: 'wrong_seva', staffId: c.sureshId, at: await issuedAtPlus(c, other, '5 minutes'), ...OFFLINE_23 });
+    const late = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    await cancel(c, { ids: [late], reason: 'wrong_seva', at: await issuedAtPlus(c, late, '5 minutes'), ...OFFLINE_23 });
+
+    const card = await offlineCard();
+    expect(card).toMatchObject({ level: 'attention', count: 3, detail: { flagged: 2 } });
+    const numbers = await c.db.query<{ id: string; receipt_no: string }>(
+      'select id, receipt_no from seva_receipts where id = any($1::uuid[])',
+      [uuidArray([own, other, late])],
+    );
+    const no = (id: string): string => numbers.rows.find((r) => r.id === id)?.receipt_no ?? '';
+    expect(card.entries).toEqual([
+      expect.objectContaining({ receipt_no: no(late), cancelled_by: 'Ramesh', synced_by: 'Ramesh', flagged: true }),
+      expect.objectContaining({ receipt_no: no(other), cancelled_by: 'Ramesh', synced_by: 'Suresh', flagged: true }),
+      expect.objectContaining({ receipt_no: no(own), cancelled_by: 'Ramesh', synced_by: 'Ramesh', flagged: false }),
+    ]);
+    // The recorded time is when it was cancelled on the PC; the received time is when the outbox sent it.
+    const [lateEntry] = card.entries ?? [];
+    const recorded = Date.parse(String(lateEntry.recorded_at));
+    const received = Date.parse(String(lateEntry.received_at));
+    expect(received - recorded).toBeGreaterThan(30 * 60_000);
+    const stored = await c.db.query<{ same: boolean }>(
+      `select cancelled_at = $2::timestamptz as same from seva_receipts where id = $1`,
+      [late, String(lateEntry.recorded_at)],
+    );
+    expect(stored.rows).toEqual([{ same: true }]);
+  });
 });
 
 describe('seva_reissue_spoiled (A2-1)', () => {
@@ -709,6 +887,25 @@ describe('seva_reissue_spoiled (A2-1)', () => {
     expect(await failure(reissue(c, other.id, token))).toEqual({ code: 'validation', detail: { field: 'qr_token' } });
     expect((await failure(reissue(c, randomUUID(), qrToken()))).code).toBe('not_found');
     expect(await count(c.db, 'seva_receipts')).toBe(3);
+  });
+
+  it("refuses to reissue another counter's receipt from this PC (A3 gate L-3)", async () => {
+    const c = await setup();
+    const pc2 = await secondCounter(c);
+    const atCounter2 = (await issue(c, { days: [1], deviceId: pc2 })).receipts[0].id;
+
+    expect(await failure(reissue(c, atCounter2, qrToken()))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'receipt_id' },
+    });
+    // Nothing moved: no cancel, no new number on either counter, no audit row.
+    expect(await receiptRow(c.db, atCounter2)).toMatchObject({ status: 'issued' });
+    expect(await count(c.db, 'seva_receipts')).toBe(1);
+    expect(await count(c.db, 'receipt_series_years', `series_code = 'C1' and last_no > 0`)).toBe(0);
+    expect(await count(c.db, 'audit_log')).toBe(0);
+    // Counter 2's own PC reissues it.
+    const res = await reissue(c, atCounter2, qrToken(), pc2);
+    expect(res.receipts.find((r) => r.id === res.new_receipt_id)?.receipt_no).toMatch(/^C2-023-/);
   });
 
   it("refuses to reissue an earlier day's receipt: the counter reprints it as a DUPLICATE instead", async () => {

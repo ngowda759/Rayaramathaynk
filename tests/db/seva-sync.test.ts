@@ -723,7 +723,9 @@ describe('seva_sync_offline_order (A2-1)', () => {
     const c = await setup();
     const suresh = await seedStaff(c.db, { staffNo: 24, name: 'Suresh', uid: 'uid-suresh' });
     const former = await seedStaff(c.db, { staffNo: 25, name: 'Former', uid: 'uid-former' });
-    await c.db.query(`update staff set status = 'inactive', status_reason = 'Left' where id = $1`, [former]);
+    await c.db.query(`update staff set status = 'inactive', status_reason = 'Left', status_changed_at = now() where id = $1`, [
+      former,
+    ]);
     await setRouteRole(c.db, 'temple_admin');
 
     // Former (025) printed two receipts offline - one with a changed amount - and was offboarded before they synced.
@@ -763,6 +765,36 @@ describe('seva_sync_offline_order (A2-1)', () => {
     // An active issuer writes no such row.
     await sync(c, offlineOrder(c, { issuedAt: ISSUED, receipts: [{ runningNo: 3 }] }), c.deviceId, { syncerId: suresh });
     expect(await count(c.db, 'audit_log', `action = 'receipt.issuer_inactive_at_sync'`)).toBe(2);
+  });
+
+  it('refuses an inactive issuer for work dated after they were offboarded (A3 gate M-2 a)', async () => {
+    const c = await setup();
+    const suresh = await seedStaff(c.db, { staffNo: 24, name: 'Suresh', uid: 'uid-suresh' });
+    const former = await seedStaff(c.db, { staffNo: 25, name: 'Former', uid: 'uid-former' });
+    // Offboarded one minute before the order's recorded issue time.
+    await c.db.query(
+      `update staff set status = 'inactive', status_reason = 'Left',
+                        status_changed_at = $2::timestamptz - interval '1 minute' where id = $1`,
+      [former, ISSUED],
+    );
+    const send = (): Promise<OrderResult> =>
+      sync(c, offlineOrder(c, { issuedAt: ISSUED, issuerStaffNo: 25, receipts: [{ runningNo: 1 }] }), c.deviceId, {
+        syncerId: suresh,
+        issuerRole: 'receptionist',
+      });
+    expect(await failure(send())).toEqual({
+      code: 'validation',
+      detail: expect.objectContaining({ field: 'issuer_staff_no', reason: expect.stringContaining('offboarded') }),
+    });
+    // With no offboarding time on the row, the time cannot be compared: refused as well.
+    await c.db.query(`update staff set status_changed_at = null where id = $1`, [former]);
+    expect((await failure(send())).code).toBe('validation');
+    expect(await count(c.db, 'seva_orders')).toBe(0);
+    expect(await lastNo(c.db, 'OF1', 2026)).toBe(0);
+
+    // Offboarded one minute after it: accepted (the case above, with its audit row).
+    await c.db.query(`update staff set status_changed_at = $2::timestamptz + interval '1 minute' where id = $1`, [former, ISSUED]);
+    expect((await send()).receipts).toHaveLength(1);
   });
 
   it('refuses an unknown, invited or deleted issuer with SEVA:validation', async () => {

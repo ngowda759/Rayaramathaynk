@@ -25,7 +25,14 @@ export type PrasadamLookupResult =
       /** The receipt of the same group whose seva date is today, when there is one. */
       todaysSlip: { receiptNo: string; position: number; count: number } | null;
     }
-  | { state: 'already_given'; receipt: PrasadamReceipt; givenAt: string; givenBy: string }
+  | {
+      state: 'already_given';
+      receipt: PrasadamReceipt;
+      givenAt: string;
+      givenBy: string;
+      /** True only on the answer to the caller's own successful give ("Marked given", with Undo); absent otherwise. */
+      givenNow?: boolean;
+    }
   | { state: 'cancelled'; receipt: PrasadamReceipt; cancelledAt: string; cancelledBy: string; reason: string }
   | { state: 'no_prasadam'; receipt: PrasadamReceipt }
   | { state: 'choose'; options: { receiptId: string; receiptNo: string; sevaDate: string; devoteeName: string }[] }

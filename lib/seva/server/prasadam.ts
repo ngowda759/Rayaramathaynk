@@ -190,7 +190,8 @@ function sqlText(answer: Row, key: string): string | null {
 
 /**
  * Marks the receipt's prasadam given (seva_mark_prasadam) and answers the screen to show next. A successful give
- * answers `already_given` with this give's time and name, which the counter shows as "Marked given" with Undo.
+ * answers `already_given` with this give's time and name and `givenNow: true`, which the counter shows as "Marked
+ * given" with Undo; when someone had given it before, `givenNow` is false.
  */
 export async function givePrasadam(
   actor: SevaActor,
@@ -223,6 +224,7 @@ export async function givePrasadam(
         receipt: toPrasadamReceipt(row),
         givenAt: sqlText(sql, "given_at") ?? text(row, "prasadam_given_at"),
         givenBy: sqlText(sql, "given_by_name") ?? (sql.state === "given" ? actor.name : "Unknown staff"),
+        givenNow: sql.state === "given",
       };
     case "needs_confirm": {
       const offDate = sql.off_date === "before" ? "before" : sql.off_date === "after" ? "after" : null;

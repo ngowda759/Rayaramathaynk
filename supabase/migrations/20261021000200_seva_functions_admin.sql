@@ -104,6 +104,9 @@ $$;
 -- display_order. A rate change on an existing seva needs a reason of at least 3 characters; it is passed to the
 -- sevas_rate_history trigger through seva.change_reason / seva.change_staff_id. An any-amount seva (Other Seva) is
 -- always counter-only (C-38). A new seva gets a rate-history row with old_amount null (DB 7.1).
+-- The Firestore mirror's document id (firestore_id, C-39) is set here and never by the caller: a new seva takes its
+-- own id, and a row written elsewhere without one gets its id on its next save; a migrated row keeps its own. So the
+-- catalogue code never writes the table directly (A3 security gate L-5).
 -- Audits seva.create, or seva.update (fields other than the rate) and seva.rate_change.
 CREATE OR REPLACE FUNCTION seva_upsert_seva(p_seva jsonb, p_reason text, p_staff_id uuid)
 RETURNS uuid
@@ -226,12 +229,14 @@ BEGIN
 
   BEGIN
     IF v_is_new THEN
-      INSERT INTO sevas (name, description, category, amount, duration, active, display_order, code, name_kn,
-                         visibility, multi_date, allow_amount_change, any_amount, prasadam_given, prasadam_items,
-                         income_ledger, updated_by_staff_id)
-      VALUES (v_new.name, v_new.description, v_new.category, v_new.amount, 0, v_new.active, v_new.display_order,
-              v_new.code, v_new.name_kn, v_new.visibility, v_new.multi_date, v_new.allow_amount_change,
-              v_new.any_amount, v_new.prasadam_given, v_new.prasadam_items, v_new.income_ledger, p_staff_id)
+      v_id := gen_random_uuid();
+      INSERT INTO sevas (id, firestore_id, name, description, category, amount, duration, active, display_order, code,
+                         name_kn, visibility, multi_date, allow_amount_change, any_amount, prasadam_given,
+                         prasadam_items, income_ledger, updated_by_staff_id)
+      VALUES (v_id, v_id::text, v_new.name, v_new.description, v_new.category, v_new.amount, 0, v_new.active,
+              v_new.display_order, v_new.code, v_new.name_kn, v_new.visibility, v_new.multi_date,
+              v_new.allow_amount_change, v_new.any_amount, v_new.prasadam_given, v_new.prasadam_items,
+              v_new.income_ledger, p_staff_id)
       RETURNING * INTO v_new;
       v_id := v_new.id;
       IF NOT v_new.any_amount THEN
@@ -248,7 +253,8 @@ BEGIN
              visibility = v_new.visibility, multi_date = v_new.multi_date,
              allow_amount_change = v_new.allow_amount_change, any_amount = v_new.any_amount,
              prasadam_given = v_new.prasadam_given, prasadam_items = v_new.prasadam_items,
-             income_ledger = v_new.income_ledger, updated_by_staff_id = p_staff_id
+             income_ledger = v_new.income_ledger, updated_by_staff_id = p_staff_id,
+             firestore_id = coalesce(s.firestore_id, s.id::text)
        WHERE s.id = v_id
       RETURNING * INTO v_new;
       PERFORM set_config('seva.change_reason', '', true);
@@ -395,6 +401,79 @@ BEGIN
 
   PERFORM seva_audit('settings.update', 'seva_settings', '1', NULL, NULL, v_diff -> 'before', v_diff -> 'after',
                      p_staff_id);
+END;
+$$;
+
+-- A UPI id (VPA) as the audit trail shows it: every character before '@' masked except the last 4, the provider's
+-- handle kept ('srirayaramatha@okaxis' -> '**********atha@okaxis'). Null stays null.
+CREATE OR REPLACE FUNCTION seva_mask_vpa(p_vpa text)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_at integer;
+  v_local text;
+BEGIN
+  IF p_vpa IS NULL THEN
+    RETURN NULL;
+  END IF;
+  v_at := strpos(p_vpa, '@');
+  v_local := CASE WHEN v_at = 0 THEN p_vpa ELSE left(p_vpa, v_at - 1) END;
+  RETURN repeat('*', greatest(char_length(v_local) - 4, 0)) || right(v_local, 4)
+      || CASE WHEN v_at = 0 THEN '' ELSE substr(p_vpa, v_at) END;
+END;
+$$;
+
+-- The counter's UPI payee as the server has just read it from Firestore settings/financeSettings (DB 7.2; null VPA =
+-- UPI off or not set). Compared with the values last recorded in seva_settings: when the VPA or the payee name differs
+-- - the first payee ever read included - the new values are stored and one audit row settings.upi_changed is written
+-- with the old and new VPA masked (seva_mask_vpa) and the payee names; the Needs attention card upi_changed reads it.
+-- An unchanged read writes nothing. The row lock makes two counters reading the same change at once write one row.
+-- Nobody acts here - the change was made in Firestore - so the audit row has no actor. Returns true when a change was
+-- recorded. (A3 security gate H-1.)
+CREATE OR REPLACE FUNCTION seva_note_counter_upi(p_vpa text, p_payee_name text)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_vpa text := nullif(btrim(coalesce(p_vpa, '')), '');
+  v_name text := nullif(btrim(coalesce(p_payee_name, '')), '');
+  v_old seva_settings%ROWTYPE;
+BEGIN
+  IF v_vpa IS NOT NULL AND (char_length(v_vpa) > 330 OR v_vpa !~ '^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$') THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'vpa')::text;
+  END IF;
+  IF v_vpa IS NULL THEN
+    v_name := NULL;
+  END IF;
+  -- The counter falls back to the VPA itself when the finance settings carry no display name.
+  IF char_length(v_name) > 330 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'payee_name')::text;
+  END IF;
+
+  SELECT * INTO v_old FROM seva_settings s WHERE s.id = 1 FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'seva_settings')::text;
+  END IF;
+  IF v_old.counter_upi_vpa IS NOT DISTINCT FROM v_vpa AND v_old.counter_upi_payee_name IS NOT DISTINCT FROM v_name THEN
+    RETURN false;
+  END IF;
+
+  UPDATE seva_settings s SET counter_upi_vpa = v_vpa, counter_upi_payee_name = v_name WHERE s.id = 1;
+  PERFORM seva_audit(
+    'settings.upi_changed', 'seva_settings', '1', NULL,
+    'The counter UPI payee changed in the finance settings',
+    jsonb_build_object('vpa', seva_mask_vpa(v_old.counter_upi_vpa), 'payee_name', v_old.counter_upi_payee_name),
+    jsonb_build_object('vpa', seva_mask_vpa(v_vpa), 'payee_name', v_name),
+    NULL
+  );
+  RETURN true;
 END;
 $$;
 
@@ -1067,8 +1146,8 @@ END;
 $$;
 
 -- Needs attention cards (DB 12.2) for the period [p_from, p_to) and the IST business date p_today. Returns a JSON
--- array of { id, level: 'ok'|'attention'|'critical', count, detail } in a fixed order; a card with nothing to report
--- is level 'ok' with count 0.
+-- array of { id, level: 'ok'|'attention'|'critical', count, detail } in a fixed order (offline_cancels also carries
+-- entries); a card with nothing to report is level 'ok' with count 0.
 CREATE OR REPLACE FUNCTION seva_needs_attention(p_from timestamptz, p_to timestamptz, p_today date)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -1092,6 +1171,8 @@ DECLARE
   v_last ops_backup_runs%ROWTYPE;
   v_last_ok timestamptz;
   v_size bigint;
+  v_entries jsonb;
+  v_upi audit_log%ROWTYPE;
 BEGIN
   IF p_from IS NULL OR p_to IS NULL OR p_to <= p_from OR p_today IS NULL THEN
     RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'range')::text;
@@ -1232,6 +1313,48 @@ BEGIN
      AND r.issued_at > o.received_at + interval '2 minutes';
   v_cards := v_cards || jsonb_build_object('id', 'future_offline', 'level', CASE WHEN v_n > 0 THEN 'attention' ELSE 'ok' END,
                                            'count', v_n, 'detail', '{}'::jsonb);
+
+  -- offline_cancels: cancels the outbox sent in the period (receipt.cancel audit rows marked offline), newest first,
+  -- each with the receipt, the time recorded on the PC, the time it reached the server, who cancelled and who sent it
+  -- (at most 50 entries; count is all of them). The server cannot verify an offline claim, so it shows it: attention
+  -- when one was sent by someone other than the canceller, or arrived more than the cancel window after its recorded
+  -- time (A3 security gate M-2).
+  SELECT count(*)::int,
+         (count(*) FILTER (WHERE x.flagged))::int,
+         coalesce(jsonb_agg(jsonb_build_object('receipt_no', x.receipt_no, 'recorded_at', x.recorded_at,
+                                               'received_at', x.received_at,
+                                               'cancelled_by', coalesce(sc.full_name, ''),
+                                               'synced_by', coalesce(ss.full_name, ''), 'flagged', x.flagged)
+                            ORDER BY x.id DESC) FILTER (WHERE x.rn <= 50),
+                  '[]'::jsonb)
+    INTO v_n, v_m, v_entries
+    FROM (
+      SELECT a.id, a.receipt_no, a.at AS received_at, (a.after ->> 'cancelled_at')::timestamptz AS recorded_at,
+             a.actor_staff_id AS canceller_id, (a.after ->> 'synced_by_staff_id')::uuid AS syncer_id,
+             (a.actor_staff_id IS DISTINCT FROM (a.after ->> 'synced_by_staff_id')::uuid
+              OR a.at > (a.after ->> 'cancelled_at')::timestamptz + make_interval(mins => v_window)) AS flagged,
+             row_number() OVER (ORDER BY a.id DESC) AS rn
+        FROM audit_log a
+       WHERE a.action = 'receipt.cancel' AND a.after ->> 'offline' = 'true' AND a.at >= p_from AND a.at < p_to
+    ) x
+    LEFT JOIN staff sc ON sc.id = x.canceller_id
+    LEFT JOIN staff ss ON ss.id = x.syncer_id;
+  v_cards := v_cards || jsonb_build_object('id', 'offline_cancels', 'level', CASE WHEN v_m > 0 THEN 'attention' ELSE 'ok' END,
+                                           'count', v_n, 'detail', jsonb_build_object('flagged', v_m),
+                                           'entries', v_entries);
+
+  -- upi_changed: the counter's UPI payee changed in the period (settings.upi_changed rows written by
+  -- seva_note_counter_upi); the detail names the latest change, masked (A3 security gate H-1).
+  SELECT count(*)::int INTO v_n
+    FROM audit_log a WHERE a.action = 'settings.upi_changed' AND a.at >= p_from AND a.at < p_to;
+  SELECT a.* INTO v_upi
+    FROM audit_log a WHERE a.action = 'settings.upi_changed' AND a.at >= p_from AND a.at < p_to
+   ORDER BY a.id DESC LIMIT 1;
+  v_cards := v_cards || jsonb_build_object('id', 'upi_changed', 'level', CASE WHEN v_n > 0 THEN 'attention' ELSE 'ok' END,
+                                           'count', v_n,
+                                           'detail', jsonb_strip_nulls(jsonb_build_object(
+                                             'from_vpa', v_upi.before ->> 'vpa', 'to_vpa', v_upi.after ->> 'vpa',
+                                             'changed_at', v_upi.at)));
 
   RETURN v_cards;
 END;
@@ -1422,6 +1545,10 @@ REVOKE EXECUTE ON FUNCTION seva_reorder_sevas(uuid[], uuid) FROM PUBLIC, anon, a
 GRANT EXECUTE ON FUNCTION seva_reorder_sevas(uuid[], uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_update_settings(jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_update_settings(jsonb, uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_mask_vpa(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_mask_vpa(text) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_note_counter_upi(text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_note_counter_upi(text, text) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_save_denominations(jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_save_denominations(jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_save_festival(jsonb, uuid) FROM PUBLIC, anon, authenticated;

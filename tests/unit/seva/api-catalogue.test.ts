@@ -279,26 +279,30 @@ describe("catalogue routes", () => {
     expect((mockFirestoreSet.mock.calls[0] as [Row])[0].active).toBe(false);
   });
 
-  it("a new seva gets its Supabase id as its Firestore id", async () => {
+  it("a new seva is mirrored under the Firestore id seva_upsert_seva gave it; the table is never written directly", async () => {
     mockCallRpc.mockResolvedValueOnce(OTHER_ID);
-    mockTables.sevas = [{ ...SEVA_ROW, id: OTHER_ID, firestore_id: null }];
+    // seva_upsert_seva names a new seva's Firestore document by its own id (A3 security gate L-5).
+    mockTables.sevas = [{ ...SEVA_ROW, id: OTHER_ID, firestore_id: OTHER_ID }];
     const response = await createSeva(req("POST", "sevas", UPSERT));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: OTHER_ID, mirror: "ok" });
-    expect(mockUpdates).toEqual([
-      {
-        table: "sevas",
-        values: { firestore_id: OTHER_ID },
-        filters: [
-          ["eq", "id", OTHER_ID],
-          ["is", "firestore_id", null],
-        ],
-      },
-    ]);
+    expect(mockUpdates).toEqual([]);
     expect(mockFirestoreDocs).toEqual([`sevas/${OTHER_ID}`]);
     const sent = (mockCallRpc.mock.calls[0] as [string, { p_seva: Row; p_reason: unknown }])[1];
     expect(sent.p_seva.id).toBeUndefined();
+    expect(sent.p_seva.firestore_id).toBeUndefined();
     expect(sent.p_reason).toBeNull();
+  });
+
+  it("reports a failed mirror, and writes nothing, when the saved seva has no Firestore id", async () => {
+    const errorLog = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockCallRpc.mockResolvedValueOnce(OTHER_ID);
+    mockTables.sevas = [{ ...SEVA_ROW, id: OTHER_ID, firestore_id: null }];
+    const response = await createSeva(req("POST", "sevas", UPSERT));
+    expect(await response.json()).toEqual({ id: OTHER_ID, mirror: "failed" });
+    expect(mockUpdates).toEqual([]);
+    expect(mockFirestoreSet).not.toHaveBeenCalled();
+    errorLog.mockRestore();
   });
 
   it("refuses an id in the body that is not the one in the path", async () => {

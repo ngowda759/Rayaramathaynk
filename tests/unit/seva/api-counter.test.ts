@@ -439,8 +439,13 @@ describe('GET /api/seva/counter/bootstrap', () => {
         };
       }
       if (fn === 'seva_offline_group_floor') return 5;
+      if (fn === 'seva_note_counter_upi') return false;
       throw new Error(`unexpected ${fn}`);
     });
+  }
+
+  function upiNotes(): Row[] {
+    return mockCallRpc.mock.calls.filter(([fn]) => fn === 'seva_note_counter_upi').map(([, args]) => args as Row);
   }
 
   it('bootstrap leaves out online-only sevas and past festival chips', async () => {
@@ -486,6 +491,34 @@ describe('GET /api/seva/counter/bootstrap', () => {
     const body = await json(await bootstrapGet(request('counter/bootstrap')));
     expect(body.upi).toEqual({ vpa: 'temple@upi', payeeName: 'Sri Rayara Matha' });
     expect(body.upiDisabledReason).toBeNull();
+  });
+
+  it('bootstrap records the UPI payee it read so a change is noticed (A3 security gate H-1)', async () => {
+    seedBootstrap();
+    mockCallRpc.mockClear();
+    mockFinance.doc = { upi: { enabled: true, id: 'temple@upi', displayName: 'Sri Rayara Matha' } };
+    expect((await bootstrapGet(request('counter/bootstrap'))).status).toBe(200);
+    expect(upiNotes()).toEqual([{ p_vpa: 'temple@upi', p_payee_name: 'Sri Rayara Matha' }]);
+
+    // UPI switched off is recorded too.
+    mockCallRpc.mockClear();
+    mockFinance.doc = { upi: { enabled: false, id: 'temple@upi' } };
+    await bootstrapGet(request('counter/bootstrap'));
+    expect(upiNotes()).toEqual([{ p_vpa: null, p_payee_name: null }]);
+
+    // If the payee cannot be recorded, the counter gets no UPI QR at all: the bootstrap fails and the PC keeps its
+    // last good copy.
+    const errorLog = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockFinance.doc = { upi: { enabled: true, id: 'someone@ybl', displayName: 'Someone' } };
+    const base = mockCallRpc.getMockImplementation();
+    mockCallRpc.mockImplementation(async (fn: string, args: Row) => {
+      if (fn === 'seva_note_counter_upi') throw new SevaError('internal');
+      return base?.(fn, args);
+    });
+    const failed = await bootstrapGet(request('counter/bootstrap'));
+    expect(failed.status).toBe(500);
+    expect(JSON.stringify(await json(failed))).not.toContain('someone@ybl');
+    errorLog.mockRestore();
   });
 
   it('bootstrap returns lastOfNo and lastOfGroupNo', async () => {
@@ -630,7 +663,8 @@ describe('POST /api/seva/counter/sync', () => {
     const res = await syncPost(req);
 
     expect(res.status).toBe(200);
-    expect(mockRequire).toHaveBeenCalledWith(req, 'counter.issue', { device: 'required' });
+    // The one route a retired PC may reach (DB 8.4); SQL limits what it may send.
+    expect(mockRequire).toHaveBeenCalledWith(req, 'counter.issue', { device: 'required', retiredDevice: 'allow' });
     expect(await json(res)).toEqual({
       results: [
         { seq: 1, ok: true, duplicate: false },
@@ -768,6 +802,49 @@ describe('POST /api/seva/counter/sync', () => {
     const res = await syncPost(request('counter/sync', { body: { items: [{ seq: 1, kind: 'cancel', clientReceiptIds: [] }] } }));
     expect(res.status).toBe(400);
     expect(await json(res)).toMatchObject({ error: { code: 'validation' } });
+  });
+
+  it("takes a retired PC's late outbox: orders inside its gap are stored, the rest refused (A3 security gate L-4)", async () => {
+    seedReceipts();
+    const retired = { ...DEVICE, retired: true as const };
+    mockRequire.mockResolvedValue({ ok: true, actor: RAMESH, device: retired });
+    // seva_sync_offline_order with the retired PC accepts numbers inside its device_replaced gap only (DB 8.4).
+    mockCallRpc.mockImplementation(async (fn: string, args: Row) => {
+      if (fn !== 'seva_sync_offline_order') throw new Error(`unexpected ${fn}`);
+      if ((args.p_order as Row).client_order_id === id(702)) throw new SevaError('device_unknown', { receipt_no: 'x' });
+      return sqlOrder();
+    });
+    const items: OutboxItem[] = [
+      { seq: 1, kind: 'order', payload: offlineOrder(1) },
+      { seq: 2, kind: 'order', payload: offlineOrder(2) },
+      // Offline cancels from a retired PC are not taken: SQL cannot hold them to the gap.
+      cancelItem(3, [id(801)]),
+    ];
+    const res = await syncPost(request('counter/sync', { body: { items } }));
+    expect(await json(res)).toEqual({
+      results: [
+        { seq: 1, ok: true, duplicate: false },
+        { seq: 2, ok: false, code: 'device_unknown' },
+        { seq: 3, ok: false, code: 'device_unknown' },
+      ],
+    });
+    expect(mockCallRpc.mock.calls.map(([fn, args]) => [fn, (args as Row).p_device_id])).toEqual([
+      ['seva_sync_offline_order', DEVICE.id],
+      ['seva_sync_offline_order', DEVICE.id],
+    ]);
+  });
+
+  it('no other counter route lets a retired PC through (A3 security gate L-4)', async () => {
+    mockRequire.mockResolvedValue(denyWith('device_required'));
+    await bootstrapGet(request('counter/bootstrap'));
+    await ordersPost(request('counter/orders', { body: bookOrder() }));
+    await printsPost(request('counter/prints', { body: { receiptIds: [id(901)] } }));
+    await heartbeatPost(request('counter/heartbeat', { body: { outboxCount: 0, clockSkewMs: 0, appVersion: '1' } }));
+    await meGet(request('me'));
+    expect(mockRequire.mock.calls.length).toBeGreaterThanOrEqual(5);
+    for (const [, , opts] of mockRequire.mock.calls) {
+      expect((opts as { retiredDevice?: string } | undefined)?.retiredDevice).toBeUndefined();
+    }
   });
 });
 

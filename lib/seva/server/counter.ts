@@ -35,6 +35,7 @@ import type {
   SlipSettings,
   SyncResponse,
 } from "@/types/seva";
+import type { VerifiedDevice } from "./device";
 import { readCounterUpi } from "./finance";
 import { getIdentityAdapter } from "./identity";
 import { callRpc } from "./rpc";
@@ -46,26 +47,17 @@ type SyncResult = SyncResponse["results"][number];
 // Request bodies
 // =====================================================================================================================
 
-/** The request's JSON body; a body that is not JSON is SevaError('validation'). */
-export async function readJsonBody(req: Request): Promise<unknown> {
-  try {
-    return (await req.json()) as unknown;
-  } catch {
-    throw new SevaError("validation", { field: "body", message: "The request body is not valid JSON." });
-  }
-}
+/**
+ * The JSON body and its zod check, under the names the counter routes import. One implementation, in read.ts: a body
+ * that is not JSON, and the schema's first issue, are SevaError('validation') naming the field.
+ */
+export { parseInput as parseBody, readJson as readJsonBody } from "./read";
 
-/** Parses with a zod schema; the first issue becomes SevaError('validation') naming the field, with its message. */
-export function parseBody<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
-  const result = schema.safeParse(value);
-  if (result.success) return result.data;
-  const issue = result.error.issues[0];
-  const field = issue && issue.path.length > 0 ? issue.path.map(String).join(".") : "body";
-  throw new SevaError("validation", { field, message: issue?.message ?? "Check the form and try again." });
-}
-
-/** The guard's verified PC; a route that asked for `device: 'required'` always has one, so null fails closed. */
-export function liveDevice(device: { id: string; counterId: number } | null): { id: string; counterId: number } {
+/**
+ * The guard's verified PC; a route that asked for `device: 'required'` always has one, so null fails closed. It is
+ * marked `retired` only on the sync route, the one route that allows a retired PC.
+ */
+export function liveDevice(device: VerifiedDevice | null): VerifiedDevice {
   if (!device) throw new SevaError("device_required");
   return device;
 }
@@ -630,7 +622,7 @@ async function resolveOfflineCancel(
 async function syncItem(
   item: OutboxItem,
   actor: SevaActor,
-  device: { id: string; counterId: number },
+  device: VerifiedDevice,
   roleOf: (staffNo: number) => Promise<SevaRole | null>,
 ): Promise<SyncResult> {
   if (item.kind === "order") {
@@ -644,6 +636,9 @@ async function syncItem(
     return { seq: item.seq, ok: true, duplicate: obj(answer).duplicate === true };
   }
 
+  // A retired PC's late uploads are taken only inside its replaced range (DB 8.4), which only an order's numbers can
+  // show; a cancel from it is refused (A3 security gate L-4).
+  if (device.retired) return { seq: item.seq, ok: false, code: "device_unknown" };
   const resolved = await resolveOfflineCancel(item.clientReceiptIds, device.counterId);
   if ("refused" in resolved) return { seq: item.seq, ok: false, code: resolved.refused };
   if (resolved.liveIds.length === 0) return { seq: item.seq, ok: true, duplicate: true };
@@ -666,11 +661,11 @@ async function syncItem(
  * POST counter/sync: stores outbox items in `seq` order - orders through seva_sync_offline_order, cancels through
  * seva_cancel_receipts with the time they were made. A business refusal answers that item with its code and the rest
  * go on; any other failure stops at that item and is returned as `failure` (the route answers 503), with the results
- * of the items before it.
+ * of the items before it. From a retired PC only orders are taken, and SQL holds them to its device_replaced gap.
  */
 export async function syncOutbox(
   actor: SevaActor,
-  device: { id: string; counterId: number },
+  device: VerifiedDevice,
   items: OutboxItem[],
 ): Promise<{ results: SyncResult[]; failure: unknown }> {
   const roleOf = offlineRoleLookup();

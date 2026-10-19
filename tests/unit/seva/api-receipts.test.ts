@@ -162,10 +162,13 @@ describe("GET /api/seva/receipts", () => {
     const res = await listGET(get("/api/seva/receipts?from=2026-01-01&to=2026-12-31", { "x-seva-device": "dev-1.secret" }));
 
     expect(res.status).toBe(200);
-    expect(mockVerifyDevice).toHaveBeenCalledWith("dev-1.secret");
+    // The guard takes the counter from the PC it verified after the sign-in; the route never reads the header itself
+    // (A3 security gate L-1).
+    expect(mockVerifyDevice).not.toHaveBeenCalled();
     expect(mockRequireSevaActor).toHaveBeenCalledWith(expect.anything(), "receipts.list", {
       device: "optional",
-      ctx: { receiptCounterId: 2, receiptBusinessDate: today },
+      counterFromDevice: true,
+      ctx: { receiptBusinessDate: today },
     });
     const query = mockCalls.find((c) => c.table === "seva_receipts");
     expect(has(query, "eq", "seva_orders.counter_id", 2)).toBe(true);
@@ -209,9 +212,10 @@ describe("GET /api/seva/receipts", () => {
 
   it("passes through the guard response", async () => {
     mockRequireSevaActor.mockResolvedValue(deny("unauthenticated", 401));
-    const res = await listGET(get("/api/seva/receipts"));
+    const res = await listGET(get("/api/seva/receipts", { "x-seva-device": "dev-1.secret" }));
     expect(res.status).toBe(401);
     expect(mockCalls.some((c) => c.table === "seva_receipts")).toBe(false);
+    expect(mockVerifyDevice).not.toHaveBeenCalled();
   });
 });
 
@@ -269,7 +273,10 @@ describe("GET /api/seva/devotees/search", () => {
     const body = (await res.json()) as { matches: DevoteeMatch[] };
 
     expect(res.status).toBe(200);
-    expect(mockRequireSevaActor).toHaveBeenCalledWith(expect.anything(), "devotees.search");
+    // A receptionist searches from the counter PC only (A3 security gate L-2).
+    expect(mockRequireSevaActor).toHaveBeenCalledWith(expect.anything(), "devotees.search", {
+      device: "required_for_receptionist",
+    });
     const query = mockCalls.find((c) => c.table === "devotee_profiles");
     expect(has(query, "eq", "phone_e164", "+919845012340")).toBe(true);
     expect(has(query, "limit", 5)).toBe(true);
@@ -291,6 +298,20 @@ describe("GET /api/seva/devotees/search", () => {
     expect(res.status).toBe(400);
     expect(mockCalls.some((c) => c.table === "devotee_profiles")).toBe(false);
   });
+
+  it("limits each person to 60 searches a minute (A3 security gate L-2)", async () => {
+    mockAnswer = tableAnswers({ devotee_profiles: [] });
+    mockRequireSevaActor.mockResolvedValue(allow(actor("receptionist", "staff-searcher")));
+    for (let i = 0; i < 60; i += 1) {
+      expect((await searchGET(get(`/api/seva/devotees/search?name=Rao${i}`))).status).toBe(200);
+    }
+    const limited = await searchGET(get("/api/seva/devotees/search?name=Raoextra"));
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toMatchObject({ error: { code: "rate_limited" } });
+    // Someone else is not held back.
+    mockRequireSevaActor.mockResolvedValue(allow(actor("receptionist", "staff-other-searcher")));
+    expect((await searchGET(get("/api/seva/devotees/search?name=Rao"))).status).toBe(200);
+  });
 });
 
 describe("POST /api/seva/receipts/cancel", () => {
@@ -310,8 +331,9 @@ describe("POST /api/seva/receipts/cancel", () => {
     mockRequireSevaActor.mockResolvedValueOnce(allow(actor("receptionist", "staff-9")));
     const own = await cancelPOST(post("/api/seva/receipts/cancel", { receiptIds: [RECEIPT_ID], reasonCode: "wrong_seva" }));
     expect(own.status).toBe(200);
+    // A receptionist cancels from the counter PC only (A3 security gate L-2); an admin may cancel from the office.
     expect(mockRequireSevaActor).toHaveBeenCalledWith(expect.anything(), "receipt.cancel_own", {
-      device: "optional",
+      device: "required_for_receptionist",
       ctx: { receiptIssuedByStaffId: "staff-9", withinCancelWindow: true },
     });
     expect(await own.json()).toMatchObject({ receipts: [{ id: RECEIPT_ID, status: "cancelled", refundState: "done" }] });
@@ -332,7 +354,9 @@ describe("POST /api/seva/receipts/cancel", () => {
       post("/api/seva/receipts/cancel", { receiptIds: [RECEIPT_ID], reasonCode: "other", note: "Devotee left" }),
     );
     expect(admin.status).toBe(200);
-    expect(mockRequireSevaActor).toHaveBeenLastCalledWith(expect.anything(), "receipt.cancel_any", { device: "optional" });
+    expect(mockRequireSevaActor).toHaveBeenLastCalledWith(expect.anything(), "receipt.cancel_any", {
+      device: "required_for_receptionist",
+    });
     expect(mockCallRpc).toHaveBeenLastCalledWith("seva_cancel_receipts", {
       p_receipt_ids: [RECEIPT_ID],
       p_reason_code: "other",

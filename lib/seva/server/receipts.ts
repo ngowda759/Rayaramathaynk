@@ -24,7 +24,7 @@ import type {
   ReceiptStatusFilter,
   RefundState,
 } from "@/types/seva-receipts";
-import { requireSevaActor, type ActorResult } from "./auth";
+import { requireSevaActor, type ActorResult, type RequireSevaActorOptions } from "./auth";
 import { fromSqlIssue } from "./counter";
 import {
   embedded,
@@ -390,7 +390,7 @@ async function isForbidden(result: ActorResult): Promise<boolean> {
 export async function requireCancelRight(
   req: NextRequest,
   receiptIds: string[],
-  device: "required" | "optional",
+  device: NonNullable<RequireSevaActorOptions["device"]>,
   now: Date = new Date(),
 ): Promise<ActorResult> {
   const { issuer, withinWindow } = await readOwnership(receiptIds, now);

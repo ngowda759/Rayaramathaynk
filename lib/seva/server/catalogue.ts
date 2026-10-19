@@ -23,25 +23,10 @@ export type { RateHistoryEntry, SaveSevaResult };
 export const sevaDbIdSchema = z.guid();
 
 /**
- * Parses a request value with a zod schema; the first issue becomes SevaError('validation') whose detail names the
- * field and carries the schema's plain-English message.
+ * The zod check and the JSON body, under the names the catalogue and settings routes import. One implementation, in
+ * read.ts: the schema's first issue, and a body that is not JSON, are SevaError('validation') naming the field.
  */
-export function parseSevaInput<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
-  const result = schema.safeParse(value);
-  if (result.success) return result.data;
-  const issue = result.error.issues[0];
-  const field = issue && issue.path.length > 0 ? issue.path.map(String).join(".") : "body";
-  throw new SevaError("validation", { field, message: issue?.message ?? "Check the form and try again." });
-}
-
-/** The JSON body of a request; a body that is not JSON is a validation error. */
-export async function readJsonBody(req: Request): Promise<unknown> {
-  try {
-    return (await req.json()) as unknown;
-  } catch {
-    throw new SevaError("validation", { field: "body", message: "The request body is not valid JSON." });
-  }
-}
+export { parseInput as parseSevaInput, readJson as readJsonBody } from "./read";
 
 /** Reads one Supabase result, turning a database error into SevaError('internal') (the details are not logged). */
 function rowsOf(result: { data: unknown; error: unknown }): Record<string, unknown>[] {
@@ -142,27 +127,21 @@ function toMirrorDoc(row: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * Writes the seva's public fields to Firestore `sevas/{firestore_id}`. A seva without a Firestore id (one made here)
- * gets its Supabase id as its Firestore id first. Answers false, after logging the seva id, when any step fails.
+ * Writes the seva's public fields to Firestore `sevas/{firestore_id}`. The Firestore id is set by seva_upsert_seva
+ * (a new seva takes its own id), so this never writes the table. Answers false, after logging the seva id, when any
+ * step fails - a saved seva without a Firestore id included.
  */
 async function mirrorToFirestore(id: string): Promise<boolean> {
   try {
-    const supabase = createAdminClient();
-    const read = await supabase
+    const read = await createAdminClient()
       .from("sevas")
       .select("id, firestore_id, name, description, amount, active, visibility, display_order, category, duration, image_url, updated_at")
       .eq("id", id)
       .maybeSingle();
     if (read.error || !read.data) throw new Error("seva row not readable");
     const row = read.data as Record<string, unknown>;
-
-    let firestoreId = str(row.firestore_id);
-    if (!firestoreId) {
-      // `seva_upsert_seva` takes no firestore_id; a new seva's Firestore document is named by its Supabase id.
-      const set = await supabase.from("sevas").update({ firestore_id: id }).eq("id", id).is("firestore_id", null);
-      if (set.error) throw new Error("firestore_id not set");
-      firestoreId = id;
-    }
+    const firestoreId = str(row.firestore_id);
+    if (!firestoreId) throw new Error("seva has no firestore_id");
 
     const firestore = await getAdminFirestore();
     await firestore.collection("sevas").doc(firestoreId).set(toMirrorDoc(row), { merge: true });

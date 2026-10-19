@@ -284,6 +284,30 @@ describe("POST /api/seva/prasadam/give", () => {
     const missing = await givePOST(post("/api/seva/prasadam/give", { receiptId: SECOND_ID, confirmOffDate: false }));
     expect(await missing.json()).toEqual({ state: "not_found", query: SECOND_ID });
   });
+
+  it("marks only the answer to the caller's own successful give as givenNow", async () => {
+    const givenRow = receiptRow({
+      prasadam_state: "given",
+      prasadam_given_at: "2026-10-19T05:50:00+00:00",
+      prasadam_given_by_staff_id: "staff-5",
+    });
+    // This call gave it.
+    answers([givenRow]);
+    mockCallRpc.mockResolvedValueOnce({ state: "given", given_at: "2026-10-19T05:50:00+00:00", given_by_name: "Suresh" });
+    const own = await givePOST(post("/api/seva/prasadam/give", { receiptId: RECEIPT_ID, confirmOffDate: false }));
+    expect(await own.json()).toMatchObject({ state: "already_given", givenNow: true });
+
+    // Someone had already given it: the same screen, but not this give.
+    answers([givenRow], { staff: [{ id: "staff-5", full_name: "Suresh" }] });
+    mockCallRpc.mockResolvedValueOnce({ state: "already_given", given_at: "2026-10-19T05:50:00+00:00", given_by_name: "Suresh" });
+    const before = (await (await givePOST(post("/api/seva/prasadam/give", { receiptId: RECEIPT_ID, confirmOffDate: false }))).json()) as Record<string, unknown>;
+    expect(before).toMatchObject({ state: "already_given" });
+    expect(before.givenNow).not.toBe(true);
+
+    // A lookup never says givenNow.
+    answers([givenRow], { staff: [{ id: "staff-5", full_name: "Suresh" }] });
+    expect(await lookup(TOKEN)).not.toHaveProperty("givenNow");
+  });
 });
 
 describe("POST /api/seva/prasadam/undo", () => {

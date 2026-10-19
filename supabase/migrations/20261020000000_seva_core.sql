@@ -168,6 +168,11 @@ CREATE TABLE IF NOT EXISTS seva_settings (
   tally_upi_ledger text NOT NULL DEFAULT 'Bank - UPI',
   tally_online_ledger text NOT NULL DEFAULT 'Gateway clearing',
   tally_columns jsonb,
+  -- The counter's UPI payee as the server last read it from Firestore settings/financeSettings (DB 7.2), kept only so
+  -- a change is noticed (A3 security gate H-1). Written only by seva_note_counter_upi(), never by the settings patch;
+  -- null = UPI off or not set.
+  counter_upi_vpa text,
+  counter_upi_payee_name text,
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by_staff_id uuid REFERENCES staff (id) ON DELETE RESTRICT
 );

@@ -32,11 +32,23 @@ function parseHeader(header: string): { id: string; secret: string } | null {
   return { id, secret };
 }
 
+/** A counter PC whose header checked out. `retired` is set only when the caller allowed a retired PC and it is one. */
+export interface VerifiedDevice {
+  id: string;
+  counterId: number;
+  retired?: true;
+}
+
 /**
  * The live device named by the header, or null when the header is missing, malformed, names an unknown or retired
- * device, or carries the wrong secret. Throws SevaError('internal') when the database cannot be read.
+ * device, or carries the wrong secret. With `allowRetired` a retired device with the right secret is answered too,
+ * marked `retired: true` - only the outbox sync asks for that (DB 8.4: its late uploads, inside its gap). Throws
+ * SevaError('internal') when the database cannot be read.
  */
-export async function verifyDeviceHeader(header: string | null): Promise<{ id: string; counterId: number } | null> {
+export async function verifyDeviceHeader(
+  header: string | null,
+  opts: { allowRetired?: boolean } = {},
+): Promise<VerifiedDevice | null> {
   if (!header) return null;
   const parsed = parseHeader(header);
   if (!parsed) return null;
@@ -50,8 +62,9 @@ export async function verifyDeviceHeader(header: string | null): Promise<{ id: s
   if (!data) return null;
 
   const row = data as { id: unknown; counter_id: unknown; secret_hash: unknown; retired_at: unknown };
-  if (row.retired_at !== null) return null;
+  const retired = row.retired_at !== null;
+  if (retired && opts.allowRetired !== true) return null;
   if (typeof row.secret_hash !== "string" || !sameHash(sha256Hex(parsed.secret), row.secret_hash)) return null;
   if (typeof row.id !== "string" || typeof row.counter_id !== "number") throw new SevaError("internal");
-  return { id: row.id, counterId: row.counter_id };
+  return retired ? { id: row.id, counterId: row.counter_id, retired: true } : { id: row.id, counterId: row.counter_id };
 }

@@ -203,6 +203,36 @@ describe('seva admin functions (A2-3)', () => {
       );
     });
 
+    it('gives a new seva its own id as its Firestore id and fills a missing one on the next save (A3 gate L-5)', async () => {
+      const id = await upsertSeva(db, { code: 'FSA', name_en: 'Mirror A', amount: '10.00' }, null, admin);
+      expect((await one<{ f: string | null }>(db, `select firestore_id as f from sevas where id = $1`, [id])).f).toBe(id);
+
+      // A row written outside the functions without a Firestore id gets one on its next save through them...
+      const bare = await one<{ id: string }>(
+        db,
+        `insert into sevas (name, description, category, amount, duration, display_order)
+         values ('No Mirror Yet', '', 'Seva', 50, 0, 900) returning id`,
+      );
+      await upsertSeva(db, { id: bare.id, name_en: 'No Mirror Yet Renamed' }, null, admin);
+      expect((await one<{ f: string | null }>(db, `select firestore_id as f from sevas where id = $1`, [bare.id])).f).toBe(
+        bare.id,
+      );
+      // ...and a migrated row keeps the Firestore id it came with.
+      const migrated = await one<{ id: string }>(
+        db,
+        `insert into sevas (firestore_id, name, description, category, amount, duration, display_order)
+         values ('fs-legacy-7', 'Migrated', '', 'Seva', 60, 0, 901) returning id`,
+      );
+      await upsertSeva(db, { id: migrated.id, name_en: 'Migrated Renamed' }, null, admin);
+      expect(
+        (await one<{ f: string | null }>(db, `select firestore_id as f from sevas where id = $1`, [migrated.id])).f,
+      ).toBe('fs-legacy-7');
+      // The caller never chooses it.
+      await expect(
+        upsertSeva(db, { code: 'FSB', name_en: 'Mirror B', amount: '10.00', firestore_id: 'chosen' }, null, admin),
+      ).rejects.toThrow(/SEVA:validation/);
+    });
+
     it('reorders sevas to 1..n', async () => {
       const a = await upsertSeva(db, { code: 'ORA', name_en: 'Order A', amount: '10.00' }, null, admin);
       const b = await upsertSeva(db, { code: 'ORB', name_en: 'Order B', amount: '10.00' }, null, admin);
@@ -270,6 +300,72 @@ describe('seva admin functions (A2-3)', () => {
       expect(
         (await one<{ c: number }>(db, `select cancel_window_minutes as c from seva_settings where id = 1`)).c,
       ).toBe(20);
+    });
+
+    it('notes a change of the counter UPI payee once, masked, and never through the settings patch (A3 gate H-1)', async () => {
+      const note = async (vpa: string | null, payee: string | null): Promise<boolean> =>
+        (await svc<{ changed: boolean }>(db, `select seva_note_counter_upi($1, $2) as changed`, [vpa, payee]))[0].changed;
+      const stored = (): Promise<Row> =>
+        one(db, `select counter_upi_vpa, counter_upi_payee_name from seva_settings where id = 1`);
+      const upiAudit = (): Promise<Row[]> => auditRows(db, 'settings.upi_changed', '1');
+      const upiCard = async (): Promise<Row> => {
+        const [{ cards }] = await svc<{ cards: Row[] }>(
+          db,
+          `select seva_needs_attention(now() - interval '1 hour', now() + interval '1 hour',
+                                       (now() at time zone 'Asia/Kolkata')::date) as cards`,
+        );
+        const card = cards.find((c) => c.id === 'upi_changed');
+        if (!card) throw new Error('card upi_changed missing');
+        return card;
+      };
+      expect(await upiCard()).toMatchObject({ level: 'ok', count: 0 });
+
+      // The first payee the server reads is recorded, and noticed.
+      expect(await note('srirayaramatha@okaxis', 'Sri Rayara Matha')).toBe(true);
+      expect(await stored()).toEqual({ counter_upi_vpa: 'srirayaramatha@okaxis', counter_upi_payee_name: 'Sri Rayara Matha' });
+      // An unchanged read writes nothing.
+      expect(await note('srirayaramatha@okaxis', 'Sri Rayara Matha')).toBe(false);
+      expect(await upiAudit()).toHaveLength(1);
+
+      // Someone types another UPI id into the finance settings: exactly one audit row and one attention item.
+      expect(await note('someone.else99@ybl', 'Sri Rayara Matha')).toBe(true);
+      const audit = await upiAudit();
+      expect(audit).toHaveLength(2);
+      expect(audit[1]).toMatchObject({
+        entity: 'seva_settings',
+        actor_staff_id: null,
+        before: { vpa: '**********atha@okaxis', payee_name: 'Sri Rayara Matha' },
+        after: { vpa: '**********se99@ybl', payee_name: 'Sri Rayara Matha' },
+      });
+      // Only the last 4 characters before '@' are shown.
+      expect(JSON.stringify(audit)).not.toContain('srirayara');
+      expect(JSON.stringify(audit)).not.toContain('someone');
+      expect(await note('someone.else99@ybl', 'Sri Rayara Matha')).toBe(false);
+      expect(await upiAudit()).toHaveLength(2);
+      expect(await upiCard()).toMatchObject({
+        level: 'attention',
+        count: 2,
+        detail: { from_vpa: '**********atha@okaxis', to_vpa: '**********se99@ybl' },
+      });
+
+      // A payee name change and UPI being switched off are changes too.
+      expect(await note('someone.else99@ybl', 'Someone Else')).toBe(true);
+      expect(await note(null, null)).toBe(true);
+      expect(await stored()).toEqual({ counter_upi_vpa: null, counter_upi_payee_name: null });
+      expect((await upiAudit()).map((r) => (r.after as Row).vpa)).toEqual([
+        '**********atha@okaxis',
+        '**********se99@ybl',
+        '**********se99@ybl',
+        null,
+      ]);
+
+      // The settings patch can never write the recorded values.
+      for (const bad of [{ counter_upi_vpa: 'x@y' }, { counter_upi_payee_name: 'X' }]) {
+        await expect(svc(db, `select seva_update_settings($1::jsonb, $2::uuid)`, [JSON.stringify(bad), admin])).rejects.toThrow(
+          /SEVA:validation/,
+        );
+      }
+      await expect(note('not a upi id', 'X')).rejects.toThrow(/SEVA:validation/);
     });
 
     it('replaces denominations and audits', async () => {
@@ -558,6 +654,8 @@ describe('seva admin functions (A2-3)', () => {
       'seva_staff_update(uuid,jsonb,text,uuid)',
       'seva_mark_signed_in(uuid)',
       'seva_purge_devotee_profiles()',
+      'seva_mask_vpa(text)',
+      'seva_note_counter_upi(text,text)',
     ];
     for (const sig of sigs) {
       const priv = await one(

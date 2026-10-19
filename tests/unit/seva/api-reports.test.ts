@@ -173,6 +173,53 @@ describe("report routes", () => {
     ]);
   });
 
+  it("passes on the offline cancels and UPI payee change cards (A3 security gate M-2, H-1)", async () => {
+    const entry = {
+      receipt_no: "C1-023-10-2026/000124",
+      recorded_at: "2026-10-21T04:35:00+00:00",
+      received_at: "2026-10-21T05:20:00+00:00",
+      cancelled_by: "Ramesh",
+      synced_by: "Suresh",
+      flagged: true,
+    };
+    const cards = [
+      { id: "offline_cancels", level: "attention", count: 1, detail: { flagged: 1 }, entries: [entry] },
+      {
+        id: "upi_changed",
+        level: "attention",
+        count: 1,
+        detail: { from_vpa: "**********atha@okaxis", to_vpa: "**********se99@ybl", changed_at: "2026-10-21T05:00:00+00:00" },
+      },
+    ];
+    mockRpc.mockImplementation((fn: string) => Promise.resolve(fn === "seva_dashboard" ? SQL_DASHBOARD : cards));
+    const body = (await (await DASHBOARD(get("/api/seva/reports/dashboard?period=today"))).json()) as { attention: unknown[] };
+    expect(body.attention).toEqual([
+      {
+        id: "offline_cancels",
+        level: "attention",
+        count: 1,
+        detail: { flagged: 1 },
+        entries: [
+          {
+            receiptNo: "C1-023-10-2026/000124",
+            recordedAt: "2026-10-21T04:35:00+00:00",
+            receivedAt: "2026-10-21T05:20:00+00:00",
+            cancelledBy: "Ramesh",
+            syncedBy: "Suresh",
+            flagged: true,
+          },
+        ],
+      },
+      cards[1],
+    ]);
+
+    // An unknown card is still refused rather than guessed.
+    mockRpc.mockImplementation((fn: string) =>
+      Promise.resolve(fn === "seva_dashboard" ? SQL_DASHBOARD : [{ id: "mystery", level: "ok", count: 0, detail: {} }]),
+    );
+    expect((await DASHBOARD(get("/api/seva/reports/dashboard?period=today"))).status).toBe(500);
+  });
+
   it("caches the dashboard for 60 seconds privately", async () => {
     mockRpc.mockImplementation((fn: string) => Promise.resolve(fn === "seva_dashboard" ? SQL_DASHBOARD : SQL_ATTENTION));
     const res = await DASHBOARD(get("/api/seva/reports/dashboard?period=today"));
@@ -321,6 +368,45 @@ describe("report routes", () => {
     const exported = await EXPORT(get("/api/seva/reports/export?part=dayCloses&from=2025-10-20&to=2026-10-19"));
     expect(((await exported.json()) as { nextCursor: string | null }).nextCursor).toBe("1000");
     expect(mockCalls).toContainEqual({ table: "day_closes", method: "range", args: [0, 999] });
+  });
+
+  it("audits a phone export on the server, once per part, before any row is read (A3 security gate M-3)", async () => {
+    mockRpc.mockResolvedValue(1);
+    mockTables.seva_receipts = { data: [receiptRow(1)], error: null };
+    const range = "from=2026-10-01&to=2026-10-21";
+    const auditCall = (part: string) => [
+      "seva_audit",
+      {
+        p_action: "export.phones_read",
+        p_entity: "export",
+        p_entity_id: part,
+        p_receipt_no: null,
+        p_reason: null,
+        p_before: null,
+        p_after: { part, from: "2026-10-01", to: "2026-10-21", include_phones: true },
+        p_staff_id: "staff-a",
+      },
+    ];
+
+    // The first page of each part writes one row; later pages do not.
+    expect((await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}&includePhones=true`))).status).toBe(200);
+    expect((await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}&includePhones=true&cursor=1000`))).status).toBe(200);
+    expect((await EXPORT(get(`/api/seva/reports/export?part=cancelled&${range}&includePhones=true`))).status).toBe(200);
+    expect(mockRpc.mock.calls).toEqual([auditCall("receipts"), auditCall("cancelled")]);
+
+    // Without phones the browser's own export.download row is the record; the GET writes nothing.
+    mockRpc.mockClear();
+    await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}`));
+    expect(mockRpc).not.toHaveBeenCalled();
+
+    // If the row cannot be written, no phone number leaves the server.
+    const errorLog = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockRpc.mockRejectedValueOnce(new Error("database down"));
+    mockCalls.length = 0;
+    const failed = await EXPORT(get(`/api/seva/reports/export?part=receipts&${range}&includePhones=true`));
+    expect(failed.status).toBe(500);
+    expect(mockCalls.filter((c) => c.table === "seva_receipts")).toEqual([]);
+    errorLog.mockRestore();
   });
 
   it("writes the export audit with format, range, parts and the phone flag", async () => {

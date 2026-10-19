@@ -342,6 +342,79 @@ describe("requireSevaActor", () => {
     }
   });
 
+  it("reads no device before the sign-in is verified (A3 security gate L-1)", async () => {
+    for (const header of [`${DEVICE_ID}.${SECRET}`, `${RETIRED_ID}.${SECRET}`, `${DEVICE_ID}.wrong-secret`]) {
+      const req = request({ "x-seva-device": header });
+      for (const opts of [{ device: "optional" as const }, { device: "required" as const }, { device: "optional" as const, counterFromDevice: true }]) {
+        expect(await denial(await requireSevaActor(req, "dayclose.close", opts))).toEqual({ status: 401, code: "unauthenticated" });
+      }
+    }
+    expect(mockQueries.some((q) => q.table === "counter_devices")).toBe(false);
+  });
+
+  it("takes the record's counter from the verified PC when the route asks (A3 security gate L-1)", async () => {
+    const today = businessDate(new Date());
+    const opts = { device: "optional" as const, counterFromDevice: true, ctx: { receiptBusinessDate: today } };
+    // A receptionist on a live PC: the list and the day close are that PC's counter.
+    expect(await requireSevaActor(withDevice(), "receipts.list", opts)).toMatchObject({ ok: true, device: { counterId: 1 } });
+    expect((await requireSevaActor(withDevice(), "dayclose.close", opts)).ok).toBe(true);
+    // No PC, or a retired one: nothing to take the counter from, so the own-counter rule refuses.
+    expect(await denial(await requireSevaActor(request(), "receipts.list", opts))).toEqual({ status: 403, code: "forbidden" });
+    expect(await denial(await requireSevaActor(withDevice(`${RETIRED_ID}.${SECRET}`), "dayclose.close", opts))).toEqual({
+      status: 403,
+      code: "forbidden",
+    });
+    // A counter the route names explicitly is judged as named, never replaced by the PC's.
+    const other = { ...opts, ctx: { receiptCounterId: 2, receiptBusinessDate: today } };
+    expect(await denial(await requireSevaActor(withDevice(), "dayclose.close", other))).toEqual({ status: 403, code: "forbidden" });
+    // A temple admin needs no PC.
+    fakeIdentity.getAccessProfile.mockResolvedValue({ role: "temple_admin", isActive: true });
+    expect(await requireSevaActor(request(), "receipts.list", opts)).toMatchObject({ ok: true, device: null });
+  });
+
+  it("requires the PC for receptionists only when the route says so (A3 security gate L-2)", async () => {
+    const mode = { device: "required_for_receptionist" as const };
+    expect(await denial(await requireSevaActor(request(), "devotees.search", mode))).toEqual({
+      status: 403,
+      code: "device_required",
+    });
+    expect(await denial(await requireSevaActor(withDevice(`${RETIRED_ID}.${SECRET}`), "devotees.search", mode))).toEqual({
+      status: 403,
+      code: "device_unknown",
+    });
+    expect(await requireSevaActor(withDevice(), "devotees.search", mode)).toMatchObject({
+      ok: true,
+      device: { id: DEVICE_ID, counterId: 1 },
+    });
+    // A temple admin may search from the office: no header, or a stale one, is simply no PC.
+    fakeIdentity.getAccessProfile.mockResolvedValue({ role: "temple_admin", isActive: true });
+    expect(await requireSevaActor(request(), "devotees.search", mode)).toMatchObject({ ok: true, device: null });
+    expect(await requireSevaActor(withDevice(`${RETIRED_ID}.${SECRET}`), "devotees.search", mode)).toMatchObject({
+      ok: true,
+      device: null,
+    });
+  });
+
+  it("lets a retired PC through only where the route allows it, marked retired (A3 security gate L-4)", async () => {
+    const allow = { device: "required" as const, retiredDevice: "allow" as const };
+    expect(await requireSevaActor(withDevice(`${RETIRED_ID}.${SECRET}`), "counter.issue", allow)).toMatchObject({
+      ok: true,
+      device: { id: RETIRED_ID, counterId: 1, retired: true },
+    });
+    // A live PC is not marked; a wrong secret is still refused.
+    const live = await requireSevaActor(withDevice(), "counter.issue", allow);
+    expect(live.ok && live.device).toEqual({ id: DEVICE_ID, counterId: 1 });
+    expect(await denial(await requireSevaActor(withDevice(`${RETIRED_ID}.wrong-secret`), "counter.issue", allow))).toEqual({
+      status: 403,
+      code: "device_unknown",
+    });
+    // Everywhere else a retired PC is unknown.
+    expect(await denial(await requireSevaActor(withDevice(`${RETIRED_ID}.${SECRET}`), "counter.issue", { device: "required" }))).toEqual({
+      status: 403,
+      code: "device_unknown",
+    });
+  });
+
   it("answers 500 internal without leaking when a store fails", async () => {
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     mockFailing.table = "staff";
@@ -369,6 +442,16 @@ describe("verifyDeviceHeader and sha256Hex", () => {
     expect(await verifyDeviceHeader(`${RETIRED_ID}.${SECRET}`)).toBeNull();
     expect(await verifyDeviceHeader(null)).toBeNull();
     expect(await verifyDeviceHeader(`${DEVICE_ID}.${"a".repeat(600)}`)).toBeNull();
+  });
+
+  it("accepts a retired device with the right secret only when asked, marked retired", async () => {
+    expect(await verifyDeviceHeader(`${RETIRED_ID}.${SECRET}`, { allowRetired: true })).toEqual({
+      id: RETIRED_ID,
+      counterId: 1,
+      retired: true,
+    });
+    expect(await verifyDeviceHeader(`${RETIRED_ID}.${SECRET}x`, { allowRetired: true })).toBeNull();
+    expect(await verifyDeviceHeader(`${DEVICE_ID}.${SECRET}`, { allowRetired: true })).toEqual({ id: DEVICE_ID, counterId: 1 });
   });
 
   it("never queries the database for a malformed header", async () => {
