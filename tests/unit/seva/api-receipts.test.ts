@@ -484,6 +484,32 @@ describe("GET /api/seva/receipts/[receiptId]", () => {
     expect(body.refundState).toBe("done");
   });
 
+  it("builds the detail and print page's slip names from the lists read from seva_list_items", async () => {
+    mockAnswer = tableAnswers({ seva_receipts: [facts], audit_log: [], staff: [] });
+    mockRequireSevaActor.mockResolvedValue(allow(actor("temple_admin")));
+    const nakshatra = { kind: "nakshatra", item_id: 25, name_en: "Purva Bhadrapada", name_kn: "ಪೂರ್ವಾಭಾದ್ರಪದ", kn_checked: true, active: true, display_order: 25 };
+    const gotra = { kind: "gotra", item_id: 1000, name_en: "Vyaghrapada", name_kn: "ವ್ಯಾಘ್ರಪಾದ", kn_checked: true, active: true, display_order: 57 };
+    mockCallRpc.mockImplementation(async (fn: string) => (fn === "seva_list_items_get" ? [gotra, nakshatra] : { order_id: ORDER_ID }));
+    mockFromSqlIssue.mockReturnValue({
+      orderId: ORDER_ID,
+      groupNo: "G-2610-0042",
+      duplicate: false,
+      receipts: [{ id: RECEIPT_ID, receiptNo: "C1-023-10-2026/000124", status: "cancelled" }],
+    });
+
+    const res = await detailGET(get(`/api/seva/receipts/${RECEIPT_ID}`), params({ receiptId: RECEIPT_ID }));
+
+    expect(res.status).toBe(200);
+    expect(mockFromSqlIssue).toHaveBeenCalledWith(
+      { order_id: ORDER_ID },
+      {
+        gotras: [expect.objectContaining({ id: 1000, nameKn: "ವ್ಯಾಘ್ರಪಾದ" })],
+        nakshatras: [expect.objectContaining({ id: 25, nameKn: "ಪೂರ್ವಾಭಾದ್ರಪದ" })],
+        rashis: [],
+      },
+    );
+  });
+
   it("answers 404 for an unknown receipt only after the guard", async () => {
     mockRequireSevaActor.mockResolvedValue(allow(actor("temple_admin")));
     const res = await detailGET(get(`/api/seva/receipts/${OTHER_ID}`), params({ receiptId: OTHER_ID }));

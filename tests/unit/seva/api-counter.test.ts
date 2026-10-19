@@ -325,6 +325,43 @@ describe('POST /api/seva/counter/orders', () => {
     expect((body.receipts as Row[])[0]).toMatchObject({ totalPaise: 61000, orderTotalPaise: 82000, devotee: { nakshatraKn: 'ರೋಹಿಣಿ' } });
   });
 
+  it('prints the Kannada names the admins keep in seva_list_items: a corrected nakshatra and an added gotra', async () => {
+    const order = sqlOrder();
+    const receipt = (order.receipts as Row[])[0];
+    receipt.devotee = { ...(receipt.devotee as Row), gotra: 'Vyaghrapada', gotra_id: 1000, nakshatra_id: 4, rashi_id: 2 };
+    const listRow = (kind: string, itemId: number, nameEn: string, nameKn: string) => ({
+      kind,
+      item_id: itemId,
+      name_en: nameEn,
+      name_kn: nameKn,
+      kn_checked: true,
+      active: true,
+      display_order: itemId,
+    });
+    mockCallRpc.mockImplementation(async (fn: string) =>
+      fn === 'seva_list_items_get'
+        ? [
+            listRow('gotra', 1000, 'Vyaghrapada', 'ವ್ಯಾಘ್ರಪಾದ'),
+            listRow('nakshatra', 4, 'Rohini', 'ರೋಹಿಣೀ'),
+            listRow('rashi', 2, 'Vrishabha', 'ವೃಷಭ ರಾಶಿ'),
+          ]
+        : order,
+    );
+    const res = await ordersPost(request('counter/orders', { body: bookOrder() }));
+
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect((body.receipts as Row[])[0].devotee).toEqual({
+      name: 'Venkatesh Rao',
+      gotra: 'Vyaghrapada',
+      gotraKn: 'ವ್ಯಾಘ್ರಪಾದ',
+      nakshatra: 'Rohini',
+      nakshatraKn: 'ರೋಹಿಣೀ',
+      rashi: 'Vrishabha',
+      rashiKn: 'ವೃಷಭ ರಾಶಿ',
+    });
+  });
+
   it('answers 400 validation for a bad body', async () => {
     for (const req of [
       request('counter/orders', { body: {} }),

@@ -8,6 +8,7 @@ import { m } from "framer-motion";
 
 import { SkeletonRows } from "@/components/seva/motion/PageSkeleton";
 import { PendingButton } from "@/components/seva/motion/PendingButton";
+import { PendingLine } from "@/components/seva/motion/PendingLine";
 import { ContinuityCard } from "@/components/seva/register/ContinuityCard";
 import { GapResolveDialog } from "@/components/seva/register/GapResolveDialog";
 import { ReceiptCards } from "@/components/seva/register/ReceiptCards";
@@ -49,36 +50,6 @@ function errorText(err: unknown): string {
 function rangeLabel(from: string, to: string, today: string): string {
   if (from === to) return from === today ? "today" : formatSevaDate(from);
   return `${formatSevaDate(from)} - ${formatSevaDate(to)}`;
-}
-
-/**
- * The inline pending line above the list (plan A4P-3): a 3 px track that always keeps its place, so nothing moves when
- * it shows. A light sweeps along it while the office is asked; while the search text is still being typed it only
- * shows, still (nothing moves while a person types).
- */
-function PendingLine({ pending, sweep }: { pending: boolean; sweep: boolean }): JSX.Element {
-  return (
-    <div aria-hidden={pending ? undefined : true} className="relative h-[3px] overflow-hidden rounded-full">
-      {pending ? (
-        <div
-          role="status"
-          aria-label={REGISTER.loading.en}
-          data-register-pending="true"
-          className="absolute inset-0 overflow-hidden rounded-full bg-(--muted)"
-        >
-          {sweep ? (
-            <m.span
-              aria-hidden="true"
-              className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-(--primary)"
-              initial={{ x: "-100%" }}
-              animate={{ x: "300%" }}
-              transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
-            />
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 /** A filter value whose search text has settled (the other filters apply at once). */
@@ -245,7 +216,8 @@ function RegisterScreen(): JSX.Element {
         </div>
       ) : null}
 
-      <PendingLine pending={listPending} sweep={asking && !typing} />
+      {/* A light sweeps while the office is asked; while the search text is still being typed the line only shows. */}
+      <PendingLine pending={listPending} sweep={asking && !typing} label={REGISTER.loading.en} data-register-pending="true" />
       {shownList === null ? (
         <SkeletonRows rows={8} label={REGISTER.loading.en} data-register-skeleton="" />
       ) : null}

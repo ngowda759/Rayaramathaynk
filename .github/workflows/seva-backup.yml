@@ -2,13 +2,15 @@ name: Seva nightly backup
 
 # Nightly encrypted backup of the Supabase database (DB 16.1, D9, C-57, C-64).
 # 21:00 UTC is 02:30 IST. scripts/seva/backup.sh pipes pg_dump straight into age, so only the encrypted file ever
-# exists; the private key stays offline with the owner (O-15). Every run, failed or not, writes one row to
-# ops_backup_runs, which Needs attention reads ("last nightly backup failed or older than 36 hours").
+# exists, readable by any one of the recipients; each holder keeps his own private key offline (O-15). Every run,
+# failed or not, writes one row to ops_backup_runs, which Needs attention reads ("last nightly backup failed or older
+# than 36 hours").
 #
 # Repository secrets the owner sets (names only):
 #   SEVA_BACKUP_DB_URL         Supabase session pooler connection string, port 5432
 #                              (the transaction pooler on port 6543 cannot run pg_dump)
-#   SEVA_BACKUP_AGE_RECIPIENT  the age public key (age1...)
+#   SEVA_BACKUP_AGE_RECIPIENT  one or more age public keys (age1...), one per holder,
+#                              separated by spaces, commas or new lines
 #
 # Artifacts: seva-<YYYY-MM-DD> kept 30 days; on the 1st of the month (IST) also seva-monthly-<YYYY-MM> kept 90 days,
 # the most GitHub allows on default settings. Where the 12-month copies of C-57 live is still open with the owner.

@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 
 import { BoardSummary, type BoardSummaryModel } from "@/components/seva/export/BoardSummary";
+import { PageSkeleton } from "@/components/seva/motion/PageSkeleton";
+import { PendingContent, PendingLine } from "@/components/seva/motion/PendingLine";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
@@ -65,8 +67,13 @@ function SummaryScreen(): JSX.Element {
   const to = asked ? (params.get("to") ?? "") : fallback.to;
   const validRange = ISO_DATE.test(from) && ISO_DATE.test(to) && from <= to;
 
-  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<(Exclude<Phase, { kind: "loading" }> & { key: string }) | null>(null);
+  const loadKey = `${from}|${to}|${attempt}`;
+  // An answer for another range (or an earlier try) means the new one is still loading. While it loads, the earlier
+  // sheets stay on screen (marked busy, with the pending line); before any sheets there is the page skeleton.
+  const shown = result && (result.key === loadKey || result.kind === "ready") ? result : null;
+  const pending = shown !== null && shown.key !== loadKey;
   const audited = useRef<string | null>(null);
 
   const token = useCallback(async (): Promise<string> => {
@@ -79,6 +86,7 @@ function SummaryScreen(): JSX.Element {
   useEffect(() => {
     if (!validRange || !user || !me) return;
     let alive = true;
+    const asked = loadKey;
     void (async () => {
       try {
         const prev = previousRange(from, to);
@@ -126,15 +134,15 @@ function SummaryScreen(): JSX.Element {
           cancelledChanged: data.cancelledChanged,
           changeReasons,
         };
-        if (alive) setPhase({ kind: "ready", model });
+        if (alive) setResult({ key: asked, kind: "ready", model });
       } catch (err) {
-        if (alive) setPhase({ kind: "error", message: err instanceof SevaClientError ? err.message : BOARD.failed.en });
+        if (alive) setResult({ key: asked, kind: "error", message: err instanceof SevaClientError ? err.message : BOARD.failed.en });
       }
     })();
     return () => {
       alive = false;
     };
-  }, [validRange, from, to, user, me, api, token, preparedBy, attempt]);
+  }, [validRange, from, to, user, me, api, token, preparedBy, loadKey]);
 
   if (!validRange) {
     return (
@@ -147,25 +155,19 @@ function SummaryScreen(): JSX.Element {
     );
   }
 
-  if (phase.kind === "loading") {
+  if (shown === null) {
     return (
-      <div role="status" aria-live="polite" className="p-6">
-        <Bilingual en={BOARD.loading.en} kn={BOARD.loading.kn} className="text-(--muted-foreground)" />
+      <div data-report-skeleton="">
+        <PageSkeleton variant="detail" />
       </div>
     );
   }
 
-  if (phase.kind === "error") {
+  if (shown.kind === "error") {
     return (
       <div role="alert" className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
-        <p className="font-semibold">{phase.message}</p>
-        <Button
-          variant="seva-primary"
-          onClick={() => {
-            setPhase({ kind: "loading" });
-            setAttempt((n) => n + 1);
-          }}
-        >
+        <p className="font-semibold">{shown.message}</p>
+        <Button variant="seva-primary" onClick={() => setAttempt((n) => n + 1)}>
           {BOARD.tryAgain.en}
         </Button>
       </div>
@@ -179,13 +181,17 @@ function SummaryScreen(): JSX.Element {
           {BOARD.backToExport.en}
         </Link>
         <div className="flex flex-col items-end gap-1">
-          <Button variant="seva-primary" onClick={() => window.print()}>
+          {/* Never prints the earlier range's sheets while the new range is being prepared. */}
+          <Button variant="seva-primary" onClick={() => window.print()} disabled={pending}>
             {BOARD.print.en}
           </Button>
           <span className="text-(length:--text-meta) text-(--muted-foreground)">{BOARD.printHint.en}</span>
         </div>
       </div>
-      <BoardSummary model={phase.model} />
+      <PendingLine pending={pending} label={BOARD.loading.en} data-report-pending="true" />
+      <PendingContent pending={pending} data-testid="report-content">
+        <BoardSummary model={shown.model} />
+      </PendingContent>
     </div>
   );
 }

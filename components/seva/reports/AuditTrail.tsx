@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useId, type JSX } from "react";
 
+import { SkeletonRows } from "@/components/seva/motion/PageSkeleton";
+import { PendingContent, PendingLine } from "@/components/seva/motion/PendingLine";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip, type ChipTone } from "@/components/seva/ui/Chip";
 import { Segmented } from "@/components/seva/ui/Segmented";
@@ -10,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { sevaControlClass } from "@/components/ui/input";
 import { formatRupees, toPaise } from "@/lib/seva/money";
 import { historyActionLabel } from "@/lib/seva/strings/receipt";
-import { AUDIT, AUDIT_ACTION } from "@/lib/seva/strings/reports";
+import { AUDIT, AUDIT_ACTION, REPORTS } from "@/lib/seva/strings/reports";
 import type { Bi } from "@/lib/seva/strings/common";
 import { businessDate, istParts } from "@/lib/seva/time";
 import type { AuditEntry, AuditType } from "@/services/seva/reports.service";
@@ -99,8 +101,10 @@ export interface AuditTrailProps {
   person: string;
   people: AuditPerson[];
   onPerson(staffId: string): void;
-  /** While the first page loads the list shows nothing rather than "nothing found". */
+  /** The first page is loading: skeleton rows under the filters rather than "nothing found". */
   loading?: boolean;
+  /** A new filter is loading: the earlier entries stay, marked busy, with the inline pending line above them. */
+  pending?: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   onMore(): void;
@@ -118,6 +122,7 @@ export function AuditTrail({
   people,
   onPerson,
   loading = false,
+  pending = false,
   hasMore,
   loadingMore,
   onMore,
@@ -156,7 +161,9 @@ export function AuditTrail({
         </div>
       </div>
 
-      <div data-testid="audit-list" className="flex flex-col gap-5">
+      <PendingLine pending={pending && !loading} label={REPORTS.loading.en} data-report-pending="true" />
+      {loading ? <SkeletonRows rows={6} label={REPORTS.loading.en} data-report-skeleton="" /> : null}
+      <PendingContent pending={pending && !loading} data-testid="audit-list" className="flex flex-col gap-5">
         {days.length === 0 && !loading ? (
           <Bilingual as="div" en={AUDIT.empty.en} kn={AUDIT.empty.kn} className="py-6 text-center text-(--muted-foreground)" />
         ) : null}
@@ -196,7 +203,7 @@ export function AuditTrail({
             </ol>
           </section>
         ))}
-      </div>
+      </PendingContent>
 
       {hasMore ? (
         <div className="flex justify-center">

@@ -53,6 +53,10 @@ function AuditScreen(): JSX.Element {
   const key = `${type}|${person}|${reloads}`;
   // An answer for another filter than the one on screen means the new one is still loading.
   const state: LoadState = result && result.key === key ? result : { kind: "loading" };
+  // While a new filter loads, the earlier entries stay on screen (marked busy, with the pending line); before any
+  // entries there are skeleton rows under the filters.
+  const shown = result && (result.key === key || result.kind === "ready") ? result : null;
+  const pending = shown !== null && state.kind === "loading";
 
   useEffect(() => {
     let alive = true;
@@ -98,33 +102,27 @@ function AuditScreen(): JSX.Element {
         <Bilingual as="h2" en={AUDIT.heading.en} kn={AUDIT.heading.kn} className="text-(length:--text-h3) font-semibold text-(--foreground)" />
         <Bilingual as="div" en={AUDIT.intro.en} kn={AUDIT.intro.kn} className="text-(length:--text-meta) text-(--muted-foreground)" />
       </div>
-      {state.kind === "error" ? (
+      {shown?.kind === "error" ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="font-semibold text-(--destructive)">{state.message}</p>
+          <p className="font-semibold text-(--destructive)">{shown.message}</p>
           <Button variant="seva-secondary" onClick={() => setReloads((n) => n + 1)}>
             {REPORTS.tryAgain}
           </Button>
         </div>
       ) : (
-        <>
-          {state.kind === "loading" ? (
-            <div role="status" className="text-center">
-              <Bilingual en={REPORTS.loading.en} kn={REPORTS.loading.kn} className="text-(length:--text-meta) text-(--muted-foreground)" />
-            </div>
-          ) : null}
-          <AuditTrail
-            entries={state.kind === "ready" ? state.entries : []}
-            type={type}
-            onType={setType}
-            person={person}
-            people={people}
-            onPerson={setPerson}
-            loading={state.kind === "loading"}
-            hasMore={state.kind === "ready" && state.nextCursor !== null}
-            loadingMore={state.kind === "ready" && state.more}
-            onMore={() => void more()}
-          />
-        </>
+        <AuditTrail
+          entries={shown?.kind === "ready" ? shown.entries : []}
+          type={type}
+          onType={setType}
+          person={person}
+          people={people}
+          onPerson={setPerson}
+          loading={shown === null}
+          pending={pending}
+          hasMore={state.kind === "ready" && state.nextCursor !== null}
+          loadingMore={state.kind === "ready" && state.more}
+          onMore={() => void more()}
+        />
       )}
     </div>
   );

@@ -139,6 +139,36 @@ describe('seva lists (A4P-5)', () => {
     ).rejects.toThrow(/permission denied/);
   });
 
+  it('a direct service-role update cannot change a fixed name, an id or a list (guard trigger)', async () => {
+    const direct = (sql: string) => asRole(db, 'service_role', (d) => d.query(sql));
+    await expect(direct(`update seva_list_items set name_en = 'Hacked' where kind = 'nakshatra' and item_id = 1`)).rejects.toThrow(
+      /seva guard/,
+    );
+    await expect(direct(`update seva_list_items set name_en = 'Hacked' where kind = 'rashi' and item_id = 1`)).rejects.toThrow(
+      /seva guard/,
+    );
+    await expect(direct(`update seva_list_items set item_id = 1999 where kind = 'gotra' and item_id = 1001`)).rejects.toThrow(
+      /seva guard/,
+    );
+    await expect(direct(`update seva_list_items set kind = 'rashi' where kind = 'gotra' and item_id = 3`)).rejects.toThrow(
+      /seva guard/,
+    );
+    expect(await listItem(db, 'nakshatra', 1)).toMatchObject({ name_en: NAKSHATRAS[0].en });
+
+    // The allowed changes still go through: a nakshatra's Kannada spelling, a gotra's English name and its active flag.
+    await direct(`update seva_list_items set display_order = display_order where kind = 'nakshatra' and item_id = 1`);
+    await direct(`update seva_list_items set name_kn = name_kn where kind = 'rashi' and item_id = 1`);
+    await direct(`update seva_list_items set name_en = 'Kutsa-Angirasa' where kind = 'gotra' and item_id = 1001`);
+    expect(await listItem(db, 'gotra', 1001)).toMatchObject({ name_en: 'Kutsa-Angirasa' });
+    await direct(`update seva_list_items set name_en = 'Kutsa Angirasa' where kind = 'gotra' and item_id = 1001`);
+
+    const guard = await db.query<{ n: number }>(
+      `select count(*)::int as n from pg_trigger
+        where tgrelid = 'public.seva_list_items'::regclass and tgname = 'seva_list_items_guard' and not tgisinternal`,
+    );
+    expect(guard.rows[0].n).toBe(1);
+  });
+
   it('runs again without undoing an admin change', async () => {
     await applyMigrationFile(db, '20261030000000_seva_lists.sql');
     expect(await listItem(db, 'nakshatra', 25)).toMatchObject({ name_kn: 'ಪೂರ್ವಾಭಾದ್ರಪದ', kn_checked: true });

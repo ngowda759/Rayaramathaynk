@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useMemo, useState, type JSX } from "react";
 
+import { SkeletonRows } from "@/components/seva/motion/PageSkeleton";
+import { PendingContent, PendingLine } from "@/components/seva/motion/PendingLine";
 import { FestivalView } from "@/components/seva/reports/FestivalView";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
@@ -70,6 +72,11 @@ function FestivalScreen(): JSX.Element {
     : reportResult && reportResult.key === reportKey
       ? reportResult
       : { kind: "loading" };
+  // While a new choice loads, the earlier report stays on screen (marked busy, with the pending line); before any
+  // report there are skeleton rows.
+  const shown =
+    festivalId !== "" && reportResult && (reportResult.key === reportKey || reportResult.kind === "ready") ? reportResult : null;
+  const pending = shown !== null && report?.kind === "loading";
 
   useEffect(() => {
     if (!festivalId) return undefined;
@@ -93,11 +100,7 @@ function FestivalScreen(): JSX.Element {
     <div className="flex flex-col gap-4">
       <Bilingual as="h2" en={FESTIVAL.heading.en} kn={FESTIVAL.heading.kn} className="text-(length:--text-h3) font-semibold text-(--foreground)" />
 
-      {festivals.kind === "loading" ? (
-        <div role="status" className="py-8 text-center">
-          <Bilingual en={REPORTS.loading.en} kn={REPORTS.loading.kn} className="text-(--muted-foreground)" />
-        </div>
-      ) : null}
+      {festivals.kind === "loading" ? <SkeletonRows rows={6} label={REPORTS.loading.en} data-report-skeleton="" /> : null}
       {festivals.kind === "error" ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
           <p className="font-semibold text-(--destructive)">{festivals.message}</p>
@@ -135,20 +138,21 @@ function FestivalScreen(): JSX.Element {
         </div>
       ) : null}
 
-      {report?.kind === "loading" ? (
-        <div role="status" className="py-8 text-center">
-          <Bilingual en={REPORTS.loading.en} kn={REPORTS.loading.kn} className="text-(--muted-foreground)" />
-        </div>
-      ) : null}
-      {report?.kind === "error" ? (
+      {festivalId ? <PendingLine pending={pending} label={REPORTS.loading.en} data-report-pending="true" /> : null}
+      {festivalId && shown === null ? <SkeletonRows rows={6} label={REPORTS.loading.en} data-report-skeleton="" /> : null}
+      {shown?.kind === "error" ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="font-semibold text-(--destructive)">{report.message}</p>
+          <p className="font-semibold text-(--destructive)">{shown.message}</p>
           <Button variant="seva-secondary" onClick={() => setReloads((n) => n + 1)}>
             {REPORTS.tryAgain}
           </Button>
         </div>
       ) : null}
-      {report?.kind === "ready" ? <FestivalView report={report.report} asOf={report.asOf} /> : null}
+      {shown?.kind === "ready" ? (
+        <PendingContent pending={pending} data-testid="report-content">
+          <FestivalView report={shown.report} asOf={shown.asOf} />
+        </PendingContent>
+      ) : null}
     </div>
   );
 }

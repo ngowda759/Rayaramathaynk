@@ -45,6 +45,33 @@ CREATE OR REPLACE TRIGGER update_seva_list_items_updated_at
   BEFORE UPDATE ON seva_list_items
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Guard (security review A4P, L-1): even a direct service-role UPDATE, which skips seva_list_item_save and its audit,
+-- can never move a row to another list or id, nor change a nakshatra's or rashi's English name or hide it. Their
+-- Kannada spelling and the checked mark stay editable; a gotra's names and its active flag stay editable.
+CREATE OR REPLACE FUNCTION seva_list_items_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NEW.kind IS DISTINCT FROM OLD.kind OR NEW.item_id IS DISTINCT FROM OLD.item_id THEN
+    RAISE EXCEPTION 'seva guard: a list item''s kind and id never change; add a new gotra instead'
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  IF OLD.kind <> 'gotra'
+     AND (NEW.name_en IS DISTINCT FROM OLD.name_en OR NEW.active IS DISTINCT FROM OLD.active) THEN
+    RAISE EXCEPTION 'seva guard: the English name and the active flag of a % are fixed', OLD.kind
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER seva_list_items_guard
+  BEFORE UPDATE ON seva_list_items
+  FOR EACH ROW EXECUTE FUNCTION seva_list_items_guard();
+
 -- =====================================================================================================
 -- 2. Seed: the built-in lists of lib/seva/domain/{gotras,nakshatras,rashis}.ts with the same ids. A row already there
 --    is left alone, so running this again never undoes a temple admin's change.
@@ -315,7 +342,11 @@ ALTER TABLE seva_list_items ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE seva_list_items FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE seva_list_items TO service_role;
+-- No TRIGGER: a trigger of the service role's own could otherwise change NEW after seva_list_items_guard checked it.
 REVOKE TRIGGER, REFERENCES ON TABLE seva_list_items FROM service_role, anon, authenticated;
+
+REVOKE EXECUTE ON FUNCTION seva_list_items_guard() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_list_items_guard() TO service_role;
 
 REVOKE EXECUTE ON FUNCTION seva_list_items_get() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_list_items_get() TO service_role;

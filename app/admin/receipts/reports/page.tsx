@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useMemo, useState, type JSX } from "react";
 
+import { SkeletonRows } from "@/components/seva/motion/PageSkeleton";
+import { PendingContent, PendingLine } from "@/components/seva/motion/PendingLine";
 import { SevaSummary, summaryRange } from "@/components/seva/reports/SevaSummary";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
@@ -34,8 +36,11 @@ function SummaryScreen(): JSX.Element {
 
   const spanOk = span.from !== "" && span.to !== "" && span.from <= span.to;
   const key = `${span.from}|${span.to}|${reloads}`;
-  // An answer for another range than the one on screen means the new one is still loading.
+  // An answer for another range than the one on screen means the new one is still loading. While it loads, the earlier
+  // report stays on screen (marked busy, with the pending line); before any report there are skeleton rows.
   const state: LoadState = result && result.key === key ? result : { kind: "loading" };
+  const shown = spanOk && result && (result.key === key || result.kind === "ready") ? result : null;
+  const pending = shown !== null && state.kind === "loading";
 
   useEffect(() => {
     if (!spanOk) return undefined;
@@ -97,20 +102,21 @@ function SummaryScreen(): JSX.Element {
         ) : null}
       </div>
 
-      {state.kind === "loading" && spanOk ? (
-        <div role="status" className="py-8 text-center">
-          <Bilingual en={REPORTS.loading.en} kn={REPORTS.loading.kn} className="text-(--muted-foreground)" />
-        </div>
-      ) : null}
-      {state.kind === "error" ? (
+      <PendingLine pending={pending} label={REPORTS.loading.en} data-report-pending="true" />
+      {spanOk && shown === null ? <SkeletonRows rows={8} label={REPORTS.loading.en} data-report-skeleton="" /> : null}
+      {shown?.kind === "error" ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="font-semibold text-(--destructive)">{state.message}</p>
+          <p className="font-semibold text-(--destructive)">{shown.message}</p>
           <Button variant="seva-secondary" onClick={() => setReloads((n) => n + 1)}>
             {REPORTS.tryAgain}
           </Button>
         </div>
       ) : null}
-      {state.kind === "ready" ? <SevaSummary report={state.report} asOf={state.asOf} /> : null}
+      {shown?.kind === "ready" ? (
+        <PendingContent pending={pending} data-testid="report-content">
+          <SevaSummary report={shown.report} asOf={shown.asOf} />
+        </PendingContent>
+      ) : null}
     </div>
   );
 }

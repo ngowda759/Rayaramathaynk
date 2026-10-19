@@ -990,8 +990,9 @@ Vendor pages read for this section:
 ### B7.1 The backup public keys
 
 1. In the Notepad window from B6.2 step 7, check the one line: your `age1...` key, one space, then Nikhil's `age1...`
-   key. (A comma or a new line between the two keys also works. Both start with `age1`; a line that starts with
-   `AGE-SECRET-KEY` is a private key: stop, close Notepad without saving, and do not put it anywhere.)
+   key. (A comma or a new line between the two keys also works. Both start with `age1`, in small letters. A line in
+   capital letters is the secret line of a key file, a private key: never share it. Stop, close Notepad without
+   saving, and do not put it anywhere.)
 2. Press **Ctrl+A**, then **Ctrl+C**.
 3. Open your repository's secrets and click **New repository secret**.
 4. In **Name**, type `SEVA_BACKUP_AGE_RECIPIENT`.

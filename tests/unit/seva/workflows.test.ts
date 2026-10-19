@@ -56,6 +56,18 @@ describe("seva backup and maintenance workflows", () => {
     expect(workflow).toContain('bash scripts/seva/backup.sh "$RUNNER_TEMP/seva-backup"');
   });
 
+  it("documents several age recipients and one offline private key per holder in the header", () => {
+    const header = read(BACKUP_WORKFLOW)
+      .split("\n")
+      .filter((line) => line.startsWith("#"))
+      .join("\n");
+    expect(header).toMatch(/SEVA_BACKUP_AGE_RECIPIENT\s+one or more age public keys/);
+    expect(header).toMatch(/separated by\s+(#\s+)?spaces, commas or new lines/);
+    expect(header).toMatch(/each holder keeps (#\s+)?his own private key offline/);
+    expect(header).not.toContain("the age public key (age1...)");
+    expect(header).not.toContain("the private key stays offline with the owner");
+  });
+
   it("runs the monthly purge on the 1st", () => {
     const workflow = read(MAINTENANCE_WORKFLOW);
     expect(workflow).toContain("cron: '30 21 1 * *'");

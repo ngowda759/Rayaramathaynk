@@ -3,7 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * Seva browser tests. Run through `npm run test:e2e:seva`, which starts the Firebase Auth and Firestore emulators
- * (project `demo-seva`) around this run. The dev server gets demo Firebase settings only, so nothing here can reach a
+ * (project `demo-seva`) around this run. The dev server gets demo Firebase settings, no Firebase Admin credentials and
+ * an unreachable local Supabase address with inert keys, even when a `.env.local` exists, so nothing here can reach a
  * live project; every `/api/seva/**` call is answered by the fake in `fixtures/fake-api.ts`.
  * The site's own Playwright config (`tests/playwright.config.ts`) is separate and unchanged.
  */
@@ -63,6 +64,24 @@ export default defineConfig({
       GCLOUD_PROJECT: "demo-seva",
       FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
       FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
+      // Isolation from real projects (A4P-FIX): a git-ignored .env.local may hold the owner's real keys. Playwright
+      // merges this env over process.env, and Next fills a variable from .env* files only when it is not set at all
+      // (an empty string counts as set), so every Supabase and Firebase-admin variable the app reads is pinned here.
+      // tests/unit/seva/e2e-isolation.test.ts scans the app's code and fails if one is missing.
+      // Supabase: an unreachable local address and inert keys; seva calls are answered by fixtures/fake-api.ts.
+      NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54399",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-placeholder-anon-key",
+      SUPABASE_SERVICE_ROLE_KEY: "e2e-placeholder-service-role-key",
+      SUPABASE_DB_URL: "",
+      PRISMA_DATABASE_URL: "",
+      // Firebase Admin: no credentials, the emulator project only.
+      FIREBASE_PROJECT_ID: "demo-seva",
+      FIREBASE_CLIENT_EMAIL: "",
+      FIREBASE_PRIVATE_KEY: "",
+      FIREBASE_SERVICE_ACCOUNT_JSON: "",
+      FIREBASE_API_KEY: "",
+      NEXT_PUBLIC_FIREBASE_PRIVATE_KEY: "",
+      GOOGLE_APPLICATION_CREDENTIALS: "",
     },
   },
 });
