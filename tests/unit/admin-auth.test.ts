@@ -8,7 +8,6 @@ jest.mock("server-only", () => ({}), { virtual: true });
 
 const mockGetAuth = jest.fn();
 const mockGetAdminApp = jest.fn();
-const mockGetAdminFirestore = jest.fn();
 
 jest.mock("firebase-admin/auth", () => ({
   getAuth: (...args: unknown[]) => mockGetAuth(...args),
@@ -16,7 +15,17 @@ jest.mock("firebase-admin/auth", () => ({
 
 jest.mock("@/lib/admin-firebase", () => ({
   getAdminApp: (...args: unknown[]) => mockGetAdminApp(...args),
-  getAdminFirestore: (...args: unknown[]) => mockGetAdminFirestore(...args),
+}));
+
+// Authorization now reads Supabase `public.users` (keyed by `firestore_id`).
+const mockMaybeSingle = jest.fn();
+const mockEq = jest.fn(() => ({ maybeSingle: mockMaybeSingle }));
+const mockSelect = jest.fn(() => ({ eq: mockEq }));
+const mockFrom = jest.fn(() => ({ select: mockSelect }));
+const mockCreateAdminClient = jest.fn(() => ({ from: mockFrom }));
+
+jest.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: (...args: unknown[]) => mockCreateAdminClient(...args),
 }));
 
 function makeRequest(authHeader: string | null) {
@@ -29,19 +38,18 @@ function makeRequest(authHeader: string | null) {
   } as any;
 }
 
-function mockUserDoc(exists: boolean, data: Record<string, unknown> = {}) {
-  mockGetAdminFirestore.mockResolvedValue({
-    collection: () => ({
-      doc: () => ({
-        get: async () => ({ exists, data: () => data }),
-      }),
-    }),
-  });
+/** Configure the Supabase `users` lookup to return a row (or none). */
+function mockUserRow(row: Record<string, unknown> | null, error: unknown = null) {
+  mockMaybeSingle.mockResolvedValue({ data: row, error });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetAdminApp.mockResolvedValue({});
+  mockCreateAdminClient.mockReturnValue({ from: mockFrom });
+  mockFrom.mockReturnValue({ select: mockSelect });
+  mockSelect.mockReturnValue({ eq: mockEq });
+  mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle });
 });
 
 describe("verifyAdminUserResult — header handling", () => {
@@ -82,7 +90,7 @@ describe("verifyAdminUserResult — token verification", () => {
     }
   });
 
-  it("returns invalid_token for a malformed token (401)", async () => {
+  it("returns expired_token for a malformed token (401)", async () => {
     mockGetAuth.mockReturnValue({
       verifyIdToken: jest.fn().mockRejectedValue(
         Object.assign(new Error("bad"), { code: "auth/argument-error" })
@@ -106,15 +114,23 @@ describe("verifyAdminUserResult — token verification", () => {
   });
 });
 
-describe("verifyAdminUserResult — profile checks", () => {
+describe("verifyAdminUserResult — Supabase authorization", () => {
   beforeEach(() => {
     mockGetAuth.mockReturnValue({
       verifyIdToken: jest.fn().mockResolvedValue({ uid: "u1", email: "a@b.c" }),
     });
   });
 
-  it("returns user_not_found (403) when the Firestore profile is missing", async () => {
-    mockUserDoc(false);
+  it("looks the user up in Supabase users by firestore_id, not profiles", async () => {
+    mockUserRow({ role: "super_admin", active: true, email: "admin@t.org" });
+    await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(mockFrom).toHaveBeenCalledWith("users");
+    expect(mockSelect).toHaveBeenCalledWith("role, active, email");
+    expect(mockEq).toHaveBeenCalledWith("firestore_id", "u1");
+  });
+
+  it("returns user_not_found (403) when no authorization row exists", async () => {
+    mockUserRow(null);
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -123,15 +139,15 @@ describe("verifyAdminUserResult — profile checks", () => {
     }
   });
 
-  it("returns inactive_user (403) when the profile is inactive", async () => {
-    mockUserDoc(true, { role: "super_admin", isActive: false });
+  it("returns inactive_user (403) when active is false", async () => {
+    mockUserRow({ role: "super_admin", active: false });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("inactive_user");
   });
 
   it("returns insufficient_role (403) for blocked roles", async () => {
-    mockUserDoc(true, { role: "devotee", isActive: true });
+    mockUserRow({ role: "devotee", active: true });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -140,8 +156,55 @@ describe("verifyAdminUserResult — profile checks", () => {
     }
   });
 
+  it("denies by default when the role is missing or unknown", async () => {
+    mockUserRow({ active: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    // normalizeRole(undefined) -> "": not on the allowlist: access denied.
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("insufficient_role");
+  });
+
+  it("denies the schema default role `user` (allowlist, not denylist)", async () => {
+    mockUserRow({ role: "user", active: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("insufficient_role");
+  });
+
+  it("denies a valid token whose profile lacks admin privilege", async () => {
+    mockUserRow({ role: "volunteer", active: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("insufficient_role");
+      expect(result.status).toBe(403);
+    }
+  });
+
+  it("returns auth_unavailable (503) when Supabase credentials are missing", async () => {
+    mockCreateAdminClient.mockImplementation(() => {
+      throw new Error("Missing Supabase environment variables for admin client");
+    });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("auth_unavailable");
+      expect(result.status).toBe(503);
+    }
+  });
+
+  it("returns auth_unavailable (503) when the Supabase query fails", async () => {
+    mockUserRow(null, { message: "relation does not exist" });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("auth_unavailable");
+      expect(result.status).toBe(503);
+    }
+  });
+
   it("accepts an active Super Admin", async () => {
-    mockUserDoc(true, { role: "Super Admin", isActive: true, email: "admin@t.org" });
+    mockUserRow({ role: "Super Admin", active: true, email: "admin@t.org" });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -161,7 +224,7 @@ describe("verifyAdminUser (backwards-compatible wrapper)", () => {
     mockGetAuth.mockReturnValue({
       verifyIdToken: jest.fn().mockResolvedValue({ uid: "u2", email: "x@y.z" }),
     });
-    mockUserDoc(true, { role: "admin", isActive: true });
+    mockUserRow({ role: "admin", active: true });
     const user = await verifyAdminUser(makeRequest("Bearer abc"));
     expect(user).not.toBeNull();
     expect(user?.uid).toBe("u2");
@@ -186,7 +249,7 @@ describe("requireAdminUser", () => {
     mockGetAuth.mockReturnValue({
       verifyIdToken: jest.fn().mockResolvedValue({ uid: "u3", email: "z@z.z" }),
     });
-    mockUserDoc(true, { role: "super_admin", isActive: true });
+    mockUserRow({ role: "super_admin", active: true });
     const result = await requireAdminUser(makeRequest("Bearer abc"));
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.user.uid).toBe("u3");

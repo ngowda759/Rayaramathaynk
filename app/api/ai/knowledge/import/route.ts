@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -42,21 +42,47 @@ const REQUIRED_CATEGORIES = [
 interface SeedArticle {
   title: string;
   category: string;
-  content: string;
-  published?: boolean;
+  content?: string;
   [key: string]: unknown;
 }
 
+/**
+ * Build the persisted `content` column from a seed file.
+ *
+ * Seed files are structured JSON (questions/answers, sections, etc.) rather than
+ * a single prose blob, so the whole document minus the columns stored
+ * separately is serialised into `content`. This preserves the seed data exactly
+ * as authored and never invents content.
+ */
+function buildContent(article: SeedArticle): string {
+  if (typeof article.content === "string" && article.content.trim()) {
+    return article.content;
+  }
+  const { slug, title, category, language, keywords, approved, ...rest } = article;
+  void slug;
+  void title;
+  void category;
+  void language;
+  void keywords;
+  void approved;
+  return JSON.stringify(rest, null, 2);
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
 export async function POST(request: NextRequest) {
+  // This endpoint writes knowledge articles; it must require an authenticated
+  // admin, exactly like the other protected AI APIs.
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+
   try {
     const { overwrite = false } = await request.json().catch(() => ({ overwrite: false }));
-
-    if (!isFirebaseConfigured() || !db) {
-      return NextResponse.json(
-        { success: false, error: "Firebase not configured" },
-        { status: 503 }
-      );
-    }
 
     const seedDir = path.join(process.cwd(), "seed", "ai");
 
@@ -67,18 +93,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get existing approved articles from knowledge collection
+    const supabase = createAdminClient();
+
+    // Get existing approved articles from ai_knowledge, keyed by category.
     const existingArticles = new Map<string, string>();
     if (!overwrite) {
-      const articlesRef = collection(db, "knowledge");
-      const q = query(articlesRef, where("approved", "==", true));
-      const snapshot = await getDocs(q);
-      snapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.category) {
-          existingArticles.set(data.category, docSnap.id);
+      const { data, error } = await supabase
+        .from("ai_knowledge")
+        .select("id, slug, category")
+        .eq("approved", true);
+
+      if (error) {
+        console.error("Error reading existing knowledge:", error.message);
+        return NextResponse.json(
+          { success: false, error: "Failed to read existing knowledge" },
+          { status: 500 }
+        );
+      }
+
+      for (const row of data || []) {
+        if (row.category) {
+          existingArticles.set(row.category, row.slug || row.id);
         }
-      });
+      }
     }
 
     // Get seed files
@@ -109,23 +146,33 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Create article
-        const articleId = article.category.replace(/-/g, "_");
-        const articleRef = doc(db, "knowledge", articleId);
+        const slug =
+          typeof article.slug === "string" && article.slug
+            ? article.slug
+            : slugify(article.title || article.category);
 
-        await setDoc(articleRef, {
-          ...article,
-          id: articleId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: "system-seed",
-          version: 1,
-          tags: [article.category, ...((article.tags as string[]) || [])],
-        });
+        const { error } = await supabase.from("ai_knowledge").upsert(
+          {
+            slug,
+            title: article.title || article.category,
+            category: article.category,
+            language: typeof article.language === "string" ? article.language : "en",
+            keywords: Array.isArray(article.keywords) ? article.keywords : [article.category],
+            content: buildContent(article),
+            approved: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "slug" }
+        );
+
+        if (error) {
+          results.push({ file, status: "error", message: error.message });
+          errors++;
+          continue;
+        }
 
         results.push({ file, status: "imported", message: article.title });
         imported++;
-
       } catch (error) {
         results.push({ file, status: "error", message: String(error) });
         errors++;
@@ -145,7 +192,6 @@ export async function POST(request: NextRequest) {
         },
       },
     });
-
   } catch (error) {
     console.error("Error importing knowledge:", error);
     return NextResponse.json(

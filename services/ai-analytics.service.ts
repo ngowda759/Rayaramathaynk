@@ -1,21 +1,6 @@
 // AI Analytics Service
 // Handles all AI-related analytics operations: token usage, latency, intent distribution
 
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  addDoc,
-  updateDoc,
-  doc,
-  Timestamp,
-  serverTimestamp,
-  getCountFromServer,
-} from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { createClient } from "@/lib/supabase/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Intent } from "@/lib/ai/intent/types";
@@ -41,6 +26,24 @@ import type {
   AnalyticsDashboardResponse,
 } from "@/types/ai-analytics";
 
+/**
+ * Shape of a row returned by the Supabase `ai_token_usage` table.
+ * Values are untyped because the table is not represented in Prisma yet.
+ */
+type TokenUsageRow = {
+  id: string;
+  session_id: string;
+  message_id: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated_cost: number;
+  timestamp: string;
+  intent: Intent;
+  language: "en" | "kn" | "mixed";
+};
+
 const COLLECTIONS = {
   TOKEN_USAGE: "ai_token_usage",
   LATENCY_RECORDS: "ai_latency_records",
@@ -52,28 +55,15 @@ const COLLECTIONS = {
 };
 
 /**
- * Get analytics settings from Firestore
+ * Get analytics tracking preferences.
+ *
+ * Currently returns the documented defaults; see the note in the function body.
  */
 export async function getAnalyticsSettings(): Promise<AIAnalyticsSettings> {
-  if (!isFirebaseConfigured() || !db) {
-    return getDefaultSettings();
-  }
-
-  try {
-    const settingsSnap = await getDocs(
-      query(collection(db, COLLECTIONS.AI_SETTINGS))
-    );
-    
-    if (settingsSnap.empty) {
-      return getDefaultSettings();
-    }
-    
-    const settings = settingsSnap.docs[0].data() as AIAnalyticsSettings;
-    return settings || getDefaultSettings();
-  } catch (error) {
-    console.error("Error fetching analytics settings:", error);
-    return getDefaultSettings();
-  }
+  // Analytics tracking preferences are not part of the Supabase schema
+  // (ai_settings has no analytics column), and there is no Firestore fallback.
+  // The documented defaults apply until a dedicated store exists.
+  return getDefaultSettings();
 }
 
 function getDefaultSettings(): AIAnalyticsSettings {
@@ -99,19 +89,31 @@ export async function recordTokenUsage(
   data: Omit<TokenUsageRecord, "id" | "timestamp">
 ): Promise<string> {
   const settings = await getAnalyticsSettings();
-  if (!settings.enabled || !settings.trackTokenUsage || !isFirebaseConfigured() || !db) {
+  if (!settings.enabled || !settings.trackTokenUsage) {
     return "";
   }
 
   try {
-    const docRef = await addDoc(
-      collection(db, COLLECTIONS.TOKEN_USAGE),
-      {
-        ...data,
-        timestamp: serverTimestamp(),
-      }
-    );
-    return docRef.id;
+    const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
+    const { data: insertedData, error } = await supabase
+      .from(COLLECTIONS.TOKEN_USAGE)
+      .insert([{
+        session_id: data.sessionId,
+        message_id: data.messageId,
+        model: data.model,
+        input_tokens: data.inputTokens,
+        output_tokens: data.outputTokens,
+        total_tokens: data.totalTokens,
+        estimated_cost: data.estimatedCost,
+        intent: data.intent,
+        language: data.language,
+        timestamp: new Date().toISOString(),
+      }])
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    return insertedData.id;
   } catch (error) {
     console.error("Error recording token usage:", error);
     throw error;
@@ -267,45 +269,45 @@ export async function markUnknownQuestionReviewed(
 export async function getTokenUsage(
   params: AnalyticsQueryParams = {}
 ): Promise<TokenUsageResponse> {
-  if (!isFirebaseConfigured() || !db) {
-    return {
-      summary: {} as any,
-      records: []
-    };
-  }
   try {
+    const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
     const { startDate, endDate, intent, limit: limitCount = 100 } = params;
-    
-    let q = query(collection(db, COLLECTIONS.TOKEN_USAGE));
-    
-    if (startDate || endDate) {
-      const constraints = [];
-      if (startDate) {
-        constraints.push(where("timestamp", ">=", Timestamp.fromDate(new Date(startDate))));
-      }
-      if (endDate) {
-        constraints.push(where("timestamp", "<=", Timestamp.fromDate(new Date(endDate))));
-      }
-      q = query(collection(db, COLLECTIONS.TOKEN_USAGE), ...constraints);
-    }
-    
-    if (intent) {
-      q = query(q, where("intent", "==", intent));
-    }
-    
-    q = query(q, orderBy("timestamp", "desc"), limit(limitCount));
-    
-    const snapshot = await getDocs(q);
-    const records: TokenUsageRecord[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toMillis?.() || Date.now(),
-    })) as TokenUsageRecord[];
 
-    // Calculate summary
-    const summary = calculateTokenSummary(records);
-    
-    return { summary, records };
+    let queryBuilder = supabase.from(COLLECTIONS.TOKEN_USAGE).select("*");
+
+    if (startDate) {
+      queryBuilder = queryBuilder.gte("timestamp", new Date(startDate).toISOString());
+    }
+    if (endDate) {
+      queryBuilder = queryBuilder.lte("timestamp", new Date(endDate).toISOString());
+    }
+    if (intent) {
+      queryBuilder = queryBuilder.eq("intent", intent);
+    }
+
+    queryBuilder = queryBuilder.order("timestamp", { ascending: false }).limit(limitCount);
+
+    const { data, error } = await queryBuilder;
+    if (error) {
+      console.error("Error querying Supabase ai_token_usage:", error.message);
+      throw error;
+    }
+
+    const records: TokenUsageRecord[] = (data || []).map((row: TokenUsageRow) => ({
+      id: row.id,
+      sessionId: row.session_id,
+      messageId: row.message_id,
+      model: row.model,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      totalTokens: row.total_tokens,
+      estimatedCost: row.estimated_cost,
+      timestamp: new Date(row.timestamp).getTime(),
+      intent: row.intent,
+      language: row.language,
+    }));
+
+    return { summary: calculateTokenSummary(records), records };
   } catch (error) {
     console.error("Error fetching token usage:", error);
     throw error;
@@ -467,13 +469,6 @@ export async function getUnknownQuestions(
  * Check AI health status
  */
 export async function checkAIHealth(): Promise<HealthCheckResponse> {
-  if (!isFirebaseConfigured() || !db) {
-    return {
-      status: "healthy",
-      timestamp: Date.now(),
-    } as any;
-  }
-
   const issues: AIHealthIssue[] = [];
   let status: AIHealthStatus["status"] = "healthy";
   
@@ -562,48 +557,6 @@ export async function getAnalyticsDashboard(
   const end = endDate || Date.now();
   const start = startDate || (end - 7 * 24 * 60 * 60 * 1000); // Default: last 7 days
   
-  if (!isFirebaseConfigured() || !db) {
-    return {
-      dashboard: {
-        overview: { totalConversations: 0, totalMessages: 0, uniqueUsers: 0, averageResponseTime: 0, satisfactionRate: 0, period: { start, end } },
-        tokenUsage: { totalInputTokens: 0, totalOutputTokens: 0, totalTokens: 0, totalCost: 0, averageTokensPerRequest: 0, byModel: {}, byIntent: {} as any, timeSeries: [] },
-        latency: { 
-          averageTotalLatency: 0, 
-          averageIntentDetectionTime: 0, 
-          averageRetrievalTime: 0, 
-          averageGenerationTime: 0, 
-          p50Latency: 0, 
-          p95Latency: 0, 
-          p99Latency: 0, 
-          timeoutCount: 0, 
-          errorCount: 0, 
-          successRate: 100, 
-          timeSeries: [],
-          byIntent: {} as any
-        },
-        intentDistribution: { 
-          totalMessages: 0, 
-          byIntent: [], 
-          byCategory: [], 
-          byLanguage: [], 
-          timeSeries: [],
-          topQuestions: []
-        },
-        unknownQuestions: { 
-          total: 0, 
-          unreviewed: 0, 
-          reviewed: 0, 
-          addedToKnowledge: 0, 
-          byIntent: {} as any, 
-          recentQuestions: [], 
-          feedbackDistribution: { helpful: 0, not_helpful: 0 },
-          timeSeries: []
-        },
-        health: { status: "healthy", lastChecked: Date.now(), apiLatency: 0, errorRate: 0, uptime: 100, issues: [] },
-      },
-    } as AnalyticsDashboardResponse;
-  }
-  
   try {
     // Fetch all metrics in parallel
     const [tokenResponse, latencyResponse, intentResponse, unknownResponse, healthResponse] = await Promise.all([
@@ -614,32 +567,30 @@ export async function getAnalyticsDashboard(
       checkAIHealth(),
     ]);
     
-    // Get conversation counts with error handling for missing indexes
+    // Conversation/message counts from Supabase (read-only, best-effort).
     let totalConversations = 0;
     let totalMessages = 0;
 
     try {
-      const sessionsQuery = query(
-        collection(db, COLLECTIONS.CHAT_SESSIONS),
-        where("createdAt", ">=", Timestamp.fromDate(new Date(start))),
-        where("createdAt", "<=", Timestamp.fromDate(new Date(end)))
-      );
-      const sessionsSnap = await getCountFromServer(sessionsQuery);
-      totalConversations = sessionsSnap.data().count;
-    } catch (error) {
-      console.warn("Could not get sessions count:", error);
-    }
+      const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
 
-    try {
-      const messagesQuery = query(
-        collection(db, COLLECTIONS.CHAT_MESSAGES),
-        where("timestamp", ">=", Timestamp.fromDate(new Date(start))),
-        where("timestamp", "<=", Timestamp.fromDate(new Date(end)))
-      );
-      const messagesSnap = await getCountFromServer(messagesQuery);
-      totalMessages = messagesSnap.data().count;
+      const { count: sessionsCount, error: sessionsError } = await supabase
+        .from(COLLECTIONS.CHAT_SESSIONS)
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", new Date(start).toISOString())
+        .lte("created_at", new Date(end).toISOString());
+      if (sessionsError) throw sessionsError;
+      totalConversations = sessionsCount || 0;
+
+      const { count: messagesCount, error: messagesError } = await supabase
+        .from(COLLECTIONS.CHAT_MESSAGES)
+        .select("id", { count: "exact", head: true })
+        .gte("timestamp", new Date(start).toISOString())
+        .lte("timestamp", new Date(end).toISOString());
+      if (messagesError) throw messagesError;
+      totalMessages = messagesCount || 0;
     } catch (error) {
-      console.warn("Could not get messages count:", error);
+      console.warn("Could not get conversation counts:", error);
     }
 
     const dashboard: AIAnalyticsDashboard = {

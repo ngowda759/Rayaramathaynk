@@ -14,15 +14,7 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  getCountFromServer,
-  query,
-  orderBy,
-  limit,
-} from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
 
 interface StatCardProps {
   title: string;
@@ -289,60 +281,47 @@ export default function AnalyticsPage() {
   >({});
 
   const fetchAnalytics = useCallback(async () => {
-    if (!db || !isFirebaseConfigured()) {
-      setError("Firebase not configured");
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
 
-      // Fetch data in parallel
+      const supabase = createClient();
+
+      // Fetch data in parallel (Supabase only — no Firestore fallback).
       const [intentResult, latencyResult, unknownResult] =
         await Promise.allSettled([
-          // Intent distribution
-          getDocs(
-            query(
-              collection(db, "ai_intent_distribution"),
-              orderBy("timestamp", "desc"),
-              limit(500),
-            ),
-          ),
-          // Latency records
-          getDocs(
-            query(
-              collection(db, "ai_latency_records"),
-              orderBy("timestamp", "desc"),
-              limit(100),
-            ),
-          ),
-          // Unknown questions
-          getDocs(
-            query(
-              collection(db, "unknown_questions"),
-              orderBy("timestamp", "desc"),
-              limit(10),
-            ),
-          ),
+          supabase
+            .from("ai_intent_distribution")
+            .select("intent")
+            .order("timestamp", { ascending: false })
+            .limit(500),
+          supabase
+            .from("ai_latency_records")
+            .select("total_latency, intent_detection_time, retrieval_time, generation_time")
+            .order("timestamp", { ascending: false })
+            .limit(100),
+          supabase
+            .from("unknown_questions")
+            .select("question, confidence, detected_intent, timestamp, status")
+            .order("timestamp", { ascending: false })
+            .limit(10),
         ]);
 
       // Process sessions
       let total = 0;
       let today = 0;
-      const sessionsSnapAll = await getDocs(collection(db, "chat_sessions"));
-      total = sessionsSnapAll.size;
+      const { data: sessionsRows } = await supabase
+        .from("chat_sessions")
+        .select("created_at");
+      const sessions = sessionsRows || [];
+      total = sessions.length;
 
       // Count today's conversations
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      sessionsSnapAll.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.createdAt) {
-          const createdAt = data.createdAt.toDate
-            ? data.createdAt.toDate()
-            : new Date(data.createdAt);
+      sessions.forEach((row) => {
+        if (row.created_at) {
+          const createdAt = new Date(row.created_at);
           if (createdAt >= todayStart) {
             today++;
           }
@@ -367,13 +346,11 @@ export default function AnalyticsPage() {
         SPECIAL_SEVAS: "#f97316",
       };
 
-      if (intentResult.status === "fulfilled" && !intentResult.value.empty) {
-        intentResult.value.docs.forEach((doc) => {
-          const data = doc.data();
-          const intent = data.intent || "UNKNOWN";
-          intentMap[intent] = (intentMap[intent] || 0) + 1;
-        });
-      }
+      const intentRows = intentResult.status === "fulfilled" ? intentResult.value.data || [] : [];
+      intentRows.forEach((row) => {
+        const intent = row.intent || "UNKNOWN";
+        intentMap[intent] = (intentMap[intent] || 0) + 1;
+      });
 
       const intents = Object.entries(intentMap)
         .map(([intent, count]) => ({
@@ -392,26 +369,24 @@ export default function AnalyticsPage() {
       let totalGeneration = 0;
       let latencyCount = 0;
 
-      if (latencyResult.status === "fulfilled" && !latencyResult.value.empty) {
-        latencyResult.value.docs.forEach((doc) => {
-          const data = doc.data();
-          if (data.totalLatency) {
-            totalLatency += data.totalLatency;
-            totalIntent += data.intentDetectionTime || 0;
-            totalRetrieval += data.retrievalTime || 0;
-            totalGeneration += data.generationTime || 0;
-            latencyCount++;
-          }
-        });
-
-        if (latencyCount > 0) {
-          setLatencyAvg({
-            intent: Math.round(totalIntent / latencyCount),
-            retrieval: Math.round(totalRetrieval / latencyCount),
-            generation: Math.round(totalGeneration / latencyCount),
-            total: Math.round(totalLatency / latencyCount),
-          });
+      const latencyRows = latencyResult.status === "fulfilled" ? latencyResult.value.data || [] : [];
+      latencyRows.forEach((row) => {
+        if (row.total_latency) {
+          totalLatency += row.total_latency;
+          totalIntent += row.intent_detection_time || 0;
+          totalRetrieval += row.retrieval_time || 0;
+          totalGeneration += row.generation_time || 0;
+          latencyCount++;
         }
+      });
+
+      if (latencyCount > 0) {
+        setLatencyAvg({
+          intent: Math.round(totalIntent / latencyCount),
+          retrieval: Math.round(totalRetrieval / latencyCount),
+          generation: Math.round(totalGeneration / latencyCount),
+          total: Math.round(totalLatency / latencyCount),
+        });
       }
 
       // Process unknown questions
@@ -426,32 +401,28 @@ export default function AnalyticsPage() {
 
       // Get total count
       try {
-        const unknownCountSnap = await getCountFromServer(
-          collection(db, "unknown_questions"),
-        );
-        unknownTotal = unknownCountSnap.data().count;
+        const { count } = await supabase
+          .from("unknown_questions")
+          .select("id", { count: "exact", head: true });
+        unknownTotal = count || 0;
       } catch {}
 
-      if (unknownResult.status === "fulfilled") {
-        unknownResult.value.docs.forEach((doc) => {
-          const data = doc.data();
-          const timestamp = data.timestamp?.toDate
-            ? data.timestamp.toDate()
-            : new Date();
-          unknown.push({
-            question:
-              (data.question || "Unknown").substring(0, 40) +
-              (data.question?.length > 40 ? "..." : ""),
-            confidence: `${data.confidence || 0}%`,
-            intent: (data.detectedIntent || "UNKNOWN").replace(/_/g, " "),
-            date: timestamp.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            }),
-            status: data.reviewed ? "Reviewed" : "Pending",
-          });
+      const unknownRows = unknownResult.status === "fulfilled" ? unknownResult.value.data || [] : [];
+      unknownRows.forEach((row) => {
+        const timestamp = row.timestamp ? new Date(row.timestamp) : new Date();
+        unknown.push({
+          question:
+            (row.question || "Unknown").substring(0, 40) +
+            (row.question?.length > 40 ? "..." : ""),
+          confidence: `${row.confidence || 0}%`,
+          intent: (row.detected_intent || "UNKNOWN").replace(/_/g, " "),
+          date: timestamp.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          status: row.status && row.status !== "pending" ? "Reviewed" : "Pending",
         });
-      }
+      });
 
       setUnknownQuestions(unknown);
       setUnknownCount(unknownTotal);
@@ -469,12 +440,9 @@ export default function AnalyticsPage() {
         dayEnd.setHours(23, 59, 59, 999);
 
         let dayCount = 0;
-        sessionsSnapAll.docs.forEach((doc) => {
-          const data = doc.data();
-          if (data.createdAt) {
-            const createdAt = data.createdAt.toDate
-              ? data.createdAt.toDate()
-              : new Date(data.createdAt);
+        sessions.forEach((row) => {
+          if (row.created_at) {
+            const createdAt = new Date(row.created_at);
             if (createdAt >= dayStart && createdAt <= dayEnd) {
               dayCount++;
             }
@@ -488,7 +456,7 @@ export default function AnalyticsPage() {
 
       // Determine health status
       const health: Record<string, "healthy" | "degraded" | "unhealthy"> = {
-        Firebase: "healthy",
+        Supabase: "healthy",
         "Chat Sessions": total > 0 ? "healthy" : "degraded",
         "Intent Tracking": intents.length > 0 ? "healthy" : "degraded",
         "Latency Tracking": latencyCount > 0 ? "healthy" : "degraded",

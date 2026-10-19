@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 // Public website pages mapped to categories
 // Note: These categories are derived from the seed files in seed/ai/
@@ -52,53 +52,42 @@ interface CoverageStatus {
   updatedAt?: Date;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+
   try {
-    // If Firebase is not configured, return mock data
-    if (!isFirebaseConfigured() || !db) {
-      const mockCoverage = DEFAULT_CATEGORIES.map(cat => ({
-        ...cat,
-        status: "missing" as const,
-      }));
-      
-      return NextResponse.json({
-        success: true,
-        data: {
-          coverage: mockCoverage,
-          summary: {
-            total: DEFAULT_CATEGORIES.length,
-            present: 0,
-            missing: DEFAULT_CATEGORIES.length,
-            percentage: 0,
-          },
-          lastChecked: new Date().toISOString(),
-          note: "Firebase not configured. Run 'npm run seed:ai' to initialize knowledge."
-        }
-      });
+    const supabase = createAdminClient();
+
+    // Read approved articles from Supabase (the only knowledge store).
+    const { data, error } = await supabase
+      .from("ai_knowledge")
+      .select("id, slug, title, category, updated_at")
+      .eq("approved", true);
+
+    if (error) {
+      console.error("Error reading knowledge coverage:", error.message);
+      return NextResponse.json(
+        { success: false, error: "Failed to check knowledge coverage" },
+        { status: 500 }
+      );
     }
 
-    // Get all approved articles from knowledge collection
-    const articlesRef = collection(db, "knowledge");
-    const publishedQuery = query(articlesRef, where("approved", "==", true));
-    const snapshot = await getDocs(publishedQuery);
-    
     const existingCategories = new Map<string, { id: string; title: string; updatedAt: Date }>();
-    
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.category) {
-        existingCategories.set(data.category, {
-          id: doc.id,
-          title: data.title || data.category,
-          updatedAt: data.updatedAt?.toDate() || new Date(),
+    for (const row of data || []) {
+      if (row.category) {
+        existingCategories.set(row.category, {
+          id: row.id,
+          title: row.title || row.category,
+          updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
         });
       }
-    });
+    }
 
     // Build coverage status
     const coverage: CoverageStatus[] = DEFAULT_CATEGORIES.map(cat => {
       const existing = existingCategories.get(cat.id);
-      
+
       if (existing) {
         return {
           ...cat,
@@ -108,7 +97,7 @@ export async function GET() {
           updatedAt: existing.updatedAt,
         };
       }
-      
+
       return {
         ...cat,
         status: "missing" as const,
