@@ -43,11 +43,14 @@ its data in Supabase Postgres. Spec: `docs/seva/DESIGN-BOOK.md`; guide and runbo
 - The one-off scripts under `scripts/` read the Firebase key from the environment or a git-ignored file instead of
   carrying it.
 
-### Removed before the merge (plan task A5-1)
+### Removed
 
-- The Firestore Receipt Book code (`app/api/admin/receipts/**`, the Firestore numbering, validation and PDF in
-  `lib/receipt/*`, `services/receipt.service.ts` and its types); its consumers point at the new flow, and the public
-  seva list follows each seva's visibility (counter, online or both).
+- The Firestore Receipt Book code, removed on 2026-10-20 (plan task A5-1): `app/api/admin/receipts/**` (with the
+  `send` stub), `app/api/admin/receipt-sevas/**`, the Firestore numbering, validation and PDF in `lib/receipt/*`
+  (`lib/receipt/upi.ts` stays for the counter), `services/receipt.service.ts`, `services/receiptSeva.service.ts`,
+  their types, the unused email and WhatsApp senders in `lib/services/`, and the `seed-receipt-sevas` script. The old
+  create page forwards to the counter, the website admin's reports page links receipts to the Seva Entry reports, and
+  the public seva list follows each seva's visibility (counter, online or both).
 
 ### Site owner, after the merge
 

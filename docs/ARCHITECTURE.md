@@ -341,7 +341,8 @@ return NextResponse.json(
 
 Seva Entry replaces the temple's paper receipt book: a keyboard-first counter on the office PC, a prasadam counter, a
 dashboard, a receipt register, reports, exports, settings and staff roles. It extends the old Receipt Book, whose
-Firestore code is retired by plan task A5-1. The signed spec is `docs/seva/DESIGN-BOOK.md`; the module map and runbook are
+Firestore code (its `/api/admin/receipts` APIs, numbering, validation, PDF, services and types) was removed on
+2026-10-20 (plan task A5-1). The signed spec is `docs/seva/DESIGN-BOOK.md`; the module map and runbook are
 `docs/seva/README.md`. Written from the code on 2026-10-20.
 
 ### Lanes

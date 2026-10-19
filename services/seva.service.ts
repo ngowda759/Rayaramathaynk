@@ -5,6 +5,19 @@ import { getAllSevasAction, getSevaByIdAction } from "@/app/actions/sevas";
 
 const COLLECTION = "sevas";
 
+/** Visibilities the public site offers (DB §17.1, C-38); `counter` sevas are sold only at the temple counter. */
+const ONLINE_VISIBILITY: readonly string[] = ["online", "both"];
+
+/**
+ * The Firestore fallback reads the public mirror (C-39): a counter-only seva is mirrored as not active, and a legacy
+ * document without a visibility predates the field (C-38: existing sevas are offered both ways).
+ */
+function isOfferedOnline(data: Record<string, unknown> | undefined): boolean {
+  if (!data || data.active !== true) return false;
+  const visibility = data.visibility;
+  return visibility === undefined || (typeof visibility === "string" && ONLINE_VISIBILITY.includes(visibility));
+}
+
 class SevaService {
   async getAllSevas(): Promise<Seva[]> {
     try {
@@ -32,7 +45,9 @@ class SevaService {
     if (!db) return [];
     try {
       const snapshot = await getDocs(collection(db, COLLECTION));
-      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Seva[];
+      return snapshot.docs
+        .filter((doc) => isOfferedOnline(doc.data()))
+        .map((doc) => ({ id: doc.id, ...doc.data() })) as Seva[];
     } catch (error) {
       console.error("[SevaService] Error:", error);
       return [];
@@ -63,7 +78,7 @@ class SevaService {
     if (!db) return null;
     try {
       const snapshot = await getDoc(doc(db, COLLECTION, id));
-      if (!snapshot.exists()) return null;
+      if (!snapshot.exists() || !isOfferedOnline(snapshot.data())) return null;
       return { id: snapshot.id, ...snapshot.data() } as Seva;
     } catch (error) {
       console.error("[SevaService] Error:", error);
