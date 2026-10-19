@@ -13,7 +13,7 @@ import type { DashboardData, NeedsAttentionCard } from "@/types/seva-reports";
 type Answer = { data: DashboardData; attention: NeedsAttentionCard[] };
 
 const mockUser = { getIdToken: async (): Promise<string> => "token" };
-const mockMe = { role: "temple_admin" };
+const mockMe: { role: string } = { role: "temple_admin" };
 const mockNav = { search: new URLSearchParams(""), replace: jest.fn() };
 const mockCalls: { period: Period; resolve(a: Answer): void; reject(e: Error): void }[] = [];
 const mockApi = {
@@ -84,6 +84,7 @@ beforeEach(() => {
   mockApi.dashboard.mockClear();
   mockNav.replace.mockReset();
   mockNav.search = new URLSearchParams("");
+  mockMe.role = "temple_admin";
 });
 
 afterEach(cleanup);
@@ -175,5 +176,30 @@ describe("dashboard period switch", () => {
     } finally {
       window.matchMedia = original;
     }
+  });
+});
+
+describe("opening /seva", () => {
+  it("sends a receptionist to /seva/counter and a prasadam volunteer to /seva/prasadam from /seva", async () => {
+    mockMe.role = "receptionist";
+    const { unmount } = render(<ReceiptsDashboardPage />);
+    await waitFor(() => expect(mockNav.replace).toHaveBeenCalledWith("/seva/counter"));
+    // The dashboard never flashes on the way.
+    expect(screen.queryByTestId("dashboard-content")).toBeNull();
+    unmount();
+
+    mockNav.replace.mockReset();
+    mockMe.role = "prasadam_counter";
+    render(<ReceiptsDashboardPage />);
+    await waitFor(() => expect(mockNav.replace).toHaveBeenCalledWith("/seva/prasadam"));
+    expect(screen.queryByTestId("dashboard-content")).toBeNull();
+    expect(mockApi.dashboard).not.toHaveBeenCalled();
+  });
+
+  it("keeps a temple admin on the dashboard", async () => {
+    render(<ReceiptsDashboardPage />);
+    await answerLast(answer("today", 6_119_600, 125));
+    await waitFor(() => expect(screen.getByTestId("dashboard-content")).toBeInTheDocument());
+    expect(mockNav.replace).not.toHaveBeenCalled();
   });
 });

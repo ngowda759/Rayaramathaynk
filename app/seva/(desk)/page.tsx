@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { FALLBACK_CHART_COLORS, readChartColors } from "@/lib/seva/charts/colors";
 import { asOfClock } from "@/lib/seva/dashboard/format";
-import { SEVA_ROUTES } from "@/lib/seva/routes";
+import { SEVA_ROUTES, sevaHomePath } from "@/lib/seva/routes";
 import { DASHBOARD } from "@/lib/seva/strings/dashboard";
 import { businessDate, formatSevaDate, type Period } from "@/lib/seva/time";
 import { SevaClientError } from "@/services/seva/http";
@@ -42,7 +42,6 @@ import type { DashboardData } from "@/types/seva-reports";
  */
 
 const PERIODS: readonly Period[] = ["today", "week", "month", "year"];
-const COUNTER_PATH = SEVA_ROUTES.counter;
 
 function toPeriod(value: string | null): Period {
   return PERIODS.includes(value as Period) ? (value as Period) : "today";
@@ -239,17 +238,23 @@ function Dashboard(): JSX.Element {
   );
 }
 
-/** Receptionists go to the counter (C-59); everyone else needs `reports.view`. */
+/**
+ * Opening /seva: a receptionist goes to the counter (C-59) and a prasadam volunteer to the prasadam page (plan A4S-3);
+ * everyone else needs `reports.view`.
+ */
 function DashboardEntry(): JSX.Element {
   const { me } = useSevaMe();
   const router = useRouter();
-  const isReceptionist = me?.role === "receptionist";
+  const home = sevaHomePath(me?.role);
+  const redirecting = me !== null && me !== undefined && home !== SEVA_ROUTES.dashboard;
 
   useEffect(() => {
-    if (isReceptionist) router.replace(COUNTER_PATH);
-  }, [isReceptionist, router]);
+    if (me && home !== SEVA_ROUTES.dashboard) router.replace(home);
+  }, [me, home, router]);
 
-  if (isReceptionist) {
+  // The prasadam page's outline while it opens; the counter keeps its "Opening the counter" line.
+  if (redirecting && home !== SEVA_ROUTES.counter) return <PageSkeleton variant="form" />;
+  if (redirecting) {
     return (
       <div role="status" aria-live="polite" className="flex min-h-[40vh] items-center justify-center p-6">
         <Bilingual en={DASHBOARD.openingCounter.en} kn={DASHBOARD.openingCounter.kn} className="text-(--muted-foreground)" />

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 import { can as matrixCan, SEVA_ACTIONS } from "@/lib/seva/permissions";
@@ -17,9 +17,10 @@ const mockGetProfile = jest.fn();
 let mockFirebaseUser: { uid: string } | null = null;
 
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({
   usePathname: () => "/admin",
-  useRouter: () => ({ push: jest.fn(), replace: mockReplace, back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -34,6 +35,7 @@ jest.mock("framer-motion", () => {
     motion: {
       div: (p: { children?: ReactNode; className?: string }) => <div {...strip(p)} />,
       aside: (p: { children?: ReactNode; className?: string }) => <aside {...strip(p)} />,
+      button: (p: { children?: ReactNode; className?: string }) => <button type="button" {...strip(p)} />,
     },
     AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
   };
@@ -76,6 +78,11 @@ jest.mock("@/services/seva/http", () => {
   const actual = jest.requireActual("@/services/seva/http");
   return { ...actual, sevaFetch: (...args: unknown[]) => mockSevaFetch(...args) };
 });
+
+jest.mock("@/components/admin/layout/NotificationDropdown", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 
 jest.mock("@/lib/seva/offline/db", () => ({
   openSevaDb: () => Promise.reject(new Error("no IndexedDB in jsdom")),
@@ -131,7 +138,11 @@ async function sidebarHrefs(): Promise<string[]> {
   return Array.from(container.querySelectorAll("aside a")).map((a) => a.getAttribute("href") ?? "");
 }
 
-const SEVA_HREFS = [
+// The website admin has one Seva Entry item (plan A4S-3); the module's own pages live in its rail at /seva.
+const SEVA_HREFS = ["/seva"];
+
+/** Old Receipt Book and Prasadam addresses that must no longer appear in the website sidebar. */
+const OLD_SEVA_HREFS = [
   "/admin/receipts",
   "/admin/receipts/counter",
   "/admin/receipts/counter/today",
@@ -150,69 +161,52 @@ beforeEach(() => {
   mockFirebaseUser = null;
   mockSevaFetch.mockReset();
   mockGetProfile.mockReset();
+  mockPush.mockReset();
 });
 
 /* ---------- navigation per role ---------- */
 
 describe("admin sidebar per seva role", () => {
-  it("shows a receptionist Counter, Today's receipts and Close day only", async () => {
+  it("shows a receptionist and a prasadam volunteer only the one Seva Entry item", async () => {
     mockAuth = signedIn("receptionist");
     mockSevaMe = fakeHook(meOf("receptionist", false, 1));
-    expect(await sidebarHrefs()).toEqual([
-      "/admin/receipts/counter",
-      "/admin/receipts/counter/today",
-      "/admin/receipts/day-close",
-    ]);
+    expect(await sidebarHrefs()).toEqual(["/seva"]);
     // Kannada on its own line under the English label.
-    expect(screen.getAllByText("ಕೌಂಟರ್")[0]).toHaveAttribute("lang", "kn");
-  });
-
-  it("shows a prasadam volunteer only Prasadam", async () => {
-    mockAuth = signedIn("prasadam_counter");
-    mockSevaMe = fakeHook(meOf("prasadam_counter"));
-    expect(await sidebarHrefs()).toEqual(["/admin/prasadam"]);
-  });
-
-  it("shows a temple admin every seva item; a view-only one no Counter", async () => {
-    mockAuth = signedIn("temple_admin");
-    mockSevaMe = fakeHook(meOf("temple_admin", false));
-    const full = await sidebarHrefs();
-    for (const href of [...SEVA_HREFS, "/admin/users"]) expect(full).toContain(href);
-    // Receipt Book keeps its place in Finance, between Billing and Bookings.
-    expect(full.indexOf("/admin/billing")).toBeLessThan(full.indexOf("/admin/receipts"));
-    expect(full.indexOf("/admin/prasadam")).toBeLessThan(full.indexOf("/admin/bookings"));
+    expect(screen.getAllByText("Seva Entry").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ಸೇವಾ ನಮೂದು")[0]).toHaveAttribute("lang", "kn");
+    // One item, no sub-items.
+    expect(document.querySelector('aside [role="group"]')).toBeNull();
     cleanup();
 
-    mockAuth = signedIn("temple_admin");
-    mockSevaMe = fakeHook(meOf("temple_admin", true));
-    const viewOnly = await sidebarHrefs();
-    for (const href of [
-      "/admin/receipts",
-      "/admin/receipts/register",
-      "/admin/receipts/reports",
-      "/admin/receipts/day-closes",
-      "/admin/receipts/seva-settings",
-      "/admin/receipts/settings",
-    ]) {
-      expect(viewOnly).toContain(href);
-    }
-    for (const href of [
-      "/admin/receipts/counter",
-      "/admin/receipts/counter/today",
-      "/admin/receipts/day-close",
-      "/admin/prasadam",
-      "/admin/users",
-    ]) {
-      expect(viewOnly).not.toContain(href);
-    }
+    mockAuth = signedIn("prasadam_counter");
+    mockSevaMe = fakeHook(meOf("prasadam_counter"));
+    expect(await sidebarHrefs()).toEqual(["/seva"]);
+    expect(document.querySelector('aside [role="group"]')).toBeNull();
   });
 
-  it("hides a temple admin's write items until the seva profile says they are not view-only", async () => {
+  it("gives a temple admin and a super admin one Seva Entry item in Finance, with no Receipt Book sub-items", async () => {
+    const cases: [string, () => void][] = [
+      ["temple admin", () => { mockAuth = signedIn("temple_admin"); mockSevaMe = fakeHook(meOf("temple_admin", false)); }],
+      ["view-only temple admin", () => { mockAuth = signedIn("temple_admin"); mockSevaMe = fakeHook(meOf("temple_admin", true)); }],
+      ["temple admin, profile loading", () => { mockAuth = signedIn("temple_admin"); mockSevaMe = { ...fakeHook(null), loading: true }; }],
+      ["super admin", () => { mockAuth = signedIn("super_admin", { canAccessAdministration: true }); mockSevaMe = fakeHook(meOf("super_admin")); }],
+    ];
+    for (const [name, arrange] of cases) {
+      arrange();
+      const hrefs = await sidebarHrefs();
+      expect([name, hrefs.filter((h) => h === "/seva")]).toEqual([name, ["/seva"]]);
+      // The item keeps Receipt Book's place in Finance, between Billing and Bookings.
+      expect(hrefs.indexOf("/admin/billing")).toBeLessThan(hrefs.indexOf("/seva"));
+      expect(hrefs.indexOf("/seva")).toBeLessThan(hrefs.indexOf("/admin/bookings"));
+      for (const href of OLD_SEVA_HREFS) expect([name, hrefs.includes(href)]).toEqual([name, false]);
+      expect(document.querySelector('aside [role="group"]')).toBeNull();
+      expect(screen.queryByText("Receipt Book")).toBeNull();
+      cleanup();
+    }
+    // Staff lives in the module rail now: a temple admin without Administration gets no Users link here.
     mockAuth = signedIn("temple_admin");
-    mockSevaMe = { ...fakeHook(null), loading: true };
-    const hrefs = await sidebarHrefs();
-    expect(hrefs).toContain("/admin/receipts/register");
-    expect(hrefs).not.toContain("/admin/receipts/counter");
+    mockSevaMe = fakeHook(meOf("temple_admin", false));
+    expect(await sidebarHrefs()).not.toContain("/admin/users");
   });
 
   it("keeps the existing sections for an existing billing user", async () => {
@@ -224,7 +218,7 @@ describe("admin sidebar per seva role", () => {
       "/admin/sevas",
       "/admin/aaradhane",
       "/admin/billing",
-      "/admin/receipts",
+      "/seva",
       "/admin/bookings",
       "/admin/pooja",
       "/admin/donations",
@@ -459,10 +453,34 @@ describe("AdminAuthGuard seva permissions", () => {
 describe("role landing", () => {
   it("names the counter for a receptionist, the prasadam page for a volunteer and nothing for others", async () => {
     const { sevaLandingPath } = await import("@/components/admin/layout/navigation");
-    expect(sevaLandingPath("receptionist")).toBe("/admin/receipts/counter");
-    expect(sevaLandingPath("prasadam_counter")).toBe("/admin/prasadam");
+    expect(sevaLandingPath("receptionist")).toBe("/seva/counter");
+    expect(sevaLandingPath("prasadam_counter")).toBe("/seva/prasadam");
     expect(sevaLandingPath("temple_admin")).toBeNull();
     expect(sevaLandingPath("super_admin")).toBeNull();
     expect(sevaLandingPath(null)).toBeNull();
+  });
+});
+
+/* ---------- header search ---------- */
+
+describe("admin header search", () => {
+  it("header search for receipt, prasadam or seva entry opens /seva, and seva still opens /admin/sevas", async () => {
+    const AdminHeader = (await import("@/components/admin/layout/AdminHeader")).default;
+    mockAuth = { ...signedIn("temple_admin"), normalizedRole: "admin", logout: () => Promise.resolve() };
+    render(<AdminHeader onMenuClick={() => undefined} />);
+    const input = screen.getByPlaceholderText("Search pages... (⌘K)");
+    const search = (q: string): unknown => {
+      mockPush.mockClear();
+      fireEvent.change(input, { target: { value: q } });
+      fireEvent.submit(input.closest("form")!);
+      return mockPush.mock.calls.at(-1)?.[0];
+    };
+    expect(search("receipt")).toBe("/seva");
+    expect(search("Receipts")).toBe("/seva");
+    expect(search("prasadam")).toBe("/seva");
+    expect(search("Seva Entry")).toBe("/seva");
+    expect(search("seva")).toBe("/admin/sevas");
+    expect(search("sevas")).toBe("/admin/sevas");
+    expect(search("booking")).toBe("/admin/bookings");
   });
 });

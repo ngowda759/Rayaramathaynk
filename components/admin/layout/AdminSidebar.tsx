@@ -9,6 +9,8 @@ import { useAuthContext } from "@/context/AuthContext";
 import { SevaLink, navigateWithProgress } from "@/components/seva/motion/SevaLink";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { isSevaHref } from "@/lib/seva/motion";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
+import { SHELL_NAV } from "@/lib/seva/strings/shell";
 import { cn } from "@/lib/utils";
 import { sevaNavColumn, withSevaNavigation } from "./navigation";
 import type { NavigationGroup, NavigationItem } from "./types";
@@ -58,7 +60,7 @@ const allNavigation: NavigationGroup[] = [
     title: "Finance",
     items: [
       { title: "Billing", href: "/admin/billing", icon: "billing" },
-      { title: "Receipt Book", href: "/admin/receipts", icon: "receipt" },
+      { title: SHELL_NAV.sevaEntry.en, href: SEVA_ROUTES.dashboard, icon: "receipt" },
       { title: "Bookings", href: "/admin/bookings", icon: "bookings" },
       { title: "Daily Pooja", href: "/admin/pooja", icon: "book" },
       { title: "Donations", href: "/admin/donations", icon: "donation" },
@@ -266,7 +268,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const navigation = useMemo(() =>
     withSevaNavigation(
       getFilteredNavigation(canManageUsers || false, canAccessAdministration || false, canAccessSettings || false, canAccessFinance || false),
-      { column: sevaColumn, administrationShown: canAccessAdministration || false }
+      { column: sevaColumn }
     ),
     [canManageUsers, canAccessAdministration, canAccessSettings, canAccessFinance, sevaColumn]
   );

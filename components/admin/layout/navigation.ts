@@ -1,4 +1,4 @@
-import type { Bi } from "@/lib/seva/strings/common";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 import { SHELL_NAV } from "@/lib/seva/strings/shell";
 import type { SevaRole } from "@/types/seva";
 
@@ -56,9 +56,9 @@ export const navigation: NavigationGroup[] = [
         icon: "billing",
       },
       {
-        // Sub-items per role come from withSevaNavigation() below.
-        title: "Receipt Book",
-        href: "/admin/receipts",
+        // The one Seva Entry item; the module's pages live in its own rail at /seva (plan A4S-3).
+        title: SHELL_NAV.sevaEntry.en,
+        href: SEVA_ROUTES.dashboard,
         icon: "receipt",
       },
       {
@@ -148,50 +148,13 @@ export const navigation: NavigationGroup[] = [
 ];
 
 /* ------------------------------------------------------------------------------------------------------------------
- * Seva Entry: Receipt Book sub-items and the Prasadam page per role (DB §3.3; plan A3-6).
+ * Seva Entry in the website admin (DB §3.3; plans A3-6 and A4S-3). The module has its own screens at /seva with its
+ * own section rail (components/seva/shell/sections.ts); the website admin shows one "Seva Entry" item that opens it.
  * The columns are those of the role x action matrix: R = Receptionist, P = Prasadam counter, TA = Temple admin,
  * TV = Temple admin with view-only, SA = Super admin. The browser only hides; every page and API call checks again.
  * ------------------------------------------------------------------------------------------------------------------ */
 
 export type SevaNavColumn = "R" | "P" | "TA" | "TV" | "SA";
-
-interface SevaNavEntry {
-  label: Bi;
-  href: string;
-  icon: string;
-  columns: readonly SevaNavColumn[];
-}
-
-const RECEIPT_BOOK_HREF = "/admin/receipts";
-const STAFF_HREF = "/admin/users";
-
-/** Receipt Book's pages, in sidebar order. Pages built by later tasks link correctly once they merge. */
-export const RECEIPT_BOOK_PAGES: readonly SevaNavEntry[] = [
-  { label: SHELL_NAV.dashboard, href: "/admin/receipts", icon: "dashboard", columns: ["TA", "TV", "SA"] },
-  { label: SHELL_NAV.counter, href: "/admin/receipts/counter", icon: "receipt", columns: ["R", "TA", "SA"] },
-  { label: SHELL_NAV.todayReceipts, href: "/admin/receipts/counter/today", icon: "bookings", columns: ["R", "TA", "SA"] },
-  { label: SHELL_NAV.closeDay, href: "/admin/receipts/day-close", icon: "clock", columns: ["R", "TA", "SA"] },
-  { label: SHELL_NAV.register, href: "/admin/receipts/register", icon: "book", columns: ["TA", "TV", "SA"] },
-  { label: SHELL_NAV.reports, href: "/admin/receipts/reports", icon: "chart", columns: ["TA", "TV", "SA"] },
-  { label: SHELL_NAV.dayCloses, href: "/admin/receipts/day-closes", icon: "calendar", columns: ["TA", "TV", "SA"] },
-  { label: SHELL_NAV.sevaSettings, href: "/admin/receipts/seva-settings", icon: "settings", columns: ["TA", "TV", "SA"] },
-  { label: SHELL_NAV.receiptSettings, href: "/admin/receipts/settings", icon: "settings", columns: ["TA", "TV", "SA"] },
-];
-
-export const PRASADAM_PAGE: SevaNavEntry = {
-  label: SHELL_NAV.prasadam,
-  href: "/admin/prasadam",
-  icon: "flower",
-  columns: ["P", "TA", "SA"],
-};
-
-/** Staff and roles stays at the existing Users page. */
-export const STAFF_PAGE: SevaNavEntry = {
-  label: SHELL_NAV.staffRoles,
-  href: STAFF_HREF,
-  icon: "users",
-  columns: ["TA", "SA"],
-};
 
 /**
  * The matrix column for the sidebar. `viewOnly` is null while the seva profile is unknown; a temple admin then gets
@@ -214,50 +177,36 @@ export function sevaNavColumn(role: SevaRole | null | undefined, viewOnly: boole
 
 /** Where a seva-only role lands when it opens /admin; null keeps the admin dashboard. */
 export function sevaLandingPath(role: SevaRole | null | undefined): string | null {
-  if (role === "receptionist") return "/admin/receipts/counter";
-  if (role === "prasadam_counter") return "/admin/prasadam";
+  if (role === "receptionist") return SEVA_ROUTES.counter;
+  if (role === "prasadam_counter") return SEVA_ROUTES.prasadam;
   return null;
 }
 
-function toItem(entry: SevaNavEntry): NavigationItem {
-  return { title: entry.label.en, titleKn: entry.label.kn, href: entry.href, icon: entry.icon };
-}
-
-function visible(entries: readonly SevaNavEntry[], column: SevaNavColumn): NavigationItem[] {
-  return entries.filter((entry) => entry.columns.includes(column)).map(toItem);
+/** The website admin's one Seva Entry item: no sub-items, it opens the module. */
+function sevaEntryItem(): NavigationItem {
+  return { title: SHELL_NAV.sevaEntry.en, titleKn: SHELL_NAV.sevaEntry.kn, href: SEVA_ROUTES.dashboard, icon: "receipt" };
 }
 
 /**
- * The admin sidebar with the seva items for one person.
+ * The admin sidebar with the Seva Entry item for one person.
  * - No seva role: the groups are returned unchanged (existing users keep exactly what they had).
- * - Receptionist and prasadam volunteer: only their seva pages.
- * - Temple admin and super admin: every existing group; Receipt Book keeps its place in Finance and gets its
- *   sub-items, followed by Prasadam and, when the Administration section (with Users) is hidden, Staff and roles.
+ * - Receptionist and prasadam volunteer: one group with only the Seva Entry item.
+ * - Temple admin and super admin: every existing group; the Seva Entry item keeps its place in Finance, with its
+ *   Kannada label and no sub-items (the module's sections, Staff included, live in its own rail).
  */
 export function withSevaNavigation(
   groups: NavigationGroup[],
-  input: { column: SevaNavColumn | null; administrationShown: boolean },
+  input: { column: SevaNavColumn | null },
 ): NavigationGroup[] {
   const { column } = input;
   if (column === null) return groups;
 
-  const pages = visible(RECEIPT_BOOK_PAGES, column);
-  const prasadam = visible([PRASADAM_PAGE], column);
-
   if (column === "R" || column === "P") {
-    return [
-      { title: SHELL_NAV.receiptBook.en, items: pages },
-      { title: SHELL_NAV.prasadam.en, items: prasadam },
-    ].filter((group) => group.items.length > 0);
+    return [{ title: SHELL_NAV.sevaEntry.en, items: [sevaEntryItem()] }];
   }
 
-  const staff = input.administrationShown ? [] : visible([STAFF_PAGE], column);
   return groups.map((group) => ({
     ...group,
-    items: group.items.flatMap((item) =>
-      item.href === RECEIPT_BOOK_HREF
-        ? [{ ...item, titleKn: SHELL_NAV.receiptBook.kn, children: pages }, ...prasadam, ...staff]
-        : [item],
-    ),
+    items: group.items.map((item) => (item.href === SEVA_ROUTES.dashboard ? sevaEntryItem() : item)),
   }));
 }
