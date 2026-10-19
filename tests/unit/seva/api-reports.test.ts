@@ -177,6 +177,7 @@ describe("report routes", () => {
     mockRpc.mockImplementation((fn: string) => Promise.resolve(fn === "seva_dashboard" ? SQL_DASHBOARD : SQL_ATTENTION));
     const res = await DASHBOARD(get("/api/seva/reports/dashboard?period=today"));
     expect(res.headers.get("cache-control")).toBe("private, max-age=60");
+    expect(res.headers.get("vary")).toBe("Authorization");
 
     const bad = await DASHBOARD(get("/api/seva/reports/dashboard?period=decade"));
     expect(bad.status).toBe(400);
@@ -244,13 +245,14 @@ describe("report routes", () => {
     expect(phoneBody.rows[0].phone).toBe("+919845012345");
   });
 
-  it("pages exports 1000 rows at a time and excludes test mode", async () => {
-    mockTables.seva_receipts = { data: Array.from({ length: 1001 }, (_, i) => receiptRow(i + 1)), error: null };
+  it("pages exports 1000 rows at a time, never asking past the PostgREST row cap, and excludes test mode", async () => {
+    // The mock never answers more rows than the cap (max_rows = 1000), like the real API.
+    mockTables.seva_receipts = { data: Array.from({ length: 1000 }, (_, i) => receiptRow(i + 1)), error: null };
     const first = await EXPORT(get("/api/seva/reports/export?part=receipts&from=2026-10-01&to=2026-10-21"));
     const firstBody = (await first.json()) as { rows: unknown[]; nextCursor: string | null };
     expect(firstBody.rows).toHaveLength(1000);
     expect(firstBody.nextCursor).toBe("1000");
-    expect(mockCalls).toContainEqual({ table: "seva_receipts", method: "range", args: [0, 1000] });
+    expect(mockCalls).toContainEqual({ table: "seva_receipts", method: "range", args: [0, 999] });
     expect(mockCalls).toContainEqual({ table: "seva_receipts", method: "eq", args: ["test_mode", false] });
     expect(mockCalls).toContainEqual({ table: "seva_receipts", method: "eq", args: ["seva_orders.test_mode", false] });
 
@@ -260,10 +262,65 @@ describe("report routes", () => {
     const secondBody = (await second.json()) as { rows: unknown[]; nextCursor: string | null };
     expect(secondBody.rows).toHaveLength(1);
     expect(secondBody.nextCursor).toBeNull();
-    expect(mockCalls).toContainEqual({ table: "seva_receipts", method: "range", args: [1000, 2000] });
+    expect(mockCalls).toContainEqual({ table: "seva_receipts", method: "range", args: [1000, 1999] });
+
+    mockCalls.length = 0;
+    mockTables.seva_receipts = { data: [], error: null };
+    const empty = await EXPORT(get("/api/seva/reports/export?part=receipts&from=2026-10-01&to=2026-10-21&cursor=2000"));
+    const emptyBody = (await empty.json()) as { rows: unknown[]; nextCursor: string | null };
+    expect(emptyBody.rows).toHaveLength(0);
+    expect(emptyBody.nextCursor).toBeNull();
+
+    mockCalls.length = 0;
+    mockTables.seva_receipt_lines = { data: [], error: null };
+    await EXPORT(get("/api/seva/reports/export?part=lines&from=2026-10-01&to=2026-10-21"));
+    const lineOrder = mockCalls.filter((c) => c.table === "seva_receipt_lines" && c.method === "order").map((c) => c.args[0]);
+    expect(lineOrder).toEqual(["seva_receipts(issued_at)", "seva_receipts(receipt_no)", "line_no"]);
+    expect(mockCalls).toContainEqual({ table: "seva_receipt_lines", method: "range", args: [0, 999] });
 
     const bad = await EXPORT(get("/api/seva/reports/export?part=everything&from=2026-10-01&to=2026-10-21"));
     expect(bad.status).toBe(400);
+  });
+
+  it("reads day closes in pages the row cap allows, up to the 2000-close limit", async () => {
+    const close = (n: number): Record<string, unknown> => ({
+      id: `dc-${n}`,
+      counter_id: 1,
+      business_date: "2026-10-19",
+      status: "closed",
+      receipts_count: 0,
+      cancelled_count: 0,
+      changed_count: 0,
+      cash_expected: 0,
+      cash_counted: 0,
+      cash_difference: 0,
+      upi_count: 0,
+      upi_expected: 0,
+      upi_bank_total: null,
+      upi_difference: 0,
+      note: null,
+      closed_by_staff_id: null,
+      closed_at: "2026-10-19T12:00:00.000Z",
+      reopened_by_staff_id: null,
+      reopened_at: null,
+      reopen_reason: null,
+      counters: { name: "Main" },
+      day_close_counts: [],
+    });
+    mockTables.day_closes = { data: Array.from({ length: 1000 }, (_, i) => close(i)), error: null };
+    const res = await DAY_CLOSES(get("/api/seva/reports/day-closes?from=2025-10-20&to=2026-10-19"));
+    expect(res.status).toBe(200);
+    expect((await res.json()) as unknown[]).toHaveLength(2000);
+    const ranges = mockCalls.filter((c) => c.table === "day_closes" && c.method === "range").map((c) => c.args);
+    expect(ranges).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+
+    mockCalls.length = 0;
+    const exported = await EXPORT(get("/api/seva/reports/export?part=dayCloses&from=2025-10-20&to=2026-10-19"));
+    expect(((await exported.json()) as { nextCursor: string | null }).nextCursor).toBe("1000");
+    expect(mockCalls).toContainEqual({ table: "day_closes", method: "range", args: [0, 999] });
   });
 
   it("writes the export audit with format, range, parts and the phone flag", async () => {

@@ -609,8 +609,10 @@ const DAY_CLOSE_COLUMNS =
   "cash_difference, upi_count, upi_expected, upi_bank_total, upi_difference, note, closed_by_staff_id, closed_at, " +
   "reopened_by_staff_id, reopened_at, reopen_reason, counters(name), day_close_counts(kind, value, count, amount)";
 
-/** At most a year of closes for a handful of counters. */
+/** At most a year of closes for a handful of counters, read in pages the PostgREST row cap (1000) allows. */
 const DAY_CLOSE_LIMIT = 2000;
+/** The most rows one PostgREST answer carries (supabase/config.toml `max_rows`, also the hosted default). */
+const DB_MAX_ROWS = 1000;
 
 function badgeOf(cash: number, upi: number): DayCloseListRow["badge"] {
   if (cash < 0 || upi < 0) return "short";
@@ -675,14 +677,22 @@ async function toDayCloseRows(raw: Row[]): Promise<DayCloseListRow[]> {
 }
 
 export async function loadDayCloses(from: string, to: string): Promise<DayCloseListRow[]> {
-  return toDayCloseRows(await readDayCloses(from, to, 0, DAY_CLOSE_LIMIT));
+  const all: Row[] = [];
+  while (all.length < DAY_CLOSE_LIMIT) {
+    const take = Math.min(DB_MAX_ROWS, DAY_CLOSE_LIMIT - all.length);
+    const page = await readDayCloses(from, to, all.length, take);
+    all.push(...page);
+    if (page.length < take) break;
+  }
+  return toDayCloseRows(all);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Exports (DB 12.6, C-41): one part a call, 1000 rows a page, test mode excluded, phones only when asked and allowed
 // ---------------------------------------------------------------------------------------------------------------
 
-export const EXPORT_PAGE_SIZE = 1000;
+/** Equal to the PostgREST row cap: a page asks for exactly this many rows, never one more (it would never arrive). */
+export const EXPORT_PAGE_SIZE = DB_MAX_ROWS;
 
 const CANCEL_REASON_LABELS: Record<CancelReasonCode, string> = {
   wrong_seva: "Wrong seva",
@@ -772,9 +782,13 @@ export function toExportReceiptRow(raw: Row, includePhones: boolean): ExportRece
   return row;
 }
 
+/**
+ * A full page means another may follow, so it carries a cursor; a short page is the last. When the total is an exact
+ * multiple of the page size, the caller makes one extra call that comes back empty.
+ */
 function pageOf<T>(raw: T[], offset: number): { page: T[]; nextCursor: string | null } {
-  const more = raw.length > EXPORT_PAGE_SIZE;
-  return { page: raw.slice(0, EXPORT_PAGE_SIZE), nextCursor: more ? String(offset + EXPORT_PAGE_SIZE) : null };
+  const full = raw.length >= EXPORT_PAGE_SIZE;
+  return { page: raw.slice(0, EXPORT_PAGE_SIZE), nextCursor: full ? String(offset + EXPORT_PAGE_SIZE) : null };
 }
 
 async function exportReceipts(q: ExportQuery, offset: number, onlyCancelledOrChanged: boolean): Promise<ExportPage> {
@@ -786,11 +800,10 @@ async function exportReceipts(q: ExportQuery, offset: number, onlyCancelledOrCha
     .eq("test_mode", false)
     .eq("seva_orders.test_mode", false);
   if (onlyCancelledOrChanged) query = query.or("status.eq.cancelled,has_changed_amount.eq.true");
-  // One extra row tells whether another page follows.
   const { data, error } = await query
     .order("issued_at", { ascending: true })
     .order("receipt_no", { ascending: true })
-    .range(offset, offset + EXPORT_PAGE_SIZE);
+    .range(offset, offset + EXPORT_PAGE_SIZE - 1);
   dbFailed(error);
   const { page, nextCursor } = pageOf(rows(data), offset);
   return { rows: page.map((r) => toExportReceiptRow(r, q.includePhones)), nextCursor };
@@ -808,9 +821,12 @@ async function exportLines(q: ExportQuery, offset: number): Promise<ExportPage> 
     .lte("seva_receipts.business_date", q.to)
     .eq("seva_receipts.test_mode", false)
     .eq("seva_receipts.seva_orders.test_mode", false)
-    .order("receipt_id", { ascending: true })
+    // Append-only order (the parent receipt's issue time and number), so receipts issued during a live-day export
+    // land after the pages already read instead of shifting them.
+    .order("seva_receipts(issued_at)", { ascending: true })
+    .order("seva_receipts(receipt_no)", { ascending: true })
     .order("line_no", { ascending: true })
-    .range(offset, offset + EXPORT_PAGE_SIZE);
+    .range(offset, offset + EXPORT_PAGE_SIZE - 1);
   dbFailed(error);
   const { page, nextCursor } = pageOf(rows(data), offset);
   return {
@@ -854,7 +870,7 @@ async function exportSevas(q: ExportQuery): Promise<ExportPage> {
 }
 
 async function exportDayCloses(q: ExportQuery, offset: number): Promise<ExportPage> {
-  const { page, nextCursor } = pageOf(await readDayCloses(q.from, q.to, offset, EXPORT_PAGE_SIZE + 1), offset);
+  const { page, nextCursor } = pageOf(await readDayCloses(q.from, q.to, offset, EXPORT_PAGE_SIZE), offset);
   const list = await toDayCloseRows(page);
   return {
     rows: list.map((d) => ({
@@ -889,7 +905,7 @@ async function exportPrasadam(q: ExportQuery, offset: number): Promise<ExportPag
     .eq("seva_orders.test_mode", false)
     .order("seva_date", { ascending: true })
     .order("receipt_no", { ascending: true })
-    .range(offset, offset + EXPORT_PAGE_SIZE);
+    .range(offset, offset + EXPORT_PAGE_SIZE - 1);
   dbFailed(error);
   const { page, nextCursor } = pageOf(rows(data), offset);
   const names = await staffNames(page.map((r) => strOrNull(r.prasadam_given_by_staff_id)));
@@ -921,7 +937,7 @@ async function exportRateChanges(q: ExportQuery, offset: number): Promise<Export
     .lt("changed_at", end)
     .order("changed_at", { ascending: true })
     .order("id", { ascending: true })
-    .range(offset, offset + EXPORT_PAGE_SIZE);
+    .range(offset, offset + EXPORT_PAGE_SIZE - 1);
   dbFailed(error);
   const { page, nextCursor } = pageOf(rows(data), offset);
   const names = await staffNames(page.map((r) => strOrNull(r.changed_by_staff_id)));

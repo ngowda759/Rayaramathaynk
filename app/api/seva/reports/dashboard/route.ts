@@ -1,6 +1,7 @@
 /**
  * GET /api/seva/reports/dashboard?period=today|week|month|year -> { data: DashboardData; attention: NeedsAttentionCard[] }
- * (DB 12.1, 12.2). Like-for-like IST spans from `periodRange`; kept in the viewer's browser cache for 60 seconds.
+ * (DB 12.1, 12.2). Like-for-like IST spans from `periodRange`; kept in the viewer's browser cache for 60 seconds,
+ * keyed on the Authorization header so a second person on a shared PC never gets the first one's copy.
  */
 
 import type { NextRequest } from "next/server";
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     const { period } = parseInput(dashboardQuerySchema, queryOf(req));
     const answer = await loadDashboard(period, new Date());
-    return sevaJson(answer, { headers: { "Cache-Control": "private, max-age=60" } });
+    return sevaJson(answer, { headers: { "Cache-Control": "private, max-age=60", Vary: "Authorization" } });
   } catch (error) {
     return sevaErrorResponse(error);
   }
