@@ -738,6 +738,7 @@ describe('POST /api/seva/counter/sync', () => {
       p_at: '2026-10-18T05:05:00.000Z',
       p_cancelled_by_staff_no: 23,
       p_canceller_role: 'receptionist',
+      p_device_id: DEVICE.id,
     });
   });
 

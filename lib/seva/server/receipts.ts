@@ -432,8 +432,14 @@ export async function requireCancelRight(
   return requireSevaActor(req, "receipt.cancel_any", { device });
 }
 
-export async function cancelReceipts(actor: SevaActor, body: CancelRequest): Promise<{ receipts: ReceiptListItem[] }> {
+export async function cancelReceipts(
+  actor: SevaActor,
+  body: CancelRequest,
+  /** The registered PC the cancel came from, recorded in the audit row (A5-FIX L-4); null from the office. */
+  deviceId: string | null = null,
+): Promise<{ receipts: ReceiptListItem[] }> {
   await callRpc<unknown>("seva_cancel_receipts", {
+    ...(deviceId === null ? {} : { p_device_id: deviceId }),
     p_receipt_ids: body.receiptIds,
     p_reason_code: body.reasonCode,
     p_note: body.note && body.note !== "" ? body.note : null,

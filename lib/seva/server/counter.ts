@@ -670,6 +670,8 @@ async function syncItem(
     p_at: item.at,
     p_cancelled_by_staff_no: item.cancelledByStaffNo,
     p_canceller_role: role,
+    // A5-FIX L-4: the PC the cancel was made on, recorded in the audit row.
+    p_device_id: device.id,
   });
   const inClosedDay = list(obj(answer).receipts).some((r) => obj(r).in_closed_day === true);
   return inClosedDay ? { seq: item.seq, ok: true, inClosedDay: true } : { seq: item.seq, ok: true };

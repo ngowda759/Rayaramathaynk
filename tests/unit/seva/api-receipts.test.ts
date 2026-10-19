@@ -343,6 +343,8 @@ describe("POST /api/seva/receipts/cancel", () => {
     });
     expect(await own.json()).toMatchObject({ receipts: [{ id: RECEIPT_ID, status: "cancelled", refundState: "done" }] });
     expect(mockCallRpc).toHaveBeenLastCalledWith("seva_cancel_receipts", {
+      // A5-FIX L-4: the PC the cancel came from goes into the audit row.
+      p_device_id: PC1.id,
       p_receipt_ids: [RECEIPT_ID],
       p_reason_code: "wrong_seva",
       p_note: null,

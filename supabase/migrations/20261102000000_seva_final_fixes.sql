@@ -513,6 +513,9 @@ GRANT EXECUTE ON FUNCTION seva_sync_offline_order(jsonb, uuid, uuid, text) TO se
 -- temple admin reopens it (DB 3.3 row 7). An admin may still cancel, but the cash was already counted and handed over,
 -- so a cash cancel in a closed day is refund_state due (cash_back 0), flagged in_closed_day in the answer and in the
 -- audit row's after, with closed_business_date. The offline rules are unchanged.
+-- L-4: p_device_id, when the route names the PC the cancel came from, is recorded as device_id in the receipt.cancel
+-- audit row's after. The old eight-argument signature is dropped; the new argument defaults to null.
+DROP FUNCTION IF EXISTS seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text);
 CREATE OR REPLACE FUNCTION seva_cancel_receipts(
   p_receipt_ids uuid[],
   p_reason_code text,
@@ -521,7 +524,8 @@ CREATE OR REPLACE FUNCTION seva_cancel_receipts(
   p_is_admin boolean,
   p_at timestamptz DEFAULT NULL,
   p_cancelled_by_staff_no integer DEFAULT NULL,
-  p_canceller_role text DEFAULT NULL
+  p_canceller_role text DEFAULT NULL,
+  p_device_id uuid DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -649,7 +653,8 @@ BEGIN
      WHERE r.id = v_id;
 
     v_after := jsonb_build_object('status', 'cancelled', 'cancel_reason_code', p_reason_code, 'refund_state', v_refund,
-                                  'cancelled_at', v_at, 'by_admin', v_is_admin);
+                                  'cancelled_at', v_at, 'by_admin', v_is_admin)
+               || CASE WHEN p_device_id IS NOT NULL THEN jsonb_build_object('device_id', p_device_id) ELSE '{}'::jsonb END;
     IF v_offline THEN
       -- The person who cancelled on the PC is the actor, with their role; the syncer is recorded beside it.
       v_after := v_after || jsonb_build_object('offline', true, 'synced_by_staff_id', v_syncer.id,
@@ -697,9 +702,10 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text)
+REVOKE EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text, uuid)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text) TO service_role;
+GRANT EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text, uuid)
+  TO service_role;
 
 -- =====================================================================================================
 -- M-2. Offline receipts that sync into a closed day are flagged; the close needs the counter online

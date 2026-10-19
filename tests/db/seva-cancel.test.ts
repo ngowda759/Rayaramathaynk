@@ -1122,3 +1122,23 @@ describe('rules in SQL, not only in the route (A5-FIX L-5)', () => {
     ).resolves.toBeDefined();
   });
 });
+
+describe('the PC a cancel was made from (A5-FIX L-4)', () => {
+  it('is recorded in the receipt.cancel audit row when the route names it', async () => {
+    const c = await setup();
+    const order = await issue(c, { days: [1, 2] });
+    const [first, second] = order.receipts.map((r) => r.id);
+    await asRole(c.db, 'service_role', (d) =>
+      d.query(
+        `select seva_cancel_receipts($1::uuid[], 'wrong_seva', null, $2::uuid, false, null, null, null, $3::uuid)`,
+        [uuidArray([first]), c.staffId, c.deviceId],
+      ),
+    );
+    await cancel(c, { ids: [second], reason: 'wrong_seva' });
+    const audit = (await auditRows(c.db)).filter((r) => r.action === 'receipt.cancel');
+    expect(audit.map((r) => [r.entity_id, r.after?.device_id])).toEqual([
+      [first, c.deviceId],
+      [second, undefined],
+    ]);
+  });
+});

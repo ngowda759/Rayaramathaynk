@@ -677,7 +677,7 @@ describe('seva_issue_counter_order (A2-1)', () => {
       'seva_issue_counter_order(jsonb,uuid,uuid)',
       'seva_sync_offline_order(jsonb,uuid,uuid,text)',
       'seva_record_prints(uuid[],uuid,uuid)',
-      'seva_cancel_receipts(uuid[],text,text,uuid,boolean,timestamptz,integer,text)',
+      'seva_cancel_receipts(uuid[],text,text,uuid,boolean,timestamptz,integer,text,uuid)',
       'seva_reissue_spoiled(uuid,uuid,uuid,text,boolean)',
       'seva_order_json(uuid,boolean)',
     ];

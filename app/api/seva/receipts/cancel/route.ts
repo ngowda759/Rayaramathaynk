@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const body = parseInput(cancelSchema, await readJson(req));
     const guard = await requireCancelRight(req, body.receiptIds, "required_for_receptionist");
     if (!guard.ok) return guard.response;
-    return sevaJson(await cancelReceipts(guard.actor, body));
+    return sevaJson(await cancelReceipts(guard.actor, body, guard.device?.id ?? null));
   } catch (error) {
     return sevaErrorResponse(error);
   }
