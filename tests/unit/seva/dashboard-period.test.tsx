@@ -15,15 +15,17 @@ type Answer = { data: DashboardData; attention: NeedsAttentionCard[] };
 const mockUser = { getIdToken: async (): Promise<string> => "token" };
 const mockMe = { role: "temple_admin" };
 const mockNav = { search: new URLSearchParams(""), replace: jest.fn() };
-const mockCalls: { period: Period; resolve(a: Answer): void }[] = [];
+const mockCalls: { period: Period; resolve(a: Answer): void; reject(e: Error): void }[] = [];
 const mockApi = {
   dashboard: jest.fn(
     (period: Period) =>
-      new Promise<Answer>((resolve) => {
-        mockCalls.push({ period, resolve });
+      new Promise<Answer>((resolve, reject) => {
+        mockCalls.push({ period, resolve, reject });
       }),
   ),
 };
+// The props each HeroChart render received, to check the first draw's motion setting.
+const mockHeroProps: { reducedMotion: boolean; colors: string[] }[] = [];
 
 jest.mock("@/components/seva/shell/SevaGate", () => ({
   SevaGate: ({ children }: { children: unknown }) => children,
@@ -37,7 +39,12 @@ jest.mock("next/navigation", () => ({
   usePathname: () => "/admin/receipts",
 }));
 // The charts draw with ECharts in a browser; here a marker shows they stay mounted.
-jest.mock("@/components/seva/dashboard/HeroChart", () => ({ HeroChart: () => <div data-testid="hero-chart" /> }));
+jest.mock("@/components/seva/dashboard/HeroChart", () => ({
+  HeroChart: (props: { reducedMotion: boolean; colors: string[] }) => {
+    mockHeroProps.push({ reducedMotion: props.reducedMotion, colors: props.colors });
+    return <div data-testid="hero-chart" />;
+  },
+}));
 jest.mock("@/components/seva/dashboard/DetailCharts", () => ({ DetailCharts: () => <div data-testid="detail-charts" /> }));
 
 function answer(period: Period, totalPaise: number, receipts: number): Answer {
@@ -64,8 +71,16 @@ async function answerLast(a: Answer): Promise<void> {
   });
 }
 
+async function failLast(message: string): Promise<void> {
+  await waitFor(() => expect(mockCalls.length).toBeGreaterThan(0));
+  await act(async () => {
+    mockCalls[mockCalls.length - 1].reject(new Error(message));
+  });
+}
+
 beforeEach(() => {
   mockCalls.length = 0;
+  mockHeroProps.length = 0;
   mockApi.dashboard.mockClear();
   mockNav.replace.mockReset();
   mockNav.search = new URLSearchParams("");
@@ -103,5 +118,62 @@ describe("dashboard period switch", () => {
     await waitFor(() => expect(screen.getByTestId("dashboard-content")).toHaveAttribute("data-pending", "false"));
     expect(screen.queryByTestId("period-pending")).toBeNull();
     expect(mockNav.replace).toHaveBeenCalledWith("/admin/receipts?period=week", { scroll: false });
+  });
+
+  it("from the error box, Try again shows the spinner and a busy button until the answer arrives", async () => {
+    render(<ReceiptsDashboardPage />);
+    await failLast("Network down");
+    await waitFor(() => expect(screen.getByTestId("dashboard-error")).toHaveTextContent("Network down"));
+    expect(screen.queryByTestId("period-pending")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(mockCalls).toHaveLength(2));
+    expect(screen.getByTestId("period-pending")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-error")).toHaveAttribute("aria-busy", "true");
+    const busyButton = screen.getByRole("button", { name: /Updating/ });
+    expect(busyButton).toHaveAttribute("aria-busy", "true");
+    expect(busyButton).toBeDisabled();
+
+    await answerLast(answer("today", 6_119_600, 125));
+    await waitFor(() => expect(screen.getByTestId("tile-total")).toHaveTextContent("Rs 61,196"));
+    expect(screen.queryByTestId("dashboard-error")).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId("period-pending")).toBeNull());
+  });
+
+  it("from the error box, a period switch shows the spinner while the new period loads", async () => {
+    render(<ReceiptsDashboardPage />);
+    await failLast("Network down");
+    await waitFor(() => expect(screen.getByTestId("dashboard-error")).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("radio", { name: /month/i })[0]);
+    await waitFor(() => expect(mockCalls.at(-1)?.period).toBe("month"));
+    expect(screen.getByTestId("period-pending")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-error")).toHaveAttribute("aria-busy", "true");
+
+    await answerLast(answer("month", 38_412_000, 811));
+    await waitFor(() => expect(screen.getByTestId("tile-receipts")).toHaveTextContent("811"));
+    await waitFor(() => expect(screen.queryByTestId("period-pending")).toBeNull());
+  });
+
+  it("the first chart draw already follows prefers-reduced-motion", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("reduce"),
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    try {
+      render(<ReceiptsDashboardPage />);
+      await answerLast(answer("today", 6_119_600, 125));
+      await waitFor(() => expect(screen.getByTestId("hero-chart")).toBeInTheDocument());
+      expect(mockHeroProps[0]?.reducedMotion).toBe(true);
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });

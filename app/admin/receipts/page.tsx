@@ -11,9 +11,10 @@ import { NeedsAttention } from "@/components/seva/dashboard/NeedsAttention";
 import { PeriodSwitch } from "@/components/seva/dashboard/PeriodSwitch";
 import { SummaryTiles } from "@/components/seva/dashboard/SummaryTiles";
 import { PageSkeleton } from "@/components/seva/motion/PageSkeleton";
+import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { FALLBACK_CHART_COLORS, readChartColors } from "@/lib/seva/charts/colors";
@@ -34,7 +35,9 @@ import type { DashboardData } from "@/types/seva-reports";
  *
  * Motion (plan A4P-3): the first load shows the dashboard's outline; a period switch moves the switch at once and keeps
  * the previous tiles and charts on screen, dimmed, with a small spinner beside the switch, until the new answer is in
- * (the swap and the URL change run as transitions, so the screen never freezes and is never blank).
+ * (the swap and the URL change run as transitions, so the screen never freezes and is never blank). The spinner follows
+ * the request, not the numbers: from the error box, "Try again" or a period switch shows it too, with the box dimmed
+ * and its button busy until the answer arrives.
  */
 
 const PERIODS: readonly Period[] = ["today", "week", "month", "year"];
@@ -90,6 +93,7 @@ function Dashboard(): JSX.Element {
   const drawn = load.kind !== "loading";
   const [colors, setColors] = useState<string[]>([...FALLBACK_CHART_COLORS]);
   const [reducedMotion, setReducedMotion] = useState(false);
+  // Always mounted (the loading outline included), so the colours are read before the first chart draws.
   const rootRef = useRef<HTMLDivElement>(null);
 
   const token = useCallback(async (): Promise<string> => {
@@ -104,13 +108,12 @@ function Dashboard(): JSX.Element {
     return answer.data;
   }, [api]);
 
-  // Chart colours come from the module's tokens (DB §12.5); EChart re-reads them on a theme change. Read once the page
-  // (not its loading outline) is drawn.
+  // Chart colours come from the module's tokens (DB §12.5); EChart re-reads them on a theme change. Both are read on
+  // mount, while the loading outline shows, so the first chart draw already has them.
   useEffect(() => {
-    if (!drawn) return;
     if (rootRef.current) setColors(readChartColors(rootRef.current));
     if (typeof window.matchMedia === "function") setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, [drawn]);
+  }, []);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -148,64 +151,89 @@ function Dashboard(): JSX.Element {
 
   const today = formatSevaDate(businessDate(new Date()));
   const ready = load.kind === "ready" ? load : null;
-  // Old numbers on screen while the new ones load.
-  const pending = ready !== null && (refreshing || swapping);
-
-  // The first answer: the dashboard's outline, the same one the route showed while the page loaded.
-  if (!drawn) return <PageSkeleton variant="dashboard" />;
+  // A request is on its way (a switch, a retry): the spinner beside the switch shows whatever is on screen.
+  const busy = refreshing || swapping;
+  // Old numbers on screen, dimmed, while the new ones load.
+  const pending = ready !== null && busy;
+  const retrying = load.kind === "error" && busy;
 
   return (
-    <div ref={rootRef} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-col gap-1">
-          <Bilingual as="h1" en={DASHBOARD.title.en} kn={DASHBOARD.title.kn} />
-          <p className="meta text-(--muted-foreground)" data-testid="dashboard-as-of">
-            {today}
-            {ready ? ` · ${DASHBOARD.asOf} ${asOfClock(ready.answer.data.asOf)}` : ""}
-            {pending ? ` · ${DASHBOARD.refreshing}` : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <PeriodSwitch value={period} onChange={choosePeriod} pending={pending} />
-          <Link href="/admin/receipts/reports/export" className={buttonVariants({ variant: "seva-ghost" })}>
-            {DASHBOARD.export.en}
-          </Link>
-        </div>
-      </header>
-
-      {load.kind === "error" ? (
-        <div role="alert" className="flex flex-col items-start gap-3 rounded-[18px] border border-(--border) bg-(--destructive-soft) p-5">
-          <p className="font-semibold">{load.message}</p>
-          <Bilingual as="div" en={DASHBOARD.loadFailed.en} kn={DASHBOARD.loadFailed.kn} className="text-(--muted-foreground)" />
-          <Button variant="seva-primary" onClick={() => setReloads((n) => n + 1)}>
-            {DASHBOARD.tryAgain}
-          </Button>
-        </div>
-      ) : null}
-
-      {ready ? (
-        <m.div
-          data-testid="dashboard-content"
-          data-pending={pending ? "true" : "false"}
-          aria-busy={pending || undefined}
-          className="flex flex-col gap-5"
-          initial={false}
-          animate={{ opacity: pending ? 0.55 : 1 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+    <div ref={rootRef} className="contents">
+      {drawn ? (
+        <div
+          className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8"
+          aria-busy={busy || undefined}
         >
-          <NeedsAttention cards={ready.answer.attention} />
-          <SummaryTiles tiles={ready.answer.data.tiles} period={ready.period} />
-          <h2 className="sr-only">{DASHBOARD.details}</h2>
-          <HeroChart data={ready.answer.data} period={ready.period} colors={colors} reducedMotion={reducedMotion} />
-          <DetailCharts
-            data={ready.answer.data}
-            period={ready.period}
-            colors={colors}
-            reducedMotion={reducedMotion}
-            loadYear={loadYear}
-          />
-        </m.div>
-      ) : null}
+          <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-1">
+              <Bilingual as="h1" en={DASHBOARD.title.en} kn={DASHBOARD.title.kn} />
+              <p className="meta text-(--muted-foreground)" data-testid="dashboard-as-of">
+                {today}
+                {ready ? ` · ${DASHBOARD.asOf} ${asOfClock(ready.answer.data.asOf)}` : ""}
+                {busy ? ` · ${DASHBOARD.refreshing}` : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <PeriodSwitch value={period} onChange={choosePeriod} pending={busy} />
+              <Link href="/admin/receipts/reports/export" className={buttonVariants({ variant: "seva-ghost" })}>
+                {DASHBOARD.export.en}
+              </Link>
+            </div>
+          </header>
+
+          {load.kind === "error" ? (
+            <div
+              role="alert"
+              data-testid="dashboard-error"
+              aria-busy={retrying || undefined}
+              className={`flex flex-col items-start gap-3 rounded-[18px] border border-(--border) bg-(--destructive-soft) p-5 transition-opacity duration-200 ${retrying ? "opacity-60" : ""}`}
+            >
+              <p className="font-semibold">{load.message}</p>
+              <Bilingual
+                as="div"
+                en={DASHBOARD.loadFailed.en}
+                kn={DASHBOARD.loadFailed.kn}
+                className="text-(--muted-foreground)"
+              />
+              <PendingButton
+                variant="seva-primary"
+                pending={retrying}
+                pendingLabel={DASHBOARD.refreshing}
+                onClick={() => setReloads((n) => n + 1)}
+              >
+                {DASHBOARD.tryAgain}
+              </PendingButton>
+            </div>
+          ) : null}
+
+          {ready ? (
+            <m.div
+              data-testid="dashboard-content"
+              data-pending={pending ? "true" : "false"}
+              aria-busy={pending || undefined}
+              className="flex flex-col gap-5"
+              initial={false}
+              animate={{ opacity: pending ? 0.55 : 1 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <NeedsAttention cards={ready.answer.attention} />
+              <SummaryTiles tiles={ready.answer.data.tiles} period={ready.period} />
+              <h2 className="sr-only">{DASHBOARD.details}</h2>
+              <HeroChart data={ready.answer.data} period={ready.period} colors={colors} reducedMotion={reducedMotion} />
+              <DetailCharts
+                data={ready.answer.data}
+                period={ready.period}
+                colors={colors}
+                reducedMotion={reducedMotion}
+                loadYear={loadYear}
+              />
+            </m.div>
+          ) : null}
+        </div>
+      ) : (
+        // The first answer: the dashboard's outline, the same one the route showed while the page loaded.
+        <PageSkeleton variant="dashboard" />
+      )}
     </div>
   );
 }
