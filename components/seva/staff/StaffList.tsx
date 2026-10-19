@@ -5,6 +5,7 @@ import { m } from "framer-motion";
 
 import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Reveal } from "@/components/seva/motion/Reveal";
+import { SevaMotion } from "@/components/seva/motion/SevaMotion";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Segmented } from "@/components/seva/ui/Segmented";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,9 @@ export interface StaffListProps {
  * Staff and roles (DB §13.6, mockup `settings-devotee.html#staff`): everyone with a staff number, their role, the
  * view-only badge, status and last activity; All / Active / Inactive; Onboard staff; a drawer per person. The page
  * offers only what the server would accept (`staffRights`, `onboardRoleAllowed`); the server checks every change.
+ *
+ * /admin/users sits outside the seva layouts, so the list brings its own SevaMotion: the rows, the notice, the drawer
+ * and the onboard dialog (portals keep the context) spring with the Lively spring and honour prefers-reduced-motion.
  */
 export function StaffList({ api, sendInvite, me, can, startOnboarding = false }: StaffListProps): JSX.Element {
   const [staff, setStaff] = useState<StaffMember[] | null>(null);
@@ -172,156 +176,158 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      {notice ? (
-        <Reveal key={notice.title}>
-          <div
-            role="status"
-            className="flex items-start justify-between gap-3 rounded-(--radius-surface) border border-(--border) bg-(--card) p-4 shadow-(--shadow-raise)"
-          >
-            <div>
-              <strong>{notice.title}</strong>
-              {notice.hint ? <p className="text-(length:--text-meta) text-(--muted-foreground)">{notice.hint}</p> : null}
+    <SevaMotion>
+      <div className="flex flex-col gap-5">
+        {notice ? (
+          <Reveal key={notice.title}>
+            <div
+              role="status"
+              className="flex items-start justify-between gap-3 rounded-(--radius-surface) border border-(--border) bg-(--card) p-4 shadow-(--shadow-raise)"
+            >
+              <div>
+                <strong>{notice.title}</strong>
+                {notice.hint ? <p className="text-(length:--text-meta) text-(--muted-foreground)">{notice.hint}</p> : null}
+              </div>
+              <Button variant="seva-ghost" size="sm" onClick={() => setNotice(null)}>
+                {STAFF_TEXT.close}
+              </Button>
             </div>
-            <Button variant="seva-ghost" size="sm" onClick={() => setNotice(null)}>
-              {STAFF_TEXT.close}
+          </Reveal>
+        ) : null}
+
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <Bilingual as="h1" en={STAFF_TEXT.pageTitle.en} kn={STAFF_TEXT.pageTitle.kn} />
+            {staff ? (
+              <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.peopleCount(counts.all, counts.active)}</p>
+            ) : null}
+          </div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <input
+              type="search"
+              aria-label={STAFF_TEXT.searchLabel}
+              placeholder={STAFF_TEXT.searchPlaceholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={cn(sevaControlClass, "min-w-0 flex-1 sm:w-72 sm:flex-none")}
+            />
+            <Button variant="seva-primary" onClick={() => setOnboarding(true)}>
+              + {STAFF_TEXT.onboardButton.en}
             </Button>
           </div>
-        </Reveal>
-      ) : null}
-
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Bilingual as="h1" en={STAFF_TEXT.pageTitle.en} kn={STAFF_TEXT.pageTitle.kn} />
-          {staff ? (
-            <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.peopleCount(counts.all, counts.active)}</p>
-          ) : null}
         </div>
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <input
-            type="search"
-            aria-label={STAFF_TEXT.searchLabel}
-            placeholder={STAFF_TEXT.searchPlaceholder}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={cn(sevaControlClass, "min-w-0 flex-1 sm:w-72 sm:flex-none")}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Segmented<StaffListFilter>
+            name="staff-filter"
+            label={STAFF_TEXT.filterLabel}
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "all", en: `${STAFF_TEXT.filterAll.en} ${counts.all}`, kn: STAFF_TEXT.filterAll.kn },
+              { value: "active", en: `${STAFF_TEXT.filterActive.en} ${counts.active}`, kn: STAFF_TEXT.filterActive.kn },
+              { value: "inactive", en: `${STAFF_TEXT.filterInactive.en} ${counts.inactive}`, kn: STAFF_TEXT.filterInactive.kn },
+            ]}
           />
-          <Button variant="seva-primary" onClick={() => setOnboarding(true)}>
-            + {STAFF_TEXT.onboardButton.en}
-          </Button>
+          <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.inactiveLine}</p>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented<StaffListFilter>
-          name="staff-filter"
-          label={STAFF_TEXT.filterLabel}
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", en: `${STAFF_TEXT.filterAll.en} ${counts.all}`, kn: STAFF_TEXT.filterAll.kn },
-            { value: "active", en: `${STAFF_TEXT.filterActive.en} ${counts.active}`, kn: STAFF_TEXT.filterActive.kn },
-            { value: "inactive", en: `${STAFF_TEXT.filterInactive.en} ${counts.inactive}`, kn: STAFF_TEXT.filterInactive.kn },
-          ]}
-        />
-        <p className="text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.inactiveLine}</p>
-      </div>
+        {rowPartial ? (
+          <PartialFailureNotice
+            lead={`${rowPartial.name}: ${sevaErrorMessage("partial_failure")}`}
+            done={rowPartial.failure.done}
+            failed={rowPartial.failure.failed}
+            partly={rowPartial.failure.partly}
+          />
+        ) : null}
 
-      {rowPartial ? (
-        <PartialFailureNotice
-          lead={`${rowPartial.name}: ${sevaErrorMessage("partial_failure")}`}
-          done={rowPartial.failure.done}
-          failed={rowPartial.failure.failed}
-          partly={rowPartial.failure.partly}
-        />
-      ) : null}
+        {loadError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 rounded-(--radius-control) bg-(--destructive-soft) p-4">
+            <span className="text-(--destructive)">
+              {STAFF_TEXT.loadFailed} {loadError}
+            </span>
+            <Button variant="seva-secondary" size="sm" onClick={() => void load()}>
+              {STAFF_TEXT.tryAgain}
+            </Button>
+          </div>
+        ) : null}
 
-      {loadError ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-(--radius-control) bg-(--destructive-soft) p-4">
-          <span className="text-(--destructive)">
-            {STAFF_TEXT.loadFailed} {loadError}
-          </span>
-          <Button variant="seva-secondary" size="sm" onClick={() => void load()}>
-            {STAFF_TEXT.tryAgain}
-          </Button>
-        </div>
-      ) : null}
+        {staff === null && !loadError ? (
+          <p role="status" className="text-(--muted-foreground)">
+            {STAFF_TEXT.loading}
+          </p>
+        ) : null}
 
-      {staff === null && !loadError ? (
-        <p role="status" className="text-(--muted-foreground)">
-          {STAFF_TEXT.loading}
-        </p>
-      ) : null}
-
-      {staff !== null ? (
-        <div className="overflow-x-auto rounded-(--radius-surface) border border-(--border) bg-(--card) shadow-(--shadow-card)">
-          <table className="w-full min-w-[720px] border-collapse text-left text-(length:--text-ui)">
-            <thead className="bg-(--secondary) text-(length:--text-meta) text-(--muted-foreground)">
-              <tr>
-                <Bilingual as="th" en={STAFF_TEXT.colStaffNo.en} kn={STAFF_TEXT.colStaffNo.kn} className="px-4 py-3 font-semibold" />
-                <Bilingual as="th" en={STAFF_TEXT.colName.en} kn={STAFF_TEXT.colName.kn} className="px-4 py-3 font-semibold" />
-                <Bilingual as="th" en={STAFF_TEXT.colRole.en} kn={STAFF_TEXT.colRole.kn} className="px-4 py-3 font-semibold" />
-                <Bilingual as="th" en={STAFF_TEXT.colStatus.en} kn={STAFF_TEXT.colStatus.kn} className="px-4 py-3 font-semibold" />
-                <Bilingual
-                  as="th"
-                  en={STAFF_TEXT.colLastActive.en}
-                  kn={STAFF_TEXT.colLastActive.kn}
-                  className="px-4 py-3 font-semibold"
-                />
-                <th className="px-4 py-3">
-                  <span className="sr-only">{STAFF_TEXT.colActions}</span>
-                </th>
-              </tr>
-            </thead>
-            {/* The rows stagger in once, when the list arrives; rows shown later by the search or the filter just
-                appear, so nothing moves while a person types (plan A4P-4). */}
-            <m.tbody variants={staggerChildren()} initial="hidden" animate="shown" onAnimationComplete={() => setArrived(true)}>
-              {shown.length === 0 ? (
+        {staff !== null ? (
+          <div className="overflow-x-auto rounded-(--radius-surface) border border-(--border) bg-(--card) shadow-(--shadow-card)">
+            <table className="w-full min-w-[720px] border-collapse text-left text-(length:--text-ui)">
+              <thead className="bg-(--secondary) text-(length:--text-meta) text-(--muted-foreground)">
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-(--muted-foreground)">
-                    {STAFF_TEXT.empty}
-                  </td>
-                </tr>
-              ) : (
-                shown.map((member) => (
-                  <StaffRow
-                    key={member.id}
-                    arrived={arrived}
-                    member={member}
-                    meStaffId={me.staffId}
-                    can={can}
-                    busy={busyId === member.id}
-                    error={rowError?.id === member.id ? rowError.text : null}
-                    onOpen={() => setOpenId(member.id)}
-                    onReactivate={() => void reactivate(member)}
+                  <Bilingual as="th" en={STAFF_TEXT.colStaffNo.en} kn={STAFF_TEXT.colStaffNo.kn} className="px-4 py-3 font-semibold" />
+                  <Bilingual as="th" en={STAFF_TEXT.colName.en} kn={STAFF_TEXT.colName.kn} className="px-4 py-3 font-semibold" />
+                  <Bilingual as="th" en={STAFF_TEXT.colRole.en} kn={STAFF_TEXT.colRole.kn} className="px-4 py-3 font-semibold" />
+                  <Bilingual as="th" en={STAFF_TEXT.colStatus.en} kn={STAFF_TEXT.colStatus.kn} className="px-4 py-3 font-semibold" />
+                  <Bilingual
+                    as="th"
+                    en={STAFF_TEXT.colLastActive.en}
+                    kn={STAFF_TEXT.colLastActive.kn}
+                    className="px-4 py-3 font-semibold"
                   />
-                ))
-              )}
-            </m.tbody>
-          </table>
-        </div>
-      ) : null}
+                  <th className="px-4 py-3">
+                    <span className="sr-only">{STAFF_TEXT.colActions}</span>
+                  </th>
+                </tr>
+              </thead>
+              {/* The rows stagger in once, when the list arrives; rows shown later by the search or the filter just
+                  appear, so nothing moves while a person types (plan A4P-4). */}
+              <m.tbody variants={staggerChildren()} initial="hidden" animate="shown" onAnimationComplete={() => setArrived(true)}>
+                {shown.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-(--muted-foreground)">
+                      {STAFF_TEXT.empty}
+                    </td>
+                  </tr>
+                ) : (
+                  shown.map((member) => (
+                    <StaffRow
+                      key={member.id}
+                      arrived={arrived}
+                      member={member}
+                      meStaffId={me.staffId}
+                      can={can}
+                      busy={busyId === member.id}
+                      error={rowError?.id === member.id ? rowError.text : null}
+                      onOpen={() => setOpenId(member.id)}
+                      onReactivate={() => void reactivate(member)}
+                    />
+                  ))
+                )}
+              </m.tbody>
+            </table>
+          </div>
+        ) : null}
 
-      <StaffDrawer
-        member={openMember}
-        meStaffId={me.staffId}
-        can={can}
-        api={api}
-        onClose={() => setOpenId(null)}
-        onChanged={changed}
-      />
-      <OnboardDialog
-        open={onboarding}
-        onClose={() => setOnboarding(false)}
-        api={api}
-        sendInvite={sendInvite}
-        can={can}
-        onWritten={() => void load()}
-        onOnboarded={({ staffNo }) =>
-          setNotice({ title: STAFF_TEXT.inviteSent(staffNoText(staffNo)), hint: STAFF_TEXT.inviteSentHint })
-        }
-      />
-    </div>
+        <StaffDrawer
+          member={openMember}
+          meStaffId={me.staffId}
+          can={can}
+          api={api}
+          onClose={() => setOpenId(null)}
+          onChanged={changed}
+        />
+        <OnboardDialog
+          open={onboarding}
+          onClose={() => setOnboarding(false)}
+          api={api}
+          sendInvite={sendInvite}
+          can={can}
+          onWritten={() => void load()}
+          onOnboarded={({ staffNo }) =>
+            setNotice({ title: STAFF_TEXT.inviteSent(staffNoText(staffNo)), hint: STAFF_TEXT.inviteSentHint })
+          }
+        />
+      </div>
+    </SevaMotion>
   );
 }
 
