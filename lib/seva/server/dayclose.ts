@@ -9,7 +9,7 @@ import { z } from "zod";
 import { SevaError } from "@/lib/seva/errors";
 import { fromPaise, toPaise } from "@/lib/seva/money";
 import type { SevaActor } from "@/lib/seva/permissions";
-import type { DayCloseRequest } from "@/lib/seva/schemas";
+import { reasonText, type DayCloseRequest } from "@/lib/seva/schemas";
 import type { DayClosePrep } from "@/types/seva-dayclose";
 import { isoDateParam } from "./reports";
 import { callRpc } from "./rpc";
@@ -23,11 +23,8 @@ export const dayClosePrepareQuerySchema = z.object({
 /** `POST /api/seva/day-close/reopen` (C-24: a reason of at least 3 characters). */
 export const dayCloseReopenSchema = z.object({
   dayCloseId: z.guid(),
-  reason: z
-    .string()
-    .trim()
-    .min(3, "Write at least 3 characters")
-    .max(500, "Keep this to 500 characters or fewer"),
+  // A5-FIX L-11: 3 visible characters, as the table check day_closes_reopen_reason asks.
+  reason: reasonText(3, 500),
 });
 
 function record(value: unknown): Record<string, unknown> {

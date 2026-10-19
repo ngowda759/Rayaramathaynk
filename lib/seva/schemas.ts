@@ -51,6 +51,23 @@ function boundedText(min: number, max: number) {
     .refine((v) => chars(v) <= max, `Keep this to ${max} characters or fewer`);
 }
 
+/** Spaces, control characters (tabs, line breaks) and invisible format characters (zero-width, BOM). */
+const INVISIBLE = /[\p{Z}\p{Cc}\p{Cf}]/gu;
+
+/** Characters a person can see, as SQL seva_visible_length counts them (A5-FIX L-11). */
+export function visibleChars(value: string): number {
+  return chars(value.replace(INVISIBLE, ''));
+}
+
+/** A reason or note: at least `min` visible characters (A5-FIX L-11), at most `max` characters in all. */
+export function reasonText(min: number, max: number) {
+  return z
+    .string()
+    .trim()
+    .refine((v) => visibleChars(v) >= min, `Write at least ${min} characters`)
+    .refine((v) => chars(v) <= max, `Keep this to ${max} characters or fewer`);
+}
+
 const paise = z.number().int().nonnegative();
 const positivePaise = z.number().int().positive();
 
@@ -487,7 +504,7 @@ export const deviceRegisterSchema = z.discriminatedUnion('action', [
      * Left out, the slip is of this year.
      */
     lastPrintedYear: z.number().int().min(2026).max(2100).optional(),
-    reason: boundedText(3, 200),
+    reason: reasonText(3, 200),
   }),
 ]);
 
@@ -529,7 +546,7 @@ export const staffUpdateSchema = z
 
 export const gapResolveSchema = z.object({
   status: z.enum(['entered_from_paper', 'declared_lost']),
-  note: boundedText(3, 500),
+  note: reasonText(3, 500),
 });
 
 export const EXPORT_PARTS = ['receipts', 'lines', 'sevas', 'cancelled', 'dayCloses', 'prasadam', 'rateChanges'] as const;

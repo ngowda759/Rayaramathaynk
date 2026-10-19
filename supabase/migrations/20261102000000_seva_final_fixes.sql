@@ -279,7 +279,7 @@ BEGIN
       IF v_changed THEN
         -- A change the office can trust: from a catalogue rate, on a seva that allows it, with a reason. Anything else
         -- was printed and paid, so it is stored, but marked with a system reason that says so (and keeps the PC's).
-        IF NOT (v_trusted AND v_seva.allow_amount_change AND coalesce(char_length(btrim(v_reason)), 0) >= 3) THEN
+        IF NOT (v_trusted AND v_seva.allow_amount_change AND seva_visible_length(v_reason) >= 3) THEN
           v_reason := 'Offline price mismatch: printed ' || v_unit::text || ', catalogue ' || v_catalogue::text
                       || CASE WHEN NOT v_seva.allow_amount_change THEN ' (this seva does not allow a changed amount)'
                               ELSE '' END
@@ -1056,7 +1056,7 @@ BEGIN
   v_expected := (v_prep ->> 'cash_expected')::numeric;
   v_upi_expected := (v_prep ->> 'upi_expected')::numeric;
   IF (v_counted <> v_expected OR (p_upi_bank_total IS NOT NULL AND p_upi_bank_total <> v_upi_expected))
-     AND coalesce(char_length(v_note), 0) < 3 THEN
+     AND seva_visible_length(v_note) < 3 THEN
     RAISE EXCEPTION 'SEVA:difference_note_required'
       USING DETAIL = jsonb_build_object(
         'cash_difference', (v_counted - v_expected)::text,
@@ -1461,7 +1461,7 @@ BEGIN
         -- A changed amount always needs a reason of at least 3 characters. The table check
         -- seva_receipt_lines_change_reason (DB 7.4) requires one whatever seva_settings.amount_change_reason_required
         -- says, so that setting cannot relax it here.
-        IF coalesce(char_length(v_reason), 0) < 3 THEN
+        IF seva_visible_length(v_reason) < 3 THEN
           RAISE EXCEPTION 'SEVA:change_reason_required' USING DETAIL = jsonb_build_object('name', v_seva.name)::text;
         END IF;
       ELSE
@@ -1852,3 +1852,52 @@ REVOKE EXECUTE ON FUNCTION seva_ops_require_staff(uuid) FROM PUBLIC, anon, authe
 GRANT EXECUTE ON FUNCTION seva_ops_require_staff(uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_reissue_spoiled(uuid, uuid, uuid, text, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_reissue_spoiled(uuid, uuid, uuid, text, boolean) TO service_role;
+
+-- =====================================================================================================
+-- L-11. A reason counts only the characters a person can see
+-- =====================================================================================================
+
+-- The length of p_text without spaces, tabs, line breaks, other control characters and invisible format characters
+-- (zero-width space and joiners, direction marks, the BOM and the like). btrim strips only plain spaces, so a reason
+-- of tabs or zero-width characters used to count. Immutable, so table checks can use it.
+CREATE OR REPLACE FUNCTION seva_visible_length(p_text text)
+RETURNS integer
+LANGUAGE plpgsql
+IMMUTABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RETURN char_length(regexp_replace(
+    coalesce(p_text, ''),
+    '[[:space:][:cntrl:]\u00A0\u00AD\u034F\u061C\u115F\u1160\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F-\u206F\u3000\u3164\uFEFF]',
+    '', 'g'));
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_visible_length(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_visible_length(text) TO service_role;
+
+-- The table checks behind the reasons now ask for 3 visible characters, as the functions do (the gap note and the
+-- reopen reason asked for 1). NOT VALID: rows written before this file are not re-checked, every new or changed row is.
+ALTER TABLE receipt_number_gaps DROP CONSTRAINT IF EXISTS receipt_number_gaps_note_required;
+ALTER TABLE receipt_number_gaps ADD CONSTRAINT receipt_number_gaps_note_required
+  CHECK (status = 'open' OR seva_visible_length(resolution_note) >= 3) NOT VALID;
+
+ALTER TABLE day_closes DROP CONSTRAINT IF EXISTS day_closes_reopen_reason;
+ALTER TABLE day_closes ADD CONSTRAINT day_closes_reopen_reason
+  CHECK (
+    status <> 'reopened'
+    OR (reopened_at IS NOT NULL AND reopened_by_staff_id IS NOT NULL AND seva_visible_length(reopen_reason) >= 3)
+  ) NOT VALID;
+
+ALTER TABLE day_closes DROP CONSTRAINT IF EXISTS day_closes_difference_note;
+ALTER TABLE day_closes ADD CONSTRAINT day_closes_difference_note
+  CHECK (
+    (cash_counted = cash_expected AND (upi_bank_total IS NULL OR upi_bank_total = upi_expected))
+    OR seva_visible_length(note) >= 3
+  ) NOT VALID;
+
+ALTER TABLE seva_receipt_lines DROP CONSTRAINT IF EXISTS seva_receipt_lines_change_reason;
+ALTER TABLE seva_receipt_lines ADD CONSTRAINT seva_receipt_lines_change_reason
+  CHECK (catalogue_rate IS NULL OR unit_rate = catalogue_rate OR seva_visible_length(change_reason) >= 3) NOT VALID;

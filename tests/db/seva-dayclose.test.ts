@@ -432,3 +432,52 @@ describe('seva day close functions (A2-2)', () => {
     expect(stored.rows[0].series_ranges).toEqual(prep.series_ranges);
   });
 });
+
+describe('reasons count only visible characters (A5-FIX L-11)', () => {
+  let db: PGlite;
+  let admin: string;
+
+  beforeEach(async () => {
+    db = await freshDb();
+    admin = await seedStaff(db, { staffNo: 1, name: 'Admin', uid: 'uid-admin' });
+    const pan = await seedSeva(db, { code: 'PAN', nameEn: 'Panchamrita Abhisheka', amount: '105.00' });
+    await insertReceipt(db, { staffId: admin, staffNo: 1, sevaId: pan, counterId: 1, series: 'C1', mode: 'cash', total: '105.00' });
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  const ZERO_WIDTH = '\u200B\u200B\u200B';
+  const TABS = '\t\t\t';
+
+  it('a close with a difference needs a visible note', async () => {
+    for (const note of [ZERO_WIDTH, TABS]) {
+      await expect(close(db, admin, [{ kind: 'note', value: 100, count: 1 }], { note })).rejects.toThrow(
+        'SEVA:difference_note_required',
+      );
+    }
+    await expect(close(db, admin, [{ kind: 'note', value: 100, count: 1 }], { note: 'Short by five' })).resolves.toEqual(
+      expect.any(String),
+    );
+  });
+
+  it('a reopen reason and a gap note must be visible, whatever the function lets through', async () => {
+    const id = await close(db, admin, [{ kind: 'note', value: 100, count: 1 }], { note: 'Short by five' });
+    for (const reason of [ZERO_WIDTH, TABS]) {
+      await expect(db.query(`select seva_reopen_day($1::uuid, $2, $3::uuid)`, [id, reason, admin])).rejects.toThrow();
+    }
+    await db.query(`insert into receipt_series_years (series_code, year, last_no) values ('OF1', 2026, 5)`);
+    const gap = await db.query<{ id: number }>(
+      `insert into receipt_number_gaps (series_code, year, from_no, to_no, cause)
+       values ('OF1', 2026, 2, 3, 'missing_in_sync') returning id::int as id`,
+    );
+    for (const note of [ZERO_WIDTH, TABS]) {
+      await expect(
+        db.query(`select seva_resolve_gap($1::bigint, 'declared_lost', $2, $3::uuid)`, [gap.rows[0].id, note, admin]),
+      ).rejects.toThrow();
+    }
+    const open = await db.query<{ status: string }>('select status from receipt_number_gaps where id = $1', [gap.rows[0].id]);
+    expect(open.rows).toEqual([{ status: 'open' }]);
+  });
+});

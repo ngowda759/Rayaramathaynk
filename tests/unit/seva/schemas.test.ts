@@ -12,6 +12,7 @@ import {
   sevaUpsertSchema,
   staffUpdateSchema,
   syncRequestSchema,
+  visibleChars,
 } from '@/lib/seva/schemas';
 
 const QR = 'AbCdEfGhIjKlMnOpQrSt_-';
@@ -287,6 +288,14 @@ describe('other request schemas', () => {
     expect(staffUpdateSchema.safeParse({ status: 'inactive', reason: 'Left the temple' }).success).toBe(true);
     expect(gapResolveSchema.safeParse({ status: 'declared_lost', note: '' }).success).toBe(false);
     expect(gapResolveSchema.safeParse({ status: 'declared_lost', note: 'PC died' }).success).toBe(true);
+  });
+
+  it('a reason counts only visible characters, as SQL seva_visible_length does (A5-FIX L-11)', () => {
+    for (const note of ['​​​', '\t\t\t', 'a​b​', '   ']) {
+      expect(gapResolveSchema.safeParse({ status: 'declared_lost', note }).success).toBe(false);
+    }
+    expect(gapResolveSchema.safeParse({ status: 'declared_lost', note: 'ಕಳೆದು' }).success).toBe(true);
+    expect(visibleChars('​PC\tdied ')).toBe(6);
   });
 
   it('export audit takes a format, a range and parts', () => {
