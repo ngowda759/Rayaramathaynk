@@ -1074,3 +1074,51 @@ describe('seva_reissue_spoiled (A2-1)', () => {
     ]);
   });
 });
+
+describe('rules in SQL, not only in the route (A5-FIX L-5)', () => {
+  async function reissueAs(c: Ctx, receiptId: string, staffId: string, isAdmin?: boolean): Promise<OrderResult> {
+    return asRole(c.db, 'service_role', async (d) => {
+      const r = await d.query<{ r: OrderResult }>(
+        isAdmin === undefined
+          ? 'select seva_reissue_spoiled($1::uuid, $2::uuid, $3::uuid, $4) as r'
+          : 'select seva_reissue_spoiled($1::uuid, $2::uuid, $3::uuid, $4, $5::boolean) as r',
+        isAdmin === undefined ? [receiptId, staffId, c.deviceId, qrToken()] : [receiptId, staffId, c.deviceId, qrToken(), isAdmin],
+      );
+      return r.rows[0].r;
+    });
+  }
+
+  it("reissue re-checks the person's own receipt and the cancel window; an admin may reissue any", async () => {
+    const c = await setup();
+    const mine = await issue(c, { days: [1, 2] });
+    expect(await failure(reissueAs(c, mine.receipts[0].id, c.sureshId))).toMatchObject({ code: 'forbidden' });
+    const old = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    expect(await failure(reissueAs(c, old, c.staffId))).toMatchObject({ code: 'cancel_window_passed' });
+    expect(await count(c.db, 'seva_receipts', `status = 'cancelled'`)).toBe(0);
+
+    await expect(reissueAs(c, mine.receipts[1].id, c.staffId)).resolves.toMatchObject({
+      replaced_receipt_id: mine.receipts[1].id,
+    });
+    await expect(reissueAs(c, mine.receipts[0].id, c.adminId, true)).resolves.toMatchObject({
+      replaced_receipt_id: mine.receipts[0].id,
+    });
+  });
+
+  it('every admin and office write function refuses a view-only staff id', async () => {
+    const c = await setup();
+    await c.db.query('update staff set view_only = true where id = $1', [c.adminId]);
+    const asViewOnly = (sql: string, params: unknown[]) => asRole(c.db, 'service_role', (d) => d.query(sql, params));
+    await expect(
+      asViewOnly('select seva_save_denominations($1::jsonb, $2::uuid)', [JSON.stringify([{ kind: 'note', value: 500 }]), c.adminId]),
+    ).rejects.toThrow('SEVA:forbidden');
+    const order = await issue(c, { days: [0] });
+    await expect(
+      asViewOnly('select seva_mark_prasadam($1::uuid, $2::uuid, false)', [order.receipts[0].id, c.adminId]),
+    ).rejects.toThrow('SEVA:forbidden');
+    // The same calls by a writer still work.
+    await c.db.query('update staff set view_only = false where id = $1', [c.adminId]);
+    await expect(
+      asViewOnly('select seva_save_denominations($1::jsonb, $2::uuid)', [JSON.stringify([{ kind: 'note', value: 500 }]), c.adminId]),
+    ).resolves.toBeDefined();
+  });
+});

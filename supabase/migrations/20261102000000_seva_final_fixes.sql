@@ -1675,3 +1675,180 @@ REVOKE EXECUTE ON FUNCTION seva_gaps_guard() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_gaps_guard() TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_series_years_guard() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_series_years_guard() TO service_role;
+
+-- =====================================================================================================
+-- L-5. Rules held in SQL as well as in the route
+-- =====================================================================================================
+
+-- The two staff checks every admin and office write function starts with (seva_admin_require_actor in the admin and
+-- list functions, seva_ops_require_staff in prasadam, devices, gaps and day close) now also refuse a view-only staff
+-- member with SEVA:forbidden (reason view_only), as seva_update_settings already did. Every caller is a write
+-- function; read functions do not call them.
+CREATE OR REPLACE FUNCTION seva_admin_require_actor(p_staff_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF p_staff_id IS NULL OR NOT EXISTS (SELECT 1 FROM staff s WHERE s.id = p_staff_id AND s.status = 'active') THEN
+    RAISE EXCEPTION 'SEVA:staff_inactive' USING DETAIL = '{}';
+  END IF;
+  IF EXISTS (SELECT 1 FROM staff s WHERE s.id = p_staff_id AND s.view_only) THEN
+    RAISE EXCEPTION 'SEVA:forbidden' USING DETAIL = jsonb_build_object('reason', 'view_only')::text;
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION seva_ops_require_staff(p_staff_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_name text;
+  v_status text;
+  v_view_only boolean;
+BEGIN
+  SELECT s.full_name, s.status, s.view_only INTO v_name, v_status, v_view_only FROM staff s WHERE s.id = p_staff_id;
+  IF NOT FOUND OR v_status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION 'SEVA:staff_inactive' USING DETAIL = '{}';
+  END IF;
+  IF v_view_only THEN
+    RAISE EXCEPTION 'SEVA:forbidden' USING DETAIL = jsonb_build_object('reason', 'view_only')::text;
+  END IF;
+  RETURN v_name;
+END;
+$$;
+
+-- As in 20261021000000_seva_functions_issue.sql, plus the cancel's rule (L-5): unless p_is_admin (the route passes
+-- receipt.cancel_any), only the person who issued the receipt may reissue it (SEVA:forbidden), and only inside the
+-- cancel window (SEVA:cancel_window_passed). The old four-argument signature is dropped; the new argument defaults
+-- to false, so a four-argument call keeps the stricter rule.
+DROP FUNCTION IF EXISTS seva_reissue_spoiled(uuid, uuid, uuid, text);
+CREATE OR REPLACE FUNCTION seva_reissue_spoiled(
+  p_receipt_id uuid,
+  p_staff_id uuid,
+  p_device_id uuid,
+  p_qr_token text,
+  p_is_admin boolean DEFAULT false
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_year smallint;
+  v_month smallint;
+  v_today date;
+  v_staff staff%ROWTYPE;
+  v_device counter_devices%ROWTYPE;
+  v_old seva_receipts%ROWTYPE;
+  v_channel text;
+  v_order_counter smallint;
+  v_series text;
+  v_running integer;
+  v_receipt_no text;
+  v_new_id uuid;
+  v_window integer;
+BEGIN
+  v_staff := seva_issue_staff(p_staff_id);
+  v_device := seva_issue_device(p_device_id, false);
+  IF p_qr_token IS NULL OR p_qr_token !~ '^[A-Za-z0-9_-]{22}$'
+     OR EXISTS (SELECT 1 FROM seva_receipts r WHERE r.qr_token = p_qr_token) THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'qr_token')::text;
+  END IF;
+
+  SELECT r.* INTO v_old FROM seva_receipts r WHERE r.id = p_receipt_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('receipt_id', p_receipt_id)::text;
+  END IF;
+  IF v_old.status = 'cancelled' THEN
+    RAISE EXCEPTION 'SEVA:already_cancelled' USING DETAIL = jsonb_build_object('receipt_no', v_old.receipt_no)::text;
+  END IF;
+  SELECT o.channel, o.counter_id INTO v_channel, v_order_counter FROM seva_orders o WHERE o.id = v_old.order_id;
+  IF v_channel IS DISTINCT FROM 'counter' THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'receipt_id', 'reason', 'only counter receipts are reissued')::text;
+  END IF;
+  -- The new number comes from this PC's counter, so only that counter's receipts are reissued here (A3 gate L-3).
+  IF v_order_counter IS DISTINCT FROM v_device.counter_id THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'receipt_id', 'reason', 'another counter''s receipt',
+                                        'receipt_no', v_old.receipt_no)::text;
+  END IF;
+
+  SELECT p.year, p.month, p.business_date INTO v_year, v_month, v_today FROM seva_ist_parts(v_now) AS p;
+  IF v_old.business_date <> v_today THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'reissue_only_today', 'receipt_no', v_old.receipt_no,
+                                        'business_date', v_old.business_date)::text;
+  END IF;
+  -- L-5: the cancel's rule for someone who is not an admin - their own receipt, inside the cancel window.
+  IF NOT coalesce(p_is_admin, false) THEN
+    SELECT s.cancel_window_minutes INTO v_window FROM seva_settings s WHERE s.id = 1;
+    v_window := coalesce(v_window, 30);
+    IF v_old.issued_by_staff_id IS DISTINCT FROM v_staff.id THEN
+      RAISE EXCEPTION 'SEVA:forbidden' USING DETAIL = jsonb_build_object('receipt_no', v_old.receipt_no)::text;
+    END IF;
+    IF v_now > v_old.issued_at + make_interval(mins => v_window) THEN
+      RAISE EXCEPTION 'SEVA:cancel_window_passed'
+        USING DETAIL = jsonb_build_object('receipt_no', v_old.receipt_no,
+                                          'until', v_old.issued_at + make_interval(mins => v_window))::text;
+    END IF;
+  END IF;
+  PERFORM seva_issue_check_day_open(v_device.counter_id, v_today);
+  v_series := seva_issue_counter_series(v_device.counter_id, 'counter_online');
+  v_running := seva_take_numbers(v_series, v_year, 1);
+  v_receipt_no := seva_receipt_no(v_series, v_staff.staff_no, NULL, v_month, v_year, v_running);
+
+  UPDATE seva_receipts r
+     SET status = 'cancelled',
+         cancel_reason_code = 'spoiled_print',
+         cancel_note = 'Spoiled print; reissued as ' || v_receipt_no,
+         cancelled_at = v_now,
+         cancelled_by_staff_id = v_staff.id
+   WHERE r.id = v_old.id;
+
+  INSERT INTO seva_receipts (receipt_no, series_code, year, month, running_no, staff_no, order_id, position,
+                             client_receipt_id, seva_date, business_date, total, replaces_receipt_id, qr_token,
+                             prasadam_state, prasadam_given_at, prasadam_given_by_staff_id, prasadam_off_date,
+                             issued_at, issued_by_staff_id, issued_by_name, issued_offline, has_changed_amount,
+                             test_mode)
+  VALUES (v_receipt_no, v_series, v_year, v_month, v_running, v_staff.staff_no, v_old.order_id, v_old.position,
+          gen_random_uuid(), v_old.seva_date, v_today, v_old.total, v_old.id, p_qr_token,
+          v_old.prasadam_state, v_old.prasadam_given_at, v_old.prasadam_given_by_staff_id, v_old.prasadam_off_date,
+          v_now, v_staff.id, v_staff.full_name, false, v_old.has_changed_amount, v_old.test_mode)
+  RETURNING id INTO v_new_id;
+
+  INSERT INTO seva_receipt_lines (receipt_id, line_no, seva_id, seva_code, seva_name_en, seva_name_kn, quantity,
+                                  catalogue_rate, unit_rate, amount, change_reason, prasadam_items)
+  SELECT v_new_id, l.line_no, l.seva_id, l.seva_code, l.seva_name_en, l.seva_name_kn, l.quantity, l.catalogue_rate,
+         l.unit_rate, l.amount, l.change_reason, l.prasadam_items
+    FROM seva_receipt_lines l
+   WHERE l.receipt_id = v_old.id;
+
+  PERFORM seva_audit(
+    'receipt.reissue_spoiled', 'receipt', v_old.id::text, v_old.receipt_no, 'Spoiled print',
+    jsonb_build_object('receipt_id', v_old.id, 'receipt_no', v_old.receipt_no, 'status', 'issued'),
+    jsonb_build_object('status', 'cancelled', 'new_receipt_id', v_new_id, 'new_receipt_no', v_receipt_no),
+    v_staff.id
+  );
+
+  RETURN seva_order_json(v_old.order_id, false)
+      || jsonb_build_object('new_receipt_id', v_new_id, 'replaced_receipt_id', v_old.id);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_admin_require_actor(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_admin_require_actor(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_ops_require_staff(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_ops_require_staff(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_reissue_spoiled(uuid, uuid, uuid, text, boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_reissue_spoiled(uuid, uuid, uuid, text, boolean) TO service_role;

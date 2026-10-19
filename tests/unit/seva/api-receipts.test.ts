@@ -440,7 +440,13 @@ describe("POST /api/seva/receipts/[receiptId]/reissue", () => {
     const reissues = mockCallRpc.mock.calls.filter((call) => call[0] === "seva_reissue_spoiled");
     expect(reissues).toHaveLength(2);
     const tokens = reissues.map((call) => (call[1] as { p_qr_token: string }).p_qr_token);
-    expect(reissues[0][1]).toMatchObject({ p_receipt_id: RECEIPT_ID, p_staff_id: "staff-9", p_device_id: "dev-1" });
+    expect(reissues[0][1]).toMatchObject({
+      p_receipt_id: RECEIPT_ID,
+      p_staff_id: "staff-9",
+      p_device_id: "dev-1",
+      // A5-FIX L-5: a receptionist's reissue is re-checked in SQL (own receipt, inside the window).
+      p_is_admin: false,
+    });
     for (const token of tokens) expect(token).toMatch(/^[A-Za-z0-9_-]{22}$/);
     expect(tokens[0]).not.toBe(tokens[1]);
     expect(mockFromSqlIssue).toHaveBeenCalledWith({ order_id: ORDER_ID }, undefined);

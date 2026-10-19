@@ -451,6 +451,8 @@ export async function reissueSpoiled(actor: SevaActor, deviceId: string, receipt
       p_staff_id: actor.staffId,
       p_device_id: deviceId,
       p_qr_token: newQrToken(),
+      // A5-FIX L-5: the SQL function re-checks the own-receipt and window rule unless the actor may cancel any receipt.
+      p_is_admin: can(actor, "receipt.cancel_any"),
     }),
     readListsOrNone(),
   ]);
