@@ -1,7 +1,7 @@
 /*
  * Seva counter service worker (Design Book 6.3, 9.11). Registered by components/seva/counter/RegisterServiceWorker.tsx
- * with scope /seva/counter, so it controls only the counter pages. Version 2 moved the counter from
- * /admin/receipts/counter; `activate` drops the version-1 cache that held the old address.
+ * with scope /seva/counter, so it controls only the counter pages. Version 2 moved the counter to /seva;
+ * `activate` drops the version-1 cache that held the old counter address.
  *
  * - Counter page navigations: network first; when the line is down or has not answered in 4 s, the last copy of the
  *   page from this cache.
