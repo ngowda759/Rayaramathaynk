@@ -6,6 +6,7 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { SlipQr } from "@/components/seva/slip/SlipQr";
 import { sevaControlClass } from "@/components/ui/input";
 import { buildUpiPaymentUrl } from "@/lib/receipt/upi";
+import { fromPaise } from "@/lib/seva/money";
 import { COUNTER_TEXT, rupees } from "@/lib/seva/strings/counter";
 
 export interface UpiPanelProps {
@@ -25,7 +26,7 @@ export interface UpiPanelProps {
  * reference, and the "I saw the payment succeed" tick. Save stays disabled until both are done (selectCanSave).
  */
 export function UpiPanel({ upi, totalPaise, note, refLast6, seenConfirmed, onRef, onSeen }: UpiPanelProps): JSX.Element {
-  const url = buildUpiPaymentUrl({ upiId: upi.vpa, payeeName: upi.payeeName, amount: totalPaise / 100, note });
+  const url = buildUpiPaymentUrl({ upiId: upi.vpa, payeeName: upi.payeeName, amount: Number(fromPaise(totalPaise)), note });
   return (
     <div className="grid grid-cols-[168px_minmax(0,1fr)] items-start gap-6 max-sm:grid-cols-1">
       <figure role="img" aria-label={COUNTER_TEXT.upiQrLabel} className="m-0 size-[168px] rounded-(--radius-control) border border-(--border) bg-white p-1 [&_svg]:size-full">
