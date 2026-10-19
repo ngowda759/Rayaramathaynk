@@ -1096,3 +1096,152 @@ REVOKE EXECUTE ON FUNCTION seva_needs_attention(timestamptz, timestamptz, date) 
 GRANT EXECUTE ON FUNCTION seva_needs_attention(timestamptz, timestamptz, date) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_close_day(smallint, date, jsonb, numeric, text, uuid, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_close_day(smallint, date, jsonb, numeric, text, uuid, boolean) TO service_role;
+
+-- =====================================================================================================
+-- M-4. "Replace this PC" records the unsent numbers in the year of the last slip
+-- =====================================================================================================
+
+-- As the six-argument seva_replace_device of 20261021000100_seva_functions_ops.sql, but the last printed slip's IST
+-- year is given (p_last_printed_year): this IST year or the one before it (never before 2026). That year's OF row is
+-- locked, and the open device_replaced gap and the raised last_no go there, so a PC that died on 31 December holding
+-- unsent numbers leaves a gap in that year (DB 8.5: a gap is never hidden) and its late upload is still accepted
+-- (DB 8.4), while the new year starts at 000001. The new PC's group-label floor still counts the current year's gaps
+-- only: a gap of another year holds labels of that year's months.
+CREATE OR REPLACE FUNCTION seva_replace_device(
+  p_counter_id smallint,
+  p_secret_hash text,
+  p_label text,
+  p_last_printed_of_no int,
+  p_last_printed_year smallint,
+  p_reason text,
+  p_staff_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_label text := nullif(btrim(coalesce(p_label, '')), '');
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_year smallint;
+  v_month smallint;
+  v_slip_year smallint;
+  v_series text;
+  v_last integer;
+  v_old uuid;
+  v_new uuid;
+  v_gap bigint;
+  v_group_floor integer;
+BEGIN
+  PERFORM seva_ops_require_staff(p_staff_id);
+  IF p_secret_hash IS NULL OR p_secret_hash !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'secret_hash')::text;
+  END IF;
+  IF v_label IS NOT NULL AND char_length(v_label) > 80 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'label')::text;
+  END IF;
+  IF v_reason IS NULL OR char_length(v_reason) < 3 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'reason')::text;
+  END IF;
+  IF p_last_printed_of_no IS NULL OR p_last_printed_of_no NOT BETWEEN 0 AND 999999 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'last_printed_of_no')::text;
+  END IF;
+  SELECT p.year, p.month INTO v_year, v_month FROM seva_ist_parts(v_now) p;
+  v_slip_year := p_last_printed_year;
+  IF v_slip_year IS NULL OR v_slip_year NOT BETWEEN greatest(2026, v_year - 1) AND v_year THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'last_printed_year', 'year', v_year)::text;
+  END IF;
+
+  PERFORM 1 FROM counters c WHERE c.id = p_counter_id AND c.active FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'counter')::text;
+  END IF;
+
+  SELECT s.code INTO v_series
+    FROM receipt_series s
+   WHERE s.counter_id = p_counter_id AND s.kind = 'counter_offline';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'receipt_series')::text;
+  END IF;
+
+  INSERT INTO receipt_series_years (series_code, year) VALUES (v_series, v_slip_year)
+  ON CONFLICT (series_code, year) DO NOTHING;
+  SELECT y.last_no INTO v_last
+    FROM receipt_series_years y
+   WHERE y.series_code = v_series AND y.year = v_slip_year
+     FOR UPDATE;
+
+  UPDATE counter_devices
+     SET retired_at = v_now,
+         retired_by_staff_id = p_staff_id,
+         retired_reason = v_reason
+   WHERE counter_id = p_counter_id AND retired_at IS NULL
+  RETURNING id INTO v_old;
+
+  IF p_last_printed_of_no > v_last THEN
+    INSERT INTO receipt_number_gaps (series_code, year, from_no, to_no, cause, detected_at)
+    VALUES (v_series, v_slip_year, v_last + 1, p_last_printed_of_no, 'device_replaced', v_now)
+    RETURNING id INTO v_gap;
+    UPDATE receipt_series_years
+       SET last_no = p_last_printed_of_no
+     WHERE series_code = v_series AND year = v_slip_year;
+  END IF;
+
+  -- The labels the old PC (and any PC replaced before it) may have printed but not sent this year: one per missing
+  -- OF number of this IST year's open device_replaced gaps.
+  SELECT seva_offline_group_floor(p_counter_id, v_old, v_now) + coalesce(sum(g.to_no - g.from_no + 1), 0)::integer
+    INTO v_group_floor
+    FROM receipt_number_gaps g
+   WHERE g.series_code = v_series AND g.year = v_year AND g.cause = 'device_replaced' AND g.status = 'open';
+
+  INSERT INTO counter_devices (counter_id, secret_hash, label, registered_by_staff_id, registered_at,
+                               of_group_floor_yymm, of_group_floor_no)
+  VALUES (p_counter_id, p_secret_hash, v_label, p_staff_id, v_now,
+          lpad((v_year % 100)::text, 2, '0') || lpad(v_month::text, 2, '0'), v_group_floor)
+  RETURNING id INTO v_new;
+
+  PERFORM seva_audit(
+    'device.replace', 'counter_device', v_new::text, NULL, v_reason,
+    jsonb_build_object('device_id', v_old, 'last_of_no', v_last),
+    jsonb_build_object(
+      'device_id', v_new, 'counter_id', p_counter_id, 'label', v_label, 'series', v_series, 'year', v_slip_year,
+      'last_printed_of_no', p_last_printed_of_no, 'last_of_no', greatest(v_last, p_last_printed_of_no),
+      'gap_id', v_gap,
+      'gap_from', CASE WHEN v_gap IS NOT NULL THEN v_last + 1 END,
+      'gap_to', CASE WHEN v_gap IS NOT NULL THEN p_last_printed_of_no END,
+      'group_floor', v_group_floor
+    ),
+    p_staff_id
+  );
+  RETURN v_new;
+END;
+$$;
+
+-- The six-argument form keeps its meaning (the slip is of this IST year) and its grants; it calls the form above.
+CREATE OR REPLACE FUNCTION seva_replace_device(
+  p_counter_id smallint,
+  p_secret_hash text,
+  p_label text,
+  p_last_printed_of_no int,
+  p_reason text,
+  p_staff_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RETURN seva_replace_device(p_counter_id, p_secret_hash, p_label, p_last_printed_of_no,
+                             (SELECT p.year FROM seva_ist_parts(now()) p), p_reason, p_staff_id);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, smallint, text, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, smallint, text, uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, text, uuid) TO service_role;

@@ -482,6 +482,11 @@ export const deviceRegisterSchema = z.discriminatedUnion('action', [
     secretHash,
     label: boundedText(0, 120),
     lastPrintedOfNo: z.number().int().min(0).max(999999),
+    /**
+     * The IST year of the last slip (A5-FIX M-4): this year or the one before it, checked by seva_replace_device.
+     * Left out, the slip is of this year.
+     */
+    lastPrintedYear: z.number().int().min(2026).max(2100).optional(),
     reason: boundedText(3, 200),
   }),
 ]);

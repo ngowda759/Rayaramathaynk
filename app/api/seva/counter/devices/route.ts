@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
             p_secret_hash: body.secretHash,
             p_label: body.label,
             p_last_printed_of_no: body.lastPrintedOfNo,
+            // The slip's IST year (A5-FIX M-4); without it the six-argument form means this year.
+            ...(body.lastPrintedYear === undefined ? {} : { p_last_printed_year: body.lastPrintedYear }),
             p_reason: body.reason,
             p_staff_id: guard.actor.staffId,
           });

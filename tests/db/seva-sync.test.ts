@@ -500,6 +500,57 @@ describe('seva_sync_offline_order (A2-1)', () => {
     expect(await count(c.db, 'seva_receipts')).toBe(8);
   });
 
+  describe("M-4: Replace this PC records the slip's own year", () => {
+    async function replaceInYear(c: Ctx, lastPrinted: number, year: number): Promise<string> {
+      return asRole(c.db, 'service_role', async (d) => {
+        const r = await d.query<{ id: string }>(
+          `select seva_replace_device(1::smallint, $1, 'New PC', $2::int, $3::smallint, 'Old PC stopped working',
+                                      $4::uuid) as id`,
+          [createHash('sha256').update(randomBytes(32)).digest('hex'), lastPrinted, year, c.staffId],
+        );
+        return r.rows[0].id;
+      });
+    }
+
+    it('opens the gap and raises the last number in the year given, and the old PC may still send into it', async () => {
+      const c = await setup();
+      const oldPc = c.deviceId;
+      await c.db.query(
+        `insert into receipt_series_years (series_code, year, last_no) values ('OF1', 2026, 340)
+         on conflict (series_code, year) do update set last_no = 340`,
+      );
+      await replaceInYear(c, 345, 2026);
+      expect(await gaps(c.db)).toEqual([{ from_no: 341, to_no: 345, cause: 'device_replaced', status: 'open' }]);
+      expect(await lastNo(c.db, 'OF1', 2026)).toBe(345);
+      expect(await lastNo(c.db, 'OF1', 2027)).toBe(0);
+      await syncNo(c, 343, oldPc);
+      expect(await gaps(c.db)).toEqual([
+        { from_no: 341, to_no: 342, cause: 'device_replaced', status: 'open' },
+        { from_no: 344, to_no: 345, cause: 'device_replaced', status: 'open' },
+      ]);
+    });
+
+    it('accepts only this IST year or the one before it (never before 2026)', async () => {
+      const c = await setup();
+      const year = Number(c.today.slice(0, 4));
+      for (const bad of [year + 1, year - 2, 2025]) {
+        expect(await failure(replaceInYear(c, 5, bad))).toMatchObject({
+          code: 'validation',
+          detail: { field: 'last_printed_year' },
+        });
+      }
+      expect(await count(c.db, 'receipt_number_gaps')).toBe(0);
+    });
+
+    it('the six-argument call still means this IST year', async () => {
+      const c = await setup();
+      await replaceDevice(c, 4);
+      expect(await gaps(c.db)).toEqual([{ from_no: 1, to_no: 4, cause: 'device_replaced', status: 'open' }]);
+      const year = Number(c.today.slice(0, 4));
+      expect(await lastNo(c.db, 'OF1', year)).toBe(4);
+    });
+  });
+
   it('sync accepts a 1 January OF number in the new year', async () => {
     const c = await setup();
     const issuedAt = '2026-12-31T18:31:00Z';

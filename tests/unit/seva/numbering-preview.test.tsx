@@ -7,7 +7,7 @@ import { CounterRulesForm } from "@/components/seva/settings/CounterRulesForm";
 import { HeaderFooterEditor } from "@/components/seva/settings/HeaderFooterEditor";
 import { NumberingPreview } from "@/components/seva/settings/NumberingPreview";
 import { RegisterThisPc } from "@/components/seva/settings/RegisterThisPc";
-import { LARGE_GAP, ReplaceThisPc, parseLastSlip, secondLookLine } from "@/components/seva/settings/ReplaceThisPc";
+import { LARGE_GAP, ReplaceThisPc, lastSlipYear, parseLastSlip, secondLookLine } from "@/components/seva/settings/ReplaceThisPc";
 import { SlipPreview } from "@/components/seva/settings/SlipPreview";
 import { openSevaDb } from "@/lib/seva/offline/db";
 import { getDeviceCredentials, saveDeviceCredentials } from "@/lib/seva/offline/device";
@@ -274,6 +274,16 @@ describe("ReplaceThisPc", () => {
     expect(parseLastSlip("OF1-023-12-2025/000500", "OF1", 2026)).toBeNull();
     expect(parseLastSlip("OF1-023-01-2027/000001", "OF1", 2026)).toBeNull();
     expect(parseLastSlip("OF1-023-12-2025/000500", "OF1", 2025)).toBe(500);
+  });
+
+  it("takes last year's slip with its year, so its unsent numbers become a gap of that year (A5-FIX M-4)", () => {
+    expect(parseLastSlip("OF1-023-12-2026/000345", "OF1", 2027)).toBe(345);
+    expect(lastSlipYear("OF1-023-12-2026/000345", "OF1", 2027)).toBe(2026);
+    expect(lastSlipYear("OF1-023-01-2027/000004", "OF1", 2027)).toBe(2027);
+    expect(lastSlipYear("345", "OF1", 2027)).toBe(2027);
+    // Two years back, or a year before Seva Entry began, is still refused.
+    expect(parseLastSlip("OF1-023-12-2026/000345", "OF1", 2028)).toBeNull();
+    expect(parseLastSlip("OF1-023-12-2025/000500", "OF1", 2026)).toBeNull();
   });
 
   it("asks for a second look when the gap is large or the office's last number is unknown", () => {

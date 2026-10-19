@@ -1029,6 +1029,34 @@ describe('POST /api/seva/counter/devices', () => {
     });
     expect(await json(res)).toEqual({ deviceId: DEVICE.id });
   });
+
+  it("replace passes the last slip's year when the form sends it (A5-FIX M-4)", async () => {
+    mockRequire.mockResolvedValue(allow(ADMIN, null));
+    mockCallRpc.mockResolvedValue(DEVICE.id);
+    const res = await devicesPost(
+      request('counter/devices', {
+        body: {
+          action: 'replace',
+          counterId: 1,
+          secretHash: HASH,
+          label: 'New PC',
+          lastPrintedOfNo: 345,
+          lastPrintedYear: 2026,
+          reason: 'Old PC died on 31 December',
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockCallRpc).toHaveBeenCalledWith('seva_replace_device', {
+      p_counter_id: 1,
+      p_secret_hash: HASH,
+      p_label: 'New PC',
+      p_last_printed_of_no: 345,
+      p_last_printed_year: 2026,
+      p_reason: 'Old PC died on 31 December',
+      p_staff_id: ADMIN.staffId,
+    });
+  });
 });
 
 // =====================================================================================================================

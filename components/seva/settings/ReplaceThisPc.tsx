@@ -34,11 +34,20 @@ const RUNNING_ONLY = /^\d{1,7}$/;
 /** A gap wider than this many numbers needs a second confirmation (A4 security L-2). */
 export const LARGE_GAP = 200;
 
+/** The first year of Seva Entry numbers: no OF number exists before it. */
+const FIRST_YEAR = 2026;
+
+/** A full slip number's year is this IST year, or (A5-FIX M-4) the year before it, but never before 2026. */
+function slipYearAllowed(slipYear: number, year: number): boolean {
+  return slipYear === year || (slipYear === year - 1 && slipYear >= FIRST_YEAR);
+}
+
 /**
  * The running number of the last offline slip: a full receipt number of this counter's OF series for this IST year
- * ('OF1-023-10-2026/000007' -> 7 in 2026) or the running number alone ('7'). Null for anything else: a number of
- * another series (a C1 slip is never sent offline, so it says nothing about the gap) or of another year (the running
- * number starts again on 1 January, so last year's slip would set this year's number far too high).
+ * ('OF1-023-10-2026/000007' -> 7 in 2026), or of the year before it (a PC that died on 31 December: its unsent numbers
+ * become a gap of that year, A5-FIX M-4), or the running number alone ('7', this year). Null for anything else: a
+ * number of another series (a C1 slip is never sent offline, so it says nothing about the gap) or of an older or a
+ * later year.
  */
 export function parseLastSlip(text: string, offlineSeries: string, year: number): number | null {
   const t = text.trim();
@@ -48,8 +57,15 @@ export function parseLastSlip(text: string, offlineSeries: string, year: number)
     return n <= MAX_RUNNING ? n : null;
   }
   const parts = parseReceiptNo(t);
-  if (!parts || parts.series !== offlineSeries.toUpperCase() || parts.year !== year) return null;
+  if (!parts || parts.series !== offlineSeries.toUpperCase() || !slipYearAllowed(parts.year, year)) return null;
   return parts.running;
+}
+
+/** The IST year the last slip belongs to: the year inside a full number of last year, otherwise this year. */
+export function lastSlipYear(text: string, offlineSeries: string, year: number): number {
+  const parts = parseReceiptNo(text.trim());
+  if (parts && parts.series === offlineSeries.toUpperCase() && slipYearAllowed(parts.year, year)) return parts.year;
+  return year;
 }
 
 /**
@@ -61,13 +77,21 @@ export function secondLookLine(series: string, typed: number, lastOfNo: number |
   return typed - lastOfNo > LARGE_GAP ? largeGapConfirm(series, lastOfNo + 1, typed) : null;
 }
 
-type ReplaceBody = { counterId: number; secretHash: string; label: string; lastPrintedOfNo: number; reason: string };
+type ReplaceBody = {
+  counterId: number;
+  secretHash: string;
+  label: string;
+  lastPrintedOfNo: number;
+  /** The IST year of the last slip (A5-FIX M-4): the gap and the raised number go to that year. */
+  lastPrintedYear: number;
+  reason: string;
+};
 
 export interface ReplaceThisPcProps {
   counter: CounterItem;
   /** The last OF running number the office holds this year, when known (from the continuity report). */
   lastOfNo: number | null;
-  /** The current IST year: a full slip number of another year is refused. */
+  /** The current IST year: a full slip number of an older or a later year is refused (last year's is allowed). */
   year: number;
   replace(b: ReplaceBody): Promise<{ deviceId: string }>;
   onReplaced(counterId: number): void;
@@ -91,9 +115,12 @@ export function ReplaceThisPc({ counter, lastOfNo, year, replace, onReplaced }: 
   const formId = `replace-pc-${counter.id}`;
 
   const typed = parseLastSlip(lastText, series, year);
+  const slipYear = lastSlipYear(lastText, series, year);
+  // The office's last number is this year's: for last year's slip it is not known here, so the form asks twice.
+  const knownLast = slipYear === year ? lastOfNo : null;
   const lastError = checked && typed === null ? RS.lastSlipInvalid.en : null;
   const reasonError = checked && Array.from(reason.trim()).length < 3 ? RS.reasonTooShort.en : null;
-  const gap = typed !== null && lastOfNo !== null && typed > lastOfNo ? gapRangeLine(series, lastOfNo + 1, typed) : null;
+  const gap = typed !== null && knownLast !== null && typed > knownLast ? gapRangeLine(series, knownLast + 1, typed) : null;
   const move = moveCounterLabel(counter.name);
 
   async function submit(e: FormEvent) {
@@ -101,7 +128,7 @@ export function ReplaceThisPc({ counter, lastOfNo, year, replace, onReplaced }: 
     if (phase.kind === "busy") return;
     setChecked(true);
     if (typed === null || Array.from(reason.trim()).length < 3) return;
-    const line = secondLookLine(series, typed, lastOfNo);
+    const line = secondLookLine(series, typed, knownLast);
     if (line) {
       setPhase({ kind: "confirm", typed, line });
       return;
@@ -133,6 +160,7 @@ export function ReplaceThisPc({ counter, lastOfNo, year, replace, onReplaced }: 
         secretHash: key.secretHash,
         label: label.trim(),
         lastPrintedOfNo,
+        lastPrintedYear: slipYear,
         reason: trimmedReason,
       });
       deviceId = answer.deviceId;
