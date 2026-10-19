@@ -3,13 +3,14 @@ import { businessDate } from "../../../lib/seva/time";
 import type { DayClosePrep } from "../../../types/seva-dayclose";
 import { signInAs } from "./fixtures/auth";
 import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Close day (plan A4-3, DB §9.10). Every /api/seva/** call is answered by the fake API; this file adds the close-day
  * answers in the real wire shape (DayClosePrep) on top of the fake's built-in close and reopen.
  */
 
-const PAGE = "/admin/receipts/day-close";
+const PAGE = SEVA_ROUTES.dayClose;
 /** The page makes the Excel copy only for the counter's own business day, so the fake's day is today (IST). */
 const TODAY = businessDate(new Date());
 

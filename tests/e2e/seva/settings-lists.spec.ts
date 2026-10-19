@@ -9,6 +9,7 @@ import type { CounterBootstrap, SevaListItem, SevaLists } from "../../../types/s
 import { signInAs } from "./fixtures/auth";
 import { registerThisPc, stubPrint } from "./fixtures/counter";
 import { createFakeSevaApi, FakeApiError, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Settings - Devotee lists (plan A4P-5): temple admins add a gotra, hide one, and correct Kannada spellings; the
@@ -16,8 +17,8 @@ import { createFakeSevaApi, FakeApiError, type FakeSevaApi } from "./fixtures/fa
  * adds the lists routes in their real wire shape and puts the same lists into the counter bootstrap.
  */
 
-const LISTS_PAGE = "/admin/receipts/settings/lists";
-const COUNTER = "/admin/receipts/counter";
+const LISTS_PAGE = SEVA_ROUTES.settingsLists;
+const COUNTER = SEVA_ROUTES.counter;
 
 function toItems(options: readonly DomainOption[]): SevaListItem[] {
   return options.map((o) => ({ id: o.id, nameEn: o.en, nameKn: o.kn, knChecked: false, active: true, displayOrder: o.id }));

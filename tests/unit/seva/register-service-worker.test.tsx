@@ -1,6 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 
 import RegisterServiceWorker, {
+  COUNTER_ONLY_SW_SCOPE,
   LEGACY_SW_SCOPE,
   SEVA_SW_SCOPE,
   SEVA_SW_URL,
@@ -37,13 +38,13 @@ afterEach(() => {
 });
 
 describe("RegisterServiceWorker", () => {
-  it("registers /seva-sw.js for the /seva/counter scope in production", async () => {
+  it("registers /seva-sw.js for the /seva scope in production, so the installed app opens offline", async () => {
     env.NODE_ENV = "production";
     const { register } = installServiceWorker([]);
     render(<RegisterServiceWorker />);
     await waitFor(() => expect(register).toHaveBeenCalledTimes(1));
-    expect(SEVA_SW_SCOPE).toBe(SEVA_ROUTES.counter);
-    expect(register).toHaveBeenCalledWith(SEVA_SW_URL, { scope: "/seva/counter" });
+    expect(SEVA_SW_SCOPE).toBe(SEVA_ROUTES.dashboard);
+    expect(register).toHaveBeenCalledWith(SEVA_SW_URL, { scope: "/seva" });
     expect(SEVA_SW_URL).toBe("/seva-sw.js");
   });
 
@@ -52,7 +53,7 @@ describe("RegisterServiceWorker", () => {
     expect(LEGACY_SW_SCOPE).toBe("/admin/receipts/counter");
     const legacy = registration("/admin/receipts/counter");
     const legacyBelow = registration("/admin/receipts/counter/today");
-    const current = registration("/seva/counter");
+    const current = registration("/seva");
     const lookAlike = registration("/admin/receipts/counterfeit");
     const other = registration("/");
     const { register } = installServiceWorker([legacy, legacyBelow, current, lookAlike, other]);
@@ -65,6 +66,20 @@ describe("RegisterServiceWorker", () => {
     expect(other.unregister).not.toHaveBeenCalled();
     const unregisterOrder = legacy.unregister.mock.invocationCallOrder[0];
     expect(unregisterOrder).toBeLessThan(register.mock.invocationCallOrder[0]);
+  });
+
+  it("unregisters the counter-only worker at /seva/counter, which the /seva worker replaces", async () => {
+    env.NODE_ENV = "production";
+    expect(COUNTER_ONLY_SW_SCOPE).toBe("/seva/counter");
+    const counterOnly = registration("/seva/counter");
+    const counterOnlySlash = registration("/seva/counter/");
+    const current = registration("/seva");
+    const { register } = installServiceWorker([counterOnly, counterOnlySlash, current]);
+    render(<RegisterServiceWorker />);
+    await waitFor(() => expect(register).toHaveBeenCalledTimes(1));
+    expect(counterOnly.unregister).toHaveBeenCalledTimes(1);
+    expect(counterOnlySlash.unregister).toHaveBeenCalledTimes(1);
+    expect(current.unregister).not.toHaveBeenCalled();
   });
 
   it("does nothing in development", async () => {

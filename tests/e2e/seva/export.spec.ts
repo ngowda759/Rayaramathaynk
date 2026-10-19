@@ -8,6 +8,7 @@ import type { ExportLineRow, ExportReceiptRow } from "../../../types/seva-export
 import type { DayCloseListRow } from "../../../lib/seva/server/reports";
 import { signInAs, type E2ERole } from "./fixtures/auth";
 import { createFakeSevaApi, type FakeHandler, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Export page and the board print summary (plan A4-8, DB §12.6). Every /api/seva/** call is answered by the fake API;
@@ -15,14 +16,14 @@ import { createFakeSevaApi, type FakeHandler, type FakeSevaApi } from "./fixture
  * closes in their real wire shapes. The export audit uses the fake's built-in route, so its role checks apply.
  */
 
-const PAGE = "/admin/receipts/reports/export";
+const PAGE: string = SEVA_ROUTES.reportsExport;
 /** Plan A4P-3: a slow export page, so the progress can be watched. */
 const SLOW_MS = 800;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-const SUMMARY = "/admin/receipts/reports/summary?from=2026-10-01&to=2026-10-18";
+const SUMMARY = `${SEVA_ROUTES.reportsSummary}?from=2026-10-01&to=2026-10-18`;
 
 function receipt(over: Partial<ExportReceiptRow>): ExportReceiptRow {
   return {

@@ -3,6 +3,7 @@ import type { CounterOrderPayload, IssuedReceipt, IssueResponse } from "../../..
 import { businessDate } from "../../../lib/seva/time";
 import { signInAs, type E2ERole } from "./fixtures/auth";
 import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Today's receipts at the counter (plan A4-2; DB §9.8-9.9): DUPLICATE reprint, no reprint of a cancelled receipt,
@@ -10,7 +11,7 @@ import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
  * the office on reconnect. Every /api/seva/** call is answered by the fake API.
  */
 
-const TODAY_PATH = "/admin/receipts/counter/today";
+const TODAY_PATH = SEVA_ROUTES.today;
 
 let orderSeq = 0;
 

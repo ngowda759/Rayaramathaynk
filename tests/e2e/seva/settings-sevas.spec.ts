@@ -4,6 +4,7 @@ import type { DenominationsRequest, FestivalRequest } from "../../../lib/seva/sc
 import type { FestivalItem } from "../../../types/seva-settings";
 import { signInAs, type E2ERole } from "./fixtures/auth";
 import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Settings - sevas, cash denominations and festival days (plan A4-9; DB §13.1, §13.3, §13.4). Every /api/seva/** call
@@ -11,9 +12,9 @@ import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
  * (`{ sevas }`, `{ history }`, `{ items }`, `{ festivals }`, PUT reorder) on top of it.
  */
 
-const SEVAS = "/admin/receipts/seva-settings";
-const DENOMINATIONS = "/admin/receipts/settings/denominations";
-const FESTIVALS = "/admin/receipts/settings/festival-days";
+const SEVAS = SEVA_ROUTES.sevaSettings;
+const DENOMINATIONS = SEVA_ROUTES.settingsDenominations;
+const FESTIVALS = SEVA_ROUTES.settingsFestivalDays;
 const TODAY = businessDate(new Date());
 
 interface SettingsFake {

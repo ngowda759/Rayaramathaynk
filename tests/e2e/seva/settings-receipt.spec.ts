@@ -5,6 +5,7 @@ import type { CounterItem, CounterRules } from "../../../types/seva-settings";
 import { signInAs } from "./fixtures/auth";
 import { DEFAULT_SLIP } from "./fixtures/data";
 import { createFakeSevaApi, type FakeRequest, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Settings - receipt template and numbering, counters and devices, counter rules (plan A4-10, DB §13.2, §8.4).
@@ -12,9 +13,9 @@ import { createFakeSevaApi, type FakeRequest, type FakeSevaApi } from "./fixture
  * their real wire shapes on top of it.
  */
 
-const RECEIPT_PAGE = "/admin/receipts/settings/receipt";
-const COUNTERS_PAGE = "/admin/receipts/settings/counters";
-const RULES_PAGE = "/admin/receipts/settings/rules";
+const RECEIPT_PAGE = SEVA_ROUTES.settingsReceipt;
+const COUNTERS_PAGE = SEVA_ROUTES.settingsCounters;
+const RULES_PAGE = SEVA_ROUTES.settingsRules;
 const YEAR = new Date().getFullYear();
 
 const COUNTER: CounterItem = {

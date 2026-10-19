@@ -5,6 +5,7 @@ import type { ContinuityRow } from "../../../types/seva-reports";
 import type { ReceiptListItem } from "../../../types/seva-receipts";
 import { signInAs } from "./fixtures/auth";
 import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Receipts register, reports and day closes (plan A4-7, DB §12.3-12.4). Every /api/seva/** call is answered by the
@@ -54,7 +55,7 @@ test("filters map to the list query and the status filter from a link is applied
   const fake = createFakeSevaApi();
   fake.extend({ "GET receipts": () => ({ rows: [listItem(1, { changed: true })], nextCursor: null }) });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/register?status=changed" });
+  await signInAs(page, "temple_admin", { redirect: `${SEVA_ROUTES.register}?status=changed` });
 
   await expect(page.getByLabel("Status")).toHaveValue("changed", { timeout: 60_000 });
   await expect.poll(() => receiptRequests(fake).some((q) => q.get("status") === "changed")).toBe(true);
@@ -86,7 +87,7 @@ test("a filter change keeps the rows with an inline pending line", async ({ page
     },
   });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/register" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.register });
 
   const first = page.getByRole("button", { name: /Open C1-023-10-2026\/000101/ }).first();
   await expect(first).toBeVisible({ timeout: 60_000 });
@@ -138,13 +139,13 @@ test("a row opens the receipt with its history", async ({ page }) => {
     }),
   });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/register" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.register });
 
   await page.getByRole("button", { name: new RegExp(item.receiptNo.replace("/", "\\/")) }).first().click({ timeout: 60_000 });
   const drawer = page.getByRole("dialog");
   await expect(drawer).toContainText(item.receiptNo);
   await expect(drawer).toContainText("History");
-  await expect(drawer.getByRole("link", { name: /Open the receipt/ })).toHaveAttribute("href", `/admin/receipts/${item.id}`);
+  await expect(drawer.getByRole("link", { name: /Open the receipt/ })).toHaveAttribute("href", `/seva/${item.id}`);
 });
 
 test("a temple admin resolves a gap with a note", async ({ page }) => {
@@ -170,7 +171,7 @@ test("a temple admin resolves a gap with a note", async ({ page }) => {
     },
   });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/register" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.register });
 
   const of1 = page.getByTestId("continuity-OF1");
   await expect(of1).toContainText("1 open gap", { timeout: 60_000 });
@@ -208,7 +209,7 @@ test("a view-only temple admin sees the gap but no Resolve", async ({ page }) =>
     ],
   });
   await fake.install(page);
-  await signInAs(page, "temple_admin_view_only", { redirect: "/admin/receipts/register" });
+  await signInAs(page, "temple_admin_view_only", { redirect: SEVA_ROUTES.register });
   await expect(page.getByTestId("continuity-OF1")).toContainText("1 open gap", { timeout: 60_000 });
   await expect(page.getByTestId("continuity-OF1").getByRole("button", { name: /Resolve/ })).toHaveCount(0);
 });
@@ -217,7 +218,7 @@ test("rows become cards on a phone", async ({ page }) => {
   const fake = createFakeSevaApi();
   fake.extend({ "GET receipts": () => ({ rows: [listItem(1), listItem(2, { status: "cancelled" })], nextCursor: null }) });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/register" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.register });
   await expect(page.getByTestId("register-table")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("register-cards")).toBeHidden();
 
@@ -261,7 +262,7 @@ test("audit trail filters by type", async ({ page }) => {
     },
   });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/reports/audit" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.reportsAudit });
 
   await expect(page.getByTestId("audit-list")).toContainText("Trust board decision.", { timeout: 60_000 });
   await page.getByRole("radio", { name: /Cancellations/ }).click();
@@ -269,7 +270,7 @@ test("audit trail filters by type", async ({ page }) => {
   await expect(page.getByTestId("audit-list")).toContainText("C1-023-10-2026/000144");
   await expect(page.getByTestId("audit-list").getByRole("link", { name: /Open receipt/ })).toHaveAttribute(
     "href",
-    "/admin/receipts/00000000-0000-4000-8000-000000000011",
+    "/seva/00000000-0000-4000-8000-000000000011",
   );
   const asked = fake.requests.filter((r) => r.method === "GET" && r.path.startsWith("/api/seva/reports/audit"));
   expect(asked.some((r) => r.path.includes("type=cancellations"))).toBe(true);
@@ -309,7 +310,7 @@ test("day closes show balanced, short and extra", async ({ page }) => {
     "GET reports/day-closes": () => [dayClose("d1", "balanced", 0), dayClose("d2", "short", -5_000), dayClose("d3", "extra", 2_000)],
   });
   await fake.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts/day-closes" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.dayCloses });
 
   const list = page.getByTestId("day-close-list");
   await expect(list).toContainText("Balanced", { timeout: 60_000 });

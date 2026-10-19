@@ -3,6 +3,7 @@ import type { Period } from "../../../lib/seva/time";
 import type { DashboardData, NeedsAttentionCard } from "../../../types/seva-reports";
 import { signInAs } from "./fixtures/auth";
 import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Seva dashboard (plan Task A4-6, DB §12.1-12.2) on a PC (1366 px, `desktop`) and a phone (390 px, `phone`). The
@@ -98,7 +99,7 @@ const dashboardCalls = (api: FakeSevaApi) => api.requests.filter((r) => r.path.s
 
 async function openDashboard(page: Page, api: FakeSevaApi): Promise<void> {
   await api.install(page);
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.dashboard });
   await expect(page.getByRole("heading", { level: 1, name: /Dashboard/ })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("tile-total")).toBeVisible();
   // The charts are loaded on demand, and each chart's title comes with it. Festival peaks keeps a plain heading until
@@ -176,7 +177,7 @@ test("desktop and phone show the same order", async ({ page }) => {
   // Needs attention: critical first, each linking to its filtered screen.
   const cards = page.locator('[data-testid^="attention-"][data-level]');
   await expect(cards.first()).toHaveAttribute("data-testid", "attention-day_close_difference");
-  await expect(page.getByTestId("attention-changed_amounts").getByRole("link")).toHaveAttribute("href", "/admin/receipts/register?status=changed");
+  await expect(page.getByTestId("attention-changed_amounts").getByRole("link")).toHaveAttribute("href", "/seva/register?status=changed");
   await expect(page.getByTestId("attention-prasadam_pending")).toContainText("9 prasadam pending today");
   await expect(page.getByTestId("attention-database_size")).toHaveCount(0);
 });
@@ -208,8 +209,8 @@ test("each chart has a hidden data table", async ({ page }) => {
 test("a receptionist is sent to the counter", async ({ page }) => {
   const api = dashboardFake();
   await api.install(page);
-  await signInAs(page, "receptionist", { redirect: "/admin/receipts" });
-  await page.waitForURL((url) => url.pathname === "/admin/receipts/counter", { timeout: 60_000 });
+  await signInAs(page, "receptionist", { redirect: SEVA_ROUTES.dashboard });
+  await page.waitForURL((url) => url.pathname === "/seva/counter", { timeout: 60_000 });
   expect(dashboardCalls(api)).toHaveLength(0);
 });
 
@@ -265,4 +266,31 @@ test("period switch never shows a blank dashboard", async ({ page }) => {
   expect(seen?.clickAt).not.toBeNull();
   expect(seen?.blank).toBe(false);
   expect((seen?.pendingAt ?? Infinity) - (seen?.clickAt ?? 0)).toBeLessThan(200);
+});
+
+test("phone: a temple admin gets Dashboard, Register, Reports and More, and More opens the rest", async ({ page }) => {
+  test.skip(!test.info().project.name.startsWith("phone"), "phone frame only");
+  await openDashboard(page, dashboardFake());
+
+  const bar = page.getByRole("navigation", { name: "Seva Entry sections" });
+  await expect(bar).toBeVisible();
+  await expect(page.locator("[data-seva-rail]")).toBeHidden();
+  const onBar = bar.getByRole("link");
+  await expect(onBar).toHaveCount(3);
+  await expect(onBar.nth(0)).toHaveAttribute("href", "/seva");
+  await expect(onBar.nth(0)).toHaveAttribute("aria-current", "page");
+  await expect(onBar.nth(1)).toHaveAttribute("href", "/seva/register");
+  await expect(onBar.nth(2)).toHaveAttribute("href", "/seva/reports");
+
+  await bar.getByRole("button", { name: /More/ }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toBeVisible();
+  const rest = ["/seva/counter", "/seva/prasadam", "/seva/day-closes", "/seva/seva-settings", "/seva/settings", "/admin/users", "/admin"];
+  const links = sheet.getByRole("link");
+  await expect(links).toHaveCount(rest.length);
+  for (let i = 0; i < rest.length; i += 1) await expect(links.nth(i)).toHaveAttribute("href", rest[i]);
+  await expect(links.last()).toContainText("Website admin");
+
+  await sheet.getByRole("link", { name: /Day closes/ }).click();
+  await page.waitForURL((url) => url.pathname === "/seva/day-closes", { timeout: 60_000 });
 });

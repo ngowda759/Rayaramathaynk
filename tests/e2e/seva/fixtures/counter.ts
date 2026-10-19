@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import type { CounterOrderPayload } from "../../../../types/seva";
 import { signInAs, type E2ERole } from "./auth";
 import type { FakeRequest, FakeSevaApi } from "./fake-api";
+import { SEVA_ROUTES } from "../../../../lib/seva/routes";
 
 /**
  * Counter fixtures for the A4-1 browser tests (counter.spec.ts, counter-print.spec.ts, counter-offline.spec.ts).
@@ -63,8 +64,8 @@ export async function registerThisPc(page: Page): Promise<void> {
 export async function openCounter(page: Page, fake: FakeSevaApi, role: E2ERole = "receptionist"): Promise<void> {
   await fake.install(page);
   await stubPrint(page);
-  await signInAs(page, role, { redirect: "/admin/receipts/counter" });
-  await page.waitForURL((url) => url.pathname === "/admin/receipts/counter", { timeout: 60_000 });
+  await signInAs(page, role, { redirect: SEVA_ROUTES.counter });
+  await page.waitForURL((url) => url.pathname === SEVA_ROUTES.counter, { timeout: 60_000 });
   await registerThisPc(page);
   await page.reload();
   await expect(page.locator("#counter-name")).toBeFocused({ timeout: 60_000 });

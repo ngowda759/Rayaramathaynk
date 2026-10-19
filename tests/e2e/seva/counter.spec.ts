@@ -11,6 +11,7 @@ import {
   tabTo,
   threeDateOrder,
 } from "./fixtures/counter";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * The counter screens (plan A4-1, Design Book 9): keyboard flow, save and print, UPI, a catalogue change under the
@@ -198,7 +199,7 @@ test("an unregistered PC shows the register prompt", async ({ page }) => {
   const fake = createFakeSevaApi();
   await fake.install(page);
   await stubPrint(page);
-  await signInAs(page, "receptionist", { redirect: "/admin/receipts/counter" });
+  await signInAs(page, "receptionist", { redirect: SEVA_ROUTES.counter });
 
   await expect(page.getByText("This PC is not a registered counter")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("Ask a temple admin to register this PC.")).toBeVisible();

@@ -3,7 +3,7 @@
   "short_name": "Seva Counter",
   "description": "Seva receipt counter of Sri Raghavendra Swamy Matha",
   "id": "/seva/counter",
-  "start_url": "/seva/counter",
+  "start_url": "/seva",
   "scope": "/seva",
   "display": "standalone",
   "orientation": "any",

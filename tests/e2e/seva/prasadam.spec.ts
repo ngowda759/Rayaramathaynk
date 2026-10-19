@@ -6,6 +6,7 @@ import { addDays, businessDate, istParts } from "../../../lib/seva/time";
 import { signInAs } from "./fixtures/auth";
 import { E2E_SITE_URL } from "./fixtures/data";
 import { createFakeSevaApi, fakeResponse, type FakeHandler, type FakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Prasadam counter (plan Task A4-5, DB §11) on a phone (the `phone` project) and a PC. Every /api/seva/** call is
@@ -87,10 +88,10 @@ function prasadamFake(receipts: IssuedReceipt[], opts: { slowMs?: number } = {})
   return { api, core };
 }
 
-async function openCounter(page: Page, api: FakeSevaApi, path = "/admin/prasadam"): Promise<void> {
+async function openCounter(page: Page, api: FakeSevaApi, path: string = SEVA_ROUTES.prasadam): Promise<void> {
   await api.install(page);
-  await signInAs(page, "prasadam_counter", { redirect: "/admin/prasadam" });
-  if (path !== "/admin/prasadam") await page.goto(path);
+  await signInAs(page, "prasadam_counter", { redirect: SEVA_ROUTES.prasadam });
+  if (path !== SEVA_ROUTES.prasadam) await page.goto(path);
   await expect(page.getByRole("heading", { name: /Prasadam counter/ })).toBeVisible({ timeout: 60_000 });
 }
 
@@ -226,7 +227,7 @@ test("scanner-typed URL in the number box finds the receipt", async ({ page }) =
 test("the token from the public receipt page looks the receipt up at once", async ({ page }) => {
   const r = receipt({ running: 129, name: "Prakash Bhat" });
   const { api } = prasadamFake([r]);
-  await openCounter(page, api, `/admin/prasadam?token=${r.qrToken}`);
+  await openCounter(page, api, `${SEVA_ROUTES.prasadam}?token=${r.qrToken}`);
   await expect(resultCard(page, "ready")).toContainText("Prakash Bhat");
 });
 
@@ -264,4 +265,19 @@ test("offline shows the check-by-eye message", async ({ page, context }) => {
   await expect(page.getByTestId("prasadam-offline")).toContainText(message);
   await context.setOffline(false);
   await expect(page.getByTestId("prasadam-offline")).toHaveCount(0);
+});
+
+test("phone: a prasadam volunteer sees only the header with Sign out and the scan screen", async ({ page }) => {
+  test.skip(!test.info().project.name.startsWith("phone"), "phone frame only");
+  const { api } = prasadamFake([receipt({ running: 140 })]);
+  await openCounter(page, api);
+
+  const header = page.locator("header[data-seva-header]");
+  await expect(header).toBeVisible();
+  await expect(header.getByRole("button", { name: /Sign out/ })).toBeVisible();
+  await expect(header.getByRole("link", { name: /Website admin/ })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Seva Entry sections" })).toHaveCount(0);
+  await expect(page.locator("[data-seva-phonebar]")).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: /Type receipt number/ })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/seva/prasadam");
 });

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signInAs } from "./fixtures/auth";
 import { createFakeSevaApi } from "./fixtures/fake-api";
+import { SEVA_ROUTES } from "../../../lib/seva/routes";
 
 /**
  * Motion and loading foundation (plan A4P-1): a click on a seva link shows the top progress bar and the outline of
@@ -31,11 +32,11 @@ test("a slow page shows the top bar and its outline within 200 ms of the click",
   });
   await fake.install(page);
   const meAnswered = page.waitForResponse((res) => new URL(res.url()).pathname === "/api/seva/me", { timeout: 90_000 });
-  await signInAs(page, "temple_admin", { redirect: "/admin/receipts" });
+  await signInAs(page, "temple_admin", { redirect: SEVA_ROUTES.dashboard });
   await meAnswered;
 
-  const sidebar = page.locator("aside").filter({ has: page.locator("nav") }).first();
-  const register = sidebar.locator('a[href="/admin/receipts/register"]');
+  const rail = page.getByRole("navigation", { name: "Seva Entry sections" });
+  const register = rail.locator(`a[href="${SEVA_ROUTES.register}"]`);
   await expect(register).toBeVisible({ timeout: 60_000 });
   await expect(page.locator("[data-route-progress]")).toHaveAttribute("data-state", "idle");
 
@@ -61,7 +62,7 @@ test("a slow page shows the top bar and its outline within 200 ms of the click",
   });
 
   await register.click();
-  await page.waitForURL((url) => url.pathname === "/admin/receipts/register", { timeout: 60_000 });
+  await page.waitForURL((url) => url.pathname === SEVA_ROUTES.register, { timeout: 60_000 });
 
   const seen = await page.evaluate(() => window.__sevaFeedback);
   expect(seen?.clickAt).not.toBeNull();
