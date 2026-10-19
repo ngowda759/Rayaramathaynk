@@ -6,6 +6,7 @@ import FestivalPage from "@/app/seva/(desk)/reports/festival/page";
 import AuditPage from "@/app/seva/(desk)/reports/audit/page";
 import BoardSummaryPage from "@/app/seva/(desk)/reports/summary/page";
 import type { AuditEntry } from "@/services/seva/reports.service";
+import { BOARD } from "@/lib/seva/strings/export";
 
 /**
  * Reports loading states (A4P-FIX item 5, after the register of plan A4P-3): the seva summary, festival, audit trail and
@@ -212,6 +213,8 @@ describe("reports loading states", () => {
     await waitFor(() => expect(screen.getByTestId("report")).toHaveTextContent("2026-10-01..2026-10-19"));
     expect(skeleton()).toBeNull();
     expect(pendingLine()).toBeNull();
+    const printButton = (): HTMLElement => screen.getByRole("button", { name: BOARD.print.en });
+    expect(printButton()).toBeEnabled();
 
     mockParams.current = new URLSearchParams("from=2026-09-01&to=2026-09-30");
     rerender(<BoardSummaryPage />);
@@ -221,11 +224,20 @@ describe("reports loading states", () => {
     expect(screen.getByTestId("report")).toHaveTextContent("2026-10-01..2026-10-19");
     expect(screen.getByTestId("report-content")).toHaveAttribute("aria-busy", "true");
     expect(skeleton()).toBeNull();
+    // A4P carry: the earlier range's sheets cannot be printed while the new range loads.
+    expect(printButton()).toBeDisabled();
+    const print = jest.spyOn(window, "print").mockImplementation(() => undefined);
+    fireEvent.click(printButton());
+    expect(print).not.toHaveBeenCalled();
 
     await answer("collectExportData", { receipts: [], cancelledChanged: [] }, 2);
     await answer("collectExportData", { receipts: [], cancelledChanged: [] }, 3);
     await answer("sevaSummary", { sevas: [], totals: null, rateChanges: [] });
     await waitFor(() => expect(screen.getByTestId("report")).toHaveTextContent("2026-09-01..2026-09-30"));
     expect(pendingLine()).toBeNull();
+    expect(printButton()).toBeEnabled();
+    fireEvent.click(printButton());
+    expect(print).toHaveBeenCalledTimes(1);
+    print.mockRestore();
   });
 });

@@ -1,7 +1,7 @@
 {
-  "name": "Seva Counter",
-  "short_name": "Seva Counter",
-  "description": "Seva receipt counter of Sri Raghavendra Swamy Matha",
+  "name": "Seva Entry",
+  "short_name": "Seva",
+  "description": "Seva Entry of Sri Raghavendra Swamy Matha: the seva counter, prasadam and the office desk",
   "id": "/seva/counter",
   "start_url": "/seva",
   "scope": "/seva",

@@ -169,6 +169,17 @@ describe('seva lists (A4P-5)', () => {
     expect(guard.rows[0].n).toBe(1);
   });
 
+  it('an upsert (INSERT ... ON CONFLICT DO UPDATE) cannot change a fixed name either (A4P carry)', async () => {
+    const direct = (sql: string) => asRole(db, 'service_role', (d) => d.query(sql));
+    await expect(
+      direct(
+        `insert into seva_list_items (kind, item_id, name_en, display_order) values ('nakshatra', 1, 'Hacked', 1)
+           on conflict (kind, item_id) do update set name_en = excluded.name_en`,
+      ),
+    ).rejects.toThrow(/seva guard/);
+    expect(await listItem(db, 'nakshatra', 1)).toMatchObject({ name_en: NAKSHATRAS[0].en });
+  });
+
   it('runs again without undoing an admin change', async () => {
     await applyMigrationFile(db, '20261030000000_seva_lists.sql');
     expect(await listItem(db, 'nakshatra', 25)).toMatchObject({ name_kn: 'ಪೂರ್ವಾಭಾದ್ರಪದ', kn_checked: true });

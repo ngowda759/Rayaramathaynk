@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseConfigStatus } from "@/lib/firebase";
+import { safeReturnPath } from "@/lib/auth/safe-return";
 import { signInPath } from "@/lib/seva/routes";
 import type { SevaRole } from "@/types/seva";
 
@@ -135,7 +136,8 @@ export default function AdminAuthGuard({
     if (returnTo) {
       router.replace(signInPath(returnTo));
     } else {
-      const redirect = searchParams.get("redirect") || "/admin";
+      // Only a path on this site is relayed to the sign-in page (A4S security gate, H-1).
+      const redirect = safeReturnPath(searchParams.get("redirect"), "/admin");
       router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
     }
     return <LoadingSpinner />;

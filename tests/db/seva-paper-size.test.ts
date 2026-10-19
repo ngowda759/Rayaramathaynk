@@ -5,7 +5,7 @@
  * the other slip settings. Called as service_role, the only role allowed to execute it.
  */
 import type { PGlite } from '@electric-sql/pglite';
-import { asRole, freshDb } from './harness';
+import { applyMigrationFile, asRole, freshDb, sevaMigrationFiles } from './harness';
 import { seedStaff } from './fixtures';
 
 type Row = Record<string, unknown>;
@@ -85,5 +85,55 @@ describe('seva receipt paper size (A4S-7)', () => {
     await expect(update(db, { paper_size: 'roll_58' }, viewer)).rejects.toThrow(/SEVA:forbidden/);
     expect(await paper(db)).toEqual(before);
     expect((await db.query<{ n: number }>(`select count(*)::int as n from audit_log`)).rows[0].n).toBe(audits);
+  });
+});
+
+describe('seva receipt paper size is never null (A4S security gate, L-2)', () => {
+  const NOT_NULL_FILE = '20261101000000_seva_paper_size_not_null.sql';
+  let db: PGlite;
+  let admin: string;
+
+  beforeAll(async () => {
+    db = await freshDb();
+    admin = await seedStaff(db, { staffNo: 8, name: 'Prakash', uid: 'uid-prakash' });
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it('the migration file is one of the seva migrations, after the paper size one', () => {
+    const files = sevaMigrationFiles();
+    expect(files).toContain(NOT_NULL_FILE);
+    expect(files.indexOf(NOT_NULL_FILE)).toBeGreaterThan(files.indexOf('20261031000000_seva_paper_size.sql'));
+  });
+
+  it('paper_size is NOT NULL: a direct write and seva_update_settings both refuse a null', async () => {
+    const column = (
+      await db.query<Row>(
+        `select is_nullable, column_default from information_schema.columns
+          where table_name = 'seva_settings' and column_name = 'paper_size'`,
+      )
+    ).rows[0];
+    expect(column.is_nullable).toBe('NO');
+    expect(String(column.column_default)).toMatch(/'a5'/);
+
+    await expect(db.query(`update seva_settings set paper_size = null where id = 1`)).rejects.toThrow(/null/i);
+    await expect(update(db, { paper_size: null }, admin)).rejects.toThrow();
+    expect((await paper(db)).paper_size).toBe('a5');
+  });
+
+  it('on a database whose row was left null, the migration sets it to a5 and then forbids null', async () => {
+    await db.exec(`ALTER TABLE seva_settings ALTER COLUMN paper_size DROP NOT NULL`);
+    await db.query(`update seva_settings set paper_size = null where id = 1`);
+    expect((await paper(db)).paper_size).toBeNull();
+
+    await applyMigrationFile(db, NOT_NULL_FILE);
+    expect((await paper(db)).paper_size).toBe('a5');
+    await expect(db.query(`update seva_settings set paper_size = null where id = 1`)).rejects.toThrow(/null/i);
+
+    // Safe to run again.
+    await applyMigrationFile(db, NOT_NULL_FILE);
+    expect((await paper(db)).paper_size).toBe('a5');
   });
 });

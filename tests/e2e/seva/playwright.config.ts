@@ -82,6 +82,14 @@ export default defineConfig({
       FIREBASE_API_KEY: "",
       NEXT_PUBLIC_FIREBASE_PRIVATE_KEY: "",
       GOOGLE_APPLICATION_CREDENTIALS: "",
+      // Every other secret the app reads (A4S-FIX item 6): the AI providers, the admin API key and the blob store
+      // token (@vercel/blob reads it itself). Blank, so a test can never call a paid or live service.
+      OPENAI_API_KEY: "",
+      ANTHROPIC_API_KEY: "",
+      GOOGLE_GENERATIVE_API_KEY: "",
+      OPENROUTER_API_KEY: "",
+      ADMIN_API_KEY: "",
+      BLOB_READ_WRITE_TOKEN: "",
     },
   },
 });

@@ -3,7 +3,8 @@
  */
 import { readFileSync } from 'fs';
 import path from 'path';
-import { NETWORK_TIMEOUT_MS, SEVA_CACHE, networkFirst, networkOrCounter, routeRequest } from '@/public/seva-sw.js';
+import { runInNewContext } from 'vm';
+import { NETWORK_TIMEOUT_MS, SEVA_CACHE, inSevaScope, networkFirst, networkOrCounter, routeRequest } from '@/public/seva-sw.js';
 import { SEVA_ROUTES } from '@/lib/seva/routes';
 
 const site = 'https://site.example';
@@ -54,13 +55,16 @@ describe('counter install manifest', () => {
     const raw = readFileSync(path.join(process.cwd(), 'public', 'seva-counter.webmanifest'), 'utf8');
     const manifest = JSON.parse(raw) as {
       name: string;
+      short_name: string;
       id: string;
       start_url: string;
       scope: string;
       display: string;
       icons: { src: string }[];
     };
-    expect(manifest.name).toBe('Seva Counter');
+    // One app for every role (owner, 2026-10-20), not only the counter.
+    expect(manifest.name).toBe('Seva Entry');
+    expect(manifest.short_name).toBe('Seva');
     expect(manifest.id).toBe(SEVA_ROUTES.counter);
     // The id stays the counter address, so a counter PC that already installed the app keeps the same app.
     expect(manifest.start_url).toBe(SEVA_ROUTES.dashboard);
@@ -180,5 +184,78 @@ describe('counter page network-first with a timeout', () => {
 
     fakeCache(undefined);
     expect((await networkFirst(new Request(page))).type).toBe('error');
+  });
+});
+
+describe('the worker answers only inside /seva (A4S security gate, L-1)', () => {
+  type Listener = (event: unknown) => void;
+
+  /** Runs public/seva-sw.js as a worker would, with a fake `self`, and returns its fetch listener. */
+  function loadWorker() {
+    const listeners: Record<string, Listener> = {};
+    const cache = { match: jest.fn(async () => new Response('cached')), put: jest.fn(async () => undefined) };
+    const sandbox = {
+      self: {
+        addEventListener: (type: string, fn: Listener) => {
+          listeners[type] = fn;
+        },
+        location: { origin: site },
+        skipWaiting: jest.fn(),
+        clients: { claim: jest.fn() },
+      },
+      caches: { open: jest.fn(async () => cache), keys: jest.fn(async () => []), delete: jest.fn() },
+      fetch: jest.fn(async () => new Response('network')),
+      URL,
+      Request,
+      Response,
+      Promise,
+      setTimeout,
+      clearTimeout,
+    };
+    const source = readFileSync(path.join(process.cwd(), 'public', 'seva-sw.js'), 'utf8');
+    runInNewContext(source, sandbox);
+    return { onFetch: listeners.fetch, fetchSpy: sandbox.fetch };
+  }
+
+  function fetchEvent(url: string, mode: string) {
+    return { request: { method: 'GET', url, mode }, respondWith: jest.fn(), waitUntil: jest.fn() };
+  }
+
+  it('a navigation to /sevas (the public seva page) gets no respondWith', () => {
+    const { onFetch } = loadWorker();
+    expect(typeof onFetch).toBe('function');
+    for (const url of [`${site}/sevas`, `${site}/sevas/abc`, `${site}/seva-booking`, `${site}/sevas?x=1`]) {
+      const event = fetchEvent(url, 'navigate');
+      onFetch(event);
+      expect(event.respondWith).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still answers /seva, the counter pages and the cache-first files it serves', () => {
+    const { onFetch } = loadWorker();
+    for (const [url, mode] of [
+      [`${site}/seva`, 'navigate'],
+      [`${site}/seva/counter`, 'navigate'],
+      [`${site}/_next/static/chunks/app-1234.js`, 'no-cors'],
+      [`${site}/seva-counter.webmanifest`, 'cors'],
+      [`${site}/favicon.svg`, 'no-cors'],
+    ]) {
+      const event = fetchEvent(url, mode);
+      onFetch(event);
+      expect(event.respondWith).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('inSevaScope accepts exactly /seva, paths under /seva/ and the cache-first files', () => {
+    expect(inSevaScope('/seva')).toBe(true);
+    expect(inSevaScope('/seva/')).toBe(true);
+    expect(inSevaScope('/seva/register')).toBe(true);
+    expect(inSevaScope('/_next/static/css/app.css')).toBe(true);
+    expect(inSevaScope('/seva-counter.webmanifest')).toBe(true);
+    expect(inSevaScope('/favicon.ico')).toBe(true);
+    expect(inSevaScope('/sevas')).toBe(false);
+    expect(inSevaScope('/seva-sw.js')).toBe(false);
+    expect(inSevaScope('/sevabooking')).toBe(false);
+    expect(inSevaScope('/')).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useAuth } from "@/hooks/useAuth";
+import { assignLocation, safeReturnPath } from "@/lib/auth/safe-return";
 
 import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
@@ -57,10 +58,11 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Delay redirect to allow Firebase auth state to persist
-      const redirect = searchParams.get("redirect") || "/";
+      // Delay redirect to allow Firebase auth state to persist. Only a path on this site is followed (no //host,
+      // scheme or backslash tricks); anything else lands on the home page.
+      const redirect = safeReturnPath(searchParams.get("redirect"), "/");
       setTimeout(() => {
-        window.location.href = redirect;
+        assignLocation(redirect);
       }, 2000);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };

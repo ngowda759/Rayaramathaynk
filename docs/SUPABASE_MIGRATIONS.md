@@ -102,6 +102,7 @@ changes or drops what the website already has.
 | `20261029235900_seva_privilege_hardening.sql` | revokes `TRIGGER` and `REFERENCES` on the guarded tables |
 | `20261030000000_seva_lists.sql` | the gotra, nakshatra and rashi lists (`seva_list_items`) and their functions |
 | `20261031000000_seva_paper_size.sql` | the receipt paper size columns on `seva_settings` |
+| `20261101000000_seva_paper_size_not_null.sql` | `seva_settings.paper_size` NOT NULL (a null row set to `a5` first); not yet pushed |
 
 **Frozen files.** Every file up to and including `20261031000000_seva_paper_size.sql` was applied to the developer's
 test project: the files up to `20261030000000_seva_lists.sql` on 2026-10-19, `20261031000000_seva_paper_size.sql` on

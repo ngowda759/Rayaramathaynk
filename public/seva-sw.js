@@ -14,7 +14,7 @@
  * - Everything else, and every /api/* call, goes straight to the network: receipts, sync and sign-in are never cached;
  *   the counter's own IndexedDB outbox handles offline saving.
  *
- * Plain JavaScript, no build step. `routeRequest`, `networkFirst`, `networkOrCounter` and `SEVA_CACHE` are exported for the unit test when `module` exists.
+ * Plain JavaScript, no build step. `routeRequest`, `inSevaScope`, `networkFirst`, `networkOrCounter` and `SEVA_CACHE` are exported for the unit test when `module` exists.
  */
 'use strict';
 
@@ -46,6 +46,19 @@ function routeRequest(url, mode) {
   if (path.indexOf('/_next/static/') === 0) return 'cache-first';
   if (CACHE_FIRST_FILES.indexOf(path) !== -1) return 'cache-first';
   return 'bypass';
+}
+
+/**
+ * Whether the worker may answer this path at all. Worker scopes match by string prefix, so the /seva worker also
+ * controls /sevas (the public seva page) and any future /seva-* page; it answers only /seva itself, paths under
+ * /seva/ and the cache-first files it serves (A4S security gate, L-1). Everything else goes to the network untouched.
+ * @param {string} path the request pathname
+ * @returns {boolean}
+ */
+function inSevaScope(path) {
+  if (path === LANDING_PATH || path.indexOf(LANDING_PATH + '/') === 0) return true;
+  if (path.indexOf('/_next/static/') === 0) return true;
+  return CACHE_FIRST_FILES.indexOf(path) !== -1;
 }
 
 /** A response worth keeping: complete, same-origin and not a redirect (a sign-in redirect must not be cached). */
@@ -192,6 +205,7 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function' &
     if (request.method !== 'GET') return;
     var url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
+    if (!inSevaScope(url.pathname)) return;
     var route = routeRequest(url, request.mode);
     if (route === 'network-first') {
       event.respondWith(
@@ -210,6 +224,7 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function' &
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     routeRequest: routeRequest,
+    inSevaScope: inSevaScope,
     networkFirst: networkFirst,
     networkOrCounter: networkOrCounter,
     NETWORK_TIMEOUT_MS: NETWORK_TIMEOUT_MS,
