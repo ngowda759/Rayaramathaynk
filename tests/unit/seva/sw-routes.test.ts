@@ -3,7 +3,7 @@
  */
 import { readFileSync } from 'fs';
 import path from 'path';
-import { routeRequest } from '@/public/seva-sw.js';
+import { NETWORK_TIMEOUT_MS, networkFirst, routeRequest } from '@/public/seva-sw.js';
 
 const site = 'https://site.example';
 
@@ -51,5 +51,62 @@ describe('counter install manifest', () => {
     for (const src of srcs) {
       expect(routeRequest(`${site}${src}`, 'no-cors')).toBe('cache-first');
     }
+  });
+});
+
+describe('counter page network-first with a timeout', () => {
+  const page = `${site}/admin/receipts/counter`;
+  type G = { fetch?: unknown; caches?: unknown };
+  const g = globalThis as unknown as G;
+  const saved = { fetch: g.fetch, caches: g.caches };
+
+  function fakeCache(cached: Response | undefined) {
+    const put = jest.fn(async () => undefined);
+    const cache = { match: jest.fn(async () => cached), put };
+    g.caches = { open: jest.fn(async () => cache) };
+    return { put };
+  }
+
+  /** A same-origin page response as the browser would hand it to the worker. */
+  function pageResponse(body: string): Response {
+    const r = new Response(body, { status: 200 });
+    Object.defineProperty(r, 'type', { value: 'basic' });
+    return r;
+  }
+
+  afterEach(() => {
+    g.fetch = saved.fetch;
+    g.caches = saved.caches;
+    jest.useRealTimers();
+  });
+
+  it('serves the cached page when the network hangs past the timeout', async () => {
+    jest.useFakeTimers();
+    fakeCache(new Response('cached'));
+    g.fetch = jest.fn(() => new Promise<Response>(() => undefined));
+    const answer = networkFirst(new Request(page));
+    await jest.advanceTimersByTimeAsync(NETWORK_TIMEOUT_MS);
+    expect(await (await answer).text()).toBe('cached');
+  });
+
+  it('serves and caches the network page when it answers in time', async () => {
+    const { put } = fakeCache(new Response('cached'));
+    g.fetch = jest.fn(async () => pageResponse('fresh'));
+    const waits: Promise<unknown>[] = [];
+    const answer = await networkFirst(new Request(page), (p: Promise<unknown>) => waits.push(p));
+    expect(await answer.text()).toBe('fresh');
+    await Promise.all(waits);
+    expect(put).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the cache when the network fails, and errors when nothing is cached', async () => {
+    fakeCache(new Response('cached'));
+    g.fetch = jest.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    expect(await (await networkFirst(new Request(page))).text()).toBe('cached');
+
+    fakeCache(undefined);
+    expect((await networkFirst(new Request(page))).type).toBe('error');
   });
 });

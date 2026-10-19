@@ -4,6 +4,7 @@
  * The workbook itself is built by the injected `build` (the Web Worker in `download.ts` on the counter); rows come from
  * the PC's local receipts through `getRows`, so online and offline receipts are both in the copy.
  */
+import { defaultIncomeLedger } from '@/lib/seva/export/tally';
 import { businessDate, istParts } from '@/lib/seva/time';
 import type { IssuedReceipt } from '@/types/seva';
 import type { ExportIncomeLedger, ExportReceiptRow } from '@/types/seva-export';
@@ -50,19 +51,17 @@ export function createExcelCopyScheduler(deps: ExcelCopySchedulerDeps): ExcelCop
   }
 
   async function write(force: boolean): Promise<void> {
-    const today = businessDate(deps.clock());
     if (!force && dirtyDates.size === 0) return;
     const dates = new Set(dirtyDates);
-    if (force) dates.add(today);
-
-    // Ask the folder first, so nothing is built when it cannot be written.
-    const ready = await folderWriteStatus(deps.db);
-    if (ready !== 'ready') {
-      deps.onStatus(ready);
-      return;
-    }
-    const noted = receiptsSinceWrite;
     try {
+      if (force) dates.add(businessDate(deps.clock()));
+      // Ask the folder first, so nothing is built when it cannot be written.
+      const ready = await folderWriteStatus(deps.db);
+      if (ready !== 'ready') {
+        deps.onStatus(ready);
+        return;
+      }
+      const noted = receiptsSinceWrite;
       for (const date of [...dates].sort()) {
         // A change noted while this write runs re-marks the day after the delete below, so it is never lost.
         dirtyDates.delete(date);
@@ -78,8 +77,20 @@ export function createExcelCopyScheduler(deps: ExcelCopySchedulerDeps): ExcelCop
     }
   }
 
+  /**
+   * A failure is reported and the chain carries on: a rejected chain would skip every later write for the rest of the
+   * session (the Excel copy is the audit fallback, so it must keep trying).
+   */
   function enqueue(force: boolean): Promise<void> {
-    chain = chain.then(() => write(force));
+    chain = chain
+      .then(() => write(force))
+      .catch((err: unknown) => {
+        try {
+          deps.onError?.(err);
+        } catch {
+          // A failing error handler must not stop the copy either.
+        }
+      });
     return chain;
   }
 
@@ -106,11 +117,6 @@ export function createExcelCopyScheduler(deps: ExcelCopySchedulerDeps): ExcelCop
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
 
-/** Default Tally income ledger of a seva (C-55): 'Seva Income - <seva name>'. */
-function incomeLedgerName(sevaName: string): string {
-  return `Seva Income - ${sevaName}`;
-}
-
 /** 'Ramesh - 023', as on the counter strip and the slip; just the name when there is no staff number. */
 function issuedByLabel(by: IssuedReceipt['issuedBy']): string {
   return by.staffNo === null ? by.name : `${by.name} - ${String(by.staffNo).padStart(3, '0')}`;
@@ -127,7 +133,7 @@ export function issuedToExportRow(r: IssuedReceipt): ExportReceiptRow {
   const ledgers: ExportIncomeLedger[] = [];
   for (const line of r.lines) {
     if (line.code && !codes.includes(line.code)) codes.push(line.code);
-    const ledger = incomeLedgerName(line.nameEn);
+    const ledger = defaultIncomeLedger(line.nameEn);
     const existing = ledgers.find((l) => l.ledger === ledger);
     if (existing) existing.amountPaise += line.amountPaise;
     else ledgers.push({ ledger, amountPaise: line.amountPaise });

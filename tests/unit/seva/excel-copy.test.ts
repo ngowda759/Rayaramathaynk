@@ -209,6 +209,38 @@ describe('Excel copy scheduler', () => {
     scheduler.stop();
   });
 
+  it('keeps working after a failed folder check and reports the failure', async () => {
+    const folder = fakeFolder();
+    await pickFolder(folder);
+    const realGet = folder.db.get;
+    let failNext = true;
+    const db: FolderDb = {
+      put: folder.db.put,
+      get: async (store, key) => {
+        if (failNext) {
+          failNext = false;
+          throw new DOMException('The database connection is closing.', 'InvalidStateError');
+        }
+        return realGet(store, key);
+      },
+    };
+    const onError = jest.fn();
+    const onStatus = jest.fn();
+    const build = jest.fn(async (): Promise<ArrayBuffer> => new ArrayBuffer(8));
+    const scheduler = createExcelCopyScheduler({ db, getRows: async () => [], build, clock: () => NOW, onStatus, onError });
+
+    await expect(scheduler.flushNow()).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(build).not.toHaveBeenCalled();
+    expect(folder.writes).toHaveLength(0);
+
+    await expect(scheduler.flushNow()).resolves.toBeUndefined();
+    expect(folder.writes).toEqual([{ name: '2026-10-18.xlsx', bytes: 8 }]);
+    expect(onStatus).toHaveBeenLastCalledWith('written');
+    expect(onError).toHaveBeenCalledTimes(1);
+    scheduler.stop();
+  });
+
   it('stop ends the 30-second timer', async () => {
     const folder = fakeFolder();
     await pickFolder(folder);

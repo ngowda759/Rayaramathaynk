@@ -2,12 +2,13 @@
  * Seva counter service worker (Design Book 6.3, 9.11). Registered by components/seva/counter/RegisterServiceWorker.tsx
  * with scope /admin/receipts/counter, so it controls only the counter pages.
  *
- * - Counter page navigations: network first; when the line is down, the last copy of the page from this cache.
+ * - Counter page navigations: network first; when the line is down or has not answered in 4 s, the last copy of the
+ *   page from this cache.
  * - Next.js static files (hashed, never change), the install manifest and its icons: cache first.
  * - Everything else, and every /api/* call, goes straight to the network: receipts, sync and sign-in are never cached;
  *   the counter's own IndexedDB outbox handles offline saving.
  *
- * Plain JavaScript, no build step. `routeRequest` is exported for the unit test when `module` exists.
+ * Plain JavaScript, no build step. `routeRequest` and `networkFirst` are exported for the unit test when `module` exists.
  */
 'use strict';
 
@@ -17,6 +18,8 @@ var SEVA_CACHE = SEVA_CACHE_PREFIX + SEVA_SW_VERSION;
 var COUNTER_PATH = '/admin/receipts/counter';
 var CACHE_FIRST_FILES = ['/seva-counter.webmanifest', '/favicon.svg', '/favicon.ico'];
 var PRECACHE = [COUNTER_PATH].concat(CACHE_FIRST_FILES);
+/** A counter page that has not answered in this time is served from the cache, if a copy exists. */
+var NETWORK_TIMEOUT_MS = 4000;
 
 /**
  * How the worker answers one request.
@@ -41,26 +44,64 @@ function cacheable(response) {
   return Boolean(response) && response.ok && response.type === 'basic' && !response.redirected;
 }
 
-function networkFirst(request) {
-  return fetch(request)
-    .then(function (response) {
-      if (cacheable(response)) {
-        var copy = response.clone();
-        caches.open(SEVA_CACHE).then(function (cache) {
-          return cache.put(request, copy);
-        });
-      }
-      return response;
-    })
-    .catch(function () {
-      return caches.open(SEVA_CACHE).then(function (cache) {
-        return cache.match(request, { ignoreSearch: true }).then(function (hit) {
-          return hit || cache.match(COUNTER_PATH).then(function (shell) {
-            return shell || Response.error();
-          });
-        });
-      });
+/** The last saved copy of a counter page (or the counter page itself); undefined when none is cached. */
+function cachedPage(request) {
+  return caches.open(SEVA_CACHE).then(function (cache) {
+    return cache.match(request, { ignoreSearch: true }).then(function (hit) {
+      return hit || cache.match(COUNTER_PATH);
     });
+  });
+}
+
+/**
+ * Network first, with a timeout (Design Book 9.11: a call that hangs counts as offline). When the network has not
+ * answered within NETWORK_TIMEOUT_MS and a cached page exists, the cached page is served; the network answer still
+ * refreshes the cache when it arrives. `keepAlive` (event.waitUntil) keeps the worker alive for that refresh.
+ */
+function networkFirst(request, keepAlive) {
+  var network = fetch(request).then(function (response) {
+    if (cacheable(response)) {
+      var copy = response.clone();
+      var saved = caches.open(SEVA_CACHE).then(function (cache) {
+        return cache.put(request, copy);
+      });
+      if (keepAlive) keepAlive(saved.catch(function () { return undefined; }));
+    }
+    return response;
+  });
+  if (keepAlive) keepAlive(network.catch(function () { return undefined; }));
+
+  return new Promise(function (resolve) {
+    var settled = false;
+    function answer(response) {
+      if (settled) return;
+      settled = true;
+      resolve(response);
+    }
+    var timer = setTimeout(function () {
+      cachedPage(request)
+        .then(function (hit) {
+          if (hit) answer(hit);
+        })
+        .catch(function () { return undefined; });
+    }, NETWORK_TIMEOUT_MS);
+    network.then(
+      function (response) {
+        clearTimeout(timer);
+        answer(response);
+      },
+      function () {
+        clearTimeout(timer);
+        cachedPage(request)
+          .then(function (hit) {
+            answer(hit || Response.error());
+          })
+          .catch(function () {
+            answer(Response.error());
+          });
+      },
+    );
+  });
 }
 
 function cacheFirst(request) {
@@ -123,11 +164,18 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function' &
     var url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
     var route = routeRequest(url, request.mode);
-    if (route === 'network-first') event.respondWith(networkFirst(request));
-    else if (route === 'cache-first') event.respondWith(cacheFirst(request));
+    if (route === 'network-first') {
+      event.respondWith(
+        networkFirst(request, function (promise) {
+          event.waitUntil(promise);
+        }),
+      );
+    } else if (route === 'cache-first') {
+      event.respondWith(cacheFirst(request));
+    }
   });
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { routeRequest: routeRequest };
+  module.exports = { routeRequest: routeRequest, networkFirst: networkFirst, NETWORK_TIMEOUT_MS: NETWORK_TIMEOUT_MS };
 }
