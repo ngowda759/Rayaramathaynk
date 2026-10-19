@@ -4,6 +4,7 @@ import type { JSX } from "react";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { buttonVariants } from "@/components/ui/button";
 import { COUNTER_TEXT } from "@/lib/seva/strings/counter";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 export interface RegisterPromptProps {
   /** Temple admins and super admins may register a PC (device.register); others are told whom to ask. */
@@ -21,7 +22,7 @@ export function RegisterPrompt({ canRegister }: RegisterPromptProps): JSX.Elemen
       {canRegister ? (
         <>
           <Bilingual as="div" en={COUNTER_TEXT.registerAdmin.en} kn={COUNTER_TEXT.registerAdmin.kn} className="text-(--muted-foreground)" />
-          <Link href="/admin/receipts/settings/counters" className={buttonVariants({ variant: "seva-primary" })}>
+          <Link href={SEVA_ROUTES.settingsCounters} className={buttonVariants({ variant: "seva-primary" })}>
             {COUNTER_TEXT.registerAdminLink.en}
           </Link>
         </>

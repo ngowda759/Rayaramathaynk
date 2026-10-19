@@ -39,6 +39,7 @@ import type { Bi } from "@/lib/seva/strings/common";
 import { SevaClientError } from "@/services/seva/http";
 import { reportsApi } from "@/services/seva/reports.service";
 import { settingsApi } from "@/services/seva/settings.service";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 /**
  * The Export form (DB §12.6; mockup dashboard.html#export). Format: Excel (seven sheets), CSV (each ticked part a
@@ -160,7 +161,7 @@ export function ExportForm(): JSX.Element {
     const query = `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
     if (format === "print") {
       // The summary page writes the audit row itself once it has the data.
-      window.open(`/admin/receipts/reports/summary?${query}`, "_blank", "noopener");
+      window.open(`${SEVA_ROUTES.reportsSummary}?${query}`, "_blank", "noopener");
       setStatus({ kind: "done", text: EXPORT.printOpened });
       return;
     }
@@ -216,7 +217,7 @@ export function ExportForm(): JSX.Element {
           <Bilingual as="h2" en={EXPORT.title.en} kn={EXPORT.title.kn} className="text-(length:--text-h2) font-semibold" />
           <Bilingual as="div" en={EXPORT.intro.en} kn={EXPORT.intro.kn} className="text-(length:--text-meta) text-(--muted-foreground)" />
         </div>
-        <Link href="/admin/receipts/reports" className="text-(length:--text-ui) text-(--link) underline">
+        <Link href={SEVA_ROUTES.reports} className="text-(length:--text-ui) text-(--link) underline">
           {EXPORT.backToReports.en}
         </Link>
       </div>
@@ -339,7 +340,7 @@ export function ExportForm(): JSX.Element {
 
         <div className="flex flex-wrap justify-end gap-2">
           <Link
-            href="/admin/receipts/reports"
+            href={SEVA_ROUTES.reports}
             className="inline-flex min-h-[46px] items-center rounded-(--radius-control) px-4 text-(length:--text-ui) font-semibold text-(--foreground) hover:bg-(--secondary)"
           >
             {EXPORT.cancel.en}

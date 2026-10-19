@@ -10,6 +10,7 @@ import { Chip } from "@/components/seva/ui/Chip";
 import { formatRupees } from "@/lib/seva/money";
 import { DAYCLOSE, countOfLabel, extraBy, shortBy } from "@/lib/seva/strings/dayclose";
 import type { DayClosePrep } from "@/types/seva-dayclose";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 /**
  * Close day, steps 1 and 2 (DB §9.10): the drawer counted by denomination (notes, then coins by value, both from
@@ -207,7 +208,7 @@ export function CashCount({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Bilingual as="h2" en={DAYCLOSE.cash.en} kn={DAYCLOSE.cash.kn} className="text-(length:--text-h2) font-semibold" />
         {canManageDenominations ? (
-          <Link href="/admin/receipts/settings/denominations" className="text-(length:--text-meta) text-(--link) underline">
+          <Link href={SEVA_ROUTES.settingsDenominations} className="text-(length:--text-meta) text-(--link) underline">
             {DAYCLOSE.manageDenominations.en}
           </Link>
         ) : null}

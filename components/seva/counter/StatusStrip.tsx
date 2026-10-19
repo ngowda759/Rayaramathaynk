@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { buttonVariants } from "@/components/ui/button";
 import type { ConnectionState } from "@/lib/seva/offline/connection";
 import { COUNTER_TEXT, clockSkewText, rupees, waitingText } from "@/lib/seva/strings/counter";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 export interface StatusStripProps {
   counterName: string;
@@ -104,7 +105,7 @@ export function StatusStrip({
         />
         <Bilingual en={COUNTER_TEXT.workOffline.en} kn={COUNTER_TEXT.workOffline.kn} className="leading-tight" />
       </label>
-      <SevaLink href="/admin/receipts/day-close" className={buttonVariants({ variant: "seva-secondary", size: "sm" })}>
+      <SevaLink href={SEVA_ROUTES.dayClose} className={buttonVariants({ variant: "seva-secondary", size: "sm" })}>
         {COUNTER_TEXT.closeDay.en}
       </SevaLink>
     </div>

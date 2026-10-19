@@ -227,7 +227,7 @@ describe("prasadam shortcut", () => {
     const { unmount } = render(<PrasadamShortcut token="AbCdEfGhIjKlMnOpQrStUv" />);
     expect(screen.getByRole("link", { name: /Open in the prasadam counter/ })).toHaveAttribute(
       "href",
-      "/admin/prasadam?token=AbCdEfGhIjKlMnOpQrStUv",
+      "/seva/prasadam?token=AbCdEfGhIjKlMnOpQrStUv",
     );
     unmount();
 

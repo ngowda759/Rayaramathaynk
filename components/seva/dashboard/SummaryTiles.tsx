@@ -9,6 +9,7 @@ import type { Bi } from "@/lib/seva/strings/common";
 import { DASHBOARD, PREVIOUS } from "@/lib/seva/strings/dashboard";
 import type { Period } from "@/lib/seva/time";
 import type { DashboardData, DashboardTotals } from "@/types/seva-reports";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 export interface SummaryTilesProps {
   tiles: DashboardData["tiles"];
@@ -24,10 +25,10 @@ interface TileSpec {
 }
 
 const TILES: TileSpec[] = [
-  { id: "total", label: DASHBOARD.total, value: (t) => t.totalPaise, money: true, href: "/admin/receipts/reports" },
-  { id: "receipts", label: DASHBOARD.receipts, value: (t) => t.receipts, money: false, href: "/admin/receipts/register" },
-  { id: "cash", label: DASHBOARD.cash, value: (t) => t.cashPaise, money: true, href: "/admin/receipts/day-closes" },
-  { id: "upi", label: DASHBOARD.upi, value: (t) => t.upiPaise, money: true, href: "/admin/receipts/day-closes" },
+  { id: "total", label: DASHBOARD.total, value: (t) => t.totalPaise, money: true, href: SEVA_ROUTES.reports },
+  { id: "receipts", label: DASHBOARD.receipts, value: (t) => t.receipts, money: false, href: SEVA_ROUTES.register },
+  { id: "cash", label: DASHBOARD.cash, value: (t) => t.cashPaise, money: true, href: SEVA_ROUTES.dayCloses },
+  { id: "upi", label: DASHBOARD.upi, value: (t) => t.upiPaise, money: true, href: SEVA_ROUTES.dayCloses },
 ];
 
 function showMoney(value: number): string {

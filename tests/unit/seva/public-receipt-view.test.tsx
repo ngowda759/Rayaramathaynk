@@ -144,7 +144,7 @@ describe("public receipt page /r/<token>", () => {
     await renderPage();
     expect(screen.getByRole("link", { name: /Open in the prasadam counter/ })).toHaveAttribute(
       "href",
-      `/admin/prasadam?token=${TOKEN}`,
+      `/seva/prasadam?token=${TOKEN}`,
     );
   });
 });

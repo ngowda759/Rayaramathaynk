@@ -11,6 +11,7 @@ import { SPRING } from "@/lib/seva/motion";
 import { formatSevaDate } from "@/lib/seva/time";
 import { COUNTER_TEXT, printedTitle, rupees } from "@/lib/seva/strings/counter";
 import type { IssuedReceipt } from "@/types/seva";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 export interface PrintedPanelProps {
   receipts: IssuedReceipt[];
@@ -52,7 +53,7 @@ export function PrintedPanel({ receipts, offline }: PrintedPanelProps): JSX.Elem
             </span>
           </div>
         </div>
-        <SevaLink href="/admin/receipts/counter/today" className={buttonVariants({ variant: "seva-ghost", size: "sm" })}>
+        <SevaLink href={SEVA_ROUTES.today} className={buttonVariants({ variant: "seva-ghost", size: "sm" })}>
           {COUNTER_TEXT.todaysReceipts.en}
         </SevaLink>
       </div>

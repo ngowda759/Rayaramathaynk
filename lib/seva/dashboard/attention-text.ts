@@ -7,6 +7,7 @@ import { formatRupees } from "@/lib/seva/money";
 import { ATTENTION_KN } from "@/lib/seva/strings/dashboard";
 import { businessDate, formatSevaDate } from "@/lib/seva/time";
 import type { NeedsAttentionCard, NeedsAttentionId } from "@/types/seva-reports";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 export interface AttentionText {
   title: string;
@@ -15,9 +16,9 @@ export interface AttentionText {
   href: string | null;
 }
 
-const REGISTER = "/admin/receipts/register";
-const DAY_CLOSES = "/admin/receipts/day-closes";
-const COUNTERS = "/admin/receipts/settings/counters";
+const REGISTER = SEVA_ROUTES.register;
+const DAY_CLOSES = SEVA_ROUTES.dayCloses;
+const COUNTERS = SEVA_ROUTES.settingsCounters;
 
 /** The five cards the dashboard always shows, even with nothing to report (mockup `home`, a calm "0" line). */
 export const CORE_ATTENTION: readonly NeedsAttentionId[] = [

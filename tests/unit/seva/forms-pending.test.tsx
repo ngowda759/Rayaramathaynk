@@ -213,13 +213,13 @@ describe("public QR page", () => {
 
 describe("receipt detail", () => {
   it("the Print link shows that the print page is opening", () => {
-    const { rerender } = render(<PrintLink href="/admin/receipts/r1/print" label={{ en: "Print", kn: "ಮುದ್ರಿಸಿ" }} />);
+    const { rerender } = render(<PrintLink href="/seva/r1/print" label={{ en: "Print", kn: "ಮುದ್ರಿಸಿ" }} />);
     const link = screen.getByRole("link", { name: /Print/ });
-    expect(link).toHaveAttribute("href", "/admin/receipts/r1/print");
+    expect(link).toHaveAttribute("href", "/seva/r1/print");
     expect(link.querySelector("[data-spinner]")).toBeNull();
 
     mockLinkStatus.pending = true;
-    rerender(<PrintLink href="/admin/receipts/r1/print" label={{ en: "Print", kn: "ಮುದ್ರಿಸಿ" }} />);
+    rerender(<PrintLink href="/seva/r1/print" label={{ en: "Print", kn: "ಮುದ್ರಿಸಿ" }} />);
     expect(link.querySelector("[data-spinner]")).not.toBeNull();
     expect(link).toHaveTextContent(/Opening the print page\.\.\./);
   });

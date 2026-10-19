@@ -15,6 +15,7 @@ import { formatSevaDate } from "@/lib/seva/time";
 import type { ReceiptDetail, ReceiptListItem } from "@/types/seva-receipts";
 
 import { issuedWhen, rupees } from "./RegisterTable";
+import { receiptPath } from "@/lib/seva/routes";
 
 export interface ReceiptDrawerProps {
   /** The row whose details are shown; the drawer is open while it is set. */
@@ -104,7 +105,7 @@ function DrawerBody({ row, today, load, onClose }: { row: ReceiptListItem } & Om
         <Button type="button" variant="seva-secondary" onClick={onClose}>
           {DRAWER.close}
         </Button>
-        <Link href={`/admin/receipts/${encodeURIComponent(row.id)}`} className={buttonVariants({ variant: "seva-primary" })}>
+        <Link href={receiptPath(row.id)} className={buttonVariants({ variant: "seva-primary" })}>
           {DRAWER.open}
         </Link>
       </div>

@@ -16,6 +16,7 @@ import { AUDIT, AUDIT_ACTION, REPORTS } from "@/lib/seva/strings/reports";
 import type { Bi } from "@/lib/seva/strings/common";
 import { businessDate, istParts } from "@/lib/seva/time";
 import type { AuditEntry, AuditType } from "@/services/seva/reports.service";
+import { SEVA_ROUTES, receiptPath } from "@/lib/seva/routes";
 
 export type AuditTypeFilter = AuditType | "all";
 
@@ -82,9 +83,9 @@ function toneOf(action: string): ChipTone {
 
 function linkOf(entry: AuditEntry): { href: string; label: string } | null {
   if (entry.entity === "receipt" && entry.entityId) {
-    return { href: `/admin/receipts/${encodeURIComponent(entry.entityId)}`, label: AUDIT.openReceipt };
+    return { href: receiptPath(entry.entityId), label: AUDIT.openReceipt };
   }
-  if (entry.entity === "day_close") return { href: "/admin/receipts/day-closes", label: AUDIT.openDayClose };
+  if (entry.entity === "day_close") return { href: SEVA_ROUTES.dayCloses, label: AUDIT.openDayClose };
   return null;
 }
 

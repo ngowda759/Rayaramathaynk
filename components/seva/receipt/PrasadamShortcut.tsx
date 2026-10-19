@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { RECEIPT } from "@/lib/seva/strings/receipt";
+import { prasadamTokenPath } from "@/lib/seva/routes";
 
 /**
  * "Open in the prasadam counter" for a signed-in person who may give prasadam (DB §10.3, §11); nothing for anyone
@@ -18,7 +19,7 @@ export function PrasadamShortcut({ token }: { token: string }): JSX.Element | nu
   if (!can("prasadam.give")) return null;
   return (
     <Link
-      href={`/admin/prasadam?token=${encodeURIComponent(token)}`}
+      href={prasadamTokenPath(token)}
       className={`${buttonVariants({ variant: "seva-primary" })} w-full`}
     >
       <Bilingual en={RECEIPT.openPrasadam.en} kn={RECEIPT.openPrasadam.kn} />

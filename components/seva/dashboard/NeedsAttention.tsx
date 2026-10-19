@@ -6,6 +6,7 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { attentionText, orderAttention, visibleAttention } from "@/lib/seva/dashboard/attention-text";
 import { DASHBOARD } from "@/lib/seva/strings/dashboard";
 import type { NeedsAttentionCard } from "@/types/seva-reports";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 export interface NeedsAttentionProps {
   cards: NeedsAttentionCard[];
@@ -31,8 +32,8 @@ const LEVEL_WORD: Record<NeedsAttentionCard["level"], string> = {
 
 /** The words of a card's link, by the screen it opens. */
 function goText(href: string): string {
-  if (href.startsWith("/admin/receipts/day-closes")) return "Open day closes";
-  if (href.startsWith("/admin/receipts/settings")) return "Open counter settings";
+  if (href.startsWith(SEVA_ROUTES.dayCloses)) return "Open day closes";
+  if (href.startsWith(SEVA_ROUTES.settings)) return "Open counter settings";
   if (href.includes("#continuity")) return "See number continuity";
   return "See receipts";
 }

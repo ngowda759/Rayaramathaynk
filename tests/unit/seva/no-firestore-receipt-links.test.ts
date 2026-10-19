@@ -13,7 +13,7 @@ const ROOT = path.resolve(__dirname, "../../..");
 const SCREEN_DIRS = ["app", "components"];
 const FIRESTORE_RECEIPT_IMPORTS = ['"@/services/receipt.service"', "'@/services/receipt.service'", '"@/types/receipt"', "'@/types/receipt'"];
 /** A link or navigation to one receipt's page built from a variable: `/admin/receipts/${...}`. */
-const RECEIPT_LINK = /\/admin\/receipts\/\$\{/;
+const RECEIPT_LINK = /\/admin\/receipts\/\$\{|receiptPath\(|receiptPrintPath\(|`\/seva\/\$\{/;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -50,6 +50,13 @@ describe("no screen links to Firestore receipt ids", () => {
       })
       .map(rel);
     expect(offenders).toEqual([]);
+  });
+
+  it("the receipt link check still finds the receipt links the register and audit trail make", () => {
+    const linking = files.filter((file) => RECEIPT_LINK.test(readFileSync(file, "utf8"))).map(rel);
+    expect(linking).toEqual(
+      expect.arrayContaining(["components/seva/register/ReceiptDrawer.tsx", "components/seva/reports/AuditTrail.tsx"]),
+    );
   });
 
   it("the receipts register exists where the old list's readers are sent", () => {
