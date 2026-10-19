@@ -530,6 +530,12 @@ describe('seva_sync_offline_order (A2-1)', () => {
 
   it("audits an offline rate that differs from today's catalogue", async () => {
     const c = await setup();
+    // PAN was 100.00 when the PC printed (ISSUED) and became 105.00 the next day: the catalogue had the cached rate.
+    await c.db.query(
+      `insert into seva_rate_history (seva_id, old_amount, new_amount, reason, changed_at)
+       values ($1, 100.00, 105.00, 'Rate revised', '2026-10-19T00:00:00Z')`,
+      [c.pan],
+    );
     const res = await sync(
       c,
       offlineOrder(c, {
@@ -579,13 +585,77 @@ describe('seva_sync_offline_order (A2-1)', () => {
         expectedTotal: '150.00',
         receipts: [{ runningNo: 1, lines: [{ sevaId: c.pan, cachedRate: '105.00', unitRate: '150.00', changeReason: reason }] }],
       });
-    expect((await failure(sync(c, changed(null)))).code).toBe('change_reason_required');
-
     const res = await sync(c, changed('Devotee offered more'));
     expect(res.receipts[0].has_changed_amount).toBe(true);
     expect(res.receipts[0].lines[0]).toMatchObject({ catalogue_rate: '105.00', unit_rate: '150.00', changed: true });
     const audit = await c.db.query('select action, reason from audit_log');
     expect(audit.rows).toEqual([{ action: 'receipt.amount_changed', reason: 'Devotee offered more' }]);
+  });
+
+  describe('H-2: a fixed seva is priced from the catalogue, never from the PC alone', () => {
+    async function onlyLine(c: Ctx, line: OfflineLine, expectedTotal: string): Promise<SqlReceipt> {
+      const res = await sync(c, offlineOrder(c, { issuedAt: ISSUED, expectedTotal, receipts: [{ runningNo: 1, lines: [line] }] }));
+      return res.receipts[0];
+    }
+
+    async function changedAudits(c: Ctx): Promise<{ reason: string; before: Record<string, unknown> }[]> {
+      const r = await c.db.query<{ reason: string; before: Record<string, unknown> }>(
+        `select reason, before from audit_log where action = 'receipt.amount_changed' order by id`,
+      );
+      return r.rows;
+    }
+
+    it("a null cached rate is today's rate: Rs 1 for a Rs 505 seva is stored, marked changed and audited", async () => {
+      const c = await setup();
+      const receipt = await onlyLine(c, { sevaId: c.paa, cachedRate: null, unitRate: '1.00' }, '1.00');
+      expect(receipt.has_changed_amount).toBe(true);
+      expect(receipt.lines[0]).toMatchObject({ catalogue_rate: '505.00', unit_rate: '1.00', changed: true });
+      expect(receipt.lines[0].change_reason).toMatch(/^Offline price mismatch: printed 1\.00, catalogue 505\.00/);
+      const audits = await changedAudits(c);
+      expect(audits).toHaveLength(1);
+      expect(audits[0].reason).toMatch(/^Offline price mismatch/);
+      expect(audits[0].before).toMatchObject({ catalogue_rate: '505.00' });
+    });
+
+    it("a cached rate the catalogue never had is replaced by today's rate and flagged", async () => {
+      const c = await setup();
+      const receipt = await onlyLine(c, { sevaId: c.paa, cachedRate: '1.00' }, '1.00');
+      expect(receipt.has_changed_amount).toBe(true);
+      expect(receipt.lines[0]).toMatchObject({ catalogue_rate: '505.00', unit_rate: '1.00', changed: true });
+      expect(await changedAudits(c)).toHaveLength(1);
+    });
+
+    it('a changed line without a reason is stored and flagged, not refused (the slip was printed and paid)', async () => {
+      const c = await setup();
+      const receipt = await onlyLine(c, { sevaId: c.pan, cachedRate: '105.00', unitRate: '150.00' }, '150.00');
+      expect(receipt.has_changed_amount).toBe(true);
+      expect(receipt.lines[0].change_reason).toBe('Offline price mismatch: printed 150.00, catalogue 105.00');
+      expect(await changedAudits(c)).toHaveLength(1);
+    });
+
+    it('re-checks allow_amount_change offline: a change on a seva that forbids it is flagged even with a reason', async () => {
+      const c = await setup();
+      const fixed = await seedSeva(c.db, { code: 'FIX', nameEn: 'Fixed Seva', amount: '505.00', allowAmountChange: false });
+      const receipt = await onlyLine(
+        c,
+        { sevaId: fixed, cachedRate: '505.00', unitRate: '600.00', changeReason: 'Devotee offered more' },
+        '600.00',
+      );
+      expect(receipt.has_changed_amount).toBe(true);
+      expect(receipt.lines[0].change_reason).toBe(
+        'Offline price mismatch: printed 600.00, catalogue 505.00 (this seva does not allow a changed amount); ' +
+          'PC reason: Devotee offered more',
+      );
+      expect(await changedAudits(c)).toHaveLength(1);
+    });
+
+    it("a null cached rate printed at today's rate is not a change", async () => {
+      const c = await setup();
+      const receipt = await onlyLine(c, { sevaId: c.paa, cachedRate: null }, '505.00');
+      expect(receipt.has_changed_amount).toBe(false);
+      expect(receipt.lines[0]).toMatchObject({ catalogue_rate: '505.00', unit_rate: '505.00', changed: false });
+      expect(await changedAudits(c)).toHaveLength(0);
+    });
   });
 
   it('refuses a group number another order already uses', async () => {
