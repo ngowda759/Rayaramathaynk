@@ -1,6 +1,6 @@
 /**
  * LoginForm after a successful sign-in (A4S security gate, H-1): `?redirect=` is followed only when it is a path on
- * this site. A `javascript:` URL or a `//host` value lands on `/`.
+ * this site. A `javascript:` URL, a `//host` value or one that normalises to `//host` (`/.//host`) lands on `/`.
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import LoginForm from "@/components/auth/LoginForm";
@@ -69,6 +69,7 @@ describe("LoginForm redirect after sign-in", () => {
     ["a //host value", "redirect=//evil.example"],
     ["an encoded //host value", "redirect=%2F%2Fevil.example"],
     ["an absolute URL to another site", "redirect=https://evil.example"],
+    ["a dot segment that normalises to //host", "redirect=/.//evil.example"],
     ["no redirect", ""],
   ])("lands on / for %s", async (_label, search) => {
     await signInWith(search);

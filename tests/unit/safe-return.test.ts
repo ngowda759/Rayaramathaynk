@@ -54,6 +54,51 @@ describe("safeReturnPath", () => {
     expect(safeReturnPath(fromQuery(encoded), "/")).toBe("/");
   });
 
+  // Review finding H-1 (2026-10-20): URL parsing collapses dot segments, so a value that starts with one slash can
+  // still come out as `//host`. The parsed result is re-checked, and the decoded form is checked as well.
+  it.each([
+    ["dot segment then //", "/.//evil.example"],
+    ["dot-dot segment then //", "/..//evil.example"],
+    ["encoded dot then //", "/%2e//evil.example"],
+    ["encoded upper-case dot-dot then //", "/%2E%2E//x"],
+    ["mixed encoded dot-dot then //", "/%2e.//x"],
+    ["path, two dot-dots, then //", "/seva/../..//evil.example"],
+    ["dot-dot chain then //", "/a/b/../../..//evil.example"],
+    ["dot then encoded slash", "/./%2F/x"],
+    ["dot then encoded lower-case slash", "/./%2f/x"],
+    ["encoded slashes after one slash", "/%2F%2Fevil.example"],
+    ["dot followed by an encoded slash", "/.%2F/evil.example"],
+    ["encoded dot-dot and encoded slash", "/%2E%2E%2F%2Fevil.example"],
+    ["double-encoded slashes", "/%252F%252Fevil.example"],
+    ["encoded backslash after a dot", "/./%5C/x"],
+    ["division slashes", "/\u2215\u2215x"],
+    ["encoded division slashes", "/%E2%88%95%E2%88%95x"],
+    ["fullwidth slashes", "/\uFF0F\uFF0Fx"],
+    ["dot then fullwidth slash", "/./\uFF0Fx"],
+    ["fraction slashes", "/\u2044\u2044x"],
+    ["fullwidth backslash", "/\uFF3C\uFF3Cx"],
+  ])("refuses %s (%s), which normalises to //host", (_label, value) => {
+    const out = safeReturnPath(value, "/");
+    expect(out).toBe("/");
+  });
+
+  it.each([
+    ["%2F.%2F%2Fevil.example", "encoded /./ then //"],
+    ["%2F..%2F%2Fevil.example", "encoded /../ then //"],
+    ["%2F%252e%2F%2Fevil.example", "double-encoded dot"],
+    ["%2Fseva%2F..%2F..%2F%2Fevil.example", "encoded path with dot-dots"],
+  ])("refuses %s (%s) once decoded the way searchParams.get decodes it", (encoded) => {
+    expect(safeReturnPath(fromQuery(encoded), "/")).toBe("/");
+  });
+
+  it("keeps dot segments that stay on this site, and ordinary encoded characters", () => {
+    expect(safeReturnPath("/seva/./register", "/")).toBe("/seva/register");
+    expect(safeReturnPath("/seva/register/..", "/")).toBe("/seva/");
+    expect(safeReturnPath("/seva?name=Ram%20Rao", "/")).toBe("/seva?name=Ram%20Rao");
+    expect(safeReturnPath("/seva?next=%2Fadmin", "/")).toBe("/seva?next=%2Fadmin");
+    expect(safeReturnPath("/seva?q=100%", "/")).toBe("/seva?q=100%");
+  });
+
   it("keeps same-origin paths with their query and hash", () => {
     expect(safeReturnPath("/seva/register?status=changed#x", "/")).toBe("/seva/register?status=changed#x");
     expect(safeReturnPath("/seva/prasadam?token=AB12", "/")).toBe("/seva/prasadam?token=AB12");
@@ -62,11 +107,6 @@ describe("safeReturnPath", () => {
     expect(safeReturnPath(fromQuery("%2Fseva%2Fcounter%3Fx%3D1"), "/admin")).toBe("/seva/counter?x=1");
   });
 
-  it("keeps an encoded // inside the path on this site", () => {
-    const out = safeReturnPath("/%2F%2Fevil.example", "/");
-    expect(out).toBe("/%2F%2Fevil.example");
-    expect(new URL(out, window.location.origin).origin).toBe(window.location.origin);
-  });
 
   it("returns the parsed path, never the raw string", () => {
     expect(safeReturnPath("/seva/../admin", "/")).toBe("/admin");
