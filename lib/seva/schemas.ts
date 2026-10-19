@@ -309,6 +309,11 @@ export const sevaUpsertSchema = z
     category: boundedText(1, 60),
     incomeLedger: boundedText(1, 100).nullable(),
     active: z.boolean(),
+    /**
+     * Why the rate changed. The SQL function requires at least 3 characters when the rate of an existing seva changes
+     * (SEVA:change_reason_required); it is listed here so zod does not drop it on the way to the route.
+     */
+    reason: z.string().trim().max(200, 'Keep this to 200 characters or fewer').optional(),
   })
   .superRefine((s, ctx) => {
     if (s.anyAmount && s.visibility !== 'counter') {
@@ -325,8 +330,13 @@ export const sevaUpsertSchema = z
 const optionalUrl = z.url().max(1000).nullable();
 const ledgerName = boundedText(1, 100);
 
+/**
+ * A partial settings update. Strict: a key it does not list is refused, not dropped. The two switches
+ * `cash_difference_note_required` and `amount_change_reason_required` are deliberately absent - the owner decided both
+ * are always required and the table checks enforce it - so a patch naming either is refused.
+ */
 export const settingsPatchSchema = z
-  .object({
+  .strictObject({
     templeNameEn: boundedText(1, 120),
     templeNameKn: boundedText(1, 120),
     addressLine1: boundedText(0, 120),
@@ -341,8 +351,6 @@ export const settingsPatchSchema = z
     printNakshatra: z.boolean(),
     printRashi: z.boolean(),
     cancelWindowMinutes: z.number().int().min(0).max(240),
-    cashDifferenceNoteRequired: z.boolean(),
-    amountChangeReasonRequired: z.boolean(),
     counterDaysAhead: z.number().int().min(0).max(999),
     onlineDaysAhead: z.number().int().min(0).max(999),
     onlineSameDayCutoff: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 12:00'),
