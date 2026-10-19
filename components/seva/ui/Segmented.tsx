@@ -8,6 +8,8 @@ export interface SegmentedOption<T extends string> {
   value: T;
   en: string;
   kn?: string;
+  /** A choice that cannot be picked now (for example UPI on a counter with no UPI id); arrow keys skip it. */
+  disabled?: boolean;
 }
 
 export interface SegmentedProps<T extends string> {
@@ -29,12 +31,16 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
   const chosen = options.findIndex((o) => o.value === value);
   const tabStop = chosen >= 0 ? chosen : 0;
 
-  function move(to: number): void {
+  /** Moves to the option at `to`, stepping on by `step` past disabled options; does nothing if all are disabled. */
+  function move(to: number, step: 1 | -1 = 1): void {
     const n = options.length;
-    if (n === 0) return;
-    const i = ((to % n) + n) % n;
-    refs.current[i]?.focus();
-    if (options[i].value !== value) onChange(options[i].value);
+    for (let tries = 0; tries < n; tries += 1) {
+      const i = (((to + tries * step) % n) + n) % n;
+      if (options[i].disabled) continue;
+      refs.current[i]?.focus();
+      if (options[i].value !== value) onChange(options[i].value);
+      return;
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLButtonElement>, i: number): void {
@@ -47,7 +53,7 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
       case "ArrowLeft":
       case "ArrowUp":
         e.preventDefault();
-        move(i - 1);
+        move(i - 1, -1);
         return;
       case "Home":
         e.preventDefault();
@@ -55,7 +61,7 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
         return;
       case "End":
         e.preventDefault();
-        move(options.length - 1);
+        move(options.length - 1, -1);
         return;
       default:
         return;
@@ -81,14 +87,15 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
             role="radio"
             aria-checked={checked}
             tabIndex={i === tabStop ? 0 : -1}
+            disabled={o.disabled}
             onClick={() => {
-              if (!checked) onChange(o.value);
+              if (!checked && !o.disabled) onChange(o.value);
             }}
             onKeyDown={(e) => handleKeyDown(e, i)}
             className={
               checked
                 ? "min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-(--card) px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--foreground) shadow-(--shadow-card)"
-                : "min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-transparent px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--muted-foreground) hover:text-(--foreground)"
+                : "min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-transparent px-4 py-1.5 text-(length:--text-ui) leading-tight font-semibold text-(--muted-foreground) hover:text-(--foreground) disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-(--muted-foreground)"
             }
           >
             <Bilingual en={o.en} kn={o.kn} />
