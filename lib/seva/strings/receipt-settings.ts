@@ -3,6 +3,7 @@
  * (C-49). Kannada is to be proof-read by the temple office (O-03). Lines that carry a number or a name are built by
  * the small functions at the end.
  */
+import type { PaperSizeId } from '@/types/seva';
 import type { Bi } from './common';
 
 export const RS: {
@@ -56,8 +57,14 @@ export const RS: {
   printGotra: Bi;
   printNakshatra: Bi;
   printRashi: Bi;
+  // Receipt paper (plan A4S-7)
   paper: Bi;
   paperHint: Bi;
+  paperSizes: Record<PaperSizeId, Bi>;
+  paperCustomWidth: Bi;
+  paperCustomHeight: Bi;
+  paperCustomLimits: Bi;
+  paperCustomProblem: Record<'width' | 'height' | 'landscape', Bi>;
   nameRequired: Bi;
   // Slip preview
   previewTitle: Bi;
@@ -178,8 +185,30 @@ export const RS: {
   printGotra: { en: 'Gotra', kn: 'ಗೋತ್ರ' },
   printNakshatra: { en: 'Nakshatra', kn: 'ನಕ್ಷತ್ರ' },
   printRashi: { en: 'Rashi', kn: 'ರಾಶಿ' },
-  paper: { en: 'Paper: one-third A4 slip, portrait (99 x 210 mm)', kn: 'ಕಾಗದ: A4 ನ ಮೂರನೇ ಒಂದು ಭಾಗ, ಉದ್ದವಾಗಿ (99 x 210 ಮಿಮೀ)' },
-  paperHint: { en: 'One receipt per slip.', kn: 'ಪ್ರತಿ ಚೀಟಿಗೆ ಒಂದು ರಸೀದಿ.' },
+  paper: { en: 'Receipt paper', kn: 'ರಸೀದಿ ಕಾಗದ' },
+  paperHint: { en: 'Only portrait, one receipt per sheet.', kn: 'ಉದ್ದವಾಗಿ ಮಾತ್ರ, ಪ್ರತಿ ಹಾಳೆಗೆ ಒಂದು ರಸೀದಿ.' },
+  paperSizes: {
+    a5: { en: 'A5 - 148 x 210 mm', kn: 'A5 - 148 x 210 ಮಿಮೀ' },
+    a6: { en: 'A6 - 105 x 148 mm', kn: 'A6 - 105 x 148 ಮಿಮೀ' },
+    third_a4: { en: 'One-third A4 - 99 x 210 mm', kn: 'A4 ನ ಮೂರನೇ ಒಂದು ಭಾಗ - 99 x 210 ಮಿಮೀ' },
+    roll_80: { en: '80 mm receipt roll (3 inch)', kn: '80 ಮಿಮೀ ರಸೀದಿ ಸುರುಳಿ (3 ಇಂಚು)' },
+    roll_58: { en: '58 mm receipt roll', kn: '58 ಮಿಮೀ ರಸೀದಿ ಸುರುಳಿ' },
+    custom: { en: 'Custom size', kn: 'ಬೇರೆ ಅಳತೆ' },
+  },
+  paperCustomWidth: { en: 'Width (mm)', kn: 'ಅಗಲ (ಮಿಮೀ)' },
+  paperCustomHeight: { en: 'Height (mm)', kn: 'ಉದ್ದ (ಮಿಮೀ)' },
+  paperCustomLimits: {
+    en: 'Width 50 to 216 mm, height 80 to 356 mm. The height must be at least the width.',
+    kn: 'ಅಗಲ 50 ರಿಂದ 216 ಮಿಮೀ, ಉದ್ದ 80 ರಿಂದ 356 ಮಿಮೀ. ಉದ್ದ ಅಗಲಕ್ಕಿಂತ ಕಡಿಮೆ ಇರಬಾರದು.',
+  },
+  paperCustomProblem: {
+    width: { en: 'Type a width from 50 to 216 mm.', kn: '50 ರಿಂದ 216 ಮಿಮೀ ಒಳಗಿನ ಅಗಲ ಬರೆಯಿರಿ.' },
+    height: { en: 'Type a height from 80 to 356 mm.', kn: '80 ರಿಂದ 356 ಮಿಮೀ ಒಳಗಿನ ಉದ್ದ ಬರೆಯಿರಿ.' },
+    landscape: {
+      en: 'The height must be at least the width: receipts print portrait only.',
+      kn: 'ಉದ್ದ ಅಗಲಕ್ಕಿಂತ ಕಡಿಮೆ ಇರಬಾರದು: ರಸೀದಿಗಳು ಉದ್ದವಾಗಿ ಮಾತ್ರ ಮುದ್ರಣವಾಗುತ್ತವೆ.',
+    },
+  },
   nameRequired: { en: 'Type the temple name in English and in Kannada.', kn: 'ದೇವಸ್ಥಾನದ ಹೆಸರನ್ನು ಇಂಗ್ಲಿಷ್ ಮತ್ತು ಕನ್ನಡದಲ್ಲಿ ಬರೆಯಿರಿ.' },
 
   previewTitle: { en: 'Slip preview', kn: 'ರಸೀದಿ ಮುನ್ನೋಟ' },
@@ -351,4 +380,9 @@ export function unknownLastConfirm(series: string, typed: number): Bi {
     en: `The office cannot tell its last ${series} number this year, so it cannot show the gap. Any ${series} numbers up to ${typed} it never received will be listed as a gap. Check the last slip again before you go on.`,
     kn: `ಕಚೇರಿಗೆ ಈ ವರ್ಷದ ಕೊನೆಯ ${series} ಸಂಖ್ಯೆ ತಿಳಿಯದು, ಆದ್ದರಿಂದ ಅಂತರ ತೋರಿಸಲಾಗದು. ${typed} ರವರೆಗೆ ಕಚೇರಿಗೆ ಬಾರದ ${series} ಸಂಖ್ಯೆಗಳು ಅಂತರವಾಗಿ ಪಟ್ಟಿಯಾಗುತ್ತವೆ. ಮುಂದುವರಿಯುವ ಮೊದಲು ಕೊನೆಯ ರಸೀದಿಯನ್ನು ಮತ್ತೆ ಪರಿಶೀಲಿಸಿ.`,
   };
+}
+
+/** Under the slip preview: the paper it is drawn on. `label` is from lib/seva/print/paper.ts paperLabel. */
+export function paperPreviewLine(label: string): Bi {
+  return { en: `Printed on: ${label}, portrait`, kn: `ಮುದ್ರಣ ಕಾಗದ: ${label}, ಉದ್ದವಾಗಿ` };
 }

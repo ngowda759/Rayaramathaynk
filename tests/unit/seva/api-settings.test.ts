@@ -137,6 +137,10 @@ describe("settings routes", () => {
       printGotra: true,
       printNakshatra: true,
       printRashi: false,
+      // A row without the paper columns reads as the A5 default (plan A4S-7).
+      paperSize: "a5",
+      paperCustomWidthMm: null,
+      paperCustomHeightMm: null,
     });
 
     const saved = await putTemplate(req("PUT", "settings/template", { footerLine1: "New footer", printRashi: true }));
@@ -149,6 +153,21 @@ describe("settings routes", () => {
     const wrongPage = await putTemplate(req("PUT", "settings/template", { cancelWindowMinutes: 10 }));
     expect(wrongPage.status).toBe(400);
     expect(mockCallRpc).toHaveBeenCalledTimes(1);
+
+    // The receipt paper is a template setting (plan A4S-7); a landscape custom size never reaches the database.
+    const paper = await putTemplate(
+      req("PUT", "settings/template", { paperSize: "custom", paperCustomWidthMm: 100, paperCustomHeightMm: 150 }),
+    );
+    expect(paper.status).toBe(200);
+    expect(mockCallRpc).toHaveBeenLastCalledWith("seva_update_settings", {
+      p_patch: { paper_size: "custom", paper_custom_w_mm: 100, paper_custom_h_mm: 150 },
+      p_staff_id: "s-admin",
+    });
+    const landscape = await putTemplate(
+      req("PUT", "settings/template", { paperSize: "custom", paperCustomWidthMm: 200, paperCustomHeightMm: 150 }),
+    );
+    expect(landscape.status).toBe(400);
+    expect(mockCallRpc).toHaveBeenCalledTimes(2);
   });
 
   it("reads and saves the counter rules without the two always-required switches", async () => {

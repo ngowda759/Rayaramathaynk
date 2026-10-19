@@ -191,6 +191,25 @@ test("the slip preview follows the header fields", async ({ page }) => {
   expect(put?.body).toEqual({ templeNameEn: "Rayara Matha, Yelahanka", footerLine1: "Sevas begin at 7 am.", printGotra: false });
 });
 
+test("the paper choice sizes the preview at A5 by default and saves an 80 mm roll (A4S-7)", async ({ page }) => {
+  const fake = await open(page, RECEIPT_PAGE);
+  const slip = page.getByTestId("slip-preview").locator("article.slip");
+  await expect(slip).toHaveAttribute("data-paper", "a5", { timeout: 60_000 });
+  // 148 mm at 96 px to the inch.
+  expect(Math.round(((await slip.boundingBox())?.width ?? 0) * 25.4 / 96)).toBe(148);
+  await expect(page.getByTestId("paper-size")).toContainText("Only portrait, one receipt per sheet.");
+  await expect(page.getByTestId("paper-custom")).toHaveCount(0);
+
+  await page.getByRole("radio", { name: /80 mm receipt roll/ }).check();
+  await expect(slip).toHaveAttribute("data-paper", "roll_80");
+  expect(Math.round(((await slip.boundingBox())?.width ?? 0) * 25.4 / 96)).toBe(80);
+
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+  const put = fake.requests.find((r) => r.method === "PUT" && r.path === "/api/seva/settings/template");
+  expect(put?.body).toEqual({ paperSize: "roll_80" });
+});
+
 test("counter rules save and are audited", async ({ page }) => {
   const fake = await open(page, RULES_PAGE);
   await expect(page.getByLabel(/Cancel window/)).toHaveValue("30", { timeout: 60_000 });

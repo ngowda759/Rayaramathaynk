@@ -9,6 +9,7 @@ import "server-only";
 import { z } from "zod";
 import { SevaError } from "@/lib/seva/errors";
 import { fromPaise } from "@/lib/seva/money";
+import { DEFAULT_PAPER_SIZE, isPaperSize } from "@/lib/seva/print/paper";
 import type { CounterRequest, DenominationsRequest, FestivalRequest, SettingsPatch } from "@/lib/seva/schemas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SlipSettings } from "@/types/seva";
@@ -27,6 +28,11 @@ function rowsOf(result: { data: unknown; error: unknown }): Row[] {
 
 function str(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+/** A nullable smallint column (the custom paper sides). */
+function intOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
 }
 
 function int(value: unknown): number {
@@ -53,6 +59,9 @@ export const TEMPLATE_KEYS = {
   printGotra: "print_gotra",
   printNakshatra: "print_nakshatra",
   printRashi: "print_rashi",
+  paperSize: "paper_size",
+  paperCustomWidthMm: "paper_custom_w_mm",
+  paperCustomHeightMm: "paper_custom_h_mm",
 } as const satisfies Partial<Record<keyof SettingsPatch, string>>;
 
 export const RULES_KEYS = {
@@ -93,6 +102,9 @@ export async function getTemplate(): Promise<SlipSettings> {
     printGotra: row.print_gotra === true,
     printNakshatra: row.print_nakshatra === true,
     printRashi: row.print_rashi === true,
+    paperSize: isPaperSize(row.paper_size) ? row.paper_size : DEFAULT_PAPER_SIZE,
+    paperCustomWidthMm: intOrNull(row.paper_custom_w_mm),
+    paperCustomHeightMm: intOrNull(row.paper_custom_h_mm),
   };
 }
 

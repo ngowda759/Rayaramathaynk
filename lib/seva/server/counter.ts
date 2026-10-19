@@ -17,6 +17,7 @@ import { NAKSHATRAS } from "@/lib/seva/domain/nakshatras";
 import { RASHIS } from "@/lib/seva/domain/rashis";
 import { SevaError, type SevaErrorCode } from "@/lib/seva/errors";
 import { fromPaise, toPaise } from "@/lib/seva/money";
+import { DEFAULT_PAPER_SIZE, isPaperSize } from "@/lib/seva/print/paper";
 import type { HeartbeatAnswer } from "@/lib/seva/offline/heartbeat";
 import { can, mapFirestoreRole, SEVA_ACTIONS, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
 import { businessDate, istParts } from "@/lib/seva/time";
@@ -447,6 +448,10 @@ function slipSettings(s: Json): SlipSettings {
     printGotra: bool(s.print_gotra),
     printNakshatra: bool(s.print_nakshatra),
     printRashi: bool(s.print_rashi),
+    // Receipt paper (plan A4S-7); an unknown or missing value prints on A5.
+    paperSize: isPaperSize(s.paper_size) ? s.paper_size : DEFAULT_PAPER_SIZE,
+    paperCustomWidthMm: typeof s.paper_custom_w_mm === "number" ? s.paper_custom_w_mm : null,
+    paperCustomHeightMm: typeof s.paper_custom_h_mm === "number" ? s.paper_custom_h_mm : null,
   };
 }
 
@@ -494,7 +499,7 @@ export async function loadBootstrap(
     db
       .from("seva_settings")
       .select(
-        "temple_name_en, temple_name_kn, address_line1, address_line2, registration_line, photo_left_url, photo_right_url, footer_line1, footer_line2, footer_blessing, print_gotra, print_nakshatra, print_rashi, cancel_window_minutes, amount_change_reason_required, counter_days_ahead, cash_difference_note_required",
+        "temple_name_en, temple_name_kn, address_line1, address_line2, registration_line, photo_left_url, photo_right_url, footer_line1, footer_line2, footer_blessing, print_gotra, print_nakshatra, print_rashi, paper_size, paper_custom_w_mm, paper_custom_h_mm, cancel_window_minutes, amount_change_reason_required, counter_days_ahead, cash_difference_note_required",
       )
       .eq("id", 1)
       .maybeSingle(),

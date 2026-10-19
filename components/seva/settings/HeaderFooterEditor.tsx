@@ -184,15 +184,26 @@ const SLIP_KEYS = [
   "printGotra",
   "printNakshatra",
   "printRashi",
+  "paperSize",
+  "paperCustomWidthMm",
+  "paperCustomHeightMm",
 ] as const satisfies readonly (keyof SlipSettings)[];
 
-/** The fields that differ from the saved copy, trimmed the way the server stores them. */
+/**
+ * The fields that differ from the saved copy, trimmed the way the server stores them. Choosing the custom paper size
+ * always sends both sides with it, since the server checks a custom size whole (plan A4S-7).
+ */
 export function templatePatch(saved: SlipSettings, draft: SlipSettings): TemplatePatch {
-  const patch: Record<string, string | boolean | null> = {};
+  const patch: Record<string, string | boolean | number | null> = {};
   for (const key of SLIP_KEYS) {
     const raw = draft[key];
+    if (raw === undefined) continue;
     const value = typeof raw === "string" ? (raw.trim() === "" && (key === "registrationLine" || key.endsWith("Url")) ? null : raw.trim()) : raw;
     if (value !== saved[key]) patch[key] = value;
+  }
+  if (patch.paperSize === "custom") {
+    patch.paperCustomWidthMm = draft.paperCustomWidthMm ?? null;
+    patch.paperCustomHeightMm = draft.paperCustomHeightMm ?? null;
   }
   return patch as TemplatePatch;
 }

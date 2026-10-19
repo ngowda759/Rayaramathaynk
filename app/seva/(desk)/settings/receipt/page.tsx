@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { HeaderFooterEditor, templatePatch } from "@/components/seva/settings/HeaderFooterEditor";
 import { NumberingPreview } from "@/components/seva/settings/NumberingPreview";
+import { PaperSizeField } from "@/components/seva/settings/PaperSizeField";
 import { errorText, Notice } from "@/components/seva/settings/ReceiptSettingsFields";
 import { SlipPreview } from "@/components/seva/settings/SlipPreview";
 import { SevaGate } from "@/components/seva/shell/SevaGate";
@@ -14,13 +15,14 @@ import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { useAuth } from "@/hooks/useAuth";
 import type { Bi } from "@/lib/seva/strings/common";
 import { RS } from "@/lib/seva/strings/receipt-settings";
+import { customPaperProblem } from "@/lib/seva/print/paper";
 import { istParts } from "@/lib/seva/time";
 import { settingsApi } from "@/services/seva/settings.service";
 import type { SlipSettings } from "@/types/seva";
 
 /**
  * Settings - Receipts (DB §13.2; mockup settings-devotee.html#receipt-settings): the receipt number part by part with
- * the four formats, and the slip header and footer with a live slip preview. Temple admins and super admins edit;
+ * the four formats, the slip header and footer, and the receipt paper (plan A4S-7), with a live slip preview. Temple admins and super admins edit;
  * view-only temple admins see the same page read-only. Saving sends only the fields that changed, and the office
  * writes an audit row for the change.
  */
@@ -66,6 +68,12 @@ function ReceiptSettings(): JSX.Element {
     const nextErrors: Partial<Record<keyof SlipSettings, string>> = {};
     if (draft.templeNameEn.trim() === "") nextErrors.templeNameEn = RS.nameRequired.en;
     if (draft.templeNameKn.trim() === "") nextErrors.templeNameKn = RS.nameRequired.en;
+    if (draft.paperSize === "custom") {
+      const problem = customPaperProblem(draft.paperCustomWidthMm ?? Number.NaN, draft.paperCustomHeightMm ?? Number.NaN);
+      if (problem === "width") nextErrors.paperCustomWidthMm = RS.paperCustomProblem.width.en;
+      if (problem === "height") nextErrors.paperCustomHeightMm = RS.paperCustomProblem.height.en;
+      if (problem === "landscape") nextErrors.paperCustomHeightMm = RS.paperCustomProblem.landscape.en;
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
     const patch = templatePatch(phase.saved, draft);
@@ -134,15 +142,26 @@ function ReceiptSettings(): JSX.Element {
       ) : null}
       {phase.kind === "ready" && draft ? (
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_auto]">
-          <HeaderFooterEditor
-            value={draft}
-            onChange={(next) => {
-              setDraft(next);
-              setResult(null);
-            }}
-            readOnly={!canEdit}
-            errors={errors}
-          />
+          <div className="flex min-w-0 flex-col gap-5">
+            <HeaderFooterEditor
+              value={draft}
+              onChange={(next) => {
+                setDraft(next);
+                setResult(null);
+              }}
+              readOnly={!canEdit}
+              errors={errors}
+            />
+            <PaperSizeField
+              value={draft}
+              onChange={(next) => {
+                setDraft(next);
+                setResult(null);
+              }}
+              readOnly={!canEdit}
+              errors={errors}
+            />
+          </div>
           <div className="min-w-0 xl:sticky xl:top-4">
             <SlipPreview settings={draft} staffNo={me?.staffNo ?? 1} now={now} siteUrl={siteUrl} />
           </div>

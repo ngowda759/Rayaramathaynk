@@ -598,6 +598,10 @@ describe('GET /api/seva/counter/bootstrap', () => {
       printGotra: true,
       printNakshatra: true,
       printRashi: false,
+      // A row without the paper columns reads as the A5 default (plan A4S-7).
+      paperSize: 'a5',
+      paperCustomWidthMm: null,
+      paperCustomHeightMm: null,
     });
     expect(body.rules).toEqual({ cancelWindowMinutes: 30, amountChangeReasonRequired: true, counterDaysAhead: 365, cashDifferenceNoteRequired: true });
     expect(body.denominations).toEqual([

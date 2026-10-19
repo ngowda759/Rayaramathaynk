@@ -11,6 +11,8 @@ import { COMMON, type Bi } from "@/lib/seva/strings/common";
 import { formatSevaDate, istParts } from "@/lib/seva/time";
 import type { IssuedReceipt, SlipSettings } from "@/types/seva";
 
+import { paperSpec, slipLayout, type PaperSpec, type SlipLayout } from "./paper";
+
 export interface SlipModel {
   header: {
     nameEn: string;
@@ -35,6 +37,9 @@ export interface SlipModel {
   issuedBy: string;
   footer: string[];
   blessing: string;
+  /** The sheet this slip prints on (plan A4S-7), and the type and header sizes for it. */
+  paper: PaperSpec;
+  layout: SlipLayout;
 }
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");
@@ -119,6 +124,9 @@ export function toSlipModel(
   ].filter((row): row is SlipModel["devotee"][number] => row !== null);
 
   const givesPrasadam = r.prasadam !== "none";
+  const photoLeft = nonEmpty(s.photoLeftUrl);
+  const photoRight = nonEmpty(s.photoRightUrl);
+  const paper = paperSpec(s);
 
   return {
     header: {
@@ -126,8 +134,8 @@ export function toSlipModel(
       nameKn: s.templeNameKn,
       address: [s.addressLine1, s.addressLine2].map(nonEmpty).filter((a): a is string => a !== null),
       registration: nonEmpty(s.registrationLine),
-      photoLeft: nonEmpty(s.photoLeftUrl),
-      photoRight: nonEmpty(s.photoRightUrl),
+      photoLeft,
+      photoRight,
     },
     duplicate: opts.reprint
       ? { at: slipDateTime(opts.reprint.at), byStaffNo: staffNoText(opts.reprint.byStaffNo) }
@@ -154,5 +162,7 @@ export function toSlipModel(
     issuedBy: issuedByLine(r),
     footer: [s.footerLine1, s.footerLine2].map(nonEmpty).filter((f): f is string => f !== null),
     blessing: s.footerBlessing.trim(),
+    paper,
+    layout: slipLayout(paper, { nameEn: s.templeNameEn, photoLeft, photoRight }),
   };
 }

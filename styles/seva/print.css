@@ -1,9 +1,14 @@
 /*
  * Seva receipt slip and print job (Design Book 10.1-10.2; approved look counter.html#receipt, rcpt-original).
  *
- * Paper: one-third of A4 cut lengthwise, 99 mm wide x 210 mm tall, portrait, fed upright from the bypass tray.
+ * Paper (plan A4S-7, owner's decision 2026-10-19): configurable, always portrait, one receipt a sheet - A5 (default),
+ * A6, one-third A4 (99 x 210 mm), 80 or 58 mm thermal roll, or a custom size. lib/seva/print/paper.ts holds the sizes;
+ * ReceiptSlip sets them on each slip as custom properties (--slip-w, --slip-h, --slip-pad and the type sizes), and the
+ * print job adds the matching `@page { size: <w>mm <h>mm; margin: 0 }` only while it prints (printSlips.ts), so the
+ * board summary keeps its own A4 page.
  * Type: Inter for Latin, Noto Sans Kannada for Kannada (loaded by app/layout.tsx as --font-inter / --font-kannada);
- * body 10 pt, seva date 18 pt bold, receipt number 12 pt bold, total 14 pt bold; Kannada never below 10 pt.
+ * one-third A4 and A6 keep today's sizes - body 10 pt, seva date 18 pt bold, receipt number 12 pt bold, total 14 pt
+ * bold; A5 is roomier (total 16 pt, names 13-14 pt); Kannada never smaller than the body text.
  * Pure black on white: no greys, no hairlines.
  *
  * The print root (#seva-print-root, components/seva/slip/PrintRoot.tsx) sits directly under <body>. It is hidden on
@@ -16,9 +21,16 @@
   display: none;
 }
 
-@media print {
-  @page { size: 99mm 210mm; margin: 5mm; }
+/* While the print job measures roll slips: laid out at full size, out of sight. */
+#seva-print-root.seva-print-measure {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+}
 
+@media print {
   html,
   body {
     background: #fff !important;
@@ -34,7 +46,12 @@
     display: block;
   }
 
-  .slip { width: 89mm; height: 199mm; break-after: page; overflow: hidden; }
+  .slip { break-after: page; }
+
+  #seva-print-root.seva-print-measure {
+    position: static;
+    visibility: visible;
+  }
 
   .slip:last-child {
     break-after: auto;
@@ -45,15 +62,16 @@
 
 .slip {
   box-sizing: border-box;
-  width: 89mm;
-  height: 199mm;
+  width: var(--slip-w, 99mm);
+  height: var(--slip-h, 209mm);
+  padding: var(--slip-pad, 5mm);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   background: #fff;
   color: #000;
   font-family: var(--font-inter, Inter), var(--font-kannada, "Noto Sans Kannada"), "Segoe UI", system-ui, sans-serif;
-  font-size: 10pt;
+  font-size: var(--slip-body, 10pt);
   font-weight: 400;
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
@@ -71,7 +89,7 @@
 .slip .kn {
   display: block;
   font-family: var(--font-kannada, "Noto Sans Kannada"), "Noto Sans Kannada", "Nirmala UI", Tunga, sans-serif;
-  font-size: 10pt;
+  font-size: max(10pt, 1em);
   font-weight: inherit;
   line-height: 1.3;
   letter-spacing: 0;
@@ -80,15 +98,15 @@
 /* Header: photo left, temple name (English, Kannada under it) and address centred, photo right */
 .slip .s-head {
   display: grid;
-  grid-template-columns: 15mm minmax(0, 1fr) 15mm;
+  grid-template-columns: var(--slip-photo, 15mm) minmax(0, 1fr) var(--slip-photo, 15mm);
   align-items: center;
   gap: 2mm;
 }
 
 .slip .php {
   display: block;
-  width: 15mm;
-  height: 15mm;
+  width: var(--slip-photo, 15mm);
+  height: var(--slip-photo, 15mm);
   object-fit: cover;
 }
 
@@ -99,13 +117,13 @@
 }
 
 .slip .s-head .e {
-  font-size: 11pt;
+  font-size: var(--slip-name, 11pt);
   font-weight: 700;
   line-height: 1.3;
 }
 
 .slip .s-head .nm .kn {
-  font-size: 11pt;
+  font-size: max(10pt, var(--slip-name, 11pt));
   font-weight: 700;
 }
 
@@ -167,7 +185,7 @@
 
 .slip .s-date b {
   display: block;
-  font-size: 18pt;
+  font-size: var(--slip-date, 18pt);
   font-weight: 700;
   line-height: 1.15;
   white-space: nowrap;
@@ -199,6 +217,11 @@
   margin: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+/* The devotee's name (always the first row) */
+.slip .kv .kv-name dd {
+  font-size: var(--slip-devotee, 10pt);
 }
 
 /* Seva lines */
@@ -261,7 +284,7 @@
 }
 
 .slip .s-tot .v {
-  font-size: 14pt;
+  font-size: var(--slip-total, 14pt);
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -270,15 +293,15 @@
 /* QR (left, about 26 mm with its quiet zone) and the prasadam line */
 .slip .s-qr {
   display: grid;
-  grid-template-columns: 26mm minmax(0, 1fr);
+  grid-template-columns: var(--slip-qr, 26mm) minmax(0, 1fr);
   gap: 3mm;
   align-items: center;
 }
 
 .slip .slip-qr {
   display: block;
-  width: 26mm;
-  height: 26mm;
+  width: var(--slip-qr, 26mm);
+  height: var(--slip-qr, 26mm);
 }
 
 .slip .s-qr .pr {
@@ -306,4 +329,53 @@
   font-size: 11pt;
   font-weight: 700;
   line-height: 1.45;
+}
+
+/* ---------- Per paper (plan A4S-7) ---------- */
+
+/* A content too long for a fixed sheet is shrunk to fit (printSlips sets --slip-fit), never clipped. */
+.slip[data-fit] {
+  zoom: var(--slip-fit, 1);
+  width: calc(var(--slip-w, 99mm) / var(--slip-fit, 1));
+  height: calc(var(--slip-h, 209mm) / var(--slip-fit, 1));
+}
+
+/* A5: roomier. */
+.slip[data-variant="roomy"] .s-head {
+  gap: 4mm;
+}
+
+.slip[data-variant="roomy"] .s-body {
+  gap: 2.4mm;
+  padding-top: 3mm;
+}
+
+.slip[data-variant="roomy"] .s-no b {
+  font-size: 14pt;
+}
+
+/* Rolls: the height follows the content, everything wraps, nothing is pushed apart. */
+.slip[data-variant="roll"] {
+  height: auto;
+  overflow: visible;
+}
+
+.slip[data-variant="roll"] .s-body {
+  flex: none;
+  justify-content: flex-start;
+}
+
+.slip[data-variant="roll"] .s-date b,
+.slip[data-variant="roll"] .kv dt,
+.slip[data-variant="roll"] .sl .q {
+  white-space: normal;
+}
+
+.slip[data-variant="roll"] .s-head .nm {
+  overflow-wrap: anywhere;
+}
+
+/* A narrow roll whose photos would squeeze the temple name below 9 pt prints the name alone. */
+.slip[data-photos="hidden"] .s-head {
+  grid-template-columns: minmax(0, 1fr);
 }

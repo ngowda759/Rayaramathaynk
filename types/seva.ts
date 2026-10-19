@@ -247,6 +247,12 @@ export interface SyncResponse {
   }[];
 }
 
+/**
+ * The receipt paper (plan A4S-7): A5 (default), A6, one-third A4 (99 x 210 mm), 80 or 58 mm thermal roll, or a
+ * custom size. Always portrait, one receipt a sheet. See lib/seva/print/paper.ts.
+ */
+export type PaperSizeId = 'a5' | 'a6' | 'third_a4' | 'roll_80' | 'roll_58' | 'custom';
+
 export interface SlipSettings {
   templeNameEn: string;
   templeNameKn: string;
@@ -261,6 +267,14 @@ export interface SlipSettings {
   printGotra: boolean;
   printNakshatra: boolean;
   printRashi: boolean;
+  /**
+   * The paper the slips and the day-close summary print on. Absent in a bootstrap this PC cached before the setting
+   * existed: the print job then uses A5.
+   */
+  paperSize?: PaperSizeId;
+  /** Custom size only: width 50-216 mm and height 80-356 mm, height at least the width. Null otherwise. */
+  paperCustomWidthMm?: number | null;
+  paperCustomHeightMm?: number | null;
 }
 
 /** The three devotee pick lists temple admins keep (plan A4P-5, table seva_list_items). */

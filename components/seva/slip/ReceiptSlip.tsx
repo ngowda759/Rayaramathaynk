@@ -1,7 +1,8 @@
-import type { JSX } from "react";
+import type { CSSProperties, JSX } from "react";
 
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { COMMON } from "@/lib/seva/strings/common";
+import { slipBox } from "@/lib/seva/print/paper";
 import type { SlipModel } from "@/lib/seva/print/slip-model";
 
 import { SlipQr } from "./SlipQr";
@@ -14,15 +15,47 @@ function Photo({ src, side }: { src: string | null; side: "left" | "right" }): J
 }
 
 /**
- * One printed receipt, 89 x 199 mm inside the 99 x 210 mm page (Design Book 10.1 order, 10.2 type). Styles live in
- * styles/seva/print.css under `.slip`. English first, Kannada on its own line under it (the shared `Bilingual`).
+ * The slip's sizes for its paper (plan A4S-7), as custom properties that styles/seva/print.css reads. They are
+ * computed at run time from the paper setting (lib/seva/print/paper.ts), so they cannot be fixed utility classes.
+ */
+function paperVars(m: SlipModel): CSSProperties {
+  const box = slipBox(m.paper);
+  const l = m.layout;
+  const vars: Record<`--${string}`, string> = {
+    "--slip-w": `${box.widthMm}mm`,
+    "--slip-h": box.heightMm === null ? "auto" : `${box.heightMm}mm`,
+    "--slip-pad": `${m.paper.padMm}mm`,
+    "--slip-body": `${l.bodyPt}pt`,
+    "--slip-name": `${l.templeNamePt}pt`,
+    "--slip-devotee": `${l.devoteeNamePt}pt`,
+    "--slip-date": `${l.sevaDatePt}pt`,
+    "--slip-total": `${l.totalPt}pt`,
+    "--slip-qr": `${l.qrMm}mm`,
+    "--slip-photo": `${l.photoMm}mm`,
+  };
+  return vars as CSSProperties;
+}
+
+/**
+ * One printed receipt on its configured paper (Design Book 10.1 order, 10.2 type; plan A4S-7 sizes): A5 by default,
+ * A6, one-third A4, an 80 or 58 mm roll, or a custom size, always portrait. Styles live in styles/seva/print.css
+ * under `.slip`. English first, Kannada on its own line under it (the shared `Bilingual`).
  */
 export function ReceiptSlip({ model }: { model: SlipModel }): JSX.Element {
   const m = model;
+  // Fixed sheets keep the photo columns (empty when no photo is set); a roll drops them when they are not printed.
+  const photoColumns = m.layout.variant !== "roll" || m.layout.showPhotos;
   return (
-    <article className="slip" aria-label={`Receipt ${m.receiptNo}, seva date ${m.sevaDateLine}`}>
+    <article
+      className="slip"
+      aria-label={`Receipt ${m.receiptNo}, seva date ${m.sevaDateLine}`}
+      data-paper={m.paper.id}
+      data-variant={m.layout.variant}
+      data-photos={photoColumns ? "shown" : "hidden"}
+      style={paperVars(m)}
+    >
       <header className="s-head">
-        <Photo src={m.header.photoLeft} side="left" />
+        {photoColumns ? <Photo src={m.header.photoLeft} side="left" /> : null}
         <div className="nm">
           <Bilingual as="div" className="e" en={m.header.nameEn} kn={m.header.nameKn} />
           {m.header.address.map((a, i) => (
@@ -31,7 +64,7 @@ export function ReceiptSlip({ model }: { model: SlipModel }): JSX.Element {
             </div>
           ))}
         </div>
-        <Photo src={m.header.photoRight} side="right" />
+        {photoColumns ? <Photo src={m.header.photoRight} side="right" /> : null}
       </header>
       {m.header.registration ? <div className="s-reg">{m.header.registration}</div> : <div className="s-reg s-reg-empty" />}
 
@@ -58,8 +91,8 @@ export function ReceiptSlip({ model }: { model: SlipModel }): JSX.Element {
         </div>
 
         <dl className="kv">
-          {m.devotee.map((d) => (
-            <div className="kv-row" key={d.label.en}>
+          {m.devotee.map((d, i) => (
+            <div className={i === 0 ? "kv-row kv-name" : "kv-row"} key={d.label.en}>
               <dt>
                 <Bilingual en={d.label.en} kn={d.label.kn} />
               </dt>

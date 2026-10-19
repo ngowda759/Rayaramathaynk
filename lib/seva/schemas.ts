@@ -13,6 +13,7 @@ import type {
 } from '@/types/seva';
 import { NAKSHATRAS } from './domain/nakshatras';
 import { RASHIS } from './domain/rashis';
+import { CUSTOM_PAPER_LIMITS, PAPER_SIZES } from './print/paper';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Building blocks
@@ -363,9 +364,33 @@ export const settingsPatchSchema = z
     tallyUpiLedger: ledgerName,
     tallyOnlineLedger: ledgerName,
     tallyColumns: z.record(z.string().max(40), z.string().trim().max(60)).nullable(),
+    // Receipt paper (plan A4S-7): always portrait; a custom size names both sides, height at least the width.
+    paperSize: z.enum(PAPER_SIZES),
+    paperCustomWidthMm: z
+      .number()
+      .int()
+      .min(CUSTOM_PAPER_LIMITS.minWidthMm)
+      .max(CUSTOM_PAPER_LIMITS.maxWidthMm)
+      .nullable(),
+    paperCustomHeightMm: z
+      .number()
+      .int()
+      .min(CUSTOM_PAPER_LIMITS.minHeightMm)
+      .max(CUSTOM_PAPER_LIMITS.maxHeightMm)
+      .nullable(),
   })
   .partial()
-  .refine((patch) => Object.keys(patch).length > 0, 'Nothing to save');
+  .refine((patch) => Object.keys(patch).length > 0, 'Nothing to save')
+  .superRefine((patch, ctx) => {
+    const w = patch.paperCustomWidthMm;
+    const h = patch.paperCustomHeightMm;
+    if (patch.paperSize === 'custom' && (typeof w !== 'number' || typeof h !== 'number')) {
+      ctx.addIssue({ code: 'custom', path: ['paperCustomWidthMm'], message: 'Enter the width and the height' });
+    }
+    if (typeof w === 'number' && typeof h === 'number' && h < w) {
+      ctx.addIssue({ code: 'custom', path: ['paperCustomHeightMm'], message: 'The height must be at least the width (portrait)' });
+    }
+  });
 
 export const denominationsSchema = z
   .object({
