@@ -672,6 +672,92 @@ Tier: **H** - 12 specs and a fixture change, the frame gets browser checks, and 
 - [ ] 7. Commit the specs, the fixture and the unit guard, with:
   `test(seva): browser tests at the /seva addresses and the module frame`.
 
+## Task A4S-7: Configurable receipt paper size (runs in Run 2)
+
+Tier: **H** - the printed slip is the module's most visible output; page size, layout and printing must stay exact.
+
+**The owner's decision (2026-10-19, card `a5`):** "keep it configurable: A5, or a 3-inch 80 mm receipt, or even more
+standard sizes. Definitely all in portrait orientation, and a single receipt per sheet." This replaces the fixed
+one-third-A4 slip (99 x 210 mm, Follow-ups card `paper`).
+
+**Files:**
+- **Create:**
+  - `supabase/migrations/20261031000000_seva_paper_size.sql`. It is a NEW, additive migration. Every earlier migration
+    has already been pushed to the owner's test project, so earlier files are frozen.
+  - `lib/seva/print/paper.ts`
+  - `tests/unit/seva/paper-size.test.ts`
+  - `tests/db/seva-paper-size.test.ts`
+- **Modify:**
+  - `styles/seva/print.css`
+  - `components/seva/slip/*`, including `ReceiptSlip.tsx`
+  - `lib/seva/print/*`, which holds `printSlips` and the slip model
+  - `components/seva/dayclose/DayCloseSummaryPrint.tsx`
+  - the receipt-template settings page under `app/seva/(desk)/settings/receipt/` and its components under
+    `components/seva/settings/`
+  - `lib/seva/strings/receipt-settings.ts`
+  - the settings schema in `lib/seva/schemas.ts`
+  - `lib/seva/server/settings.ts`, and the counter bootstrap's slip settings in `lib/seva/server/counter.ts`
+  - `types/seva*.ts`
+  - `tests/e2e/seva/{counter-print,settings-receipt}.spec.ts`: page-size assertions only. Do not change their URLs;
+    A4S-6 owns those in Run 3.
+
+**Paper sizes:** all portrait, one receipt per sheet.
+
+| id | Size | Notes |
+|---|---|---|
+| `a5` | 148 x 210 mm | **default** |
+| `a6` | 105 x 148 mm | |
+| `third_a4` | 99 x 210 mm | today's slip |
+| `roll_80` | 80 mm wide | thermal roll, height fitted to the content |
+| `roll_58` | 58 mm wide | thermal roll, height fitted to the content |
+| `custom` | width 50-216 mm, height 80-356 mm | height must be at least the width, so it stays portrait |
+
+- **Storage:**
+  - The setting is stored in `seva_settings` as new nullable columns `paper_size text` (CHECK in the list) and
+    `paper_custom_w_mm` / `paper_custom_h_mm` (smallint, CHECK on the ranges), with default `a5`.
+  - It is changed only through the settings PATCH (`settings.edit`; view-only gets 403) and audited like the other
+    slip settings.
+- **Page size:**
+  - `@page { size: <w>mm <h>mm; margin: 0 }` is generated from the setting at print time.
+  - For a roll, measure the rendered slip and set the height to its content height plus a 6 mm tear margin, before
+    `window.print()`.
+  - Kiosk printing is unchanged.
+- **Layout per size:**
+  - **A5:** roomier, with larger text: amount at least 16 pt, name at least 13 pt. The temple header shows the name and
+    address centred, with Photo 1 and Photo 2 left and right.
+  - **A6 and one-third A4:** today's layout.
+  - **Rolls:**
+    - The header stacks: the photos are small, or hidden at 58 mm when they would push the text below 9 pt.
+    - The QR is at least 22 mm at 80 mm and at least 18 mm at 58 mm.
+    - Lines wrap.
+  - **Everywhere:** no clipped text, and Kannada stays under the English.
+- **Multi-date:** a receipt for several dates still prints one page per date, in one print job.
+- **The settings page:**
+  - a paper-size choice with a small live preview at the chosen size (reusing the existing slip preview)
+  - the custom fields, shown only for `custom`
+  - an "only portrait, one receipt per sheet" note
+- **The day-close summary** prints on the same paper setting, flowing onto more pages when it is long.
+- **The board summary** stays on A4.
+
+**Steps:**
+1. Write the failing tests first:
+   - unit:
+     - `it('builds the @page size for every preset and a custom size, always portrait')`
+     - `it('refuses a custom size that would be landscape or out of range')`
+     - `it('fits a roll page height to the content plus the tear margin')`
+     - `it('A5 uses the larger type and keeps both photos')`
+     - `it('58 mm hides the photos only when text would fall below 9 pt')`
+   - DB:
+     - `it('defaults paper_size to a5 and refuses an unknown size or a landscape custom size')`
+     - `it('a view-only temple admin cannot change the paper size')`
+   - e2e (assertions only): the printed PDF page is 148 x 210 mm by default, and 80 mm wide after choosing `roll_80`
+2. Implement.
+3. Run the unit and DB tests, `npm run typecheck` and eslint. Do NOT run Playwright; the Run 3 gate does.
+4. Commit: `feat(seva): configurable receipt paper size - A5 default, A6, one-third A4, 80/58 mm rolls, custom`.
+
+**Owner step:** after the build, the owner pushes the new migration to his test project with one command, which the
+orchestrator gives him.
+
 ## Wave A4S gate
 
 - **Checks:**
