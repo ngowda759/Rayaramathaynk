@@ -20,6 +20,7 @@ import { DASHBOARD } from "@/lib/seva/strings/dashboard";
 import { businessDate, formatSevaDate, type Period } from "@/lib/seva/time";
 import { SevaClientError } from "@/services/seva/http";
 import { reportsApi, type DashboardAnswer } from "@/services/seva/reports.service";
+import type { DashboardData } from "@/types/seva-reports";
 
 /**
  * Seva dashboard (`/admin/receipts`, DB §12.1; plan Task A4-6). Same order on desktop (1366 px) and phone (390 px):
@@ -87,6 +88,12 @@ function Dashboard(): JSX.Element {
     return user.getIdToken();
   }, [user]);
   const api = useMemo(() => reportsApi(token), [token]);
+  // Festival peaks on Today, Week or Month shows every day of the year, so its tap asks for the year answer (DB §12.1).
+  const loadYear = useCallback(async (): Promise<DashboardData> => {
+    const answer: unknown = await api.dashboard("year");
+    if (!isDashboardAnswer(answer)) throw new Error(DASHBOARD.badAnswer);
+    return answer.data;
+  }, [api]);
 
   // Chart colours come from the module's tokens (DB §12.5); EChart re-reads them on a theme change.
   useEffect(() => {
@@ -170,7 +177,13 @@ function Dashboard(): JSX.Element {
           <SummaryTiles tiles={ready.answer.data.tiles} period={ready.period} />
           <h2 className="sr-only">{DASHBOARD.details}</h2>
           <HeroChart data={ready.answer.data} period={ready.period} colors={colors} reducedMotion={reducedMotion} />
-          <DetailCharts data={ready.answer.data} period={ready.period} colors={colors} reducedMotion={reducedMotion} />
+          <DetailCharts
+            data={ready.answer.data}
+            period={ready.period}
+            colors={colors}
+            reducedMotion={reducedMotion}
+            loadYear={loadYear}
+          />
         </>
       ) : null}
     </div>

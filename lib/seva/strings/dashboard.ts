@@ -31,6 +31,8 @@ export const DASHBOARD: {
   byCount: Bi;
   showCalendar: (year: number) => string;
   hideCalendar: (year: number) => string;
+  calendarLoading: (year: number) => string;
+  calendarFailed: Bi;
   rushNote: string;
   modeNote: string;
   festivalNote: string;
@@ -77,6 +79,8 @@ export const DASHBOARD: {
   byCount: { en: 'Count', kn: 'ಸಂಖ್ಯೆ' },
   showCalendar: (year) => `Show the ${year} calendar`,
   hideCalendar: (year) => `Hide the ${year} calendar`,
+  calendarLoading: (year) => `Loading the ${year} calendar...`,
+  calendarFailed: { en: 'The year calendar could not be loaded.', kn: 'ವರ್ಷದ ಕ್ಯಾಲೆಂಡರ್ ತೆರೆಯಲಾಗಲಿಲ್ಲ.' },
   rushNote: 'Receipts by hour and weekday. Darker = busier.',
   modeNote: 'Online starts in Phase 2. Cash is counted and UPI matched at day close.',
   festivalNote: 'Every day of the year; festival days are outlined.',

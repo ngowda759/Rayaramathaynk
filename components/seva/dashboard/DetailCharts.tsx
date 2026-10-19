@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState, type JSX, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type JSX, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/seva/ui/Segmented";
@@ -23,9 +23,22 @@ export interface DetailChartsProps {
   period: Period;
   colors: string[];
   reducedMotion: boolean;
+  /**
+   * Fetches the This year answer. Festival peaks is a heatmap of every day of the year (DB §12.1 item 5), but the
+   * answer for Today, Week or Month holds only that span's days and festivals, so the tap asks for the year (the
+   * route's 60-second cache keeps it cheap). Not called on This year, whose answer already has every day.
+   */
+  loadYear: () => Promise<DashboardData>;
 }
 
 type Metric = "amount" | "count";
+
+/** The year answer behind the Festival peaks tap, for the periods other than This year. */
+type YearLoad =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ready"; data: DashboardData }
+  | { kind: "error"; message: string };
 
 const TOP_SEVAS_SHOWN = 8;
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -41,6 +54,12 @@ function Card({ id, children }: { id: string; children: ReactNode }): JSX.Elemen
   );
 }
 
+/** The calendar year (IST) of an answer's "as of" time. */
+function yearOf(asOf: string): number {
+  const d = new Date(asOf);
+  return istParts(Number.isNaN(d.getTime()) ? new Date() : d).year;
+}
+
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
@@ -50,14 +69,42 @@ function escapeHtml(text: string): string {
  * previous period), Payment mode (donut for Today and Week, 100% bars for Month and Year), Counter rush hours, and
  * Festival peaks - on the first screen for This year, one tap deeper otherwise. Each chart has a hidden data table.
  */
-export function DetailCharts({ data, period, colors, reducedMotion }: DetailChartsProps): JSX.Element {
+export function DetailCharts({ data, period, colors, reducedMotion, loadYear }: DetailChartsProps): JSX.Element {
   const [metric, setMetric] = useState<Metric>("amount");
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [yearLoad, setYearLoad] = useState<YearLoad>({ kind: "idle" });
+  const yearRequest = useRef(0);
   const opts = useMemo(() => ({ colors, reducedMotion }), [colors, reducedMotion]);
   const when = PERIOD_WORDS[period].when.toLowerCase();
   const prevName = PREVIOUS[period].short;
-  const asOfDate = new Date(data.asOf);
-  const year = istParts(Number.isNaN(asOfDate.getTime()) ? new Date() : asOfDate).year;
+  const year = yearOf(data.asOf);
+
+  /** Asks for the year answer; only the latest request may set the state. */
+  const fetchYear = useCallback(() => {
+    yearRequest.current += 1;
+    const request = yearRequest.current;
+    setYearLoad({ kind: "loading" });
+    loadYear().then(
+      (yearData) => {
+        if (request === yearRequest.current) setYearLoad({ kind: "ready", data: yearData });
+      },
+      (error: unknown) => {
+        if (request !== yearRequest.current) return;
+        const message = error instanceof Error && error.message ? error.message : DASHBOARD.calendarFailed.en;
+        setYearLoad({ kind: "error", message });
+      },
+    );
+  }, [loadYear]);
+
+  const toggleCalendar = useCallback(() => {
+    if (calendarOpen) {
+      setCalendarOpen(false);
+      return;
+    }
+    setCalendarOpen(true);
+    // Each opening asks again, so the year shown is never older than the route's 60-second cache.
+    if (period !== "year") fetchYear();
+  }, [calendarOpen, fetchYear, period]);
 
   const top = useMemo(() => data.topSevas.slice(0, TOP_SEVAS_SHOWN), [data.topSevas]);
   const topOption = useMemo((): EChartsCoreOption => {
@@ -88,37 +135,72 @@ export function DetailCharts({ data, period, colors, reducedMotion }: DetailChar
   const rush = useMemo(() => data.rush.map((c) => ({ dow: c.dow % 7, hour: c.hour, count: c.count })), [data.rush]);
   const rushOpt = useMemo(() => rushOption(rush, opts), [rush, opts]);
   const showCalendar = period === "year" || calendarOpen;
+  // This year's answer holds every day of the year; the other periods show the year answer fetched on the tap.
+  const calData: DashboardData | null = period === "year" ? data : yearLoad.kind === "ready" ? yearLoad.data : null;
+  const calYear = calData ? yearOf(calData.asOf) : year;
   const calOpt = useMemo(
-    () => calendarOption({ year, days: data.calendar, festivals: data.festivalDates }, opts),
-    [year, data.calendar, data.festivalDates, opts],
+    () => (calData ? calendarOption({ year: calYear, days: calData.calendar, festivals: calData.festivalDates }, opts) : null),
+    [calData, calYear, opts],
   );
 
   const modeTotal = data.mode.cashPaise + data.mode.upiPaise + data.mode.onlinePaise;
   const share = (v: number) => (modeTotal > 0 ? `${Math.round((v / modeTotal) * 100)}%` : "0%");
-  const festivalSet = new Set(data.festivalDates);
+  const festivalSet = new Set(calData?.festivalDates ?? []);
+
+  const festivalHeading = (
+    <h3 className="text-base font-semibold">
+      {DASHBOARD.festivalPeaks.en}
+      <span className="kn" lang="kn">
+        {DASHBOARD.festivalPeaks.kn}
+      </span>
+    </h3>
+  );
+
+  let calendarBody: ReactNode = festivalHeading;
+  if (showCalendar && calData && calOpt) {
+    calendarBody = (
+      <EChart
+        option={calOpt}
+        height={240}
+        title={DASHBOARD.festivalPeaks}
+        asOf={calData.asOf}
+        table={{
+          caption: `${DASHBOARD.festivalPeaks.en}, ${calYear}`,
+          columns: [DASHBOARD.date, DASHBOARD.amount, DASHBOARD.festivalDay],
+          rows: calData.calendar.map((d) => [d.date, chartRupees(d.totalPaise), festivalSet.has(d.date) ? "Yes" : "No"]),
+        }}
+      />
+    );
+  } else if (showCalendar && yearLoad.kind === "error") {
+    calendarBody = (
+      <>
+        {festivalHeading}
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-[14px] border border-(--border) bg-(--secondary) p-3">
+          <p className="meta">{yearLoad.message}</p>
+          <Button variant="seva-secondary" size="sm" onClick={fetchYear}>
+            {DASHBOARD.tryAgain}
+          </Button>
+        </div>
+      </>
+    );
+  } else if (showCalendar) {
+    calendarBody = (
+      <>
+        {festivalHeading}
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex h-[240px] w-full items-center justify-center rounded-[14px] bg-(--secondary)"
+        >
+          <span className="meta text-(--muted-foreground)">{DASHBOARD.calendarLoading(year)}</span>
+        </div>
+      </>
+    );
+  }
 
   const festival = (
     <Card id="festival-peaks">
-      {showCalendar ? (
-        <EChart
-          option={calOpt}
-          height={240}
-          title={DASHBOARD.festivalPeaks}
-          asOf={data.asOf}
-          table={{
-            caption: `${DASHBOARD.festivalPeaks.en}, ${year}`,
-            columns: [DASHBOARD.date, DASHBOARD.amount, DASHBOARD.festivalDay],
-            rows: data.calendar.map((d) => [d.date, chartRupees(d.totalPaise), festivalSet.has(d.date) ? "Yes" : "No"]),
-          }}
-        />
-      ) : (
-        <h3 className="text-base font-semibold">
-          {DASHBOARD.festivalPeaks.en}
-          <span className="kn" lang="kn">
-            {DASHBOARD.festivalPeaks.kn}
-          </span>
-        </h3>
-      )}
+      {calendarBody}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="meta text-(--muted-foreground)">{DASHBOARD.festivalNote}</p>
         {period !== "year" ? (
@@ -126,7 +208,7 @@ export function DetailCharts({ data, period, colors, reducedMotion }: DetailChar
             variant="seva-secondary"
             size="sm"
             aria-expanded={calendarOpen}
-            onClick={() => setCalendarOpen((open) => !open)}
+            onClick={toggleCalendar}
           >
             {calendarOpen ? DASHBOARD.hideCalendar(year) : DASHBOARD.showCalendar(year)}
           </Button>

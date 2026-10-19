@@ -16,6 +16,15 @@ const TOTALS: Record<Period, { total: number; receipts: number; cash: number; up
   year: { total: 980_000_000, receipts: 19_204, cash: 560_000_000, upi: 420_000_000 },
 };
 
+const YEAR = new Date().getFullYear();
+const YEAR_DAYS = [
+  { date: `${YEAR}-01-14`, totalPaise: 9_000_000 },
+  { date: `${YEAR}-03-08`, totalPaise: 4_500_000 },
+  { date: `${YEAR}-08-15`, totalPaise: 7_200_000 },
+  { date: `${YEAR}-10-18`, totalPaise: 6_119_600 },
+];
+const YEAR_FESTIVALS = [`${YEAR}-01-14`, `${YEAR}-08-15`];
+
 function answerFor(period: Period): { data: DashboardData; attention: NeedsAttentionCard[] } {
   const t = TOTALS[period];
   const labels = period === "today" ? ["05:00", "06:00", "07:00", "08:00"] : period === "year" ? ["Jan", "Feb", "Mar"] : ["Mon", "Tue", "Wed"];
@@ -46,8 +55,9 @@ function answerFor(period: Period): { data: DashboardData; attention: NeedsAtten
         { dow: 1, hour: 9, count: 12 },
         { dow: 7, hour: 18, count: 30 },
       ],
-      calendar: [{ date: "2026-10-18", totalPaise: t.total }],
-      festivalDates: ["2026-10-18"],
+      // Only This year's answer holds the days before this period; Festival peaks must ask for it on the other periods.
+      calendar: period === "year" ? YEAR_DAYS : [{ date: `${YEAR}-10-18`, totalPaise: t.total }],
+      festivalDates: period === "year" ? YEAR_FESTIVALS : [`${YEAR}-10-18`],
     },
     attention: [
       { id: "changed_amounts", level: "attention", count: 2, detail: {} },
@@ -159,8 +169,15 @@ test("desktop and phone show the same order", async ({ page }) => {
 test("each chart has a hidden data table", async ({ page }) => {
   const api = dashboardFake();
   await openDashboard(page, api);
+  expect(dashboardCalls(api).some((r) => r.path.includes("period=year"))).toBe(false);
   await page.getByRole("button", { name: /Show the \d{4} calendar/ }).click();
   await expect(page.locator('[data-section="festival-peaks"] figure')).toBeVisible();
+  // Today's answer has one day; the calendar shows every day of the year, so the tap asked for the year answer.
+  expect(dashboardCalls(api).some((r) => r.path.includes("period=year"))).toBe(true);
+  const yearRows = page.locator('[data-section="festival-peaks"] table.sr-only tbody tr');
+  await expect(yearRows).toHaveCount(YEAR_DAYS.length);
+  await expect(yearRows.first()).toContainText(`${YEAR}-01-14`);
+  await expect(yearRows.first()).toContainText("Yes");
 
   const figures = page.locator(".seva figure");
   await expect(figures).toHaveCount(5);
