@@ -471,7 +471,9 @@ describe('seva_sync_offline_order (A2-1)', () => {
     const newPc = await seedDevice(c.db, { staffId: c.staffId });
     await c.db.query(`update receipt_series_years set last_no = 6 where series_code = 'OF1' and year = 2026`);
     await c.db.query(
-      `insert into receipt_number_gaps (series_code, year, from_no, to_no, cause) values ('OF1', 2026, 3, 6, 'device_replaced')`,
+      `insert into receipt_number_gaps (series_code, year, from_no, to_no, cause, device_id)
+       values ('OF1', 2026, 3, 6, 'device_replaced', $1::uuid)`,
+      [oldPc],
     );
 
     await syncNo(c, 4, oldPc);
@@ -498,6 +500,37 @@ describe('seva_sync_offline_order (A2-1)', () => {
     ]);
     expect(await lastNo(c.db, 'OF1', 2026)).toBe(9);
     expect(await count(c.db, 'seva_receipts')).toBe(8);
+  });
+
+  it("a retired PC fills only its own replaced range, never a later PC's (A5-FIX L-1)", async () => {
+    const c = await setup();
+    const pcA = c.deviceId;
+    await syncNo(c, 1, pcA);
+    const pcB = await replaceDevice(c, 5); // A dies holding 2-5
+    await replaceDevice(c, 8); // B dies holding 6-8
+    const owners = await c.db.query<{ from_no: number; device_id: string }>(
+      `select from_no, device_id from receipt_number_gaps order by from_no`,
+    );
+    expect(owners.rows).toEqual([
+      { from_no: 2, device_id: pcA },
+      { from_no: 6, device_id: pcB },
+    ]);
+    // A's late upload of a number in B's range is refused; its own range is accepted; B fills its own.
+    expect((await failure(syncNo(c, 7, pcA))).code).toBe('device_unknown');
+    await syncNo(c, 4, pcA);
+    await syncNo(c, 7, pcB);
+    expect(await gaps(c.db)).toEqual([
+      { from_no: 2, to_no: 3, cause: 'device_replaced', status: 'open' },
+      { from_no: 5, to_no: 5, cause: 'device_replaced', status: 'open' },
+      { from_no: 6, to_no: 6, cause: 'device_replaced', status: 'open' },
+      { from_no: 8, to_no: 8, cause: 'device_replaced', status: 'open' },
+    ]);
+    // A split keeps the owner.
+    const split = await c.db.query<{ n: number }>(
+      `select count(*)::int as n from receipt_number_gaps where from_no = 5 and device_id = $1::uuid`,
+      [pcA],
+    );
+    expect(split.rows[0].n).toBe(1);
   });
 
   describe("M-4: Replace this PC records the slip's own year", () => {

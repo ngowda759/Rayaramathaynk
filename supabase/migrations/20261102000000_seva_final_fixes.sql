@@ -160,6 +160,8 @@ BEGIN
     FROM receipt_series_years y
    WHERE y.series_code = v_series AND y.year = v_year
      FOR UPDATE;
+  -- L-1: read the PC again under the year-row lock, so a sync racing "Replace this PC" sees it retired.
+  SELECT d.* INTO v_device FROM counter_devices d WHERE d.id = v_device.id;
 
   IF jsonb_typeof(p_order->'receipts') IS DISTINCT FROM 'array'
      OR jsonb_array_length(p_order->'receipts') NOT BETWEEN 1 AND 31 THEN
@@ -384,6 +386,7 @@ BEGIN
       SELECT g.* INTO v_gap
         FROM receipt_number_gaps g
        WHERE g.series_code = v_series AND g.year = v_year AND g.status = 'open' AND g.cause = 'device_replaced'
+         AND g.device_id = v_device.id
          AND v_running BETWEEN g.from_no AND g.to_no
        ORDER BY g.id
        LIMIT 1
@@ -1204,8 +1207,8 @@ BEGIN
   RETURNING id INTO v_old;
 
   IF p_last_printed_of_no > v_last THEN
-    INSERT INTO receipt_number_gaps (series_code, year, from_no, to_no, cause, detected_at)
-    VALUES (v_series, v_slip_year, v_last + 1, p_last_printed_of_no, 'device_replaced', v_now)
+    INSERT INTO receipt_number_gaps (series_code, year, from_no, to_no, cause, detected_at, device_id)
+    VALUES (v_series, v_slip_year, v_last + 1, p_last_printed_of_no, 'device_replaced', v_now, v_old)
     RETURNING id INTO v_gap;
     UPDATE receipt_series_years
        SET last_no = p_last_printed_of_no
@@ -1553,3 +1556,49 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION seva_issue_counter_order(jsonb, uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_issue_counter_order(jsonb, uuid, uuid) TO service_role;
+
+-- =====================================================================================================
+-- L-1. A device_replaced gap belongs to the PC that was retired
+-- =====================================================================================================
+
+-- The PC retired by "Replace this PC": only that PC's late upload may fill the gap (seva_sync_offline_order above),
+-- not any retired PC of the series. seva_replace_device above sets it; gaps written before this file have none, so no
+-- retired PC can fill them (an admin resolves them in the register).
+ALTER TABLE receipt_number_gaps ADD COLUMN IF NOT EXISTS device_id uuid REFERENCES counter_devices (id) ON DELETE RESTRICT;
+COMMENT ON COLUMN receipt_number_gaps.device_id IS
+  'device_replaced gaps: the retired PC whose late upload may fill the gap (A5-FIX L-1); null otherwise';
+
+-- As in 20261021000000_seva_functions_issue.sql, but a gap split in two keeps its device_id (L-1).
+CREATE OR REPLACE FUNCTION seva_issue_fill_gap(p_gap_id bigint, p_no integer, p_at timestamptz)
+RETURNS void
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_gap receipt_number_gaps%ROWTYPE;
+BEGIN
+  SELECT g.* INTO v_gap FROM receipt_number_gaps g WHERE g.id = p_gap_id FOR UPDATE;
+  IF NOT FOUND OR v_gap.status <> 'open' OR p_no NOT BETWEEN v_gap.from_no AND v_gap.to_no THEN
+    RAISE EXCEPTION 'SEVA:number_conflict' USING DETAIL = jsonb_build_object('running_no', p_no)::text;
+  END IF;
+
+  IF v_gap.from_no = v_gap.to_no THEN
+    UPDATE receipt_number_gaps g
+       SET status = 'received_late', resolved_at = p_at, resolution_note = 'Arrived in a later sync'
+     WHERE g.id = p_gap_id;
+  ELSIF p_no = v_gap.from_no THEN
+    UPDATE receipt_number_gaps g SET from_no = p_no + 1 WHERE g.id = p_gap_id;
+  ELSIF p_no = v_gap.to_no THEN
+    UPDATE receipt_number_gaps g SET to_no = p_no - 1 WHERE g.id = p_gap_id;
+  ELSE
+    UPDATE receipt_number_gaps g SET to_no = p_no - 1 WHERE g.id = p_gap_id;
+    INSERT INTO receipt_number_gaps (series_code, year, from_no, to_no, cause, status, detected_at, device_id)
+    VALUES (v_gap.series_code, v_gap.year, p_no + 1, v_gap.to_no, v_gap.cause, 'open', v_gap.detected_at, v_gap.device_id);
+  END IF;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_issue_fill_gap(bigint, integer, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_issue_fill_gap(bigint, integer, timestamptz) TO service_role;
