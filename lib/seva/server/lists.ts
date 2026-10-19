@@ -58,6 +58,18 @@ export async function readLists(): Promise<SevaLists> {
   return lists;
 }
 
+/**
+ * The lists, or undefined when they cannot be read: the counter bootstrap and the slip builders then fall back to the
+ * built-in lists, so a failed read never stops a receipt being issued or printed.
+ */
+export async function readListsOrNone(): Promise<SevaLists | undefined> {
+  try {
+    return await readLists();
+  } catch {
+    return undefined;
+  }
+}
+
 /** Adds a gotra or changes one list item as `staffId`; returns the saved item. */
 export async function saveListItem(
   input: ListItemSaveRequest,

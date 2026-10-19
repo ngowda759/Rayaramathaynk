@@ -26,6 +26,7 @@ import type {
 } from "@/types/seva-receipts";
 import { requireSevaActor, type ActorResult, type RequireSevaActorOptions } from "./auth";
 import { fromSqlIssue } from "./counter";
+import { readListsOrNone } from "./lists";
 import {
   embedded,
   embeddedLines,
@@ -299,7 +300,7 @@ export async function readReceiptFacts(id: string): Promise<ReceiptFacts | null>
 const HISTORY_LIMIT = 200;
 
 export async function getReceiptDetail(facts: ReceiptFacts): Promise<ReceiptDetail> {
-  const [orderJson, auditResult] = await Promise.all([
+  const [orderJson, auditResult, lists] = await Promise.all([
     callRpc<unknown>("seva_order_json", { p_order_id: facts.orderId, p_duplicate: false }),
     createAdminClient()
       .from("audit_log")
@@ -308,8 +309,9 @@ export async function getReceiptDetail(facts: ReceiptFacts): Promise<ReceiptDeta
       .eq("entity_id", facts.id)
       .order("at", { ascending: false })
       .limit(HISTORY_LIMIT),
+    readListsOrNone(),
   ]);
-  const issued = fromSqlIssue(orderJson).receipts.find((receipt) => receipt.id === facts.id);
+  const issued = fromSqlIssue(orderJson, lists).receipts.find((receipt) => receipt.id === facts.id);
   if (!issued) throw new SevaError("internal");
   const audit = rowsOf(auditResult);
   const names = await staffNames([
@@ -415,13 +417,16 @@ export async function cancelReceipts(actor: SevaActor, body: CancelRequest): Pro
 
 /** Cancels a spoiled slip and issues the next C number on the same payment with a fresh QR token (DB §9.8). */
 export async function reissueSpoiled(actor: SevaActor, deviceId: string, receiptId: string): Promise<IssueResponse> {
-  const answer = await callRpc<unknown>("seva_reissue_spoiled", {
-    p_receipt_id: receiptId,
-    p_staff_id: actor.staffId,
-    p_device_id: deviceId,
-    p_qr_token: newQrToken(),
-  });
-  return fromSqlIssue(answer);
+  const [answer, lists] = await Promise.all([
+    callRpc<unknown>("seva_reissue_spoiled", {
+      p_receipt_id: receiptId,
+      p_staff_id: actor.staffId,
+      p_device_id: deviceId,
+      p_qr_token: newQrToken(),
+    }),
+    readListsOrNone(),
+  ]);
+  return fromSqlIssue(answer, lists);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -2,8 +2,9 @@
  * Turns the counter state into the order the server issues (CounterOrderPayload, DB 9.7), and a returning devotee's
  * profile into step 1's draft. Pure: the caller makes the ids and QR tokens (crypto) and checks selectCanSave first.
  */
-import type { CounterLineInput, CounterOrderPayload, DevoteeInput } from "@/types/seva";
+import type { CounterLineInput, CounterOrderPayload, DevoteeInput, SevaLists } from "@/types/seva";
 import { GOTRAS } from "@/lib/seva/domain/gotras";
+import { findListOption, slipNameLists } from "@/lib/seva/domain/lists";
 import { NAKSHATRAS } from "@/lib/seva/domain/nakshatras";
 import { RASHIS } from "@/lib/seva/domain/rashis";
 import { findOption, type DomainOption } from "@/lib/seva/domain/options";
@@ -106,17 +107,24 @@ function optionDraft(options: readonly DomainOption[], id: number | undefined): 
   return option ? { value: String(option.id), text: option.en } : null;
 }
 
-/** A returning devotee's details for step 1. Only the last 4 phone digits are known, so the phone stays blank. */
-export function profileToDraft(p: {
-  name: string;
-  gotra?: string;
-  gotraId?: number;
-  nakshatraId?: number;
-  rashiId?: number;
-  phoneLast4?: string;
-}): DevoteeDraft {
+/**
+ * A returning devotee's details for step 1. Only the last 4 phone digits are known, so the phone stays blank.
+ * `lists` are the bootstrap's lists temple admins keep, so a gotra they added (id 1000 up) keeps its id; without them
+ * the built-in lists are used.
+ */
+export function profileToDraft(
+  p: {
+    name: string;
+    gotra?: string;
+    gotraId?: number;
+    nakshatraId?: number;
+    rashiId?: number;
+    phoneLast4?: string;
+  },
+  lists?: SevaLists | null,
+): DevoteeDraft {
   const gotraText = p.gotra?.trim() ?? "";
-  const gotraOption = findOption(GOTRAS, p.gotraId);
+  const gotraOption = findListOption(slipNameLists(lists).gotras, GOTRAS, p.gotraId);
   let gotra: Picked = null;
   if (gotraText.length > 0) gotra = gotraOption ? { value: String(gotraOption.id), text: gotraText } : { text: gotraText };
   else if (gotraOption) gotra = { value: String(gotraOption.id), text: gotraOption.en };

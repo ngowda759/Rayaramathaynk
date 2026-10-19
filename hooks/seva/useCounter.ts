@@ -606,14 +606,18 @@ export function useCounter(): UseCounter {
     const previous = stateRef.current.devotee;
     dispatchRaw({
       type: "applyProfile",
-      devotee: profileToDraft({
-        name: s.name,
-        gotra: s.gotra ?? undefined,
-        gotraId: s.gotraId ?? undefined,
-        nakshatraId: s.nakshatraId ?? undefined,
-        rashiId: s.rashiId ?? undefined,
-        phoneLast4: s.phoneLast4 ?? undefined,
-      }),
+      // The bootstrap's lists, so a gotra temple admins added (id 1000 up) keeps its id (A4P-5).
+      devotee: profileToDraft(
+        {
+          name: s.name,
+          gotra: s.gotra ?? undefined,
+          gotraId: s.gotraId ?? undefined,
+          nakshatraId: s.nakshatraId ?? undefined,
+          rashiId: s.rashiId ?? undefined,
+          phoneLast4: s.phoneLast4 ?? undefined,
+        },
+        bootstrapRef.current?.lists,
+      ),
     });
     setFilled({ lastVisit: s.lastVisit, previous });
     setSuggestion(null);

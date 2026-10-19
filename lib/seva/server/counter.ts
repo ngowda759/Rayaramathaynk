@@ -12,8 +12,8 @@
 import "server-only";
 import { z } from "zod";
 import { GOTRAS } from "@/lib/seva/domain/gotras";
+import { findListOption, slipNameLists, type CounterPickLists } from "@/lib/seva/domain/lists";
 import { NAKSHATRAS } from "@/lib/seva/domain/nakshatras";
-import { findOption } from "@/lib/seva/domain/options";
 import { RASHIS } from "@/lib/seva/domain/rashis";
 import { SevaError, type SevaErrorCode } from "@/lib/seva/errors";
 import { fromPaise, toPaise } from "@/lib/seva/money";
@@ -31,6 +31,7 @@ import type {
   OfflineOrderPayload,
   OutboxItem,
   SevaMe,
+  SevaLists,
   SevaRole,
   SlipSettings,
   SyncResponse,
@@ -38,7 +39,7 @@ import type {
 import type { VerifiedDevice } from "./device";
 import { readCounterUpi } from "./finance";
 import { getIdentityAdapter } from "./identity";
-import { readLists } from "./lists";
+import { readListsOrNone } from "./lists";
 import { callRpc } from "./rpc";
 
 type Json = Record<string, unknown>;
@@ -250,38 +251,41 @@ function issuedLine(value: unknown): IssuedLine {
   };
 }
 
-/** The devotee as the slip prints it: list picks in English with the Kannada name, free text as typed. No phone. */
-function issuedDevotee(value: unknown): IssuedReceipt["devotee"] {
+/**
+ * The devotee as the slip prints it: list picks in English with the Kannada name, free text as typed. No phone.
+ * Names come from the lists temple admins keep (A4P-5), hidden gotras included, else from the built-in lists.
+ */
+function issuedDevotee(value: unknown, names: CounterPickLists): IssuedReceipt["devotee"] {
   const d = obj(value);
   const out: IssuedReceipt["devotee"] = { name: str(d.name) };
 
   const gotraText = strOrNull(d.gotra);
-  const gotra = findOption(GOTRAS, intOrNull(d.gotra_id));
+  const gotra = findListOption(names.gotras, GOTRAS, intOrNull(d.gotra_id));
   const gotraName = gotraText ?? gotra?.en;
   if (gotraName) out.gotra = gotraName;
-  if (gotra) out.gotraKn = gotra.kn;
+  if (gotra?.kn) out.gotraKn = gotra.kn;
 
-  const nakshatra = findOption(NAKSHATRAS, intOrNull(d.nakshatra_id));
+  const nakshatra = findListOption(names.nakshatras, NAKSHATRAS, intOrNull(d.nakshatra_id));
   const nakshatraText = strOrNull(d.nakshatra_text);
   if (nakshatra) {
     out.nakshatra = nakshatra.en;
-    out.nakshatraKn = nakshatra.kn;
+    if (nakshatra.kn) out.nakshatraKn = nakshatra.kn;
   } else if (nakshatraText) {
     out.nakshatra = nakshatraText;
   }
 
-  const rashi = findOption(RASHIS, intOrNull(d.rashi_id));
+  const rashi = findListOption(names.rashis, RASHIS, intOrNull(d.rashi_id));
   const rashiText = strOrNull(d.rashi_text);
   if (rashi) {
     out.rashi = rashi.en;
-    out.rashiKn = rashi.kn;
+    if (rashi.kn) out.rashiKn = rashi.kn;
   } else if (rashiText) {
     out.rashi = rashiText;
   }
   return out;
 }
 
-function issuedReceipt(value: unknown): IssuedReceipt {
+function issuedReceipt(value: unknown, names: CounterPickLists): IssuedReceipt {
   const r = obj(value);
   const payment = obj(r.payment);
   const issuedBy = obj(r.issued_by);
@@ -300,7 +304,7 @@ function issuedReceipt(value: unknown): IssuedReceipt {
     totalPaise: paise(r.total),
     lines: list(r.lines).map(issuedLine),
     payment: mode === "upi" && upiRef ? { mode, upiRefLast6: upiRef } : { mode },
-    devotee: issuedDevotee(r.devotee),
+    devotee: issuedDevotee(r.devotee, names),
     qrToken: str(r.qr_token),
     issuedAt: isoTime(r.issued_at),
     issuedBy: { name: str(issuedBy.name), staffNo: intOrNull(issuedBy.staff_no) },
@@ -313,14 +317,18 @@ function issuedReceipt(value: unknown): IssuedReceipt {
   };
 }
 
-/** seva_order_json's answer as the IssueResponse wire type: numerics to paise, Kannada list names added. */
-export function fromSqlIssue(answer: unknown): IssueResponse {
+/**
+ * seva_order_json's answer as the IssueResponse wire type: numerics to paise, Kannada list names added. `lists` are
+ * the lists temple admins keep (readListsOrNone); without them the built-in names are printed.
+ */
+export function fromSqlIssue(answer: unknown, lists?: SevaLists | null): IssueResponse {
   const o = obj(answer);
+  const names = slipNameLists(lists);
   return {
     orderId: str(o.order_id),
     groupNo: str(o.group_no),
     duplicate: bool(o.duplicate),
-    receipts: list(o.receipts).map(issuedReceipt),
+    receipts: list(o.receipts).map((receipt) => issuedReceipt(receipt, names)),
   };
 }
 
@@ -495,7 +503,7 @@ export async function loadBootstrap(
     callRpc<unknown>("seva_prepare_day_close", { p_counter_id: device.counterId, p_business_date: today }),
     callRpc<unknown>("seva_offline_group_floor", { p_counter_id: device.counterId, p_device_id: device.id, p_at: serverTime }),
     readCounterUpi(),
-    readLists().catch(() => undefined),
+    readListsOrNone(),
   ]);
 
   const settings = row(settingsRead) ?? bad();

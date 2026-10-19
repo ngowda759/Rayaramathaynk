@@ -142,7 +142,11 @@ function Row({
       <td className="px-3 py-3">
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
           <Bilingual en={item.nameEn} kn={item.nameKn} className="font-semibold" />
-          {unchecked(item) ? <Chip tone="attention">{T.uncheckedBadge.en}</Chip> : null}
+          {unchecked(item) ? (
+            <Chip tone="attention">
+              <Bilingual en={T.uncheckedBadge.en} kn={T.uncheckedBadge.kn} />
+            </Chip>
+          ) : null}
         </div>
       </td>
       {isGotra ? <td className="px-3 py-3">{item.active ? null : <Chip tone="neutral">{T.hiddenChip}</Chip>}</td> : null}

@@ -1,7 +1,7 @@
 import type { SevaListItem, SevaLists } from '@/types/seva';
 import { GOTRAS } from './gotras';
 import { NAKSHATRAS } from './nakshatras';
-import type { DomainOption } from './options';
+import { findOption, type DomainOption } from './options';
 import { RASHIS } from './rashis';
 
 /**
@@ -25,11 +25,11 @@ function byOrder(a: SevaListItem, b: SevaListItem): number {
   return a.displayOrder - b.displayOrder || a.id - b.id;
 }
 
-function gotraOptions(items: readonly SevaListItem[] | undefined): readonly DomainOption[] {
+function gotraOptions(items: readonly SevaListItem[] | undefined, includeHidden: boolean): readonly DomainOption[] {
   if (!items || items.length === 0) return GOTRAS;
   const builtIn = new Map(GOTRAS.map((g) => [g.id, g]));
   return [...items]
-    .filter((item) => item.active)
+    .filter((item) => includeHidden || item.active)
     .sort(byOrder)
     .map((item) => ({
       id: item.id,
@@ -49,11 +49,36 @@ function fixedOptions(builtIn: readonly DomainOption[], items: readonly SevaList
   });
 }
 
-export function counterPickLists(lists: SevaLists | null | undefined): CounterPickLists {
+function mergeLists(lists: SevaLists | null | undefined, includeHidden: boolean): CounterPickLists {
   if (!lists) return BUILT_IN_PICK_LISTS;
   return {
-    gotras: gotraOptions(lists.gotras),
+    gotras: gotraOptions(lists.gotras, includeHidden),
     nakshatras: fixedOptions(NAKSHATRAS, lists.nakshatras),
     rashis: fixedOptions(RASHIS, lists.rashis),
   };
+}
+
+/** The lists the counter's pickers offer: hidden gotras left out. */
+export function counterPickLists(lists: SevaLists | null | undefined): CounterPickLists {
+  return mergeLists(lists, false);
+}
+
+/**
+ * The lists a slip or a returning devotee's details take names from: the same merge as the pickers, but hidden gotras
+ * are kept, because a receipt or a devotee profile may already carry one.
+ */
+export function slipNameLists(lists: SevaLists | null | undefined): CounterPickLists {
+  return mergeLists(lists, true);
+}
+
+/**
+ * The list option for a stored id: the admins' list first, then the built-in one (an id the admins' list does not
+ * carry, or a list this PC cached before A4P-5).
+ */
+export function findListOption(
+  merged: readonly DomainOption[],
+  builtIn: readonly DomainOption[],
+  id: number | null | undefined,
+): DomainOption | undefined {
+  return findOption(merged, id) ?? findOption(builtIn, id);
 }

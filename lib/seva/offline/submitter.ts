@@ -19,8 +19,8 @@
  * Keep the same clientOrderId when the receptionist retries the same order after a "cancelled" result.
  */
 import { GOTRAS } from '@/lib/seva/domain/gotras';
+import { findListOption, slipNameLists } from '@/lib/seva/domain/lists';
 import { NAKSHATRAS } from '@/lib/seva/domain/nakshatras';
-import { findOption } from '@/lib/seva/domain/options';
 import { RASHIS } from '@/lib/seva/domain/rashis';
 import { formatReceiptNo } from '@/lib/seva/numbering';
 import { newQrToken } from '@/lib/seva/qr';
@@ -35,6 +35,7 @@ import type {
   IssuedReceipt,
   IssueResponse,
   OfflineOrderPayload,
+  SevaLists,
 } from '@/types/seva';
 import { takeGroupNumber, takeRunningNumbers } from './allocator';
 import { connectionStore, isUnreachable } from './connection';
@@ -162,26 +163,30 @@ function priceOrder(p: CounterOrderPayload, catalogue: readonly CatalogueSeva[])
   return { receipts, totalPaise };
 }
 
-/** Devotee details as printed: English names from the pick lists, Kannada under them. Never the phone. */
-function slipDevotee(d: DevoteeInput): IssuedReceipt['devotee'] {
+/**
+ * Devotee details as printed: English names from the pick lists, Kannada under them. Never the phone. Names come from
+ * the lists temple admins keep, as the cached bootstrap carries them (hidden gotras included), else the built-in ones.
+ */
+function slipDevotee(d: DevoteeInput, lists: SevaLists | undefined): IssuedReceipt['devotee'] {
+  const names = slipNameLists(lists);
   const out: IssuedReceipt['devotee'] = { name: d.name.trim() };
   if (d.gotra) {
-    const option = findOption(GOTRAS, d.gotra.id);
+    const option = findListOption(names.gotras, GOTRAS, d.gotra.id);
     const text = d.gotra.text.trim() || option?.en;
     if (text) out.gotra = text;
-    if (option) out.gotraKn = option.kn;
+    if (option?.kn) out.gotraKn = option.kn;
   }
   if (d.nakshatra) {
-    const option = findOption(NAKSHATRAS, d.nakshatra.id);
+    const option = findListOption(names.nakshatras, NAKSHATRAS, d.nakshatra.id);
     const text = option?.en ?? d.nakshatra.text?.trim();
     if (text) out.nakshatra = text;
-    if (option) out.nakshatraKn = option.kn;
+    if (option?.kn) out.nakshatraKn = option.kn;
   }
   if (d.rashi) {
-    const option = findOption(RASHIS, d.rashi.id);
+    const option = findListOption(names.rashis, RASHIS, d.rashi.id);
     const text = option?.en ?? d.rashi.text?.trim();
     if (text) out.rashi = text;
-    if (option) out.rashiKn = option.kn;
+    if (option?.kn) out.rashiKn = option.kn;
   }
   return out;
 }
@@ -199,7 +204,8 @@ async function issueOffline(deps: CounterSubmitterDeps, p: CounterOrderPayload, 
   if (year < MIN_YEAR || year > MAX_YEAR) throw new OfflineIssueError('offline_clock_invalid');
 
   // Everything that can fail is worked out before the transaction, which then only stores.
-  const priced = priceOrder(p, deps.catalogue().catalogue);
+  const bootstrap = deps.catalogue();
+  const priced = priceOrder(p, bootstrap.catalogue);
   const counter = deps.counter();
   const staff = deps.staff();
   const series = counter.offlineSeries;
@@ -208,7 +214,7 @@ async function issueOffline(deps: CounterSubmitterDeps, p: CounterOrderPayload, 
   const issuedAt = now.toISOString();
   const yymm = `${pad2(year % 100)}${pad2(month)}`;
   const fresh = priced.receipts.map(() => ({ clientReceiptId: newClientId(), qrToken: newQrToken() }));
-  const devotee = slipDevotee(p.devotee);
+  const devotee = slipDevotee(p.devotee, bootstrap.lists);
   const payment = slipPayment(p.payment);
   const count = priced.receipts.length;
 

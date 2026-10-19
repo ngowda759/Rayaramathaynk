@@ -306,7 +306,8 @@ describe('POST /api/seva/counter/orders', () => {
 
     expect(res.status).toBe(200);
     expect(mockRequire).toHaveBeenCalledWith(req, 'counter.issue', { device: 'required' });
-    expect(mockCallRpc).toHaveBeenCalledTimes(1);
+    // One issue call; the admins' lists are read alongside for the slip's Kannada names (A4P-5).
+    expect(mockCallRpc.mock.calls.map(([fn]) => fn).sort()).toEqual(['seva_issue_counter_order', 'seva_list_items_get']);
     expect(mockCallRpc).toHaveBeenCalledWith('seva_issue_counter_order', {
       p_order: expect.objectContaining({
         client_order_id: id(1),
