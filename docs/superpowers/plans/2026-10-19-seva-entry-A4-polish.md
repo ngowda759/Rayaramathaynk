@@ -196,6 +196,91 @@ Tier: **Opus high** - many small forms; the phone-first prasadam screen must sta
 3. Run the unit tests and the four e2e specs.
 4. Commit: `feat(seva): spring motion and pending states on settings, staff, prasadam and receipts`.
 
+## Task A4P-5: Settings page for the gotra, nakshatra and rashi lists
+
+Tier: **Opus high** - a new table, functions, routes and a page, and the counter must keep working offline.
+
+The owner decided on 2026-10-19 (card `lists`): temple admins keep the lists up to date.
+- **Gotras:** they can add a gotra and correct its English or Kannada name. They can hide one, but never delete it,
+  because receipts keep `gotra_id`.
+- **Nakshatras (27) and rashis (12):** the names are fixed. Only the Kannada spelling can be corrected.
+- **Every change is logged.** View-only temple admins see the page but cannot save.
+- **Proof-reading:** each Kannada name carries a "not yet checked" mark until an admin saves it. This supports the
+  temple's proof-reading (O-03).
+
+**Files:**
+- **Create:**
+  - `supabase/migrations/20261030000000_seva_lists.sql`
+  - `lib/seva/server/lists.ts`
+  - `app/api/seva/settings/lists/route.ts`
+  - `app/admin/receipts/settings/lists/page.tsx` and its `loading.tsx`
+  - `components/seva/settings/lists/*`
+  - `lib/seva/strings/lists.ts`
+- **Modify:**
+  - the counter bootstrap in `lib/seva/server/counter.ts` and its types, so that `lists` is added to the answer
+  - the counter's gotra, nakshatra and rashi pickers, which read the bootstrap lists, cached for offline use, and fall
+    back to the built-in lists in `lib/seva/domain/*`
+  - the settings navigation
+  - `types/seva*.ts`
+- **Tests:**
+  - `tests/db/seva-lists.test.ts`
+  - `tests/unit/seva/api-lists.test.ts`
+  - `tests/unit/seva/lists-merge.test.ts`
+  - `tests/e2e/seva/settings-lists.spec.ts`
+
+**SQL** (Postgres 15 only; same pattern as the other seva migrations):
+- **Table `seva_list_items`.** Columns:
+  - `kind text` CHECK in `('gotra', 'nakshatra', 'rashi')`
+  - `item_id smallint`
+  - `name_en text`, `name_kn text`
+  - `kn_checked boolean default false`
+  - `active boolean default true`
+  - `display_order int`
+  - `updated_at`, and `updated_by` (staff id)
+  - Primary key `(kind, item_id)`.
+- **Protection:** RLS enabled with no policies. REVOKE from PUBLIC, anon and authenticated. GRANT only what the
+  service role needs. REVOKE TRIGGER and REFERENCES, as `20261029235900_seva_privilege_hardening.sql` does.
+- **Seed:** the rows from the built-in lists, with the same ids the code uses today.
+- **`seva_list_items_get()`** returns every row.
+- **`seva_list_item_save(p_item jsonb, p_staff_id uuid)`:**
+  - It requires an active actor.
+  - For a nakshatra or rashi it refuses any change except `name_kn` (`SEVA:validation`).
+  - A new gotra gets the next id from 1000 up.
+  - It refuses a duplicate English gotra name, case-insensitive.
+  - It sets `kn_checked` true when `name_kn` is saved.
+  - It writes an audit row `settings.list_item` with before and after.
+  - No delete function.
+
+**API:**
+- `GET` requires `reports.view` or `settings.view`, whichever the matrix uses for settings pages.
+- `POST` requires `settings.edit`, so a view-only temple admin gets 403.
+- zod-validated. Errors through the module's `respond` helper.
+
+**Page:** Receipt Book > Settings > "Devotee lists", with tabs Gotra / Nakshatra / Rashi.
+- **Gotra tab:** a search, Add, Edit, and Hide/Show.
+- **Nakshatra and Rashi tabs:** edit the Kannada spelling only.
+- **"Not yet checked" badge:** shown on unchecked Kannada names, with a count per tab.
+- **Motion and feedback:** A4P-1's `PendingButton`, `Reveal` and `MotionDialog`.
+- **Language:** Kannada under English everywhere.
+
+**Steps:**
+1. Write the failing tests first:
+   - DB:
+     - `it('adds a gotra with the next id from 1000 and logs it')`
+     - `it('refuses a change to a nakshatra name but saves its Kannada and marks it checked')`
+     - `it('refuses a duplicate gotra name')`
+     - `it('hides a gotra without deleting it')`
+     - `it('no role but the service role can read or write the table')`
+   - API: `it('a view-only temple admin gets 403 on save')`
+   - Unit: `it('the counter uses bootstrap lists, falls back to built-in ones offline, and hides hidden gotras')`
+   - e2e: `test('a temple admin adds a gotra and the counter offers it')`
+2. Implement.
+3. Run the task's DB, unit and e2e tests.
+4. Commit: `feat(seva): settings page for the gotra, nakshatra and rashi lists`.
+
+**Owner note:** the new migration must be pushed to the owner's test project (`npx supabase db push`) before he tries
+the page on his PC. The orchestrator gives him the one command.
+
 ## Task A4P-6: Tidy the open LOW items and the two-key backup
 
 Tier: **Opus medium**.
