@@ -13,6 +13,8 @@ export interface CameraScannerProps {
   readyForNext?: boolean;
   /** Each QR text read; repeats of the same code arrive on later frames and are the caller's to ignore. */
   onCode(text: string): void;
+  /** Called once the camera is running and reading frames (the slip in front of it is seen again from now on). */
+  onRunning?(): void;
 }
 
 type CameraStatus = "starting" | "running" | CameraErrorCode;
@@ -30,14 +32,16 @@ const CORNER = "pointer-events-none absolute size-11 border-4 border-(--primary-
  * The camera view-finder of the prasadam counter. The camera runs while this is shown and stops when it unmounts
  * (a result on screen, the typed mode, leaving the page). Needs https; otherwise it says to type the number.
  */
-export function CameraScanner({ readyForNext = false, onCode }: CameraScannerProps): JSX.Element {
+export function CameraScanner({ readyForNext = false, onCode, onRunning }: CameraScannerProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const onCodeRef = useRef(onCode);
+  const onRunningRef = useRef(onRunning);
   const [status, setStatus] = useState<CameraStatus>("starting");
 
   useEffect(() => {
     onCodeRef.current = onCode;
-  }, [onCode]);
+    onRunningRef.current = onRunning;
+  }, [onCode, onRunning]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -50,6 +54,7 @@ export function CameraScanner({ readyForNext = false, onCode }: CameraScannerPro
         else {
           stop = stopScanner;
           setStatus("running");
+          onRunningRef.current?.();
         }
       })
       .catch((error: unknown) => {

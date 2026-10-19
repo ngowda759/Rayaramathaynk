@@ -26,9 +26,15 @@ import type { PrasadamLookupResult } from "@/types/seva-prasadam";
 
 type AlreadyGiven = Extract<PrasadamLookupResult, { state: "already_given" }>;
 
-/** The undo time of the person who gave it (DB §11, C-27); the server checks it again. */
+/**
+ * The undo time of the person who gave it (DB §11, C-27). The server checks it again against its configurable
+ * `seva_settings.prasadam_undo_seconds`; this copy only decides how long the Undo button shows.
+ */
 const UNDO_MS = 120_000;
-/** The same QR seen again within this time (still in front of the camera) is not looked up twice. */
+/**
+ * A QR seen again within this time of its previous sighting is the same slip still in front of the camera and is not
+ * looked up again. Out of view for longer, it is looked up again (so a handled slip shown again gets its card).
+ */
 const REPEAT_SCAN_MS = 3_000;
 const MODE_KEY = "seva.prasadam.mode";
 
@@ -104,8 +110,8 @@ function PrasadamCounter(): JSX.Element {
   const busyRef = useRef(false);
   const lookupSeq = useRef(0);
   const lastScan = useRef<{ text: string; at: number } | null>(null);
-  /** The slip just dealt with (marked, Scan next, Not now): not looked up again until another QR is seen. */
-  const ignoreCode = useRef<string | null>(null);
+  /** The slip just dealt with (marked, Scan next, Not now): counted as seen again when the camera comes back. */
+  const handledCode = useRef<string | null>(null);
   const tokenLooked = useRef(false);
 
   const today = businessDate(new Date());
@@ -153,6 +159,23 @@ function PrasadamCounter(): JSX.Element {
     }
   }, []);
 
+  /**
+   * The slip just dealt with in scan mode is probably still in front of the camera: count it as seen now, so it is
+   * ignored while it stays in view and looked up again (its card shown) once it was out of view for REPEAT_SCAN_MS.
+   */
+  const noteHandled = useCallback(() => {
+    const code = mode === "scan" ? (lastScan.current?.text ?? null) : null;
+    handledCode.current = code;
+    if (code !== null) lastScan.current = { text: code, at: Date.now() };
+  }, [mode]);
+
+  /** The camera is reading again: the handled slip counts as seen from this moment (the camera can start slowly). */
+  const onCameraRunning = useCallback(() => {
+    const code = handledCode.current;
+    handledCode.current = null;
+    if (code !== null && lastScan.current?.text === code) lastScan.current = { text: code, at: Date.now() };
+  }, []);
+
   const lookup = useCallback(
     async (query: string) => {
       const seq = ++lookupSeq.current;
@@ -173,7 +196,7 @@ function PrasadamCounter(): JSX.Element {
         given.add(answer.receipt.id);
         setMarked({ result: answer, until: Date.now() + UNDO_MS });
         setUndoOpen(true);
-        if (mode === "scan") ignoreCode.current = lastScan.current?.text ?? null;
+        noteHandled();
         setResult(null);
         setTyped("");
         if (mode === "type") focusInput();
@@ -181,7 +204,7 @@ function PrasadamCounter(): JSX.Element {
       }
       setResult(answer.state === "not_found" ? { state: "not_found", query: receiptNo } : answer);
     },
-    [api, focusInput, given, mode, run],
+    [api, focusInput, given, mode, noteHandled, run],
   );
 
   const undo = useCallback(async () => {
@@ -213,12 +236,13 @@ function PrasadamCounter(): JSX.Element {
   function changeMode(next: FindMode): void {
     setMode(next);
     saveMode(next);
+    handledCode.current = null;
     setResult(null);
     if (next === "type") focusInput();
   }
 
   function clearForNext(): void {
-    if (mode === "scan") ignoreCode.current = lastScan.current?.text ?? null;
+    noteHandled();
     setResult(null);
     setError(null);
     setTyped("");
@@ -227,13 +251,12 @@ function PrasadamCounter(): JSX.Element {
 
   const onScan = useCallback(
     (text: string) => {
+      // A frame read while a request runs is dropped and is not counted as a sighting.
+      if (busyRef.current) return;
       const now = Date.now();
       const previous = lastScan.current;
       lastScan.current = { text, at: now };
-      if (busyRef.current) return;
-      // The slip just dealt with stays ignored until another QR is seen; any slip is read once per sighting.
-      if (ignoreCode.current === text) return;
-      ignoreCode.current = null;
+      // Still in front of the camera (seen again within REPEAT_SCAN_MS), including the slip just dealt with.
       if (previous && previous.text === text && now - previous.at < REPEAT_SCAN_MS) return;
       void lookup(text);
     },
@@ -295,7 +318,7 @@ function PrasadamCounter(): JSX.Element {
         />
       ) : null}
 
-      {showCamera ? <CameraScanner readyForNext={marked !== null} onCode={onScan} /> : null}
+      {showCamera ? <CameraScanner readyForNext={marked !== null} onCode={onScan} onRunning={onCameraRunning} /> : null}
 
       {error ? (
         <p role="alert" className="rounded-(--radius-control) border border-(--destructive) bg-(--destructive-soft) px-4 py-3 font-semibold text-(--destructive)">
