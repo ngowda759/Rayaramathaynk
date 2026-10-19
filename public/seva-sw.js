@@ -1,6 +1,7 @@
 /*
  * Seva counter service worker (Design Book 6.3, 9.11). Registered by components/seva/counter/RegisterServiceWorker.tsx
- * with scope /admin/receipts/counter, so it controls only the counter pages.
+ * with scope /seva/counter, so it controls only the counter pages. Version 2 moved the counter from
+ * /admin/receipts/counter; `activate` drops the version-1 cache that held the old address.
  *
  * - Counter page navigations: network first; when the line is down or has not answered in 4 s, the last copy of the
  *   page from this cache.
@@ -8,14 +9,14 @@
  * - Everything else, and every /api/* call, goes straight to the network: receipts, sync and sign-in are never cached;
  *   the counter's own IndexedDB outbox handles offline saving.
  *
- * Plain JavaScript, no build step. `routeRequest` and `networkFirst` are exported for the unit test when `module` exists.
+ * Plain JavaScript, no build step. `routeRequest`, `networkFirst` and `SEVA_CACHE` are exported for the unit test when `module` exists.
  */
 'use strict';
 
-var SEVA_SW_VERSION = '1';
+var SEVA_SW_VERSION = '2';
 var SEVA_CACHE_PREFIX = 'seva-counter-';
 var SEVA_CACHE = SEVA_CACHE_PREFIX + SEVA_SW_VERSION;
-var COUNTER_PATH = '/admin/receipts/counter';
+var COUNTER_PATH = '/seva/counter';
 var CACHE_FIRST_FILES = ['/seva-counter.webmanifest', '/favicon.svg', '/favicon.ico'];
 var PRECACHE = [COUNTER_PATH].concat(CACHE_FIRST_FILES);
 /** A counter page that has not answered in this time is served from the cache, if a copy exists. */
@@ -177,5 +178,10 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function' &
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { routeRequest: routeRequest, networkFirst: networkFirst, NETWORK_TIMEOUT_MS: NETWORK_TIMEOUT_MS };
+  module.exports = {
+    routeRequest: routeRequest,
+    networkFirst: networkFirst,
+    NETWORK_TIMEOUT_MS: NETWORK_TIMEOUT_MS,
+    SEVA_CACHE: SEVA_CACHE,
+  };
 }

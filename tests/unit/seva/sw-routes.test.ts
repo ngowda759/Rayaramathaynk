@@ -3,15 +3,16 @@
  */
 import { readFileSync } from 'fs';
 import path from 'path';
-import { NETWORK_TIMEOUT_MS, networkFirst, routeRequest } from '@/public/seva-sw.js';
+import { NETWORK_TIMEOUT_MS, SEVA_CACHE, networkFirst, routeRequest } from '@/public/seva-sw.js';
+import { SEVA_ROUTES } from '@/lib/seva/routes';
 
 const site = 'https://site.example';
 
 describe('counter service worker routing', () => {
-  it('routes counter pages network-first, static files cache-first and API calls straight through', () => {
-    expect(routeRequest(`${site}/admin/receipts/counter`, 'navigate')).toBe('network-first');
-    expect(routeRequest(`${site}/admin/receipts/counter/today`, 'navigate')).toBe('network-first');
-    expect(routeRequest(new URL(`${site}/admin/receipts/counter?x=1`), 'navigate')).toBe('network-first');
+  it('serves counter navigations under /seva/counter network-first', () => {
+    expect(routeRequest(`${site}/seva/counter`, 'navigate')).toBe('network-first');
+    expect(routeRequest(`${site}/seva/counter/today`, 'navigate')).toBe('network-first');
+    expect(routeRequest(new URL(`${site}/seva/counter?x=1`), 'navigate')).toBe('network-first');
 
     expect(routeRequest(`${site}/_next/static/chunks/app-1234.js`, 'no-cors')).toBe('cache-first');
     expect(routeRequest(`${site}/_next/static/css/app.css`, 'cors')).toBe('cache-first');
@@ -23,28 +24,39 @@ describe('counter service worker routing', () => {
     expect(routeRequest(`${site}/api/seva/counter/bootstrap`, 'navigate')).toBe('bypass');
   });
 
-  it('leaves everything else to the network', () => {
-    expect(routeRequest(`${site}/admin/receipts`, 'navigate')).toBe('bypass');
-    expect(routeRequest(`${site}/admin/receipts/counterfeit`, 'navigate')).toBe('bypass');
-    expect(routeRequest(`${site}/admin/receipts/counter?_rsc=abc`, 'cors')).toBe('bypass'); // in-app data fetch
+  it('lets /seva, /seva/register, /seva/counterfeit and the old /admin/receipts/counter go to the network', () => {
+    expect(routeRequest(`${site}/seva`, 'navigate')).toBe('bypass');
+    expect(routeRequest(`${site}/seva/register`, 'navigate')).toBe('bypass');
+    expect(routeRequest(`${site}/seva/counterfeit`, 'navigate')).toBe('bypass');
+    expect(routeRequest(`${site}/admin/receipts/counter`, 'navigate')).toBe('bypass');
+    expect(routeRequest(`${site}/admin/receipts/counter/today`, 'navigate')).toBe('bypass');
+    expect(routeRequest(`${site}/seva/counter?_rsc=abc`, 'cors')).toBe('bypass'); // in-app data fetch
     expect(routeRequest(`${site}/images/logos/social-preview.png`, 'no-cors')).toBe('bypass');
     expect(routeRequest(`${site}/_next/image?url=x`, 'no-cors')).toBe('bypass');
+  });
+
+  it('uses cache version 2, so the copy of the old counter address is dropped', () => {
+    expect(SEVA_CACHE).toBe('seva-counter-2');
   });
 });
 
 describe('counter install manifest', () => {
-  it('opens the counter as its own window with the site icons', () => {
+  it('the manifest installs Seva Counter at /seva/counter with scope /seva', () => {
     const raw = readFileSync(path.join(process.cwd(), 'public', 'seva-counter.webmanifest'), 'utf8');
     const manifest = JSON.parse(raw) as {
       name: string;
+      id: string;
       start_url: string;
       scope: string;
       display: string;
       icons: { src: string }[];
     };
     expect(manifest.name).toBe('Seva Counter');
-    expect(manifest.start_url).toBe('/admin/receipts/counter');
-    expect(manifest.scope).toBe('/admin/receipts/counter');
+    expect(manifest.id).toBe(SEVA_ROUTES.counter);
+    expect(manifest.start_url).toBe(SEVA_ROUTES.counter);
+    expect(manifest.scope).toBe(SEVA_ROUTES.dashboard);
+    expect(manifest.id).toBe('/seva/counter');
+    expect(manifest.scope).toBe('/seva');
     expect(manifest.display).toBe('standalone');
     const srcs = manifest.icons.map((i) => i.src);
     expect(srcs).toEqual(expect.arrayContaining(['/favicon.svg', '/favicon.ico']));
@@ -55,7 +67,7 @@ describe('counter install manifest', () => {
 });
 
 describe('counter page network-first with a timeout', () => {
-  const page = `${site}/admin/receipts/counter`;
+  const page = `${site}/seva/counter`;
   type G = { fetch?: unknown; caches?: unknown };
   const g = globalThis as unknown as G;
   const saved = { fetch: g.fetch, caches: g.caches };
