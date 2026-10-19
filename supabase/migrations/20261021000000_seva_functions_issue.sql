@@ -1527,8 +1527,9 @@ $$;
 
 -- Cancels each receipt (an id given twice counts once) with one of the eight counter reasons; 'other' needs a note
 -- of at least 3 characters. Without p_is_admin the canceller must be the issuer and inside the cancel window, checked
--- at coalesce(p_at, now()) held between issued_at and now(): p_at is when an offline cancel happened on the PC. A
--- temple admin or super admin (p_is_admin, decided by the route) cancels any receipt at any time. Money back: cash
+-- at coalesce(p_at, now()) held between issued_at and now(): p_at is when an offline cancel happened on the PC, and
+-- only an offline cancel may pass it - p_at without p_cancelled_by_staff_no is SEVA:validation (field at), so an
+-- online caller can never move the window back. A temple admin or super admin (p_is_admin, decided by the route) cancels any receipt at any time. Money back: cash
 -- cancelled on the receipt's own IST business date is handed back from the drawer (refund_state done); cash from an
 -- earlier day, UPI and online are refunded by the office (due). One audit row receipt.cancel per receipt. All or
 -- nothing.
@@ -1540,7 +1541,10 @@ $$;
 -- counter rule - own receipt, inside the window up to p_at - because offline only one's own receipts are cancelled;
 -- p_is_admin is not used. The canceller is recorded as cancelled_by_staff_id and is the actor of receipt.cancel (with
 -- p_canceller_role as actor_role, and offline and synced_by_staff_id in its after); an inactive canceller adds
--- receipt.issuer_inactive_at_sync by the syncer.
+-- receipt.issuer_inactive_at_sync by the syncer. When the IST business date of the cancel's recorded time is already
+-- closed for the receipt's counter (day_closes status closed), the cancel is still stored - the slip was cancelled on
+-- the PC - but flagged for the office: in_closed_day true in the answer and in the audit row's after, which also
+-- carries closed_business_date. Every receipt of the answer carries in_closed_day (false for an online cancel).
 DROP FUNCTION IF EXISTS seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz);
 CREATE OR REPLACE FUNCTION seva_cancel_receipts(
   p_receipt_ids uuid[],
@@ -1569,8 +1573,10 @@ DECLARE
   v_id uuid;
   v_receipt seva_receipts%ROWTYPE;
   v_mode text;
+  v_counter_id smallint;
   v_at timestamptz;
   v_at_date date;
+  v_in_closed_day boolean;
   v_refund text;
   v_refund_note text;
   v_after jsonb;
@@ -1579,6 +1585,11 @@ DECLARE
   v_out jsonb := '[]'::jsonb;
 BEGIN
   v_staff := seva_issue_staff(p_staff_id);
+  -- Only an offline cancel carries the time it was made; anyone else is measured to now().
+  IF NOT v_offline AND p_at IS NOT NULL THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'at', 'reason', 'only an offline cancel carries its own time')::text;
+  END IF;
   IF v_offline THEN
     v_syncer := v_staff;
     IF p_at IS NULL THEN
@@ -1626,8 +1637,13 @@ BEGIN
       END IF;
     END IF;
 
-    SELECT o.payment_mode INTO v_mode FROM seva_orders o WHERE o.id = v_receipt.order_id;
+    SELECT o.payment_mode, o.counter_id INTO v_mode, v_counter_id FROM seva_orders o WHERE o.id = v_receipt.order_id;
     SELECT p.business_date INTO v_at_date FROM seva_ist_parts(v_at) AS p;
+    -- An offline cancel recorded on a day the counter has already closed is kept, and flagged for the office.
+    v_in_closed_day := v_offline AND EXISTS (
+      SELECT 1 FROM day_closes dc
+       WHERE dc.counter_id = v_counter_id AND dc.business_date = v_at_date AND dc.status = 'closed'
+    );
     IF v_mode = 'cash' AND v_receipt.business_date = v_at_date THEN
       v_refund := 'done';
       v_refund_note := 'Given back from the drawer';
@@ -1651,7 +1667,11 @@ BEGIN
                                   'cancelled_at', v_at, 'by_admin', v_is_admin);
     IF v_offline THEN
       -- The person who cancelled on the PC is the actor, with their role; the syncer is recorded beside it.
-      v_after := v_after || jsonb_build_object('offline', true, 'synced_by_staff_id', v_syncer.id);
+      v_after := v_after || jsonb_build_object('offline', true, 'synced_by_staff_id', v_syncer.id,
+                                               'in_closed_day', v_in_closed_day);
+      IF v_in_closed_day THEN
+        v_after := v_after || jsonb_build_object('closed_business_date', v_at_date);
+      END IF;
       v_route_role := seva_issue_actor_role(p_canceller_role);
     END IF;
     PERFORM seva_audit(
@@ -1681,7 +1701,8 @@ BEGIN
       'refund_state', v_refund,
       'refund_note', v_refund_note,
       'cancelled_at', v_at,
-      'total', v_receipt.total::text
+      'total', v_receipt.total::text,
+      'in_closed_day', v_in_closed_day
     ));
   END LOOP;
 

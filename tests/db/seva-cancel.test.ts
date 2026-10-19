@@ -239,6 +239,9 @@ async function cancel(
   });
 }
 
+/** An offline cancel sent by the outbox, made on the PC by Ramesh (023), who issued the fixtures. */
+const OFFLINE_23 = { cancelledByStaffNo: 23, cancellerRole: 'receptionist' } as const;
+
 /** The receipt's issue time plus an interval, as text the function reads back exactly. */
 async function issuedAtPlus(c: Ctx, id: string, plus: string): Promise<string> {
   const r = await c.db.query<{ t: string }>(`select (issued_at + $2::interval)::text as t from seva_receipts where id = $1`, [
@@ -492,24 +495,24 @@ describe('seva_cancel_receipts (A2-1)', () => {
     // Cancelled on the PC 10 minutes after issue, synced 30 minutes later: inside the window.
     const inside = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
     const at10 = await issuedAt(inside, '10 minutes');
-    await expect(cancel(c, { ids: [inside], reason: 'wrong_seva', at: at10 })).resolves.toMatchObject({
+    await expect(cancel(c, { ids: [inside], reason: 'wrong_seva', ...OFFLINE_23, at: at10 })).resolves.toMatchObject({
       receipts: [{ status: 'cancelled' }],
     });
     expect(await cancelledAt(inside)).toBe(at10);
 
     const outside = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
     expect(
-      (await failure(cancel(c, { ids: [outside], reason: 'wrong_seva', at: await issuedAt(outside, '31 minutes') }))).code,
+      (await failure(cancel(c, { ids: [outside], reason: 'wrong_seva', ...OFFLINE_23, at: await issuedAt(outside, '31 minutes') }))).code,
     ).toBe('cancel_window_passed');
 
     // p_at is never earlier than the issue time ...
     const early = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
-    await cancel(c, { ids: [early], reason: 'wrong_seva', at: await issuedAt(early, '-60 minutes') });
+    await cancel(c, { ids: [early], reason: 'wrong_seva', ...OFFLINE_23, at: await issuedAt(early, '-60 minutes') });
     expect(await cancelledAt(early)).toBe(await issuedAt(early, '0 minutes'));
 
     // ... nor later than now.
     const fresh = await issue(c, { days: [1] });
-    await cancel(c, { ids: [fresh.receipts[0].id], reason: 'wrong_seva', at: new Date(Date.now() + 2 * 3600_000).toISOString() });
+    await cancel(c, { ids: [fresh.receipts[0].id], reason: 'wrong_seva', ...OFFLINE_23, at: new Date(Date.now() + 2 * 3600_000).toISOString() });
     expect(await count(c.db, 'seva_receipts', `id = '${fresh.receipts[0].id}' and cancelled_at <= now()`)).toBe(1);
   });
 });
@@ -606,6 +609,58 @@ describe('seva_cancel_receipts - offline cancels from the outbox (A2-FIX2)', () 
         actor_staff_id: c.sureshId,
         after: expect.objectContaining({ issuer_staff_id: c.staffId, issuer_staff_no: 23, synced_by_staff_id: c.sureshId }),
       }),
+    ]);
+  });
+
+  it('refuses a cancel time unless the outbox names who cancelled on the PC (A3-1)', async () => {
+    const c = await setup();
+    const receipt = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const at = await issuedAtPlus(c, receipt, '10 minutes');
+    // An online cancel is measured to now(); only an offline cancel carries the time it was made, so a caller cannot
+    // move the window back by passing p_at alone - neither the issuer nor an admin.
+    expect(await failure(cancel(c, { ids: [receipt], reason: 'wrong_seva', at }))).toEqual({
+      code: 'validation',
+      detail: expect.objectContaining({ field: 'at' }),
+    });
+    expect(
+      await failure(cancel(c, { ids: [receipt], reason: 'wrong_seva', staffId: c.adminId, isAdmin: true, at })),
+    ).toEqual({ code: 'validation', detail: expect.objectContaining({ field: 'at' }) });
+    expect(await count(c.db, 'seva_receipts', `status = 'cancelled'`)).toBe(0);
+    expect(await count(c.db, 'audit_log')).toBe(0);
+  });
+
+  it('flags an offline cancel whose recorded time falls in an already-closed day (A3-1)', async () => {
+    const c = await setup();
+    const first = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+    const second = await insertPastReceipt(c, { minutesAgo: 40, mode: 'cash' });
+
+    const open = await cancel(c, {
+      ids: [first],
+      reason: 'wrong_seva',
+      staffId: c.sureshId,
+      at: await issuedAtPlus(c, first, '10 minutes'),
+      ...OFFLINE_23,
+    });
+    expect(open.receipts).toEqual([expect.objectContaining({ id: first, status: 'cancelled', in_closed_day: false })]);
+
+    // The counter closed the day of the second cancel's recorded time before the outbox sent it.
+    const atSecond = await issuedAtPlus(c, second, '10 minutes');
+    const day = (
+      await c.db.query<{ d: string }>('select p.business_date::text as d from seva_ist_parts($1::timestamptz) p', [atSecond])
+    ).rows[0].d;
+    await c.db.query(
+      `insert into day_closes (counter_id, business_date, status, cash_expected, cash_counted, series_ranges,
+                               outbox_pending, closed_by_staff_id, closed_at)
+       values (1, $1::date, 'closed', 0, 0, '[]'::jsonb, 0, $2::uuid, now())`,
+      [day, c.adminId],
+    );
+    const late = await cancel(c, { ids: [second], reason: 'wrong_seva', staffId: c.sureshId, at: atSecond, ...OFFLINE_23 });
+    // Still accepted - the slip was cancelled on the PC - but flagged for the office in the answer and the audit row.
+    expect(late.receipts).toEqual([expect.objectContaining({ id: second, status: 'cancelled', in_closed_day: true })]);
+    const audit = (await auditRows(c.db)).filter((r) => r.action === 'receipt.cancel');
+    expect(audit.map((r) => [r.entity_id, r.after?.in_closed_day, r.after?.closed_business_date])).toEqual([
+      [first, false, undefined],
+      [second, true, day],
     ]);
   });
 });

@@ -234,7 +234,17 @@ export type OutboxItem =
     };
 
 export interface SyncResponse {
-  results: { seq: number; ok: boolean; duplicate?: boolean; code?: string }[];
+  results: {
+    seq: number;
+    ok: boolean;
+    duplicate?: boolean;
+    code?: string;
+    /**
+     * An offline cancel stored although its recorded time falls on a day the counter had already closed: the office
+     * sees it in the audit trail; the counter may tell the person the closed day's figures changed.
+     */
+    inClosedDay?: boolean;
+  }[];
 }
 
 export interface SlipSettings {
@@ -267,6 +277,11 @@ export interface CounterBootstrap {
   festivalChips: { name: string; nameKn: string | null; dates: string[] }[];
   nextNumbers: { series: string; nextRunningNo: number }[];
   lastOfNo: number;
+  /**
+   * The offline group label floor NNN ('G-YYMM-OF1-NNN') for the IST month of `serverTime` - the same floor as the
+   * heartbeat's (seva_offline_group_floor), so a PC that has just replaced another never repeats a label.
+   */
+  lastOfGroupNo: number;
   today: { businessDate: string; receipts: number; cashPaise: number; upiPaise: number; dayClosed: boolean };
   upi: { vpa: string; payeeName: string } | null;
   upiDisabledReason: 'not_configured' | null;

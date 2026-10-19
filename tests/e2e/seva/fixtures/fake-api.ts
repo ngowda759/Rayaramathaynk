@@ -663,6 +663,7 @@ export function createFakeSevaApi(seed: Partial<FakeState> = {}): FakeSevaApi {
       festivalChips: setting("festivalDays").filter((f) => f.dates.some((d) => d >= todayDate)),
       nextNumbers: [counter.onlineSeries, counter.offlineSeries].map((series) => ({ series, nextRunningNo: (state.lastNo[series] ?? 0) + 1 })),
       lastOfNo: state.lastNo[counter.offlineSeries] ?? 0,
+      lastOfGroupNo: lastOfGroupNo(counter.offlineSeries),
       today: { businessDate: todayDate, receipts: todays.length, cashPaise: sum("cash"), upiPaise: sum("upi"), dayClosed: state.dayClosed },
       upi,
       upiDisabledReason: upi ? null : "not_configured",

@@ -911,6 +911,26 @@ describe('seva_sync_offline_order (A2-1)', () => {
     expect(await count(c.db, 'seva_orders')).toBe(5);
   });
 
+  it("counts only this IST year's open device_replaced gaps in the new PC's label floor (A3-1)", async () => {
+    const c = await setup();
+    const issuedAt = new Date().toISOString();
+    const { yymm, yyyy } = istParts(issuedAt);
+    const label = (n: number): string => `G-${yymm}-OF1-${pad(n, 3)}`;
+    // An open device_replaced gap of 5 numbers in another year's OF series: its labels belong to that year's months,
+    // so it must not raise this month's floor.
+    const otherYear = Number(yyyy) + 1;
+    await c.db.query(`insert into receipt_series_years (series_code, year, last_no) values ('OF1', $1::smallint, 9)`, [otherYear]);
+    await c.db.query(
+      `insert into receipt_number_gaps (series_code, year, from_no, to_no, cause) values ('OF1', $1::smallint, 5, 9, 'device_replaced')`,
+      [otherYear],
+    );
+
+    // This year: the old PC sent 001 (OF 1), printed OF 2 and 3 and died. Floor = 1 + this year's gap of 2.
+    await sync(c, offlineOrder(c, { issuedAt, groupNo: label(1), receipts: [{ runningNo: 1 }] }));
+    const newPc = await replaceDevice(c, 3);
+    expect((await heartbeat(c, newPc)).last_of_group_no).toBe(3);
+  });
+
   it('stores a counter order as offline exactly when someone synced it (table check)', async () => {
     const c = await setup();
     const insert = (offline: boolean, syncedBy: string | null): Promise<unknown> =>

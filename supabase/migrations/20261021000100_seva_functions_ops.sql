@@ -290,10 +290,11 @@ $$;
 -- is above the server's last OF number, the range in between (server last + 1 .. typed) becomes an open
 -- 'device_replaced' gap. A typed number at or below the server's never lowers the floor and opens no gap.
 -- The new PC also gets an offline group label floor for this IST month (of_group_floor_yymm/no, DB 8.3): the old
--- PC's floor (seva_offline_group_floor) plus the total size of the OF series' open device_replaced gaps. Every order
--- the old PC printed but never sent used at least one OF number of such a gap and one label above that floor, so the
--- new PC never repeats one of those labels, and the old PC's late upload is still accepted. The floor is stored, not
--- worked out at each heartbeat, so it does not creep up while a gap stays open.
+-- PC's floor (seva_offline_group_floor) plus the total size of the OF series' open device_replaced gaps of the current
+-- IST year. Every order the old PC printed but never sent used at least one OF number of such a gap and one label above
+-- that floor, so the new PC never repeats one of those labels, and the old PC's late upload is still accepted. A gap of
+-- another year holds numbers, and so labels, of that year's months only, so it never counts toward this month's floor.
+-- The floor is stored, not worked out at each heartbeat, so it does not creep up while a gap stays open.
 -- Needs a reason of at least 3 characters. Audit device.replace.
 CREATE OR REPLACE FUNCTION seva_replace_device(
   p_counter_id smallint,
@@ -375,7 +376,7 @@ BEGIN
   SELECT seva_offline_group_floor(p_counter_id, v_old, v_now) + coalesce(sum(g.to_no - g.from_no + 1), 0)::integer
     INTO v_group_floor
     FROM receipt_number_gaps g
-   WHERE g.series_code = v_series AND g.cause = 'device_replaced' AND g.status = 'open';
+   WHERE g.series_code = v_series AND g.year = v_year AND g.cause = 'device_replaced' AND g.status = 'open';
 
   INSERT INTO counter_devices (counter_id, secret_hash, label, registered_by_staff_id, registered_at,
                                of_group_floor_yymm, of_group_floor_no)

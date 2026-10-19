@@ -106,6 +106,7 @@ export function bootstrap(catalogue: CatalogueSeva[] = [PANCHAMRITA, PAADUKA, KA
     festivalChips: [],
     nextNumbers: [{ series: 'C1', nextRunningNo: 124 }],
     lastOfNo: 0,
+    lastOfGroupNo: 0,
     today: { businessDate: '2026-10-18', receipts: 0, cashPaise: 0, upiPaise: 0, dayClosed: false },
     upi: null,
     upiDisabledReason: 'not_configured',
