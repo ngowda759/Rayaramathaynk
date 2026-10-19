@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { FALLBACK_CHART_COLORS } from "@/lib/seva/charts/colors";
 import { MODE_NAMES, PREV_NAME, heroOption } from "@/lib/seva/charts/options";
-import type { BoardAttentionItem, CollectionsChartData, RangeTotals } from "@/lib/seva/export/collect";
+import { boardReason, type BoardAttentionItem, type CollectionsChartData, type RangeTotals } from "@/lib/seva/export/collect";
 import { formatRupees } from "@/lib/seva/money";
 import type { Bi } from "@/lib/seva/strings/common";
 import { ATTENTION_LABELS, BOARD, changeLine, moreLine, preparedLine } from "@/lib/seva/strings/export";
@@ -45,6 +45,8 @@ export interface BoardSummaryModel {
   /** Day closes with a cash or UPI difference. */
   dayCloses: DayCloseListRow[];
   cancelledChanged: ExportReceiptRow[];
+  /** Changed-amount reasons by receipt number, from the `receipt.amount_changed` audit rows. */
+  changeReasons: Record<string, string[]>;
 }
 
 /** How many rows of each list fit on sheet 2 with the large type. */
@@ -151,7 +153,7 @@ function Footer({ model, page }: { model: BoardSummaryModel; page: number }): JS
 function Sheet({ children, page }: { children: ReactNode; page: number }): JSX.Element {
   return (
     <section
-      className="board-sheet box-border flex h-[273mm] w-[186mm] flex-col overflow-hidden bg-white text-[12pt] leading-snug text-black"
+      className="board-sheet box-border flex h-[271mm] w-[186mm] flex-col overflow-hidden bg-white text-[12pt] leading-snug text-black"
       data-testid={`board-sheet-${page}`}
       aria-label={`${BOARD.page.en} ${page}`}
     >
@@ -238,6 +240,11 @@ function SheetTwo({ model }: { model: BoardSummaryModel }): JSX.Element {
   const dayCloses = model.dayCloses.slice(0, BOARD_LIMITS.dayCloses);
   const cancelled = model.cancelledChanged.slice(0, BOARD_LIMITS.cancelledChanged);
   const rates = model.rateChanges.slice(0, BOARD_LIMITS.rateChanges);
+  // One measure in the rows and the total (quantity, as on the Reports screen), totalled over every seva, not only
+  // the rows shown.
+  const quantity = model.sevas.reduce((n, s) => n + s.quantity, 0);
+  const lastYearQuantity = model.sevas.reduce((n, s) => n + s.lastYear.quantity, 0);
+  const noData = BOARD.noData.en;
 
   return (
     <Sheet page={2}>
@@ -249,10 +256,10 @@ function SheetTwo({ model }: { model: BoardSummaryModel }): JSX.Element {
           <thead>
             <tr className="text-left">
               <th className={cell}>{BOARD.seva.en}</th>
-              <th className={num}>{BOARD.count.en}</th>
+              <th className={num}>{BOARD.quantity.en}</th>
               <th className={num}>{BOARD.amount.en}</th>
               <th className={num}>
-                {BOARD.lastYear.en} ({BOARD.count.en.toLowerCase()})
+                {BOARD.lastYear.en} ({BOARD.quantity.en.toLowerCase()})
               </th>
               <th className={num}>
                 {BOARD.lastYear.en} ({BOARD.amount.en.toLowerCase()})
@@ -265,20 +272,25 @@ function SheetTwo({ model }: { model: BoardSummaryModel }): JSX.Element {
                 <td className={cell}>{s.nameEn}</td>
                 <td className={num}>{s.quantity}</td>
                 <td className={num}>{rupees(s.amountPaise)}</td>
-                <td className={num}>{s.lastYear.receipts > 0 ? s.lastYear.quantity : "-"}</td>
-                <td className={num}>{s.lastYear.receipts > 0 ? rupees(s.lastYear.amountPaise) : "-"}</td>
+                <td className={num}>{s.lastYear.quantity > 0 ? s.lastYear.quantity : noData}</td>
+                <td className={num}>{s.lastYear.amountPaise > 0 ? rupees(s.lastYear.amountPaise) : noData}</td>
               </tr>
             ))}
             <tr className="font-bold">
-              <td className={cell}>{BOARD.totalCollected.en}</td>
-              <td className={num}>{model.sevaTotals.receipts}</td>
+              <td className={cell}>{BOARD.sevaTotal.en}</td>
+              <td className={num} data-testid="board-seva-total-quantity">
+                {quantity}
+              </td>
               <td className={num}>{rupees(model.sevaTotals.amountPaise)}</td>
-              <td className={num}>{model.sevaTotals.lastYearReceipts > 0 ? model.sevaTotals.lastYearReceipts : "-"}</td>
-              <td className={num}>{model.sevaTotals.lastYearReceipts > 0 ? rupees(model.sevaTotals.lastYearAmountPaise) : "-"}</td>
+              <td className={num}>{lastYearQuantity > 0 ? lastYearQuantity : noData}</td>
+              <td className={num}>
+                {model.sevaTotals.lastYearAmountPaise > 0 ? rupees(model.sevaTotals.lastYearAmountPaise) : noData}
+              </td>
             </tr>
           </tbody>
         </table>
       )}
+      {sevas.length > 0 ? <p className="mt-[1mm] text-[9.5pt] italic">{BOARD.sevaBasis.en}</p> : null}
       <More total={sevas.length} shown={shownSevas.length} />
 
       <Heading text={BOARD.dayCloses} />
@@ -309,14 +321,17 @@ function SheetTwo({ model }: { model: BoardSummaryModel }): JSX.Element {
       ) : (
         <table className="mt-[1mm] w-full border-collapse text-[11pt]">
           <tbody>
-            {cancelled.map((r) => (
-              <tr key={r.receiptNo}>
+            {cancelled.map((r) => {
+              const reason = boardReason(r, model.changeReasons);
+              return (
+                <tr key={r.receiptNo} data-testid="board-cancelled-row">
                 <td className={`${cell} whitespace-nowrap`}>{r.receiptNo}</td>
                 <td className={cell}>{r.status === "cancelled" ? BOARD.cancelled.en : BOARD.changed.en}</td>
                 <td className={num}>{rupees(r.amountPaise)}</td>
-                <td className={cell}>{r.cancelReason || r.sevas}</td>
-              </tr>
-            ))}
+                  <td className={reason ? cell : `${cell} italic`}>{reason ?? BOARD.reasonNotRecorded.en}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

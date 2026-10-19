@@ -14,6 +14,7 @@ import {
   BOARD_AUDIT_PARTS,
   BOARD_EXPORT_PARTS,
   boardAttention,
+  collectChangeReasons,
   collectExportData,
   collectionsChart,
   previousRange,
@@ -28,8 +29,8 @@ import type { SlipSettings } from "@/types/seva";
 
 /**
  * The board print summary (DB §12.6, C-42): `/admin/receipts/reports/summary?from&to`, opened from Export. It reads
- * the range's receipts and cancellations from the export API, the previous span of the same length for the chart's
- * ghost line, the seva summary (with last year and rate changes), the day closes and the number continuity; then
+ * the range's receipts and cancellations from the export API, the previous period for the chart's ghost line
+ * (`previousRange`), the changed-amount reasons from the audit trail, the seva summary (with last year and rate changes), the day closes and the number continuity; then
  * writes the `export.download` audit row (format 'print') once, and shows the two A4 sheets with a print button.
  * "Save as PDF" in the browser's print window gives the PDF.
  */
@@ -81,12 +82,13 @@ function SummaryScreen(): JSX.Element {
     void (async () => {
       try {
         const prev = previousRange(from, to);
-        const [data, prevData, sevaSummary, dayCloses, continuity, slip] = await Promise.all([
+        const [data, prevData, sevaSummary, dayCloses, continuity, changeReasons, slip] = await Promise.all([
           collectExportData({ from, to, parts: BOARD_EXPORT_PARTS, includePhones: false }, api),
           collectExportData({ from: prev.from, to: prev.to, parts: ["receipts"], includePhones: false }, api),
           api.sevaSummary(from, to),
           api.dayCloses(from, to),
           api.continuity(from, to),
+          collectChangeReasons(api, { from, to }),
           slipSettings(token),
         ]);
         const key = `${from}|${to}`;
@@ -122,6 +124,7 @@ function SummaryScreen(): JSX.Element {
           rateChanges: sevaSummary.rateChanges ?? [],
           dayCloses: differences,
           cancelledChanged: data.cancelledChanged,
+          changeReasons,
         };
         if (alive) setPhase({ kind: "ready", model });
       } catch (err) {

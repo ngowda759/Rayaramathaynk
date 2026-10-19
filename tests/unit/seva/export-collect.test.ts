@@ -3,13 +3,17 @@
  */
 import {
   boardAttention,
+  boardReason,
+  collectChangeReasons,
   collectExportData,
   collectionsChart,
   csvFiles,
   exportFileName,
   partsFor,
+  previousRange,
   quickRange,
   summaryItems,
+  type AuditApi,
   type ExportApi,
 } from "@/lib/seva/export/collect";
 import { EXPORT_SHEET_NAMES } from "@/lib/seva/excel/workbook";
@@ -196,5 +200,66 @@ describe("board summary helpers", () => {
   it("summary items follow the money rules", () => {
     const items = summaryItems([receipt({ amountPaise: 100, mode: "online" })]);
     expect(items.find((i) => i.label === "Online")?.value).toBe("Rs 1.00");
+  });
+});
+
+describe("board summary previous period and reasons", () => {
+  it("takes the span just before a short range and the same dates last year for a long one", () => {
+    expect(previousRange("2026-10-01", "2026-10-19")).toEqual({ from: "2026-09-12", to: "2026-09-30" });
+    // This year (292 days, charted by month): the same months last year, so January lies against January.
+    expect(previousRange("2026-01-01", "2026-10-19")).toEqual({ from: "2025-01-01", to: "2025-10-19" });
+    expect(previousRange("2028-01-01", "2028-02-29")).toEqual({ from: "2027-11-02", to: "2027-12-31" });
+    expect(previousRange("2028-02-29", "2028-12-31")).toEqual({ from: "2027-02-28", to: "2027-12-31" });
+  });
+
+  it("pages the changed-amount audit rows into reasons by receipt, leaving out offline-rate notes", async () => {
+    const calls: Parameters<AuditApi["audit"]>[0][] = [];
+    const api: AuditApi = {
+      async audit(f) {
+        calls.push({ ...f });
+        if (!f.cursor) {
+          return {
+            rows: [
+              { receiptNo: "R-2", reason: "Second line reason", after: { line_no: 2 } },
+              { receiptNo: "R-2", reason: "The offline rate differs", after: { offline_rate: "50.00" } },
+            ],
+            nextCursor: "5",
+          };
+        }
+        return {
+          rows: [
+            { receiptNo: "R-2", reason: "First line reason", after: { line_no: 1 } },
+            { receiptNo: "R-1", reason: "  Trustee approved  ", after: null },
+            { receiptNo: null, reason: "not a receipt", after: null },
+          ],
+          nextCursor: null,
+        };
+      },
+    };
+    const reasons = await collectChangeReasons(api, { from: "2026-10-01", to: "2026-10-19" });
+    expect(reasons).toEqual({ "R-2": ["Second line reason", "First line reason"], "R-1": ["Trustee approved"] });
+    expect(calls).toEqual([
+      { type: "changed_amounts", from: "2026-10-01", to: "2026-10-26", cursor: undefined },
+      { type: "changed_amounts", from: "2026-10-01", to: "2026-10-26", cursor: "5" },
+    ]);
+  });
+
+  it("stops when the audit paging repeats a cursor", async () => {
+    const api: AuditApi = { audit: async () => ({ rows: [], nextCursor: "9" }) };
+    await expect(collectChangeReasons(api, { from: "2026-10-01", to: "2026-10-01" })).rejects.toThrow("export_paging");
+  });
+
+  it("shows the change reason for a changed receipt, never its sevas, and null when none was recorded", () => {
+    const reasons = { "C1/1": ["Half rate for a volunteer", "Old rate"] };
+    expect(boardReason(receipt({ receiptNo: "C1/1", changed: true, sevas: "Archane" }), reasons)).toBe(
+      "Half rate for a volunteer; Old rate",
+    );
+    expect(boardReason(receipt({ receiptNo: "C1/2", changed: true, sevas: "Archane" }), reasons)).toBeNull();
+    expect(boardReason(receipt({ receiptNo: "C1/3", status: "cancelled", cancelReason: "Wrong seva" }), reasons)).toBe(
+      "Wrong seva",
+    );
+    expect(boardReason(receipt({ receiptNo: "C1/1", status: "cancelled", cancelReason: "Wrong seva", changed: true }), reasons)).toBe(
+      "Wrong seva; Half rate for a volunteer; Old rate",
+    );
   });
 });

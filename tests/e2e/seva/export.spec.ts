@@ -5,8 +5,9 @@ import { strFromU8, unzipSync } from "fflate";
 import { PDFDocument } from "pdf-lib";
 import type { SevaSummaryReport } from "../../../lib/seva/server/reports";
 import type { ExportLineRow, ExportReceiptRow } from "../../../types/seva-export";
+import type { DayCloseListRow } from "../../../lib/seva/server/reports";
 import { signInAs, type E2ERole } from "./fixtures/auth";
-import { createFakeSevaApi, type FakeSevaApi } from "./fixtures/fake-api";
+import { createFakeSevaApi, type FakeHandler, type FakeSevaApi } from "./fixtures/fake-api";
 
 /**
  * Export page and the board print summary (plan A4-8, DB §12.6). Every /api/seva/** call is answered by the fake API;
@@ -67,6 +68,37 @@ const RECEIPT_PAGES: ExportReceiptRow[][] = [
   ],
 ];
 
+/** An issued receipt whose amount was changed; its reason lives only in the audit trail. */
+const CHANGED = receipt({
+  receiptNo: "C1-023-10-2026/000104",
+  date: "2026-10-04",
+  sevas: "Archane with Arati",
+  amountPaise: 3_000,
+  changed: true,
+});
+const CHANGE_REASON = "Devotee is a temple volunteer - trustee approved half rate";
+
+/** `GET reports/audit?type=changed_amounts` in two pages, newest first like the server. */
+function auditAnswer(path: string): { rows: unknown[]; nextCursor: string | null } {
+  const query = new URL(path, "http://x").searchParams;
+  if (query.get("type") !== "changed_amounts") return { rows: [], nextCursor: null };
+  const row = (id: number, reason: string, after: Record<string, unknown>) => ({
+    id,
+    at: "2026-10-04T01:00:00.000Z",
+    action: "receipt.amount_changed",
+    entity: "receipt",
+    entityId: "r-104",
+    receiptNo: CHANGED.receiptNo,
+    reason,
+    by: null,
+    before: { line_no: 1 },
+    after,
+  });
+  return query.get("cursor") === "20"
+    ? { rows: [row(19, CHANGE_REASON, { line_no: 1, unit_rate: "30.00" })], nextCursor: null }
+    : { rows: [row(21, "The offline rate differs from today's catalogue rate", { line_no: 1, offline_rate: "50.00" })], nextCursor: "20" };
+}
+
 const LINES: ExportLineRow[] = [
   {
     receiptNo: "C1-023-10-2026/000101",
@@ -123,7 +155,7 @@ function exportAnswer(path: string): { rows: unknown[]; nextCursor: string | nul
   if (part === "receipts") {
     return cursor === "1000" ? { rows: RECEIPT_PAGES[1], nextCursor: null } : { rows: RECEIPT_PAGES[0], nextCursor: "1000" };
   }
-  if (part === "cancelled") return { rows: [RECEIPT_PAGES[1][0]], nextCursor: null };
+  if (part === "cancelled") return { rows: [RECEIPT_PAGES[1][0], CHANGED], nextCursor: null };
   if (part === "lines") return { rows: LINES, nextCursor: null };
   if (part === "sevas") {
     return { rows: [{ name: "Paaduka Pooja", count: 1, amountPaise: 50_500, lastYearCount: 2, lastYearAmountPaise: 101_000 }], nextCursor: null };
@@ -131,13 +163,15 @@ function exportAnswer(path: string): { rows: unknown[]; nextCursor: string | nul
   return { rows: [], nextCursor: null };
 }
 
-async function openAs(page: Page, role: E2ERole, target = PAGE): Promise<FakeSevaApi> {
+async function openAs(page: Page, role: E2ERole, target = PAGE, extra: Record<string, FakeHandler> = {}): Promise<FakeSevaApi> {
   const fake = createFakeSevaApi();
   fake.extend({
     "GET reports/export": (req) => exportAnswer(req.path),
     "GET reports/seva-summary": () => SEVA_SUMMARY,
     "GET reports/day-closes": () => [],
     "GET reports/continuity": () => [],
+    "GET reports/audit": (req) => auditAnswer(req.path),
+    ...extra,
   });
   await fake.install(page);
   await signInAs(page, role, { redirect: target });
@@ -244,6 +278,15 @@ test("the board summary prints on two A4 pages", async ({ page }) => {
   await expect(preview.getByText("Wrong seva - devotee wanted Pushpalankara")).toBeVisible();
   await expect(preview.getByTestId("board-chart")).toBeVisible();
 
+  // A changed amount shows its reason from the audit trail (both pages read), never the seva names.
+  const changedRow = preview.getByTestId("board-cancelled-row").filter({ hasText: CHANGED.receiptNo });
+  await expect(changedRow).toContainText(CHANGE_REASON);
+  await expect(changedRow).not.toContainText("Archane with Arati");
+  await expect(changedRow).not.toContainText("offline rate");
+  // The seva total is the same measure as its rows: quantities, 1 + 1.
+  await expect(preview.getByTestId("board-seva-total-quantity")).toHaveText("2");
+  await expect(preview.getByText("no data").first()).toBeVisible();
+
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
   const doc = await PDFDocument.load(pdf);
   const pages = doc.getPages();
@@ -253,4 +296,74 @@ test("the board summary prints on two A4 pages", async ({ page }) => {
     expect(width).toBeCloseTo(595.3, 0);
     expect(height).toBeCloseTo(841.9, 0);
   }
+});
+
+test("a board summary filled to every list cap still prints on two A4 pages", async ({ page }) => {
+  const long = "Counted twice by the evening shift and checked against the bank statement next morning";
+  const sevas: SevaSummaryReport["sevas"] = Array.from({ length: 14 }, (_, i) => ({
+    sevaId: `seva-${i}`,
+    nameEn: `Sarvaseva Pooja with Panchamrita Abhisheka ${i + 1}`,
+    nameKn: null,
+    category: null,
+    receipts: 40 + i,
+    quantity: 120 + i,
+    amountPaise: 1_250_000 + i * 10_000,
+    lastYear: { receipts: 30, quantity: 100, amountPaise: 1_000_000 },
+  }));
+  const dayClose = (i: number): DayCloseListRow => ({
+    id: `dc-${i}`,
+    counterId: 1,
+    counterName: "Main counter",
+    businessDate: `2026-10-${String(i + 2).padStart(2, "0")}`,
+    status: "closed",
+    receipts: 80,
+    cancelled: 1,
+    changed: 1,
+    cashExpectedPaise: 1_000_000,
+    cashCountedPaise: 990_000,
+    cashDifferencePaise: -10_000,
+    upiCount: 20,
+    upiExpectedPaise: 500_000,
+    upiBankTotalPaise: 500_000,
+    upiDifferencePaise: 0,
+    badge: "short",
+    note: long,
+    closedBy: "Lakshmi R",
+    closedAt: "2026-10-02T14:00:00.000Z",
+    reopenedBy: null,
+    reopenedAt: null,
+    reopenReason: null,
+    counts: [],
+  });
+  const cancelled = Array.from({ length: 8 }, (_, i) =>
+    receipt({
+      receiptNo: `C1-023-10-2026/0002${String(i).padStart(2, "0")}`,
+      status: "cancelled",
+      cancelReason: `${long} (${i + 1})`,
+    }),
+  );
+  const rateChanges = Array.from({ length: 6 }, (_, i) => ({
+    sevaId: `seva-${i}`,
+    nameEn: `Sarvaseva Pooja with Panchamrita Abhisheka ${i + 1}`,
+    oldPaise: 100_000,
+    newPaise: 125_000,
+    changedAt: "2026-10-05T04:30:00.000Z",
+    reason: long,
+  }));
+
+  await openAs(page, "temple_admin", SUMMARY, {
+    "GET reports/seva-summary": () => ({ ...SEVA_SUMMARY, sevas, rateChanges }),
+    "GET reports/day-closes": () => Array.from({ length: 6 }, (_, i) => dayClose(i)),
+    "GET reports/export": (req) =>
+      new URL(req.path, "http://x").searchParams.get("part") === "cancelled"
+        ? { rows: cancelled, nextCursor: null }
+        : exportAnswer(req.path),
+  });
+  const preview = page.getByTestId("board-preview");
+  await expect(preview.getByText("and 4 more - see the Excel export").first()).toBeVisible();
+  await expect(preview.getByTestId("board-chart")).toBeVisible();
+
+  const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+  const doc = await PDFDocument.load(pdf);
+  expect(doc.getPages()).toHaveLength(2);
 });

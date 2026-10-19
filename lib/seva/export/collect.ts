@@ -21,6 +21,7 @@ import type {
   SheetCell,
 } from "@/types/seva-export";
 import type { NeedsAttentionId } from "@/types/seva-reports";
+import type { AuditEntry, AuditType } from "@/lib/seva/server/reports";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Paging the API
@@ -346,9 +347,21 @@ export function rangeDays(from: string, to: string): number {
   return dayNumber(to) - dayNumber(from) + 1;
 }
 
-/** The span of the same length just before the range (the board summary's "previous period"). */
+/** The same calendar date one year earlier (29 February becomes 28 February). */
+function yearEarlier(date: string): string {
+  const y = Number(date.slice(0, 4)) - 1;
+  const md = date.slice(5);
+  return md === "02-29" ? `${y}-02-28` : `${y}-${md}`;
+}
+
+/**
+ * The board summary's "previous period". Up to 62 days (the chart is by day) it is the span of the same length just
+ * before the range. A longer range is charted by month, so the previous period is the same dates one year earlier:
+ * month buckets then line up with the same months (January 2026 against January 2025), never with a half month.
+ */
 export function previousRange(from: string, to: string): { from: string; to: string } {
   const days = rangeDays(from, to);
+  if (days > MAX_DAY_BUCKETS) return { from: yearEarlier(from), to: yearEarlier(to) };
   return { from: addDays(from, -days), to: addDays(from, -1) };
 }
 
@@ -439,4 +452,69 @@ export function boardAttention(input: {
     item("cancellations", input.receipts.length - issued.length, "attention"),
     item("prasadam_pending", issued.filter((r) => r.prasadam === "pending").length, "attention"),
   ];
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Change reasons for the board summary
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The audit call of `reportsApi()` the board summary needs (structural, so tests can hand in a fake). */
+export interface AuditApi {
+  audit(f: { type?: AuditType; from?: string; to?: string; cursor?: string }): Promise<{
+    rows: Pick<AuditEntry, "receiptNo" | "reason" | "after">[];
+    nextCursor: string | null;
+  }>;
+}
+
+/**
+ * Days after the range's end still searched for a changed amount's audit row: an offline receipt is audited when the
+ * counter syncs, which can be after its business date.
+ */
+const CHANGE_REASON_SYNC_DAYS = 7;
+
+/**
+ * The reasons for changed amounts, by receipt number, from the `receipt.amount_changed` audit rows (one per changed
+ * line, DB 9.4), paged until `nextCursor` is null. Rows that only note an offline rate differing from today's
+ * catalogue (C-58, `after.offline_rate`) do not mark a receipt as changed and are left out. Each reason is kept once
+ * per receipt, in line order. Throws Error('export_paging') when paging never ends.
+ */
+export async function collectChangeReasons(
+  api: AuditApi,
+  range: { from: string; to: string },
+): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  const seen = new Set<string>();
+  const to = addDays(range.to, CHANGE_REASON_SYNC_DAYS);
+  let cursor: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const answer = await api.audit({ type: "changed_amounts", from: range.from, to, cursor });
+    // The server sends newest first; each page is read oldest first so a receipt's lines keep their order.
+    for (const row of [...answer.rows].reverse()) {
+      if (!row.receiptNo) continue;
+      if (row.after && Object.prototype.hasOwnProperty.call(row.after, "offline_rate")) continue;
+      const reason = row.reason?.trim();
+      if (!reason) continue;
+      const list = (out[row.receiptNo] ??= []);
+      if (!list.includes(reason)) list.push(reason);
+    }
+    if (answer.nextCursor === null) return out;
+    if (seen.has(answer.nextCursor)) throw new Error("export_paging");
+    seen.add(answer.nextCursor);
+    cursor = answer.nextCursor;
+  }
+  throw new Error("export_paging");
+}
+
+/**
+ * The reason shown for a cancelled or changed receipt on the board summary: the cancel reason, the change reasons
+ * (joined), or both. Null when none was recorded, so the page says so instead of showing anything else.
+ */
+export function boardReason(
+  row: Pick<ExportReceiptRow, "receiptNo" | "status" | "changed" | "cancelReason">,
+  changeReasons: Record<string, string[]>,
+): string | null {
+  const parts: string[] = [];
+  if (row.status === "cancelled" && row.cancelReason.trim()) parts.push(row.cancelReason.trim());
+  if (row.changed) parts.push(...(changeReasons[row.receiptNo] ?? []));
+  return parts.length > 0 ? parts.join("; ") : null;
 }
