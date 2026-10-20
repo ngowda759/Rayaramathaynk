@@ -224,9 +224,10 @@ describe("RegisterThisPc", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Register/ }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("This PC still has 3 waiting to be sent. Send the waiting receipts first.");
-    // Items the office refused stay counted and no screen clears them, so the message says so and names who can.
-    expect(alert).toHaveTextContent("If the counter says the office refused some of them, sending again will not clear those");
-    expect(alert).toHaveTextContent("Only the person who looks after this site can clear them from this PC");
+    // Items the office refused stay counted until a temple admin sets them aside on the counter, so it points there.
+    expect(alert).toHaveTextContent("If the counter shows some under \"Refused by the office\", sending again will not clear those");
+    expect(alert).toHaveTextContent("write each one in the paper book, then a temple admin presses \"Set aside\" on the counter");
+    expect(alert).not.toHaveTextContent("Only the person who looks after this site");
     expect(register).not.toHaveBeenCalled();
     expect(saveDeviceCredentials).not.toHaveBeenCalled();
     expect(db.close).toHaveBeenCalled();
