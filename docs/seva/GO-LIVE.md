@@ -1,85 +1,163 @@
-# Seva Entry - from pull request to go-live
+# Seva Entry - go-live checklist
 
-For: Nikhil, who builds on his fork, and the site owner, who runs the live website. Written 2026-10-20.
-The step-by-step clicks are in `docs/seva/SETUP-GUIDE.md`; this page explains the order and what changes where.
+A short checklist, in order. Tick each box. Where a step needs many clicks, it names the exact section of
+`docs/seva/SETUP-GUIDE.md` to follow.
 
-## 1. Two worlds that never mix
+**Before you start, know this:**
+- The code is the same on your PC and on the live website. Only the settings differ.
+- Your test projects, test sign-ins and demo receipts stay on your side and never go live.
+- Nothing in the code has to change to use the live Firebase and Supabase.
 
-| | Your test world (now) | The live world (after the merge) |
+---
+
+## Part 1 - You: send the code to the site owner
+
+- [ ] 1. In the browser, open `https://github.com/nikhilmn01/Rayaramathaynk` and sign in to GitHub as `nikhilmn01`.
+- [ ] 2. Click the **Pull requests** tab, then the green **New pull request** button.
+- [ ] 3. At the top there are four drop-downs. Set them to:
+  - **base repository:** `ngowda759/Rayaramathaynk`
+  - **base:** `main`
+  - **head repository:** `nikhilmn01/Rayaramathaynk`
+  - **compare:** `feature/seva-entry`
+- [ ] 4. Click **Create pull request**.
+- [ ] 5. In **Title**, type: `Seva Entry - digital seva counter, receipts, prasadam and dashboard`.
+- [ ] 6. In the description, paste these three lines:
+  - `Adds the Seva Entry module at /seva.`
+  - `Go-live steps for the site owner: docs/seva/GO-LIVE.md (Part 2) and docs/seva/SETUP-GUIDE.md (Part B).`
+  - `Known limits and the Kannada proof-read list: docs/seva/HANDOVER-NOTES.md.`
+- [ ] 7. Click **Create pull request** again.
+- [ ] 8. Copy the page's address from the browser bar and send it to the site owner, with: "Please follow Part 2 of
+  docs/seva/GO-LIVE.md after merging."
+
+## Part 2 - Site owner: make the live website ready
+
+Each step below is written for him in `SETUP-GUIDE.md` Part B. Do them in this order.
+
+- [ ] 9. **Merge** the pull request on GitHub: open it, then **Merge pull request**, then **Confirm merge**.
+  - Vercel rebuilds the live website by itself in a few minutes.
+  - Until steps 10 to 12 are done, `/seva` shows errors. That is expected.
+- [ ] 10. **B1:** add the new tables to the live Supabase. He runs his "Deploy Supabase Migrations" workflow.
+- [ ] 11. **B2:** publish the new `firestore.rules` in the live Firebase.
+- [ ] 12. **B4:** check the live Vercel settings, including `NEXT_PUBLIC_SITE_URL`, the live address used in the
+  receipt QR codes. Then redeploy.
+- [ ] 13. **B3:** make a new Firebase key, put it in Vercel and GitHub, check the site, then delete the old, leaked
+  key.
+- [ ] 14. **B5:** make himself staff 001 on the live site. Or make you a super admin there: Staff and roles, then
+  **Onboard staff**.
+- [ ] 15. **B6:** each key holder (you and him) makes a backup key, as you chose.
+- [ ] 16. **B7:** put both public backup keys and the database connection string into his GitHub secrets. The next
+  morning, the dashboard should show a fresh backup.
+
+## Part 3 - A super admin: fill in the temple's settings on the live site
+
+Sign in at `https://<live address>/login`, then open `https://<live address>/seva`.
+
+- [ ] 17. Menu **Settings**, tab **Receipts**:
+  - temple name and address
+  - **Photo 1 (left)** and **Photo 2 (right)**
+  - footer lines
+  - **Paper size** (A5, or the size of your printer's paper)
+
+  Then click **Save settings**.
+- [ ] 18. Menu **Seva settings**: click **+ Add seva** once for each real seva, with its code, English and Kannada name,
+  rate, and whether it allows several dates. Delete nothing; hide what is not used.
+- [ ] 19. Menu **Settings**, tab **Counters**: check that Counter 1 exists and set its opening cash float.
+- [ ] 20. Menu **Settings**, tab **Denominations**: keep the notes and coins the temple uses.
+- [ ] 21. Menu **Settings**, tab **Festival days**: add the coming festivals, such as Aradhane.
+- [ ] 22. Set the UPI id the counter shows:
+  1. Click **Website admin**.
+  2. Click **Finance Settings**.
+  3. Find **UPI Payment** and switch it on.
+  4. Type the temple's UPI id and the payee name.
+  5. Save.
+
+  Only a super admin can change this.
+- [ ] 23. Menu **Staff and roles**, then **Onboard staff**, once per person, with a name, an email address they can
+  open, and a role:
+  - **Receptionist:** the counter
+  - **Prasadam counter:** the volunteers
+  - **Temple admin:** the office, the trustees; tick view-only for a trustee who only looks
+
+  Each person gets an email to set a password.
+
+## Part 4 - The temple office: check the Kannada
+
+- [ ] 24. Give the office the list in `docs/seva/HANDOVER-NOTES.md` (Kannada proof-read).
+- [ ] 25. For the gotras, nakshatras and rashis, open menu **Settings**, tab **Devotee lists**:
+  1. Open each name marked "not yet checked".
+  2. Correct the Kannada if needed.
+  3. Click **Save**, even if it is already right. That marks it checked.
+- [ ] 26. Send me any other wrong Kannada (on the counter, slips or reports) and I correct it in the code.
+
+## Part 5 - The counter PC at the temple
+
+Follow `SETUP-GUIDE.md` section A5 for every click.
+
+- [ ] 27. **A5.1:** give the counter's Windows account a password.
+- [ ] 28. **A5.2:** turn on disk encryption.
+- [ ] 29. **A5.3:** install the printer and set its paper to the size chosen in step 17.
+- [ ] 30. **A5.4:** make it the default printer.
+- [ ] 31. **A5.5:** stop Edge from running in the background.
+- [ ] 32. **A5.6:** install the app, as in Part 6 below.
+- [ ] 33. **A5.7:** make the kiosk-printing shortcut, so a receipt prints with one click and no print window.
+- [ ] 34. **A5.8:**
+  1. Sign in as a temple admin.
+  2. Open Menu **Settings**, tab **Counters**, then **Register this PC** for Counter 1.
+  3. On the counter, choose the folder for the daily Excel copy.
+
+## Part 6 - Install Seva Entry as an app
+
+The live address must start with `https://` (Vercel gives this).
+
+**Windows PC or laptop (Edge or Chrome):**
+- [ ] 35. Open `https://<live address>/seva` and sign in.
+- [ ] 36. Click the **install icon** at the right end of the address bar. If there is none: menu **...**, then
+  **Apps**, then **Install Seva Entry**.
+- [ ] 37. Click **Install**. Seva Entry opens in its own window and gets a taskbar icon. Right-click the icon, then
+  **Pin to taskbar**.
+
+**Android phone (Chrome):**
+- [ ] 38. Open `https://<live address>/seva` and sign in.
+- [ ] 39. Tap the menu **⋮**, then **Install app** (or **Add to Home screen**), then **Install**.
+- [ ] 40. Open it from the new icon on the home screen. It opens full screen.
+
+**iPhone or iPad (Safari only):**
+- [ ] 41. Open `https://<live address>/seva` in **Safari** and sign in.
+- [ ] 42. Tap **Share** (the square with an arrow), scroll, tap **Add to Home Screen**, then **Add**.
+
+**Updates arrive by themselves.** When the live site is updated, the app picks up the new version the next time it
+opens.
+
+## Part 7 - Dry run, then go live
+
+- [ ] 43. **One dry-run day** at the counter, on plain paper:
+  - make receipts (one with several dates, one cash, one UPI)
+  - cancel one
+  - mark prasadam given for one
+  - close the day
+- [ ] 44. That evening, check the dashboard, **Register** and **Day closes**, and open the Excel copy in the chosen
+  folder.
+- [ ] 45. Delete the dry-run receipts' effect the proper way: cancel them with the reason "Test". Receipts are never
+  deleted.
+- [ ] 46. **Go live.** Keep the paper receipt book at the counter for the first week as the fallback.
+
+---
+
+## Afterwards: your test setup
+
+- **Keep it.** Your PC's `.env.local` still points at your test projects. Build and try Plan B and Plan C there.
+- **If your test website stops working after a week of no use**, the free Supabase project has paused:
+  1. Open `supabase.com/dashboard`.
+  2. Open `seva-test`.
+  3. Click **Restore project**.
+- **Never put the live keys on your PC.**
+
+## If something goes wrong
+
+| What you see | What it means | What to do |
 |---|---|---|
-| Code | branch `feature/seva-entry` on your fork | the site owner's `main`, after he merges your pull request |
-| Website | `http://localhost:3000` on your PC, or your own Vercel preview | the temple's live address on the site owner's Vercel |
-| Database | your Supabase project `seva-test` | the site owner's live Supabase project |
-| Sign-in | your Firebase project `seva-test-nikhil` | the site owner's live Firebase project |
-| Settings and keys | `.env.local` on your PC (git-ignored) | the site owner's Vercel environment variables |
-| People | you (001) and three test sign-ins (002-004) | the real staff, onboarded on the live site |
-| Data | 90 days of demo receipts | starts empty |
-
-**The code is the same in both worlds. Only the settings differ.** Nothing in the code has to change to "connect to the
-real" Firebase and Supabase: the live website reads the site owner's settings from Vercel, and your PC keeps reading
-your test settings from `.env.local`.
-
-## 2. What happens to your test setup
-
-- **It stays as it is.** The pull request carries code only. `.env.local`, the key file, the test sign-ins and the demo
-  receipts never leave your PC or your test projects (git ignores them, and the demo seeder refuses any project but a
-  test one).
-- **Keep using it.** It is where Plan B (website booking with Cashfree test mode) and Plan C (the Android app) are built
-  and tried, without touching the temple's real data.
-- **Your test projects are free** (Supabase Free, Firebase Spark). A Supabase Free project pauses after a week without
-  use; "Restore project" in its dashboard wakes it up.
-- **Never** put the live keys on your PC, and never point `.env.local` at the live projects.
-
-## 3. Order of go-live
-
-1. **You:** open the pull request from your fork to the site owner's repository.
-   It describes the module and links this page and `HANDOVER-NOTES.md`.
-2. **Site owner:** reviews and merges. Vercel builds the live site with the new code. At this point `/seva` exists but
-   cannot work yet: the live database has no seva tables.
-3. **Site owner, SETUP-GUIDE Part B, in order:**
-   - **B1** applies the new tables to the live Supabase (his "Deploy Supabase Migrations" workflow).
-   - **B2** publishes the new `firestore.rules` in the live Firebase.
-   - **B3** replaces and revokes the old, leaked Firebase key.
-   - **B4** checks the Vercel settings listed there, including `NEXT_PUBLIC_SITE_URL` for the QR codes.
-   - **B5** makes himself staff 001 on the live site (or makes you a super admin there).
-   - **B6** and **B7** set up the two backup keys and the GitHub secrets; the first nightly backup should then show on
-     the dashboard.
-4. **The temple's settings, on the live site** (a super admin, about an hour):
-   - **Settings > Receipts:** the temple name and address, Photo 1 and Photo 2, the footer, and the paper size.
-   - **Seva settings:** the real sevas, codes and rates.
-   - **Settings > Devotee lists:** the office proof-reads the Kannada; open each name and save it.
-   - **The UPI id** for the counter (finance settings; super admin only).
-   - **Staff and roles:** onboard the receptionists, the prasadam volunteers and the temple admins.
-5. **The office proof-reads** every Kannada text: the list is in `HANDOVER-NOTES.md`.
-6. **The counter PC at the temple** (SETUP-GUIDE A5): printer and paper size, a Windows password, disk encryption,
-   install the app, register the PC as Counter 1, choose the Excel folder.
-7. **One dry-run day:** real receipts on test paper, a cancel, a prasadam give, a day close. Check the dashboard and
-   the Excel copy that evening.
-8. **Go live.** Keep the paper receipt book at the counter for the first week, as the fallback.
-
-## 4. Installing it as an app (PWA)
-
-Seva Entry is an installable web app (a PWA): one app for every role, with no app store and no download size worth
-mentioning. It needs the live address over https (Vercel provides that); for testing, `localhost` also works.
-
-| Device | How to install | What you get |
-|---|---|---|
-| **Windows PC / laptop** (counter, office) | Open `https://<live address>/seva` in **Edge or Chrome** > the install icon in the address bar (or menu > Apps > Install Seva Entry) | Its own window and taskbar icon. Opens on the right screen for whoever signs in. The counter keeps working offline |
-| **Android phone** (prasadam volunteer, admins) | Open the same address in **Chrome** > menu > **Install app** (or Add to Home screen) | A home-screen icon that opens full screen, like an app |
-| **iPhone / iPad** | Open it in **Safari** > Share > **Add to Home Screen** | A home-screen icon that opens full screen |
-
-- **Updates arrive by themselves:** when the site owner's site is updated, the app picks up the new version the next
-  time it opens. Nothing to reinstall.
-- **A Play Store listing for staff is possible later**, by wrapping this same app (a "Trusted Web Activity"), if the
-  temple ever wants it. It is not needed to use it.
-- **Plan C** is a different app: the **devotees'** Android app for booking and paying. Staff keep using this one.
-
-## 5. What can go wrong, and what to do
-
-| Situation | What to do |
-|---|---|
-| The live site shows Seva Entry but every page errors after the merge | B1 (tables) or B4 (settings) is not done yet |
-| Nobody can see the Seva Entry menu | B5 (staff 001) is not done, or that person is not onboarded as staff |
-| The counter says "the temple's server did not answer" | Internet or server trouble: print offline; the receipts send by themselves later |
-| The UPI QR is missing at the counter | Set the UPI id (super admin, finance settings) |
-| The test website on your PC stopped working | Your Supabase test project paused: restore it in the Supabase dashboard |
+| `/seva` pages error after the merge | Steps 10-12 not done yet | Ask the site owner to finish B1, B2 and B4 |
+| Nobody sees the Seva Entry menu | No staff yet | Do step 14 (staff 001), then step 23 |
+| "The temple's server did not answer in time" at the counter | The internet or the server is down | Print offline; the receipts send by themselves later |
+| No UPI QR at the counter | The UPI id is not set | Do step 22 |
+| The app does not offer to install | The address is not https, or you are not on `/seva` | Use the live https address, open `/seva`, then try again |
