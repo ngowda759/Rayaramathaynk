@@ -26,8 +26,10 @@ function pad(no: number): string {
 }
 
 /**
- * Resolve an open receipt-number gap (DB §8.5): entered from the paper book or declared lost, with a note of at least
- * three letters. Temple admins and super admins only; the server checks `gap.resolve` again and audits the change.
+ * Resolve an open receipt-number gap (DB §8.5) as declared lost, with a note of at least three letters. Temple admins
+ * and super admins only; the server checks `gap.resolve` again and audits the change. A gap whose slips are in the
+ * paper book is not resolved here: each slip is entered with "Enter from paper book" (PaperReceiptDialog), and the gap
+ * closes as entered from the paper book when its last number is entered (A5-FIX M-6).
  */
 export function GapResolveDialog({ gap, busy, error, onConfirm, onClose }: GapResolveDialogProps): JSX.Element {
   return (
@@ -58,7 +60,6 @@ function GapForm({
   }
 
   const choices: { value: GapResolveRequest["status"]; label: { en: string; kn: string } }[] = [
-    { value: "entered_from_paper", label: GAP_DIALOG.paper },
     { value: "declared_lost", label: GAP_DIALOG.lost },
   ];
 
@@ -94,6 +95,12 @@ function GapForm({
           </label>
         ))}
       </fieldset>
+      <Bilingual
+        as="div"
+        en={GAP_DIALOG.paperHint.en}
+        kn={GAP_DIALOG.paperHint.kn}
+        className="text-(length:--text-meta) text-(--muted-foreground)"
+      />
 
       <div className="flex flex-col gap-1.5">
         <Bilingual

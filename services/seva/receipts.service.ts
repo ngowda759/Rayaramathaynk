@@ -4,7 +4,7 @@
  * as SevaClientError with the server's code.
  */
 
-import type { RefundSettleRequest } from "@/lib/seva/schemas";
+import type { PaperReceiptRequest, RefundSettleRequest } from "@/lib/seva/schemas";
 import type { CancelReasonCode, IssueResponse, PaymentMode } from "@/types/seva";
 import type { DevoteeMatch, ReceiptDetail, ReceiptListItem } from "@/types/seva-receipts";
 import { sevaFetch } from "./http";
@@ -54,6 +54,13 @@ export function receiptsApi(token: () => Promise<string>, device: () => string |
     },
     async resolveGap(id: number, b: { status: "entered_from_paper" | "declared_lost"; note: string }): Promise<void> {
       await call<{ ok: true }>(`/api/seva/gaps/${encodeURIComponent(String(id))}`, { method: "POST", body: b });
+    },
+    /** Enters one slip of an open gap from the paper book (A5-FIX M-6); temple admins and super admins. */
+    enterPaperReceipt(
+      gapId: number,
+      b: PaperReceiptRequest,
+    ): Promise<{ receipt: ReceiptListItem | null; gapStatus: "open" | "entered_from_paper" }> {
+      return call(`/api/seva/gaps/${encodeURIComponent(String(gapId))}/receipts`, { method: "POST", body: b });
     },
     /** Marks refund-due receipts as refunded (A5-FIX M-3); temple admins and super admins. */
     settleRefund(b: RefundSettleRequest): Promise<{ receipts: ReceiptListItem[] }> {

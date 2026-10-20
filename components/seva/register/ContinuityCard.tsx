@@ -11,7 +11,8 @@ import type { ContinuityGap, ContinuityRow } from "@/types/seva-reports";
 /**
  * Number continuity card of the receipts register (DB §12.3, §8.5): one line per series for the chosen range, e.g.
  * "C1 Counter 1 online, C1-023-10-2026/000101 - 000227, 127 numbers, 125 issued, 2 cancelled, Continuous". An open
- * gap is critical and offers Resolve to people who may resolve gaps; W (website and app) starts in Phase 2.
+ * gap is critical and offers Resolve to people who may resolve gaps, and "Enter from paper book" to type its slips in
+ * (A5-FIX M-6); W (website and app) starts in Phase 2.
  */
 
 export type ContinuityState = "continuous" | "open_gap" | "missing";
@@ -82,9 +83,11 @@ export interface ContinuityCardProps {
   rangeLabel: string;
   canResolve: boolean;
   onResolve(gap: ContinuityGap): void;
+  /** Type one of the gap's slips in from the paper book (A5-FIX M-6); offered with Resolve when given. */
+  onEnterPaper?(gap: ContinuityGap): void;
 }
 
-export function ContinuityCard({ rows, rangeLabel, canResolve, onResolve }: ContinuityCardProps): JSX.Element {
+export function ContinuityCard({ rows, rangeLabel, canResolve, onResolve, onEnterPaper }: ContinuityCardProps): JSX.Element {
   const states = rows.map(continuityState);
   const gapCount = rows.reduce((sum, r) => sum + r.openGaps, 0);
   const summaryTone: ChipTone = gapCount > 0 ? "critical" : states.includes("missing") ? "attention" : "ok";
@@ -137,14 +140,26 @@ export function ContinuityCard({ rows, rangeLabel, canResolve, onResolve }: Cont
                     {CONTINUITY.gapLine(pad(gap.fromNo), pad(gap.toNo), gap.cause)}
                   </span>
                   {canResolve ? (
-                    <Button
-                      variant="seva-secondary"
-                      size="sm"
-                      aria-label={CONTINUITY.resolveLabel(pad(gap.fromNo), pad(gap.toNo))}
-                      onClick={() => onResolve(gap)}
-                    >
-                      {CONTINUITY.resolve}
-                    </Button>
+                    <span className="flex flex-wrap gap-2">
+                      {onEnterPaper ? (
+                        <Button
+                          variant="seva-secondary"
+                          size="sm"
+                          aria-label={CONTINUITY.enterPaperLabel(pad(gap.fromNo), pad(gap.toNo))}
+                          onClick={() => onEnterPaper(gap)}
+                        >
+                          {CONTINUITY.enterPaper}
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="seva-secondary"
+                        size="sm"
+                        aria-label={CONTINUITY.resolveLabel(pad(gap.fromNo), pad(gap.toNo))}
+                        onClick={() => onResolve(gap)}
+                      >
+                        {CONTINUITY.resolve}
+                      </Button>
+                    </span>
                   ) : null}
                 </div>
               ))}

@@ -274,7 +274,8 @@ built on 2026-10-20.
 | `GET /api/seva/day-close` | R for the PC's counter and today; TA, SA any counter and date | `counterId`? (none = the PC's own counter), `date` | what the close-day screen shows: expected cash and UPI, series ranges, outbox state (`DayClosePrep`) |
 | `POST /api/seva/day-close` | as above | `{ counterId?, businessDate, counts, upiBankTotalPaise?, note? }` (a difference needs the note) | `{ dayCloseId }` |
 | `POST /api/seva/day-close/reopen` | TA, SA | `{ dayCloseId, reason }` | the day reopened (audited) |
-| `POST /api/seva/gaps/[id]` | TA, SA | `{ status: 'entered_from_paper' or 'declared_lost', note }` (3+ characters) | the gap resolved (audited) |
+| `POST /api/seva/gaps/[id]` | TA, SA | `{ status: 'entered_from_paper' or 'declared_lost', note }` (3+ characters) | the gap resolved (audited); `entered_from_paper` is refused (`receipts_missing`) until every number of the gap is in the register (A5-FIX M-6) |
+| `POST /api/seva/gaps/[id]/receipts` | TA, SA (not view-only) | `{ receiptNo (as printed), issuedOn, sevaDate, devotee, lines [{ sevaId, quantity, unitRatePaise? }], totalPaise, payment { mode: 'cash' } or { mode: 'upi', upiRefLast6 }, note }` | `{ receipt (a register row), gapStatus: 'open' or 'entered_from_paper' }`; one slip of the gap entered from the paper book (audited `receipt.entered_from_paper`, A5-FIX M-6) |
 
 ### Reports and exports
 

@@ -148,6 +148,7 @@ test("a row opens the receipt with its history", async ({ page }) => {
   await expect(drawer.getByRole("link", { name: /Open the receipt/ })).toHaveAttribute("href", `/seva/${item.id}`);
 });
 
+// A5-FIX M-6: Resolve offers "Declared lost" only; slips from the paper book are entered one by one instead.
 test("a temple admin resolves a gap with a note", async ({ page }) => {
   const fake = createFakeSevaApi();
   const row: ContinuityRow = {
@@ -178,16 +179,17 @@ test("a temple admin resolves a gap with a note", async ({ page }) => {
   await of1.getByRole("button", { name: /Resolve/ }).click();
 
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel(/Entered from the paper book/).check();
+  await expect(dialog.getByLabel(/Entered from the paper book/)).toHaveCount(0);
+  await dialog.getByLabel(/Declared lost/).check();
   const save = dialog.getByRole("button", { name: "Resolve gap" });
   await expect(save).toBeDisabled();
-  await dialog.getByLabel(/Note/).fill("Copied from the paper receipt book page 12");
+  await dialog.getByLabel(/Note/).fill("The paper receipt book was lost in the rain");
   await save.click();
 
   await expect(page.getByTestId("continuity-OF1")).toContainText("Continuous");
   const posted = fake.requests.filter((r) => r.method === "POST" && r.path === "/api/seva/gaps/7");
   expect(posted).toHaveLength(1);
-  expect(posted[0].body).toEqual({ status: "entered_from_paper", note: "Copied from the paper receipt book page 12" });
+  expect(posted[0].body).toEqual({ status: "declared_lost", note: "The paper receipt book was lost in the rain" });
 });
 
 test("a view-only temple admin sees the gap but no Resolve", async ({ page }) => {

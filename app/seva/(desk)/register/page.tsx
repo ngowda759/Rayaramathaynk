@@ -11,6 +11,7 @@ import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { PendingLine } from "@/components/seva/motion/PendingLine";
 import { ContinuityCard } from "@/components/seva/register/ContinuityCard";
 import { GapResolveDialog } from "@/components/seva/register/GapResolveDialog";
+import { PaperReceiptDialog, type GapStatusAfterEntry } from "@/components/seva/register/PaperReceiptDialog";
 import { ReceiptCards } from "@/components/seva/register/ReceiptCards";
 import { ReceiptDrawer } from "@/components/seva/register/ReceiptDrawer";
 import { RegisterFilters, filtersFromSearch, toListParams, type RegisterFilterValue } from "@/components/seva/register/RegisterFilters";
@@ -22,7 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
 import { SEVA_ROUTES } from "@/lib/seva/routes";
 import type { GapResolveRequest } from "@/lib/seva/schemas";
-import { CONTINUITY, GAP_DIALOG, REGISTER } from "@/lib/seva/strings/reports";
+import { CONTINUITY, GAP_DIALOG, PAPER_DIALOG, REGISTER } from "@/lib/seva/strings/reports";
 import { businessDate, formatSevaDate } from "@/lib/seva/time";
 import { catalogueApi } from "@/services/seva/catalogue.service";
 import { SevaClientError } from "@/services/seva/http";
@@ -78,6 +79,7 @@ function RegisterScreen(): JSX.Element {
   const [gap, setGap] = useState<ContinuityGap | null>(null);
   const [gapBusy, setGapBusy] = useState(false);
   const [gapError, setGapError] = useState<string | null>(null);
+  const [paperGap, setPaperGap] = useState<ContinuityGap | null>(null);
   const [reloads, setReloads] = useState(0);
 
   const token = useCallback(async (): Promise<string> => {
@@ -193,6 +195,13 @@ function RegisterScreen(): JSX.Element {
 
   const loadDetail = useCallback((id: string) => receipts.get(id), [receipts]);
 
+  /** A slip of the gap was entered from the paper book (A5-FIX M-6): the card and the list show it at once. */
+  function paperEntered(status: GapStatusAfterEntry): void {
+    setPaperGap(null);
+    toast.success(status === "open" ? PAPER_DIALOG.doneOpen : PAPER_DIALOG.doneClosed);
+    setReloads((n) => n + 1);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <RegisterFilters value={filters} sevas={sevas} onChange={setFilters} />
@@ -206,6 +215,7 @@ function RegisterScreen(): JSX.Element {
             setGapError(null);
             setGap(g);
           }}
+          onEnterPaper={setPaperGap}
         />
       ) : continuity.kind === "error" ? (
         <p role="alert" className="text-(length:--text-meta) font-semibold text-(--destructive)">
@@ -268,6 +278,14 @@ function RegisterScreen(): JSX.Element {
         load={loadDetail}
         onClose={() => setOpenRow(null)}
         refunds={{ allowed: can("receipt.cancel_any"), settle: receipts.settleRefund, onSettled: () => setReloads((n) => n + 1) }}
+      />
+      <PaperReceiptDialog
+        gap={paperGap}
+        sevas={sevas}
+        today={today}
+        enter={receipts.enterPaperReceipt}
+        onEntered={paperEntered}
+        onClose={() => setPaperGap(null)}
       />
       <GapResolveDialog
         gap={gap}

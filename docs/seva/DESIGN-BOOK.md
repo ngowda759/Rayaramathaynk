@@ -83,6 +83,11 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
   - §9.9, §6.5, §7.8: a temple admin or super admin marks a refund-due receipt as refunded (`receipts/refund`,
     `seva_settle_refund`) with the mode (UPI, bank transfer or cash), a reference (unless cash) and a note, from the
     register drawer or today's receipts; audited `receipt.refund_done`, and the "UPI refunds due" card clears (M-3).
+  - §8.4, §8.5, §6.5, §7.8: an admin enters each slip of an open gap from the paper book ("Enter from paper book" on
+    the register's continuity card, `gaps/[id]/receipts`, `seva_enter_paper_receipt`): the printed number, date,
+    devotee, sevas, total and mode; the receipt is stored as the offline receipt it was, the gap shrinks, and it closes
+    as entered from the paper book only when its last number is entered. "Resolve" now offers declared lost only;
+    `seva_resolve_gap` refuses `entered_from_paper` while a number is missing (M-6).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.
@@ -439,6 +444,7 @@ tests/unit/seva/**, tests/db/**, tests/e2e/seva/**   (new)
 | `settings/*` | GET, PUT, POST | TA, SA (GET also TV) | receipt template and paper size, rules, denominations, festival days, counters, gotra / nakshatra / rashi lists |
 | `staff`, `staff/[id]` | GET, POST, PUT | TA, SA (offboard and delete SA) | Staff and roles |
 | `gaps/[id]` | POST | TA, SA | Resolve a number gap |
+| `gaps/[id]/receipts` | POST | TA, SA | Enter one slip of the gap from the paper book (A5-FIX M-6) |
 | `devotee/orders`, `devotee/orders/[ref]` | POST, GET | signed-in devotee | Phase 2 booking and status |
 | `devotee/receipts` | GET | signed-in devotee | My seva bookings |
 | `payments/webhook/[provider]` | POST | gateway (signature) | Phase 2 |
@@ -920,6 +926,9 @@ seva_reopen_day(p_day_close_id uuid, p_reason text, p_staff_id uuid) returns voi
 seva_register_device(p_counter_id smallint, p_secret_hash text, p_label text, p_staff_id uuid) returns uuid
 seva_replace_device(p_counter_id smallint, p_secret_hash text, p_label text, p_last_printed_of_no int, p_reason text, p_staff_id uuid) returns uuid
 seva_resolve_gap(p_gap_id bigint, p_status text, p_note text, p_staff_id uuid) returns void
+  -- A5-FIX M-6: entered_from_paper only when every number of the gap is in the register
+seva_enter_paper_receipt(p_gap_id bigint, p_receipt jsonb, p_staff_id uuid) returns jsonb
+  -- A5-FIX M-6: one slip of the gap from the paper book; the gap closes as entered_from_paper with its last number
 seva_upsert_seva(p_seva jsonb, p_reason text, p_staff_id uuid) returns uuid  -- also sets firestore_id of a new seva
 seva_update_settings(p_patch jsonb, p_staff_id uuid) returns void              -- redefined for the paper size
 seva_note_counter_upi(p_vpa text, p_payee_name text) returns boolean           -- true when the payee changed (audited)
@@ -1026,8 +1035,9 @@ R3 1.4). Each counter has its own series, so counters never wait on each other.
 - **Replace this PC** (settings mockup): on the new PC, a temple admin picks "Move Counter 1 to this PC" and types the
   number on the last slip that came out of the printer. `seva_replace_device()` retires the old device, registers the
   new one, sets the OF `last_no` to the typed number, and records any range between the last number the server received
-  and the typed number as an open gap (`device_replaced`). An admin then enters those receipts from the paper slips or
-  declares them lost with a reason (C-52). A retired device's later uploads are accepted only for numbers inside that
+  and the typed number as an open gap (`device_replaced`). An admin then enters those receipts from the paper slips (one
+  by one, "Enter from paper book"; the gap closes when its last number is entered) or declares them lost with a reason
+  (C-52). A retired device's later uploads are accepted only for numbers inside that
   gap; anything else is refused and flagged. A retired PC reaches `POST /api/seva/counter/sync` only, and only with
   orders (its cancels are refused); every other route answers `device_unknown` (A3 security gate L-4).
 - **Group label floor on replace.** The dead PC may have printed orders it never sent, each with a group label above

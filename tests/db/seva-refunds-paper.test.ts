@@ -246,3 +246,250 @@ describe('M-3: seva_settle_refund marks a refund-due receipt as refunded', () =>
     }
   });
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// M-6: entering a gap's receipts from the paper book
+// ---------------------------------------------------------------------------------------------------------------
+
+interface Gap {
+  id: number;
+  from_no: number;
+  to_no: number;
+  status: string;
+  resolution_note: string | null;
+  resolved_by_staff_id: string | null;
+}
+
+interface PaperAnswer {
+  order_id: string;
+  group_no: string;
+  receipts: { id: string; receipt_no: string; total: string; status: string }[];
+  gap_status: string;
+}
+
+/** An open OF1 gap (default 5..7) of this year, OF1 having handed out up to 9, written as a fixture; answers its id. */
+async function openGap(c: Ctx, from = 5, to = 7): Promise<number> {
+  await c.db.query(
+    `insert into receipt_series_years (series_code, year, last_no)
+     select 'OF1', p.year, 9 from seva_ist_parts(now()) p
+     on conflict (series_code, year) do update set last_no = greatest(receipt_series_years.last_no, 9)`,
+  );
+  const r = await c.db.query<{ id: number }>(
+    `insert into receipt_number_gaps (series_code, year, from_no, to_no, cause)
+     select 'OF1', p.year, $1::int, $2::int, 'missing_in_sync' from seva_ist_parts(now()) p
+     returning id::int as id`,
+    [from, to],
+  );
+  return r.rows[0].id;
+}
+
+async function gapRows(c: Ctx): Promise<Gap[]> {
+  const r = await c.db.query<Gap>(
+    `select id::int as id, from_no, to_no, status, resolution_note, resolved_by_staff_id
+       from receipt_number_gaps order by from_no`,
+  );
+  return r.rows;
+}
+
+/** The paper slip's number for OF1 and this IST month, e.g. 'OF1-023-10-2026/000006'. */
+async function paperNo(c: Ctx, running: number, staffNo = 23): Promise<string> {
+  const r = await c.db.query<{ no: string }>(
+    `select 'OF1-' || lpad($2::text, 3, '0') || '-' || lpad(p.month::text, 2, '0') || '-' || p.year::text || '/'
+            || lpad($1::text, 6, '0') as no
+       from seva_ist_parts(now()) p`,
+    [running, staffNo],
+  );
+  return r.rows[0].no;
+}
+
+async function slip(c: Ctx, running: number, over: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  return {
+    receipt_no: await paperNo(c, running),
+    issued_on: c.today,
+    seva_date: c.today,
+    devotee: { name: 'Lakshmi Narayan', phone_e164: '+919845012345' },
+    lines: [{ seva_id: c.pan, quantity: 1, unit_rate: null }],
+    expected_total: '105.00',
+    payment: { mode: 'cash' },
+    qr_token: qrToken(),
+    note: 'Paper receipt book, page 12',
+    ...over,
+  };
+}
+
+function enter(c: Ctx, gapId: number, body: Record<string, unknown>, staffId: string = c.adminId): Promise<PaperAnswer> {
+  return asRole(c.db, 'service_role', async (d) => {
+    const r = await d.query<{ r: PaperAnswer }>('select seva_enter_paper_receipt($1::bigint, $2::jsonb, $3::uuid) as r', [
+      gapId,
+      JSON.stringify(body),
+      staffId,
+    ]);
+    return r.rows[0].r;
+  });
+}
+
+function resolveGap(c: Ctx, gapId: number, status: string, note: string): Promise<unknown> {
+  return asRole(c.db, 'service_role', (d) =>
+    d.query('select seva_resolve_gap($1::bigint, $2, $3, $4::uuid)', [gapId, status, note, c.adminId]),
+  );
+}
+
+describe('M-6: seva_enter_paper_receipt enters a gap receipt from the paper book', () => {
+  it('a gap cannot be resolved as entered_from_paper while its receipts are missing; declared lost still works', async () => {
+    const c = await setup();
+    const gap = await openGap(c);
+    expect(await failure(resolveGap(c, gap, 'entered_from_paper', 'Typed in from paper'))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'status', reason: 'receipts_missing' },
+    });
+    expect((await gapRows(c))[0]).toMatchObject({ status: 'open' });
+
+    await resolveGap(c, gap, 'declared_lost', 'Book lost in the rain');
+    expect((await gapRows(c))[0]).toMatchObject({ status: 'declared_lost' });
+  });
+
+  it('stores the receipt with its paper number; the gap shrinks and closes only when every number is entered', async () => {
+    const c = await setup();
+    const gap = await openGap(c);
+
+    const middle = await enter(c, gap, await slip(c, 6));
+    expect(middle.gap_status).toBe('open');
+    expect(middle.receipts).toEqual([expect.objectContaining({ receipt_no: await paperNo(c, 6), total: '105.00', status: 'issued' })]);
+    expect((await gapRows(c)).map((g) => [g.from_no, g.to_no, g.status])).toEqual([
+      [5, 5, 'open'],
+      [7, 7, 'open'],
+    ]);
+
+    const stored = await c.db.query<Record<string, unknown>>(
+      `select r.series_code, r.running_no, r.staff_no, r.business_date::text as business_date, r.issued_offline,
+              r.issued_by_staff_id, r.prasadam_state, o.channel, o.counter_id, o.synced_by_staff_id, o.payment_mode,
+              o.devotee_name
+         from seva_receipts r join seva_orders o on o.id = r.order_id
+        where r.receipt_no = $1`,
+      [await paperNo(c, 6)],
+    );
+    expect(stored.rows[0]).toEqual({
+      series_code: 'OF1',
+      running_no: 6,
+      staff_no: 23,
+      business_date: c.today,
+      issued_offline: true,
+      issued_by_staff_id: c.staffId,
+      prasadam_state: 'pending',
+      channel: 'counter',
+      counter_id: 1,
+      synced_by_staff_id: c.adminId,
+      payment_mode: 'cash',
+      devotee_name: 'Lakshmi Narayan',
+    });
+
+    const audit = await c.db.query<{ action: string; actor_staff_id: string; reason: string; after: Record<string, unknown> }>(
+      `select action, actor_staff_id, reason, after from audit_log where action = 'receipt.entered_from_paper'`,
+    );
+    expect(audit.rows).toEqual([
+      expect.objectContaining({
+        actor_staff_id: c.adminId,
+        reason: 'Paper receipt book, page 12',
+        after: expect.objectContaining({ gap_id: gap, running_no: 6, issuer_staff_no: 23, total: '105.00', in_closed_day: false }),
+      }),
+    ]);
+
+    const [left, right] = await gapRows(c);
+    expect((await enter(c, left.id, await slip(c, 5))).gap_status).toBe('entered_from_paper');
+    expect((await enter(c, right.id, await slip(c, 7, { payment: { mode: 'upi', upi_ref_last6: '550912' } }))).gap_status).toBe(
+      'entered_from_paper',
+    );
+    expect(await gapRows(c)).toEqual([
+      expect.objectContaining({
+        from_no: 5,
+        to_no: 5,
+        status: 'entered_from_paper',
+        resolution_note: 'Paper receipt book, page 12',
+        resolved_by_staff_id: c.adminId,
+      }),
+      expect.objectContaining({ from_no: 7, to_no: 7, status: 'entered_from_paper', resolved_by_staff_id: c.adminId }),
+    ]);
+    const continuity = await asRole(c.db, 'service_role', async (d) =>
+      (
+        await d.query<{ open_gaps: number; issued: number }>(
+          `select open_gaps, issued from seva_continuity($1::date, $1::date) where series_code = 'OF1'`,
+          [c.today],
+        )
+      ).rows[0],
+    );
+    expect(continuity).toMatchObject({ open_gaps: 0, issued: 3 });
+  });
+
+  it('marks a printed amount that differs from the catalogue as changed, with the paper-book reason', async () => {
+    const c = await setup();
+    const gap = await openGap(c, 6, 6);
+    await enter(c, gap, await slip(c, 6, { lines: [{ seva_id: c.pan, quantity: 2, unit_rate: '150.00' }], expected_total: '300.00' }));
+    const line = await c.db.query<{ catalogue_rate: string; unit_rate: string; change_reason: string; has_changed_amount: boolean }>(
+      `select l.catalogue_rate::text, l.unit_rate::text, l.change_reason, r.has_changed_amount
+         from seva_receipt_lines l join seva_receipts r on r.id = l.receipt_id`,
+    );
+    expect(line.rows[0]).toEqual({
+      catalogue_rate: '105.00',
+      unit_rate: '150.00',
+      change_reason: 'Entered from the paper book: printed 150.00, catalogue 105.00',
+      has_changed_amount: true,
+    });
+  });
+
+  it('refuses a number outside the gap, a wrong number, a mismatched date or total, a short note, a used gap and a view-only admin', async () => {
+    const c = await setup();
+    const gap = await openGap(c);
+
+    expect(await failure(enter(c, gap, await slip(c, 8)))).toMatchObject({ code: 'validation', detail: { field: 'receipt_no', reason: 'outside_gap' } });
+    expect(await failure(enter(c, gap, await slip(c, 6, { receipt_no: 'C1-023-10-2026/000006' })))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'receipt_no' },
+    });
+    expect(await failure(enter(c, gap, await slip(c, 6, { receipt_no: await paperNo(c, 6, 999) })))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'receipt_no', reason: 'unknown_staff_no' },
+    });
+    expect(await failure(enter(c, gap, await slip(c, 6, { receipt_no: 'OF1-023-13-2026/000006' })))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'receipt_no' },
+    });
+    // The month in the number must be the month of the date on the slip: the last day of the month before is refused.
+    const monthBefore = new Date(`${c.today}T00:00:00Z`);
+    monthBefore.setUTCDate(0);
+    expect(await failure(enter(c, gap, await slip(c, 6, { issued_on: monthBefore.toISOString().slice(0, 10) })))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'issued_on' },
+    });
+    expect(await failure(enter(c, gap, await slip(c, 6, { issued_on: '2999-01-01' })))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'issued_on' },
+    });
+    expect(await failure(enter(c, gap, await slip(c, 6, { expected_total: '100.00' })))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'expected_total' },
+    });
+    expect(await failure(enter(c, gap, await slip(c, 6, { note: ' ​ ' })))).toMatchObject({ code: 'validation', detail: { field: 'note' } });
+    expect(await failure(enter(c, gap, await slip(c, 6, { payment: { mode: 'upi' } })))).toMatchObject({ code: 'upi_details_required' });
+    expect(await failure(enter(c, gap, await slip(c, 6), c.viewerId))).toMatchObject({ code: 'forbidden', detail: { reason: 'view_only' } });
+    expect(await failure(enter(c, 999999, await slip(c, 6)))).toMatchObject({ code: 'not_found' });
+
+    // No refusal stored anything.
+    expect((await c.db.query(`select 1 from seva_receipts`)).rows).toHaveLength(0);
+    expect((await gapRows(c)).map((g) => [g.from_no, g.to_no, g.status])).toEqual([[5, 7, 'open']]);
+
+    await resolveGap(c, gap, 'declared_lost', 'Book lost in the rain');
+    expect(await failure(enter(c, gap, await slip(c, 6)))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'gap', reason: 'already_resolved' },
+    });
+  });
+
+  it('only service_role may call it', async () => {
+    const c = await setup();
+    for (const role of ['anon', 'authenticated'] as const) {
+      await expect(
+        asRole(c.db, role, (d) => d.query('select seva_enter_paper_receipt($1::bigint, $2::jsonb, $3::uuid)', [1, '{}', c.adminId])),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+});

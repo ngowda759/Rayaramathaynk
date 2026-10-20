@@ -570,6 +570,37 @@ export const refundSettleSchema = z
     }
   });
 
+/** A C or OF receipt number as printed (DB §8.1): series - staff no. - month - year / running number. */
+export const PAPER_RECEIPT_NO = /^(?:C|OF)\d{1,2}-\d{3}-\d{2}-\d{4}\/\d{6}$/;
+
+/**
+ * One slip of an open number gap, typed in from the paper book (C-52, A5-FIX M-6): the number and date as printed, the
+ * devotee, the sevas (a unit rate only when the slip shows another amount than the catalogue, or for an any-amount
+ * seva), the slip's total, how it was paid and where the slip was found. seva_enter_paper_receipt checks it again.
+ */
+export const paperReceiptSchema = z.object({
+  receiptNo: z.string().trim().regex(PAPER_RECEIPT_NO, 'Type the number as printed, e.g. OF1-023-10-2026/000007'),
+  issuedOn: isoDate,
+  sevaDate: isoDate,
+  devotee: devoteeSchema,
+  lines: z
+    .array(
+      z.object({
+        sevaId: dbId,
+        quantity: z.number().int().min(1).max(99),
+        unitRatePaise: positivePaise.optional(),
+      }),
+    )
+    .min(1, 'Add the seva on the slip')
+    .max(8),
+  totalPaise: positivePaise,
+  payment: z.discriminatedUnion('mode', [
+    z.object({ mode: z.literal('cash') }),
+    z.object({ mode: z.literal('upi'), upiRefLast6: z.string().regex(/^\d{6}$/, 'Type the last 6 digits of the UPI reference') }),
+  ]),
+  note: reasonText(3, 500),
+});
+
 export const EXPORT_PARTS = ['receipts', 'lines', 'sevas', 'cancelled', 'dayCloses', 'prasadam', 'rateChanges'] as const;
 
 export const exportAuditSchema = z
@@ -588,6 +619,7 @@ export const exportAuditSchema = z
 
 export type CancelRequest = z.infer<typeof cancelSchema>;
 export type RefundSettleRequest = z.infer<typeof refundSettleSchema>;
+export type PaperReceiptRequest = z.infer<typeof paperReceiptSchema>;
 export type PrasadamGiveRequest = z.infer<typeof prasadamGiveSchema>;
 export type PrasadamUndoRequest = z.infer<typeof prasadamUndoSchema>;
 export type DayCloseRequest = z.infer<typeof dayCloseSchema>;

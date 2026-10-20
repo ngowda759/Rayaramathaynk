@@ -112,6 +112,9 @@ export const CONTINUITY = {
     `${from === to ? `Number ${from}` : `Numbers ${from} - ${to}`} missing (${cause === 'device_replaced' ? 'counter PC replaced' : 'not received from the counter PC'})`,
   resolve: 'Resolve',
   resolveLabel: (from: string, to: string): string => `Resolve gap ${from === to ? from : `${from} - ${to}`}`,
+  enterPaper: 'Enter from paper book',
+  enterPaperLabel: (from: string, to: string): string =>
+    `Enter ${from === to ? `number ${from}` : `numbers ${from} - ${to}`} from the paper book`,
   adminResolves: {
     en: 'A missing number stays on this card until a temple admin resolves it.',
     kn: 'ಕಾಣೆಯಾದ ಸಂಖ್ಯೆ ದೇವಸ್ಥಾನದ ಆಡಳಿತಾಧಿಕಾರಿ ಪರಿಹರಿಸುವವರೆಗೆ ಇಲ್ಲಿರುತ್ತದೆ.',
@@ -131,7 +134,10 @@ export const GAP_DIALOG = {
     kn: 'ಈ ಸಂಖ್ಯೆಗಳಿಗೆ ಏನಾಯಿತು ಎಂದು ತಿಳಿಸಿ. ಟಿಪ್ಪಣಿ ಲೆಕ್ಕಪರಿಶೋಧನೆ ದಾಖಲೆಯಲ್ಲಿ ಉಳಿಯುತ್ತದೆ.',
   },
   what: { en: 'What happened', kn: 'ಏನಾಯಿತು' },
-  paper: { en: 'Entered from the paper book', kn: 'ಕಾಗದದ ಪುಸ್ತಕದಿಂದ ನಮೂದಿಸಲಾಗಿದೆ' },
+  paperHint: {
+    en: 'Slips found in the paper book? Close this and use "Enter from paper book" for each slip; the gap closes when every number is entered.',
+    kn: 'ಕಾಗದದ ಪುಸ್ತಕದಲ್ಲಿ ರಸೀದಿಗಳು ಸಿಕ್ಕಿವೆಯೇ? ಇದನ್ನು ಮುಚ್ಚಿ, ಪ್ರತಿ ರಸೀದಿಗೆ "Enter from paper book" ಬಳಸಿ; ಎಲ್ಲಾ ಸಂಖ್ಯೆಗಳು ನಮೂದಾದಾಗ ಅಂತರ ಮುಚ್ಚುತ್ತದೆ.',
+  },
   lost: { en: 'Declared lost', kn: 'ಕಳೆದುಹೋಗಿದೆ ಎಂದು ಘೋಷಿಸಲಾಗಿದೆ' },
   note: { en: 'Note (at least 3 letters)', kn: 'ಟಿಪ್ಪಣಿ (ಕನಿಷ್ಠ 3 ಅಕ್ಷರ)' },
   save: 'Resolve gap',
@@ -142,6 +148,42 @@ export const GAP_DIALOG = {
 
 /** A gap note needs at least this many characters (the server's gapResolveSchema). */
 export const GAP_NOTE_MIN = 3;
+
+/** One slip of a gap typed in from the paper book (C-52, A5-FIX M-6): the register's continuity card. */
+export const PAPER_DIALOG = {
+  title: (series: string, from: string, to: string): string =>
+    `Enter ${series} ${from === to ? `number ${from}` : `numbers ${from} - ${to}`} from the paper book`,
+  description: {
+    en: 'Type one slip exactly as printed. The gap closes when every number in it is entered; declare the rest lost if a slip cannot be found.',
+    kn: 'ಒಂದು ರಸೀದಿಯನ್ನು ಮುದ್ರಿತವಾದಂತೆಯೇ ನಮೂದಿಸಿ. ಎಲ್ಲಾ ಸಂಖ್ಯೆಗಳು ನಮೂದಾದಾಗ ಅಂತರ ಮುಚ್ಚುತ್ತದೆ.',
+  },
+  receiptNo: { en: 'Receipt number as printed', kn: 'ಮುದ್ರಿತ ರಸೀದಿ ಸಂಖ್ಯೆ' },
+  receiptNoHint: (series: string): string => `For example ${series}-023-10-2026/000007`,
+  issuedOn: { en: 'Date on the slip', kn: 'ರಸೀದಿಯ ದಿನಾಂಕ' },
+  sevaDate: COMMON.sevaDate,
+  name: COMMON.name,
+  phone: { en: 'Phone (optional)', kn: 'ದೂರವಾಣಿ (ಐಚ್ಛಿಕ)' },
+  gotra: { en: 'Gotra (optional)', kn: 'ಗೋತ್ರ (ಐಚ್ಛಿಕ)' },
+  seva: { en: 'Seva', kn: 'ಸೇವೆ' },
+  chooseSeva: 'Choose the seva',
+  quantity: { en: 'Quantity', kn: 'ಸಂಖ್ಯೆ' },
+  rate: { en: 'Amount each, as printed (Rs)', kn: 'ಪ್ರತಿಯೊಂದರ ಮೊತ್ತ (ರೂ)' },
+  rateHint: (rate: string): string => `Leave empty for the catalogue rate (${rate})`,
+  rateNeeded: 'Type the amount: this seva has no fixed rate',
+  addLine: 'Add a seva',
+  removeLine: (n: number): string => `Remove seva ${n}`,
+  total: { en: 'Total on the slip (Rs)', kn: 'ರಸೀದಿಯ ಒಟ್ಟು (ರೂ)' },
+  mode: { en: 'Paid by', kn: 'ಪಾವತಿ ವಿಧಾನ' },
+  cash: { en: 'Cash', kn: 'ನಗದು' },
+  upi: { en: 'UPI', kn: 'ಯುಪಿಐ' },
+  upiRef: { en: 'Last 6 digits of the UPI reference', kn: 'ಯುಪಿಐ ಉಲ್ಲೇಖದ ಕೊನೆಯ 6 ಅಂಕೆಗಳು' },
+  note: { en: 'Where the slip was found (at least 3 letters)', kn: 'ರಸೀದಿ ಎಲ್ಲಿ ಸಿಕ್ಕಿತು (ಕನಿಷ್ಠ 3 ಅಕ್ಷರ)' },
+  badAmount: 'Type an amount like 105 or 105.50',
+  save: 'Enter receipt',
+  cancel: 'Cancel',
+  doneOpen: 'Receipt entered. The rest of the gap is still open.',
+  doneClosed: 'Receipt entered. The gap is closed.',
+} as const;
 
 /** Marking a due refund as paid back (DB §9.9, A5-FIX M-3): the register drawer and today's receipts. */
 export const REFUND_SETTLE = {
