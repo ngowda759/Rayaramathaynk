@@ -20,9 +20,12 @@ export interface IdentityAdapter {
   getAccessProfile(externalUid: string): Promise<{ role: unknown; isActive: boolean } | null>;
   /**
    * The sign-in account that already uses this email (a website admin, a devotee, the site owner), or null when there
-   * is none. Onboarding uses it to offer linking an existing account instead of making a second login.
+   * is none. Onboarding uses it to offer linking an existing account instead of making a second login. Anyone can
+   * register a login for any email, so only a login with `emailVerified` true (and not `disabled`) is ever linked.
    */
-  findLoginByEmail(email: string): Promise<{ externalUid: string; displayName: string | null } | null>;
+  findLoginByEmail(
+    email: string,
+  ): Promise<{ externalUid: string; displayName: string | null; emailVerified: boolean; disabled: boolean } | null>;
   createLogin(input: { email: string; displayName: string }): Promise<{ externalUid: string }>;
   setAccessProfile(
     externalUid: string,

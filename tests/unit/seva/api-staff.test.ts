@@ -93,7 +93,10 @@ jest.mock("@/lib/seva/server/rpc", () => ({
 // ---- The identity adapter (Firebase Auth + Firestore users) ---------------------------------------------------------
 const mockProfiles: Record<string, Row | undefined> = {};
 /** Sign-in accounts that already exist, by email (website admins, devotees, ...). */
-const mockLogins: Record<string, { externalUid: string; displayName: string | null } | undefined> = {};
+const mockLogins: Record<
+  string,
+  { externalUid: string; displayName: string | null; emailVerified: boolean; disabled: boolean } | undefined
+> = {};
 const mockIdentity: jest.Mocked<IdentityAdapter> = {
   verifyRequest: jest.fn(),
   findLoginByEmail: jest.fn(async (email: string) => mockLogins[email] ?? null),
@@ -178,12 +181,18 @@ function resetFixtures() {
   for (const key of Object.keys(mockLogins)) delete mockLogins[key];
   Object.assign(mockLogins, {
     // A devotee who signed in on the website, and the site owner (a super admin), neither of them staff.
-    "priya.s@example.org": { externalUid: "uid-priya", displayName: "Priya S" },
-    "owner@example.org": { externalUid: "uid-owner", displayName: "Site Owner" },
+    "priya.s@example.org": { externalUid: "uid-priya", displayName: "Priya S", emailVerified: true, disabled: false },
+    "owner@example.org": { externalUid: "uid-owner", displayName: "Site Owner", emailVerified: true, disabled: false },
     // Ramesh's second email: the login is already a staff member's.
-    "ramesh.home@example.org": { externalUid: "uid-ramesh", displayName: "Ramesh K" },
+    "ramesh.home@example.org": { externalUid: "uid-ramesh", displayName: "Ramesh K", emailVerified: true, disabled: false },
     // A login that never got a Firestore profile.
-    "noprofile@example.org": { externalUid: "uid-noprofile", displayName: null },
+    "noprofile@example.org": { externalUid: "uid-noprofile", displayName: null, emailVerified: true, disabled: false },
+    // A website account switched off on the website (profile isActive false), still able to sign in.
+    "lapsed@example.org": { externalUid: "uid-lapsed", displayName: "Lapsed Admin", emailVerified: true, disabled: false },
+    // Anyone can register a login for any email: never verified, so never linked.
+    "impostor@example.org": { externalUid: "uid-impostor", displayName: "Nikhil N", emailVerified: false, disabled: false },
+    // A login switched off in Firebase Authentication.
+    "disabled@example.org": { externalUid: "uid-disabled", displayName: "Old Account", emailVerified: true, disabled: true },
   });
   for (const key of Object.keys(mockProfiles)) delete mockProfiles[key];
   Object.assign(mockProfiles, {
@@ -196,6 +205,9 @@ function resetFixtures() {
     "uid-shobha": { role: "billing", isActive: false },
     "uid-priya": { role: "devotee", isActive: true },
     "uid-owner": { role: "super_admin", isActive: true },
+    "uid-lapsed": { role: "admin", isActive: false },
+    "uid-impostor": { role: "devotee", isActive: true },
+    "uid-disabled": { role: "devotee", isActive: true },
   });
   for (const key of Object.keys(mockRpcAnswers)) delete mockRpcAnswers[key];
   Object.assign(mockRpcAnswers, {
@@ -436,14 +448,22 @@ describe("POST /api/seva/staff (an email that already has a website account)", (
     expect(refused).toMatchObject({
       status: 400,
       code: "validation",
-      detail: { field: "email", reason: "existing_account", currentRole: "devotee", displayName: "Priya S" },
+      detail: {
+        field: "email",
+        reason: "existing_account",
+        currentRole: "devotee",
+        currentlyActive: true,
+        displayName: "Priya S",
+      },
     });
     expect(identityWrites()).toBe(0);
     expect(mockCalls).toEqual(["rpc.seva_next_staff_no"]);
 
     // A login with no profile has no current role.
     const bare = await errorOf(await POST(post({ ...priya, email: "noprofile@example.org" })));
-    expect(bare.detail).toMatchObject({ reason: "existing_account", currentRole: null, displayName: null });
+    expect(bare.detail).toMatchObject({ reason: "existing_account", currentRole: null, currentlyActive: null, displayName: null });
+    const lapsed = await errorOf(await POST(post({ ...priya, email: "lapsed@example.org" })));
+    expect(lapsed.detail).toMatchObject({ reason: "existing_account", currentRole: "admin", currentlyActive: false });
     expect(identityWrites()).toBe(0);
   });
 
@@ -477,9 +497,62 @@ describe("POST /api/seva/staff (an email that already has a website account)", (
       p_receipt_no: null,
       p_reason: null,
       p_before: null,
-      p_after: { linked_existing: true, previous_role: "devotee", role: "receptionist" },
+      p_after: { linked_existing: true, previous_role: "devotee", previous_active: true, role: "receptionist" },
       p_staff_id: ADMIN.staffId,
     });
+  });
+
+  it("never links a login whose email is not verified (anyone can register any email), with no writes", async () => {
+    mockSession.actor = SUPER;
+    const impostor = { ...priya, fullName: "Nikhil N", email: "impostor@example.org", role: "super_admin" };
+    // Reported up front, so the dialog never offers "Link this account" for it.
+    for (const body of [impostor, { ...impostor, linkExisting: true }]) {
+      const refused = await errorOf(await POST(post(body)));
+      expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email", reason: "unverified_account" } });
+      expect(String(refused.detail?.message)).toMatch(/verification email/);
+      expect(String(refused.detail?.message)).toMatch(/register again or contact the site owner/);
+    }
+    expect(identityWrites()).toBe(0);
+    expect(mockCalls).toEqual(["rpc.seva_next_staff_no", "rpc.seva_next_staff_no"]);
+  });
+
+  it("never links a login that is switched off in sign-in, with no writes", async () => {
+    mockSession.actor = SUPER;
+    for (const body of [{ ...priya, email: "disabled@example.org" }, { ...priya, email: "disabled@example.org", linkExisting: true }]) {
+      const refused = await errorOf(await POST(post(body)));
+      expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email", reason: "disabled_account" } });
+    }
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalledWith("seva_staff_onboard", expect.anything());
+  });
+
+  it("linking an inactive website account makes it active and audits what it was", async () => {
+    mockSession.actor = ADMIN;
+    const res = await POST(post({ ...priya, fullName: "Lapsed Admin", email: "lapsed@example.org", linkExisting: true }));
+    expect(res.status).toBe(201);
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-lapsed", expect.objectContaining({ isActive: true }));
+    expect(mockRpc).toHaveBeenCalledWith(
+      "seva_audit",
+      expect.objectContaining({
+        p_after: { linked_existing: true, previous_role: "admin", previous_active: false, role: "receptionist" },
+      }),
+    );
+  });
+
+  it("a partial failure on the link path says what the profile held before", async () => {
+    mockSession.actor = ADMIN;
+    mockRpcAnswers.seva_staff_onboard = () => {
+      throw new SevaError("internal");
+    };
+    const failure = await errorOf(await POST(post({ ...priya, linkExisting: true })));
+    expect(failure).toMatchObject({
+      status: 502,
+      code: "partial_failure",
+      detail: { done: ["identity"], failed: "staff", previous_role: "devotee", previous_active: true },
+    });
+    // A new login's partial failure has nothing overwritten to report.
+    const fresh = await errorOf(await POST(post({ ...priya, email: "new.person@example.org" })));
+    expect(fresh.detail).not.toHaveProperty("previous_role");
   });
 
   it("refuses an account that is already staff", async () => {
@@ -504,7 +577,9 @@ describe("POST /api/seva/staff (an email that already has a website account)", (
     expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-owner", expect.objectContaining({ role: "super_admin" }));
     expect(mockRpc).toHaveBeenCalledWith(
       "seva_audit",
-      expect.objectContaining({ p_after: { linked_existing: true, previous_role: "super_admin", role: "super_admin" } }),
+      expect.objectContaining({
+        p_after: { linked_existing: true, previous_role: "super_admin", previous_active: true, role: "super_admin" },
+      }),
     );
   });
 
@@ -690,14 +765,27 @@ describe("Firebase identity adapter: createLogin", () => {
 
 describe("Firebase identity adapter: findLoginByEmail", () => {
   it("returns the existing login's uid and display name", async () => {
-    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({ uid: "uid-priya", displayName: "Priya S" });
+    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({
+      uid: "uid-priya",
+      displayName: "Priya S",
+      emailVerified: true,
+      disabled: false,
+    });
     expect(await firebaseIdentityAdapter.findLoginByEmail("priya.s@example.org")).toEqual({
       externalUid: "uid-priya",
       displayName: "Priya S",
+      emailVerified: true,
+      disabled: false,
     });
     expect(mockFirebaseAuth.getUserByEmail).toHaveBeenCalledWith("priya.s@example.org");
-    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({ uid: "uid-x" });
-    expect(await firebaseIdentityAdapter.findLoginByEmail("x@example.org")).toEqual({ externalUid: "uid-x", displayName: null });
+    // Anything but a plain true is read as not verified, and as disabled.
+    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({ uid: "uid-x", disabled: "yes" });
+    expect(await firebaseIdentityAdapter.findLoginByEmail("x@example.org")).toEqual({
+      externalUid: "uid-x",
+      displayName: null,
+      emailVerified: false,
+      disabled: true,
+    });
   });
 
   it("answers null when no login has the email, and passes any other failure through", async () => {

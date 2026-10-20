@@ -190,15 +190,58 @@ describe("Staff and roles", () => {
     expect(api.onboard.mock.invocationCallOrder[0]).toBeLessThan(sendInvite.mock.invocationCallOrder[0]);
   });
 
-  function existingAccount(currentRole: string | null, displayName: string | null): SevaClientError {
+  function existingAccount(
+    currentRole: string | null,
+    displayName: string | null,
+    currentlyActive: boolean | null = true,
+  ): SevaClientError {
     return new SevaClientError("validation", 400, "This email already has a sign-in account.", {
       field: "email",
       reason: "existing_account",
       currentRole,
+      currentlyActive,
       displayName,
       message: "This email already has a sign-in account.",
     });
   }
+
+  it("the link question says when the account is inactive on the website", async () => {
+    const api = fakeApi({ onboard: jest.fn().mockRejectedValueOnce(existingAccount("admin", "Lapsed Admin", false)) });
+    renderOnboard(TA, api);
+    await screen.findByDisplayValue("35");
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Lapsed Admin" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "lapsed@example.org" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+    const confirm = await screen.findByRole("region", { name: "Existing website account" });
+    expect(confirm).toHaveTextContent("This account is currently inactive; linking makes it active.");
+  });
+
+  it("an unverified or disabled account gets the server's reason and no Link this account", async () => {
+    const unverified = new SevaClientError("validation", 400, "Some details are missing or not right.", {
+      field: "email",
+      reason: "unverified_account",
+      message: "server text",
+    });
+    const disabled = new SevaClientError("validation", 400, "Some details are missing or not right.", {
+      field: "email",
+      reason: "disabled_account",
+      message: "server text",
+    });
+    const api = fakeApi({ onboard: jest.fn().mockRejectedValueOnce(unverified).mockRejectedValueOnce(disabled) });
+    renderOnboard(SA, api);
+    await screen.findByDisplayValue("35");
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Nikhil N" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "impostor@example.org" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("not verified");
+    expect(alert).toHaveTextContent("register again or contact the site owner");
+    expect(screen.queryByRole("button", { name: "Link this account" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("switched off"));
+    expect(screen.queryByRole("button", { name: "Link this account" })).not.toBeInTheDocument();
+  });
 
   it("an email with a website account asks first, then links it with no set-password email", async () => {
     const api = fakeApi({

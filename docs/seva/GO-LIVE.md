@@ -84,7 +84,8 @@ Sign in at `https://<live address>/login`, then open `https://<live address>/sev
 
   Existing website accounts (the site owner, other website admins, a devotee who signed in) can be added too: Onboard
   staff shows the account's current role and offers **Link this account**. They keep their password and get no
-  email.
+  email. The account's email must be verified (they clicked the link in the email the website sent when they
+  registered); an unverified account is refused.
 
 ## Part 4 - The temple office: check the Kannada
 

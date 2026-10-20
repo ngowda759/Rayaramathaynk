@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { mapFirestoreRole } from "@/lib/seva/permissions";
+import type { Bi } from "@/lib/seva/strings/common";
 import { STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_TEXT, staffNoText } from "@/lib/seva/strings/staff";
 import { staffOnboardSchema, type StaffOnboardRequest } from "@/lib/seva/schemas";
 import { SevaClientError } from "@/services/seva/http";
 import type { StaffApi } from "@/services/seva/staff.service";
 import type { SevaRole } from "@/types/seva";
-import type { StaffPartialFailure } from "@/types/seva-staff";
+import type { StaffPartialFailure, StaffUnlinkableReason } from "@/types/seva-staff";
 import {
   PartialFailureNotice,
   RolePicker,
@@ -79,6 +80,8 @@ interface ExistingAccount {
   who: string;
   /** Their current role in words: a seva role's label, else the role as stored, else "none". */
   currentRole: string;
+  /** The account is inactive on the website; linking makes it active, so the question says so. */
+  inactive: boolean;
   /** The request that was refused; linking resends it with `linkExisting: true`. */
   body: StaffOnboardRequest;
 }
@@ -88,14 +91,30 @@ function existingAccountOf(error: unknown, body: StaffOnboardRequest): ExistingA
   if (!(error instanceof SevaClientError) || error.code !== "validation" || error.detail?.reason !== "existing_account") {
     return null;
   }
-  const { displayName, currentRole } = error.detail;
+  const { displayName, currentRole, currentlyActive } = error.detail;
   const sevaRole = mapFirestoreRole(currentRole);
   const storedRole = typeof currentRole === "string" ? currentRole.trim() : "";
   return {
     who: typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : body.email,
     currentRole: sevaRole ? STAFF_ROLE_LABEL[sevaRole].en : storedRole !== "" ? storedRole : STAFF_TEXT.linkNoRole,
+    inactive: currentlyActive === false,
     body,
   };
+}
+
+const UNLINKABLE_TEXT: Record<StaffUnlinkableReason, Bi> = {
+  unverified_account: STAFF_TEXT.linkUnverified,
+  disabled_account: STAFF_TEXT.linkDisabled,
+};
+
+/**
+ * Why an existing website account can never be linked (unverified email, or sign-in switched off), in English with
+ * Kannada under it; null for any other error. The shared validation message would only say "check the form".
+ */
+function unlinkableText(error: unknown): Bi | null {
+  if (!(error instanceof SevaClientError) || error.code !== "validation") return null;
+  const reason = error.detail?.reason;
+  return reason === "unverified_account" || reason === "disabled_account" ? UNLINKABLE_TEXT[reason] : null;
 }
 
 function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: OnboardDialogProps): JSX.Element {
@@ -107,7 +126,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
   const [viewOnly, setViewOnly] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Bi | null>(null);
   const [partial, setPartial] = useState<StaffPartialFailure | null>(null);
   const [emailPending, setEmailPending] = useState<EmailPending | null>(null);
   const [existing, setExisting] = useState<ExistingAccount | null>(null);
@@ -199,7 +218,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
         setPartial(failure);
         onWritten?.();
       } else {
-        setError(errorText(err));
+        setError(unlinkableText(err) ?? errorText(err));
       }
     } finally {
       setBusy(false);
@@ -279,7 +298,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
 
         {error ? (
           <p role="alert" className="rounded-(--radius-control) bg-(--destructive-soft) p-3 text-(--destructive)">
-            {error}
+            {typeof error === "string" ? error : <Bilingual en={error.en} kn={error.kn} />}
           </p>
         ) : null}
         {partial ? <PartialFailureNotice done={partial.done} failed={partial.failed} partly={partial.partly} /> : null}
@@ -351,6 +370,9 @@ function ExistingAccountConfirm({ existing, newRole, busy, onLink, onCancel }: E
     >
       <Bilingual as="h3" className="font-semibold" en={STAFF_TEXT.linkTitle.en} kn={STAFF_TEXT.linkTitle.kn} />
       <Bilingual as="div" en={question.en} kn={question.kn} />
+      {existing.inactive ? (
+        <Bilingual as="div" className="font-semibold" en={STAFF_TEXT.linkInactive.en} kn={STAFF_TEXT.linkInactive.kn} />
+      ) : null}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="seva-ghost" onClick={onCancel} disabled={busy}>
           {STAFF_TEXT.linkCancel.en}

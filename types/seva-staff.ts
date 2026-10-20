@@ -51,9 +51,18 @@ export interface StaffExistingAccountDetail {
   reason: "existing_account";
   /** Their Firestore role as stored (e.g. 'admin', 'devotee'), or null when they have no profile. */
   currentRole: string | null;
+  /** Their Firestore `isActive`; false shows "currently inactive; linking makes it active"; null with no profile. */
+  currentlyActive: boolean | null;
   displayName: string | null;
   message: string;
 }
+
+/**
+ * Why an email's existing website account can never be linked, as the 400 `validation` detail `reason` (with
+ * `field: 'email'` and a `message`): its email is not verified (anyone can register a login for any email), or its
+ * sign-in is switched off. Nothing was written.
+ */
+export type StaffUnlinkableReason = "unverified_account" | "disabled_account";
 
 /**
  * The stores a staff change writes, in this order (DB §3.2): the sign-in store (Firebase Auth login and Firestore
@@ -64,11 +73,15 @@ export type StaffChangeStep = 'identity' | 'staff' | 'audit';
 /**
  * `error.detail` of a 502 `partial_failure`: a step failed after an earlier write had already gone through.
  * `done` lists the steps that finished; `failed` names the one that did not; `partly` lists the writes of the failed
- * step that did go through ('login', 'profile'); `cause` is the error code of the failure.
+ * step that did go through ('login', 'profile'); `cause` is the error code of the failure. When an existing website
+ * account was being linked, `previous_role` and `previous_active` say what its profile held before the link overwrote
+ * it (named as in the staff.onboard audit row), so a retry or the office can put it back.
  */
 export interface StaffPartialFailure {
   done: StaffChangeStep[];
   failed: StaffChangeStep;
   partly?: string[];
   cause?: string;
+  previous_role?: string | null;
+  previous_active?: boolean | null;
 }

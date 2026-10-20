@@ -25,6 +25,7 @@ import { z } from "zod";
 import { SevaError } from "@/lib/seva/errors";
 import { can, mapFirestoreRole, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
 import type { StaffOnboardRequest, StaffUpdateRequest } from "@/lib/seva/schemas";
+import { STAFF_TEXT } from "@/lib/seva/strings/staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SevaAction, SevaRole } from "@/types/seva";
 import type {
@@ -240,9 +241,13 @@ interface Step {
 
 /**
  * Runs the steps in order. A failure before anything was written throws that error as it is; a failure after any
- * write went through throws SevaError('partial_failure') with StaffPartialFailure as its detail.
+ * write went through throws SevaError('partial_failure') with StaffPartialFailure as its detail, plus `overwritten`
+ * (what a linked account's profile held before) so a retry or the office can see what was replaced.
  */
-async function runSteps(steps: readonly Step[]): Promise<void> {
+async function runSteps(
+  steps: readonly Step[],
+  overwritten: Pick<StaffPartialFailure, "previous_role" | "previous_active"> = {},
+): Promise<void> {
   const done: StaffChangeStep[] = [];
   for (const { step, writes } of steps) {
     if (writes.length === 0) continue;
@@ -257,6 +262,7 @@ async function runSteps(steps: readonly Step[]): Promise<void> {
           failed: step,
           ...(partly.length > 0 ? { partly } : {}),
           cause: error instanceof SevaError ? error.code : "internal",
+          ...overwritten,
         };
         throw new SevaError("partial_failure", { ...detail });
       }
@@ -276,17 +282,24 @@ export interface OnboardOptions {
 
 const EXISTING_ACCOUNT = "This email already has a sign-in account.";
 
+/** What a linked account's profile held before the link overwrote it: for the audit row and a partial failure. */
+interface LinkedLogin {
+  externalUid: string;
+  previousRole: string | null;
+  /** The Firestore `isActive` before the link; null when there was no profile. */
+  previousActive: boolean | null;
+}
+
 /**
  * An email that already has a website account (a website admin, a devotee, the site owner). Without the office's
  * confirmation (`linkExisting`) the answer is 400 existing_account (StaffExistingAccountDetail) before any write, so
- * the dialog can ask first. Either way the account is refused when it is already staff, and a super admin's account
- * is linked only by a super admin (its role would change, row 20). Returns the uid to use and the role it had.
+ * the dialog can ask first. Either way, and before that question is ever asked, the account is refused when it is
+ * already staff, when its sign-in is switched off (`disabled_account`), or when its email is not verified
+ * (`unverified_account`): anyone can register a login for any email, through the website or straight against
+ * Firebase, so linking an unverified one would hand staff access and the website admin to whoever registered it. A
+ * super admin's account is linked only by a super admin (its role would change, row 20).
  */
-async function existingLogin(
-  db: AdminClient,
-  actor: SevaActor,
-  input: StaffOnboardRequest,
-): Promise<{ externalUid: string; previousRole: string | null } | null> {
+async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnboardRequest): Promise<LinkedLogin | null> {
   const identity = getIdentityAdapter();
   const login = await identity.findLoginByEmail(input.email);
   if (!login) return null;
@@ -295,21 +308,29 @@ async function existingLogin(
     identity.getAccessProfile(login.externalUid),
   ]);
   if (staff) throw invalid("email", `This website account is already staff (staff no. ${staffNoText(staff.staffNo)})`);
+  if (login.disabled) {
+    throw new SevaError("validation", { field: "email", reason: "disabled_account", message: STAFF_TEXT.linkDisabled.en });
+  }
+  if (!login.emailVerified) {
+    throw new SevaError("validation", { field: "email", reason: "unverified_account", message: STAFF_TEXT.linkUnverified.en });
+  }
   if (mapFirestoreRole(profile?.role) === "super_admin" && actor.role !== "super_admin") {
     throw new SevaError("forbidden");
   }
   const previousRole = typeof profile?.role === "string" ? profile.role : null;
+  const previousActive = profile ? profile.isActive : null;
   if (input.linkExisting !== true) {
     const detail: StaffExistingAccountDetail = {
       field: "email",
       reason: "existing_account",
       currentRole: previousRole,
+      currentlyActive: previousActive,
       displayName: login.displayName,
       message: EXISTING_ACCOUNT,
     };
     throw new SevaError("validation", { ...detail });
   }
-  return { externalUid: login.externalUid, previousRole };
+  return { externalUid: login.externalUid, previousRole, previousActive };
 }
 
 /**
@@ -407,14 +428,19 @@ export async function onboardStaff(
                   p_receipt_no: null,
                   p_reason: null,
                   p_before: null,
-                  p_after: { linked_existing: true, previous_role: linked.previousRole, role: input.role },
+                  p_after: {
+                    linked_existing: true,
+                    previous_role: linked.previousRole,
+                    previous_active: linked.previousActive,
+                    role: input.role,
+                  },
                   p_staff_id: actor.staffId,
                 }),
             },
           ]
         : [],
     },
-  ]);
+  ], linked ? { previous_role: linked.previousRole, previous_active: linked.previousActive } : {});
   return linked ? { staffId, staffNo, linkedExisting: true } : { staffId, staffNo };
 }
 
