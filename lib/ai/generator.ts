@@ -5,7 +5,6 @@ import { Intent, IntentDetectionResult, RetrievalType, detectIntent } from "./in
 import { retrieve } from "./retrieval/registry";
 import { responseComposer } from "./response/composer";
 import { containsKannada } from "./intent/patterns";
-import { logUnknownQuestion } from "@/services/analytics.service";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 
 export { detectIntent } from "./intent";
@@ -67,16 +66,16 @@ export async function generateResponse(
 
     console.log(`[AI Generator] Low confidence (${intentResult.confidence}%), redirecting to FAQ`);
     
-    // Log unknown question safely
+    // Log unknown question safely (Supabase-only; never blocks the response).
     if (behavior.enableUnknownQuestionLogging) {
        try {
-         await logUnknownQuestion({
-           question: message,
-           detectedIntent: intentResult.intent,
-           confidence: intentResult.confidence,
-           sessionId,
+         await aiSettingsService.logUnknownQuestion(
+           message,
+           intentResult.intent,
+           intentResult.confidence,
            language,
-         });
+           sessionId || "anonymous"
+         );
        } catch (error) {
          console.error("[AI Generator] Failed to log unknown question (analytics non-blocking):", error);
        }

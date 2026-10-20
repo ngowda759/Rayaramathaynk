@@ -1,10 +1,13 @@
 // API Route: /api/ai/analytics/health
 // Returns AI system health status
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { checkAIHealth } from "@/services/ai-analytics.service";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
   try {
     const response = await checkAIHealth();
     return NextResponse.json(response);

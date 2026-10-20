@@ -2,8 +2,10 @@
  * Server-only admin authentication for admin API routes.
  *
  * Verifies the Firebase ID token sent by the admin UI (Authorization: Bearer)
- * using the Firebase Admin SDK and checks the user's role in Firestore.
- * Public/unauthenticated callers are rejected.
+ * using the Firebase Admin SDK, then checks the user's role and active flag in
+ * Supabase (`public.users`, keyed by `firestore_id` = the Firebase UID).
+ * Public/unauthenticated callers are rejected, and access is denied by default:
+ * a valid token alone is never sufficient.
  *
  * The verifier distinguishes *why* a request was rejected so that API routes
  * can return an accurate status code and diagnostics instead of a blanket 401
@@ -142,14 +144,17 @@ export async function verifyAdminUserResult(
     };
   }
 
-  // Load the user's profile to enforce role/active checks.
-  try {
-    const { getAdminFirestore } = await import("@/lib/admin-firebase");
-    const db = await getAdminFirestore();
-    const userSnap = await db.collection("users").doc(decoded.uid).get();
+  // Load the authorization profile from Supabase to enforce role/active checks.
+  //
+  // The authoritative source is `public.users`, keyed by `firestore_id` (the
+  // Firebase Auth UID written by the migration mappers). `role` and `active`
+  // live there. `profiles` has neither column, and its `id` is a generated
+  // uuid, so it must not be used for authorization.
+  const profile = await loadAuthorizationProfile(decoded.uid);
 
-    if (!userSnap.exists) {
-      console.warn(`[verifyAdminUser] User ${decoded.uid} not found in Firestore`);
+  if (!profile.ok) {
+    if (profile.reason === "user_not_found") {
+      console.warn(`[verifyAdminUser] No authorization profile for uid ${decoded.uid}`);
       return {
         ok: false,
         reason: "user_not_found",
@@ -157,44 +162,8 @@ export async function verifyAdminUserResult(
         message: "No admin profile found for this account.",
       };
     }
-
-    const data = userSnap.data() || {};
-    if (data.isActive === false) {
-      console.warn(`[verifyAdminUser] User ${decoded.uid} is not active`);
-      return {
-        ok: false,
-        reason: "inactive_user",
-        status: 403,
-        message: "This account is inactive.",
-      };
-    }
-
-    const role = normalizeRole(data.role);
-    if (!ADMIN_CONSOLE_ROLES.has(role)) {
-      console.warn(
-        `[verifyAdminUser] User ${decoded.uid} has role ${JSON.stringify(role)}, which is not an admin console role`
-      );
-      return {
-        ok: false,
-        reason: "insufficient_role",
-        status: 403,
-        message: "This account does not have administrator permissions.",
-      };
-    }
-
-    return {
-      ok: true,
-      user: {
-        uid: decoded.uid,
-        email: String(data.email || decoded.email || ""),
-        role,
-      },
-    };
-  } catch (error) {
-    console.error(
-      "[verifyAdminUser] Failed to load admin profile:",
-      error instanceof Error ? error.message : error
-    );
+    // A datastore or credential failure is a server problem, never a client
+    // authentication denial. Reporting it as 403 would hide a real outage.
     return {
       ok: false,
       reason: "auth_unavailable",
@@ -203,6 +172,87 @@ export async function verifyAdminUserResult(
         "Server authentication is temporarily unavailable (profile lookup failed).",
     };
   }
+
+  if (profile.active === false) {
+    console.warn(`[verifyAdminUser] User ${decoded.uid} is not active`);
+    return {
+      ok: false,
+      reason: "inactive_user",
+      status: 403,
+      message: "This account is inactive.",
+    };
+  }
+
+  const role = normalizeRole(profile.role);
+  if (!ADMIN_CONSOLE_ROLES.has(role)) {
+    console.warn(`[verifyAdminUser] User ${decoded.uid} has non-admin role ${role || "(empty)"}`);
+    return {
+      ok: false,
+      reason: "insufficient_role",
+      status: 403,
+      message: "This account does not have administrator permissions.",
+    };
+  }
+
+  return {
+    ok: true,
+    user: {
+      uid: decoded.uid,
+      email: String(profile.email || decoded.email || ""),
+      role,
+    },
+  };
+}
+
+type AuthorizationProfile =
+  | { ok: true; role: unknown; active: boolean | null; email: string | null }
+  | { ok: false; reason: "user_not_found" | "auth_unavailable" };
+
+/**
+ * Load the authorization profile for a verified Firebase UID from Supabase.
+ *
+ * Returns `auth_unavailable` when the Supabase admin client cannot be created
+ * (missing service-role credentials) or the query fails, so the caller can
+ * distinguish a datastore problem from a genuine authorization denial.
+ */
+async function loadAuthorizationProfile(
+  uid: string
+): Promise<AuthorizationProfile> {
+  let supabase: Awaited<
+    ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>
+  >;
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    supabase = createAdminClient();
+  } catch (error) {
+    console.error(
+      "[verifyAdminUser] Supabase admin client unavailable:",
+      error instanceof Error ? error.message : error
+    );
+    return { ok: false, reason: "auth_unavailable" };
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("role, active, email")
+    .eq("firestore_id", uid)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[verifyAdminUser] Authorization profile lookup failed:", error.message);
+    return { ok: false, reason: "auth_unavailable" };
+  }
+
+  if (!data) {
+    return { ok: false, reason: "user_not_found" };
+  }
+
+  return {
+    ok: true,
+    role: (data as { role?: unknown }).role,
+    active: (data as { active?: boolean | null }).active ?? null,
+    email: (data as { email?: string | null }).email ?? null,
+  };
 }
 
 /**

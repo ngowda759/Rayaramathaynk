@@ -1,8 +1,8 @@
 // Settings Retrieval - Temple contact info, timings, address
 // Single source of truth for all temple basic information
 
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, doc, getDoc, query, orderBy } from "firebase/firestore";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/client";
 import { TempleSettings, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 
@@ -11,111 +11,151 @@ let cachedSettings: TempleSettings | null = null;
 let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-/**
- * Default settings as fallback
- */
-const DEFAULT_SETTINGS: TempleSettings = {
-  name: "Sri Raghavendra Swamy Matha",
-  address: "Yelahanka New Town, Bengaluru, Karnataka, India",
-  phone: "+91 80 2847 1234",
-  email: "info@sriraghavendra.org",
-  timings: {
-      morningOpen: "6:00 AM",
-      morningClose: "12:00 PM",
-      eveningOpen: "5:00 PM",
-      eveningClose: "8:30 PM",
-  },
-  contact: {
-    phone: "+91 80 2847 1234",
-    email: "info@sriraghavendra.org",
-    address: "Yelahanka New Town, Bengaluru, Karnataka, India"
-  },
-  officeHours: {
-    weekday: "9:00 AM - 5:00 PM",
-    weekend: "10:00 AM - 4:00 PM"
-  },
-  visitorInfo: {
-    guidelines: "Please maintain silence.",
-    dressCode: "Traditional wear requested.",
-    photographyPolicy: "Not allowed inside sanctum.",
-    parking: "Available outside.",
-    facilities: "Restrooms and drinking water available.",
-    wheelchairAccess: "Available.",
-    drinkingWater: "Available.",
-    restrooms: "Available.",
-    prasada: "Available after daily pooja.",
-    annadanam: "Available on special occasions.",
-    accommodation: "Not available.",
-    volunteerInfo: "Contact office.",
-    testimonials: "Available on website.",
-    contact: "+91 80 2847 1234"
-  }
-};
+const AI_SETTINGS_TABLE = "ai_settings";
+const AI_SETTINGS_ID = "main";
+
+function getSupabase() {
+  return typeof window === "undefined" ? createAdminClient() : createClient();
+}
+
+type AiSettingsRow = {
+  temple_information?: Record<string, unknown> | null;
+  visitor_information?: Record<string, unknown> | null;
+  temple_policies?: Record<string, unknown> | null;
+} | null;
 
 /**
- * Fetch temple settings from Firebase settings collection
+ * Read a non-empty string from an untyped JSON column value.
  */
-async function fetchFromFirebase(): Promise<TempleSettings> {
-  if (!isFirebaseConfigured() || !db) {
-    return DEFAULT_SETTINGS;
-  }
-
-  try {
-    const q = query(
-      collection(db, "settings"),
-      orderBy("updatedAt", "desc")
-    );
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      return DEFAULT_SETTINGS;
-    }
-
-    const data = snapshot.docs[0].data();
-    
-    return {
-      name: data.templeName || DEFAULT_SETTINGS.name,
-      address: data.address || DEFAULT_SETTINGS.address,
-      phone: data.contactPhone || data.phone || DEFAULT_SETTINGS.phone,
-      email: data.contactEmail || data.email || DEFAULT_SETTINGS.email,
-      timings: {
-        morningOpen: data.morningOpen || DEFAULT_SETTINGS.timings.morningOpen,
-        morningClose: data.morningClose || DEFAULT_SETTINGS.timings.morningClose,
-        eveningOpen: data.eveningOpen || DEFAULT_SETTINGS.timings.eveningOpen,
-        eveningClose: data.eveningClose || DEFAULT_SETTINGS.timings.eveningClose,
-      },
-      contact: DEFAULT_SETTINGS.contact,
-      officeHours: DEFAULT_SETTINGS.officeHours,
-      visitorInfo: DEFAULT_SETTINGS.visitorInfo,
-      googleMapsUrl: data.googleMapsUrl,
-    };
-  } catch (error) {
-    console.error("[Settings Retrieval] Error fetching from Firebase:", error);
-    return cachedSettings || DEFAULT_SETTINGS;
-  }
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 /**
- * Fetch timings specifically from Firebase timings collection
+ * Fetch temple settings from the Supabase `ai_settings` row.
+ *
+ * `ai_settings.temple_information` is the authoritative store for temple
+ * timings, contact details and office hours (the same row the AI Settings admin
+ * page edits); `visitor_information` / `temple_policies` hold visitor guidance.
+ * There is no Firestore fallback.
+ *
+ * Returns `null` when the `main` row is missing or the query fails. It never
+ * substitutes invented temple facts (phone numbers, addresses, timings) — a
+ * wrong phone number is worse than an honest "unavailable" response.
  */
-async function fetchTimingsFromFirebase(): Promise<TempleSettings["timings"] | null> {
-  if (!isFirebaseConfigured() || !db) {
+async function fetchFromSupabase(): Promise<TempleSettings | null> {
+  const { data, error } = await getSupabase()
+    .from(AI_SETTINGS_TABLE)
+    .select("temple_information, visitor_information, temple_policies")
+    .eq("id", AI_SETTINGS_ID)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[Settings Retrieval] Error fetching settings:", error.message);
     return null;
   }
 
+  const row = data as AiSettingsRow;
+  if (!row) {
+    console.warn("[Settings Retrieval] No ai_settings 'main' row found.");
+    return null;
+  }
+
+  const templeInfo = (row.temple_information || {}) as Record<string, unknown>;
+  const visitorInfo = (row.visitor_information || {}) as Record<string, unknown>;
+  const templePolicies = (row.temple_policies || {}) as Record<string, unknown>;
+  const timings = (templeInfo.timings || {}) as Record<string, unknown>;
+  const contact = (templeInfo.contact || {}) as Record<string, unknown>;
+  const officeHours = (templeInfo.officeHours || {}) as Record<string, unknown>;
+
+  const name = asString(templeInfo.name);
+  const address = asString(contact.address);
+  const phone = asString(contact.phone);
+  const email = asString(contact.email);
+
+  // An `ai_settings` row with an empty `temple_information` (the table default is
+  // `'{}'`) carries no facts at all. Report it as unavailable rather than
+  // returning blank fields that the composer would render as "Phone: ".
+  const hasTempleFacts =
+    Boolean(name || address || phone || email) ||
+    Boolean(asString(timings.morningOpen) || asString(timings.eveningOpen));
+  if (!hasTempleFacts) {
+    console.warn(
+      "[Settings Retrieval] ai_settings 'main' row has empty temple_information; treating temple settings as unavailable."
+    );
+    return null;
+  }
+
+  return {
+    name: name ?? "",
+    address: address ?? "",
+    phone: phone ?? "",
+    email: email ?? "",
+    timings: {
+      morningOpen: asString(timings.morningOpen) ?? "",
+      morningClose: asString(timings.morningClose) ?? "",
+      eveningOpen: asString(timings.eveningOpen) ?? "",
+      eveningClose: asString(timings.eveningClose) ?? "",
+    },
+    contact: {
+      phone: phone ?? "",
+      email: email ?? "",
+      address: address ?? "",
+    },
+    officeHours: {
+      weekday: asString(officeHours.weekday) ?? "",
+      weekend: asString(officeHours.weekend) ?? "",
+      notes: asString(officeHours.notes) ?? "",
+    },
+    visitorInfo: {
+      guidelines: asString(visitorInfo.guidelines) ?? "",
+      dressCode: asString(templePolicies.dressCode) || asString(visitorInfo.dressCode) || "",
+      photographyPolicy:
+        asString(templePolicies.photographyPolicy) ||
+        asString(visitorInfo.photographyPolicy) ||
+        "",
+      parking: asString(visitorInfo.parking) ?? "",
+      facilities: asString(visitorInfo.facilities) ?? "",
+      wheelchairAccess: asString(visitorInfo.wheelchairAccess) ?? "",
+      drinkingWater: asString(visitorInfo.drinkingWater) ?? "",
+      restrooms: asString(visitorInfo.restrooms) ?? "",
+      prasada: asString(visitorInfo.prasada) ?? "",
+      annadanam: asString(visitorInfo.annadanam) ?? "",
+      accommodation: asString(visitorInfo.accommodation) ?? "",
+      volunteerInfo: asString(visitorInfo.volunteerInfo) ?? "",
+      testimonials: asString(visitorInfo.testimonials) ?? "",
+      contact: asString(visitorInfo.contact) ?? "",
+    },
+    googleMapsUrl: asString(contact.googleMapsUrl),
+  };
+}
+
+/**
+ * Fetch timings from `ai_settings.temple_information.timings`.
+ */
+async function fetchTimingsFromSupabase(): Promise<TempleSettings["timings"] | null> {
   try {
-    const snapshot = await getDocs(collection(db, "timings"));
-    
-    if (snapshot.empty) {
+    const { data, error } = await getSupabase()
+      .from(AI_SETTINGS_TABLE)
+      .select("temple_information")
+      .eq("id", AI_SETTINGS_ID)
+      .maybeSingle();
+
+    if (error || !data) {
       return null;
     }
 
-    const data = snapshot.docs[0].data();
+    const templeInfo = ((data as AiSettingsRow)?.temple_information || {}) as Record<string, unknown>;
+    const timings = templeInfo.timings as Record<string, unknown> | undefined;
+    if (!timings) {
+      return null;
+    }
+
     return {
-      morningOpen: data.morningOpen || data.open || DEFAULT_SETTINGS.timings.morningOpen,
-      morningClose: data.morningClose || data.close || DEFAULT_SETTINGS.timings.morningClose,
-      eveningOpen: data.eveningOpen || DEFAULT_SETTINGS.timings.eveningOpen,
-      eveningClose: data.eveningClose || DEFAULT_SETTINGS.timings.eveningClose,
+      morningOpen: asString(timings.morningOpen) ?? "",
+      morningClose: asString(timings.morningClose) ?? "",
+      eveningOpen: asString(timings.eveningOpen) ?? "",
+      eveningClose: asString(timings.eveningClose) ?? "",
     };
   } catch (error) {
     console.error("[Settings Retrieval] Error fetching timings:", error);
@@ -141,13 +181,20 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
   }
 
   try {
-    // Try to get timings from separate collection
-    const timings = await fetchTimingsFromFirebase();
-    
-    // Fetch base settings
-    const settings = await fetchFromFirebase();
-    
-    // Override timings if available from separate collection
+    // Override timings only when the dedicated query returned usable values.
+    const timings = await fetchTimingsFromSupabase();
+    const settings = await fetchFromSupabase();
+
+    if (!settings) {
+      return {
+        data: null,
+        source: RetrievalType.FALLBACK,
+        confidence: 0,
+        retrievedAt: now,
+        fromCache: false,
+      };
+    }
+
     if (timings) {
       settings.timings = timings;
     }
@@ -158,16 +205,16 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
     return {
       data: settings,
       source: RetrievalType.REPOSITORY,
-      confidence: 95, // Slightly less than 100 due to potential defaults
+      confidence: 95, // Slightly less than 100 due to potential partial data
       retrievedAt: now,
       fromCache: false,
     };
   } catch (error) {
     console.error("[Settings Retrieval] Error:", error);
     return {
-      data: cachedSettings || DEFAULT_SETTINGS,
+      data: null,
       source: RetrievalType.FALLBACK,
-      confidence: 50,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
@@ -179,9 +226,9 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
  */
 export async function getTempleTimings(): Promise<RetrievedData<TempleSettings["timings"]>> {
   const result = await getTempleSettings();
-  
+
   return {
-    data: result.data?.timings || DEFAULT_SETTINGS.timings,
+    data: result.data?.timings ?? null,
     source: result.source,
     confidence: result.confidence,
     retrievedAt: result.retrievedAt,

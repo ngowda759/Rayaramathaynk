@@ -20,8 +20,6 @@ import {
 } from "lucide-react";
 import { getPendingTestimonials } from "@/services/chat.service";
 import { getVolunteerRequests } from "@/services/chat.service";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
 import toast from "react-hot-toast";
 
 interface CoverageSummary {
@@ -87,33 +85,19 @@ export default function AdminAIPage() {
           getVolunteerRequests(),
         ]);
 
-        // Fetch real conversation stats from Firestore
+        // Fetch conversation stats from Supabase (no Firestore fallback)
         let totalConversations = 0;
         let todayConversations = 0;
 
-        if (db && isFirebaseConfigured()) {
-          try {
-            const sessionsSnap = await getDocs(collection(db, "chat_sessions"));
-            totalConversations = sessionsSnap.size;
-
-            // Count today's conversations
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-
-            sessionsSnap.docs.forEach((doc) => {
-              const data = doc.data();
-              if (data.createdAt) {
-                const createdAt = data.createdAt.toDate
-                  ? data.createdAt.toDate()
-                  : new Date(data.createdAt);
-                if (createdAt >= todayStart) {
-                  todayConversations++;
-                }
-              }
-            });
-          } catch (e) {
-            console.warn("Failed to fetch conversation stats:", e);
+        try {
+          const response = await adminFetch("/api/ai/analytics/conversations");
+          if (response.ok) {
+            const data = await response.json();
+            totalConversations = data.totalConversations || 0;
+            todayConversations = data.todayConversations || 0;
           }
+        } catch (e) {
+          console.warn("Failed to fetch conversation stats:", e);
         }
 
         setStats({

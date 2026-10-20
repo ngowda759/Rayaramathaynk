@@ -62,16 +62,35 @@ describe("GET /api/ai/health", () => {
     expect(body.settings.present.visitor).toBe(false);
   });
 
-  it("reports a connectivity failure without throwing when the read fails", async () => {
+  it("reports a datastore failure as an error status, not healthy", async () => {
     mockRequireAdminUser.mockResolvedValue({
       ok: true,
       user: { uid: "admin-1", email: "a@b.c", role: "super_admin" },
     });
-    mockGetSettings.mockRejectedValue(new Error("firestore down"));
+    mockGetSettings.mockRejectedValue(new Error("supabase down"));
+
+    const response = await healthGet(makeRequest());
+    // A database failure must never be reported as healthy (HTTP 200).
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.database.connected).toBe(false);
+    expect(body.reason).toBe("datastore_unavailable");
+    // The safe message must not leak the underlying error text or a stack trace.
+    expect(JSON.stringify(body)).not.toContain("supabase down");
+    expect(body).not.toHaveProperty("stack");
+  });
+
+  it("reports a missing settings record as connected but without a main record", async () => {
+    mockRequireAdminUser.mockResolvedValue({
+      ok: true,
+      user: { uid: "admin-1", email: "a@b.c", role: "super_admin" },
+    });
+    mockGetSettings.mockResolvedValue(null);
 
     const response = await healthGet(makeRequest());
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.database.connected).toBe(false);
+    expect(body.database.connected).toBe(true);
+    expect(body.settings.hasMainRecord).toBe(false);
   });
 });

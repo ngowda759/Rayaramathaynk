@@ -113,4 +113,30 @@ describe("No Firestore dependencies in Analytics queries", () => {
        expect(true).toBe(false);
     }
   });
+
+  it("lib/ai/generator.ts logs unknown questions via Supabase, never Firestore", () => {
+    const generatorPath = path.resolve(__dirname, "../../lib/ai/generator.ts");
+    const content = fs.readFileSync(generatorPath, "utf-8");
+
+    // The chat response path must not touch Firestore or the Firestore-backed
+    // analytics service. It must route unknown-question logging to the
+    // Supabase-backed AI settings service instead.
+    expect(content).not.toContain("firebase/firestore");
+    expect(content).not.toContain("@/services/analytics.service");
+    expect(content).toContain("aiSettingsService.logUnknownQuestion");
+  });
+
+  it("the AI knowledge coverage route is admin-guarded and Firestore-free", () => {
+    const routePath = path.resolve(
+      __dirname,
+      "../../app/api/ai/knowledge/coverage/route.ts"
+    );
+    const content = fs.readFileSync(routePath, "utf-8");
+
+    expect(content).not.toContain("firebase/firestore");
+    expect(content).not.toContain("@/lib/firebase");
+    // Reading approved knowledge requires an authenticated admin, since the
+    // route reads through the service-role client (which bypasses RLS).
+    expect(content).toContain("requireAdminUser");
+  });
 });

@@ -1,21 +1,16 @@
 /**
  * Conversation Session Service
- * Manages conversation context, history, and user preferences
+ * Manages conversation context, history, and user preferences.
+ *
+ * Supabase-only: sessions live in `chat_sessions` and their messages in
+ * `chat_messages` (see `supabase/migrations/20260930000000_create_ai_tables.sql`).
+ * There is no Firestore fallback. Per-message persistence is owned by the client
+ * (`services/chat.service.ts#saveMessage`); this service maintains the session
+ * summary row and reads history back for follow-up detection.
  */
 
-import { db } from "@/lib/firebase";
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  collection,
-  addDoc,
-  serverTimestamp,
-  arrayUnion,
-  Timestamp 
-} from "firebase/firestore";
-import { v4 as uuidv4 } from "uuid";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Types
 export interface ConversationMessage {
@@ -37,46 +32,101 @@ export interface ConversationSession {
   updatedAt: Date;
 }
 
-// Session TTL in seconds (30 minutes)
-const SESSION_TTL = 30 * 60;
+// Session TTL for the in-memory conversational state (30 minutes).
+const SESSION_TTL = 30 * 60 * 1000;
 
-// Max messages to store per session
-const MAX_MESSAGES = 20;
+/**
+ * Conversational state (`lastIntent` / `lastTopic`) has no column in the
+ * Supabase session schema (`AI_FIELD_SPECS.chat_sessions.intentionallyExcluded`).
+ * It is process-local and best-effort: a cold start simply loses follow-up
+ * context for a session, which is a graceful degradation, not data loss.
+ */
+const conversationalState = new Map<
+  string,
+  { lastIntent: string; lastTopic: string; updatedAt: number }
+>();
+
+function getSupabase() {
+  return typeof window === "undefined" ? createAdminClient() : createClient();
+}
+
+function toLanguage(value: unknown): "en" | "kn" | "mixed" {
+  return value === "kn" || value === "mixed" ? value : "en";
+}
+
+function readState(sessionId: string): { lastIntent?: string; lastTopic?: string } {
+  const state = conversationalState.get(sessionId);
+  if (!state) return {};
+  if (Date.now() - state.updatedAt > SESSION_TTL) {
+    conversationalState.delete(sessionId);
+    return {};
+  }
+  return { lastIntent: state.lastIntent, lastTopic: state.lastTopic };
+}
 
 /**
  * Generate a new session ID
  */
 export function generateSessionId(): string {
-  return uuidv4();
+  return crypto.randomUUID();
 }
 
 /**
- * Get or create a session
+ * Get a session and its history from Supabase.
+ *
+ * Returns `null` when the session row does not exist. A read failure is logged
+ * and also returns `null`; the chat path treats a missing session as a new one.
  */
 export async function getSession(sessionId: string): Promise<ConversationSession | null> {
-  if (!db) return null;
+  if (!sessionId) return null;
 
   try {
-    const sessionRef = doc(db, "chat_sessions", sessionId);
-    const sessionDoc = await getDoc(sessionRef);
+    const supabase = getSupabase();
 
-    if (!sessionDoc.exists()) {
+    const { data: sessionRow, error: sessionError } = await supabase
+      .from("chat_sessions")
+      .select("*")
+      .eq("firestore_id", sessionId)
+      .maybeSingle();
+
+    if (sessionError) {
+      console.error("[Session] Error reading chat_sessions:", sessionError.message);
+      return null;
+    }
+    if (!sessionRow) return null;
+
+    const { data: messageRows, error: messagesError } = await supabase
+      .from("chat_messages")
+      .select("firestore_id, role, content, timestamp")
+      .eq("session_id", sessionId)
+      .order("timestamp", { ascending: true });
+
+    if (messagesError) {
+      console.error("[Session] Error reading chat_messages:", messagesError.message);
       return null;
     }
 
-    const data = sessionDoc.data();
+    const { lastIntent, lastTopic } = readState(sessionId);
+
+    const messages: ConversationMessage[] = (messageRows || []).map((row) => ({
+      id: (row.firestore_id as string) || crypto.randomUUID(),
+      role: row.role === "assistant" ? "assistant" : "user",
+      content: row.content as string,
+      timestamp: row.timestamp ? new Date(row.timestamp as string) : new Date(),
+    }));
+
     return {
-      id: sessionDoc.id,
-      userId: data.userId,
-      lastIntent: data.lastIntent,
-      lastTopic: data.lastTopic,
-      preferredLanguage: data.preferredLanguage || "en",
-      messages: (data.messages || []).map((m: ConversationMessage & { timestamp?: Timestamp }) => ({
-        ...m,
-        timestamp: m.timestamp?.toDate?.() || new Date()
-      })),
-      createdAt: data.createdAt?.toDate?.() || new Date(),
-      updatedAt: data.updatedAt?.toDate?.() || new Date(),
+      id: sessionId,
+      userId: (sessionRow.user_id as string) ?? undefined,
+      lastIntent,
+      lastTopic,
+      // `preferredLanguage` is stored in `chat_sessions.detected_language`.
+      preferredLanguage: sessionRow.detected_language
+        ? toLanguage(sessionRow.detected_language)
+        : "en",
+      messages,
+      createdAt: sessionRow.created_at ? new Date(sessionRow.created_at as string) : new Date(),
+      updatedAt: sessionRow.updated_at ? new Date(sessionRow.updated_at as string) : new Date(),
     };
   } catch (error) {
     console.error("[Session] Error getting session:", error);
@@ -85,35 +135,35 @@ export async function getSession(sessionId: string): Promise<ConversationSession
 }
 
 /**
- * Create a new session
+ * Create a new session row in Supabase.
  */
 export async function createSession(sessionId: string, userId?: string): Promise<ConversationSession> {
-  if (!db) {
-    return {
-      id: sessionId,
-      userId,
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  }
+  const now = new Date();
 
   const session: ConversationSession = {
     id: sessionId,
     userId,
     preferredLanguage: "en",
     messages: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: now,
+    updatedAt: now,
   };
 
   try {
-    const sessionRef = doc(db, "chat_sessions", sessionId);
-    await setDoc(sessionRef, {
-      ...session,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    const supabase = getSupabase();
+    const { error } = await supabase.from("chat_sessions").upsert(
+      {
+        firestore_id: sessionId,
+        user_id: userId ?? null,
+        detected_language: "en",
+        last_message: "",
+      },
+      { onConflict: "firestore_id" }
+    );
+
+    if (error) {
+      console.error("[Session] Error creating session:", error.message);
+    }
   } catch (error) {
     console.error("[Session] Error creating session:", error);
   }
@@ -122,7 +172,13 @@ export async function createSession(sessionId: string, userId?: string): Promise
 }
 
 /**
- * Update session with new message and context
+ * Update a session with the latest turn.
+ *
+ * Only the session summary row is written: `message_count` and the individual
+ * messages are owned by `services/chat.service.ts#saveMessage` (the client
+ * persists both turns after this endpoint returns), so writing them here would
+ * double-count. `message_count` is deliberately omitted from the upsert payload
+ * so a conflict-update preserves the existing count.
  */
 export async function updateSession(
   sessionId: string,
@@ -131,75 +187,33 @@ export async function updateSession(
   intent: string,
   language: "en" | "kn" | "mixed"
 ): Promise<void> {
-  if (!db) return;
+  if (!sessionId) return;
 
-  const messageId = uuidv4();
-  const userMsg: ConversationMessage = {
-    id: messageId + "-user",
-    role: "user",
-    content: userMessage,
-    intent,
-    timestamp: new Date(),
-  };
+  void userMessage;
 
-  const assistantMsg: ConversationMessage = {
-    id: messageId + "-assistant",
-    role: "assistant",
-    content: assistantMessage,
-    intent,
-    timestamp: new Date(),
-  };
+  const topic = mapIntentToTopic(intent);
+  conversationalState.set(sessionId, {
+    lastIntent: intent,
+    lastTopic: topic,
+    updatedAt: Date.now(),
+  });
 
   try {
-    const sessionRef = doc(db, "chat_sessions", sessionId);
-    
-    // Determine topic from intent
-    const topic = mapIntentToTopic(intent);
+    const supabase = getSupabase();
+    const { error } = await supabase.from("chat_sessions").upsert(
+      {
+        firestore_id: sessionId,
+        detected_language: language,
+        last_message: assistantMessage.substring(0, 100),
+      },
+      { onConflict: "firestore_id" }
+    );
 
-    // Use setDoc with merge to create the document if it doesn't exist
-    // This fixes the issue where updateDoc fails silently for non-existent documents
-    await setDoc(sessionRef, {
-      lastIntent: intent,
-      lastTopic: topic,
-      preferredLanguage: language,
-      messages: arrayUnion(userMsg, assistantMsg),
-      updatedAt: serverTimestamp(),
-      // Only set these on creation
-      ...(!(await getDoc(sessionRef)).exists() && {
-        createdAt: serverTimestamp(),
-        messageCount: 0,
-      }),
-    }, { merge: true });
-
-    // Prune old messages if needed
-    await pruneMessages(sessionId);
-  } catch (error) {
-    console.error("[Session] Error updating session:", error);
-  }
-}
-
-/**
- * Prune messages to keep only the last N
- */
-async function pruneMessages(sessionId: string): Promise<void> {
-  if (!db) return;
-
-  try {
-    const sessionRef = doc(db, "chat_sessions", sessionId);
-    const sessionDoc = await getDoc(sessionRef);
-    
-    if (!sessionDoc.exists()) return;
-
-    const data = sessionDoc.data();
-    const messages: ConversationMessage[] = data.messages || [];
-    
-    if (messages.length > MAX_MESSAGES) {
-      // Keep only the last MAX_MESSAGES
-      const prunedMessages = messages.slice(-MAX_MESSAGES);
-      await updateDoc(sessionRef, { messages: prunedMessages });
+    if (error) {
+      console.error("[Session] Error updating session:", error.message);
     }
   } catch (error) {
-    console.error("[Session] Error pruning messages:", error);
+    console.error("[Session] Error updating session:", error);
   }
 }
 
@@ -239,32 +253,32 @@ export function detectFollowUp(
   }
 
   const lowerMessage = currentMessage.toLowerCase();
-  
+
   // Follow-up patterns
   const followUpPatterns = [
     // Time-related follow-ups
     { pattern: /^(morning|evening|afternoon|evening|time|timing)$/i, topic: "timings" },
     { pattern: /^(morning|evening|afternoon)$/i, topic: "timings" },
     { pattern: /^(evening|morning) (timings?|time)$/i, topic: "timings" },
-    
+
     // Contact follow-ups
     { pattern: /^(phone|email|address|contact)$/i, topic: "contact" },
-    
+
     // Donation follow-ups
     { pattern: /^(how|where|where|where|which).*donate/i, topic: "donation" },
     { pattern: /^(donate|donation|payment|80g|80 g)$/i, topic: "donation" },
-    
+
     // Seva follow-ups
     { pattern: /^(seva|pooja|archana|booking)$/i, topic: "sevas" },
-    
+
     // Event follow-ups
     { pattern: /^(event|festival|aaradhane)$/i, topic: "events" },
-    
+
     // Quote follow-ups
     { pattern: /^(another|one more|next|different|other)$/i, topic: "quote" },
     { pattern: /^(give me )?(another|one more|another)$/i, topic: "quote" },
     { pattern: /^(ಮತ್ತೊಂದು|ಇನ್ನೊಂದು|ಬೇರೆ)/i, topic: "quote" },
-    
+
     // General follow-ups
     { pattern: /^(more|another|also|and|also)$/i, topic: lastTopic },
     { pattern: /^(tell me more|what about|and|also|too)$/i, topic: lastTopic },
@@ -293,7 +307,7 @@ export function detectFollowUp(
       "yes", "no", "okay", "ok",
       "and", "also", "more", "another"
     ];
-    
+
     if (singleWordFollowUps.includes(lowerMessage)) {
       return {
         isFollowUp: true,
@@ -318,7 +332,7 @@ export async function getSessionContext(sessionId: string): Promise<{
   }
 
   const session = await getSession(sessionId);
-  
+
   if (!session) {
     return { session: null, isFollowUp: false };
   }
@@ -338,34 +352,44 @@ export async function getSessionContext(sessionId: string): Promise<{
 }
 
 /**
- * Clear session data
+ * Clear a session's message history.
  */
 export async function clearSession(sessionId: string): Promise<void> {
-  if (!db) return;
+  if (!sessionId) return;
 
   try {
-    const sessionRef = doc(db, "chat_sessions", sessionId);
-    await updateDoc(sessionRef, {
-      messages: [],
-      lastIntent: null,
-      lastTopic: null,
-      updatedAt: serverTimestamp(),
-    });
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("chat_messages")
+      .delete()
+      .eq("session_id", sessionId);
+
+    if (error) {
+      console.error("[Session] Error clearing session messages:", error.message);
+    }
+
+    await supabase
+      .from("chat_sessions")
+      .update({ last_message: "", detected_language: null })
+      .eq("firestore_id", sessionId);
+
+    conversationalState.delete(sessionId);
   } catch (error) {
     console.error("[Session] Error clearing session:", error);
   }
 }
 
 /**
- * Delete session
+ * Delete a session and its messages.
  */
 export async function deleteSession(sessionId: string): Promise<void> {
-  if (!db) return;
+  if (!sessionId) return;
 
   try {
-    const { deleteDoc } = await import("firebase/firestore");
-    const sessionRef = doc(db, "chat_sessions", sessionId);
-    await deleteDoc(sessionRef);
+    const supabase = getSupabase();
+    await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+    await supabase.from("chat_sessions").delete().eq("firestore_id", sessionId);
+    conversationalState.delete(sessionId);
   } catch (error) {
     console.error("[Session] Error deleting session:", error);
   }

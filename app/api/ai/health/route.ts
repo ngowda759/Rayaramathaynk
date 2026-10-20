@@ -72,15 +72,20 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error("[ai/health] Datastore connectivity check failed:", error);
+    // A datastore failure is a server-side problem, not a healthy state. Return
+    // a non-2xx status with a machine-readable reason and a safe message so
+    // monitoring and the dashboard both see the outage. No error details,
+    // credentials, or stack traces are exposed.
     return NextResponse.json(
       {
         database: {
           connected: false,
           message: "Could not reach the datastore",
         },
+        reason: "datastore_unavailable",
         timestamp: Date.now(),
       },
-      { status: 200, headers: { "Cache-Control": "no-store" } }
+      { status: 503, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

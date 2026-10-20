@@ -36,6 +36,8 @@ export interface LatencyRecord {
   intent?: Intent; // Deprecated/Removed in Supabase schema
   success: boolean;
   errorType?: "timeout" | "rate_limit" | "api_error" | "retrieval_error";
+  /** Model that produced the response, when known (SQL `ai_latency_records.model`). */
+  model?: string;
 }
 
 /**
@@ -194,6 +196,12 @@ export interface AIAnalyticsDashboard {
     };
   };
   tokenUsage: TokenUsageSummary;
+  /**
+   * False when token usage has no destination table (`ai_token_usage`). The
+   * dashboard must render "unavailable" instead of a misleading zero.
+   */
+  tokenUsageAvailable: boolean;
+  tokenUsageUnavailableReason?: string;
   latency: LatencySummary;
   intentDistribution: IntentDistributionSummary;
   unknownQuestions: UnknownQuestionSummary;
@@ -221,6 +229,13 @@ export interface HealthCheckResponse {
 export interface TokenUsageResponse {
   summary: TokenUsageSummary;
   records: TokenUsageRecord[];
+  /**
+   * False when token analytics has no destination table. Consumers must show
+   * "unavailable" rather than treating the empty summary as a real zero.
+   */
+  available: boolean;
+  /** Human-readable reason when `available` is false. */
+  unavailableReason?: string;
 }
 
 export interface LatencyResponse {

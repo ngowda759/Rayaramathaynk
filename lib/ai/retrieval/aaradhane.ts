@@ -1,8 +1,8 @@
 // Aaradhane Retrieval - Sri Raghavendra Swamy Aaradhane information
 // Single source of truth for aaradhane data
 
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy, DocumentData } from "firebase/firestore";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/client";
 import { AaradhaneEvent, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 
@@ -11,6 +11,10 @@ let cachedAaradhanes: AaradhaneEvent[] = [];
 let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+function getSupabase() {
+  return typeof window === "undefined" ? createAdminClient() : createClient();
+}
+
 /**
  * Check if dates are upcoming
  */
@@ -18,7 +22,7 @@ function isUpcoming(dates: string[]): boolean {
   if (!dates || dates.length === 0) return false;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  
+
   return dates.some((dateStr) => {
     const eventDate = new Date(dateStr);
     eventDate.setHours(0, 0, 0, 0);
@@ -27,56 +31,34 @@ function isUpcoming(dates: string[]): boolean {
 }
 
 /**
- * Convert Firebase doc to AaradhaneEvent
+ * Fetch aaradhanes from Supabase `aaradhanes`.
  */
-function docToAaradhane(doc: DocumentData): AaradhaneEvent | null {
+async function fetchFromSupabase(): Promise<AaradhaneEvent[]> {
   try {
-    const data = doc.data();
-    if (!data) return null;
+    const { data, error } = await getSupabase()
+      .from("aaradhanes")
+      .select("id, title, guru_name, dates, description, significance, rituals, offerings")
+      .order("display_order", { ascending: true });
 
-    const dates = data.dates || [];
-    
-    return {
-      id: doc.id,
-      title: data.title || "Sri Raghavendra Swamy Aaradhane",
-      guruName: data.guruName || "Sri Raghavendra Swamy",
-      dates,
-      description: data.description || "",
-      significance: data.significance || "",
-      rituals: data.rituals || [],
-      offerings: data.offerings || [],
-      isUpcoming: isUpcoming(dates),
-    };
-  } catch {
-    return null;
-  }
-}
+    if (error) {
+      console.error("[Aaradhane Retrieval] Error fetching:", error.message);
+      return cachedAaradhanes;
+    }
 
-/**
- * Fetch aaradhanes from Firebase
- */
-async function fetchFromFirebase(): Promise<AaradhaneEvent[]> {
-  if (!isFirebaseConfigured() || !db) {
-    return [];
-  }
-
-  try {
-    const q = query(
-      collection(db, "aaradhane"),
-      orderBy("displayOrder", "asc")
-    );
-    
-    const snapshot = await getDocs(q);
-    const aaradhanes: AaradhaneEvent[] = [];
-    
-    snapshot.docs.forEach((doc) => {
-      const aaradhane = docToAaradhane(doc);
-      if (aaradhane) {
-        aaradhanes.push(aaradhane);
-      }
+    return (data || []).map((doc) => {
+      const dates: string[] = Array.isArray(doc.dates) ? doc.dates : [];
+      return {
+        id: doc.id,
+        title: doc.title || "Sri Raghavendra Swamy Aaradhane",
+        guruName: doc.guru_name || "Sri Raghavendra Swamy",
+        dates,
+        description: doc.description || "",
+        significance: doc.significance || "",
+        rituals: Array.isArray(doc.rituals) ? doc.rituals : [],
+        offerings: Array.isArray(doc.offerings) ? doc.offerings : [],
+        isUpcoming: isUpcoming(dates),
+      };
     });
-    
-    return aaradhanes;
   } catch (error) {
     console.error("[Aaradhane Retrieval] Error fetching:", error);
     return cachedAaradhanes;
@@ -101,7 +83,7 @@ export async function getAaradhanes(): Promise<RetrievedData<AaradhaneEvent[]>> 
   }
 
   try {
-    const aaradhanes = await fetchFromFirebase();
+    const aaradhanes = await fetchFromSupabase();
     cachedAaradhanes = aaradhanes;
     lastFetchTime = now;
 

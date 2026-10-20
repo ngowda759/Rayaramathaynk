@@ -66,7 +66,6 @@ import {
 } from "./aaradhane";
 
 import {
-  TempleSettings,
   TempleEvent,
   TempleSeva,
   TempleAnnouncement,
@@ -78,7 +77,6 @@ import {
 
 import { Intent, RetrievalType } from "../intent/types";
 import { IntentRetrievalMapping } from "./types";
-import { aiSettingsService } from "../ai-settings";
 
 /**
  * Intent to retrieval mapping
@@ -193,27 +191,16 @@ export async function getContextForIntent(
   // Fetch data based on retrievers
   for (const retriever of mapping.retrievers.sort((a, b) => a.priority - b.priority)) {
     switch (retriever.name) {
-      case "settings":
-        const aiSettings = await aiSettingsService.getAISettings();
-        const templeSettings: TempleSettings = {
-           name: "Sri Raghavendra Swamy Matha",
-           address: aiSettings.templeInformation.contact.address,
-           phone: aiSettings.templeInformation.contact.phone,
-           email: aiSettings.templeInformation.contact.email,
-           timings: {
-              morningOpen: aiSettings.templeInformation.timings.morningOpen,
-              morningClose: aiSettings.templeInformation.timings.morningClose,
-              eveningOpen: aiSettings.templeInformation.timings.eveningOpen,
-              eveningClose: aiSettings.templeInformation.timings.eveningClose
-           },
-           contact: aiSettings.templeInformation.contact,
-           officeHours: aiSettings.templeInformation.officeHours,
-           visitorInfo: aiSettings.visitorInformation
-        } as unknown as TempleSettings; // TempleSettings in retrieval/types.ts is a bit different, but let's map it cleanly
-
-        context.templeSettings = templeSettings;
-        sources.add(RetrievalType.REPOSITORY);
+      case "settings": {
+        // Use the retrieval-layer reader so a missing/empty `ai_settings` row
+        // yields no data (source FALLBACK) instead of fabricated temple facts.
+        const settingsResult = await getTempleSettings();
+        if (settingsResult.data) {
+          context.templeSettings = settingsResult.data;
+          sources.add(settingsResult.source);
+        }
         break;
+      }
         
       case "events":
         const events = await getUpcomingEvents();
