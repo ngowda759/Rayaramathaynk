@@ -232,7 +232,8 @@ const clientCancelReason = z.enum(CLIENT_CANCEL_REASONS);
 const cancelNote = z.string().trim().max(500).optional();
 
 function checkOtherNeedsNote(c: { reasonCode: string; note?: string }, ctx: z.RefinementCtx): void {
-  if (c.reasonCode === 'other' && chars(c.note ?? '') < 3) {
+  // Only visible characters count (FINAL-FIX N-8, as SQL seva_visible_length).
+  if (c.reasonCode === 'other' && visibleChars(c.note ?? '') < 3) {
     ctx.addIssue({
       code: 'custom',
       path: ['note'],

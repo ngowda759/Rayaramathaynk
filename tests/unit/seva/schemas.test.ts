@@ -215,6 +215,9 @@ describe('cancelSchema', () => {
     const ids = [randomUUID()];
     expect(cancelSchema.safeParse({ receiptIds: ids, reasonCode: 'other' }).success).toBe(false);
     expect(cancelSchema.safeParse({ receiptIds: ids, reasonCode: 'other', note: ' a ' }).success).toBe(false);
+    // FINAL-FIX N-8: only visible characters count.
+    expect(cancelSchema.safeParse({ receiptIds: ids, reasonCode: 'other', note: '​​​' }).success).toBe(false);
+    expect(cancelSchema.safeParse({ receiptIds: ids, reasonCode: 'other', note: 'a‍b﻿' }).success).toBe(false);
     expect(cancelSchema.safeParse({ receiptIds: ids, reasonCode: 'other', note: 'Devotee left' }).success).toBe(true);
     expect(cancelSchema.safeParse({ receiptIds: ids, reasonCode: 'wrong_date' }).success).toBe(true);
   });

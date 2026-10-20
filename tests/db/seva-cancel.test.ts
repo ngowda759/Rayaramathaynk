@@ -511,6 +511,13 @@ describe('seva_cancel_receipts (A2-1)', () => {
       code: 'validation',
       detail: { field: 'note' },
     });
+    // FINAL-FIX N-8: only visible characters count (3 x U+200B, or tabs around two letters, is not a note).
+    for (const note of ['​​​', '\tab\t', 'a‍b﻿']) {
+      expect({ note, failure: await failure(cancel(c, { ids: [id], reason: 'other', note })) }).toEqual({
+        note,
+        failure: { code: 'validation', detail: { field: 'note' } },
+      });
+    }
     for (const reason of ['not_printed_connection_lost', 'refunded', 'bogus']) {
       expect({ reason, failure: await failure(cancel(c, { ids: [id], reason })) }).toEqual({
         reason,

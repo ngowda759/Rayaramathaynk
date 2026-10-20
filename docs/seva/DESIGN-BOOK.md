@@ -103,6 +103,8 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
     looks back over the last 7 business days, not only today (N-3).
   - §9.10: the demo seeder closes each seeded day with the counter-offline override and the reason "Demo data
     seeding", since the counter PC must be closed while it runs (N-6).
+  - §7, §9.9, §8.4: the cancel "Other" note (SQL and form) and the "Replace this PC" reason count only visible
+    characters, 3 at least, like every other reason (N-8).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.

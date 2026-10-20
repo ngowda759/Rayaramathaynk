@@ -755,3 +755,321 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION seva_needs_attention(timestamptz, timestamptz, date) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_needs_attention(timestamptz, timestamptz, date) TO service_role;
+
+-- =====================================================================================================
+-- N-8. The cancel "Other" note and the "Replace this PC" reason count only visible characters (L-11)
+-- =====================================================================================================
+
+-- As in 20261102000000_seva_final_fixes.sql, with one change (N-8): the note that reason 'other' needs is 3 visible
+-- characters (seva_visible_length), so a note of zero-width characters, tabs or no-break spaces is SEVA:validation
+-- field note, for an online and an offline cancel alike. Same signature, so the grants stay.
+CREATE OR REPLACE FUNCTION seva_cancel_receipts(
+  p_receipt_ids uuid[],
+  p_reason_code text,
+  p_note text,
+  p_staff_id uuid,
+  p_is_admin boolean,
+  p_at timestamptz DEFAULT NULL,
+  p_cancelled_by_staff_no integer DEFAULT NULL,
+  p_canceller_role text DEFAULT NULL,
+  p_device_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_staff staff%ROWTYPE;
+  v_syncer staff%ROWTYPE;
+  v_offline boolean := p_cancelled_by_staff_no IS NOT NULL;
+  v_note text;
+  v_is_admin boolean := coalesce(p_is_admin, false);
+  v_window integer;
+  v_id uuid;
+  v_receipt seva_receipts%ROWTYPE;
+  v_mode text;
+  v_counter_id smallint;
+  v_at timestamptz;
+  v_at_date date;
+  v_closed_date date;
+  v_in_closed_day boolean;
+  v_late boolean;
+  v_refund text;
+  v_refund_note text;
+  v_after jsonb;
+  v_route_role text;
+  v_cash_back numeric := 0;
+  v_out jsonb := '[]'::jsonb;
+BEGIN
+  v_staff := seva_issue_staff(p_staff_id);
+  -- Only an offline cancel carries the time it was made; anyone else is measured to now().
+  IF NOT v_offline AND p_at IS NOT NULL THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'at', 'reason', 'only an offline cancel carries its own time')::text;
+  END IF;
+  IF v_offline THEN
+    v_syncer := v_staff;
+    IF p_at IS NULL THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'at')::text;
+    END IF;
+    -- The canceller is checked per receipt, at the clamped cancel time (below).
+    v_is_admin := false;
+  END IF;
+  IF p_reason_code IS NULL OR p_reason_code NOT IN (
+    'wrong_seva', 'wrong_date', 'wrong_amount', 'wrong_devotee', 'changed_mind', 'entered_twice', 'spoiled_print', 'other'
+  ) THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'reason_code')::text;
+  END IF;
+  v_note := seva_issue_arg_text(p_note, 'note', 500);
+  IF p_reason_code = 'other' AND seva_visible_length(v_note) < 3 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'note')::text;
+  END IF;
+  IF p_receipt_ids IS NULL OR cardinality(p_receipt_ids) NOT BETWEEN 1 AND 31
+     OR array_position(p_receipt_ids, NULL) IS NOT NULL THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'receipt_ids')::text;
+  END IF;
+  SELECT s.cancel_window_minutes INTO v_window FROM seva_settings s WHERE s.id = 1;
+  v_window := coalesce(v_window, 30);
+
+  FOR v_id IN
+    SELECT u.id FROM unnest(p_receipt_ids) WITH ORDINALITY AS u(id, ord) GROUP BY u.id ORDER BY min(u.ord)
+  LOOP
+    SELECT r.* INTO v_receipt FROM seva_receipts r WHERE r.id = v_id FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('receipt_id', v_id)::text;
+    END IF;
+    IF v_receipt.status = 'cancelled' THEN
+      RAISE EXCEPTION 'SEVA:already_cancelled' USING DETAIL = jsonb_build_object('receipt_no', v_receipt.receipt_no)::text;
+    END IF;
+
+    v_at := least(greatest(coalesce(p_at, v_now), v_receipt.issued_at), v_now);
+    IF v_offline THEN
+      -- The offboarding rule is checked at v_at, the time the cancel is stored with, not at the raw p_at.
+      v_staff := seva_issue_offline_issuer(p_cancelled_by_staff_no::text, p_canceller_role, 'cancelled_by_staff_no', v_at);
+    END IF;
+    IF NOT v_is_admin THEN
+      IF v_receipt.issued_by_staff_id IS DISTINCT FROM v_staff.id THEN
+        RAISE EXCEPTION 'SEVA:forbidden' USING DETAIL = jsonb_build_object('receipt_no', v_receipt.receipt_no)::text;
+      END IF;
+      IF v_at > v_receipt.issued_at + make_interval(mins => v_window) THEN
+        RAISE EXCEPTION 'SEVA:cancel_window_passed'
+          USING DETAIL = jsonb_build_object('receipt_no', v_receipt.receipt_no,
+                                            'until', v_receipt.issued_at + make_interval(mins => v_window))::text;
+      END IF;
+    END IF;
+
+    SELECT o.payment_mode, o.counter_id INTO v_mode, v_counter_id FROM seva_orders o WHERE o.id = v_receipt.order_id;
+    SELECT p.business_date INTO v_at_date FROM seva_ist_parts(v_at) AS p;
+    -- An offline cancel recorded on a day the counter has already closed is kept, and flagged for the office. M-1: an
+    -- online cancel of a receipt whose own business date is closed is refused for the counter and flagged for an admin.
+    v_closed_date := CASE WHEN v_offline THEN v_at_date ELSE v_receipt.business_date END;
+    v_in_closed_day := EXISTS (
+      SELECT 1 FROM day_closes dc
+       WHERE dc.counter_id = v_counter_id AND dc.business_date = v_closed_date AND dc.status = 'closed'
+    );
+    IF v_in_closed_day AND NOT v_offline AND NOT v_is_admin THEN
+      RAISE EXCEPTION 'SEVA:day_closed'
+        USING DETAIL = jsonb_build_object('business_date', v_closed_date, 'receipt_no', v_receipt.receipt_no)::text;
+    END IF;
+    -- An offline cancel that reached the server after the online cancel window had closed: more than the window after
+    -- the receipt's issue time (A3 gate M-2, re-review N-2). v_at >= issued_at, so this includes arriving more than
+    -- the window after the recorded time.
+    v_late := v_offline AND v_now > v_receipt.issued_at + make_interval(mins => v_window);
+    -- Such a late offline cash cancel, and one recorded in a closed day, are left for the office: the drawer cannot
+    -- be trusted to have handed the cash back.
+    IF v_mode = 'cash' AND v_receipt.business_date = v_at_date AND NOT v_late AND NOT v_in_closed_day THEN
+      v_refund := 'done';
+      v_refund_note := 'Given back from the drawer';
+      v_cash_back := v_cash_back + v_receipt.total;
+    ELSE
+      v_refund := 'due';
+      v_refund_note := NULL;
+    END IF;
+
+    UPDATE seva_receipts r
+       SET status = 'cancelled',
+           cancel_reason_code = p_reason_code,
+           cancel_note = v_note,
+           cancelled_at = v_at,
+           cancelled_by_staff_id = v_staff.id,
+           refund_state = v_refund,
+           refund_note = v_refund_note
+     WHERE r.id = v_id;
+
+    v_after := jsonb_build_object('status', 'cancelled', 'cancel_reason_code', p_reason_code, 'refund_state', v_refund,
+                                  'cancelled_at', v_at, 'by_admin', v_is_admin)
+               || CASE WHEN p_device_id IS NOT NULL THEN jsonb_build_object('device_id', p_device_id) ELSE '{}'::jsonb END;
+    IF v_offline THEN
+      -- The person who cancelled on the PC is the actor, with their role; the syncer is recorded beside it.
+      v_after := v_after || jsonb_build_object('offline', true, 'synced_by_staff_id', v_syncer.id,
+                                               'in_closed_day', v_in_closed_day, 'late_sync', v_late);
+      IF v_in_closed_day THEN
+        v_after := v_after || jsonb_build_object('closed_business_date', v_at_date);
+      END IF;
+      v_route_role := seva_issue_actor_role(p_canceller_role);
+    ELSIF v_in_closed_day THEN
+      v_after := v_after || jsonb_build_object('in_closed_day', true, 'closed_business_date', v_closed_date);
+    END IF;
+    PERFORM seva_audit(
+      'receipt.cancel', 'receipt', v_id::text, v_receipt.receipt_no,
+      p_reason_code || coalesce(': ' || v_note, ''),
+      jsonb_build_object('status', 'issued', 'refund_state', v_receipt.refund_state),
+      v_after,
+      v_staff.id
+    );
+    IF v_offline THEN
+      PERFORM seva_issue_actor_role(v_route_role);
+      IF v_staff.status = 'inactive' THEN
+        PERFORM seva_audit(
+          'receipt.issuer_inactive_at_sync', 'receipt', v_id::text, v_receipt.receipt_no,
+          'The issuer was offboarded before this offline cancel reached the office',
+          NULL,
+          jsonb_build_object('issuer_staff_id', v_staff.id, 'issuer_staff_no', v_staff.staff_no,
+                             'synced_by_staff_id', v_syncer.id, 'during', 'cancel'),
+          v_syncer.id
+        );
+      END IF;
+    END IF;
+    v_out := v_out || jsonb_build_array(jsonb_build_object(
+      'id', v_id,
+      'receipt_no', v_receipt.receipt_no,
+      'status', 'cancelled',
+      'refund_state', v_refund,
+      'refund_note', v_refund_note,
+      'cancelled_at', v_at,
+      'total', v_receipt.total::text,
+      'in_closed_day', v_in_closed_day
+    ));
+  END LOOP;
+
+  RETURN jsonb_build_object('receipts', v_out, 'cash_back', round(v_cash_back, 2)::text);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_cancel_receipts(uuid[], text, text, uuid, boolean, timestamptz, integer, text, uuid)
+  TO service_role;
+
+-- As the seven-argument form in 20261102000000_seva_final_fixes.sql, with one change (N-8): the reason is 3 visible
+-- characters (seva_visible_length), else SEVA:validation field reason. The six-argument form calls
+-- this one, so it follows.
+CREATE OR REPLACE FUNCTION seva_replace_device(
+  p_counter_id smallint,
+  p_secret_hash text,
+  p_label text,
+  p_last_printed_of_no int,
+  p_last_printed_year smallint,
+  p_reason text,
+  p_staff_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_label text := nullif(btrim(coalesce(p_label, '')), '');
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_year smallint;
+  v_month smallint;
+  v_slip_year smallint;
+  v_series text;
+  v_last integer;
+  v_old uuid;
+  v_new uuid;
+  v_gap bigint;
+  v_group_floor integer;
+BEGIN
+  PERFORM seva_ops_require_staff(p_staff_id);
+  IF p_secret_hash IS NULL OR p_secret_hash !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'secret_hash')::text;
+  END IF;
+  IF v_label IS NOT NULL AND char_length(v_label) > 80 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'label')::text;
+  END IF;
+  IF seva_visible_length(v_reason) < 3 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'reason')::text;
+  END IF;
+  IF p_last_printed_of_no IS NULL OR p_last_printed_of_no NOT BETWEEN 0 AND 999999 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'last_printed_of_no')::text;
+  END IF;
+  SELECT p.year, p.month INTO v_year, v_month FROM seva_ist_parts(v_now) p;
+  v_slip_year := p_last_printed_year;
+  IF v_slip_year IS NULL OR v_slip_year NOT BETWEEN greatest(2026, v_year - 1) AND v_year THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'last_printed_year', 'year', v_year)::text;
+  END IF;
+
+  PERFORM 1 FROM counters c WHERE c.id = p_counter_id AND c.active FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'counter')::text;
+  END IF;
+
+  SELECT s.code INTO v_series
+    FROM receipt_series s
+   WHERE s.counter_id = p_counter_id AND s.kind = 'counter_offline';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'receipt_series')::text;
+  END IF;
+
+  INSERT INTO receipt_series_years (series_code, year) VALUES (v_series, v_slip_year)
+  ON CONFLICT (series_code, year) DO NOTHING;
+  SELECT y.last_no INTO v_last
+    FROM receipt_series_years y
+   WHERE y.series_code = v_series AND y.year = v_slip_year
+     FOR UPDATE;
+
+  UPDATE counter_devices
+     SET retired_at = v_now,
+         retired_by_staff_id = p_staff_id,
+         retired_reason = v_reason
+   WHERE counter_id = p_counter_id AND retired_at IS NULL
+  RETURNING id INTO v_old;
+
+  IF p_last_printed_of_no > v_last THEN
+    INSERT INTO receipt_number_gaps (series_code, year, from_no, to_no, cause, detected_at, device_id)
+    VALUES (v_series, v_slip_year, v_last + 1, p_last_printed_of_no, 'device_replaced', v_now, v_old)
+    RETURNING id INTO v_gap;
+    UPDATE receipt_series_years
+       SET last_no = p_last_printed_of_no
+     WHERE series_code = v_series AND year = v_slip_year;
+  END IF;
+
+  -- The labels the old PC (and any PC replaced before it) may have printed but not sent this year: one per missing
+  -- OF number of this IST year's open device_replaced gaps.
+  SELECT seva_offline_group_floor(p_counter_id, v_old, v_now) + coalesce(sum(g.to_no - g.from_no + 1), 0)::integer
+    INTO v_group_floor
+    FROM receipt_number_gaps g
+   WHERE g.series_code = v_series AND g.year = v_year AND g.cause = 'device_replaced' AND g.status = 'open';
+
+  INSERT INTO counter_devices (counter_id, secret_hash, label, registered_by_staff_id, registered_at,
+                               of_group_floor_yymm, of_group_floor_no)
+  VALUES (p_counter_id, p_secret_hash, v_label, p_staff_id, v_now,
+          lpad((v_year % 100)::text, 2, '0') || lpad(v_month::text, 2, '0'), v_group_floor)
+  RETURNING id INTO v_new;
+
+  PERFORM seva_audit(
+    'device.replace', 'counter_device', v_new::text, NULL, v_reason,
+    jsonb_build_object('device_id', v_old, 'last_of_no', v_last),
+    jsonb_build_object(
+      'device_id', v_new, 'counter_id', p_counter_id, 'label', v_label, 'series', v_series, 'year', v_slip_year,
+      'last_printed_of_no', p_last_printed_of_no, 'last_of_no', greatest(v_last, p_last_printed_of_no),
+      'gap_id', v_gap,
+      'gap_from', CASE WHEN v_gap IS NOT NULL THEN v_last + 1 END,
+      'gap_to', CASE WHEN v_gap IS NOT NULL THEN p_last_printed_of_no END,
+      'group_floor', v_group_floor
+    ),
+    p_staff_id
+  );
+  RETURN v_new;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, smallint, text, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_replace_device(smallint, text, text, int, smallint, text, uuid) TO service_role;

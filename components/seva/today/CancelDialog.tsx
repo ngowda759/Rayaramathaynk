@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { sevaControlClass } from "@/components/ui/input";
 import { formatRupees } from "@/lib/seva/money";
+import { visibleChars } from "@/lib/seva/schemas";
 import type { Bi } from "@/lib/seva/strings/common";
 import {
   CANCEL_DIALOG,
@@ -129,7 +130,7 @@ function CancelForm({ receipts, today, offline, busy, error, onConfirm, onClose 
   );
   const first = receipts[0];
   const isGroup = receipts.length > 1;
-  const noteOk = reason !== "other" || Array.from(note.trim()).length >= OTHER_NOTE_MIN;
+  const noteOk = reason !== "other" || visibleChars(note.trim()) >= OTHER_NOTE_MIN;
   const ready = reason !== "" && noteOk && chosen.length > 0 && !busy;
   const groupTotal = receipts.reduce((sum, r) => sum + r.totalPaise, 0);
   const money = chosen.length > 0 ? moneyBackLine(chosen, { today, offline }) : null;

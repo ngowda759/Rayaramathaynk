@@ -160,6 +160,16 @@ describe('seva device, gap and heartbeat functions (A2-2)', () => {
     await expect(replace(db, admin, -1)).rejects.toThrow('SEVA:validation');
   });
 
+  it('replace needs a reason of 3 visible characters (FINAL-FIX N-8)', async () => {
+    await seedDevice(db, { staffId: admin });
+    for (const reason of ['​​​', ' ab ', 'a⁠⁠b']) {
+      await expect(replace(db, admin, 0, reason)).rejects.toThrow('SEVA:validation');
+    }
+    expect((await devices(db)).filter((d) => d.retired_at !== null)).toHaveLength(0);
+    await replace(db, admin, 0, 'PSU died');
+    expect((await devices(db)).filter((d) => d.retired_at !== null)).toHaveLength(1);
+  });
+
   it('replace with the server\'s own last number opens no gap', async () => {
     await seedDevice(db, { staffId: admin });
     await setOfLastNo(db, 5);

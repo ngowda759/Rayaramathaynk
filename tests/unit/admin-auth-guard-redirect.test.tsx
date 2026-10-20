@@ -40,6 +40,10 @@ describe("AdminAuthGuard relays only a same-origin ?redirect=", () => {
     ["encoded //evil.example", "redirect=%2F%2Fevil.example"],
     ["/\\evil.example", "redirect=/%5Cevil.example"],
     ["https://evil.example", "redirect=https://evil.example"],
+    // FINAL-FIX N-8 (H-1): a dot segment that a URL parser folds into //host, raw and percent-encoded.
+    ["dot segment /.//evil.example", "redirect=/.//evil.example"],
+    ["encoded dot segment /.//evil.example", "redirect=%2F.%2F%2Fevil.example"],
+    ["dot-dot segment /..//evil.example", "redirect=/..//evil.example"],
     ["no redirect", ""],
   ])("%s becomes /admin", async (_label, search) => {
     expect(await signInAddressFor(search)).toBe("/login?redirect=%2Fadmin");

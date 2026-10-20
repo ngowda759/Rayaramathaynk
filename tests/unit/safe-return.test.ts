@@ -112,3 +112,56 @@ describe("safeReturnPath", () => {
     expect(safeReturnPath("/seva/../admin", "/")).toBe("/admin");
   });
 });
+
+describe("safeReturnPath, property-style (FINAL-FIX N-8, H-1)", () => {
+  const ORIGIN = "https://temple.example";
+  const PARTS = [
+    "/", "/", "/", ".", "..", "%2e", "%2E", "%2e%2e", "%2f", "%2F", "%252f", "%252e", "\\", "%5c", "%5C",
+    "∕", "／", "⁄", "＼", "．", "。", "%E2%88%95", "%EF%BC%8F",
+    "evil.example", "@evil.example", "evil.example:443", "seva", "admin", "?", "#", ";", ":", "%09", "\t", "​",
+  ];
+
+  /** A small seeded generator (mulberry32), so a failure can be replayed. */
+  function generator(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function randomPath(next: () => number): string {
+    const length = 1 + Math.floor(next() * 7);
+    let out = next() < 0.85 ? "/" : "";
+    for (let i = 0; i < length; i += 1) out += PARTS[Math.floor(next() * PARTS.length)];
+    return out;
+  }
+
+  /** The fallback, or a same-origin path that does not start with // (or /\), also once the sign-in page reads it. */
+  function expectSafe(input: string | null, out: string): void {
+    if (out === "/admin") return;
+    const ok =
+      out.startsWith("/") &&
+      !out.startsWith("//") &&
+      !out.startsWith("/\\") &&
+      new URL(out, ORIGIN).origin === ORIGIN &&
+      new URL(out, `${ORIGIN}/login?redirect=x`).origin === ORIGIN;
+    expect({ input, out, ok }).toEqual({ input, out, ok: true });
+  }
+
+  it("never leaves the site for a few thousand random paths, raw and query-decoded", () => {
+    const next = generator(20261020);
+    for (let i = 0; i < 4000; i += 1) {
+      const value = randomPath(next);
+      expectSafe(value, safeReturnPath(value, "/admin"));
+      const decoded = fromQuery(value);
+      expectSafe(decoded, safeReturnPath(decoded, "/admin"));
+      // The guard's relay: the result is encoded into /login?redirect= and read back there.
+      const relayed = safeReturnPath(fromQuery(encodeURIComponent(safeReturnPath(value, "/admin"))), "/admin");
+      expectSafe(value, relayed);
+    }
+  });
+});
