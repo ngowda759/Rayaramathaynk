@@ -513,3 +513,195 @@ REVOKE EXECUTE ON FUNCTION seva_note_sync_refused(uuid, jsonb, uuid) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION seva_note_sync_refused(uuid, jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION seva_note_refused_set_aside(uuid, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_note_refused_set_aside(uuid, jsonb, uuid) TO service_role;
+
+-- =====================================================================================================
+-- F5-3. Closing the day with the counter offline: the admin override carries a reason
+-- =====================================================================================================
+
+-- As in 20261102000000_seva_final_fixes.sql, plus p_counter_offline_reason: when the close goes ahead only because
+-- of p_counter_offline_ok (the live counter PC was not seen in the last 2 minutes), the reason is required (3-500
+-- visible characters, else SEVA:validation field counter_offline_reason) and goes into the dayclose.close audit row
+-- as counter_offline_reason. The old seven-argument signature is dropped; the new argument has a default, so a six-
+-- or seven-argument call still works.
+DROP FUNCTION IF EXISTS seva_close_day(smallint, date, jsonb, numeric, text, uuid, boolean);
+CREATE OR REPLACE FUNCTION seva_close_day(
+  p_counter_id smallint,
+  p_business_date date,
+  p_counts jsonb,
+  p_upi_bank_total numeric,
+  p_note text,
+  p_staff_id uuid,
+  p_counter_offline_ok boolean DEFAULT false,
+  p_counter_offline_reason text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_today date;
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_el jsonb;
+  v_value numeric;
+  v_count numeric;
+  v_counted numeric(12,2) := 0;
+  v_prep jsonb;
+  v_expected numeric(12,2);
+  v_upi_expected numeric(12,2);
+  v_existing day_closes%ROWTYPE;
+  v_found boolean;
+  v_id uuid;
+  v_seen timestamptz;
+  v_offline_override boolean := false;
+  v_offline_reason text := nullif(btrim(coalesce(p_counter_offline_reason, '')), '');
+BEGIN
+  PERFORM seva_ops_require_staff(p_staff_id);
+  SELECT p.business_date INTO v_today FROM seva_ist_parts(v_now) p;
+  IF p_business_date IS NULL OR p_business_date > v_today THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'business_date')::text;
+  END IF;
+  IF p_upi_bank_total IS NOT NULL AND (p_upi_bank_total < 0 OR p_upi_bank_total <> round(p_upi_bank_total, 2)) THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'upi_bank_total')::text;
+  END IF;
+
+  -- Validate the counts.
+  IF p_counts IS NULL OR jsonb_typeof(p_counts) <> 'array' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'counts')::text;
+  END IF;
+  FOR v_el IN SELECT e.value FROM jsonb_array_elements(p_counts) e LOOP
+    IF jsonb_typeof(v_el) <> 'object'
+       OR NOT coalesce(v_el ->> 'kind' IN ('note', 'coin'), false)
+       OR coalesce(jsonb_typeof(v_el -> 'value'), '') <> 'number'
+       OR coalesce(jsonb_typeof(v_el -> 'count'), '') <> 'number' THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'counts')::text;
+    END IF;
+    v_value := (v_el ->> 'value')::numeric;
+    v_count := (v_el ->> 'count')::numeric;
+    IF v_value <= 0 OR v_value > 2000 OR v_value <> round(v_value, 2)
+       OR v_count < 0 OR v_count > 100000 OR v_count <> trunc(v_count) THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'counts')::text;
+    END IF;
+    v_counted := v_counted + v_value * v_count;
+  END LOOP;
+  IF (SELECT count(*) FROM jsonb_array_elements(p_counts) e)
+     <> (SELECT count(DISTINCT (e.value ->> 'kind', (e.value ->> 'value')::numeric)) FROM jsonb_array_elements(p_counts) e) THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'counts', 'reason', 'duplicate_denomination')::text;
+  END IF;
+  -- L-9: only the denominations the settings show, so an invented value cannot zero a difference and skip the note.
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(p_counts) e
+     WHERE NOT EXISTS (SELECT 1 FROM cash_denominations cd
+                        WHERE cd.shown AND cd.kind = e.value ->> 'kind' AND cd.value = (e.value ->> 'value')::numeric)
+  ) THEN
+    RAISE EXCEPTION 'SEVA:validation'
+      USING DETAIL = jsonb_build_object('field', 'counts', 'reason', 'unknown_denomination')::text;
+  END IF;
+
+  -- The counter row lock serialises closes of one counter.
+  PERFORM 1 FROM counters c WHERE c.id = p_counter_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SEVA:not_found' USING DETAIL = jsonb_build_object('entity', 'counter')::text;
+  END IF;
+
+  SELECT * INTO v_existing
+    FROM day_closes dc
+   WHERE dc.counter_id = p_counter_id AND dc.business_date = p_business_date
+     FOR UPDATE;
+  v_found := FOUND;
+  IF v_found AND v_existing.status = 'closed' THEN
+    RAISE EXCEPTION 'SEVA:day_already_closed'
+      USING DETAIL = jsonb_build_object('day_close_id', v_existing.id)::text;
+  END IF;
+
+  v_prep := seva_prepare_day_close(p_counter_id, p_business_date);
+  IF (v_prep ->> 'outbox_pending')::int > 0 THEN
+    RAISE EXCEPTION 'SEVA:outbox_not_empty'
+      USING DETAIL = jsonb_build_object('outbox_pending', (v_prep ->> 'outbox_pending')::int)::text;
+  END IF;
+  -- M-2: the outbox count is only as fresh as the live PC's last report (a heartbeat a minute).
+  SELECT max(d.last_seen_at) INTO v_seen
+    FROM counter_devices d
+   WHERE d.counter_id = p_counter_id AND d.retired_at IS NULL;
+  IF v_seen IS NOT NULL AND v_seen < v_now - interval '2 minutes' THEN
+    IF NOT coalesce(p_counter_offline_ok, false) THEN
+      RAISE EXCEPTION 'SEVA:outbox_not_empty'
+        USING DETAIL = jsonb_build_object('outbox_pending', (v_prep ->> 'outbox_pending')::int,
+                                          'reason', 'counter_not_seen', 'last_seen_at', v_seen)::text;
+    END IF;
+    -- F5-3: the override needs the admin's reason.
+    IF seva_visible_length(v_offline_reason) < 3 OR char_length(v_offline_reason) > 500 THEN
+      RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'counter_offline_reason')::text;
+    END IF;
+    v_offline_override := true;
+  END IF;
+
+  v_expected := (v_prep ->> 'cash_expected')::numeric;
+  v_upi_expected := (v_prep ->> 'upi_expected')::numeric;
+  IF (v_counted <> v_expected OR (p_upi_bank_total IS NOT NULL AND p_upi_bank_total <> v_upi_expected))
+     AND seva_visible_length(v_note) < 3 THEN
+    RAISE EXCEPTION 'SEVA:difference_note_required'
+      USING DETAIL = jsonb_build_object(
+        'cash_difference', (v_counted - v_expected)::text,
+        'upi_difference', (coalesce(p_upi_bank_total, v_upi_expected) - v_upi_expected)::numeric(12,2)::text
+      )::text;
+  END IF;
+
+  IF v_found THEN
+    UPDATE day_closes
+       SET status = 'closed',
+           opening_float = (v_prep ->> 'opening_float')::numeric,
+           receipts_count = (v_prep ->> 'receipts')::int,
+           cancelled_count = (v_prep ->> 'cancelled')::int,
+           changed_count = (v_prep ->> 'changed')::int,
+           cash_expected = v_expected,
+           cash_counted = v_counted,
+           upi_count = (v_prep ->> 'upi_count')::int,
+           upi_expected = v_upi_expected,
+           upi_bank_total = p_upi_bank_total,
+           series_ranges = v_prep -> 'series_ranges',
+           outbox_pending = (v_prep ->> 'outbox_pending')::int,
+           note = v_note,
+           closed_by_staff_id = p_staff_id,
+           closed_at = v_now
+     WHERE id = v_existing.id;
+    v_id := v_existing.id;
+    DELETE FROM day_close_counts dcc WHERE dcc.day_close_id = v_id;
+  ELSE
+    INSERT INTO day_closes (counter_id, business_date, status, opening_float, receipts_count, cancelled_count,
+                            changed_count, cash_expected, cash_counted, upi_count, upi_expected, upi_bank_total,
+                            series_ranges, outbox_pending, note, closed_by_staff_id, closed_at)
+    VALUES (p_counter_id, p_business_date, 'closed', (v_prep ->> 'opening_float')::numeric,
+            (v_prep ->> 'receipts')::int, (v_prep ->> 'cancelled')::int, (v_prep ->> 'changed')::int,
+            v_expected, v_counted, (v_prep ->> 'upi_count')::int, v_upi_expected, p_upi_bank_total,
+            v_prep -> 'series_ranges', (v_prep ->> 'outbox_pending')::int, v_note, p_staff_id, v_now)
+    RETURNING id INTO v_id;
+  END IF;
+
+  INSERT INTO day_close_counts (day_close_id, kind, value, count)
+  SELECT v_id, e.value ->> 'kind', (e.value ->> 'value')::numeric, (e.value ->> 'count')::numeric::int
+    FROM jsonb_array_elements(p_counts) e;
+
+  PERFORM seva_audit(
+    'dayclose.close', 'day_close', v_id::text, NULL, v_note,
+    CASE WHEN v_found THEN jsonb_build_object('status', v_existing.status) END,
+    jsonb_build_object(
+      'status', 'closed', 'counter_id', p_counter_id, 'business_date', p_business_date,
+      'receipts', (v_prep ->> 'receipts')::int, 'cancelled', (v_prep ->> 'cancelled')::int,
+      'cash_expected', v_expected::text, 'cash_counted', v_counted::text,
+      'cash_difference', (v_counted - v_expected)::text,
+      'upi_expected', v_upi_expected::text, 'upi_bank_total', p_upi_bank_total::numeric(12,2)::text
+    ) || CASE WHEN v_offline_override
+              THEN jsonb_build_object('counter_offline_override', true, 'counter_last_seen_at', v_seen,
+                                      'counter_offline_reason', v_offline_reason)
+              ELSE '{}'::jsonb END,
+    p_staff_id
+  );
+  RETURN v_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_close_day(smallint, date, jsonb, numeric, text, uuid, boolean, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_close_day(smallint, date, jsonb, numeric, text, uuid, boolean, text) TO service_role;

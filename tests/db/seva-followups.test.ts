@@ -512,3 +512,43 @@ describe('1: office-refused outbox items are reported and listed until set aside
     });
   });
 });
+
+describe('3: closing the day with the counter offline needs an admin reason', () => {
+  function closeDay(c: Ctx, ok: boolean, reason: string | null): Promise<string> {
+    return call<string>(
+      c,
+      `select seva_close_day(1::smallint, $1::date, '[]'::jsonb, null, 'Counted with the office', $2::uuid, $3::boolean, $4) as r`,
+      [c.today, c.adminId, ok, reason],
+    );
+  }
+
+  it('refuses without the override, asks for a reason with it, and audits the reason', async () => {
+    const c = await setup();
+    await c.db.query(`update counter_devices set last_seen_at = now() - interval '5 minutes' where id = $1`, [c.deviceId]);
+
+    expect(await failure(closeDay(c, false, null))).toMatchObject({ code: 'outbox_not_empty', detail: { reason: 'counter_not_seen' } });
+    expect(await failure(closeDay(c, true, null))).toMatchObject({ code: 'validation', detail: { field: 'counter_offline_reason' } });
+    expect(await failure(closeDay(c, true, ' ​ '))).toMatchObject({ code: 'validation', detail: { field: 'counter_offline_reason' } });
+
+    const id = await closeDay(c, true, 'Counter PC switched off; nothing left on it');
+    const audit = await c.db.query<{ after: Record<string, unknown> }>(
+      `select after from audit_log where action = 'dayclose.close' and entity_id = $1`,
+      [id],
+    );
+    expect(audit.rows[0].after).toMatchObject({
+      counter_offline_override: true,
+      counter_offline_reason: 'Counter PC switched off; nothing left on it',
+    });
+  });
+
+  it('needs no reason when the counter PC was seen in time, and a six-argument call still works', async () => {
+    const c = await setup();
+    await c.db.query(`update counter_devices set last_seen_at = now() where id = $1`, [c.deviceId]);
+    await expect(
+      call<string>(c, `select seva_close_day(1::smallint, $1::date, '[]'::jsonb, null, 'Counted with the office', $2::uuid) as r`, [
+        c.today,
+        c.adminId,
+      ]),
+    ).resolves.toEqual(expect.any(String));
+  });
+});

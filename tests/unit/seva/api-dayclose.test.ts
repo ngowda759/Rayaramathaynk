@@ -221,6 +221,35 @@ describe("day close routes", () => {
     expect(mockRpc).toHaveBeenLastCalledWith("seva_close_day", expect.not.objectContaining({ p_counter_offline_ok: true }));
   });
 
+  it("passes the admin's reason with the counter-offline override and refuses a reason under 3 characters (F5-3)", async () => {
+    mockRpc.mockResolvedValue("dc-9");
+    const body = {
+      counterId: 1,
+      businessDate: TODAY,
+      counts: [],
+      upiBankTotalPaise: null,
+      counterOfflineOk: true,
+      counterOfflineReason: "  Counter PC switched off; nothing left on it ",
+    };
+    mockGuard.mockResolvedValueOnce({ ok: true, actor: { ...ACTOR, role: "temple_admin" }, device: null });
+    await POST(post("/api/seva/day-close", body));
+    expect(mockRpc).toHaveBeenLastCalledWith(
+      "seva_close_day",
+      expect.objectContaining({ p_counter_offline_ok: true, p_counter_offline_reason: "Counter PC switched off; nothing left on it" }),
+    );
+
+    mockRpc.mockClear();
+    mockGuard.mockResolvedValueOnce({ ok: true, actor: { ...ACTOR, role: "temple_admin" }, device: null });
+    const short = await POST(post("/api/seva/day-close", { ...body, counterOfflineReason: "ok" }));
+    expect(short.status).toBe(400);
+    expect(mockRpc).not.toHaveBeenCalled();
+
+    // Without the override the reason is not sent.
+    mockGuard.mockResolvedValueOnce({ ok: true, actor: { ...ACTOR, role: "temple_admin" }, device: null });
+    await POST(post("/api/seva/day-close", { ...body, counterOfflineOk: undefined }));
+    expect(mockRpc).toHaveBeenLastCalledWith("seva_close_day", expect.not.objectContaining({ p_counter_offline_reason: expect.anything() }));
+  });
+
   it("maps difference_note_required and outbox_not_empty to 400 and 409", async () => {
     const body = { counterId: 1, businessDate: TODAY, counts: [], upiBankTotalPaise: null };
 

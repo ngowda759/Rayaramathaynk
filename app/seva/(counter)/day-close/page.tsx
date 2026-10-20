@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type JSX }
 import { AnimatePresence, m } from "framer-motion";
 
 import { StepPane } from "@/components/seva/counter/StepPane";
+import { CounterOfflineClose, counterNotSeen } from "@/components/seva/dayclose/CounterOfflineClose";
 import { CashCount, cashDifference, countedPaise, denominationKey, hasInvalidCount, noteIsEnough, parseCount } from "@/components/seva/dayclose/CashCount";
 import { printDayCloseSummary, type DayCloseSummaryModel } from "@/components/seva/dayclose/DayCloseSummaryPrint";
 import { SentCheck } from "@/components/seva/dayclose/SentCheck";
@@ -146,6 +147,9 @@ function DayCloseScreen(): JSX.Element {
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [reloads, setReloads] = useState(0);
+  // The office refused the close because the counter PC has not reported lately (A5-FIX M-2, F5-3).
+  const [counterOffline, setCounterOffline] = useState<{ lastSeenAt: string | null } | null>(null);
+  const [offlineReason, setOfflineReason] = useState("");
   const dbRef = useRef<SevaDb | null>(null);
 
   const token = useCallback(async (): Promise<string> => {
@@ -305,7 +309,11 @@ function DayCloseScreen(): JSX.Element {
     }
   };
 
-  const closeDay = async (): Promise<void> => {
+  // Only a temple admin or super admin who is not view-only may close without the counter PC (the office checks too).
+  const canCloseOffline = (me.role === "temple_admin" || me.role === "super_admin") && me.viewOnly === false;
+
+  /** `offlineReason`: "Close anyway" - the admin closes although the counter PC was not seen, with this reason. */
+  const submitClose = async (offlineReason: string | null): Promise<void> => {
     if (blocker) return;
     setBusy("close");
     setActionError(null);
@@ -323,12 +331,21 @@ function DayCloseScreen(): JSX.Element {
         counts: rows,
         upiBankTotalPaise,
         note: note.trim() ? note.trim() : undefined,
+        ...(offlineReason ? { counterOfflineOk: true, counterOfflineReason: offlineReason } : {}),
       }));
     } catch (err) {
       setBusy(null);
+      const notSeen = counterNotSeen(err);
+      if (notSeen) {
+        setCounterOffline(notSeen);
+        setActionError(null);
+        return;
+      }
       setActionError(errorMessage(err));
       return;
     }
+    setCounterOffline(null);
+    setOfflineReason("");
 
     setLastClose({ id: dayCloseId, counterId: prep.counterId, date: prep.businessDate });
     const closedAt = new Date().toISOString();
@@ -372,6 +389,9 @@ function DayCloseScreen(): JSX.Element {
     setBusy(null);
     reload();
   };
+
+  const closeDay = (): Promise<void> => submitClose(null);
+  const closeAnyway = (): Promise<void> => submitClose(offlineReason.trim());
 
   const reopen = async (): Promise<void> => {
     if (reason.trim().length < 3) return;
@@ -516,6 +536,17 @@ function DayCloseScreen(): JSX.Element {
                   <SeriesSummary ranges={prep.seriesRanges} />
                 </div>
               </div>
+              {counterOffline ? (
+                <CounterOfflineClose
+                  lastSeenAt={counterOffline.lastSeenAt}
+                  canOverride={canCloseOffline}
+                  reason={offlineReason}
+                  onReasonChange={setOfflineReason}
+                  closing={busy === "close"}
+                  blocked={blocker !== null}
+                  onCloseAnyway={closeAnyway}
+                />
+              ) : null}
               <div className="flex flex-wrap items-center gap-4">
                 <PendingButton
                   variant="seva-primary"

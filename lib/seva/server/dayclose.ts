@@ -104,12 +104,14 @@ export async function prepareDayClose(counterId: number, businessDate: string): 
 
 /**
  * Closes the day; the SQL function re-checks the outbox (and that the counter PC was seen in the last 2 minutes), the
- * difference note and an already-closed day. Only a temple admin may close with the counter offline (A5-FIX M-2).
+ * difference note and an already-closed day. Only a temple admin may close with the counter offline (A5-FIX M-2), and
+ * then with a reason (F5-3), which SQL requires and audits.
  */
 export async function closeDay(actor: SevaActor, body: DayCloseRequest): Promise<{ dayCloseId: string }> {
   const offlineOk = body.counterOfflineOk === true && (actor.role === "temple_admin" || actor.role === "super_admin");
   const id = await callRpc<unknown>("seva_close_day", {
     ...(offlineOk ? { p_counter_offline_ok: true } : {}),
+    ...(offlineOk && body.counterOfflineReason ? { p_counter_offline_reason: body.counterOfflineReason } : {}),
     p_counter_id: body.counterId,
     p_business_date: body.businessDate,
     // seva_close_day wants JSON numbers in rupees; a denomination is at most Rs 2,000.00, so this is exact.

@@ -231,7 +231,7 @@ describe('seva day close functions (A2-2)', () => {
     await db.query(`update counter_devices set last_seen_at = now() - interval '10 minutes' where id = $1::uuid`, [deviceId]);
     const r = await db.query<{ id: string }>(
       `select seva_close_day(1::smallint, (select business_date from seva_ist_parts(now())), $1::jsonb,
-                             null, null, $2::uuid, true) as id`,
+                             null, null, $2::uuid, true, 'Counter PC switched off') as id`,
       [JSON.stringify(EXACT), admin],
     );
     const audit = await db.query<{ after: Record<string, unknown> }>(
@@ -239,7 +239,8 @@ describe('seva day close functions (A2-2)', () => {
       [r.rows[0].id],
     );
     expect(audit.rows).toEqual([
-      { after: expect.objectContaining({ counter_offline_override: true, counter_last_seen_at: expect.any(String) }) },
+      { after: expect.objectContaining({ counter_offline_override: true, counter_last_seen_at: expect.any(String),
+                                       counter_offline_reason: 'Counter PC switched off' }) },
     ]);
   });
 

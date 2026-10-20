@@ -312,6 +312,8 @@ export const dayCloseSchema = z.object({
    * waiting" cannot be trusted. Honoured only for an admin; audited on the close.
    */
   counterOfflineOk: z.boolean().optional(),
+  /** Why the admin closes with the counter offline (A5-FIX F5-3); SQL requires it when the override is used. */
+  counterOfflineReason: reasonText(3, 500).optional(),
 });
 
 // ---------------------------------------------------------------------------------------------------------------

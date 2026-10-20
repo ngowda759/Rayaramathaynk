@@ -235,3 +235,46 @@ export function dayLine(p: { counter: string; date: string; receipts: number }):
 export function closedAtLine(time: string): Bi {
   return { en: `Day closed at ${time}.`, kn: `ದಿನ ${time} ಕ್ಕೆ ಮುಕ್ತಾಯವಾಯಿತು.` };
 }
+
+/**
+ * The close refused because the counter PC has not reported for over 2 minutes (A5-FIX M-2, F5-3): what it means,
+ * and for a temple admin "Close anyway" with a required reason. New Kannada - to be proof-read (O-03).
+ */
+export const DAYCLOSE_OFFLINE: {
+  title: Bi;
+  why: Bi;
+  whatToDo: Bi;
+  askAdmin: Bi;
+  adminChoice: Bi;
+  reasonLabel: Bi;
+  reasonHint: Bi;
+  closeAnyway: Bi;
+  closingAnyway: Bi;
+} = {
+  title: { en: 'The counter PC is not connected', kn: 'ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್ ಸಂಪರ್ಕದಲ್ಲಿಲ್ಲ' },
+  why: {
+    en: 'The office cannot be sure that nothing is still waiting to be sent on it, so the day was not closed.',
+    kn: 'ಅದರಲ್ಲಿ ಕಳುಹಿಸಲು ಏನೂ ಬಾಕಿ ಇಲ್ಲ ಎಂದು ಕಚೇರಿಗೆ ಖಚಿತವಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ ದಿನ ಮುಕ್ತಾಯವಾಗಲಿಲ್ಲ.',
+  },
+  whatToDo: {
+    en: 'Turn on the counter PC, open the counter there and let it connect; then press Close day again.',
+    kn: 'ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್ ಆನ್ ಮಾಡಿ, ಅಲ್ಲಿ ಕೌಂಟರ್ ತೆರೆಯಿರಿ ಮತ್ತು ಸಂಪರ್ಕವಾಗಲು ಬಿಡಿ; ನಂತರ ಮತ್ತೆ ದಿನ ಮುಕ್ತಾಯ ಒತ್ತಿರಿ.',
+  },
+  askAdmin: {
+    en: 'If the counter PC cannot be turned on, ask a temple admin: only they can close the day without it.',
+    kn: 'ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್ ಆನ್ ಆಗದಿದ್ದರೆ ದೇವಸ್ಥಾನದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ: ಅವರು ಮಾತ್ರ ಅದಿಲ್ಲದೆ ದಿನ ಮುಕ್ತಾಯ ಮಾಡಬಹುದು.',
+  },
+  adminChoice: {
+    en: 'As a temple admin you can close anyway. Receipts still on that PC will reach the office later and show in Needs attention as arriving after the day was closed.',
+    kn: 'ದೇವಸ್ಥಾನದ ನಿರ್ವಾಹಕರಾಗಿ ನೀವು ಹೇಗಿದ್ದರೂ ಮುಕ್ತಾಯ ಮಾಡಬಹುದು. ಆ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಉಳಿದ ರಸೀದಿಗಳು ನಂತರ ಕಚೇರಿಗೆ ಬಂದು, ಗಮನಿಸಬೇಕಾದವುಗಳಲ್ಲಿ ದಿನ ಮುಕ್ತಾಯದ ನಂತರ ಬಂದವು ಎಂದು ಕಾಣಿಸುತ್ತವೆ.',
+  },
+  reasonLabel: { en: 'Why close without the counter PC', kn: 'ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್ ಇಲ್ಲದೆ ಮುಕ್ತಾಯ ಮಾಡಲು ಕಾರಣ' },
+  reasonHint: { en: 'At least 3 characters. It is kept with the close.', kn: 'ಕನಿಷ್ಠ 3 ಅಕ್ಷರಗಳು. ಇದನ್ನು ಮುಕ್ತಾಯದೊಂದಿಗೆ ಉಳಿಸಲಾಗುತ್ತದೆ.' },
+  closeAnyway: { en: 'Close anyway', kn: 'ಹೇಗಿದ್ದರೂ ಮುಕ್ತಾಯ ಮಾಡಿ' },
+  closingAnyway: { en: 'Closing...', kn: 'ಮುಕ್ತಾಯವಾಗುತ್ತಿದೆ...' },
+};
+
+/** 'It last reported at 4:52 PM.' - the counter PC's last heartbeat, IST. */
+export function lastSeenLine(time: string): Bi {
+  return { en: `It last reported at ${time}.`, kn: `ಅದು ಕೊನೆಯದಾಗಿ ${time} ಕ್ಕೆ ವರದಿ ಮಾಡಿತು.` };
+}
