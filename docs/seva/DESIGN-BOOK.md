@@ -88,6 +88,13 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
     devotee, sevas, total and mode; the receipt is stored as the offline receipt it was, the gap shrinks, and it closes
     as entered from the paper book only when its last number is entered. "Resolve" now offers declared lost only;
     `seva_resolve_gap` refuses `entered_from_paper` while a number is missing (M-6).
+- 2026-10-20, follow-ups to the final-review fixes (A5-FIX F5, `20261102000200_seva_followups.sql`): a PC reports the
+  outbox items the office refused (`counter/refused`, audit `sync.refused`, critical card `sync_refused`) until a temple
+  admin sets them aside on the PC with a reason (`counter/refused/set-aside`, `sync.refused_set_aside`); the
+  `unprinted_online` card lists online receipts not printed after 10 minutes; the close-day override carries a reason;
+  the counter refuses view-only staff in SQL too (§6.5, §9.10, §12.2).
+- 2026-10-20, the re-check's leftovers (FINAL-FIX, `20261102000300_seva_final_touches.sql`):
+  - docs: the F5 functions, routes and migration are named in the data model, API and migration docs (N-1).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.
