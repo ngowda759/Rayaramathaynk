@@ -101,6 +101,8 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
   - §8.6, §12.2: the counter keeps an in-doubt order in its IndexedDB (`meta`) until the office answers, so a reload
     keeps it and the next save reuses its client order id (an earlier day's is let go); the `unprinted_online` card
     looks back over the last 7 business days, not only today (N-3).
+  - §9.10: the demo seeder closes each seeded day with the counter-offline override and the reason "Demo data
+    seeding", since the counter PC must be closed while it runs (N-6).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.

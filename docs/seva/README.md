@@ -124,8 +124,10 @@ closes, so the dashboard, reports and charts can be tried. Never run it against 
 
 Its guards refuse the run unless `--project-ref` matches the project in `NEXT_PUBLIC_SUPABASE_URL` and
 `--yes-this-is-a-test-project` is given, and whenever `NODE_ENV=production`, `VERCEL` or `CI` is set. It writes only
-through the module's own SQL functions, never touches a day that already has a close, and prints no key. After it,
-open the counter page fresh while online so it picks up the new last numbers.
+through the module's own SQL functions, never touches a day that already has a close, and prints no key. Because the
+counter PC is closed while it runs, each seeded day is closed with the admin's "counter not seen" override and the
+reason "Demo data seeding" (in the `dayclose.close` audit row). After it, open the counter page fresh while online so
+it picks up the new last numbers.
 
 ### Install the app on the counter PC and on phones
 

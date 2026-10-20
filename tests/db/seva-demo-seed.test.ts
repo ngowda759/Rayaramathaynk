@@ -339,12 +339,20 @@ describe('seva demo seed - an open counter page', () => {
       expect((await runDemoSeed(t.port, { ...SMALL, dryRun: true, log: () => undefined })).dryRun).toBe(true);
 
       // Once the tabs are closed for 3 minutes it goes ahead, and ends with the counter advice and the OF1 last number.
+      // FINAL-FIX N-6: a real gap in the database (not only the seeder's clock), so every seva_close_day it makes sees
+      // the live PC last seen more than 2 minutes ago and closes with the audited "Demo data seeding" override.
+      await t.db.query(`update counter_devices set last_seen_at = now() - interval '4 minutes' where id = $1`, [t.deviceId]);
       const lines: string[] = [];
-      const later = await runDemoSeed(t.port, {
-        ...SMALL,
-        now: () => new Date(Date.now() + 4 * 60_000),
-        log: (l) => lines.push(l),
-      });
+      const later = await runDemoSeed(t.port, { ...SMALL, log: (l) => lines.push(l) });
+      const closes = await t.db.query<{ reason: string | null; override: string | null }>(
+        `select after ->> 'counter_offline_reason' as reason, after ->> 'counter_offline_override' as override
+           from audit_log where action = 'dayclose.close' order by id`,
+      );
+      expect(later.totals.dayCloses).toBe(2);
+      expect(closes.rows).toEqual([
+        { reason: 'Demo data seeding', override: 'true' },
+        { reason: 'Demo data seeding', override: 'true' },
+      ]);
       const last = await count(t.db, `select coalesce(max(last_no), 0)::int as v from receipt_series_years where series_code = 'OF1'`);
       expect(later.totals.offlineReceipts).toBe(last);
       expect(lines[lines.length - 1]).toBe(

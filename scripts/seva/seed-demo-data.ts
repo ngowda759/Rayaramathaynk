@@ -17,7 +17,8 @@
  * no INSERT or UPDATE on a seva table, no new function:
  *   - past business dates: seva_sync_offline_order on the counter's OF series with the past issued_at (the only path
  *     that records a past issue time), numbers continuing the series with no gap, then seva_prepare_day_close and
- *     seva_close_day for the date (most balanced, two with a small difference and a note);
+ *     seva_close_day for the date (most balanced, two with a small difference and a note; with the counter-offline
+ *     override and the reason "Demo data seeding", because the counter PC must not be open while the seed runs);
  *   - today: seva_issue_counter_order on the C series (stamped now), seva_record_prints, and a few cancellations
  *     through seva_cancel_receipts (the issuer inside the window, and the admin path);
  *   - prasadam: seva_mark_prasadam (a past seva date is an off-date give, confirmed);
@@ -1004,6 +1005,11 @@ class Runner {
         p_upi_bank_total: str(prep, "upi_expected"),
         p_note: close.note,
         p_staff_id: this.ctx.staffId,
+        // M-2 needs the live counter PC seen in the last 2 minutes, and the seeder runs only when it was NOT seen for
+        // 3 (FINAL-FIX N-6): every close uses the admin override with its reason, audited on the dayclose.close row.
+        // The seeder already refused a PC with offline items waiting, so the override hides nothing.
+        p_counter_offline_ok: true,
+        p_counter_offline_reason: DEMO_CLOSE_REASON,
       });
     } catch (error) {
       if (error instanceof SeedRpcError && error.code === "day_already_closed") return "already closed";
@@ -1229,6 +1235,9 @@ async function writeAll(
 const BUSINESS_ERROR = /^SEVA:([a-z_]+)$/;
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const PAGE = 1000;
+
+/** The reason on the close-day override every seeded day close uses (FINAL-FIX N-6). */
+export const DEMO_CLOSE_REASON = "Demo data seeding";
 
 /**
  * Calls that are safe to send again after a failure whose reply was lost: a repeat of a stored one answers
