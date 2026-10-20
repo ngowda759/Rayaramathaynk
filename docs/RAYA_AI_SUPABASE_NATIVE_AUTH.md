@@ -93,7 +93,8 @@ No Firebase variable is read by the Raya AI admin path after this change.
 
 ## 4. Bootstrap the first Raya AI administrator
 
-Operator-run, server-side only (`SUPABASE_SERVICE_ROLE_KEY` required). Idempotent.
+Operator-run, server-side only (`SUPABASE_SERVICE_ROLE_KEY` required). Idempotent,
+fails closed, and never lets a public user self-assign a role.
 
 ```bash
 # Creates/updates the Supabase Auth user and its public.users authorization row.
@@ -103,17 +104,74 @@ RAYA_ADMIN_ROLE="super_admin" \
 npx tsx scripts/bootstrap-raya-admin.ts
 ```
 
-Then sign in at `/admin/ai/login` with that email/password. Public users cannot
-self-assign a role: the script is the only writer of `auth_user_id`/`role`, and it
-requires the service-role key, which is never available to the browser.
+The script is the only writer of `auth_user_id`/`role`, and it requires the
+service-role key, which is never available to the browser.
+
+### 4.1 Safety contract
+
+Identity is never inferred from an email address. `public.users.email` is
+`NOT NULL` but **not unique** (verified against a Postgres 16 instance built from
+the repo's own migrations — two rows with the same email insert without error),
+so the script treats an email match as a hint, not as identity:
+
+- Linking an existing unlinked `public.users` row to a Supabase Auth user
+  requires `RAYA_ADMIN_LINK_LEGACY_EMAIL=1`.
+- An email matching **two or more** unlinked rows always fails closed
+  (`ambiguous_legacy_email`), even with the opt-in flag.
+- The email lookup is `ilike`-escaped, so a `%` or `_` in an address cannot widen
+  the match.
+- A Supabase Auth email matching two or more Auth users also fails closed.
+
+An existing authorization row is never silently changed:
+
+- The role is only overwritten with `RAYA_ADMIN_FORCE_ROLE=1`
+  (`role_change_requires_opt_in` otherwise).
+- An inactive account is only re-enabled with `RAYA_ADMIN_REACTIVATE=1`
+  (`inactive_profile_requires_opt_in` otherwise).
+
+Every refusal exits non-zero and prints a non-sensitive reason. Re-running with
+the same inputs converges to a no-op. A `link` update is guarded by
+`auth_user_id IS NULL` (and the partial unique index) so a concurrent run cannot
+claim a row already linked.
+
+| Flag | Effect |
+| --- | --- |
+| `RAYA_ADMIN_FORCE_ROLE=1` | Allow changing an existing role to `RAYA_ADMIN_ROLE`. |
+| `RAYA_ADMIN_REACTIVATE=1` | Allow re-enabling an inactive authorization row. |
+| `RAYA_ADMIN_LINK_LEGACY_EMAIL=1` | Allow linking a single unlinked row that shares the email. |
+
+The decision rules are in `scripts/lib/raya-admin-bootstrap.ts` (pure, unit
+tested); the CLI only performs I/O around them.
 
 ## 5. Schema change
 
 `supabase/migrations/20261022000000_add_auth_user_id_to_users.sql` adds
-`public.users.auth_user_id uuid UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL`
-plus a partial unique index. It is additive and non-destructive: no table, column
-or row is dropped. It is **not** applied automatically; apply it through the
-reviewed Supabase migration path.
+`public.users.auth_user_id uuid` plus a **partial** unique index
+(`WHERE auth_user_id IS NOT NULL`) and a foreign key to
+`auth.users(id) ON DELETE SET NULL`. It is additive and non-destructive: no table,
+column or row is dropped. It is **not** applied automatically; apply it through
+the reviewed Supabase migration path.
+
+The partial index matters: `public.users` holds many legacy rows whose
+`auth_user_id` is `NULL`, and a bare `UNIQUE` constraint would reject the second
+such row. `ON DELETE SET NULL` means deleting a Supabase Auth user detaches the
+authorization row rather than deleting it.
+
+### 5.1 Verified against a real Postgres
+
+The migration was applied to a `postgres:16-alpine` instance built from the repo's
+own migrations, and the following were confirmed empirically (not just by reading
+the SQL):
+
+- the column is `uuid` and nullable;
+- the index is partial and unique (`WHERE auth_user_id IS NOT NULL`);
+- the FK is `REFERENCES auth.users(id) ON DELETE SET NULL` (`confdeltype = 'n'`);
+- two rows with the same `email` insert without error (confirmed **no** uniqueness
+  on `email`) — this is why the bootstrap treats email as a hint only;
+- a duplicate non-null `auth_user_id` is rejected;
+- an `auth_user_id` with no matching `auth.users` row is rejected;
+- `ON DELETE SET NULL` detaches the row instead of deleting it;
+- existing `NOT NULL`/`DEFAULT` semantics on `email`, `role`, `active` are unchanged.
 
 `prisma/schema.prisma` mirrors the column so the Prisma baseline stays in sync.
 
@@ -125,3 +183,13 @@ reviewed Supabase migration path.
 4. Deploy. Verify `/admin/ai/settings`, `/admin/ai/prompts`, `/admin/ai/health`.
 5. Confirm a non-admin Supabase account receives `403`, and an anonymous request
    receives `401`.
+
+## 7. Regression guards (tests)
+
+| Test file | What it pins |
+| --- | --- |
+| `tests/unit/raya-admin-bootstrap.test.ts` | The bootstrap safety contract: opt-in role/reactivation/linking, ambiguity fails closed, idempotent no-ops, LIKE-escaping. |
+| `tests/unit/raya-ai-auth-isolation.test.ts` | Service-role key stays server-side; the guard reads only the DB record; the two auth providers stay separated; the non-AI Firebase gate is intact; no Firestore fallback in the approved paths. |
+| `tests/unit/admin-auth-guard-redirect.test.tsx` | A Supabase session satisfies only `/admin/ai/*`; the AI login is not gated; redirects stay same-origin. |
+| `tests/unit/raya-admin-schema-migration.test.ts` | The migration is a nullable uuid, partial-unique, `ON DELETE SET NULL`, idempotent and additive; Prisma mirrors it. |
+| `tests/unit/ai-api-auth-wiring.test.ts` | Every protected AI route authenticates via `requireRayaAdminUser` and none reimports Firebase Admin. |
