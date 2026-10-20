@@ -16,7 +16,7 @@ jest.mock('firebase-admin/auth', () => ({
 describe('Admin Authentication Check', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.NODE_ENV = 'test';
+    // process.env.NODE_ENV = 'test';
   });
 
   const createMockRequest = (authHeader: string | null) => {

@@ -59,7 +59,7 @@ function radio(name: RegExp): HTMLElement {
 }
 
 beforeEach(() => {
-  jest.useFakeTimers({ now: NOW, toFake: ["Date"] });
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   mockReplace.mockClear();
   mockAudit.mockClear();
   mockParams.current = new URLSearchParams("");

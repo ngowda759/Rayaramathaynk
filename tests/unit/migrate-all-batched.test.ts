@@ -19,7 +19,7 @@ jest.mock("../../lib/supabase/migration-inventory", () => {
 });
 
 describe("Batched Migration Execution Plan", () => {
-  beforeAll(() => { process.env.NODE_ENV = "test"; });
+  beforeAll(() => { // process.env.NODE_ENV = "test"; });
   it("should return mapChatMessage for messages collection", () => {
     const { getMapperFn } = require("../../scripts/migrate-all-batched");
     const fn = getMapperFn("messages");

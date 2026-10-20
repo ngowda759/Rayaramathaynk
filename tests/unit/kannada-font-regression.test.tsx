@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/jest-globals";
 import React from 'react';
 import '@testing-library/jest-dom';
 
@@ -35,8 +36,8 @@ describe('RootLayout Kannada Font Registration', () => {
     const Root = RootLayout({ children: <div data-testid="test-content">Test</div> }) as React.ReactElement;
 
     // In React 19 testing library might strip body if rendered at root, so we check the props
-    expect(Root.props.children.props.className).toContain('--font-kannada');
-    expect(Root.props.children.props.className).toContain('--font-inter');
-    expect(Root.props.children.props.className).toContain('--font-heading');
+    expect((Root.props as any).children.props.className).toContain('--font-kannada');
+    expect((Root.props as any).children.props.className).toContain('--font-inter');
+    expect((Root.props as any).children.props.className).toContain('--font-heading');
   });
 });

@@ -19,14 +19,9 @@ if (typeof global.MessageChannel === "undefined") global.MessageChannel = worker
 if (typeof global.MessagePort === "undefined") global.MessagePort = workerThreads.MessagePort;
 
 const undici = require("undici");
-global.Request = undici.Request as any;
-global.Response = undici.Response as any;
-global.Headers = undici.Headers as any;
-global.FormData = undici.FormData as any;
-global.fetch = undici.fetch as any;
 
-if (typeof global.Request === "undefined") global.Request = Request;
-if (typeof global.Response === "undefined") global.Response = Response;
-if (typeof global.Headers === "undefined") global.Headers = Headers;
-if (typeof global.FormData === "undefined") global.FormData = FormData;
-if (typeof global.fetch === "undefined") global.fetch = fetch;
+if (typeof global.Request === "undefined") global.Request = undici.Request as any;
+if (typeof global.Response === "undefined") global.Response = undici.Response as any;
+if (typeof global.Headers === "undefined") global.Headers = undici.Headers as any;
+if (typeof global.FormData === "undefined") global.FormData = undici.FormData as any;
+if (typeof global.fetch === "undefined") global.fetch = undici.fetch as any;
