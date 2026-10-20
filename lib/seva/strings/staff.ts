@@ -142,6 +142,11 @@ export const STAFF_TEXT = {
     en: 'This email has a website account, but its sign-in is switched off, so it cannot be linked. Ask the site owner to switch it on first (Firebase console, Authentication, Users), or use a different email.',
     kn: 'ಈ ಇಮೇಲ್‌ಗೆ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ ಇದೆ, ಆದರೆ ಅದರ ಸೈನ್ ಇನ್ ನಿಲ್ಲಿಸಲಾಗಿದೆ, ಆದ್ದರಿಂದ ಜೋಡಿಸಲು ಆಗುವುದಿಲ್ಲ. ಮೊದಲು ಅದನ್ನು ಆನ್ ಮಾಡಲು ಸೈಟ್ ಮಾಲೀಕರಿಗೆ ಹೇಳಿ, ಅಥವಾ ಬೇರೆ ಇಮೇಲ್ ಬಳಸಿ.',
   } as Bi,
+  /** 403 `needs_super_admin`: the existing account holds a website admin-console role or is inactive (C-62). */
+  linkNeedsSuperAdmin: {
+    en: 'Only a super admin can add this account: it already has a website admin role or is switched off.',
+    kn: 'ಈ ಖಾತೆಯನ್ನು ಮುಖ್ಯ ನಿರ್ವಾಹಕರು ಮಾತ್ರ ಸೇರಿಸಬಹುದು: ಇದಕ್ಕೆ ಈಗಾಗಲೇ ವೆಬ್‌ಸೈಟ್ ನಿರ್ವಾಹಕ ಪಾತ್ರ ಇದೆ ಅಥವಾ ಇದು ನಿಷ್ಕ್ರಿಯವಾಗಿದೆ.',
+  } as Bi,
 
   // Drawer
   staffNoLine: (staffNo: string, email: string): string => `Staff no. ${staffNo} · ${email}`,

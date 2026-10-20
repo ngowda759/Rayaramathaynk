@@ -59,6 +59,15 @@ function normalizeRole(role: unknown): string {
 }
 
 /**
+ * True when a stored Firestore role (spelled as the console may store it) opens the admin console - the same
+ * allow-list and normalisation this file's guard uses. Seva onboarding reads it so that only a super admin links an
+ * existing account that already holds a website admin role (C-62).
+ */
+export function isAdminConsoleRole(role: unknown): boolean {
+  return ADMIN_CONSOLE_ROLES.has(normalizeRole(role));
+}
+
+/**
  * Verify the caller is an authorized admin.
  * Returns a structured result that identifies the failure reason so routes can
  * respond with an accurate HTTP status and actionable diagnostics.

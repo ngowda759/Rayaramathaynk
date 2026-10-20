@@ -216,6 +216,24 @@ describe("Staff and roles", () => {
     expect(confirm).toHaveTextContent("This account is currently inactive; linking makes it active.");
   });
 
+  it("an account only a super admin may add gets that reason, in English with Kannada under it", async () => {
+    const refused = new SevaClientError("forbidden", 403, "You do not have permission to do this.", {
+      reason: "needs_super_admin",
+      message: "server text",
+    });
+    renderOnboard(TA, fakeApi({ onboard: jest.fn().mockRejectedValueOnce(refused) }));
+    await screen.findByDisplayValue("35");
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Trustee" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "trustee@example.org" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Only a super admin can add this account: it already has a website admin role or is switched off.",
+    );
+    expect(within(alert).getByText(/ಮುಖ್ಯ ನಿರ್ವಾಹಕ/)).toHaveAttribute("lang", "kn");
+    expect(screen.queryByRole("button", { name: "Link this account" })).not.toBeInTheDocument();
+  });
+
   it("an unverified or disabled account gets the server's reason and no Link this account", async () => {
     const unverified = new SevaClientError("validation", 400, "Some details are missing or not right.", {
       field: "email",

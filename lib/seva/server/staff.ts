@@ -21,6 +21,7 @@
 
 import "server-only";
 import type { NextRequest } from "next/server";
+import { isAdminConsoleRole } from "@/lib/auth/admin-auth";
 import { z } from "zod";
 import { SevaError } from "@/lib/seva/errors";
 import { can, mapFirestoreRole, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
@@ -296,8 +297,11 @@ interface LinkedLogin {
  * the dialog can ask first. Either way, and before that question is ever asked, the account is refused when it is
  * already staff, when its sign-in is switched off (`disabled_account`), or when its email is not verified
  * (`unverified_account`): anyone can register a login for any email, through the website or straight against
- * Firebase, so linking an unverified one would hand staff access and the website admin to whoever registered it. A
- * super admin's account is linked only by a super admin (its role would change, row 20).
+ * Firebase, so linking an unverified one would hand staff access and the website admin to whoever registered it.
+ * Only a super admin (staff.grant_super_admin) links an account that already holds a website admin-console role
+ * (super admin, temple admin, admin, billing, priest, staff, office staff - the admin allow-list, C-62) or that is
+ * inactive on the website: a link overwrites that role and switches the account on. A temple admin gets 403
+ * `needs_super_admin`, also before the question.
  */
 async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnboardRequest): Promise<LinkedLogin | null> {
   const identity = getIdentityAdapter();
@@ -314,11 +318,11 @@ async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnbo
   if (!login.emailVerified) {
     throw new SevaError("validation", { field: "email", reason: "unverified_account", message: STAFF_TEXT.linkUnverified.en });
   }
-  if (mapFirestoreRole(profile?.role) === "super_admin" && actor.role !== "super_admin") {
-    throw new SevaError("forbidden");
-  }
   const previousRole = typeof profile?.role === "string" ? profile.role : null;
   const previousActive = profile ? profile.isActive : null;
+  if ((isAdminConsoleRole(profile?.role) || previousActive === false) && !can(actor, "staff.grant_super_admin")) {
+    throw new SevaError("forbidden", { reason: "needs_super_admin", message: STAFF_TEXT.linkNeedsSuperAdmin.en });
+  }
   if (input.linkExisting !== true) {
     const detail: StaffExistingAccountDetail = {
       field: "email",

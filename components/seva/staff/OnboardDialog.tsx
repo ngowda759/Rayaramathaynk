@@ -108,12 +108,15 @@ const UNLINKABLE_TEXT: Record<StaffUnlinkableReason, Bi> = {
 };
 
 /**
- * Why an existing website account can never be linked (unverified email, or sign-in switched off), in English with
- * Kannada under it; null for any other error. The shared validation message would only say "check the form".
+ * Why an existing website account cannot be linked here, in English with Kannada under it: never (unverified email,
+ * sign-in switched off), or only by a super admin (it holds a website admin role or is inactive). Null for any other
+ * error; the shared validation and forbidden messages would not say why.
  */
 function unlinkableText(error: unknown): Bi | null {
-  if (!(error instanceof SevaClientError) || error.code !== "validation") return null;
+  if (!(error instanceof SevaClientError)) return null;
   const reason = error.detail?.reason;
+  if (error.code === "forbidden" && reason === "needs_super_admin") return STAFF_TEXT.linkNeedsSuperAdmin;
+  if (error.code !== "validation") return null;
   return reason === "unverified_account" || reason === "disabled_account" ? UNLINKABLE_TEXT[reason] : null;
 }
 

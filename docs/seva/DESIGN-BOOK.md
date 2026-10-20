@@ -120,7 +120,8 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
   `previous_active`. Already staff is refused; a super admin's account is linked only by a super admin. After the
   security review the same day: only a verified, enabled login is linked (`unverified_account`, `disabled_account`
   refused up front, since anyone can register a login for any email); a link's partial failure carries
-  `previous_role` and `previous_active`.
+  `previous_role` and `previous_active`; an existing account with a website admin-console role, or an inactive one,
+  is linked only by a super admin (403 `needs_super_admin` for a temple admin).
 
 ## 1. Purpose and why
 
