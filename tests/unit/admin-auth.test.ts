@@ -6,17 +6,31 @@ import {
 
 jest.mock("server-only", () => ({}), { virtual: true });
 
-const mockGetAuth = jest.fn();
-const mockGetAdminApp = jest.fn();
-const mockGetAdminFirestore = jest.fn();
+const mockGetUser = jest.fn();
+const mockSelect = jest.fn();
+const mockEq = jest.fn();
+const mockMaybeSingle = jest.fn();
 
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: (...args: unknown[]) => mockGetAuth(...args),
-}));
+const mockSupabase = {
+  auth: {
+    getUser: (...args: unknown[]) => mockGetUser(...args),
+  },
+  from: () => ({
+    select: (...args: unknown[]) => mockSelect(...args),
+  }),
+};
 
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: (...args: unknown[]) => mockGetAdminApp(...args),
-  getAdminFirestore: (...args: unknown[]) => mockGetAdminFirestore(...args),
+mockSelect.mockReturnValue({
+  eq: (...args: unknown[]) => mockEq(...args),
+});
+mockEq.mockReturnValue({
+  maybeSingle: (...args: unknown[]) => mockMaybeSingle(...args),
+});
+
+const mockCreateAdminClient = jest.fn(() => mockSupabase);
+
+jest.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => mockCreateAdminClient(),
 }));
 
 function makeRequest(authHeader: string | null) {
@@ -30,18 +44,14 @@ function makeRequest(authHeader: string | null) {
 }
 
 function mockUserDoc(exists: boolean, data: Record<string, unknown> = {}) {
-  mockGetAdminFirestore.mockResolvedValue({
-    collection: () => ({
-      doc: () => ({
-        get: async () => ({ exists, data: () => data }),
-      }),
-    }),
+  mockMaybeSingle.mockResolvedValue({
+    data: exists ? data : null,
+    error: null,
   });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetAdminApp.mockResolvedValue({});
 });
 
 describe("verifyAdminUserResult — header handling", () => {
@@ -69,11 +79,7 @@ describe("verifyAdminUserResult — header handling", () => {
 
 describe("verifyAdminUserResult — token verification", () => {
   it("returns expired_token for an expired token (401)", async () => {
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockRejectedValue(
-        Object.assign(new Error("expired"), { code: "auth/id-token-expired" })
-      ),
-    });
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: { name: "AuthSessionMissingError", message: "token expired" } });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -83,20 +89,16 @@ describe("verifyAdminUserResult — token verification", () => {
   });
 
   it("returns invalid_token for a malformed token (401)", async () => {
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockRejectedValue(
-        Object.assign(new Error("bad"), { code: "auth/argument-error" })
-      ),
-    });
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: { name: "AuthApiError", message: "invalid JWT" } });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("expired_token");
+    if (!result.ok) expect(result.reason).toBe("invalid_token");
   });
 
   it("returns auth_unavailable (503) when the Admin SDK itself is unavailable", async () => {
-    mockGetAdminApp.mockRejectedValue(
-      new Error("No Firebase Admin credentials found.")
-    );
+    mockCreateAdminClient.mockImplementationOnce(() => {
+      throw new Error("No Supabase Admin credentials found.");
+    });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -108,9 +110,7 @@ describe("verifyAdminUserResult — token verification", () => {
 
 describe("verifyAdminUserResult — profile checks", () => {
   beforeEach(() => {
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({ uid: "u1", email: "a@b.c" }),
-    });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1", email: "a@b.c" } }, error: null });
   });
 
   it("returns user_not_found (403) when the Firestore profile is missing", async () => {
@@ -124,14 +124,14 @@ describe("verifyAdminUserResult — profile checks", () => {
   });
 
   it("returns inactive_user (403) when the profile is inactive", async () => {
-    mockUserDoc(true, { role: "super_admin", isActive: false });
+    mockUserDoc(true, { role: "super_admin", active: false });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("inactive_user");
   });
 
   it("returns insufficient_role (403) for blocked roles", async () => {
-    mockUserDoc(true, { role: "devotee", isActive: true });
+    mockUserDoc(true, { role: "devotee", active: true });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -141,7 +141,7 @@ describe("verifyAdminUserResult — profile checks", () => {
   });
 
   it("accepts an active Super Admin", async () => {
-    mockUserDoc(true, { role: "Super Admin", isActive: true, email: "admin@t.org" });
+    mockUserDoc(true, { role: "Super Admin", active: true, email: "admin@t.org" });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -154,9 +154,7 @@ describe("verifyAdminUserResult — profile checks", () => {
 
 describe("verifyAdminUserResult — admin console role allow-list (DB §17.4)", () => {
   beforeEach(() => {
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({ uid: "u1", email: "a@b.c" }),
-    });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1", email: "a@b.c" } }, error: null });
   });
 
   test.each([
@@ -170,7 +168,7 @@ describe("verifyAdminUserResult — admin console role allow-list (DB §17.4)", 
     "Prasadam Counter",
     "superadmin",
   ])("role %j is refused with 403 insufficient_role", async (role) => {
-    mockUserDoc(true, { role, isActive: true });
+    mockUserDoc(true, { role, active: true });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result).toEqual({
       ok: false,
@@ -187,7 +185,7 @@ describe("verifyAdminUserResult — admin console role allow-list (DB §17.4)", 
     ["a numeric role", 1],
     ["an object role", { toString: () => "super_admin" }],
   ])("%s is refused with 403 insufficient_role", async (_label, role) => {
-    mockUserDoc(true, { role, isActive: true });
+    mockUserDoc(true, { role, active: true });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -208,7 +206,7 @@ describe("verifyAdminUserResult — admin console role allow-list (DB §17.4)", 
     ["office_staff", "office_staff"],
     [" Office Staff ", "office_staff"],
   ])("role %j is allowed (as %j)", async (role, normalized) => {
-    mockUserDoc(true, { role, isActive: true });
+    mockUserDoc(true, { role, active: true });
     const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.user.role).toBe(normalized);
@@ -221,10 +219,8 @@ describe("verifyAdminUser (backwards-compatible wrapper)", () => {
   });
 
   it("returns the admin user on success", async () => {
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({ uid: "u2", email: "x@y.z" }),
-    });
-    mockUserDoc(true, { role: "admin", isActive: true });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u2", email: "x@y.z" } }, error: null });
+    mockUserDoc(true, { role: "admin", active: true });
     const user = await verifyAdminUser(makeRequest("Bearer abc"));
     expect(user).not.toBeNull();
     expect(user?.uid).toBe("u2");
@@ -246,10 +242,8 @@ describe("requireAdminUser", () => {
   });
 
   it("returns the admin user when authorized", async () => {
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({ uid: "u3", email: "z@z.z" }),
-    });
-    mockUserDoc(true, { role: "super_admin", isActive: true });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u3", email: "z@z.z" } }, error: null });
+    mockUserDoc(true, { role: "super_admin", active: true });
     const result = await requireAdminUser(makeRequest("Bearer abc"));
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.user.uid).toBe("u3");

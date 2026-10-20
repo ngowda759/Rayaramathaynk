@@ -16,6 +16,7 @@
 import "server-only";
 import type { NextRequest, NextResponse } from "next/server";
 import { NextResponse as NextResponseImpl } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface ServerAdminUser {
   uid: string;
@@ -86,42 +87,36 @@ export async function verifyAdminUserResult(
     };
   }
 
-  // Verify the ID token. A failure here is either a bad/expired token (401) or
-  // a server-side problem such as missing Firebase Admin credentials (503).
-  let decoded: { uid: string; email?: string };
-  try {
-    const { getAdminApp } = await import("@/lib/admin-firebase");
-    const adminApp = await getAdminApp();
-    const { getAuth } = await import("firebase-admin/auth");
-    decoded = await getAuth(adminApp).verifyIdToken(idToken);
-  } catch (error) {
-    const code = (error as { code?: string })?.code || "";
-    const isTokenError =
-      code.startsWith("auth/") &&
-      code !== "auth/internal-error" &&
-      code !== "auth/network-request-failed";
+  // Verify the ID token using Supabase Auth.
+  let decodedUser: { id: string; email?: string };
+  let supabase;
 
-    if (isTokenError) {
-      const expired =
-        code === "auth/id-token-expired" || code === "auth/argument-error";
+  try {
+    supabase = createAdminClient();
+    const { data: { user }, error } = await supabase.auth.getUser(idToken);
+
+    if (error || !user) {
+      // Handle known Supabase Auth errors
+      const isExpired = error?.name === "AuthSessionMissingError" || error?.message?.toLowerCase().includes("expired");
+
       console.warn(
-        `[verifyAdminUser] Rejected ${expired ? "expired" : "invalid"} token: ${code}`
+        `[verifyAdminUser] Rejected ${isExpired ? "expired" : "invalid"} token: ${error?.message || "Unknown error"}`
       );
+
       return {
         ok: false,
-        reason: expired ? "expired_token" : "invalid_token",
+        reason: isExpired ? "expired_token" : "invalid_token",
         status: 401,
-        message: expired
+        message: isExpired
           ? "Authentication token has expired."
           : "Authentication token is invalid.",
       };
     }
 
-    // Non-token failure: the Admin SDK itself could not verify (missing or
-    // malformed server credentials, network failure, etc.). This is a server
-    // misconfiguration, not a client authentication error.
+    decodedUser = { id: user.id, email: user.email };
+  } catch (error) {
     console.error(
-      "[verifyAdminUser] Firebase Admin verification unavailable:",
+      "[verifyAdminUser] Supabase verification unavailable:",
       error instanceof Error ? error.message : error
     );
     return {
@@ -129,18 +124,31 @@ export async function verifyAdminUserResult(
       reason: "auth_unavailable",
       status: 503,
       message:
-        "Server authentication is temporarily unavailable (Firebase Admin not configured).",
+        "Server authentication is temporarily unavailable (Supabase Admin not configured).",
     };
   }
 
-  // Load the user's profile to enforce role/active checks.
-  try {
-    const { getAdminFirestore } = await import("@/lib/admin-firebase");
-    const db = await getAdminFirestore();
-    const userSnap = await db.collection("users").doc(decoded.uid).get();
+  if (!decodedUser.email) {
+    return {
+      ok: false,
+      reason: "invalid_token",
+      status: 401,
+      message: "Authentication token does not contain an email address.",
+    };
+  }
 
-    if (!userSnap.exists) {
-      console.warn(`[verifyAdminUser] User ${decoded.uid} not found in Firestore`);
+  // Load the user's profile from the authoritative Supabase "users" table using their email.
+  try {
+    const { data: userData, error } = await supabase
+      .from('users')
+      .select('uid:firestore_id, email, role, active')
+      .eq('email', decodedUser.email)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!userData) {
+      console.warn(`[verifyAdminUser] User ${decodedUser.email} not found in Supabase users table`);
       return {
         ok: false,
         reason: "user_not_found",
@@ -149,9 +157,8 @@ export async function verifyAdminUserResult(
       };
     }
 
-    const data = userSnap.data() || {};
-    if (data.isActive === false) {
-      console.warn(`[verifyAdminUser] User ${decoded.uid} is not active`);
+    if (userData.active === false) {
+      console.warn(`[verifyAdminUser] User ${decodedUser.email} is not active`);
       return {
         ok: false,
         reason: "inactive_user",
@@ -160,10 +167,10 @@ export async function verifyAdminUserResult(
       };
     }
 
-    const role = normalizeRole(data.role);
+    const role = normalizeRole(userData.role);
     if (!ADMIN_CONSOLE_ROLES.has(role)) {
       console.warn(
-        `[verifyAdminUser] User ${decoded.uid} has role ${JSON.stringify(role)}, which is not an admin console role`
+        `[verifyAdminUser] User ${decodedUser.email} has role ${JSON.stringify(role)}, which is not an admin console role`
       );
       return {
         ok: false,
@@ -176,8 +183,9 @@ export async function verifyAdminUserResult(
     return {
       ok: true,
       user: {
-        uid: decoded.uid,
-        email: String(data.email || decoded.email || ""),
+        // Fallback to the Supabase ID if firestore_id is missing, though we select uid as firestore_id.
+        uid: userData.uid || decodedUser.id,
+        email: String(userData.email || decodedUser.email || ""),
         role,
       },
     };

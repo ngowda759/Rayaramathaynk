@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export interface AdminFetchOptions extends RequestInit {
   /**
@@ -33,7 +34,7 @@ function jsonResponse(status: number, body: Record<string, unknown>): Response {
  *
  * - Waits for the auth context to finish initializing before firing a request,
  *   so a protected call is never sent without a token.
- * - Retrieves the ID token with `getIdToken()` (which transparently refreshes
+ * - Retrieves the ID token from Supabase session (which transparently refreshes
  *   an expired token) and sends it as `Authorization: Bearer <token>`.
  * - Preserves the caller's method, headers and body.
  * - Always returns a real `Response` (including for pre-network failures) so
@@ -63,9 +64,14 @@ export function useAdminFetch() {
 
       let token: string;
       try {
-        token = await user.getIdToken();
+        const supabase = createClient();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !session) {
+          throw error || new Error("No active session");
+        }
+        token = session.access_token;
       } catch (error) {
-        console.error("Failed to get ID token for adminFetch:", error);
+        console.error("Failed to get session token for adminFetch:", error);
         return jsonResponse(ADMIN_FETCH_STATUS.TOKEN_FAILED, {
           error: "Failed to retrieve authentication token.",
           reason: "token_failed",

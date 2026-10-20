@@ -133,7 +133,7 @@
     "playwright": "^1.61.1",
     "prisma": "^7.10.0",
     "tailwindcss": "^4",
-    "ts-jest": "^29.4.14",
+    "ts-jest": "^29.1.5",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3",
