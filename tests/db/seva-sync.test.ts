@@ -762,6 +762,38 @@ describe('seva_sync_offline_order (A2-1)', () => {
       expect(await changedAudits(c)).toHaveLength(1);
     });
 
+    it('FINAL-FIX N-2: a rate lowered between the print and the sync never makes the lower price trusted', async () => {
+      const c = await setup();
+      // PAA cost 505.00 when the slip was printed (ISSUED, 18 October); the rate is cut to 100.00 before the PC syncs.
+      await c.db.query(`update sevas set amount = 100.00 where id = $1`, [c.paa]);
+      // The PC sends today's (lower) rate as its cached rate, with the original issued_at.
+      const receipt = await onlyLine(c, { sevaId: c.paa, cachedRate: '100.00' }, '100.00');
+      expect(receipt.has_changed_amount).toBe(true);
+      expect(receipt.lines[0]).toMatchObject({ catalogue_rate: '505.00', unit_rate: '100.00', changed: true });
+      expect(receipt.lines[0].change_reason).toBe('Offline price mismatch: printed 100.00, catalogue 505.00');
+      const audits = await changedAudits(c);
+      expect(audits).toHaveLength(1);
+      expect(audits[0].reason).toMatch(/^Offline price mismatch/);
+      const cards = await asRole(c.db, 'service_role', (d) =>
+        d.query<{ r: { id: string; level: string; count: number }[] }>(
+          `select seva_needs_attention($1::timestamptz - interval '1 day', now() + interval '1 day',
+                                       (select business_date from seva_ist_parts(now()))) as r`,
+          [ISSUED],
+        ),
+      );
+      expect(cards.rows[0].r.find((x) => x.id === 'changed_amounts')).toMatchObject({ level: 'attention', count: 1 });
+    });
+
+    it('a cached rate equal to the rate in force at issued_at is trusted, even after a rate change', async () => {
+      const c = await setup();
+      await c.db.query(`update sevas set amount = 100.00 where id = $1`, [c.paa]);
+      const receipt = await onlyLine(c, { sevaId: c.paa, cachedRate: '505.00' }, '505.00');
+      expect(receipt.has_changed_amount).toBe(false);
+      expect(receipt.lines[0]).toMatchObject({ catalogue_rate: '505.00', unit_rate: '505.00', changed: false });
+      // C-58: only the "differs from today's rate" audit row, never a mismatch.
+      expect((await changedAudits(c)).map((a) => a.reason)).toEqual(["The offline rate differs from today's catalogue rate"]);
+    });
+
     it("a null cached rate printed at today's rate is not a change", async () => {
       const c = await setup();
       const receipt = await onlyLine(c, { sevaId: c.paa, cachedRate: null }, '505.00');

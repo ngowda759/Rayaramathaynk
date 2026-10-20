@@ -95,6 +95,9 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
   the counter refuses view-only staff in SQL too (§6.5, §9.10, §12.2).
 - 2026-10-20, the re-check's leftovers (FINAL-FIX, `20261102000300_seva_final_touches.sql`):
   - docs: the F5 functions, routes and migration are named in the data model, API and migration docs (N-1).
+  - §8.3, §9.4: offline sync trusts the PC's cached rate only when it equals the rate in force at the slip's
+    `issued_at` (rate history); a lower rate set before the sync is an "Offline price mismatch", audited and on the
+    `changed_amounts` card (N-2).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.
