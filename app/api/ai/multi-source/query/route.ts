@@ -1,12 +1,18 @@
 // API Route: /api/ai/multi-source/query
 // Execute multi-source queries
+//
+// Raya AI administration surface: the same guard as every other /api/ai route.
 
 import { NextRequest, NextResponse } from "next/server";
 import { executeMultiSourceQuery, addToQueryHistory } from "@/services/multi-source-retrieval.service";
 import { MultiSourceQuery } from "@/types/multi-source-retrieval";
 import { Intent } from "@/lib/ai/intent/types";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 
 export async function POST(request: NextRequest) {
+  const guard = await requireRayaAdminUser(request);
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json();
     const { query, intent, sources, language, maxResults } = body;

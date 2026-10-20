@@ -221,7 +221,14 @@ model AiLatencyRecord {
 model User {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
+  // Provenance from the Firestore migration. Nullable for rows created natively.
   firestoreId String? @unique @map("firestore_id") @db.Text
+
+  // Supabase Auth identity that owns this authorization row. Added by
+  // supabase/migrations/20261022000000_add_auth_user_id_to_users.sql. It is a
+  // partial unique index (WHERE auth_user_id IS NOT NULL) and an FK to
+  // auth.users(id) ON DELETE SET NULL, so it is modelled as a nullable column.
+  authUserId String? @unique(map: "idx_users_auth_user_id") @map("auth_user_id") @db.Uuid
 
   email       String  @db.Text
   displayName String? @map("display_name") @db.Text

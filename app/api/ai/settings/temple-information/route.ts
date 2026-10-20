@@ -4,14 +4,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 
 // This endpoint is admin-authenticated and returns user-scoped data; it must
 // never be cached publicly (or cached at all across users).
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireAdminUser(request);
+  const guard = await requireRayaAdminUser(request);
   if (!guard.ok) return guard.response;
   const admin = guard.user;
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     // Get user ID from header or use "admin" as default
-    const guard = await requireAdminUser(request);
+    const guard = await requireRayaAdminUser(request);
     if (!guard.ok) return guard.response;
     const admin = guard.user;
     const userId = admin.uid;

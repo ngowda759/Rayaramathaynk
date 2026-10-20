@@ -4,10 +4,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireAdminUser(request);
+  const guard = await requireRayaAdminUser(request);
   if (!guard.ok) return guard.response;
   const admin = guard.user;
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     // For now, get user ID from header or use "admin" as default
 
-    const guard = await requireAdminUser(request);
+    const guard = await requireRayaAdminUser(request);
     if (!guard.ok) return guard.response;
     const admin = guard.user;
     const userId = admin.uid;

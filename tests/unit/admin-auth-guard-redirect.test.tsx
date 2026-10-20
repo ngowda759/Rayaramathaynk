@@ -6,14 +6,21 @@ import { render, waitFor } from "@testing-library/react";
 import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 
 const mockSearch = { current: "" };
+const mockPathname = { current: "/admin/events" };
 const mockReplace = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), replace: mockReplace }),
   useSearchParams: () => new URLSearchParams(mockSearch.current),
+  usePathname: () => mockPathname.current,
 }));
 
 jest.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: null, loading: false, canAccessAdmin: false, sevaRole: null }),
+}));
+
+// These are non-AI admin pages, so no Supabase session should interfere.
+jest.mock("@/hooks/useSupabaseSession", () => ({
+  useSupabaseSession: () => ({ session: null, loading: false }),
 }));
 
 jest.mock("@/lib/firebase", () => ({
