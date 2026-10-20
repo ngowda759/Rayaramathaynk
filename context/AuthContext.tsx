@@ -17,11 +17,18 @@ import {
 } from "@/services/auth.service";
 
 import { UserProfile, UserRole, normalizeRole, NormalizedRole } from "@/types/user";
+import { mapFirestoreRole } from "@/lib/seva/permissions";
+import type { SevaRole } from "@/types/seva";
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   normalizedRole: NormalizedRole;
+  /**
+   * The Seva Entry role read from the Firestore role (C-62): temple_admin and legacy admin -> temple_admin; billing,
+   * priest, staff and everything else -> null. Only hides and routes in the browser; the seva API decides access.
+   */
+  sevaRole: SevaRole | null;
   loading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -164,6 +171,7 @@ export function AuthProvider({
   const canManageUsers = normalizedRole === "super_admin";
   const canAccessBilling = normalizedRole === "super_admin" || normalizedRole === "billing";
   const canAccessAdministration = normalizedRole === "super_admin";
+  const sevaRole = mapFirestoreRole(profile?.role);
 
   return (
     <AuthContext.Provider
@@ -171,6 +179,7 @@ export function AuthProvider({
         user,
         profile,
         normalizedRole,
+        sevaRole,
         loading,
         login,
         register,

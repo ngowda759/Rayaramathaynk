@@ -1,4 +1,5 @@
 import { UserRole } from "@/types/user";
+import { STAFF_ROLE_LABEL } from "@/lib/seva/strings/staff";
 
 interface Props {
   role: UserRole;
@@ -18,6 +19,16 @@ const colors: Record<UserRole, string> = {
   devotee: "bg-slate-100 text-slate-700",
   Billing: "bg-violet-100 text-violet-700",
   billing: "bg-violet-100 text-violet-700",
+  receptionist: "bg-teal-100 text-teal-700",
+  prasadam_counter: "bg-amber-100 text-amber-700",
+};
+
+/** The four seva roles read as words (DB §3.1); every other stored role shows as it always did. */
+const labels: Partial<Record<UserRole, string>> = {
+  receptionist: STAFF_ROLE_LABEL.receptionist.en,
+  prasadam_counter: STAFF_ROLE_LABEL.prasadam_counter.en,
+  temple_admin: STAFF_ROLE_LABEL.temple_admin.en,
+  super_admin: STAFF_ROLE_LABEL.super_admin.en,
 };
 
 export default function UserRoleBadge({ role }: Props) {
@@ -25,7 +36,7 @@ export default function UserRoleBadge({ role }: Props) {
     <span
       className={`rounded-full px-3 py-1 text-xs font-semibold ${colors[role]}`}
     >
-      {role}
+      {labels[role] ?? role}
     </span>
   );
 }

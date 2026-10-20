@@ -1,0 +1,58 @@
+name: Seva monthly maintenance
+
+# Monthly purge of devotee profiles not seen for three years (seva_purge_devotee_profiles(), C-64).
+# The cron below fires at 21:30 UTC on the 1st, which is 03:00 IST on the 2nd - thirty minutes after that night's
+# backup (seva-backup.yml, 21:00 UTC), so the profiles about to go are in a fresh encrypted copy.
+#
+# Repository secret (name only): SEVA_BACKUP_DB_URL, the same Supabase session pooler string the backup uses.
+# The secret reaches the steps only through env: and is checked for shape before any client sees it.
+
+on:
+  schedule:
+    - cron: '30 21 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seva-maintenance
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PGSSLMODE: require
+      PGCONNECT_TIMEOUT: '30'
+      PGAPPNAME: seva-maintenance
+    steps:
+      - name: Check out the backup scripts
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/seva
+          persist-credentials: false
+
+      - name: Check the database secret
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+        run: bash scripts/seva/backup.sh --check-db-url
+
+      - name: Make sure psql is installed
+        run: |
+          if ! command -v psql > /dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends postgresql-client
+          fi
+
+      - name: Purge devotee profiles not seen for three years
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+        run: |
+          removed="$(psql "$SEVA_BACKUP_DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c "select public.seva_purge_devotee_profiles();")"
+          echo "Devotee profiles purged: ${removed}"

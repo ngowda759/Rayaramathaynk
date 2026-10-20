@@ -703,3 +703,52 @@ toast.warning("Item will be deleted in 5 seconds", {
 ---
 
 *Document maintained by: Development Team*
+
+---
+
+## Seva Entry (the Receipt Book) pages
+
+The Receipt Book became **Seva Entry** and moved out of the website admin to its own screens at `/seva` (2026-10-19).
+The website admin keeps one **Seva Entry** menu item that opens `/seva`; the old `/admin/receipts/*` and
+`/admin/prasadam` addresses forward there. Staff and roles stay in the website admin at `/admin/users`. The server
+enforces every rule below; the screens only hide what a person may not do.
+
+### Roles
+
+- **Receptionist** - makes, prints and reprints receipts and closes the day on the registered counter PC; cancels
+  their own receipt within the cancel window (30 minutes), from that PC.
+- **Prasadam counter** - finds a receipt by QR or number and marks prasadam given.
+- **Temple admin** - everything except Super admin matters; a temple admin with the **view-only** switch sees every
+  page and changes nothing (no phone export either).
+- **Super admin** - everything, including giving Super admin, reactivating a super admin, offboarding and deleting
+  people.
+
+### Pages and who sees them
+
+| Page | Address | Who |
+|---|---|---|
+| Landing | `/seva` | sends each person to their page: Receptionist to the counter, Prasadam counter to the prasadam page, Temple admin and Super admin to the dashboard |
+| Dashboard | `/seva` | Temple admin (also view-only), Super admin |
+| Counter | `/seva/counter` | Receptionist, Temple admin, Super admin, on a registered PC (full-screen frame) |
+| Today's receipts | `/seva/counter/today` | as the counter; a receptionist sees their counter's receipts of today |
+| Close day | `/seva/day-close` | as the counter (a receptionist for their own counter, today) |
+| Prasadam | `/seva/prasadam` | Prasadam counter, Temple admin, Super admin |
+| Register | `/seva/register` | Temple admin (also view-only), Super admin |
+| One receipt and its print view | `/seva/<receipt id>`, `/seva/<receipt id>/print` | as the register |
+| Day closes | `/seva/day-closes` | Temple admin (also view-only), Super admin; reopening a day needs a temple admin who is not view-only, or a super admin |
+| Reports | `/seva/reports`, `/seva/reports/summary`, `/seva/reports/festival`, `/seva/reports/audit` | Temple admin (also view-only), Super admin |
+| Export | `/seva/reports/export` | Temple admin (also view-only), Super admin; phone numbers only for those who are not view-only |
+| Sevas | `/seva/seva-settings` | Temple admin, Super admin edit; view-only reads |
+| Settings | `/seva/settings`, `/seva/settings/receipt` (header, footer, paper size), `/seva/settings/counters` (register or replace a PC), `/seva/settings/rules`, `/seva/settings/denominations`, `/seva/settings/festival-days`, `/seva/settings/lists` (gotra, nakshatra, rashi) | Temple admin, Super admin edit; view-only reads |
+| Staff and roles | `/admin/users` | Temple admin (not view-only) onboards and changes roles below Super admin; Super admin everything |
+| Old "create receipt" | `/seva/create` | forwards to the counter |
+
+### Patterns the module adds
+
+- **Reasons everywhere money or rules change:** a cancel, a changed amount, a rate change, a reopen, an offboard or
+  delete, a reversed prasadam and a resolved number gap all ask for a reason, and each writes an audit row (see the
+  Audit trail report).
+- **Never delete:** receipts are cancelled, never deleted; sevas and counters are switched off; staff are deactivated
+  (only a super admin deletes a login, and the staff row and number stay for the audit).
+- **Needs attention first:** the dashboard puts the period switch first, then Needs attention cards (number gaps, day
+  not closed, offline cancels, a changed counter UPI id, backup, ...), then tiles and the main chart.

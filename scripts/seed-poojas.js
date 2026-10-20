@@ -50,6 +50,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /* eslint-disable @typescript-eslint/no-require-imports */
 var app_1 = require("firebase-admin/app");
 var firestore_1 = require("firebase-admin/firestore");
+var admin_credentials_1 = require("./lib/admin-credentials.cjs");
 var poojas = [
     // Daily Sevas - sorted by amount ASC
     { title: "Arati", description: "Arati", startTime: "07:00", duration: "30 mins", category: "Daily", sevaAmount: 20, isActive: true, displayOrder: 1, days: ["All"], notes: "" },
@@ -82,24 +83,14 @@ var poojas = [
 ];
 function seedPoojas() {
     return __awaiter(this, void 0, void 0, function () {
-        var privateKey, serviceAccount, db, poojasCollection, existingPoojas, deletePromises, _i, poojas_1, pooja;
+        var sa, db, poojasCollection, existingPoojas, deletePromises, _i, poojas_1, pooja;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    privateKey = "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCrryMVL/BrePgi\ne7L3yTRr6sr8OnGdqvF7ah11JO1aOS++eCsT09V30+Q+KMbswMk5zzdnuia77P/3\ngi5oZdLL1erfYT6Pm1VQpQ0UIF9UC5FeQMo1/rzqOxndCohEeAbFtwJ09VjaRx2t\nAHs3aJHeJPki7kvFeT246TunxElngREwVRyJ7rZapjl6f8Zh9bJkd2z7IhkcF8EZ\nSzEQxQ4+qMU0DUxTlImpkIbe7BQmBEVGszpCRpdnZ8uG6R+y4bIC2zzBLdmsl50p\nurz5fWt3zXp+BSrEHzQ4CmExPfHUPFsmUj+zJUispHkL11h09L+hlEAxvyywQnnw\n40JUm5VhAgMBAAECggEAKuQ9Woy4ftEhBNRsmNUOoKtu/ObI/b/4RoHzTBHmrnS9\nBdPVx0VT/nTUf+cGE53yZ9vqFqL+DFMge8BtQa22pTATVq1fyNbg0J37j3yq9D9T\nmP2Mx0KWBdqwEnYQJzLpVjnrhjbJdPbxZghJwEUCtEH+cAiiq3onvmueeMJkKFRA\nqQiRZe3qdnAv0Pdc4fJsHAVsDxIUOlwobUa75KMYxEBaccBGpopYkf5Y3JutH4bE\n3HKawW2QKFzDMVrZmoXCfDxvggPhGLEfA7lhVM+yHAzhUC50Y2gvGjLNOMw/Ordf\nGCCXNAogiLcQToNk9xIHgWSl51u0Tpvd8kc004NgcQKBgQDUhDdt0/GsS6IVaRxH\ndO2rZQFrXJenIlg+ajb5N8K+706lX3jpR4iZhnKIRYibez2/VQ0bOng/bauBao/n\nCL/AucKlKA8qMRa+/BJ1rlQGF+9vjhaU9ynnrWg1CBzlts+IZwF52YIAXS3zfFjU\nw7zp3S6ARt1EimBAEtW5dUga7QKBgQDO0Bbz0+DrqF/m0j/tashr1wTt3SyoqWQn\n1bo3s3/nSBRlEA+6o9YKbkc+RIK7HWKnOoDHzK7oOtPL7jEd8AyBkelsg+l95LIT\nz36D5M+yRhmnuqJaa045yeFtWe+PgCdjkjZH+XtvKsXTGoOap04nTLiQ9smFS6QE\n9GDCwmWxxQKBgQCvJCP2TJTAtThoQs7+iPwSo9SOoamOIXzuO2UA8RZ7eweqvMsO\nHlkShb5AVmXmFaRm2fZKOV6+j2in6KWd9xTpBW7H5ALTd89SKLYh7EDtIK7Ali5A\nKI6Nk9js07nVC1twA8wwmrRMDn7/Srx+5K39Yr6fE0fp48y9IYioJmL9ZQKBgQC8\nf1N8N1DY2aVXR6i2p043ZEp81ss+iu3blOTeof9g+QSFvKbpcSzEYxESQvV4wGbL\njvoToY6F4iBqzhX8eG+dpTVBD9ZARbK9dbCVXHalwVje1K/ng8hPyZ5qwb8kZyT/\njyNkZJLJlw2pxI/Q5M7J6RaMIjM5B+FeFrMesHpqFQKBgQDRHofHt0uyDmiKMlgW\nSew3chIXFwkhDz4LyYJWSsia15TeaB2MQdJAxlqqr02Mz7Tp6HFRIer8KjH9PNFz\nXRqd7UonUevdW58l2K7QUbqGX6EV+XAEW4+BO76m9DNlMEuZcBJhBpBCZt8abGxp\nvwHm2b//G+nR0ivqDn1UYeA67A==\n-----END PRIVATE KEY-----";
-                    serviceAccount = {
-                        type: "service_account",
-                        project_id: "sri-raghavendra-mutt",
-                        private_key_id: "9f5e950d788ea927d8ef01a18b3d115a239a152a",
-                        private_key: privateKey,
-                        client_email: "firebase-adminsdk-fbsvc@sri-raghavendra-mutt.iam.gserviceaccount.com",
-                        client_id: "123456789",
-                        auth_uri: "https://accounts.google.com/o/oauth2/auth",
-                        token_uri: "https://oauth2.googleapis.com/token",
-                    };
+                    sa = (0, admin_credentials_1.loadServiceAccount)();
                     if (!(0, app_1.getApps)().length) {
                         (0, app_1.initializeApp)({
-                            credential: (0, app_1.cert)(serviceAccount),
+                            credential: (0, app_1.cert)(sa),
                         });
                     }
                     db = (0, firestore_1.getFirestore)();

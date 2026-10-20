@@ -427,3 +427,65 @@ focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
 ---
 
 *Document maintained by: Development Team*
+
+---
+
+## Seva Entry module
+
+The Seva Entry pages under `/seva` follow their own approved look (the owner's "proto.css v2", 2026-10-18), scoped so
+the rest of the site is untouched. Spec: `docs/seva/DESIGN-BOOK.md` §18.
+
+### Module tokens under `.seva`
+
+- The module's tokens live in `styles/seva/tokens.css` (print rules in `styles/seva/print.css`), imported by
+  `app/seva/layout.tsx` and scoped to the wrapper class `.seva`. Inside that subtree they redefine `--primary`,
+  `--chart-*`, the radii and the type scale; the admin console and the public pages keep `app/globals.css`.
+- One sans family (Inter, with Noto Sans Kannada for Kannada), a warm grey ground, temple gold as the single accent
+  (a fill with dark ink, never gold text on white), soft cards, generous spacing.
+- Light only until the site wires its theme switch; the dark token set is kept ready.
+- The module uses the shared `components/ui/*` primitives with token-based variants; it adds no second button, input
+  or dialog. Toasts stay `react-hot-toast`.
+
+### Kannada under English
+
+Every bilingual label shows the English first and the Kannada on its own line **under** it (the `.kn` block: smaller,
+muted, line height 1.75), never beside it and never above it. Strings live in `lib/seva/strings/*.ts` as
+`{ en, kn }` pairs. Slips print the same way.
+
+### Type floor: 13 px
+
+No text in the module is smaller than **13 px**, for elderly trustees. Printed slips use their own sizes per paper
+(never below 9 pt).
+
+### Motion and feedback
+
+- Framer Motion springs, the owner's "Lively" choice: stiffness **380**, damping 22 (`SPRING` in `lib/seva/motion.ts`);
+  a firmer spring for numbers that count up; a short press scale on anything tappable.
+- No frozen moments: every page has a loading outline (`loading.tsx` skeletons from `skeletonFor`), navigation shows
+  a top progress bar (`RouteProgress`), and every button that waits shows its pending state at once for at least
+  300 ms (`PendingButton`, `PendingLine`).
+- Only transform and opacity animate; nothing moves while a person types; content is readable within about 450 ms.
+- `prefers-reduced-motion` is honoured (`SevaMotion`): movement is turned off and content simply appears.
+
+### Frames
+
+- **Desk frame** (dashboard, register, reports, settings, prasadam): a header with the temple name, the person
+  ("Ramesh - 023"), **Sign out** always visible and "Website admin" for admin roles; a section rail on desktop; a
+  bottom bar on the phone. Sections shown depend on the role (`components/seva/shell/sections.ts`).
+- **Counter frame** (counter, today's receipts, close day): full screen, no section menu, Sign out always visible,
+  designed at 1366 px and keyboard first.
+- Phones: the dashboard and prasadam work at 390 px; tables become cards below 768 px.
+
+### Departures from the site-wide UI redesign plan
+
+| Topic | UI redesign plan | Seva Entry | Why |
+|---|---|---|---|
+| Headings | Serif (Source Serif 4, Noto Serif Kannada) | Inter and Noto Sans Kannada, sans throughout | The owner approved the sans look after the serif one looked dated |
+| Smallest text | 12 px | 13 px floor | Elderly trustees |
+| Radius | 8 px control, 16 px surface | 12 px control, 18 px surface | The approved soft cards |
+| Elevation | Border only | Border plus a very soft card shadow | The approved look |
+| Kannada placement | Kannada above English in some components | Kannada always under English | The owner's rule |
+| Chart colours | Gold to deep-red ramp | Gold, orange, green, blue, deep red | Payment modes need distinct hues |
+
+Kept from the plan: one accent; a focus ring that passes contrast; 48 px table rows with right-aligned tabular
+numbers; row cards below 768 px; motion only in answer to an action; reduced motion respected.

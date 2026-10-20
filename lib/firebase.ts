@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { Auth, getAuth } from "firebase/auth";
-import { Firestore, getFirestore, getDocs, collection } from "firebase/firestore";
+import { Auth, connectAuthEmulator, getAuth } from "firebase/auth";
+import { Firestore, connectFirestoreEmulator, getFirestore, getDocs, collection } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
 // Validate Firebase configuration
@@ -75,6 +75,25 @@ let authInitialized = false;
 // Helper to check if we're in the browser
 const isBrowser = typeof window !== "undefined";
 
+/**
+ * Connects the SDK to the Auth (127.0.0.1:9099) and Firestore (127.0.0.1:8080) emulators once per SDK instance.
+ * The set of connected instances lives on globalThis: a hot reload evaluates this module again on the same instances
+ * (the SDK throws when Firestore is connected a second time after first use), while the Next.js server can load
+ * this module in several bundles, each with its own instances, and every one of them must be connected.
+ */
+function connectEmulatorsOnce(authInstance: Auth | null, dbInstance: Firestore): void {
+  const holder = globalThis as typeof globalThis & { __sevaFirebaseEmulators?: WeakSet<object> };
+  const connected = (holder.__sevaFirebaseEmulators ??= new WeakSet<object>());
+  if (!connected.has(dbInstance)) {
+    connectFirestoreEmulator(dbInstance, "127.0.0.1", 8080);
+    connected.add(dbInstance);
+  }
+  if (authInstance && !connected.has(authInstance)) {
+    connectAuthEmulator(authInstance, "http://127.0.0.1:9099", { disableWarnings: true });
+    connected.add(authInstance);
+  }
+}
+
 // Initialize Firebase for both client and server
 if (isFirebaseConfigured()) {
   if (getApps().length > 0) {
@@ -93,6 +112,11 @@ if (isFirebaseConfigured()) {
   
   // Always initialize Firestore (works on both client and server)
   db = getFirestore(app);
+
+  // Browser tests only (tests/e2e/seva): point Auth and Firestore at the local emulators, never a live project.
+  if (process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1") {
+    connectEmulatorsOnce(auth, db);
+  }
 }
 
 // Auth persistence setup - MUST be called from client-side only

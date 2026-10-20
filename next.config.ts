@@ -60,6 +60,19 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  /**
+   * Seva Entry moved from /admin/receipts and /admin/prasadam to /seva (plan A4S-1); old bookmarks and links forward
+   * to the same page, and Next passes the query through. Literal on purpose: this file does not import
+   * lib/seva/routes.ts (module resolution here is limited), and tests/unit/seva/legacy-redirects.test.ts pins these
+   * rules to SEVA_ROUTES. Temporary (307) until go-live, so a revert is never stuck in a browser cache.
+   */
+  async redirects() {
+    return [
+      { source: "/admin/receipts", destination: "/seva", permanent: false },
+      { source: "/admin/receipts/:path+", destination: "/seva/:path+", permanent: false },
+      { source: "/admin/prasadam", destination: "/seva/prasadam", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;
