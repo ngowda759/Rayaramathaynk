@@ -225,9 +225,11 @@ model User {
   firestoreId String? @unique @map("firestore_id") @db.Text
 
   // Supabase Auth identity that owns this authorization row. Added by
-  // supabase/migrations/20261022000000_add_auth_user_id_to_users.sql. It is a
-  // partial unique index (WHERE auth_user_id IS NOT NULL) and an FK to
-  // auth.users(id) ON DELETE SET NULL, so it is modelled as a nullable column.
+  // supabase/migrations/20261103000000_add_auth_user_id_to_users.sql. It is a
+  // nullable column guarded by a partial unique index
+  // (WHERE auth_user_id IS NOT NULL). There is deliberately no foreign key to
+  // auth.users: a cross-schema FK makes `prisma migrate diff` (the drift gate)
+  // abort with P4002. See the migration for why integrity is not weakened.
   authUserId String? @unique(map: "idx_users_auth_user_id") @map("auth_user_id") @db.Uuid
 
   email       String  @db.Text

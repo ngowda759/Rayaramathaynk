@@ -2,14 +2,16 @@
  * Structural tests for the `users.auth_user_id` migration.
  *
  * These read the SQL and the Prisma schema from disk and assert the safety
- * properties that were verified by hand against a Postgres 16 instance built
+ * properties that were verified by hand against a Postgres 17 instance built
  * from the repo's own migrations (see docs/RAYA_AI_SUPABASE_NATIVE_AUTH.md §5):
  *
  *   - the column is a UUID and nullable,
  *   - uniqueness is a *partial* unique index (so the many legacy NULL rows do not
  *     collide),
- *   - the FK targets auth.users(id) with ON DELETE SET NULL,
+ *   - there is deliberately NO foreign key to auth.users (a cross-schema FK makes
+ *     the Prisma drift gate abort with P4002),
  *   - the migration is additive and does not drop/truncate/rewrite data,
+ *   - the version sorts after every migration already applied in production,
  *   - the Prisma model mirrors the column.
  *
  * They cannot replace applying the migration to the real project; they exist so
@@ -19,7 +21,7 @@
 import fs from "fs";
 import path from "path";
 
-const MIGRATION = "supabase/migrations/20261022000000_add_auth_user_id_to_users.sql";
+const MIGRATION = "supabase/migrations/20261103000000_add_auth_user_id_to_users.sql";
 const sql = fs.readFileSync(path.join(process.cwd(), MIGRATION), "utf8");
 /** SQL with `--` line comments removed, so assertions test statements not prose. */
 const sqlCode = sql
@@ -42,16 +44,22 @@ describe("users.auth_user_id migration", () => {
     expect(sql).not.toMatch(/CONSTRAINT\s+\S*auth_user_id\S*\s+UNIQUE/i);
   });
 
-  it("references auth.users(id) with ON DELETE SET NULL", () => {
-    expect(sql).toMatch(/REFERENCES auth\.users\s*\(\s*id\s*\)/i);
-    expect(sql).toMatch(/ON DELETE SET NULL/i);
+  it("has NO foreign key to auth.users (a cross-schema FK breaks the Prisma drift gate)", () => {
+    // A public.users -> auth.users FK makes `prisma migrate diff` (the command
+    // behind prisma:drift and prisma:drift:scoped) abort with P4002, because
+    // Prisma cannot introspect a cross-schema reference unless the auth schema is
+    // declared — and declaring it makes Prisma treat Supabase's auth.users as
+    // owned by this repository. Integrity is instead provided by the partial
+    // unique index plus the guard, which only ever resolves a *verified* session.
+    expect(sqlCode).not.toMatch(/REFERENCES\s+auth\.users/i);
+    expect(sqlCode).not.toMatch(/users_auth_user_id_fkey/i);
+    expect(sqlCode).not.toMatch(/pg_constraint/i);
   });
 
   it("is idempotent: every statement is guarded", () => {
-    // The column and index use IF NOT EXISTS; the FK is wrapped in a catalog check.
+    // The column and index use IF NOT EXISTS.
     expect(sql).toContain("ADD COLUMN IF NOT EXISTS");
     expect(sql).toContain("CREATE UNIQUE INDEX IF NOT EXISTS");
-    expect(sql).toMatch(/pg_constraint WHERE conname = 'users_auth_user_id_fkey'/);
   });
 
   it("is additive and non-destructive", () => {
@@ -72,7 +80,42 @@ describe("users.auth_user_id migration", () => {
   });
 });
 
+describe("migration ordering (supabase db push rejects out-of-order files)", () => {
+  // Production's applied ledger ends at 20261102000300_seva_final_touches (31
+  // applied migrations, max version 20261102000300). `supabase db push` aborts
+  // with "Found local migration files to be inserted before the last migration on
+  // remote database" unless --include-all is passed, and the repo's
+  // supabase:migrations:push script is deliberately bare. This guard fails if a
+  // future edit renames this migration back to an out-of-order version.
+  const LAST_APPLIED_IN_PRODUCTION = "20261102000300";
+  const version = MIGRATION.match(/migrations\/(\d+)_/)?.[1] ?? "";
+
+  it("sorts after the last migration already applied in production", () => {
+    expect(version).not.toBe("");
+    expect(version > LAST_APPLIED_IN_PRODUCTION).toBe(true);
+  });
+
+  it("is the newest local migration file", () => {
+    const versions = fs
+      .readdirSync(path.join(process.cwd(), "supabase/migrations"))
+      .filter((f) => f.endsWith(".sql"))
+      .map((f) => f.split("_")[0])
+      .sort();
+    expect(versions[versions.length - 1]).toBe(version);
+  });
+});
+
 describe("Prisma mirrors users.auth_user_id", () => {
+  it("does not declare the auth schema or model auth.users", () => {
+    // Regression guard for the drift gate (prisma:drift / prisma:drift:scoped).
+    // Declaring `schemas = ["public", "auth"]` silences P4002 but makes Prisma
+    // treat Supabase's auth.users as owned by this repository, so `migrate diff`
+    // proposes ALTERing it and the scoped checker sees `users` twice (auth.users
+    // and public.users both @@map("users")). The FK is therefore omitted instead.
+    expect(prisma).not.toMatch(/schemas\s*=\s*\[[^\]]*"auth"/);
+    expect(prisma).not.toMatch(/@@schema\("auth"\)/);
+  });
+
   it("declares authUserId as a nullable uuid with the exact index name", () => {
     expect(prisma).toMatch(
       /authUserId\s+String\?\s+@unique\(map:\s*"idx_users_auth_user_id"\)\s+@map\("auth_user_id"\)\s+@db\.Uuid/

@@ -62,8 +62,8 @@ Two auth modes coexist, each enforced on the server for its own surface:
   `/admin/ai/*`.
 
 `public.users` is the authorization source of truth (as it already was for the
-Firebase path). It gains a nullable `auth_user_id uuid UNIQUE` referencing
-`auth.users(id)`. `role` is matched against the same allow-list; `active = false`
+Firebase path). It gains a nullable `auth_user_id uuid` with a partial unique index
+(no FK to `auth.users` - see section 5.1). `role` is matched against the same allow-list; `active = false`
 denies. A Supabase user with no `public.users` row is denied (`user_not_found`).
 
 Client: `hooks/useAdminFetch.ts` now reads the Supabase session instead of the
@@ -110,8 +110,8 @@ service-role key, which is never available to the browser.
 ### 4.1 Safety contract
 
 Identity is never inferred from an email address. `public.users.email` is
-`NOT NULL` but **not unique** (verified against a Postgres 16 instance built from
-the repo's own migrations — two rows with the same email insert without error),
+`NOT NULL` but **not unique** (verified against a Postgres 17 instance built from
+the repo's own migrations â€” two rows with the same email insert without error),
 so the script treats an email match as a hint, not as identity:
 
 - Linking an existing unlinked `public.users` row to a Supabase Auth user
@@ -145,33 +145,74 @@ tested); the CLI only performs I/O around them.
 
 ## 5. Schema change
 
-`supabase/migrations/20261022000000_add_auth_user_id_to_users.sql` adds
+`supabase/migrations/20261103000000_add_auth_user_id_to_users.sql` adds
 `public.users.auth_user_id uuid` plus a **partial** unique index
-(`WHERE auth_user_id IS NOT NULL`) and a foreign key to
-`auth.users(id) ON DELETE SET NULL`. It is additive and non-destructive: no table,
+(`WHERE auth_user_id IS NOT NULL`). It is additive and non-destructive: no table,
 column or row is dropped. It is **not** applied automatically; apply it through
 the reviewed Supabase migration path.
 
+The version prefix must sort **after** every migration already applied in
+production (`20261102000300_seva_final_touches`). `supabase db push` aborts with
+*"Found local migration files to be inserted before the last migration on remote
+database"* for an out-of-order file unless `--include-all` is passed, and the
+repo's `supabase:migrations:push` script is deliberately bare. An earlier version
+prefix (`20261022000000`) would therefore make the reviewed push fail.
+`tests/unit/raya-admin-schema-migration.test.ts` pins this ordering.
+
 The partial index matters: `public.users` holds many legacy rows whose
 `auth_user_id` is `NULL`, and a bare `UNIQUE` constraint would reject the second
-such row. `ON DELETE SET NULL` means deleting a Supabase Auth user detaches the
-authorization row rather than deleting it.
+such row.
 
-### 5.1 Verified against a real Postgres
+### 5.1 Why there is no foreign key to `auth.users`
 
-The migration was applied to a `postgres:16-alpine` instance built from the repo's
-own migrations, and the following were confirmed empirically (not just by reading
-the SQL):
+The migration deliberately declares **no** foreign key to `auth.users`. This is a
+correctness requirement, not an oversight.
+
+`prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource`
+backs both `prisma:drift` and `prisma:drift:scoped`. As soon as a cross-schema
+constraint exists in the database, that command aborts during introspection with
+**P4002**: *"Cross schema references are only allowed when the target schema is
+listed in the schemas property of your datasource."* The two ways to satisfy it
+are both rejected:
+
+| Approach | Why it is rejected |
+| --- | --- |
+| Add `schemas = ["public", "auth"]` | Prisma then treats Supabase's `auth.users` as owned by this repository and proposes `ALTER TABLE "auth"."users" ADD COLUMN ...` (verified: `aud`, `created_at`, `email_confirmed_at`, `encrypted_password`, `raw_app_meta_data`, `role`). Worse, the scoped checker derives its table scope from `@@map()`, and both models map to `users`, so `users` appears twice and the scope is corrupted. |
+| Keep the FK, scope Prisma to `public` | `P4002` still fires - it is raised from the *database* side during introspection, before any model set is consulted. `relationMode = "prisma"` does not help either. |
+
+With the FK removed, `prisma:drift:scoped` passes (exit 0) and the declared schema
+reconciles.
+
+**Integrity is not weakened.** The security-relevant control is the partial unique
+index: at most one authorization row per Auth identity, so role resolution is
+unambiguous. Orphan protection is inherent to the design -
+`verifyRayaAdminUserResult` resolves the caller from a *verified* Supabase session
+and then looks up `public.users` by that session's `auth_user_id`. A stored value
+can therefore only ever be the id of an account that can obtain a session; a stale
+or orphaned value can never be matched to a session and is inert (fail-closed), and
+a deleted Auth user cannot obtain a session at all.
+
+> Optional hardening (operator decision): an `AFTER DELETE ON auth.users` trigger
+> could null `public.users.auth_user_id` to reproduce `ON DELETE SET NULL`. It is
+> omitted because it would require the migration role to hold `TRIGGER` privilege
+> on the Supabase-managed `auth.users` table, which cannot be verified from the
+> build sandbox. Do not add it without confirming that privilege in production.
+
+### 5.2 Verified against a real Postgres
+
+The migration was applied to a `postgres:17-alpine` instance built from the repo's
+own migrations (with a stub `auth.users` and the `anon`/`authenticated`/`service_role`
+roles), and the following were confirmed empirically (not just by reading the SQL):
 
 - the column is `uuid` and nullable;
 - the index is partial and unique (`WHERE auth_user_id IS NOT NULL`);
-- the FK is `REFERENCES auth.users(id) ON DELETE SET NULL` (`confdeltype = 'n'`);
+- there is **no** `users_auth_user_id_fkey` constraint;
 - two rows with the same `email` insert without error (confirmed **no** uniqueness
-  on `email`) — this is why the bootstrap treats email as a hint only;
-- a duplicate non-null `auth_user_id` is rejected;
-- an `auth_user_id` with no matching `auth.users` row is rejected;
-- `ON DELETE SET NULL` detaches the row instead of deleting it;
-- existing `NOT NULL`/`DEFAULT` semantics on `email`, `role`, `active` are unchanged.
+  on `email`) - this is why the bootstrap treats email as a hint only;
+- a duplicate non-null `auth_user_id` is rejected by the partial unique index;
+- the migration is idempotent: a second run is a no-op;
+- existing `NOT NULL`/`DEFAULT` semantics on `email`, `role`, `active` are unchanged;
+- the deny-all RLS policy on `users` is preserved.
 
 `prisma/schema.prisma` mirrors the column so the Prisma baseline stays in sync.
 
@@ -191,5 +232,5 @@ the SQL):
 | `tests/unit/raya-admin-bootstrap.test.ts` | The bootstrap safety contract: opt-in role/reactivation/linking, ambiguity fails closed, idempotent no-ops, LIKE-escaping. |
 | `tests/unit/raya-ai-auth-isolation.test.ts` | Service-role key stays server-side; the guard reads only the DB record; the two auth providers stay separated; the non-AI Firebase gate is intact; no Firestore fallback in the approved paths. |
 | `tests/unit/admin-auth-guard-redirect.test.tsx` | A Supabase session satisfies only `/admin/ai/*`; the AI login is not gated; redirects stay same-origin. |
-| `tests/unit/raya-admin-schema-migration.test.ts` | The migration is a nullable uuid, partial-unique, `ON DELETE SET NULL`, idempotent and additive; Prisma mirrors it. |
+| `tests/unit/raya-admin-schema-migration.test.ts` | The migration is a nullable uuid, partial-unique, has no cross-schema FK, sorts after the last applied production migration, is idempotent and additive; Prisma mirrors it and does not declare the `auth` schema. |
 | `tests/unit/ai-api-auth-wiring.test.ts` | Every protected AI route authenticates via `requireRayaAdminUser` and none reimports Firebase Admin. |
