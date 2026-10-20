@@ -205,8 +205,8 @@ function words(card: NeedsAttentionCard): { title: string; line: string; href: s
         title: plural(n, "online receipt not printed", "online receipts not printed"),
         line:
           n > 0
-            ? `${receipts ?? "Some receipts"}: no print 10 minutes after saving. Ask the counter whether the slip came out; reprint or cancel it from Today's receipts`
-            : "Every online receipt of today was printed",
+            ? `${receipts ?? "Some receipts"}: no print 10 minutes after saving. Ask the counter whether the slip came out; reprint or cancel it from Today's receipts, or an earlier day's from the register`
+            : "Every online receipt of the last 7 days was printed",
         href: REGISTER,
       };
     }

@@ -316,7 +316,7 @@ async function backdate(c: Ctx, receiptId: string, minutes: number, businessDate
 }
 
 describe('2: unprinted_online card', () => {
-  it('lists online receipts of today with no print record after 10 minutes', async () => {
+  it('lists online receipts of the last 7 business days with no print record after 10 minutes (FINAL-FIX N-3)', async () => {
     const c = await setup();
     expect(await card(c, 'unprinted_online')).toMatchObject({ level: 'ok', count: 0 });
 
@@ -325,8 +325,13 @@ describe('2: unprinted_online card', () => {
     const fresh = await issueOnline(c);
     const cancelled = await issueOnline(c);
     const yesterday = await issueOnline(c);
+    const weekAgo = await issueOnline(c);
+    const tooOld = await issueOnline(c);
     for (const r of [...unprinted.receipts, ...printed.receipts, ...cancelled.receipts]) await backdate(c, r.id, 11);
-    await backdate(c, yesterday.receipts[0].id, 11, addDays(c.today, -1));
+    // N-3: an in-doubt order of an earlier day stays on the card for 7 business days, then drops off.
+    await backdate(c, yesterday.receipts[0].id, 1440 + 11, addDays(c.today, -1));
+    await backdate(c, weekAgo.receipts[0].id, 7 * 1440 + 11, addDays(c.today, -7));
+    await backdate(c, tooOld.receipts[0].id, 8 * 1440 + 11, addDays(c.today, -8));
     await prints(c, [printed.receipts[0].id]);
     await call<unknown>(
       c,
@@ -337,14 +342,17 @@ describe('2: unprinted_online card', () => {
     await sync(c, offlineOrder(c, { issuedAt: new Date(Date.now() - 20 * 60_000).toISOString(), running: [1] }));
 
     const got = await card(c, 'unprinted_online');
-    expect(got).toMatchObject({ level: 'attention', count: 2 });
-    expect(got.detail.receipts).toBe(unprinted.receipts.map((r) => r.receipt_no).join(', '));
+    expect(got).toMatchObject({ level: 'attention', count: 4 });
+    expect(got.detail.receipts).toBe(
+      [weekAgo.receipts[0], yesterday.receipts[0], ...unprinted.receipts].map((r) => r.receipt_no).join(', '),
+    );
     expect(got.detail.oldest_at).toEqual(expect.any(String));
     expect(fresh.receipts).toHaveLength(1);
 
     // Printing them clears the card.
-    await prints(c, unprinted.receipts.map((r) => r.id));
+    await prints(c, [...unprinted.receipts, yesterday.receipts[0], weekAgo.receipts[0]].map((r) => r.id));
     expect(await card(c, 'unprinted_online')).toMatchObject({ level: 'ok', count: 0 });
+    expect(tooOld.receipts).toHaveLength(1);
   });
 });
 

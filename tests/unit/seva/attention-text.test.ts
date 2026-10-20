@@ -76,7 +76,7 @@ describe("attentionText", () => {
         line: /C1-023-10-2026\/000124, C1-023-10-2026\/000125: no print 10 minutes after saving.*reprint or cancel/,
         href: "/seva/register",
       },
-      { card: card("unprinted_online", 0), title: "0 online receipts not printed", line: /Every online receipt of today was printed/, href: "/seva/register" },
+      { card: card("unprinted_online", 0), title: "0 online receipts not printed", line: /Every online receipt of the last 7 days was printed/, href: "/seva/register" },
       {
         card: card("sync_refused", 2, { receipts: "OF1-023-10-2026/000004, OF1-023-10-2026/000009", amountPaise: 21_000 }, "critical"),
         title: "2 offline items refused by the office",

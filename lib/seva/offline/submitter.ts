@@ -74,6 +74,11 @@ export interface CounterSubmitterDeps {
   catalogue: () => CounterBootstrap;
   isForcedOffline: () => boolean;
   newIds: () => { clientOrderId: string };
+  /**
+   * Client order ids still in doubt when the counter page opened (kept in IndexedDB by pending-order.ts, FINAL-FIX
+   * N-3): after a reload an offline save of that order still names it in `supersedesClientOrderId`.
+   */
+  inDoubtAtStart?: readonly string[];
 }
 
 export type OfflineIssueCode =
@@ -311,7 +316,7 @@ async function issueOffline(deps: CounterSubmitterDeps, p: CounterOrderPayload, 
 export function createCounterSubmitter(deps: CounterSubmitterDeps): { submit(p: CounterOrderPayload): Promise<SubmitResult> } {
   const inFlight = new Map<string, Promise<SubmitResult>>();
   /** Client order ids sent online that the office never answered for; the office may hold them. */
-  const inDoubt = new Set<string>();
+  const inDoubt = new Set<string>(deps.inDoubtAtStart ?? []);
 
   async function offline(p: CounterOrderPayload): Promise<SubmitResult> {
     const receipts = await issueOffline(deps, p, inDoubt.has(p.clientOrderId));

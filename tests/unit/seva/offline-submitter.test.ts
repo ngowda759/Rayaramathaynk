@@ -397,6 +397,29 @@ describe('counter submitter', () => {
       expect(item.payload.supersedesClientOrderId).toBe(uuid(1));
     });
 
+    it('after a reload, an offline save of the restored in-doubt order supersedes it (FINAL-FIX N-3)', async () => {
+      // The page was reloaded: a new submitter, told by the counter which client order id is still in doubt.
+      const issue = jest.fn<Promise<IssueResponse>, [CounterOrderPayload]>();
+      const submitter = createCounterSubmitter({
+        db,
+        api: { issue },
+        clock: () => NOW,
+        askPrintOffline: async () => false,
+        staff: () => STAFF,
+        counter: () => COUNTER,
+        catalogue: () => bootstrap(),
+        isForcedOffline: () => true,
+        newIds: idSequence(900),
+        inDoubtAtStart: [uuid(1)],
+      });
+      await submitter.submit(bookOrder());
+
+      expect(issue).not.toHaveBeenCalled();
+      const [item] = await pendingItems(db);
+      if (item.kind !== 'order') throw new Error('expected an order');
+      expect(item.payload.supersedesClientOrderId).toBe(uuid(1));
+    });
+
     it('an online save after "No" sends the same client order id and tells the caller the office already had it', async () => {
       const s = inDoubtSetup();
       const order = bookOrder();

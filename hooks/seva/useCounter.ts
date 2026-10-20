@@ -30,7 +30,15 @@ import { deviceHeader, getDeviceCredentials } from "@/lib/seva/offline/device";
 import { startHeartbeat } from "@/lib/seva/offline/heartbeat";
 import { todaysReceipts } from "@/lib/seva/offline/local-receipts";
 import { refreshWaiting } from "@/lib/seva/offline/outbox";
-import { editedSinceInDoubt, markInDoubt, orderIdsFor, type PendingOrder } from "@/lib/seva/offline/pending-order";
+import {
+  clearPendingOrder,
+  editedSinceInDoubt,
+  loadPendingOrder,
+  markInDoubt,
+  orderIdsFor,
+  savePendingOrder,
+  type PendingOrder,
+} from "@/lib/seva/offline/pending-order";
 import { cacheProfile, findProfiles } from "@/lib/seva/offline/profiles";
 import {
   refusedItems,
@@ -388,6 +396,13 @@ export function useCounter(): UseCounter {
       return;
     }
     deviceRef.current = deviceHeader(credentials);
+    // An order left in doubt before a reload comes back (FINAL-FIX N-3): the next save still asks the office about it.
+    // One from an earlier day is let go; the office's unprinted_online card shows it if it was stored.
+    const kept = await loadPendingOrder(db, businessDate(new Date())).catch(() => ({ pending: null, expired: false }));
+    if (isCancelled()) return;
+    pendingIdsRef.current = kept.pending;
+    if (kept.pending) setInDoubtOrder("open");
+    else if (kept.expired) setInDoubtOrder("cleared");
     submitterRef.current = createCounterSubmitter({
       db,
       api: getApi(),
@@ -408,6 +423,7 @@ export function useCounter(): UseCounter {
       // straight to OF numbers without the in-doubt question (Design Book 9.11).
       isForcedOffline: () => connectionStore.get().forced || (typeof navigator !== "undefined" && navigator.onLine === false),
       newIds: () => ({ clientOrderId: newId() }),
+      inDoubtAtStart: kept.pending ? [kept.pending.ids.clientOrderId] : [],
     });
     await refreshWaiting(db).catch(() => undefined);
     const stillRefused = await refusedItems(db).catch(() => []);
@@ -760,8 +776,12 @@ export function useCounter(): UseCounter {
       const payload = buildCounterOrderPayload(s, pending.ids);
       const result = await submitter.submit(payload);
       if (result.mode === "cancelled") {
-        pendingIdsRef.current = markInDoubt(pending, key);
+        const inDoubtNow = markInDoubt(pending, key);
+        pendingIdsRef.current = inDoubtNow;
         setInDoubtOrder("open");
+        // Kept on this PC until the office answers, so a reload does not forget it (FINAL-FIX N-3).
+        const db = dbRef.current;
+        if (db) await savePendingOrder(db, inDoubtNow, businessDate(new Date())).catch(() => undefined);
         dispatchRaw({ type: "submitFinished", ok: false });
         setMessage({ tone: "info", text: COUNTER_TEXT.cancelledNothingSaved });
         return;
@@ -769,6 +789,7 @@ export function useCounter(): UseCounter {
       const firstVersionKept = result.mode === "online" && result.duplicate && editedSinceInDoubt(pending);
       pendingIdsRef.current = null;
       setInDoubtOrder(null);
+      if (pending.inDoubt && dbRef.current) await clearPendingOrder(dbRef.current).catch(() => undefined);
       await afterIssue(result.receipts, result.mode === "offline", payload);
       // The office had saved the order before it was edited: what printed is the first version.
       if (firstVersionKept) setMessage((m) => m ?? { tone: "info", text: COUNTER_TEXT.inDoubtFirstVersionKept });
@@ -823,6 +844,8 @@ export function useCounter(): UseCounter {
     if (state.lines.length > 0 || !pendingIdsRef.current?.inDoubt) return;
     pendingIdsRef.current = null;
     setInDoubtOrder("cleared");
+    const db = dbRef.current;
+    if (db) void clearPendingOrder(db).catch(() => undefined);
   }, [state.lines.length]);
 
   return {
