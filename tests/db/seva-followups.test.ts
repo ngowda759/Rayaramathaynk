@@ -347,3 +347,59 @@ describe('2: unprinted_online card', () => {
     expect(await card(c, 'unprinted_online')).toMatchObject({ level: 'ok', count: 0 });
   });
 });
+
+describe('synced_into_closed_day counts paper-book entries into a closed day', () => {
+  /** An open OF1 gap 5..6 of this year, written as a fixture; answers its id. */
+  async function openGap(c: Ctx): Promise<number> {
+    await c.db.query(
+      `insert into receipt_series_years (series_code, year, last_no)
+       select 'OF1', p.year, 9 from seva_ist_parts(now()) p
+       on conflict (series_code, year) do update set last_no = greatest(receipt_series_years.last_no, 9)`,
+    );
+    const r = await c.db.query<{ id: number }>(
+      `insert into receipt_number_gaps (series_code, year, from_no, to_no, cause)
+       select 'OF1', p.year, 5, 6, 'missing_in_sync' from seva_ist_parts(now()) p returning id::int as id`,
+    );
+    return r.rows[0].id;
+  }
+
+  async function enterSlip(c: Ctx, gapId: number, running: number): Promise<void> {
+    const t = istParts(new Date().toISOString());
+    await call<unknown>(c, 'select seva_enter_paper_receipt($1::bigint, $2::jsonb, $3::uuid) as r', [
+      gapId,
+      JSON.stringify({
+        receipt_no: `OF1-023-${t.mm}-${t.yyyy}/${pad(running, 6)}`,
+        issued_on: c.today,
+        seva_date: c.today,
+        devotee: { name: 'Lakshmi Narayan' },
+        lines: [{ seva_id: c.pan, quantity: 1, unit_rate: null }],
+        expected_total: '105.00',
+        payment: { mode: 'cash' },
+        qr_token: qrToken(),
+        note: 'Paper receipt book, page 12',
+      }),
+      c.adminId,
+    ]);
+  }
+
+  it('a slip entered into a closed counter-day counts on the card with its amount; one into an open day does not', async () => {
+    const c = await setup();
+    const gap = await openGap(c);
+    await enterSlip(c, gap, 5);
+    expect(await card(c, 'synced_into_closed_day')).toMatchObject({ level: 'ok', count: 0 });
+
+    await c.db.query(
+      `insert into day_closes (counter_id, business_date, status, cash_expected, cash_counted, series_ranges,
+                               outbox_pending, closed_by_staff_id, closed_at)
+       values (1, $1::date, 'closed', 0, 0, '[]'::jsonb, 0, $2::uuid, now())`,
+      [c.today, c.adminId],
+    );
+    await enterSlip(c, gap, 6);
+    expect(await count(c.db, `action = 'receipt.entered_from_paper' and after ->> 'in_closed_day' = 'true'`)).toBe(1);
+    expect(await card(c, 'synced_into_closed_day')).toMatchObject({
+      level: 'critical',
+      count: 1,
+      detail: { amount: '105.00', oldest_date: c.today },
+    });
+  });
+});

@@ -92,7 +92,8 @@ GRANT EXECUTE ON FUNCTION seva_issue_offline_issuer(text, text, text, timestampt
 -- F5-2. Needs attention: online (C series) receipts of today with no print record after 10 minutes
 -- =====================================================================================================
 
--- As in 20261102000000_seva_final_fixes.sql, plus one card at the end: unprinted_online.
+-- As in 20261102000000_seva_final_fixes.sql, plus one card at the end (unprinted_online), and synced_into_closed_day
+-- also counts slips entered from the paper book into a closed day.
 CREATE OR REPLACE FUNCTION seva_needs_attention(p_from timestamptz, p_to timestamptz, p_today date)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -308,10 +309,15 @@ BEGIN
 
   -- synced_into_closed_day (A5-FIX M-2): offline receipts that reached the office in the period after their
   -- counter-day was closed; the stored close is short by their amount until an admin reopens and closes it again.
-  SELECT count(*)::int, coalesce(sum((a.after ->> 'total')::numeric), 0), min(a.after ->> 'business_date')
+  -- F5: a slip entered from the paper book into a closed counter-day (receipt.entered_from_paper with in_closed_day,
+  -- its date in issued_on) counts too.
+  SELECT count(*)::int, coalesce(sum((a.after ->> 'total')::numeric), 0),
+         min(coalesce(a.after ->> 'business_date', a.after ->> 'issued_on'))
     INTO v_n, v_num, v_text
     FROM audit_log a
-   WHERE a.action = 'receipt.synced_into_closed_day' AND a.at >= p_from AND a.at < p_to;
+   WHERE a.at >= p_from AND a.at < p_to
+     AND (a.action = 'receipt.synced_into_closed_day'
+          OR (a.action = 'receipt.entered_from_paper' AND a.after ->> 'in_closed_day' = 'true'));
   v_cards := v_cards || jsonb_build_object('id', 'synced_into_closed_day',
                                            'level', CASE WHEN v_n > 0 THEN 'critical' ELSE 'ok' END,
                                            'count', v_n,
