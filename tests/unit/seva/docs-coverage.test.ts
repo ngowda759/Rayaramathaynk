@@ -41,6 +41,24 @@ function names(pattern: RegExp, text: string): string[] {
   return [...found].sort();
 }
 
+/** Matches kept exactly as written: file paths must keep their case, or Linux (CI, Vercel) cannot find them. */
+function exactNames(pattern: RegExp, text: string): string[] {
+  return [...new Set([...text.matchAll(pattern)].map((match) => match[1]))].sort();
+}
+
+/**
+ * True only when every segment of `relative` exists with exactly this case. `existsSync` alone ignores case on
+ * Windows, so a wrongly cased path would pass here and fail on Linux.
+ */
+function existsExactly(relative: string): boolean {
+  let dir = ROOT;
+  for (const segment of relative.split("/")) {
+    if (!existsSync(dir) || !readdirSync(dir).includes(segment)) return false;
+    dir = path.join(dir, segment);
+  }
+  return true;
+}
+
 /** Every route.ts under app/api/seva as its public path, e.g. `/api/seva/gaps/[id]`. */
 function routeFiles(dir = API_ROOT): string[] {
   const out: string[] = [];
@@ -221,9 +239,9 @@ describe("docs/seva/HANDOVER-NOTES.md", () => {
     for (const word of [/gotra/i, /nakshatra/i, /25/, /26/, /ನಕಲು/, /prasadam/i, /Kanike/, /Karnike/, /receipt/i]) {
       expect({ word: String(word), found: word.test(list) }).toEqual({ word: String(word), found: true });
     }
-    const paths = names(/`((?:lib|components|app|scripts|supabase)\/[^`\s]+\.[a-z]+)`/g, list);
+    const paths = exactNames(/`((?:lib|components|app|scripts|supabase)\/[^`\s]+\.[a-z]+)`/g, list);
     expect(paths.length).toBeGreaterThan(4);
-    expect(paths.filter((p) => !existsSync(path.join(ROOT, p)))).toEqual([]);
+    expect(paths.filter((p) => !existsExactly(p))).toEqual([]);
   });
 
   it("lists the site owner's issues that also exist on main", () => {
