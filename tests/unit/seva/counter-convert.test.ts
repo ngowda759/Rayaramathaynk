@@ -8,6 +8,7 @@
  */
 import { fromSqlIssue, toSqlOfflineOrder, toSqlOrder } from '@/lib/seva/server/counter';
 import { SevaError } from '@/lib/seva/errors';
+import { syncRequestSchema } from '@/lib/seva/schemas';
 import type { CounterOrderPayload, OfflineOrderPayload } from '@/types/seva';
 
 jest.mock('server-only', () => ({}), { virtual: true });
@@ -239,6 +240,17 @@ describe('toSqlOfflineOrder', () => {
     expect(receipts[2].lines).toEqual([
       { seva_id: SEVA_KAR, quantity: 2, unit_rate: '50.50', change_reason: 'Devotee offered more', cached_rate: null },
     ]);
+  });
+
+  it('keeps supersedesClientOrderId from the outbox item through the sync route schema to the SQL order (H-3)', () => {
+    // The in-doubt online order the PC printed offline instead (submitter.ts names it); the route parses the outbox
+    // with syncRequestSchema and hands the payload to toSqlOfflineOrder, which seva_sync_offline_order reads.
+    const item = { seq: 7, kind: 'order' as const, payload: { ...offlineOrder(), supersedesClientOrderId: id(9) } };
+    const parsed = syncRequestSchema.parse({ items: [item] });
+    const sent = parsed.items[0];
+    if (sent.kind !== 'order') throw new Error('expected an order item');
+    expect(toSqlOfflineOrder(sent.payload).supersedes_client_order_id).toBe(id(9));
+    expect(toSqlOfflineOrder(offlineOrder()).supersedes_client_order_id).toBeNull();
   });
 });
 

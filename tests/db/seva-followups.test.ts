@@ -256,3 +256,46 @@ describe('L-5: seva_issue_staff refuses view-only staff', () => {
     });
   });
 });
+
+describe('5: supersedesClientOrderId end to end (H-3)', () => {
+  it('an offline copy of an in-doubt online order cancels the unprinted online receipts, audited, and only once', async () => {
+    const c = await setup();
+    const cOrderId = randomUUID();
+    // The online save reached the office but its answer never reached the PC; Save again returns the first order.
+    const online = await issueOnline(c, cOrderId, c.staffId, [0, 1]);
+    await expect(issueOnline(c, cOrderId, c.staffId, [0, 1])).resolves.toMatchObject({ order_id: online.order_id, duplicate: true });
+
+    // "Yes, print offline": the outbox order names the online one, as toSqlOfflineOrder sends it.
+    const order = offlineOrder(c, { issuedAt: new Date().toISOString(), running: [1, 2], supersedes: cOrderId });
+    const of = await sync(c, order);
+    const firstOf = of.receipts[0].receipt_no;
+
+    const old = await c.db.query<{ status: string; cancel_reason_code: string; cancel_note: string }>(
+      `select status, cancel_reason_code, cancel_note from seva_receipts where order_id = $1 order by position`,
+      [online.order_id],
+    );
+    expect(old.rows).toEqual(
+      [0, 1].map(() => ({
+        status: 'cancelled',
+        cancel_reason_code: 'not_printed_connection_lost',
+        cancel_note: `Not printed: connection lost before the reply; reissued offline as ${firstOf}`,
+      })),
+    );
+    const link = await c.db.query('select supersedes_order_id from seva_orders where id = $1', [of.order_id]);
+    expect(link.rows).toEqual([{ supersedes_order_id: online.order_id }]);
+    const audit = await c.db.query<{ entity_id: string; actor_staff_id: string; after: Record<string, unknown> }>(
+      `select entity_id, actor_staff_id, after from audit_log where action = 'receipt.superseded' order by id`,
+    );
+    expect(audit.rows.map((r) => r.entity_id)).toEqual(online.receipts.map((r) => r.id));
+    expect(audit.rows[0]).toMatchObject({
+      actor_staff_id: c.staffId,
+      after: { status: 'cancelled', superseded_by_order_id: of.order_id, superseded_by_receipt_no: firstOf },
+    });
+    // Nothing is left counted twice, so the possible-duplicates card is calm.
+    expect(await card(c, 'in_doubt_duplicates')).toMatchObject({ level: 'ok', count: 0 });
+
+    // The outbox sending the same item again (a lost answer) changes nothing.
+    await expect(sync(c, order)).resolves.toMatchObject({ order_id: of.order_id, duplicate: true });
+    expect(await count(c.db, `action = 'receipt.superseded'`)).toBe(2);
+  });
+});
