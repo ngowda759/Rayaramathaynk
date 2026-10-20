@@ -75,6 +75,10 @@ h6 {
 }
 
 @import "tailwindcss";
+/* Tailwind must not read documentation as source: an example class in a note (for example a bracketed url class)
+   becomes real CSS and can break the build. Paths are relative to this file. */
+@source not "../.claude";
+@source not "../docs";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "react-datepicker/dist/react-datepicker.css";

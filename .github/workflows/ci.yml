@@ -40,6 +40,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Database tests
+        run: npm run test:db
+
       - name: Test Server Boundary
         run: ./scripts/test-boundary.sh
 

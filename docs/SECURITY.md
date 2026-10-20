@@ -616,3 +616,101 @@ For security vulnerabilities, contact: security@rayaramathaynk.com
 ---
 
 *Document maintained by: Development Team*
+
+---
+
+## Seva Entry
+
+Seva Entry handles real money, so its controls are stricter than the rest of the admin console. Written from the code
+on 2026-10-20; the spec is `docs/seva/DESIGN-BOOK.md` §15.
+
+### Authorisation: an allow-list, checked on the server
+
+- Every `/api/seva/*` route starts with `requireSevaActor` (`lib/seva/server/auth.ts`): a verified Firebase ID token
+  (revoked or disabled logins fail), the Firestore profile with `isActive` exactly true and a role that maps to one of
+  the four seva roles, the Supabase `staff` row with status `active`, the counter PC when needed, view-only (blocks
+  every write and the phone export), then the role x action allow-list in `lib/seva/permissions.ts`. Unknown, empty,
+  legacy (`billing`, `priest`, `staff`, `office_staff`) or misspelt roles are denied. Both stores must say "active", so
+  drift between them can only deny.
+- Only a super admin gives the Super admin role, reactivates a super admin, deactivates (offboards) or deletes a
+  person; a deactivation also disables the Firebase login and revokes its refresh tokens.
+- The site-wide admin check (`lib/auth/admin-auth.ts`) uses an explicit allow-list too, instead of the old deny-list.
+
+### Counter PC binding: the device token
+
+- A temple admin registers each counter PC once. The PC makes a 32-byte random secret and keeps it in IndexedDB; the
+  server stores only its SHA-256 (`counter_devices.secret_hash`). Every counter call carries
+  `x-seva-device: <device id>.<secret>`; the server hashes it and compares in constant time
+  (`lib/seva/server/device.ts`). The header is never logged, and nothing about a PC is read before the sign-in is
+  verified.
+- Issuing, prints, heartbeat and sync always need a live PC. A receptionist's devotee search, cancel, reissue and day
+  close need it too, and the PC's own counter is taken from the verified device, never from the request.
+- "Replace this PC" retires the old device. A retired PC with the right secret reaches only
+  `POST /api/seva/counter/sync`, and only with orders whose numbers lie inside its replaced range; its cancels are
+  refused and every other route answers `device_unknown`.
+
+### Database: row level security deny-all
+
+- Every seva table has row level security on with no policies, and `REVOKE ALL ... FROM anon, authenticated`; the
+  `seva_*` functions are executable by `service_role` only. Only server code reaches the data, through
+  `createAdminClient()`.
+- `TRIGGER` and `REFERENCES` are revoked on the guarded tables (`20261029235900_seva_privilege_hardening.sql`), so no
+  role can add a trigger that bypasses a guard.
+- Prices come from the catalogue on the server; issued receipts and lines cannot change their money fields; numbers are
+  taken in the same transaction as the insert; `client_order_id` and `client_receipt_id` make every save idempotent.
+
+### Audit
+
+`audit_log` is append-only (a trigger refuses UPDATE, DELETE and TRUNCATE) and a second trigger strips phone numbers
+from `before` and `after`. Every cancel, reprint, changed amount, prasadam undo, day close and reopen, settings,
+seva, staff and device change is recorded with who, when and why. Offline work is recorded as the person who did it
+on the PC, with the person who synced it alongside. An offline cash cancel that arrives later than the receipt's issue
+time plus the cancel window (by the server's clock), or falls in a closed day, is left `refund_state = due` and
+flagged in Needs attention (`offline_cancels`), because the server cannot verify an outbox.
+
+### Personal data and exports
+
+- The devotee's phone is never printed, never in an audit row, never in an API answer except an export page that asked
+  for it, and on the counter PC kept only as a salted hash plus the last 4 digits. Devotee profiles unseen for three
+  years are purged monthly (`seva_purge_devotee_profiles`, `.github/workflows/seva-maintenance.yml`).
+- An export with phone numbers needs a temple admin who is not view-only, or a super admin. The export GET writes
+  `export.phones_read` (part, range, cursor) on every page that includes phones, before any row is read, and refuses
+  the page if that write fails; the browser also records the finished file as `export.download`.
+- The public QR page `/r/<token>` uses an unguessable 128-bit token and shows what the slip already shows, never the
+  phone.
+
+### Rate limits
+
+`/r/<token>` allows 30 requests a minute per IP and `GET /api/seva/devotees/search` 60 a minute per person, so the
+devotee profiles cannot be listed by walking name prefixes. Both use the site's in-memory limiter
+(`lib/seva/server/rate-limit.ts`), so they count per server instance.
+
+### Counter UPI id
+
+The counter's UPI payee is read from Firestore `settings/financeSettings`, which only a super admin may write
+(`firestore.rules`). Every read is compared with the last payee recorded in Supabase (`seva_note_counter_upi`); a
+change writes `settings.upi_changed` (VPAs masked) and stays on the Needs attention card `upi_changed` for 30 days. A
+read that cannot be recorded is not used, and there is no hard-coded fallback: no UPI id means cash only.
+
+### Firestore rules changed by Seva Entry
+
+A new `users` document may not give itself a role other than `devotee`, nor `isActive` or `isApproved`; `sevas` and
+`settings/financeSettings` are written by super admins only (the server mirror uses the admin SDK); `isSuperAdmin()`
+also requires `isActive` not to be false.
+
+### Secrets and the old key revocation
+
+- Supabase and Firebase keys live only in Vercel environment variables, GitHub secrets or git-ignored local files
+  (`.env.local`, `.firebase-adminsdk.json`); never in the database, the client bundle or logs.
+- An old Firebase service-account key was committed in 11 scripts under `scripts/`. The scripts now read credentials
+  from the environment or the git-ignored key file (`tests/unit/seva/no-embedded-keys.test.ts` guards it). The site
+  owner must still **revoke** the old key after the merge: `docs/seva/SETUP-GUIDE.md` B3 (open item O-18).
+
+### Backups
+
+A GitHub Actions job (`.github/workflows/seva-backup.yml`, `scripts/seva/backup.sh`) dumps the database every night at
+02:30 IST through the Supabase session pooler, encrypts the dump with `age` to two public keys (one held by Nikhil, one
+by the site owner; either private key opens it), keeps it 30 days as a workflow artifact (the first-of-month copy 90 days), and records the run in
+`ops_backup_runs`; a failed or stale backup is critical in Needs attention. The plain dump never touches the disk and
+the script prints no secret. The private keys stay offline with their holders (SETUP-GUIDE B6); the monthly restore
+drill uses `scripts/seva/verify-backup.sh` (SETUP-GUIDE B8).

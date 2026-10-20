@@ -39,13 +39,10 @@ export type AdminAuthResult =
   | { ok: false; reason: AdminAuthFailureReason; status: number; message: string };
 
 /**
- * Roles permitted to use the admin console and the AI APIs guarded here.
- *
- * This is an allowlist: access is denied unless the profile's role is
- * explicitly recognized. `users.role` defaults to `user` in the schema, so a
- * denylist would wrongly grant access to any un-migrated account. The seva
- * roles `receptionist` and `prasadam_counter` are deliberately absent: they
- * reach only `/api/seva/*` through the seva route guard.
+ * Roles that may use the admin console and the routes guarded here (DB §17.4).
+ * This is an allow-list: an empty, unknown or misspelt role is refused. The
+ * seva roles `receptionist` and `prasadam_counter` are deliberately absent -
+ * they reach only `/api/seva/*` through the seva route guard.
  */
 export const ADMIN_CONSOLE_ROLES: ReadonlySet<string> = new Set([
   "super_admin",
@@ -57,8 +54,10 @@ export const ADMIN_CONSOLE_ROLES: ReadonlySet<string> = new Set([
   "office_staff",
 ]);
 
+/** Trims, lower-cases and joins words with `_`; anything not a string becomes "". */
 function normalizeRole(role: unknown): string {
-  return String(role || "").toLowerCase().replace(/\s+/g, "_");
+  if (typeof role !== "string") return "";
+  return role.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
 /**

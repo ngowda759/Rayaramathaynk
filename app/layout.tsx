@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display, Noto_Sans_Kannada } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
@@ -21,9 +22,29 @@ const playfair = Playfair_Display({
 });
 
 // Dedicated Kannada font for proper rendering
-const notoSansKannada = Noto_Sans_Kannada({
-  subsets: ["kannada"],
-  weight: ["400", "500", "600", "700"],
+const notoSansKannada = localFont({
+  src: [
+    {
+      path: "../public/fonts/NotoSansKannada-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/NotoSansKannada-Medium.ttf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/NotoSansKannada-SemiBold.ttf",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/NotoSansKannada-Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-kannada",
   display: "swap",
 });

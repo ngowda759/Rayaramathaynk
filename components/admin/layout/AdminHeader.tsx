@@ -7,6 +7,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Menu, Search, LogOut, Settings, Shield, ChevronDown } from "lucide-react";
 import { useAuthContext } from "@/context/AuthContext";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 import NotificationDropdown from "./NotificationDropdown";
 
 interface AdminHeaderProps {
@@ -65,9 +66,11 @@ export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
     else if (q.includes("donation") || q.includes("donate")) router.push("/admin/donations");
     else if (q.includes("announc") || q.includes("notice")) router.push("/admin/announcements");
     else if (q.includes("user") || q.includes("staff")) router.push("/admin/users");
+    // Seva Entry (the receipt book and the prasadam counter) opens its own screens; "seva" alone stays the website's
+    // seva page.
+    else if (q.includes("receipt") || q.includes("prasadam") || q.includes("seva entry")) router.push(SEVA_ROUTES.dashboard);
     else if (q.includes("seva")) router.push("/admin/sevas");
     else if (q.includes("pooja") || q.includes("timing")) router.push("/admin/timings");
-    else if (q.includes("receipt")) router.push("/admin/receipts");
     else if (q.includes("booking")) router.push("/admin/bookings");
     else if (q.includes("report")) router.push("/admin/reports");
     else if (q.includes("setting")) router.push("/admin/settings");

@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db, isFirebaseConfigured } from "./firebase";
+import { buildSignInProfileWrite } from "./auth/sign-in-profile";
 
 export async function registerUser(
   name: string,
@@ -85,31 +86,20 @@ export async function loginUser(
 
   const userRef = doc(db, "users", credential.user.uid);
   const profileSnapshot = await getDoc(userRef);
-  const existingProfile = profileSnapshot.exists()
-    ? profileSnapshot.data()
-    : undefined;
 
+  // role, isApproved and isActive go only into a new profile; an existing
+  // one keeps the values the staff API wrote (firestore.rules refuses any
+  // client write that adds or changes them).
   await setDoc(
     userRef,
-    {
-      uid: credential.user.uid,
-      name:
-        existingProfile?.name ??
-        credential.user.displayName ??
-        credential.user.email?.split("@")[0] ??
-        "",
-      email: existingProfile?.email ?? credential.user.email ?? email,
-      phone: existingProfile?.phone ?? "",
-      role: existingProfile?.role ?? "devotee",
-      templeId: existingProfile?.templeId ?? "main",
-      profileImage: existingProfile?.profileImage ?? "",
-      isApproved: existingProfile?.isApproved ?? false,
-      isActive: existingProfile?.isActive ?? true,
-      emailVerified: credential.user.emailVerified,
-      lastLogin: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      ...(profileSnapshot.exists() ? {} : { createdAt: serverTimestamp() }),
-    },
+    buildSignInProfileWrite({
+      account: credential.user,
+      typedEmail: email,
+      existingProfile: profileSnapshot.exists()
+        ? profileSnapshot.data()
+        : undefined,
+      now: serverTimestamp(),
+    }),
     { merge: true }
   );
 

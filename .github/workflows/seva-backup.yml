@@ -1,0 +1,168 @@
+name: Seva nightly backup
+
+# Nightly encrypted backup of the Supabase database (DB 16.1, D9, C-57, C-64).
+# 21:00 UTC is 02:30 IST. scripts/seva/backup.sh pipes pg_dump straight into age, so only the encrypted file ever
+# exists, readable by any one of the recipients; each holder keeps his own private key offline (O-15). Every run,
+# failed or not, writes one row to ops_backup_runs, which Needs attention reads ("last nightly backup failed or older
+# than 36 hours").
+#
+# Repository secrets the owner sets (names only):
+#   SEVA_BACKUP_DB_URL         Supabase session pooler connection string, port 5432
+#                              (the transaction pooler on port 6543 cannot run pg_dump)
+#   SEVA_BACKUP_AGE_RECIPIENT  one or more age public keys (age1...), one per holder,
+#                              separated by spaces, commas or new lines
+#
+# Artifacts: seva-<YYYY-MM-DD> kept 30 days; on the 1st of the month (IST) also seva-monthly-<YYYY-MM> kept 90 days,
+# the most GitHub allows on default settings. Where the 12-month copies of C-57 live is still open with the owner.
+# Secrets reach a step only through its env: block, and run scripts read step results from env: as well, never
+# through inline expressions.
+
+on:
+  schedule:
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seva-backup
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PGSSLMODE: require
+      PGCONNECT_TIMEOUT: '30'
+      PGAPPNAME: seva-backup
+    steps:
+      - name: Note the start time
+        id: start
+        run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the backup scripts
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/seva
+          persist-credentials: false
+
+      - name: Check the database secret
+        id: db_secret
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+        run: bash scripts/seva/backup.sh --check-db-url
+
+      - name: Check the age public key
+        id: age_secret
+        env:
+          SEVA_BACKUP_AGE_RECIPIENT: ${{ secrets.SEVA_BACKUP_AGE_RECIPIENT }}
+        run: bash scripts/seva/backup.sh --check-recipient
+
+      - name: Install age and the PostgreSQL client that matches the server
+        id: install
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends age postgresql-client postgresql-common ca-certificates
+          server_num="$(psql "$SEVA_BACKUP_DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c 'show server_version_num')"
+          case "$server_num" in
+            '' | *[!0-9]*)
+              echo "::error::Could not read the database server version."
+              exit 1
+              ;;
+          esac
+          major=$((server_num / 10000))
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "postgresql-client-${major}"
+          echo "/usr/lib/postgresql/${major}/bin" >> "$GITHUB_PATH"
+          echo "Server major version ${major}: installed postgresql-client-${major}."
+
+      - name: Dump, encrypt and checksum
+        id: backup
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+          SEVA_BACKUP_AGE_RECIPIENT: ${{ secrets.SEVA_BACKUP_AGE_RECIPIENT }}
+        run: bash scripts/seva/backup.sh "$RUNNER_TEMP/seva-backup"
+
+      - name: Upload the daily copy (kept 30 days)
+        id: upload_daily
+        uses: actions/upload-artifact@v4
+        with:
+          name: seva-${{ steps.backup.outputs.date }}
+          path: |
+            ${{ steps.backup.outputs.file }}
+            ${{ steps.backup.outputs.sha256_file }}
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload the monthly copy (kept 90 days)
+        id: upload_monthly
+        if: steps.backup.outputs.first_of_month == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: seva-monthly-${{ steps.backup.outputs.month }}
+          path: |
+            ${{ steps.backup.outputs.file }}
+            ${{ steps.backup.outputs.sha256_file }}
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Record the run in ops_backup_runs
+        if: always()
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+          STARTED_AT: ${{ steps.start.outputs.started_at }}
+          DB_SECRET_OUTCOME: ${{ steps.db_secret.outcome }}
+          AGE_SECRET_OUTCOME: ${{ steps.age_secret.outcome }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          BACKUP_OUTCOME: ${{ steps.backup.outcome }}
+          FAILED_STAGE: ${{ steps.backup.outputs.failed_stage }}
+          DAILY_OUTCOME: ${{ steps.upload_daily.outcome }}
+          MONTHLY_OUTCOME: ${{ steps.upload_monthly.outcome }}
+          BYTES: ${{ steps.backup.outputs.bytes }}
+          SHA256: ${{ steps.backup.outputs.sha256 }}
+        run: |
+          if [ "$DB_SECRET_OUTCOME" != success ]; then
+            echo "::error::This run cannot be recorded in ops_backup_runs: the database secret check did not pass."
+            exit 1
+          fi
+          ok=true
+          error=''
+          if [ "$AGE_SECRET_OUTCOME" != success ]; then
+            ok=false
+            error='the age public key secret is missing or is not an age public key'
+          elif [ "$INSTALL_OUTCOME" != success ]; then
+            ok=false
+            error="installing age or the PostgreSQL client: ${INSTALL_OUTCOME}"
+          elif [ "$BACKUP_OUTCOME" != success ]; then
+            ok=false
+            error="backup.sh at stage ${FAILED_STAGE:-unknown}: ${BACKUP_OUTCOME}"
+          elif [ "$DAILY_OUTCOME" != success ]; then
+            ok=false
+            error="uploading the daily copy: ${DAILY_OUTCOME}"
+          elif [ "$MONTHLY_OUTCOME" != success ] && [ "$MONTHLY_OUTCOME" != skipped ]; then
+            ok=false
+            error="uploading the monthly copy: ${MONTHLY_OUTCOME}"
+          fi
+          psql "$SEVA_BACKUP_DB_URL" -X -q -v ON_ERROR_STOP=1 \
+            -v started_at="$STARTED_AT" -v ok="$ok" -v bytes="$BYTES" -v sha256="$SHA256" -v error="$error" <<'SQL'
+          insert into public.ops_backup_runs (started_at, finished_at, ok, bytes, sha256, error)
+          values (
+            coalesce(nullif(:'started_at', '')::timestamptz, now()),
+            now(),
+            :'ok'::boolean,
+            nullif(:'bytes', '')::bigint,
+            nullif(:'sha256', ''),
+            nullif(:'error', '')
+          );
+          SQL
+          echo "Recorded in ops_backup_runs: ok=${ok}."

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
+import { isSevaPath } from "@/lib/seva/routes";
 import { FloatingButton } from "./FloatingButton";
 import { QuickQuestionIcons } from "./QuickQuestionIcons";
 
@@ -19,6 +21,8 @@ const isAIDisabled = process.env.NEXT_PUBLIC_AI_CHAT_ENABLED === "false";
 
 export function ChatWidget() {
   const [mounted, setMounted] = useState(false);
+  // Seva Entry (/seva) is a staff tool with a full-screen counter: the bubble would float over it.
+  const onSevaEntry = isSevaPath(usePathname() ?? "");
 
   useEffect(() => {
     // Don't render on server and skip if AI is explicitly disabled
@@ -32,7 +36,7 @@ export function ChatWidget() {
   }, []);
 
   // Don't render on server to avoid hydration issues or if AI is disabled
-  if (!mounted || isAIDisabled) {
+  if (!mounted || isAIDisabled || onSevaEntry) {
     return null;
   }
 

@@ -1,13 +1,9 @@
-import UserForm from "@/components/admin/users/UserForm";
+import { redirect } from "next/navigation";
 
-export default function NewUserPage() {
-  return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold">
-        Add New User
-      </h1>
-
-      <UserForm />
-    </div>
-  );
+/**
+ * Adding a person is onboarding (DB §13.6): the Staff and roles tab opens its Onboard staff dialog, which makes the
+ * login, the role and the staff number together and sends Firebase's set-password email (C-56).
+ */
+export default function NewUserPage(): never {
+  redirect("/admin/users?onboard=1");
 }

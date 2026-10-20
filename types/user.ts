@@ -13,14 +13,25 @@ export type UserRole =
   | "Temple Admin"
   | "Priest"
   | "Office Staff"
-  | "Volunteer";
+  | "Volunteer"
+  // Seva counter roles (DB §3.2). They reach only /api/seva/*, never the
+  // generic admin API allow-list in lib/auth/admin-auth.ts.
+  | "receptionist"
+  | "prasadam_counter";
 
 // Normalized roles for consistent access control
-export type NormalizedRole = "super_admin" | "admin" | "billing" | "volunteer" | "devotee";
+export type NormalizedRole =
+  | "super_admin"
+  | "admin"
+  | "billing"
+  | "receptionist"
+  | "prasadam_counter"
+  | "volunteer"
+  | "devotee";
 
 export function normalizeRole(role: UserRole): NormalizedRole {
-  const roleLower = role.toLowerCase().replace(/\s+/g, "_");
-  
+  const roleLower = role.trim().toLowerCase().replace(/\s+/g, "_");
+
   switch (roleLower) {
     case "super_admin":
     case "super admin":
@@ -35,6 +46,10 @@ export function normalizeRole(role: UserRole): NormalizedRole {
     case "office_staff":
     case "office staff":
       return "admin";
+    case "receptionist":
+      return "receptionist";
+    case "prasadam_counter":
+      return "prasadam_counter";
     case "volunteer":
       return "volunteer";
     case "devotee":

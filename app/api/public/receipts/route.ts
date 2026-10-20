@@ -1,83 +1,71 @@
-import { NextRequest, NextResponse } from "next/server";
+/**
+ * GET /api/public/receipts - the signed-in caller's own seva bookings.
+ *
+ * Requires a Firebase ID token (Authorization: Bearer). Returns at most 20 of the caller's bookings, newest first,
+ * with only the fields a devotee needs to recognise a booking - never phone, email, notes or payment references.
+ * Any ?search= parameter from older clients is ignored. Plan B replaces this route with "My seva bookings".
+ */
+import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/admin-firebase";
+import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+const BOOKINGS_COLLECTION = "sevaBookings";
+const OWNER_FIELD = "userId";
+const MAX_RECEIPTS = 20;
+
+interface PublicBookingRow {
+  id: string;
+  sevaTitle: string;
+  preferredDate: string | null;
+  status: string | null;
+  paymentStatus: string | null;
+  amount: number | null;
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+function toRow(id: string, data: Record<string, unknown>): PublicBookingRow {
+  return {
+    id,
+    sevaTitle: typeof data.sevaTitle === "string" ? data.sevaTitle : "",
+    preferredDate: textOrNull(data.preferredDate),
+    status: textOrNull(data.status),
+    paymentStatus: textOrNull(data.paymentStatus),
+    amount: typeof data.sevaAmount === "number" && Number.isFinite(data.sevaAmount) ? data.sevaAmount : null,
+  };
+}
+
+function errorResponse(code: string, message: string, status: number) {
+  return NextResponse.json({ error: { code, message } }, { status });
+}
+
+export async function GET(request: Request) {
+  const caller = await verifyBearerIdToken(request);
+  if (!caller) {
+    return errorResponse("unauthenticated", "Please sign in to see your seva receipts.", 401);
+  }
+
   try {
-    const url = new URL(request.url);
-    const search = url.searchParams.get("search");
-
-    if (!search || search.trim() === "") {
-      return NextResponse.json(
-        { error: "Search query is required" },
-        { status: 400 }
-      );
-    }
-
-    const searchQuery = search.trim().toLowerCase();
     const db = await getAdminFirestore();
-    const receiptsRef = db.collection("sevaBookings");
+    const snapshot = await db
+      .collection(BOOKINGS_COLLECTION)
+      .where(OWNER_FIELD, "==", caller.uid)
+      .orderBy("createdAt", "desc")
+      .limit(MAX_RECEIPTS)
+      .get();
 
-    // Firestore does not support OR queries across multiple fields with substring matching well in older SDKs.
-    // However, since it's an admin API, we can fetch all and filter in memory if the dataset is small,
-    // OR we can do multiple queries if it's exact match, but this search might be partial.
-    // The previous implementation used ilike (substring).
-    // To replicate ilike on Firestore, we need to fetch all and filter, or fetch recent and filter.
-    // Let's fetch the most recent 1000 and filter in memory, taking the top 20 matches.
-    const snapshot = await receiptsRef.orderBy("createdAt", "desc").limit(1000).get();
-
-    const matchedBookings = [];
-
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
-      const userPhone = String(data.userPhone || "");
-      const userEmail = String(data.userEmail || "");
-      const paymentReference = String(data.paymentReference || "");
-      const firestoreId = doc.id;
-
-      const phoneMatch = userPhone.toLowerCase().includes(searchQuery);
-      const emailMatch = userEmail.toLowerCase().includes(searchQuery);
-      const idMatch = firestoreId.toLowerCase().includes(searchQuery);
-      const refMatch = paymentReference.toLowerCase().includes(searchQuery);
-
-      if (phoneMatch || emailMatch || idMatch || refMatch) {
-        matchedBookings.push({
-          id: doc.id,
-          firestore_id: doc.id,
-          seva_id: data.sevaId,
-          seva_title: data.sevaTitle,
-          seva_amount: data.sevaAmount,
-          user_id: data.userId,
-          user_name: data.userName,
-          user_email: userEmail,
-          user_phone: userPhone,
-          preferred_date: data.preferredDate,
-          notes: data.notes,
-          status: data.status,
-          payment_reference: paymentReference,
-          payment_status: data.paymentStatus,
-          payment_date: data.paymentDate,
-          payment_method: data.paymentMethod,
-          created_at: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
-          updated_at: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt,
-        });
-      }
-
-      if (matchedBookings.length >= 20) {
-        break;
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      receipts: matchedBookings,
-    });
+    const receipts = snapshot.docs.map((doc) => toRow(doc.id, doc.data()));
+    return NextResponse.json({ receipts });
   } catch (error) {
-    console.error("[Public Receipts API] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to search receipts." },
-      { status: 500 }
+    const code = (error as { code?: unknown } | null)?.code;
+    console.error(
+      "[public-receipts] lookup failed:",
+      typeof code === "string" || typeof code === "number" ? code : "no_code"
     );
+    return errorResponse("internal", "Could not load your receipts right now. Please try again.", 500);
   }
 }
