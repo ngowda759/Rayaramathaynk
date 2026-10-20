@@ -17,7 +17,7 @@ export const SHELL_NAV: {
   reports: Bi;
   dayCloses: Bi;
   sevaSettings: Bi;
-  receiptSettings: Bi;
+  settings: Bi;
   prasadam: Bi;
   staffRoles: Bi;
 } = {
@@ -32,7 +32,7 @@ export const SHELL_NAV: {
   reports: { en: 'Reports', kn: 'ವರದಿಗಳು' },
   dayCloses: { en: 'Day closes', kn: 'ದಿನ ಮುಕ್ತಾಯಗಳು' },
   sevaSettings: { en: 'Seva settings', kn: 'ಸೇವಾ ಸೆಟ್ಟಿಂಗ್‌ಗಳು' },
-  receiptSettings: { en: 'Receipt settings', kn: 'ರಸೀದಿ ಸೆಟ್ಟಿಂಗ್‌ಗಳು' },
+  settings: { en: 'Settings', kn: 'ಸಂಯೋಜನೆಗಳು' },
   prasadam: { en: 'Prasadam', kn: 'ಪ್ರಸಾದ' },
   staffRoles: { en: 'Staff and roles', kn: 'ಸಿಬ್ಬಂದಿ ಮತ್ತು ಪಾತ್ರಗಳು' },
 };

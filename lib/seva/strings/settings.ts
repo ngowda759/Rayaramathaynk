@@ -8,14 +8,17 @@ import { SEVA_ROUTES } from '@/lib/seva/routes';
 import type { CatalogueSeva } from '@/types/seva';
 import type { Bi } from './common';
 
-/** The settings tabs (A4-9 builds the layout; A4-10 builds Receipts, Counters and Counter rules; A4P-5 Devotee lists). */
+/**
+ * The settings tabs (A4-9 builds the layout; A4-10 builds Receipts, Counters and Counter rules; A4P-5 Devotee lists).
+ * Devotee lists comes second, right after Receipts, so it is easy to find (owner's fix, 2026-10-20).
+ */
 export const SETTINGS_TABS: readonly { href: string; label: Bi }[] = [
   { href: SEVA_ROUTES.settingsReceipt, label: { en: 'Receipts', kn: 'ರಸೀದಿಗಳು' } },
+  { href: SEVA_ROUTES.settingsLists, label: { en: 'Devotee lists', kn: 'ಭಕ್ತರ ಪಟ್ಟಿಗಳು' } },
   { href: SEVA_ROUTES.settingsCounters, label: { en: 'Counters', kn: 'ಕೌಂಟರ್‌ಗಳು' } },
   { href: SEVA_ROUTES.settingsRules, label: { en: 'Counter rules', kn: 'ಕೌಂಟರ್ ನಿಯಮಗಳು' } },
   { href: SEVA_ROUTES.settingsDenominations, label: { en: 'Denominations', kn: 'ನೋಟು ಮತ್ತು ನಾಣ್ಯಗಳು' } },
   { href: SEVA_ROUTES.settingsFestivalDays, label: { en: 'Festival days', kn: 'ಹಬ್ಬದ ದಿನಗಳು' } },
-  { href: SEVA_ROUTES.settingsLists, label: { en: 'Devotee lists', kn: 'ಭಕ್ತರ ಪಟ್ಟಿಗಳು' } },
 ];
 
 export const VISIBILITY_LABEL: Record<CatalogueSeva['visibility'], Bi> = {

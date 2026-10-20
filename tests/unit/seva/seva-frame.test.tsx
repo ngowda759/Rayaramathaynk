@@ -220,6 +220,25 @@ describe("Seva Entry desk frame", () => {
     expect(screen.getByText("page body")).toBeInTheDocument();
   });
 
+  it("names the settings section plainly Settings (ಸಂಯೋಜನೆಗಳು), and its tabs put Devotee lists second, after Receipts", async () => {
+    as("temple_admin", meOf("temple_admin"));
+    await renderDesk("/seva");
+    const settings = rail()!.querySelector<HTMLElement>('a[href="/seva/settings"]')!;
+    expect(settings).toHaveTextContent(/^Settings/);
+    expect(settings).not.toHaveTextContent("Receipt settings");
+    expect(within(settings).getByText("ಸಂಯೋಜನೆಗಳು")).toHaveAttribute("lang", "kn");
+
+    const { SETTINGS_TABS } = await import("@/lib/seva/strings/settings");
+    expect(SETTINGS_TABS.map((t) => t.label.en)).toEqual([
+      "Receipts",
+      "Devotee lists",
+      "Counters",
+      "Counter rules",
+      "Denominations",
+      "Festival days",
+    ]);
+  });
+
   it("gives a view-only temple admin no Counter, Prasadam or Staff, and assumes view-only until the seva profile loads", async () => {
     const viewOnly = ["/seva", "/seva/register", "/seva/day-closes", "/seva/reports", "/seva/seva-settings", "/seva/settings"];
     as("temple_admin", meOf("temple_admin", { viewOnly: true }));
@@ -282,7 +301,7 @@ describe("Seva Entry desk frame", () => {
     expect(bar.className).toContain("md:hidden");
     expect(hrefs(bar)).toEqual(["/seva", "/seva/register", "/seva/reports"]);
     const more = within(bar).getByRole("button", { name: /More/ });
-    // The open page (Receipt settings) is inside More.
+    // The open page (Settings) is inside More.
     expect(more).toHaveAttribute("aria-current", "page");
     expect(bar.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(document.querySelector("main")!.className).toContain("pb-20");

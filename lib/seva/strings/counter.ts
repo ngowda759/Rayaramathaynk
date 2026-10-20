@@ -415,8 +415,8 @@ export const COUNTER_TEXT: {
   inDoubtOrderDismiss: 'Checked',
   registerTitle: { en: 'This PC is not a registered counter', kn: 'ಈ ಕಂಪ್ಯೂಟರ್ ನೋಂದಾಯಿತ ಕೌಂಟರ್ ಅಲ್ಲ' },
   registerAdmin: {
-    en: 'Receipts can be made only on a registered counter PC. Register this PC in Receipt settings, then come back.',
-    kn: 'ನೋಂದಾಯಿತ ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಮಾತ್ರ ರಸೀದಿ ಮಾಡಬಹುದು. ರಸೀದಿ ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಈ ಕಂಪ್ಯೂಟರ್ ನೋಂದಾಯಿಸಿ.',
+    en: 'Receipts can be made only on a registered counter PC. Register this PC in Settings - Counters, then come back.',
+    kn: 'ನೋಂದಾಯಿತ ಕೌಂಟರ್ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲಿ ಮಾತ್ರ ರಸೀದಿ ಮಾಡಬಹುದು. ಸಂಯೋಜನೆಗಳು - ಕೌಂಟರ್‌ಗಳಲ್ಲಿ ಈ ಕಂಪ್ಯೂಟರ್ ನೋಂದಾಯಿಸಿ.',
   },
   registerAdminLink: { en: 'Register this PC', kn: 'ಈ ಕಂಪ್ಯೂಟರ್ ನೋಂದಾಯಿಸಿ' },
   registerAsk: { en: 'Ask a temple admin to register this PC.', kn: 'ಈ ಕಂಪ್ಯೂಟರ್ ನೋಂದಾಯಿಸಲು ದೇವಸ್ಥಾನದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.' },

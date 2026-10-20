@@ -13,7 +13,7 @@ export interface RegisterPromptProps {
 
 /**
  * Shown when this PC has no counter credentials (Design Book 8.4, C-37): receipts are made only on a registered
- * counter PC. A temple admin gets the way to Receipt settings - Counters; a receptionist is told to ask one.
+ * counter PC. A temple admin gets the way to Settings - Counters; a receptionist is told to ask one.
  */
 export function RegisterPrompt({ canRegister }: RegisterPromptProps): JSX.Element {
   return (

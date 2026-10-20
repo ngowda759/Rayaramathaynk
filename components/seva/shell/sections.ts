@@ -64,7 +64,7 @@ export const SEVA_SECTIONS: readonly SevaSection[] = [
     columns: DESK,
     phone: false,
   },
-  { id: 'settings', label: SHELL_NAV.receiptSettings, href: SEVA_ROUTES.settings, icon: Settings, columns: DESK, phone: false },
+  { id: 'settings', label: SHELL_NAV.settings, href: SEVA_ROUTES.settings, icon: Settings, columns: DESK, phone: false },
   {
     id: 'staff',
     label: SHELL_NAV.staffRoles,

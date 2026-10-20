@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import type { SlipSettings } from "@/types/seva";
 
 function Photo({ src }: { src: string | null }): JSX.Element {
-  // Header photos are stored URLs from Receipt settings (the same ones the slip prints); a plain <img> keeps them
+  // Header photos are stored URLs from Settings - Receipts (the same ones the slip prints); a plain <img> keeps them
   // exactly as configured, with no image-domain setup.
   // eslint-disable-next-line @next/next/no-img-element
   if (src) return <img src={src} alt="" className="size-[52px] rounded-(--radius-control) object-cover" />;

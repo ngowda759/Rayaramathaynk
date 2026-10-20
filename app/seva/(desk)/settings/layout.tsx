@@ -10,8 +10,8 @@ import { SETTINGS_TABS, SETTINGS_TEXT as T } from "@/lib/seva/strings/settings";
 import { cn } from "@/lib/utils";
 
 /**
- * Settings (DB §13, mockup `settings-devotee.html` tabs): one heading and the tabs Receipts, Counters, Counter rules,
- * Denominations and Festival days. Every settings page reads through `/api/seva/settings/*`, which temple admins,
+ * Settings (DB §13, mockup `settings-devotee.html` tabs): one heading and the tabs Receipts, Devotee lists, Counters,
+ * Counter rules, Denominations and Festival days (`SETTINGS_TABS`). Every settings page reads through `/api/seva/settings/*`, which temple admins,
  * view-only temple admins and super admins may read (`reports.view`); each page decides itself whether it may edit
  * (`settings.edit`). The tabs are links, so each section has its own address.
  */

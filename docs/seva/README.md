@@ -57,7 +57,7 @@ them there and nowhere else. Check the register before declaring a range lost.
 Use this when the counter PC is broken, stolen or swapped.
 
 1. On the new PC, open the counter address (`/seva/counter`) and sign in as a temple admin.
-2. Open **Receipt settings** > **Counters** (`/seva/settings/counters`) and choose **Replace this PC** for the counter.
+2. Open **Settings** > **Counters** (`/seva/settings/counters`) and choose **Replace this PC** for the counter.
 3. Type the number on the **last slip the old PC printed** (take it from the printer tray or the drawer) and a reason.
 4. The old PC is retired; this PC takes over the counter's series. Any range between the last number the office
    received and the number you typed becomes an open gap: resolve it as above.
@@ -143,7 +143,7 @@ Seva Entry is one installable app for every role (manifest `start_url` and scope
 
 ### Choose the paper size
 
-1. A temple admin opens **Receipt settings** > **Receipts** (`/seva/settings/receipt`) > **Receipt paper**.
+1. A temple admin opens **Settings** > **Receipts** (`/seva/settings/receipt`) > **Receipt paper**.
 2. Pick **A5** (148 x 210 mm, the default), **A6** (105 x 148 mm), **One-third A4** (99 x 210 mm), **80 mm roll**,
    **58 mm roll**, or **Custom** (width 50-216 mm, height 80-356 mm; the height at least the width). Every size is
    portrait, one receipt per sheet; the preview redraws at that size.
