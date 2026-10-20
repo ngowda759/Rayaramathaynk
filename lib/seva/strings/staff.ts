@@ -114,6 +114,19 @@ export const STAFF_TEXT = {
     `Staff no. ${staffNo} is onboarded, but the set-password email was not sent.`,
   sendEmailAgain: 'Send the email again',
 
+  // Onboard dialog: the email already has a website account (link it instead of making a new login)
+  linkTitle: { en: 'Existing website account', kn: 'ಈಗಿರುವ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ' } as Bi,
+  linkQuestion: (who: string, currentRole: string, newRole: string): Bi => ({
+    en: `${who} already has a website account (current role: ${currentRole}). Add them as staff and set their role to ${newRole}? They keep their password.`,
+    kn: `${who} ಅವರಿಗೆ ಈಗಾಗಲೇ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ ಇದೆ (ಈಗಿನ ಪಾತ್ರ: ${currentRole}). ಅವರನ್ನು ಸಿಬ್ಬಂದಿಯಾಗಿ ಸೇರಿಸಿ, ಪಾತ್ರವನ್ನು ${newRole} ಎಂದು ಬದಲಿಸಬೇಕೆ? ಅವರ ಪಾಸ್‌ವರ್ಡ್ ಬದಲಾಗುವುದಿಲ್ಲ.`,
+  }),
+  linkNoRole: 'none',
+  linkConfirm: { en: 'Link this account', kn: 'ಈ ಖಾತೆಯನ್ನು ಜೋಡಿಸಿ' } as Bi,
+  linkCancel: { en: 'Cancel', kn: 'ರದ್ದುಮಾಡಿ' } as Bi,
+  linking: 'Linking...',
+  linked: (staffNo: string): string => `Account linked · staff no. ${staffNo}`,
+  linkedHint: 'They can sign in with their existing password.',
+
   // Drawer
   staffNoLine: (staffNo: string, email: string): string => `Staff no. ${staffNo} · ${email}`,
   save: 'Save',

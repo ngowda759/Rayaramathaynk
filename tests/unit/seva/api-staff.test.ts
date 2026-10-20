@@ -92,8 +92,11 @@ jest.mock("@/lib/seva/server/rpc", () => ({
 
 // ---- The identity adapter (Firebase Auth + Firestore users) ---------------------------------------------------------
 const mockProfiles: Record<string, Row | undefined> = {};
+/** Sign-in accounts that already exist, by email (website admins, devotees, ...). */
+const mockLogins: Record<string, { externalUid: string; displayName: string | null } | undefined> = {};
 const mockIdentity: jest.Mocked<IdentityAdapter> = {
   verifyRequest: jest.fn(),
+  findLoginByEmail: jest.fn(async (email: string) => mockLogins[email] ?? null),
   getAccessProfile: jest.fn(async (uid: string) => (mockProfiles[uid] as { role: unknown; isActive: boolean }) ?? null),
   createLogin: jest.fn(async () => {
     mockCalls.push("identity.createLogin");
@@ -112,7 +115,7 @@ const mockIdentity: jest.Mocked<IdentityAdapter> = {
 jest.mock("@/lib/seva/server/identity", () => ({ getIdentityAdapter: () => mockIdentity }));
 
 // ---- Firebase Admin, for the real Firebase adapter's createLogin -----------------------------------------------------
-const mockFirebaseAuth = { createUser: jest.fn() };
+const mockFirebaseAuth = { createUser: jest.fn(), getUserByEmail: jest.fn() };
 jest.mock("firebase-admin/auth", () => ({ getAuth: () => mockFirebaseAuth }));
 jest.mock("@/lib/admin-firebase", () => ({ getAdminApp: async () => ({}) }));
 
@@ -172,6 +175,16 @@ function resetFixtures() {
       { issued_by_staff_id: ID.ramesh, issued_at: "2026-10-18T05:35:00+00:00" },
     ],
   };
+  for (const key of Object.keys(mockLogins)) delete mockLogins[key];
+  Object.assign(mockLogins, {
+    // A devotee who signed in on the website, and the site owner (a super admin), neither of them staff.
+    "priya.s@example.org": { externalUid: "uid-priya", displayName: "Priya S" },
+    "owner@example.org": { externalUid: "uid-owner", displayName: "Site Owner" },
+    // Ramesh's second email: the login is already a staff member's.
+    "ramesh.home@example.org": { externalUid: "uid-ramesh", displayName: "Ramesh K" },
+    // A login that never got a Firestore profile.
+    "noprofile@example.org": { externalUid: "uid-noprofile", displayName: null },
+  });
   for (const key of Object.keys(mockProfiles)) delete mockProfiles[key];
   Object.assign(mockProfiles, {
     "uid-nikhil": { role: "super_admin", isActive: true },
@@ -181,6 +194,8 @@ function resetFixtures() {
     "uid-girish": { role: "receptionist", isActive: false },
     "uid-ramesh": { role: "receptionist", isActive: true, phone: "+919845000023" },
     "uid-shobha": { role: "billing", isActive: false },
+    "uid-priya": { role: "devotee", isActive: true },
+    "uid-owner": { role: "super_admin", isActive: true },
   });
   for (const key of Object.keys(mockRpcAnswers)) delete mockRpcAnswers[key];
   Object.assign(mockRpcAnswers, {
@@ -327,6 +342,7 @@ describe("POST /api/seva/staff (onboard)", () => {
       "identity.setAccessProfile",
       "rpc.seva_staff_onboard",
     ]);
+    expect(mockIdentity.findLoginByEmail).toHaveBeenCalledWith("lakshmi.n@example.com");
     expect(mockIdentity.createLogin).toHaveBeenCalledWith({ email: "lakshmi.n@example.com", displayName: "Lakshmi Narayan" });
     expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-lakshmi", {
       role: "receptionist",
@@ -399,6 +415,127 @@ describe("POST /api/seva/staff (onboard)", () => {
     };
     const failure = await errorOf(await POST(post(lakshmi)));
     expect(failure).toMatchObject({ status: 502, code: "partial_failure", detail: { done: ["identity"], failed: "staff" } });
+  });
+});
+
+describe("POST /api/seva/staff (an email that already has a website account)", () => {
+  const priya = { fullName: "Priya S", email: "Priya.S@Example.org", role: "receptionist", viewOnly: false };
+
+  it("a new email still makes a new login", async () => {
+    mockSession.actor = ADMIN;
+    const res = await POST(post({ ...priya, email: "new.person@example.org" }));
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ staffId: ID.lakshmi, staffNo: 35 });
+    expect(mockIdentity.createLogin).toHaveBeenCalledWith({ email: "new.person@example.org", displayName: "Priya S" });
+    expect(mockRpc).not.toHaveBeenCalledWith("seva_audit", expect.anything());
+  });
+
+  it("without confirmation answers existing_account with the current role, before any write", async () => {
+    mockSession.actor = ADMIN;
+    const refused = await errorOf(await POST(post(priya)));
+    expect(refused).toMatchObject({
+      status: 400,
+      code: "validation",
+      detail: { field: "email", reason: "existing_account", currentRole: "devotee", displayName: "Priya S" },
+    });
+    expect(identityWrites()).toBe(0);
+    expect(mockCalls).toEqual(["rpc.seva_next_staff_no"]);
+
+    // A login with no profile has no current role.
+    const bare = await errorOf(await POST(post({ ...priya, email: "noprofile@example.org" })));
+    expect(bare.detail).toMatchObject({ reason: "existing_account", currentRole: null, displayName: null });
+    expect(identityWrites()).toBe(0);
+  });
+
+  it("with confirmation links the account: no new login, the profile set, a staff row and the audit row", async () => {
+    mockSession.actor = ADMIN;
+    const res = await POST(post({ ...priya, linkExisting: true }));
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ staffId: ID.lakshmi, staffNo: 35, linkedExisting: true });
+
+    expect(mockIdentity.createLogin).not.toHaveBeenCalled();
+    expect(mockCalls).toEqual([
+      "rpc.seva_next_staff_no",
+      "identity.setAccessProfile",
+      "rpc.seva_staff_onboard",
+      "rpc.seva_audit",
+    ]);
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-priya", {
+      role: "receptionist",
+      isActive: true,
+      email: "priya.s@example.org",
+      displayName: "Priya S",
+    });
+    expect(mockRpc).toHaveBeenCalledWith("seva_staff_onboard", {
+      p_staff: { firebase_uid: "uid-priya", full_name: "Priya S", email: "priya.s@example.org", staff_no: 35, view_only: false },
+      p_actor: ADMIN.staffId,
+    });
+    expect(mockRpc).toHaveBeenCalledWith("seva_audit", {
+      p_action: "staff.onboard",
+      p_entity: "staff",
+      p_entity_id: ID.lakshmi,
+      p_receipt_no: null,
+      p_reason: null,
+      p_before: null,
+      p_after: { linked_existing: true, previous_role: "devotee", role: "receptionist" },
+      p_staff_id: ADMIN.staffId,
+    });
+  });
+
+  it("refuses an account that is already staff", async () => {
+    mockSession.actor = SUPER;
+    const refused = await errorOf(await POST(post({ ...priya, email: "ramesh.home@example.org", linkExisting: true })));
+    expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email" } });
+    expect(String(refused.detail?.message)).toMatch(/already staff/);
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalledWith("seva_staff_onboard", expect.anything());
+  });
+
+  it("a temple admin cannot link an existing super admin account; a super admin can", async () => {
+    const owner = { ...priya, fullName: "Site Owner", email: "owner@example.org", role: "temple_admin", linkExisting: true };
+    mockSession.actor = ADMIN;
+    expect(await errorOf(await POST(post(owner)))).toMatchObject({ status: 403, code: "forbidden" });
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalledWith("seva_staff_onboard", expect.anything());
+
+    mockSession.actor = SUPER;
+    const res = await POST(post({ ...owner, role: "super_admin" }));
+    expect(res.status).toBe(201);
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-owner", expect.objectContaining({ role: "super_admin" }));
+    expect(mockRpc).toHaveBeenCalledWith(
+      "seva_audit",
+      expect.objectContaining({ p_after: { linked_existing: true, previous_role: "super_admin", role: "super_admin" } }),
+    );
+  });
+
+  it("a temple admin cannot give the super admin role to a linked account", async () => {
+    mockSession.actor = ADMIN;
+    expect(await errorOf(await POST(post({ ...priya, role: "super_admin", linkExisting: true })))).toMatchObject({
+      status: 403,
+      code: "forbidden",
+    });
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("a view-only temple admin cannot link anyone", async () => {
+    mockSession.actor = VIEWER;
+    expect(await errorOf(await POST(post({ ...priya, linkExisting: true })))).toMatchObject({ status: 403, code: "view_only" });
+    expect(identityWrites()).toBe(0);
+    expect(mockIdentity.findLoginByEmail).not.toHaveBeenCalled();
+  });
+
+  it("reports a partial failure when the audit row cannot be written after the link", async () => {
+    mockSession.actor = ADMIN;
+    mockRpcAnswers.seva_audit = () => {
+      throw new SevaError("internal");
+    };
+    const failure = await errorOf(await POST(post({ ...priya, linkExisting: true })));
+    expect(failure).toMatchObject({
+      status: 502,
+      code: "partial_failure",
+      detail: { done: ["identity", "staff"], failed: "audit" },
+    });
   });
 });
 
@@ -548,6 +685,27 @@ describe("Firebase identity adapter: createLogin", () => {
     const outage = Object.assign(new Error("down"), { code: "auth/internal-error" });
     mockFirebaseAuth.createUser.mockRejectedValueOnce(outage);
     await expect(firebaseIdentityAdapter.createLogin(login)).rejects.toBe(outage);
+  });
+});
+
+describe("Firebase identity adapter: findLoginByEmail", () => {
+  it("returns the existing login's uid and display name", async () => {
+    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({ uid: "uid-priya", displayName: "Priya S" });
+    expect(await firebaseIdentityAdapter.findLoginByEmail("priya.s@example.org")).toEqual({
+      externalUid: "uid-priya",
+      displayName: "Priya S",
+    });
+    expect(mockFirebaseAuth.getUserByEmail).toHaveBeenCalledWith("priya.s@example.org");
+    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({ uid: "uid-x" });
+    expect(await firebaseIdentityAdapter.findLoginByEmail("x@example.org")).toEqual({ externalUid: "uid-x", displayName: null });
+  });
+
+  it("answers null when no login has the email, and passes any other failure through", async () => {
+    mockFirebaseAuth.getUserByEmail.mockRejectedValueOnce(Object.assign(new Error("none"), { code: "auth/user-not-found" }));
+    expect(await firebaseIdentityAdapter.findLoginByEmail("new@example.org")).toBeNull();
+    const outage = Object.assign(new Error("down"), { code: "auth/internal-error" });
+    mockFirebaseAuth.getUserByEmail.mockRejectedValueOnce(outage);
+    await expect(firebaseIdentityAdapter.findLoginByEmail("new@example.org")).rejects.toBe(outage);
   });
 });
 

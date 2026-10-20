@@ -18,6 +18,11 @@ export interface IdentityAdapter {
   verifyRequest(req: Request): Promise<{ externalUid: string; email: string | null } | null>;
   /** Role and active flag (Firestore `users/{uid}` today); null when the person has no profile. */
   getAccessProfile(externalUid: string): Promise<{ role: unknown; isActive: boolean } | null>;
+  /**
+   * The sign-in account that already uses this email (a website admin, a devotee, the site owner), or null when there
+   * is none. Onboarding uses it to offer linking an existing account instead of making a second login.
+   */
+  findLoginByEmail(email: string): Promise<{ externalUid: string; displayName: string | null } | null>;
   createLogin(input: { email: string; displayName: string }): Promise<{ externalUid: string }>;
   setAccessProfile(
     externalUid: string,

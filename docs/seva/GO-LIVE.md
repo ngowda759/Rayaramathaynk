@@ -42,29 +42,31 @@ Each step below is written for him in `SETUP-GUIDE.md` Part B. Do them in this o
   receipt QR codes. Then redeploy.
 - [ ] 13. **B3:** make a new Firebase key, put it in Vercel and GitHub, check the site, then delete the old, leaked
   key.
-- [ ] 14. **B5:** make himself staff 001 on the live site. Or make you a super admin there: Staff and roles, then
-  **Onboard staff**.
-- [ ] 15. **B6:** each key holder (you and him) makes a backup key, as you chose.
-- [ ] 16. **B7:** put both public backup keys and the database connection string into his GitHub secrets. The next
+- [ ] 14. **Give you the website admin right away:** he opens **Website admin**, then **Users**, opens your account,
+  sets the role to **Super Admin** and clicks **Save**.
+- [ ] 15. **B5:** he runs the B5 script with **your live email** (the address you sign in to the live site with), so
+  you become staff 001. Everyone else, him included, is added after that on Staff and roles, then **Onboard staff**.
+- [ ] 16. **B6:** each key holder (you and him) makes a backup key, as you chose.
+- [ ] 17. **B7:** put both public backup keys and the database connection string into his GitHub secrets. The next
   morning, the dashboard should show a fresh backup.
 
 ## Part 3 - A super admin: fill in the temple's settings on the live site
 
 Sign in at `https://<live address>/login`, then open `https://<live address>/seva`.
 
-- [ ] 17. Menu **Settings**, tab **Receipts**:
+- [ ] 18. Menu **Settings**, tab **Receipts**:
   - temple name and address
   - **Photo 1 (left)** and **Photo 2 (right)**
   - footer lines
   - **Paper size** (A5, or the size of your printer's paper)
 
   Then click **Save settings**.
-- [ ] 18. Menu **Seva settings**: click **+ Add seva** once for each real seva, with its code, English and Kannada name,
+- [ ] 19. Menu **Seva settings**: click **+ Add seva** once for each real seva, with its code, English and Kannada name,
   rate, and whether it allows several dates. Delete nothing; hide what is not used.
-- [ ] 19. Menu **Settings**, tab **Counters**: check that Counter 1 exists and set its opening cash float.
-- [ ] 20. Menu **Settings**, tab **Denominations**: keep the notes and coins the temple uses.
-- [ ] 21. Menu **Settings**, tab **Festival days**: add the coming festivals, such as Aradhane.
-- [ ] 22. Set the UPI id the counter shows:
+- [ ] 20. Menu **Settings**, tab **Counters**: check that Counter 1 exists and set its opening cash float.
+- [ ] 21. Menu **Settings**, tab **Denominations**: keep the notes and coins the temple uses.
+- [ ] 22. Menu **Settings**, tab **Festival days**: add the coming festivals, such as Aradhane.
+- [ ] 23. Set the UPI id the counter shows:
   1. Click **Website admin**.
   2. Click **Finance Settings**.
   3. Find **UPI Payment** and switch it on.
@@ -72,35 +74,39 @@ Sign in at `https://<live address>/login`, then open `https://<live address>/sev
   5. Save.
 
   Only a super admin can change this.
-- [ ] 23. Menu **Staff and roles**, then **Onboard staff**, once per person, with a name, an email address they can
+- [ ] 24. Menu **Staff and roles**, then **Onboard staff**, once per person, with a name, an email address they can
   open, and a role:
   - **Receptionist:** the counter
   - **Prasadam counter:** the volunteers
   - **Temple admin:** the office, the trustees; tick view-only for a trustee who only looks
 
-  Each person gets an email to set a password.
+  Each new person gets an email to set a password.
+
+  Existing website accounts (the site owner, other website admins, a devotee who signed in) can be added too: Onboard
+  staff shows the account's current role and offers **Link this account**. They keep their password and get no
+  email.
 
 ## Part 4 - The temple office: check the Kannada
 
-- [ ] 24. Give the office the list in `docs/seva/HANDOVER-NOTES.md` (Kannada proof-read).
-- [ ] 25. For the gotras, nakshatras and rashis, open menu **Settings**, tab **Devotee lists**:
+- [ ] 25. Give the office the list in `docs/seva/HANDOVER-NOTES.md` (Kannada proof-read).
+- [ ] 26. For the gotras, nakshatras and rashis, open menu **Settings**, tab **Devotee lists**:
   1. Open each name marked "not yet checked".
   2. Correct the Kannada if needed.
   3. Click **Save**, even if it is already right. That marks it checked.
-- [ ] 26. Send me any other wrong Kannada (on the counter, slips or reports) and I correct it in the code.
+- [ ] 27. Send me any other wrong Kannada (on the counter, slips or reports) and I correct it in the code.
 
 ## Part 5 - The counter PC at the temple
 
 Follow `SETUP-GUIDE.md` section A5 for every click.
 
-- [ ] 27. **A5.1:** give the counter's Windows account a password.
-- [ ] 28. **A5.2:** turn on disk encryption.
-- [ ] 29. **A5.3:** install the printer and set its paper to the size chosen in step 17.
-- [ ] 30. **A5.4:** make it the default printer.
-- [ ] 31. **A5.5:** stop Edge from running in the background.
-- [ ] 32. **A5.6:** install the app, as in Part 6 below.
-- [ ] 33. **A5.7:** make the kiosk-printing shortcut, so a receipt prints with one click and no print window.
-- [ ] 34. **A5.8:**
+- [ ] 28. **A5.1:** give the counter's Windows account a password.
+- [ ] 29. **A5.2:** turn on disk encryption.
+- [ ] 30. **A5.3:** install the printer and set its paper to the size chosen in step 18.
+- [ ] 31. **A5.4:** make it the default printer.
+- [ ] 32. **A5.5:** stop Edge from running in the background.
+- [ ] 33. **A5.6:** install the app, as in Part 6 below.
+- [ ] 34. **A5.7:** make the kiosk-printing shortcut, so a receipt prints with one click and no print window.
+- [ ] 35. **A5.8:**
   1. Sign in as a temple admin.
   2. Open Menu **Settings**, tab **Counters**, then **Register this PC** for Counter 1.
   3. On the counter, choose the folder for the daily Excel copy.
@@ -110,36 +116,36 @@ Follow `SETUP-GUIDE.md` section A5 for every click.
 The live address must start with `https://` (Vercel gives this).
 
 **Windows PC or laptop (Edge or Chrome):**
-- [ ] 35. Open `https://<live address>/seva` and sign in.
-- [ ] 36. Click the **install icon** at the right end of the address bar. If there is none: menu **...**, then
+- [ ] 36. Open `https://<live address>/seva` and sign in.
+- [ ] 37. Click the **install icon** at the right end of the address bar. If there is none: menu **...**, then
   **Apps**, then **Install Seva Entry**.
-- [ ] 37. Click **Install**. Seva Entry opens in its own window and gets a taskbar icon. Right-click the icon, then
+- [ ] 38. Click **Install**. Seva Entry opens in its own window and gets a taskbar icon. Right-click the icon, then
   **Pin to taskbar**.
 
 **Android phone (Chrome):**
-- [ ] 38. Open `https://<live address>/seva` and sign in.
-- [ ] 39. Tap the menu **⋮**, then **Install app** (or **Add to Home screen**), then **Install**.
-- [ ] 40. Open it from the new icon on the home screen. It opens full screen.
+- [ ] 39. Open `https://<live address>/seva` and sign in.
+- [ ] 40. Tap the menu **⋮**, then **Install app** (or **Add to Home screen**), then **Install**.
+- [ ] 41. Open it from the new icon on the home screen. It opens full screen.
 
 **iPhone or iPad (Safari only):**
-- [ ] 41. Open `https://<live address>/seva` in **Safari** and sign in.
-- [ ] 42. Tap **Share** (the square with an arrow), scroll, tap **Add to Home Screen**, then **Add**.
+- [ ] 42. Open `https://<live address>/seva` in **Safari** and sign in.
+- [ ] 43. Tap **Share** (the square with an arrow), scroll, tap **Add to Home Screen**, then **Add**.
 
 **Updates arrive by themselves.** When the live site is updated, the app picks up the new version the next time it
 opens.
 
 ## Part 7 - Dry run, then go live
 
-- [ ] 43. **One dry-run day** at the counter, on plain paper:
+- [ ] 44. **One dry-run day** at the counter, on plain paper:
   - make receipts (one with several dates, one cash, one UPI)
   - cancel one
   - mark prasadam given for one
   - close the day
-- [ ] 44. That evening, check the dashboard, **Register** and **Day closes**, and open the Excel copy in the chosen
+- [ ] 45. That evening, check the dashboard, **Register** and **Day closes**, and open the Excel copy in the chosen
   folder.
-- [ ] 45. Delete the dry-run receipts' effect the proper way: cancel them with the reason "Test". Receipts are never
+- [ ] 46. Delete the dry-run receipts' effect the proper way: cancel them with the reason "Test". Receipts are never
   deleted.
-- [ ] 46. **Go live.** Keep the paper receipt book at the counter for the first week as the fallback.
+- [ ] 47. **Go live.** Keep the paper receipt book at the counter for the first week as the fallback.
 
 ---
 
@@ -157,7 +163,7 @@ opens.
 | What you see | What it means | What to do |
 |---|---|---|
 | `/seva` pages error after the merge | Steps 10-12 not done yet | Ask the site owner to finish B1, B2 and B4 |
-| Nobody sees the Seva Entry menu | No staff yet | Do step 14 (staff 001), then step 23 |
+| Nobody sees the Seva Entry menu | No staff yet | Do step 15 (staff 001), then step 24 |
 | "The temple's server did not answer in time" at the counter | The internet or the server is down | Print offline; the receipts send by themselves later |
-| No UPI QR at the counter | The UPI id is not set | Do step 22 |
+| No UPI QR at the counter | The UPI id is not set | Do step 23 |
 | The app does not offer to install | The address is not https, or you are not on `/seva` | Use the live https address, open `/seva`, then try again |

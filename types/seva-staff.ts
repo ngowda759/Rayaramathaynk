@@ -38,6 +38,21 @@ export interface NextStaffNoResponse {
 export interface StaffOnboardResponse {
   staffId: string;
   staffNo: number;
+  /** An existing website account was linked: no new login, so no set-password email (they keep their password). */
+  linkedExisting?: true;
+}
+
+/**
+ * The 400 `validation` detail when the email already has a website account and the request did not confirm linking
+ * it (`linkExisting`). Nothing was written; the office confirms and sends the request again with `linkExisting: true`.
+ */
+export interface StaffExistingAccountDetail {
+  field: "email";
+  reason: "existing_account";
+  /** Their Firestore role as stored (e.g. 'admin', 'devotee'), or null when they have no profile. */
+  currentRole: string | null;
+  displayName: string | null;
+  message: string;
 }
 
 /**

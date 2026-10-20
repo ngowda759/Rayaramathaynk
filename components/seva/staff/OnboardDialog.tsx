@@ -8,8 +8,10 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { STAFF_ROLES, STAFF_TEXT, staffNoText } from "@/lib/seva/strings/staff";
-import { staffOnboardSchema } from "@/lib/seva/schemas";
+import { mapFirestoreRole } from "@/lib/seva/permissions";
+import { STAFF_ROLES, STAFF_ROLE_LABEL, STAFF_TEXT, staffNoText } from "@/lib/seva/strings/staff";
+import { staffOnboardSchema, type StaffOnboardRequest } from "@/lib/seva/schemas";
+import { SevaClientError } from "@/services/seva/http";
 import type { StaffApi } from "@/services/seva/staff.service";
 import type { SevaRole } from "@/types/seva";
 import type { StaffPartialFailure } from "@/types/seva-staff";
@@ -37,8 +39,11 @@ export interface OnboardDialogProps {
   /** Asks Firebase to send its own set-password email to the new person (C-56). */
   sendInvite(email: string): Promise<void>;
   can: StaffCan;
-  /** The person is onboarded and the email went out; the list reloads and says so. */
-  onOnboarded(result: { staffNo: number; fullName: string }): void;
+  /**
+   * The person is onboarded and the email went out, or an existing website account was linked (`linkedExisting`, no
+   * email: they keep their password); the list reloads and says so.
+   */
+  onOnboarded(result: { staffNo: number; fullName: string; linkedExisting?: true }): void;
   /** Something was written (fully or partly): the list reloads. */
   onWritten?(): void;
 }
@@ -68,6 +73,31 @@ interface EmailPending {
   message: string;
 }
 
+/** The email already has a website account: the office confirms before it is linked (onboardStaff). */
+interface ExistingAccount {
+  /** Their name on the account, else the email. */
+  who: string;
+  /** Their current role in words: a seva role's label, else the role as stored, else "none". */
+  currentRole: string;
+  /** The request that was refused; linking resends it with `linkExisting: true`. */
+  body: StaffOnboardRequest;
+}
+
+/** The server's 400 existing_account answer (StaffExistingAccountDetail), or null for any other error. */
+function existingAccountOf(error: unknown, body: StaffOnboardRequest): ExistingAccount | null {
+  if (!(error instanceof SevaClientError) || error.code !== "validation" || error.detail?.reason !== "existing_account") {
+    return null;
+  }
+  const { displayName, currentRole } = error.detail;
+  const sevaRole = mapFirestoreRole(currentRole);
+  const storedRole = typeof currentRole === "string" ? currentRole.trim() : "";
+  return {
+    who: typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : body.email,
+    currentRole: sevaRole ? STAFF_ROLE_LABEL[sevaRole].en : storedRole !== "" ? storedRole : STAFF_TEXT.linkNoRole,
+    body,
+  };
+}
+
 function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: OnboardDialogProps): JSX.Element {
   const allowed = Object.fromEntries(STAFF_ROLES.map((r) => [r, onboardRoleAllowed(can, r)])) as Record<SevaRole, boolean>;
   const [staffNo, setStaffNo] = useState("");
@@ -80,6 +110,8 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
   const [error, setError] = useState<string | null>(null);
   const [partial, setPartial] = useState<StaffPartialFailure | null>(null);
   const [emailPending, setEmailPending] = useState<EmailPending | null>(null);
+  const [existing, setExisting] = useState<ExistingAccount | null>(null);
+  const locked = busy || emailPending !== null || existing !== null;
 
   useEffect(() => {
     let live = true;
@@ -97,6 +129,8 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
   }, [api]);
 
   function pickRole(next: SevaRole): void {
+    // The question names the role; a new role means asking again with it.
+    setExisting(null);
     setRole(next);
     if (next !== "temple_admin") setViewOnly(false);
   }
@@ -115,7 +149,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
 
   async function submit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (busy || emailPending) return;
+    if (locked) return;
     const no = staffNo.trim() === "" ? Number.NaN : Number(staffNo);
     const parsed = staffOnboardSchema.safeParse({ fullName, email, role, viewOnly: role === "temple_admin" && viewOnly, staffNo: no });
     if (!parsed.success) {
@@ -130,21 +164,36 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
       return;
     }
     setErrors({});
+    const body = parsed.data;
+    await send({
+      fullName: body.fullName,
+      email: body.email,
+      role: body.role,
+      viewOnly: body.viewOnly,
+      staffNo: body.staffNo,
+    });
+  }
+
+  /** Onboards (or, with `linkExisting`, links); a new login then gets the set-password email, a linked one does not. */
+  async function send(body: StaffOnboardRequest): Promise<void> {
     setError(null);
     setPartial(null);
     setBusy(true);
     try {
-      const body = parsed.data;
-      const result = await api.onboard({
-        fullName: body.fullName,
-        email: body.email,
-        role: body.role,
-        viewOnly: body.viewOnly,
-        staffNo: body.staffNo,
-      });
+      const result = await api.onboard(body);
+      setExisting(null);
       onWritten?.();
+      if (result.linkedExisting) {
+        // They keep their own password, so no set-password email (C-56 is for new logins only).
+        onOnboarded({ staffNo: result.staffNo, fullName: body.fullName, linkedExisting: true });
+        onClose();
+        return;
+      }
       await invite({ email: body.email, staffNo: result.staffNo, fullName: body.fullName });
     } catch (err) {
+      const found = body.linkExisting ? null : existingAccountOf(err, body);
+      setExisting(found);
+      if (found) return;
       const failure = partialFailureOf(err);
       if (failure) {
         setPartial(failure);
@@ -187,7 +236,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
             value={staffNo}
             error={errors.staffNo}
             onChange={(e) => setStaffNo(e.target.value)}
-            disabled={busy || emailPending !== null}
+            disabled={locked}
           />
           <Input
             variant="seva"
@@ -198,7 +247,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
             value={fullName}
             error={errors.fullName}
             onChange={(e) => setFullName(e.target.value)}
-            disabled={busy || emailPending !== null}
+            disabled={locked}
           />
         </div>
         <p className="-mt-3 text-(length:--text-meta) text-(--muted-foreground)">{STAFF_TEXT.staffNoHint}</p>
@@ -211,7 +260,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
           value={email}
           error={errors.email}
           onChange={(e) => setEmail(e.target.value)}
-          disabled={busy || emailPending !== null}
+          disabled={locked}
         />
 
         <div className="flex flex-col gap-2">
@@ -223,7 +272,7 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
 
         <ViewOnlyRow
           checked={role === "temple_admin" && viewOnly}
-          disabled={role !== "temple_admin" || busy || emailPending !== null}
+          disabled={role !== "temple_admin" || locked}
           hint={role === "temple_admin" ? STAFF_TEXT.viewOnlyOnboardHint : STAFF_TEXT.viewOnlyTempleAdminsOnly}
           onChange={setViewOnly}
         />
@@ -259,19 +308,58 @@ function OnboardForm({ onClose, api, sendInvite, can, onOnboarded, onWritten }: 
             </div>
           </PartialFailureNotice>
         ) : null}
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="seva-ghost" onClick={onClose} disabled={busy}>
-            {emailPending ? STAFF_TEXT.close : STAFF_TEXT.cancel}
-          </Button>
-          {emailPending ? null : (
-            <PendingButton type="submit" pending={busy} pendingLabel={STAFF_TEXT.sending}>
-              {STAFF_TEXT.sendInvite}
-            </PendingButton>
-          )}
-        </div>
+        {existing ? (
+          <ExistingAccountConfirm
+            existing={existing}
+            newRole={STAFF_ROLE_LABEL[existing.body.role].en}
+            busy={busy}
+            onLink={() => void send({ ...existing.body, linkExisting: true })}
+            onCancel={() => setExisting(null)}
+          />
+        ) : (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="seva-ghost" onClick={onClose} disabled={busy}>
+              {emailPending ? STAFF_TEXT.close : STAFF_TEXT.cancel}
+            </Button>
+            {emailPending ? null : (
+              <PendingButton type="submit" pending={busy} pendingLabel={STAFF_TEXT.sending}>
+                {STAFF_TEXT.sendInvite}
+              </PendingButton>
+            )}
+          </div>
+        )}
       </form>
     </>
+  );
+}
+
+interface ExistingAccountConfirmProps {
+  existing: ExistingAccount;
+  newRole: string;
+  busy: boolean;
+  onLink(): void;
+  onCancel(): void;
+}
+
+/** "<name> already has a website account ... Link this account?" - Cancel goes back to the form to change the email. */
+function ExistingAccountConfirm({ existing, newRole, busy, onLink, onCancel }: ExistingAccountConfirmProps): JSX.Element {
+  const question = STAFF_TEXT.linkQuestion(existing.who, existing.currentRole, newRole);
+  return (
+    <section
+      aria-label={STAFF_TEXT.linkTitle.en}
+      className="flex flex-col gap-3 rounded-(--radius-control) border border-(--border) bg-(--attn-soft) p-4"
+    >
+      <Bilingual as="h3" className="font-semibold" en={STAFF_TEXT.linkTitle.en} kn={STAFF_TEXT.linkTitle.kn} />
+      <Bilingual as="div" en={question.en} kn={question.kn} />
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button type="button" variant="seva-ghost" onClick={onCancel} disabled={busy}>
+          {STAFF_TEXT.linkCancel.en}
+        </Button>
+        <PendingButton type="button" pending={busy} pendingLabel={STAFF_TEXT.linking} onClick={onLink}>
+          {STAFF_TEXT.linkConfirm.en}
+        </PendingButton>
+      </div>
+    </section>
   );
 }
 
