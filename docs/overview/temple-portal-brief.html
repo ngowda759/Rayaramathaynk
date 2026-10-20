@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temple Portal - Application Brief</title>
+<meta name="description" content="A ten-minute brief on the Temple Portal application: what it is, how it is structured, its component trees, data stores and AI pipeline. Prepared for Nikhil; refreshed 2026-10-18.">
+<style>
+/* ---------- Sri Raghavendra Swamy Matha - the temple portal's own identity ----------
+   Every colour token below is copied name-for-name and value-for-value from
+   app/globals.css (:root for light, .dark for dark). Nothing here is a new
+   literal; every rule in this sheet paints with var() of one of these. */
+:root{
+  /* Sacred Temple Color System */
+  --background:oklch(0.985 0.015 95);
+  --foreground:oklch(0.25 0.02 50);
+  /* Card & Surfaces */
+  --card:oklch(1 0 0);
+  --card-foreground:oklch(0.25 0.02 50);
+  --popover:oklch(1 0 0);
+  --popover-foreground:oklch(0.25 0.02 50);
+  /* Primary - Temple Gold */
+  --primary:oklch(0.75 0.16 80);
+  --primary-foreground:oklch(0.98 0.02 95);
+  /* Secondary */
+  --secondary:oklch(0.95 0.02 90);
+  --secondary-foreground:oklch(0.3 0.02 50);
+  /* Muted */
+  --muted:oklch(0.95 0.015 90);
+  --muted-foreground:oklch(0.5 0.02 50);
+  /* Accent - Saffron */
+  --accent:oklch(0.92 0.06 60);
+  --accent-foreground:oklch(0.35 0.08 45);
+  /* Destructive */
+  --destructive:oklch(0.55 0.2 25);
+  /* Borders & Inputs */
+  --border:oklch(0.88 0.02 85);
+  --input:oklch(0.94 0.02 90);
+  --ring:oklch(0.75 0.16 80);
+  /* Border Radius */
+  --radius:0.75rem;
+  /* Sacred Temple Palette Extensions - the site does not restate these in dark */
+  --temple-gold:oklch(0.78 0.18 85);
+  --temple-gold-light:oklch(0.85 0.12 85);
+  --temple-gold-dark:oklch(0.65 0.2 80);
+  --temple-saffron:oklch(0.72 0.2 55);
+  --temple-saffron-light:oklch(0.82 0.14 55);
+  --temple-deep-red:oklch(0.45 0.18 25);
+  --temple-maroon:oklch(0.35 0.12 20);
+  --temple-cream:oklch(0.96 0.02 92);
+  --temple-warm-white:oklch(0.98 0.01 95);
+  /* visible focus indicator - app/globals.css :focus-visible, never --ring */
+  --focus:oklch(0.5 0.2 45);
+
+  /* page roles - aliases only, each one a var() of a token above */
+  --link:var(--temple-deep-red);
+  --on-primary:var(--foreground);
+  --code-bg:var(--temple-maroon);
+  --code-ink:var(--temple-cream);
+  --code-key:var(--temple-gold-light);
+  --code-strong:var(--temple-warm-white);
+  --r-sm:calc(var(--radius) * 0.6);
+  --r-md:calc(var(--radius) * 0.8);
+  --r-lg:var(--radius);
+
+  /* the site's three faces - app/layout.tsx; no @font-face, no link, no import */
+  --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+  --sans:Inter,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --kannada:'Noto Sans Kannada','Noto Sans',sans-serif;
+  --mono:Consolas,'Cascadia Mono','Courier New',monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --background:oklch(0.12 0.02 30);
+    --foreground:oklch(0.92 0.02 90);
+    --card:oklch(0.18 0.02 25);
+    --card-foreground:oklch(0.92 0.02 90);
+    --popover:oklch(0.18 0.02 25);
+    --popover-foreground:oklch(0.92 0.02 90);
+    --primary:oklch(0.78 0.16 80);
+    --primary-foreground:oklch(0.15 0.03 30);
+    --secondary:oklch(0.25 0.03 25);
+    --secondary-foreground:oklch(0.88 0.02 90);
+    --muted:oklch(0.25 0.03 25);
+    --muted-foreground:oklch(0.65 0.02 85);
+    --accent:oklch(0.65 0.12 55);
+    --accent-foreground:oklch(0.95 0.02 90);
+    --destructive:oklch(0.6 0.18 25);
+    --border:oklch(1 0 0 / 8%);
+    --input:oklch(1 0 0 / 10%);
+    --ring:oklch(0.78 0.16 80);
+    /* role flips so links and on-gold ink stay legible on the night palette */
+    --link:var(--primary);
+    --on-primary:var(--primary-foreground);
+  }
+}
+:root[data-theme="dark"]{
+  --background:oklch(0.12 0.02 30);
+  --foreground:oklch(0.92 0.02 90);
+  --card:oklch(0.18 0.02 25);
+  --card-foreground:oklch(0.92 0.02 90);
+  --popover:oklch(0.18 0.02 25);
+  --popover-foreground:oklch(0.92 0.02 90);
+  --primary:oklch(0.78 0.16 80);
+  --primary-foreground:oklch(0.15 0.03 30);
+  --secondary:oklch(0.25 0.03 25);
+  --secondary-foreground:oklch(0.88 0.02 90);
+  --muted:oklch(0.25 0.03 25);
+  --muted-foreground:oklch(0.65 0.02 85);
+  --accent:oklch(0.65 0.12 55);
+  --accent-foreground:oklch(0.95 0.02 90);
+  --destructive:oklch(0.6 0.18 25);
+  --border:oklch(1 0 0 / 8%);
+  --input:oklch(1 0 0 / 10%);
+  --ring:oklch(0.78 0.16 80);
+  /* role flips so links and on-gold ink stay legible on the night palette */
+  --link:var(--primary);
+  --on-primary:var(--primary-foreground);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--background);
+  color:var(--foreground);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.62;
+  padding:34px 16px 60px;
+}
+:lang(kn),[lang="kn"]{font-family:var(--kannada);line-height:1.8}
+.sheet{
+  max-width:820px;
+  margin:0 auto;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:44px 54px 72px;
+  display:flex;
+  flex-direction:column;
+  gap:38px;
+}
+
+/* ---------- typography ---------- */
+h1,h2,h3,h4{margin:0;font-family:var(--serif);font-weight:600;letter-spacing:-.015em;color:var(--foreground)}
+h1{font-size:30px;line-height:1.22}
+h2{font-size:12.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+   color:var(--secondary-foreground);padding-bottom:9px;border-bottom:1px solid var(--border);
+   display:flex;align-items:center;gap:10px}
+h2::before{content:"";flex:0 0 auto;width:15px;height:3px;border-radius:999px;background:var(--primary)}
+h3{font-size:17px;margin-top:2px}
+h4{font-size:14.5px;color:var(--secondary-foreground)}
+p{margin:0;max-width:66ch}
+.eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-foreground);font-weight:600}
+.lede{color:var(--muted-foreground);font-size:15px}
+.muted{color:var(--muted-foreground)}
+strong{font-weight:600;color:var(--foreground)}
+code{font-family:var(--mono);font-size:.88em;color:var(--secondary-foreground);
+     background:var(--secondary);border:1px solid var(--border);border-radius:var(--r-sm);padding:.5px 4px}
+a{color:var(--link);text-decoration:none;border-bottom:1px solid var(--border)}
+a:hover{border-bottom-color:currentColor}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+
+section{display:flex;flex-direction:column;gap:16px}
+.stack{display:flex;flex-direction:column;gap:13px}
+.stack-tight{display:flex;flex-direction:column;gap:8px}
+
+/* ---------- header ---------- */
+header.band{display:flex;flex-direction:column;gap:22px}
+.logo-plate{display:flex;align-items:center;gap:14px;align-self:flex-start}
+.logo{width:46px;height:46px;display:block;flex:0 0 auto}
+.sitename{display:flex;flex-direction:column;gap:2px}
+.site-name{font-family:var(--serif);font-size:19px;font-weight:600;line-height:1.2;color:var(--foreground)}
+.site-place{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+            color:var(--accent-foreground)}
+.titleblock{border-top:3px solid var(--primary);padding-top:20px;display:flex;flex-direction:column;gap:10px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 26px;font-size:13px;color:var(--muted-foreground)}
+.meta span b{font-weight:600;color:var(--secondary-foreground)}
+
+/* ---------- table of contents ---------- */
+.toc{background:var(--secondary);border:1px solid var(--border);border-radius:var(--r-md);padding:16px 18px;
+     display:flex;flex-direction:column;gap:10px}
+.toc ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:6px 22px;counter-reset:toc}
+.toc li{counter-increment:toc;font-size:14px;display:flex;gap:9px;align-items:baseline}
+.toc li::before{content:counter(toc,decimal-leading-zero);font-family:var(--mono);font-size:11px;
+                color:var(--muted-foreground)}
+.toc a{border-bottom:none;color:var(--secondary-foreground)}
+.toc a:hover{border-bottom:1px solid var(--border)}
+
+/* ---------- stat tiles ---------- */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.tile{border:1px solid var(--border);border-radius:var(--r-md);padding:14px 14px 13px;background:var(--secondary);
+      display:flex;flex-direction:column;gap:3px}
+.tile .n{font-size:24px;font-weight:600;letter-spacing:-.02em;color:var(--foreground);
+         font-family:var(--serif);font-variant-numeric:tabular-nums;line-height:1.1}
+.tile .k{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--accent-foreground);font-weight:600}
+.tile .s{font-size:11.5px;color:var(--muted-foreground);line-height:1.4}
+
+/* ---------- callout ---------- */
+.callout{background:var(--secondary);border:1px solid var(--border);border-radius:var(--r-md);padding:15px 17px;
+         display:grid;grid-template-columns:9px 1fr;gap:13px;align-items:start}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:8px}
+.callout p{font-size:14.5px}
+
+/* ---------- cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.card{border:1px solid var(--border);border-radius:var(--r-md);padding:15px 16px;display:flex;
+      flex-direction:column;gap:8px;background:var(--card)}
+.card h3{font-size:14.5px;color:var(--secondary-foreground)}
+.card p{font-size:13.5px;color:var(--muted-foreground);margin:0}
+.routes{font-family:var(--mono);font-size:11.5px;color:var(--secondary-foreground);line-height:1.75;
+        word-break:break-word}
+.card .tag{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--accent-foreground);
+           font-weight:600}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-md);-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:13.5px}
+thead th{background:var(--secondary);text-align:left;font-weight:600;color:var(--muted-foreground);font-size:11px;
+         letter-spacing:.09em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--border);
+         white-space:nowrap}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--foreground)}
+tbody tr:last-child td{border-bottom:none}
+td.num,th.num{font-variant-numeric:tabular-nums;text-align:right}
+td.id{font-family:var(--mono);font-size:12px;color:var(--secondary-foreground);white-space:nowrap}
+td.path{font-family:var(--mono);font-size:11px;color:var(--muted-foreground);word-break:break-all;line-height:1.5}
+
+/* ---------- status pills ---------- */
+.pill{display:inline-block;border-radius:999px;padding:1.5px 9px;font-size:10.5px;font-weight:600;
+      letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;border:1px solid var(--border);
+      color:var(--secondary-foreground);background:transparent}
+.pill-critical{background:var(--destructive);border-color:var(--destructive);color:var(--primary-foreground)}
+.pill-high{border-color:var(--accent-foreground);color:var(--accent-foreground)}
+.pill-med{border-color:var(--border);color:var(--muted-foreground)}
+
+/* ---------- code / trees ---------- */
+pre{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:var(--r-md);padding:16px 18px;
+    overflow-x:auto;font-family:var(--mono);font-size:12px;line-height:1.62;
+    -webkit-overflow-scrolling:touch}
+pre b{color:var(--code-strong);font-weight:600}
+pre i{color:var(--code-key);font-style:normal}
+
+/* ---------- numbered steps ---------- */
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:step;display:flex;flex-direction:column;gap:9px}
+ol.steps>li{counter-increment:step;display:grid;grid-template-columns:24px 1fr;gap:12px;
+            font-size:14px;align-items:start}
+ol.steps>li::before{content:counter(step);display:flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:999px;border:1px solid var(--primary);background:var(--primary);
+  color:var(--on-primary);font-size:11px;font-weight:600;font-family:var(--mono);margin-top:2px}
+ul.plain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:14px}
+ul.plain li::marker{color:var(--primary)}
+
+/* ---------- diagram ---------- */
+.figure{display:flex;flex-direction:column;gap:9px}
+.figure svg{width:100%;height:auto;display:block;border:1px solid var(--border);border-radius:var(--r-md);
+            background:var(--secondary)}
+.caption{font-size:12px;color:var(--muted-foreground)}
+.dg-box{fill:var(--card);stroke:var(--secondary-foreground);stroke-width:1.2}
+.dg-box-soft{fill:var(--muted);stroke:var(--muted-foreground);stroke-width:1.1}
+.dg-t{fill:var(--foreground);font-family:var(--sans);font-size:13px;font-weight:600}
+.dg-s{fill:var(--muted-foreground);font-family:var(--sans);font-size:10.5px}
+.dg-m{fill:var(--muted-foreground);font-family:var(--sans);font-size:10px;letter-spacing:.06em}
+.dg-l{stroke:var(--muted-foreground);stroke-width:1.2;fill:none}
+.dg-l-dash{stroke:var(--border);stroke-width:1.1;fill:none;stroke-dasharray:4 3}
+.dg-head{fill:var(--muted-foreground)}
+
+/* ---------- footer ---------- */
+footer.band{border-top:1px solid var(--border);padding-top:18px;display:flex;flex-wrap:wrap;gap:8px 24px;
+            justify-content:space-between;align-items:center;font-size:12px;color:var(--muted-foreground)}
+.footer-logo{width:34px;height:34px;display:block}
+.footer-plate{display:flex;align-items:center}
+
+/* ---------- responsive ---------- */
+@media (max-width:760px){
+  body{padding:20px 16px 44px}
+  .sheet{padding:26px 18px 44px;gap:30px}
+  h1{font-size:23px}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cards{grid-template-columns:1fr}
+  .toc ol{grid-template-columns:1fr}
+  .logo{width:40px;height:40px}
+  .site-name{font-size:17px}
+  pre{font-size:11px;padding:13px 14px}
+}
+@media (max-width:420px){
+  .tiles{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- print (A4) ---------- */
+@media print{
+  @page{size:A4;margin:14mm 13mm}
+  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){
+    --background:oklch(1 0 0);
+    --card:oklch(1 0 0);
+    --popover:oklch(1 0 0);
+    --foreground:oklch(0.25 0.02 50);
+    --card-foreground:oklch(0.25 0.02 50);
+    --secondary:oklch(0.95 0.02 90);
+    --secondary-foreground:oklch(0.3 0.02 50);
+    --muted:oklch(0.95 0.015 90);
+    --muted-foreground:oklch(0.5 0.02 50);
+    --accent:oklch(0.92 0.06 60);
+    --accent-foreground:oklch(0.35 0.08 45);
+    --primary:oklch(0.75 0.16 80);
+    --primary-foreground:oklch(0.98 0.02 95);
+    --destructive:oklch(0.55 0.2 25);
+    --border:oklch(0.88 0.02 85);
+    --link:var(--temple-deep-red);
+    --on-primary:var(--foreground);
+    --code-bg:var(--card);
+    --code-ink:var(--foreground);
+    --code-key:var(--secondary-foreground);
+    --code-strong:var(--foreground);
+  }
+  body{padding:0;background:var(--card);font-size:10.5pt;line-height:1.5}
+  .sheet{max-width:none;border:none;border-radius:0;padding:0;gap:20px}
+  .toc{display:none}
+  h1{font-size:20pt}
+  h2{font-size:9pt;page-break-after:avoid;break-after:avoid}
+  h3,h4{page-break-after:avoid;break-after:avoid}
+  section{page-break-inside:auto}
+  .tile,.card,.callout,.figure,pre,.tablewrap,ol.steps>li{page-break-inside:avoid;break-inside:avoid}
+  pre{border:1px solid var(--border);color:var(--foreground);background:var(--card);font-size:8pt}
+  pre b{color:var(--foreground)}
+  a{color:var(--foreground);border-bottom:none}
+  .tablewrap{overflow:visible}
+  table{min-width:0}
+  .pill-critical{background:var(--destructive)!important;color:var(--primary-foreground)!important;
+                 -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .figure svg{background:var(--card)}
+  footer.band{page-break-before:avoid}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
+  <!-- Temple mark: the geometry of public/favicon.svg, its four amber fills re-expressed
+       as palette tokens from app/globals.css so the mark follows light and dark. -->
+  <symbol id="matha-mark" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="15" fill="var(--primary)"/>
+    <circle cx="16" cy="16" r="13" fill="var(--temple-gold-light)"/>
+    <text x="16" y="22" font-family="'Playfair Display',Georgia,'Times New Roman',serif" font-size="18" font-weight="bold" fill="var(--temple-maroon)" text-anchor="middle">&#x0950;</text>
+    <circle cx="8" cy="8" r="1.5" fill="var(--accent)"/>
+    <circle cx="24" cy="8" r="1.5" fill="var(--accent)"/>
+    <circle cx="8" cy="24" r="1.5" fill="var(--accent)"/>
+    <circle cx="24" cy="24" r="1.5" fill="var(--accent)"/>
+  </symbol>
+</svg>
+
+<div class="sheet">
+
+<!-- ============ HEADER ============ -->
+<header class="band">
+  <div class="logo-plate">
+    <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="Sri Raghavendra Swamy Matha"><use href="#matha-mark"></use></svg>
+    <div class="sitename">
+      <span class="site-name">Sri Raghavendra Swamy Matha</span>
+      <span class="site-place">Yelahanka New Town</span>
+    </div>
+  </div>
+  <div class="titleblock">
+    <div class="eyebrow">Application brief</div>
+    <h1>Temple Portal &mdash; Application Brief</h1>
+    <p class="lede">The web platform of the Sri Raghavendra Swamy Matha, Rayara Matha, Yelahanka.
+      What it is, how it is put together, and the state it is actually in &mdash; in about ten minutes.</p>
+    <div class="meta">
+      <span><b>Date</b> &nbsp;19 September 2026, refreshed 18 October 2026</span>
+      <span><b>Prepared for</b> &nbsp;Nikhil</span>
+      <span><b>Repository</b> &nbsp;<code>temple-portal</code></span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ CONTENTS ============ -->
+<nav class="toc" aria-label="Contents">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#glance">At a glance</a></li>
+    <li><a href="#changed">What changed since 19 September</a></li>
+    <li><a href="#what">What it is</a></li>
+    <li><a href="#features">Feature map</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#modules">Module map</a></li>
+    <li><a href="#flows">How a request flows</a></li>
+    <li><a href="#trees">Component trees</a></li>
+    <li><a href="#data">Data</a></li>
+    <li><a href="#ai">Raya AI pipeline</a></li>
+    <li><a href="#state">State of the platform</a></li>
+    <li><a href="#next">Where to look next</a></li>
+  </ol>
+</nav>
+
+<!-- ============ AT A GLANCE ============ -->
+<section id="glance">
+  <h2>At a glance</h2>
+  <div class="tiles">
+    <div class="tile"><span class="k">Page routes</span><span class="n">130</span><span class="s">37 public, 3 auth, 83 admin</span></div>
+    <div class="tile"><span class="k">API handlers</span><span class="n">97</span><span class="s"><code>route.ts</code> files + 2 server-action files</span></div>
+    <div class="tile"><span class="k">Component files</span><span class="n">235</span><span class="s">under <code>components/</code></span></div>
+    <div class="tile"><span class="k">Services</span><span class="n">54</span><span class="s">41 top-level + 13 proof-report</span></div>
+    <div class="tile"><span class="k">Source files</span><span class="n">929</span><span class="s">314 carry <code>"use client"</code> (818 on 19 Sep)</span></div>
+    <div class="tile"><span class="k">Source lines</span><span class="n">178,106</span><span class="s">TypeScript, TSX, JS (158,773 on 19 Sep)</span></div>
+    <div class="tile"><span class="k">Test files</span><span class="n">105</span><span class="s">50 Playwright + 55 Jest (52 unit)</span></div>
+    <div class="tile"><span class="k">Backing stores</span><span class="n">4</span><span class="s">Firestore, Supabase (24 tables), Blob, static JSON</span></div>
+  </div>
+  <p class="muted" style="font-size:12.5px">Figures counted 2026-10-18 (source totals from the inventory
+    summary). Divided into <strong>16 code modules</strong> (M01&ndash;M15 and M17, the mobile app,
+    Prisma and the <code>.ai/</code> loop) plus the M16 field catalogue, each with a verified brain file
+    under <code>.claude/skills/temple-portal-expert/brain/</code>. 730 JSON almanac files sit under
+    <code>data/panchanga/</code>; <strong>6</strong> files carry <code>server-only</code> (3 on 19 September).
+    22 GitHub workflows, 5 on 19 September.</p>
+</section>
+
+<!-- ============ WHAT CHANGED ============ -->
+<section id="changed">
+  <h2>What changed since 19 September</h2>
+  <p class="muted" style="font-size:12.5px">Added 2026-10-18 against commit <code>424fdb8</code>. The
+    sections below describe the 2026-09-19 snapshot except where a figure or sentence is marked as
+    updated; each brain file's Refresh log names the commits.</p>
+  <ul class="plain">
+    <li><strong>A mobile app exists.</strong> <code>apps/mobile</code> (Expo 57, React Native 0.86, built
+      2026-09-30) has seven tabs and a seva modal, and no login, booking or payment. It reads Supabase
+      directly with the anon key, from tables that deny all access or do not exist, so only the Raya AI
+      tab (<code>POST /api/chat</code>) shows anything (M17).</li>
+    <li><strong>Prisma arrived unused.</strong> A Prisma 7 schema mirrors nine Supabase tables; nothing
+      imports its client <code>lib/prisma.ts</code> (M17).</li>
+    <li><strong>Raya AI was rewritten and moved to Supabase.</strong> A 192-line orchestrator over a
+      retrieval registry and a response composer replaced the 1,191-line generator; settings, knowledge,
+      chat and analytics moved to Supabase. Still no LLM call, and the admin knowledge screens still write
+      Firestore, so admin edits no longer reach the bot (M08, M09).</li>
+    <li><strong>Migration progress.</strong> A unit-tested ETL library with batched and staged runs; 9
+      new Supabase migrations (24 tables). Bookings, donations, receipts and most settings still live in
+      Firestore (M11).</li>
+    <li><strong>CI, but no deploy gate.</strong> <code>ci.yml</code> (2026-10-03) runs lint, typecheck,
+      tests and build on every push and pull request, yet the deploy does not wait for it; five of the 22
+      workflows run a bot development loop in <code>.ai/</code>. 21 of 97 route files now verify a token,
+      against 5 of 95 before (M12, M15, M17).</li>
+  </ul>
+</section>
+
+<!-- ============ WHAT IT IS ============ -->
+<section id="what">
+  <h2>What it is</h2>
+  <div class="stack">
+    <p>This is the web platform of the <strong>Sri Raghavendra Swamy Matha</strong> at Rayara Matha,
+      Yelahanka (13.1005&nbsp;N, 77.5963&nbsp;E, Asia/Kolkata). It is one Next.js application serving
+      three audiences at once.</p>
+    <p><strong>Devotees</strong> are the public audience. They arrive to read about the Matha and its
+      guru parampara, check today's panchanga and the festival calendar, browse events and the photo
+      gallery, request a seva, make a donation, look up a receipt, and ask questions of
+      <strong>Raya AI</strong>, a chat assistant that answers from the temple's own facts rather than
+      from a language model's memory.</p>
+    <p><strong>Temple administrators</strong> &mdash; counter clerks, office staff, priests, trustees
+      &mdash; use an admin console at <code>/admin</code> to publish events and announcements, curate the
+      gallery, maintain the seva catalogue and the daily pooja timetable, work the booking and donation
+      queues, issue numbered seva receipts, and edit the copy the public site renders.</p>
+    <p><strong>The trust</strong> is the third, indirect audience: the receipt book, the reports screen
+      and the donation ledger exist so the institution can account for what it receives.</p>
+  </div>
+  <div class="callout">
+    <span class="dot" aria-hidden="true"></span>
+    <p>Two facts of the temple context shape the whole system. <strong>Money is manual</strong> &mdash;
+      there is no payment gateway anywhere in the repository; a devotee is shown a UPI ID, pays out of
+      band, and types a reference back into the form. And <strong>dates are lunar</strong> &mdash; the
+      Matha's nineteen Guru Aaradhanes fall on lunar tithis, so a Python job computes a full Hindu
+      almanac (panchanga) for the temple's coordinates and commits it into the repository as JSON.</p>
+  </div>
+</section>
+
+<!-- ============ FEATURE MAP ============ -->
+<section id="features">
+  <h2>Feature map</h2>
+  <div class="cards">
+
+    <div class="card">
+      <span class="tag">M02</span>
+      <h3>Public information site</h3>
+      <p>The home page is a long scroll: announcement marquee, hero, daily spiritual dashboard,
+        panchanga, map, upcoming events, recommendations, gallery preview, testimonials, social bar.
+        Its content comes from four different places &mdash; Firestore CMS documents, a Supabase table,
+        checked-in TypeScript constants, and static files on disk.</p>
+      <div class="routes">/ &middot; /about &middot; /trust &middot; /guruparampara &middot; /journey &middot; /timeline &middot; /facilities &middot; /future-plans &middot; /testimonials &middot; /volunteer &middot; /live &middot; /gallery &middot; /events &middot; /search</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M03</span>
+      <h3>Devotional content and transactions</h3>
+      <p>Where a devotee transacts: browse and book a seva, donate, look up a receipt by phone number,
+        read shlokas and stotras, walk a virtual temple tour. <code>/display</code> is a kiosk board
+        meant to run on a screen inside the temple.</p>
+      <div class="routes">/sevas &middot; /pooja &middot; /donation &middot; /receipts &middot; /aaradhane &middot; /quotes &middot; /shlokas &middot; /stotras &middot; /qr &middot; /display &middot; /temple-explorer &middot; /calendar &middot; /knowledge</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M04</span>
+      <h3>Member features</h3>
+      <p>A signed-in devotee keeps a profile (gotra, nakshatra, photo), bookmarks content, and sets
+        language, theme and notification preferences. Sign-in, registration and password reset are
+        Firebase Auth.</p>
+      <div class="routes">/profile &middot; /profile/settings &middot; /profile/preferences &middot; /favorites &middot; /notifications &middot; /login &middot; /register &middot; /forgot-password</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M05 &middot; M06 &middot; M07</span>
+      <h3>Admin console</h3>
+      <p>A sidebar shell around a dashboard, fourteen settings pages, content and media management, and
+        the devotional-operations back office. The Receipt Book is the most carefully built part of the
+        application &mdash; numbering, pricing and totals are computed on the server and the browser can
+        never supply a price.</p>
+      <div class="routes">/admin &middot; 82 sub-routes &middot; /admin/receipts</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M08 &middot; M09</span>
+      <h3>Raya AI</h3>
+      <p>A floating chat widget on every page, backed by <code>POST /api/chat</code>, plus an admin console
+        of a hub and eleven sub-pages. It classifies a question into one of 42 intents, retrieves the matching facts from
+        Supabase (AI settings and knowledge, since October 2026), Firestore or the panchanga files, and
+        formats a bilingual English/Kannada answer.</p>
+      <div class="routes">/api/chat &middot; /admin/ai &middot; /api/ai/* (24 routes)</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M14</span>
+      <h3>Calendar and panchanga</h3>
+      <p>A GitHub Actions cron runs a Python job four times a day to refresh today's almanac; a yearly
+        job regenerates the Aaradhane dates. The panchanga block also feeds the home page and the kiosk
+        display.</p>
+      <div class="routes">/calendar &middot; /calendar/ekadashi &middot; /calendar/festivals</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M07 &middot; M14</span>
+      <h3>Receipts and billing</h3>
+      <p>Receipts render as a print page and as a <code>pdf-lib</code> PDF with a UPI QR code. Billing is
+        a separate GST-style invoice module, feature-flagged off.</p>
+      <div class="routes">/admin/receipts &middot; /admin/billing &middot; /receipts</div>
+    </div>
+
+    <div class="card">
+      <span class="tag">M13</span>
+      <h3>Device features</h3>
+      <p>Share, add-to-calendar, directions, browser notifications, QR scanning and generation, plus
+        English/Kannada/Sanskrit dictionaries and accessibility primitives. The nine capability widgets
+        currently have zero consumers.</p>
+      <div class="routes">lib/device/* &middot; lib/i18n/dictionaries/* &middot; components/device/*</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p>A browser hits Vercel. Every non-static GET first passes through <code>proxy.ts</code> (Next 16's
+    rename of <code>middleware.ts</code>), which writes a <code>page_views</code> document and sets
+    headers. The request then reaches either a Server Component page &mdash; which usually delegates
+    immediately to a client subtree &mdash; or a Route Handler. From there the application talks to five
+    external systems through the service layer.</p>
+
+  <div class="figure">
+    <svg viewBox="0 0 900 590" role="img"
+         aria-label="Architecture diagram: browser to Vercel proxy, splitting into Server Components and Route Handlers, both calling the services layer, which reaches Firebase, Supabase, Vercel Blob, the LLM provider, email and WhatsApp senders, and local static files.">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="dg-head"></path>
+        </marker>
+      </defs>
+
+      <!-- browser -->
+      <rect x="300" y="14" width="300" height="60" rx="4" class="dg-box"></rect>
+      <text x="450" y="39" text-anchor="middle" class="dg-t">Browser &mdash; devotee / admin</text>
+      <text x="450" y="58" text-anchor="middle" class="dg-s">React 19 client components (310 files)</text>
+      <path d="M450 74 L450 106" class="dg-l" marker-end="url(#ah)"></path>
+      <text x="462" y="94" class="dg-m">HTTPS</text>
+
+      <!-- proxy -->
+      <rect x="270" y="108" width="360" height="56" rx="4" class="dg-box"></rect>
+      <text x="450" y="131" text-anchor="middle" class="dg-t">Vercel edge &rarr; proxy.ts</text>
+      <text x="450" y="149" text-anchor="middle" class="dg-s">page_views write &middot; security headers</text>
+
+      <!-- split -->
+      <path d="M450 164 L450 186" class="dg-l"></path>
+      <path d="M240 186 L660 186" class="dg-l"></path>
+      <path d="M240 186 L240 212" class="dg-l" marker-end="url(#ah)"></path>
+      <path d="M660 186 L660 212" class="dg-l" marker-end="url(#ah)"></path>
+
+      <rect x="90" y="214" width="300" height="74" rx="4" class="dg-box"></rect>
+      <text x="240" y="240" text-anchor="middle" class="dg-t">Server Components</text>
+      <text x="240" y="258" text-anchor="middle" class="dg-s">app/**/page.tsx &middot; 130 pages</text>
+      <text x="240" y="274" text-anchor="middle" class="dg-s">mostly pass-through to client trees</text>
+
+      <rect x="510" y="214" width="300" height="74" rx="4" class="dg-box"></rect>
+      <text x="660" y="240" text-anchor="middle" class="dg-t">Route Handlers</text>
+      <text x="660" y="258" text-anchor="middle" class="dg-s">app/api/**/route.ts &middot; 95 files</text>
+      <text x="660" y="274" text-anchor="middle" class="dg-s">88 with no identity check</text>
+
+      <path d="M240 288 L240 314 L450 314" class="dg-l"></path>
+      <path d="M660 288 L660 314 L450 314" class="dg-l"></path>
+      <path d="M450 314 L450 338" class="dg-l" marker-end="url(#ah)"></path>
+
+      <!-- services -->
+      <rect x="150" y="340" width="600" height="64" rx="4" class="dg-box"></rect>
+      <text x="450" y="366" text-anchor="middle" class="dg-t">services/*.service.ts &mdash; 54 modules</text>
+      <text x="450" y="385" text-anchor="middle" class="dg-s">the intended only door &middot; plus lib/ai/*, lib/receipt/*, lib/aaradhane/*</text>
+
+      <!-- bypass -->
+      <path d="M100 232 L60 232 L60 372 L150 372" class="dg-l-dash" marker-end="url(#ah)"></path>
+      <text x="16" y="302" class="dg-m">41 files</text>
+      <text x="16" y="316" class="dg-m">bypass</text>
+      <text x="16" y="330" class="dg-m">services/</text>
+
+      <!-- fan out -->
+      <path d="M450 404 L450 424" class="dg-l"></path>
+      <path d="M85 424 L815 424" class="dg-l"></path>
+      <path d="M85 424 L85 452" class="dg-l" marker-end="url(#ah)"></path>
+      <path d="M231 424 L231 452" class="dg-l" marker-end="url(#ah)"></path>
+      <path d="M377 424 L377 452" class="dg-l" marker-end="url(#ah)"></path>
+      <path d="M523 424 L523 452" class="dg-l" marker-end="url(#ah)"></path>
+      <path d="M669 424 L669 452" class="dg-l" marker-end="url(#ah)"></path>
+      <path d="M815 424 L815 452" class="dg-l" marker-end="url(#ah)"></path>
+
+      <rect x="16" y="454" width="138" height="110" rx="4" class="dg-box-soft"></rect>
+      <text x="85" y="478" text-anchor="middle" class="dg-t">Firebase</text>
+      <text x="85" y="498" text-anchor="middle" class="dg-s">Auth</text>
+      <text x="85" y="514" text-anchor="middle" class="dg-s">Firestore</text>
+      <text x="85" y="530" text-anchor="middle" class="dg-s">Storage</text>
+      <text x="85" y="550" text-anchor="middle" class="dg-m">system of record</text>
+
+      <rect x="162" y="454" width="138" height="110" rx="4" class="dg-box-soft"></rect>
+      <text x="231" y="478" text-anchor="middle" class="dg-t">Supabase</text>
+      <text x="231" y="498" text-anchor="middle" class="dg-s">anon client</text>
+      <text x="231" y="514" text-anchor="middle" class="dg-s">SSR client</text>
+      <text x="231" y="530" text-anchor="middle" class="dg-s">service role</text>
+      <text x="231" y="550" text-anchor="middle" class="dg-m">migration target</text>
+
+      <rect x="308" y="454" width="138" height="110" rx="4" class="dg-box-soft"></rect>
+      <text x="377" y="478" text-anchor="middle" class="dg-t">Vercel Blob</text>
+      <text x="377" y="500" text-anchor="middle" class="dg-s">images, videos,</text>
+      <text x="377" y="516" text-anchor="middle" class="dg-s">generated reports</text>
+      <text x="377" y="550" text-anchor="middle" class="dg-m">server-only token</text>
+
+      <rect x="454" y="454" width="138" height="110" rx="4" class="dg-box-soft"></rect>
+      <text x="523" y="478" text-anchor="middle" class="dg-t">LLM provider</text>
+      <text x="523" y="500" text-anchor="middle" class="dg-s">OpenAI, OpenRouter,</text>
+      <text x="523" y="516" text-anchor="middle" class="dg-s">Claude, Gemini</text>
+      <text x="523" y="550" text-anchor="middle" class="dg-m">wired, never called</text>
+
+      <rect x="600" y="454" width="138" height="110" rx="4" class="dg-box-soft"></rect>
+      <text x="669" y="478" text-anchor="middle" class="dg-t">Email &middot; WhatsApp</text>
+      <text x="669" y="500" text-anchor="middle" class="dg-s">lib/services/email.ts</text>
+      <text x="669" y="516" text-anchor="middle" class="dg-s">lib/services/whatsapp.ts</text>
+      <text x="669" y="550" text-anchor="middle" class="dg-m">zero importers</text>
+
+      <rect x="746" y="454" width="138" height="110" rx="4" class="dg-box-soft"></rect>
+      <text x="815" y="478" text-anchor="middle" class="dg-t">Local files</text>
+      <text x="815" y="500" text-anchor="middle" class="dg-s">data/panchanga/</text>
+      <text x="815" y="516" text-anchor="middle" class="dg-s">730 JSON &middot; seed/ai/</text>
+      <text x="815" y="550" text-anchor="middle" class="dg-m">committed to the repo</text>
+    </svg>
+    <p class="caption">Solid lines are the intended path. The dashed line is the leak: 41 files in
+      <code>app/</code>, <code>components/</code> and <code>hooks/</code> hold the Firebase client SDK
+      directly and never touch <code>services/</code>.</p>
+  </div>
+
+  <div class="callout">
+    <span class="dot" aria-hidden="true"></span>
+    <p>Two things cross the boundary in the wrong direction, and they explain most of the
+      &ldquo;it silently does nothing&rdquo; behaviour. The <strong>client</strong> Firebase SDK is used
+      inside server Route Handlers, so Firestore rules apply to a request with no signed-in user and the
+      read returns nothing. And <strong>server-only</strong> SDKs (<code>@vercel/blob</code>, the Supabase
+      service-role client) are imported from <code>"use client"</code> components, so uploads and Site
+      Settings saves throw in a deployed build.</p>
+  </div>
+
+  <h3>Stack</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Choice</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Framework</td><td>Next.js <strong>16.2.9</strong>, App Router</td><td>Route groups, Server Components, Route Handlers, <code>proxy.ts</code></td></tr>
+        <tr><td>Runtime</td><td>React <strong>19.2.4</strong></td><td>Server Components, <code>use()</code>, async <code>params</code></td></tr>
+        <tr><td>Language</td><td>TypeScript <strong>5.9.3</strong>, strict</td><td><code>tests/</code> and <code>scripts/</code> excluded from typecheck</td></tr>
+        <tr><td>Styling</td><td>Tailwind CSS <strong>4</strong></td><td>Tokens in <code>app/globals.css</code> as <code>@theme inline</code>, no <code>tailwind.config.js</code></td></tr>
+        <tr><td>Components</td><td>shadcn-style kit over <code>@base-ui/react</code> 1.6</td><td>Not Radix; <code>tabs.tsx</code> and <code>dropdown-menu.tsx</code> are non-functional stubs</td></tr>
+        <tr><td>Animation</td><td>Framer Motion <strong>12.42</strong></td><td>The single biggest React Native portability cost</td></tr>
+        <tr><td>Auth + primary store</td><td>Firebase <strong>12.15</strong></td><td>Client SDK used from the browser <em>and</em> from several server routes</td></tr>
+        <tr><td>Secondary store</td><td>Supabase <strong>2.116</strong></td><td>Migration target; three client factories</td></tr>
+        <tr><td>Blob storage</td><td><code>@vercel/blob</code> <strong>2.6</strong></td><td>Needs a server-only token; called from client components</td></tr>
+        <tr><td>PDFs / QR</td><td><code>pdf-lib</code> 1.17, <code>qrcode</code> 1.5</td><td>Node-only; receipt rendering is server-side</td></tr>
+        <tr><td>Deployment</td><td>Vercel</td><td>Read-only filesystem at runtime, which several handlers ignore</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:12.5px"><strong>&ldquo;Server Components first&rdquo; is the documented
+    rule and not what the code does.</strong> 16 of the 20 public page files in M02 begin with
+    <code>"use client"</code>, and the home page's Server Component does nothing but fetch two values and
+    hand them to a client tree. Treat a server component as the exception here, not the default.</p>
+</section>
+
+<!-- ============ MODULE MAP ============ -->
+<section id="modules">
+  <h2>Module map</h2>
+  <p>The codebase is divided into sixteen code modules &mdash; M01&ndash;M15, and M17 added on
+    2026-10-18 for the areas that did not exist on 2026-09-19. Each has a verified, evidence-backed brain
+    file carrying its purpose, entry points, data flow, component trees and a faults table with
+    <code>path:line</code> evidence. One more brain file, M16, owns no code: it is the
+    field-level catalogue across all of them.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>ID</th><th>Module</th><th>What it owns</th><th>Brain file</th></tr></thead>
+      <tbody>
+        <tr><td class="id">M01</td><td>Foundation and UI kit</td><td>Root layout, provider stack, design tokens, shared components, <code>lib/</code> utilities</td><td class="path">.claude/skills/temple-portal-expert/brain/M01-foundation-and-ui-kit.md</td></tr>
+        <tr><td class="id">M02</td><td>Public information pages</td><td>Home page and the twenty institutional and discovery routes</td><td class="path">.claude/skills/temple-portal-expert/brain/M02-public-information-pages.md</td></tr>
+        <tr><td class="id">M03</td><td>Public devotional and transactions</td><td>Sevas, donations, receipts, member pages, calendar, knowledge</td><td class="path">.claude/skills/temple-portal-expert/brain/M03-public-devotional-and-transactions.md</td></tr>
+        <tr><td class="id">M04</td><td>Auth, users and security</td><td>Firebase Auth, the role model, Firestore and Storage rules</td><td class="path">.claude/skills/temple-portal-expert/brain/M04-auth-users-and-security.md</td></tr>
+        <tr><td class="id">M05</td><td>Admin platform and settings</td><td>Admin shell, dashboard, CRUD framework, fourteen settings pages</td><td class="path">.claude/skills/temple-portal-expert/brain/M05-admin-platform-and-settings.md</td></tr>
+        <tr><td class="id">M06</td><td>Admin content and media</td><td>Events, gallery, announcements, quotes, testimonials, uploads</td><td class="path">.claude/skills/temple-portal-expert/brain/M06-admin-content-and-media.md</td></tr>
+        <tr><td class="id">M07</td><td>Admin devotional operations</td><td>Bookings, donations, poojas, aaradhane, billing, the Receipt Book</td><td class="path">.claude/skills/temple-portal-expert/brain/M07-admin-devotional-operations.md</td></tr>
+        <tr><td class="id">M08</td><td>Raya AI engine</td><td>Intent detection, retrieval, answer templates, the chat API</td><td class="path">.claude/skills/temple-portal-expert/brain/M08-raya-ai-engine.md</td></tr>
+        <tr><td class="id">M09</td><td>Raya AI console and knowledge workflow</td><td>Chat widget, <code>/admin/ai</code>, the editorial workflow, AI UAT</td><td class="path">.claude/skills/temple-portal-expert/brain/M09-raya-ai-console-and-knowledge-workflow.md</td></tr>
+        <tr><td class="id">M10</td><td>Services and types catalogue</td><td>54 services and 42 type files &mdash; the repository layer as built</td><td class="path">.claude/skills/temple-portal-expert/brain/M10-services-and-types-catalogue.md</td></tr>
+        <tr><td class="id">M11</td><td>Data model, persistence and migration</td><td>Firestore collections, Supabase tables, rules, indexes, seeds</td><td class="path">.claude/skills/temple-portal-expert/brain/M11-data-model-persistence-and-migration.md</td></tr>
+        <tr><td class="id">M12</td><td>API layer</td><td>97 route handlers and two server-action files &mdash; the whole HTTP surface</td><td class="path">.claude/skills/temple-portal-expert/brain/M12-api-layer.md</td></tr>
+        <tr><td class="id">M13</td><td>Device capabilities, i18n and PWA</td><td>Share, location, notifications, QR, dictionaries, accessibility</td><td class="path">.claude/skills/temple-portal-expert/brain/M13-device-capabilities-i18n-and-pwa.md</td></tr>
+        <tr><td class="id">M14</td><td>Domain engines</td><td>Panchanga, festivals, the Aaradhane generator, receipt PDFs, reports</td><td class="path">.claude/skills/temple-portal-expert/brain/M14-domain-engines-panchanga-aaradhane-receipts-reports.md</td></tr>
+        <tr><td class="id">M15</td><td>Testing, CI/CD and repo health</td><td>50 Playwright specs, 52 Jest unit files, 22 workflows, documentation health</td><td class="path">.claude/skills/temple-portal-expert/brain/M15-testing-ci-tooling-and-repo-health.md</td></tr>
+        <tr><td class="id">M16</td><td>Collection and table field catalogue</td><td>Every field of all 64 Firestore collections and 24 Supabase tables, with the writers and readers of each</td><td class="path">.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md</td></tr>
+        <tr><td class="id">M17</td><td>Mobile app, Prisma, AI loop, root reports</td><td>The Expo app in <code>apps/mobile</code>, the unused Prisma mirror, the <code>.ai/</code> bot development loop and six new root reports</td><td class="path">.claude/skills/temple-portal-expert/brain/M17-mobile-app-prisma-and-ai-loop.md</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ FLOWS ============ -->
+<section id="flows">
+  <h2>How a request flows</h2>
+
+  <h3>Rendering the home page</h3>
+  <ol class="steps">
+    <li><code>app/(public)/page.tsx</code> &mdash; Server Component, <code>revalidate = 60</code>.</li>
+    <li><code>lib/gallery.ts:21</code> <code>getTempleGalleryImages()</code> &mdash;
+      <code>readdirSync(public/images/temple)</code>, returns <code>{image,title,size}[]</code> off the
+      deployment filesystem.</li>
+    <li><code>services/daily-spiritual.service.ts</code> <code>getDashboardData()</code> &mdash; awaited
+      inside a try/catch; on failure <code>dashboardData</code> stays <code>null</code> and the dashboard
+      section renders nothing.</li>
+    <li>Both values serialise into <code>&lt;HomeClient galleryImages dashboardData&gt;</code>. From here
+      the tree is client-only.</li>
+    <li>In the browser <code>Hero</code> mounts; <code>hooks/useHomepage.ts</code> sets defaults on a
+      <code>setTimeout(0)</code> then opens an <code>onSnapshot</code> on Firestore
+      <code>homepage/config</code>. Until the snapshot arrives the hero is a full-height spinner.</li>
+    <li>Six further independent round-trips fire after hydration: announcements &rarr; Firestore;
+      panchanga &rarr; <code>fetch("/data/panchanga/current.json")</code>; events &rarr; Supabase;
+      recommendations &rarr; <code>GET /api/recommendations</code>; testimonials &rarr; Firestore;
+      social links &rarr; Supabase <code>social_links</code>.</li>
+  </ol>
+
+  <h3>A seva booking write</h3>
+  <ol class="steps">
+    <li><code>components/home/SevaBooking.tsx:127</code> <code>handleSubmitClick()</code> &mdash; requires
+      login, a seva and a date, and nothing else.</li>
+    <li><code>:146</code> <code>handleBooking()</code> &mdash; mints a client-side reference
+      <code>SVA-${Date.now().toString(36)}</code> which is <strong>never persisted</strong>.</li>
+    <li><code>services/sevaBooking.service.ts:34</code> <code>createBooking()</code> &mdash;
+      <code>addDoc</code> into Firestore <code>sevaBookings</code> with <code>status: "pending"</code>,
+      using the <strong>client</strong> SDK, from the browser.</li>
+    <li><code>SevaBooking.tsx:114</code> &mdash; the UPI payee comes from
+      <code>hooks/useFinanceSettings.ts:22</code> (a direct <code>getDoc</code>, no service), falling back
+      to a hardcoded literal. The devotee pays in their own UPI app and types the reference back.</li>
+    <li><code>:181</code> <code>handleSavePaymentReference()</code> &rarr;
+      <code>services/sevaBooking.service.ts:81</code> <code>updatePayment()</code> &mdash; sets
+      <code>paymentStatus: "completed"</code>, <code>status: "confirmed"</code>. <strong>No server
+      participates</strong>, and nothing verifies the transaction.</li>
+    <li>Read-back: <code>:55</code> queries <code>where userId ==</code> + <code>orderBy createdAt</code>,
+      for which the declared index is <code>userId + preferredDate</code> &mdash; the query throws
+      <code>FAILED_PRECONDITION</code>.</li>
+    <li>Public lookup: <code>app/api/public/receipts/route.ts:19</code> reads the newest 1000
+      <code>sevaBookings</code> with the <strong>Admin</strong> handle and substring-matches phone/email
+      &mdash; unauthenticated, returns PII.</li>
+    <li>The booking surfaces in <code>/admin/bookings</code> and <code>/admin/seva-bookings</code> for
+      manual reconciliation.</li>
+  </ol>
+
+  <h3>One Raya AI chat message</h3>
+  <ol class="steps">
+    <li><code>components/ai/AIChatProvider.tsx:156</code> &mdash; <code>POST /api/chat</code> with
+      <code>{messages, sessionId, userId, detectedLanguage}</code>.</li>
+    <li><code>app/api/chat/route.ts:80</code> &mdash; <code>checkRateLimit()</code> on
+      <code>x-forwarded-for</code>; in-memory <code>Map</code>, 20&nbsp;req/60&nbsp;s. This is the only
+      gate; the route has no auth.</li>
+    <li><code>:112,124</code> &mdash; picks the last user message, derives <code>responseLanguage</code>
+      by testing for the Kannada Unicode block.</li>
+    <li><code>:143</code> &mdash; <code>getSessionContext()</code> loads Firestore
+      <code>chat_sessions/{id}</code>; if none, <code>:158</code> mints a UUID.</li>
+    <li><code>:162</code> &rarr; <code>lib/ai/generator.ts:48</code> <code>generateResponse()</code>
+      &rarr; <code>lib/ai/intent/detector.ts:721</code> <code>detectIntent()</code> &rarr;
+      <code>IntentDetector.detect()</code> (<code>:204</code>): out-of-scope guard,
+      keyword match, a &ldquo;semantic&rdquo; pass, then <code>combineResults()</code>.
+      <em>(Updated 2026-10-18: the generator is now a 192-line orchestrator.)</em></li>
+    <li><code>lib/ai/generator.ts:57</code> reads the Supabase <code>ai_settings</code> row, then
+      <code>:127</code> <code>retrieve()</code> maps the intent to a retriever through
+      <code>lib/ai/retrieval/registry.ts</code>; temple timings now come from that settings row, not
+      Firestore. Until the 2026-09 rewrite this was one of 33 hand-written handlers.</li>
+    <li><code>lib/ai/generator.ts:148</code> &rarr; <code>lib/ai/response/composer.ts</code> formats an
+      English or Kannada template. <strong><code>usesLLM: false</code> on every path.</strong></li>
+    <li><code>:183</code> &mdash; <code>updateSession()</code> writes both messages with
+      <code>arrayUnion</code> and prunes to 20. If <code>confidence &lt; 50</code>, the question is
+      written to Supabase <code>unknown_questions</code> (Firestore before 2026-10).</li>
+    <li><code>:304-339</code> &mdash; returns <code>{message, sessionId}</code>, but the returned
+      <code>sessionId</code> is <code>resolvedSessionId || crypto.randomUUID()</code>, <strong>not</strong>
+      <code>effectiveSessionId</code>, so a first-turn client is handed an id no document uses.</li>
+  </ol>
+
+  <div class="callout">
+    <span class="dot" aria-hidden="true"></span>
+    <p>Both user journeys work in outline and break in detail. Step 5 of the seva flow lets anyone mark a
+      booking paid. In the admin event flow, <code>EventForm</code> builds Firestore
+      <code>Timestamp</code> objects and hands them to a Supabase-backed service, and the event detail
+      page calls <code>.toDate()</code> on what Supabase returns as an ISO string, so it throws for every
+      event (<code>app/(public)/events/[id]/page.tsx:63</code>).</p>
+  </div>
+</section>
+
+<!-- ============ COMPONENT TREES ============ -->
+<section id="trees">
+  <h2>Component trees</h2>
+
+  <h3>Root layout &mdash; wraps every route</h3>
+<pre><b>RootLayout (server)</b>                         app/layout.tsx:73
+└─ &lt;html lang="en" suppressHydrationWarning&gt;
+   └─ &lt;body class="{inter} {playfair} {notoSansKannada} antialiased bg-stone-50"&gt;   :80
+      └─ A11yProvider (client)              components/common/A11yProvider.tsx:16
+         ├─ SkipLink                        :79
+         ├─ LiveRegion                      :168   <i>(nothing ever dispatches "a11y-announce")</i>
+         ├─ AuthProvider (client)           context/AuthContext.tsx:54
+         │  └─ ProfileProvider (client)     context/ProfileContext.tsx:57
+         │     └─ AIChatProvider (client)   components/ai/AIChatProvider.tsx
+         │        ├─ {children}             <i>← the route's own layout + page</i>
+         │        ├─ &lt;Toaster/&gt;             app/layout.tsx:91  <i>(react-hot-toast)</i>
+         │        └─ ChatWidget (client)    components/ai/ChatWidget.tsx
+         └─ &lt;div role="status" aria-live="polite" class="sr-only"&gt;   :54  <i>← second live region</i></pre>
+  <p class="muted" style="font-size:13px">The AI widget is hard-wired into the root layout, so it loads on
+    <code>/admin</code> too.</p>
+
+  <h3>Public route group</h3>
+<pre><b>PublicLayout (server)</b>               app/(public)/layout.tsx
+├─ PageViewTracker (client)         components/analytics/PageViewTracker.tsx:30
+├─ &lt;main id="main-content" tabIndex={-1}&gt;
+│  └─ PageComponent (client, mostly)
+│     ├─ Navbar (client)            components/layout/Navbar.tsx:46   <i>← imported by the PAGE</i>
+│     ├─ …sections…
+│     └─ Footer (client)            components/layout/Footer.tsx:59   <i>← direct getDoc, no service</i>
+└─ GoUpButton (client)              components/ui/GoUpButton.tsx:8</pre>
+  <p class="muted" style="font-size:13px">The layout supplies <strong>no header and no footer</strong>.
+    28 page files plus <code>HomeClient</code> import <code>Navbar</code> and <code>Footer</code>
+    individually, so chrome changes touch 29 files and the header re-mounts on every navigation.
+    <code>app/calendar/*</code> and <code>app/knowledge/*</code> sit outside the group and get neither the
+    tracker nor the go-up button.</p>
+
+  <h3>Home page (condensed)</h3>
+<pre><b>Home (server)</b>  app/(public)/page.tsx
+├─ lib/gallery.getTempleGalleryImages()            <i>[M01]</i>
+├─ dailySpiritualService.getDashboardData()        <i>[M03]</i>
+└─ HomeClient (client)  components/home/HomeClient.tsx
+   ├─ PageTransition · Navbar                       <i>[M01]</i>
+   ├─ AnnouncementBar → AnnouncementMarquee        → announcementService → Firestore
+   ├─ Hero → useHomepage (onSnapshot homepage/config), FloatingParticles, DeepaFlame ×2 (canvas)
+   ├─ SacredDivider ×7  <i>(mandala | lotus | om | diya)</i>
+   ├─ DailySpiritualDashboard  <i>(4 widgets defined inline in the same file)</i>
+   ├─ Panchanga        → fetch /data/panchanga/current.json   <i>[M14]</i>
+   ├─ TempleMap        → &lt;iframe&gt; Google Maps, coordinates hardcoded
+   ├─ UpcomingEvents → EventGrid → eventService → Supabase events   <i>[M11]</i>
+   ├─ RecommendationsSection → /api/recommendations
+   ├─ GallerySection → GalleryPreviewClient (lightbox)
+   ├─ Testimonials   → testimonialService → Firestore  <i>(6 s autoplay carousel)</i>
+   ├─ SocialBar      → settingsService → Supabase social_links
+   └─ Footer                                         <i>[M01]</i></pre>
+
+  <h3>Admin shell</h3>
+<pre><b>AdminLayout (server)</b>                    app/admin/layout.tsx
+└─ Suspense fallback=AdminLoading
+   └─ AdminAuthGuard (client)           components/admin/layout/AdminAuthGuard.tsx
+      │  useAuth() → {user, loading, canAccessAdmin}
+      │  states: spinner | "Firebase Not Configured" | redirect /login | redirect /
+      └─ AdminShell (client)            components/admin/layout/AdminShell.tsx
+         ├─ AdminSidebar (client)       components/admin/layout/AdminSidebar.tsx
+         │    <i>navigation HARDCODED inline at :37-104</i>
+         │    <i>desktop &lt;aside&gt; uses raw &lt;a href&gt; → full page reload</i>
+         ├─ AdminHeader (client)        components/admin/layout/AdminHeader.tsx
+         │    └─ NotificationDropdown → hooks/useDonationNotifications.ts <i>(60 s poll)</i>
+         └─ &lt;main class="flex-1 p-4 …"&gt;
+            └─ {children}  +  <i>a second &lt;main id="main-content"&gt; from app/admin/layout.tsx:26</i></pre>
+  <p class="muted" style="font-size:13px">The nested <code>&lt;main&gt;</code> is a defect.
+    <code>requiredPermission</code> on the guard is decorative &mdash; every branch of its switch assigns
+    <code>hasPermission = canAccessAdmin</code>. Only <strong>four</strong> admin list pages use the
+    shared <code>CrudTable</code>; every other admin list hand-rolls a <code>&lt;table&gt;</code>.</p>
+</section>
+
+<!-- ============ DATA ============ -->
+<section id="data">
+  <h2>Data</h2>
+  <p>Firestore is the system of record for most domains; Supabase is the migration target. The full
+    collection table &mdash; 50+ collections with rule status, index status and a representative call
+    site &mdash; is in the M11 brain file. The headline grouping:</p>
+
+  <h3>Store catalogue</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Domain</th><th>Firestore collections</th><th>Supabase tables</th><th>Module</th></tr></thead>
+      <tbody>
+        <tr><td>Identity</td><td><code>users</code>, <code>profiles</code>, <code>bookmarks</code></td><td><code>users</code>, <code>profiles</code> (unread)</td><td class="id">M04</td></tr>
+        <tr><td>Sevas and bookings</td><td><code>sevas</code>, <code>receiptSevas</code>, <code>sevaBookings</code>, <code>dailyPoojas</code>, <code>poojas</code></td><td><code>sevas</code> (read), <code>seva_bookings</code>, <code>daily_poojas</code> (unread)</td><td class="id">M03 M07</td></tr>
+        <tr><td>Money</td><td><code>donations</code>, <code>donation_campaigns</code>, <code>receipts</code>, <code>bills</code>, <code>system</code> (receipt counter)</td><td><code>donations</code> (unread)</td><td class="id">M07 M14</td></tr>
+        <tr><td>Content</td><td><code>events</code>, <code>announcements</code>, <code>gallery</code>, <code>galleryAlbums</code>, <code>galleryMedia</code>, <code>testimonials</code>, <code>quotes</code>, <code>homepage</code>, <code>settings</code></td><td><code>events</code> (live), <code>site_settings</code> (live), <code>social_links</code> (read), <code>temple_areas</code> (live)</td><td class="id">M02 M06</td></tr>
+        <tr><td>Devotional</td><td><code>aaradhane</code>, <code>aaradhanes</code>, <code>guruParampara</code>, <code>timings</code></td><td><code>aaradhanes</code> (unread)</td><td class="id">M07 M14</td></tr>
+        <tr><td>People</td><td><code>members</code>, <code>volunteers</code>, <code>volunteer_requests</code></td><td><code>volunteer_requests</code> (unread)</td><td class="id">M07</td></tr>
+        <tr><td>AI</td><td><code>chat_sessions</code>, <code>messages</code>, <code>chatTraining</code>, <code>ai_settings</code>, <code>unknown_questions</code>, <code>ai_unknown_questions</code>, <code>ai_token_usage</code>, <code>ai_latency_records</code>, <code>ai_intent_distribution</code>, <code>knowledge</code> &mdash; most now legacy, still read by admin screens</td><td><code>ai_settings</code>, <code>ai_knowledge</code>, <code>unknown_questions</code>, <code>ai_latency_records</code>, <code>ai_intent_distribution</code> (live since October 2026), <code>chat_sessions</code>/<code>chat_messages</code> (written through a deny-all policy)</td><td class="id">M08 M09</td></tr>
+        <tr><td>Knowledge workflow</td><td>7 collections &mdash; <strong>no rules, no reachable UI</strong></td><td>&mdash;</td><td class="id">M09</td></tr>
+        <tr><td>Analytics</td><td><code>page_views</code>, <code>daily_page_stats</code>, <code>chat_metrics</code>, <code>intent_metrics</code>, <code>intent_feedback</code></td><td>&mdash;</td><td class="id">M15</td></tr>
+        <tr><td>Non-database</td><td><code>data/panchanga/**</code> (730 JSON), <code>data/calendar.ts</code>, <code>data/shlokas.ts</code>, <code>seed/ai/*.json</code></td><td>&mdash;</td><td class="id">M14 M11</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Migration state per domain</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Domain</th><th>State</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Sevas</td><td><strong>Split brain</strong> &mdash; reads Supabase, writes Firestore</td><td class="path">services/seva.service.ts:11 vs :76,81,86</td></tr>
+        <tr><td>Social links</td><td><strong>Split brain</strong> &mdash; admin writes Firestore <code>settings/socialLinks</code>, public reads Supabase <code>social_links</code>; nothing writes the table</td><td class="path">app/admin/settings/social-links/page.tsx:33,89 vs services/settings.service.ts:83</td></tr>
+        <tr><td>Events</td><td><strong>Dual and diverging</strong> &mdash; <code>event.service</code> uses Supabase; admin content pages and the Aaradhane generator still write Firestore <code>events</code></td><td class="path">services/event.service.ts:46 vs app/admin/content/page.tsx:89, lib/aaradhane/firestore.ts:41</td></tr>
+        <tr><td>Site settings</td><td><strong>Supabase only</strong> &mdash; written through the server action since 2026-10-13</td><td class="path">services/settings.service.ts:43, app/actions/settings.ts</td></tr>
+        <tr><td>Temple areas</td><td><strong>Supabase only</strong></td><td class="path">services/temple-areas.supabase.service.ts:6</td></tr>
+        <tr><td>AI settings (2026-10-18)</td><td><strong>Supabase for the bot</strong> since 2026-10-06</td><td class="path">lib/ai/ai-settings/repository.ts</td></tr>
+        <tr><td>AI knowledge (2026-10-18)</td><td><strong>Split brain</strong> &mdash; the bot reads Supabase <code>ai_knowledge</code>, the admin screens write Firestore <code>knowledge</code></td><td class="path">lib/ai/knowledge/repository.ts vs app/api/ai/knowledge/import/route.ts:114</td></tr>
+        <tr><td>AI analytics</td><td><strong>Supabase write / admin page reads Firestore</strong> &mdash; reversed in October 2026, and the two still never meet</td><td class="path">services/ai-analytics.service.ts vs app/admin/ai/analytics/page.tsx</td></tr>
+        <tr><td>Unknown questions</td><td><strong>Two live stores</strong> &mdash; the logger writes Supabase; the generator's low-confidence path still writes Firestore</td><td class="path">lib/ai/unknown-logger.ts, services/analytics.service.ts</td></tr>
+        <tr><td>Users, profiles, donations, gallery, testimonials, aaradhane, volunteers, seva bookings</td><td><strong>Schema plus data copy</strong> &mdash; loaded by the migrators, no web reader (the mobile app reads the gallery tables)</td><td class="path">M11</td></tr>
+        <tr><td>Quotes, receipts, bills, announcements, homepage, members</td><td><strong>Firestore only</strong></td><td class="path">services/quote.service.ts:288 etc.</td></tr>
+        <tr><td>Panchanga</td><td><strong>Static files, never in a database</strong></td><td class="path">lib/aaradhane/panchanga.ts:65</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Rules and indexes, in one paragraph each</h3>
+  <ul class="plain">
+    <li><strong>Rules.</strong> <code>firestore.rules</code> is additive, and both properties bite.
+      <code>match /settings/{docId}</code> is declared twice and the second block allows
+      <code>write: if true</code>, so every settings document is publicly overwritable;
+      <code>ai_settings</code> is world-readable <em>and</em> world-writable. Meanwhile 23 collections (25 on 19 September) the
+      code actively uses have no <code>match</code> block at all &mdash; including <code>profiles</code>,
+      <code>bookmarks</code> and all seven knowledge-workflow collections &mdash; so those reads and
+      writes are denied and the errors are swallowed into empty UI states.
+      <code>receipts</code> and <code>system</code> are correctly tight.</li>
+    <li><strong>Indexes.</strong> <code>firestore.indexes.json</code> declares 22 composite indexes.
+      Six are declared and used. <strong>Twelve queries run without the index they need</strong> and throw
+      <code>FAILED_PRECONDITION</code> &mdash; notably <code>sevaBookings</code> (declared on the wrong
+      second field), <code>announcements</code> (declared on <code>active</code> while the code says
+      <code>isActive</code>), <code>galleryMedia</code>, <code>bills</code>, and all six
+      knowledge-workflow queries.</li>
+    <li><strong>No request-time authorization.</strong> The only request-time interceptor is
+      <code>proxy.ts</code>, which writes <code>page_views</code> and sets headers and authorizes nothing;
+      the admin gate is a client-side React guard only.</li>
+  </ul>
+</section>
+
+<!-- ============ AI ============ -->
+<section id="ai">
+  <h2>Raya AI pipeline</h2>
+  <p><code>POST /api/chat</code> &rarr; rate limit &rarr; language detection &rarr; session load &rarr;
+    <code>generateResponse()</code> &rarr; <code>detectIntent()</code> &rarr; one of 33 generator handlers
+    &rarr; retrieval &rarr; a hardcoded bilingual template &rarr; session write &rarr; response.
+    <em>Updated 2026-10-18: the diagram below is the 2026-09-19 engine. Since the rewrite, steps 5&ndash;7
+    are a Supabase settings read, <code>retrieve()</code> through <code>lib/ai/retrieval/registry.ts</code>
+    and a template from <code>lib/ai/response/composer.ts</code>; knowledge comes from Supabase
+    <code>ai_knowledge</code> and step 9 writes Supabase. No LLM is called either way (M08).</em></p>
+
+<pre>  <b>POST /api/chat</b>
+       │
+       ├─ 1  rate limit          lib/rate-limit.ts · in-memory Map · 20 req / 60 s · the only gate
+       ├─ 2  language            Kannada Unicode block test → responseLanguage
+       ├─ 3  session load        Firestore chat_sessions/{id}   (or mint a UUID)
+       │
+       ▼
+  <b>generateResponse()</b>        lib/ai/generator.ts:1056
+       │
+       ├─ 4  <b>detectIntent()</b>      lib/ai/intent/detector.ts:677 → detect() :204  — four passes
+       │        ├─ out-of-scope guard                          :216
+       │        ├─ keyword match over INTENT_PATTERNS          :256
+       │        ├─ "semantic" pass  <i>(keyword overlap, not embeddings)</i>  :285
+       │        └─ combineResults()                            :476
+       │        <i>domain keywords can override outright — "temple timings" → 100 confidence</i>
+       │
+       ├─ 5  <b>dispatch</b> to one of <b>33 case Intent.* handlers</b>  <i>(42 intents — nine fall through)</i>
+       │
+       ├─ 6  <b>retrieval</b>  <i>(per-intent, not a unified index)</i>
+       │        ├─ settings.ts   → Firestore timings, settings   <i>(5-min cache, DEFAULT_SETTINGS)</i>
+       │        ├─ events.ts:65  → Firestore/Supabase events
+       │        ├─ panchanga.ts:42 → public/data/panchanga/current.json  <i>(off disk)</i>
+       │        └─ knowledge/repository.ts:81 → Firestore knowledge where approved == true
+       │                 <i>hand-rolled score: title +10, content +5, keyword +15</i>
+       │                 <i>falls back to in-code SEED_ARTICLES when empty</i>
+       │
+       └─ 7  <b>generation</b> = template filling — one bilingual template per intent
+                <b>usesLLM: false on every path</b>
+                lib/ai/provider.ts  (OpenAI · OpenRouter · Claude · Gemini)
+                     └─ complete, and unreachable: its only call site is
+                        commented out at app/api/chat/route.ts:232-286
+       │
+       ├─ 8  session write       arrayUnion, pruned to 20 messages
+       ├─ 9  confidence &lt; 50 →   Firestore unknown_questions
+       └─ 10 response            {message, sessionId}   <i>← sessionId may be an unused UUID</i></pre>
+
+  <div class="callout">
+    <span class="dot" aria-hidden="true"></span>
+    <p>Consequences worth knowing before touching it: editing the system prompt in the admin console
+      changes nothing; every analytics recorder (token usage, latency, intent distribution) has zero
+      callers, so every AI chart reads an empty collection; unknown questions are written to two stores;
+      a settings row that fails validation is overwritten with defaults (new on 2026-10-18); the
+      dress-code mix-up of 2026-09-19 is fixed; and the 275-case UAT suite asserts only that <em>an</em>
+      intent was detected, never which one.</p>
+  </div>
+</section>
+
+<!-- ============ STATE ============ -->
+<section id="state">
+  <h2>State of the platform</h2>
+  <div class="stack">
+    <p>The site renders, the admin console is navigable, and the Receipt Book genuinely works. Everything
+      else needs qualifying. The platform is <strong>mid-migration from Firestore to Supabase and stopped
+      halfway</strong>: Supabase owns events, site settings and temple areas; Firestore owns everything
+      else; and two domains &mdash; sevas and social links &mdash; are read from one store while being
+      written to the other, so an administrator's edits never reach the public page. Nine Supabase tables
+      exist with no application code reading them at all, and several of the tables the code <em>does</em>
+      read are locked to deny-all, so those reads return nothing and the services swallow the error.</p>
+    <p><strong>Authorization is the second systemic gap:</strong> the request-time interceptor <code>proxy.ts</code> authorizes
+      nothing, the admin gate is a client-side React guard, and 76 of the 97 API route files still perform
+      no identity check (88 of 95 on 19 September) &mdash; including routes that mint a super-admin
+      (latent today) or return devotee phone numbers; the AI settings routes are now guarded.</p>
+    <p><strong>A third of the code is scaffolding:</strong> the entire knowledge-approval workflow (about
+      2,000 lines) has no reachable UI, the nine device widgets have no consumers, the 825 translated
+      strings are never rendered because no i18n provider is mounted, the LLM provider abstraction is
+      fully written but its only call site is commented out, and several admin screens
+      (<code>/admin/library</code>, <code>/admin/stotras</code>, <code>/admin/calendar/*</code>) persist
+      nothing at all.</p>
+    <p><strong>Finally, the quality apparatus is thin:</strong> since 2026-10-03 CI runs lint, typecheck,
+      tests and the build, but the deploy workflow does not wait for it, lint passes partly because 35
+      files carry a blanket <code>eslint-disable</code>, the Playwright config points at a directory that
+      does not exist, and the <code>no-explicit-any</code> rule the coding standards rest on is switched
+      off for the whole source tree.</p>
+  </div>
+
+  <h3>Top risks</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Severity</th><th>Risk</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill pill-critical">Critical</span></td><td>76 of 97 API route files perform no identity check (88 of 95 on 19 September)</td><td>Includes <code>POST /api/admin/users/create-admin</code> (mints a super-admin) and <code>/set-role</code> (privilege escalation), both latent today</td></tr>
+        <tr><td><span class="pill pill-critical">Critical</span></td><td><code>settings</code> and <code>ai_settings</code> are world-writable in <code>firestore.rules</code></td><td>Every settings document, including the AI system-prompt store, is publicly overwritable</td></tr>
+        <tr><td><span class="pill pill-critical">Critical</span></td><td>Payment status is set from the browser</td><td>Anyone can mark a seva booking paid and confirmed; no server participates and nothing verifies the transaction</td></tr>
+        <tr><td><span class="pill pill-critical">Critical</span></td><td><code>GET /api/public/receipts</code> returns devotee PII, unauthenticated</td><td>Names, phone numbers and payment references for any substring match</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>No request-time authorization; the admin gate is a client-side React guard</td><td><code>proxy.ts</code> only writes <code>page_views</code> and sets headers</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>Migration stopped halfway; two domains are split-brain</td><td>Administrator edits to sevas and social links never reach the public page</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>23 used collections have no rules block; queries lack their index</td><td>Reads are denied or throw <code>FAILED_PRECONDITION</code>, and the errors are swallowed into empty UI</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>The deploy is not gated</td><td><code>ci.yml</code> runs lint, typecheck, tests and build since 2026-10-03, but the deploy does not wait for it; the Playwright config points at a non-existent directory; <code>no-explicit-any</code> is off everywhere</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>The mobile app reads the database directly (2026-10-18)</td><td>Anon-key reads of deny-all and missing Supabase tables leave every tab but Raya AI empty, built before the server-side auth and API the report required</td></tr>
+        <tr><td><span class="pill pill-high">High</span></td><td>Secrets in the repository</td><td>Firebase web config hardcoded as fallbacks; a service-account private key appears in nine <code>scripts/</code> files; the Postman collection carries a real API key</td></tr>
+        <tr><td><span class="pill pill-med">Medium</span></td><td>Roughly a third of the code is unreachable scaffolding</td><td>Knowledge workflow (~2,000 lines), nine device widgets, 825 translated strings, the whole LLM provider layer</td></tr>
+        <tr><td><span class="pill pill-med">Medium</span></td><td>Server-only SDKs called from the browser</td><td><code>@vercel/blob</code> throws in a deployed build, so uploads cannot succeed; Site Settings now saves through a server action that still rejects browser callers</td></tr>
+        <tr><td><span class="pill pill-med">Medium</span></td><td>Documentation drift</td><td><code>ARCHITECTURE.md</code>, <code>DATA-MODEL.md</code>, <code>PROJECT_STRUCTURE.md</code> and <code>RAYA_AI_ARCHITECTURE.md</code> are stale (Next.js 14, pre-Supabase); <code>CHANGELOG.md</code> and <code>DEPLOYMENT.md</code> are 0 bytes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Those are the conditions to design around, not reasons to start over: the domain modelling, the
+    receipt engine, the panchanga pipeline and the intent catalogue are real assets.</p>
+</section>
+
+<!-- ============ NEXT ============ -->
+<section id="next">
+  <h2>Where to look next</h2>
+  <div class="cards">
+    <div class="card">
+      <span class="tag">Ask it anything</span>
+      <h3>The expert skill</h3>
+      <p>Seventeen brain files &mdash; the verified, evidence-backed record of what each module actually
+        does, including a faults table per module with <code>path:line</code> evidence. Start at the
+        mind map, which routes a question to one file and one section.</p>
+      <div class="routes">.claude/skills/temple-portal-expert/MIND-MAP.md</div>
+    </div>
+    <div class="card">
+      <span class="tag">Down to the field</span>
+      <h3>The field catalogue</h3>
+      <p>M16 lists every field of all 64 Firestore collections and 24 Supabase tables with the
+        <code>path:line</code> of each writer and reader &mdash; including the fields written and never
+        read, and the nineteen collections that have no TypeScript type, where the write site
+        <em>is</em> the schema.</p>
+      <div class="routes">.claude/skills/temple-portal-expert/brain/M16-collection-field-catalogue.md</div>
+    </div>
+    <div class="card">
+      <span class="tag">For engineers</span>
+      <h3>Technical guide</h3>
+      <p>Stack, runtime topology, repository layout, request lifecycles with <code>file:line</code>,
+        component trees, the service layer, the HTTP surface, the store catalogue, build and deployment,
+        and a &ldquo;where to look&rdquo; table.</p>
+      <div class="routes">docs/overview/TECHNICAL-GUIDE.md</div>
+    </div>
+    <div class="card">
+      <span class="tag">For the product view</span>
+      <h3>Overview</h3>
+      <p>The long-form version of this brief: what the platform is, who it is for, the feature map, two
+        end-to-end journeys and the module map.</p>
+      <div class="routes">docs/overview/OVERVIEW.md</div>
+    </div>
+    <div class="card">
+      <span class="tag">For the decision</span>
+      <h3>The re-architecture reports</h3>
+      <p>The React Native portability analysis and the consolidated fault report
+        (<code>REACT-NATIVE-MIGRATION-AND-FAULTS.md</code>), the UI redesign plan
+        (<code>UI-REDESIGN-PLAN.md</code>) and its rendered specimens
+        (<code>ui-redesign-specimens.html</code>). All three written 2026-09-19.</p>
+      <div class="routes">docs/rearchitecture/</div>
+    </div>
+  </div>
+  <div class="callout">
+    <span class="dot" aria-hidden="true"></span>
+    <p>The existing <code>docs/</code> corpus is graded in the documentation-health table in the M15 brain
+      file. Link those documents, but read them against the code: <strong>where a document and the code
+      disagree, the code is the truth</strong>. <code>REPORT.md</code> at the repository root no longer
+      records the receipts-auth removal of 19 September; since late September it holds a migration-blocker
+      note. The new root reports are graded in the M17 and M15 brain files.</p>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="band">
+  <div class="footer-plate">
+    <svg class="footer-logo" viewBox="0 0 32 32" role="img" aria-label="Sri Raghavendra Swamy Matha"><use href="#matha-mark"></use></svg>
+  </div>
+  <div>
+    <div>Sri Raghavendra Swamy Matha &middot; Temple Portal application brief</div>
+    <div>19 September 2026, refreshed 18 October 2026 &middot; Self-contained; no external resources</div>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>
