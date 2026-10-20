@@ -3,8 +3,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getIntentDistribution } from "@/services/ai-analytics.service";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
   try {
     const searchParams = request.nextUrl.searchParams;
     

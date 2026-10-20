@@ -4,8 +4,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUnknownQuestions, markUnknownQuestionReviewed } from "@/services/ai-analytics.service";
 import { Intent } from "@/lib/ai/intent/types";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
   try {
     const searchParams = request.nextUrl.searchParams;
     
@@ -32,6 +35,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const guard = await requireAdminUser(request);
+  if (!guard.ok) return guard.response;
+
   try {
     const body = await request.json();
     const { questionId, reviewedBy, addedToKnowledge, knowledgeArticleId } = body;

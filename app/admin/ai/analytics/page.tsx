@@ -14,15 +14,7 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  getCountFromServer,
-  query,
-  orderBy,
-  limit,
-} from "firebase/firestore";
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 
 interface StatCardProps {
   title: string;
@@ -256,6 +248,7 @@ function HealthIndicator({
 }
 
 export default function AnalyticsPage() {
+  const adminFetch = useAdminFetch();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -289,71 +282,43 @@ export default function AnalyticsPage() {
   >({});
 
   const fetchAnalytics = useCallback(async () => {
-    if (!db || !isFirebaseConfigured()) {
-      setError("Firebase not configured");
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
+      setError(null);
 
-      // Fetch data in parallel
-      const [intentResult, latencyResult, unknownResult] =
-        await Promise.allSettled([
-          // Intent distribution
-          getDocs(
-            query(
-              collection(db, "ai_intent_distribution"),
-              orderBy("timestamp", "desc"),
-              limit(500),
-            ),
-          ),
-          // Latency records
-          getDocs(
-            query(
-              collection(db, "ai_latency_records"),
-              orderBy("timestamp", "desc"),
-              limit(100),
-            ),
-          ),
-          // Unknown questions
-          getDocs(
-            query(
-              collection(db, "unknown_questions"),
-              orderBy("timestamp", "desc"),
-              limit(10),
-            ),
-          ),
+      // Every read goes through an authenticated server route. The analytics
+      // tables are protected by deny-all RLS, so a browser (anon) Supabase client
+      // would silently return zero rows; the admin API uses the service role.
+      const [conversationsRes, intentRes, latencyRes, unknownRes] =
+        await Promise.all([
+          adminFetch("/api/ai/analytics/conversations"),
+          adminFetch("/api/ai/analytics/intent-distribution?limit=500"),
+          adminFetch("/api/ai/analytics/latency?limit=100"),
+          adminFetch("/api/ai/analytics/unknown-questions?limit=10"),
         ]);
 
-      // Process sessions
-      let total = 0;
-      let today = 0;
-      const sessionsSnapAll = await getDocs(collection(db, "chat_sessions"));
-      total = sessionsSnapAll.size;
+      const [conversations, intent, latency, unknown] = await Promise.all([
+        conversationsRes.json(),
+        intentRes.json(),
+        latencyRes.json(),
+        unknownRes.json(),
+      ]);
 
-      // Count today's conversations
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+      // A failed query must surface as an error, never as a zero metric.
+      const failed: string[] = [];
+      if (!conversationsRes.ok) failed.push("conversation counts");
+      if (!intentRes.ok) failed.push("intent distribution");
+      if (!latencyRes.ok) failed.push("latency");
+      if (!unknownRes.ok) failed.push("unknown questions");
+      if (failed.length > 0) {
+        throw new Error(`Failed to load: ${failed.join(", ")}`);
+      }
 
-      sessionsSnapAll.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.createdAt) {
-          const createdAt = data.createdAt.toDate
-            ? data.createdAt.toDate()
-            : new Date(data.createdAt);
-          if (createdAt >= todayStart) {
-            today++;
-          }
-        }
-      });
+      setTotalConversations(conversations.totalConversations || 0);
+      setTodayConversations(conversations.todayConversations || 0);
+      setDailyConversations(conversations.daily || []);
 
-      setTotalConversations(total);
-      setTodayConversations(today);
-
-      // Process intent distribution
-      const intentMap: Record<string, number> = {};
+      // Intent distribution
       const intentColors: Record<string, string> = {
         TEMPLE_TIMINGS: "#f59e0b",
         EVENTS: "#3b82f6",
@@ -366,144 +331,73 @@ export default function AnalyticsPage() {
         LOCATION: "#14b8a6",
         SPECIAL_SEVAS: "#f97316",
       };
-
-      if (intentResult.status === "fulfilled" && !intentResult.value.empty) {
-        intentResult.value.docs.forEach((doc) => {
-          const data = doc.data();
-          const intent = data.intent || "UNKNOWN";
-          intentMap[intent] = (intentMap[intent] || 0) + 1;
-        });
-      }
-
-      const intents = Object.entries(intentMap)
-        .map(([intent, count]) => ({
-          label: intent.replace(/_/g, " "),
-          value: count,
-          color: intentColors[intent] || "#6b7280",
+      const intentRows = (intent.summary?.byIntent || []) as Array<{
+        intent: string;
+        count: number;
+      }>;
+      const intents = intentRows
+        .map((row) => ({
+          label: row.intent.replace(/_/g, " "),
+          value: row.count,
+          color: intentColors[row.intent] || "#6b7280",
         }))
         .sort((a, b) => b.value - a.value);
+      setIntentDistribution(intents);
 
-      setIntentDistribution(intents.length > 0 ? intents : []);
+      // Latency
+      const latencySummary = latency.summary || {};
+      setLatencyAvg({
+        intent: Math.round(latencySummary.averageIntentDetectionTime || 0),
+        retrieval: Math.round(latencySummary.averageRetrievalTime || 0),
+        generation: Math.round(latencySummary.averageGenerationTime || 0),
+        total: Math.round(latencySummary.averageTotalLatency || 0),
+      });
 
-      // Process latency
-      let totalLatency = 0;
-      let totalIntent = 0;
-      let totalRetrieval = 0;
-      let totalGeneration = 0;
-      let latencyCount = 0;
-
-      if (latencyResult.status === "fulfilled" && !latencyResult.value.empty) {
-        latencyResult.value.docs.forEach((doc) => {
-          const data = doc.data();
-          if (data.totalLatency) {
-            totalLatency += data.totalLatency;
-            totalIntent += data.intentDetectionTime || 0;
-            totalRetrieval += data.retrievalTime || 0;
-            totalGeneration += data.generationTime || 0;
-            latencyCount++;
-          }
-        });
-
-        if (latencyCount > 0) {
-          setLatencyAvg({
-            intent: Math.round(totalIntent / latencyCount),
-            retrieval: Math.round(totalRetrieval / latencyCount),
-            generation: Math.round(totalGeneration / latencyCount),
-            total: Math.round(totalLatency / latencyCount),
-          });
-        }
-      }
-
-      // Process unknown questions
-      const unknown: Array<{
+      // Unknown questions
+      const unknownRecords = (unknown.records || []) as Array<{
         question: string;
-        confidence: string;
-        intent: string;
-        date: string;
-        status: string;
-      }> = [];
-      let unknownTotal = 0;
-
-      // Get total count
-      try {
-        const unknownCountSnap = await getCountFromServer(
-          collection(db, "unknown_questions"),
-        );
-        unknownTotal = unknownCountSnap.data().count;
-      } catch {}
-
-      if (unknownResult.status === "fulfilled") {
-        unknownResult.value.docs.forEach((doc) => {
-          const data = doc.data();
-          const timestamp = data.timestamp?.toDate
-            ? data.timestamp.toDate()
-            : new Date();
-          unknown.push({
+        confidence: number;
+        detectedIntent: string;
+        timestamp: number;
+        reviewed: boolean;
+      }>;
+      setUnknownQuestions(
+        unknownRecords.map((row) => {
+          const timestamp = row.timestamp ? new Date(row.timestamp) : new Date();
+          const question = row.question || "Unknown";
+          return {
             question:
-              (data.question || "Unknown").substring(0, 40) +
-              (data.question?.length > 40 ? "..." : ""),
-            confidence: `${data.confidence || 0}%`,
-            intent: (data.detectedIntent || "UNKNOWN").replace(/_/g, " "),
+              question.substring(0, 40) + (question.length > 40 ? "..." : ""),
+            confidence: `${row.confidence || 0}%`,
+            intent: (row.detectedIntent || "UNKNOWN").replace(/_/g, " "),
             date: timestamp.toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
             }),
-            status: data.reviewed ? "Reviewed" : "Pending",
-          });
-        });
-      }
+            status: row.reviewed ? "Reviewed" : "Pending",
+          };
+        })
+      );
+      setUnknownCount(unknown.summary?.total || 0);
 
-      setUnknownQuestions(unknown);
-      setUnknownCount(unknownTotal);
-
-      // Calculate daily conversations for the last 7 days
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const dailyData: Array<{ label: string; value: number }> = [];
-
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dayStart = new Date(date);
-        dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(date);
-        dayEnd.setHours(23, 59, 59, 999);
-
-        let dayCount = 0;
-        sessionsSnapAll.docs.forEach((doc) => {
-          const data = doc.data();
-          if (data.createdAt) {
-            const createdAt = data.createdAt.toDate
-              ? data.createdAt.toDate()
-              : new Date(data.createdAt);
-            if (createdAt >= dayStart && createdAt <= dayEnd) {
-              dayCount++;
-            }
-          }
-        });
-
-        dailyData.push({ label: days[date.getDay()], value: dayCount });
-      }
-
-      setDailyConversations(dailyData);
-
-      // Determine health status
+      // Health status
       const health: Record<string, "healthy" | "degraded" | "unhealthy"> = {
-        Firebase: "healthy",
-        "Chat Sessions": total > 0 ? "healthy" : "degraded",
+        Supabase: "healthy",
+        "Chat Sessions":
+          (conversations.totalConversations || 0) > 0 ? "healthy" : "degraded",
         "Intent Tracking": intents.length > 0 ? "healthy" : "degraded",
-        "Latency Tracking": latencyCount > 0 ? "healthy" : "degraded",
+        "Latency Tracking":
+          (latencySummary.averageTotalLatency || 0) > 0 ? "healthy" : "degraded",
         "Unknown Questions": "healthy",
       };
       setHealthStatus(health);
-
-      setError(null);
     } catch (err) {
       console.error("Failed to fetch analytics:", err);
       setError(err instanceof Error ? err.message : "Failed to load analytics");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [adminFetch]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern

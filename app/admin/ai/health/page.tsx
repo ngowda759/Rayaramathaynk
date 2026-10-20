@@ -72,7 +72,9 @@ export default function AIHealthPage() {
       try {
         const response = await adminFetch("/api/ai/health");
         const latency = Date.now() - start;
-        const classification = classifyHttpResult(response.status, undefined, latency);
+        const body = await response.json().catch(() => null);
+        const reason: string | undefined = body?.reason;
+        const classification = classifyHttpResult(response.status, reason, latency);
         if (classification.category !== "ok") {
           return {
             name: "Supabase Connection",
@@ -82,7 +84,6 @@ export default function AIHealthPage() {
             lastChecked: new Date(),
           };
         }
-        const body = await response.json().catch(() => null);
         if (body && body.database && body.database.connected === false) {
           return {
             name: "Supabase Connection",

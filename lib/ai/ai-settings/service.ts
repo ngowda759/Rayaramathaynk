@@ -23,17 +23,61 @@ import {
   DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
   DEFAULT_AI_BEHAVIOR_SETTINGS,
   DEFAULT_AI_RESPONSES,
-  DEFAULT_TEMPLE_INFORMATION,
-  DEFAULT_TEMPLE_POLICIES,
-  DEFAULT_VISITOR_INFORMATION,
 } from "@/types/ai-settings";
+
+/**
+ * Placeholders used only when the `ai_settings` row cannot be read. They carry
+ * no temple facts on purpose: a fabricated phone number or address would be
+ * served to devotees as if verified.
+ */
+const EMPTY_TEMPLE_INFORMATION: TempleInformation = {
+  timings: { morningOpen: "", morningClose: "", eveningOpen: "", eveningClose: "" },
+  contact: { phone: "", email: "", address: "" },
+  officeHours: { weekday: "", weekend: "" },
+};
+
+const EMPTY_VISITOR_INFORMATION: VisitorInformation = {
+  guidelines: "",
+  dressCode: "",
+  photographyPolicy: "",
+  parking: "",
+  facilities: "",
+  wheelchairAccess: "",
+  drinkingWater: "",
+  restrooms: "",
+  prasada: "",
+  annadanam: "",
+  accommodation: "",
+  volunteerInfo: "",
+  testimonials: "",
+  contact: "",
+};
+
+const EMPTY_TEMPLE_POLICIES: TemplePolicies = {
+  donations: "",
+  information80G: "",
+  sevaBooking: "",
+  onlineServices: "",
+  childrenPolicy: "",
+  queueGuidelines: "",
+};
 
 export class AISettingsService {
   // ==================== SETTINGS ====================
 
+  /**
+   * Read the `ai_settings` "main" row.
+   *
+   * This is a read path: it must never write. If the row is missing or the
+   * datastore is unreachable it returns a non-persisted default object and logs
+   * an explicit warning, so callers (and the health dashboard) can see that the
+   * settings are not real rather than being silently served defaults. Temple
+   * facts (phone, address, timings) are deliberately left empty on that path —
+   * inventing a contact number is worse than reporting it as unavailable.
+   */
   async getAISettings(): Promise<AISettings> {
     try {
-      // Try admin repository first (bypasses security rules)
+      // Try admin repository first (bypasses RLS / security rules)
       let settings = await aiAdminRepository.getSettings();
 
       if (!settings) {
@@ -41,36 +85,49 @@ export class AISettingsService {
         settings = await aiSettingsRepository.getSettings();
       }
 
-      if (!settings) {
-        settings = await aiAdminRepository.createDefaultSettings("system");
+      if (settings) {
+        return settings;
       }
 
-      return settings;
+      console.warn(
+        "[AI Settings] ai_settings 'main' row is missing or unreadable. Serving non-persisted defaults; temple facts are left empty. Use the AI Settings page (Initialize Data) to create the row."
+      );
+      return this.getNonPersistedDefaults();
     } catch (error) {
-      console.warn("Failed to get AI settings from Firebase, using defaults:", error);
-      // Return default settings when Firebase is not available
-      return {
-        id: "main",
-        general: DEFAULT_AI_GENERAL_SETTINGS,
-        safety: DEFAULT_AI_SAFETY_SETTINGS,
-        extendedBehavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
-        templeInformation: DEFAULT_TEMPLE_INFORMATION,
-        visitorInformation: DEFAULT_VISITOR_INFORMATION,
-        templePolicies: DEFAULT_TEMPLE_POLICIES,
-        aiResponses: DEFAULT_AI_RESPONSES,
-        aiBehavior: DEFAULT_AI_BEHAVIOR_SETTINGS,
-        prompt: {
-          currentPromptId: "",
-          versions: [],
-          defaultPrompt: "",
-        },
-        intents: {
-          intents: [],
-        },
-        updatedAt: new Date(),
-        updatedBy: "system",
-      };
+      console.warn(
+        "[AI Settings] Failed to read ai_settings. Serving non-persisted defaults; temple facts are left empty.",
+        error
+      );
+      return this.getNonPersistedDefaults();
     }
+  }
+
+  /**
+   * In-memory defaults used only when the settings row cannot be read. Never
+   * persisted and never contains temple facts.
+   */
+  private getNonPersistedDefaults(): AISettings {
+    return {
+      id: "main",
+      general: DEFAULT_AI_GENERAL_SETTINGS,
+      safety: DEFAULT_AI_SAFETY_SETTINGS,
+      extendedBehavior: DEFAULT_AI_EXTENDED_BEHAVIOR_SETTINGS,
+      templeInformation: EMPTY_TEMPLE_INFORMATION,
+      visitorInformation: EMPTY_VISITOR_INFORMATION,
+      templePolicies: EMPTY_TEMPLE_POLICIES,
+      aiResponses: DEFAULT_AI_RESPONSES,
+      aiBehavior: DEFAULT_AI_BEHAVIOR_SETTINGS,
+      prompt: {
+        currentPromptId: "",
+        versions: [],
+        defaultPrompt: "",
+      },
+      intents: {
+        intents: [],
+      },
+      updatedAt: new Date(),
+      updatedBy: "system",
+    };
   }
 
   async ensureSettingsExist(userId: string): Promise<AISettings> {

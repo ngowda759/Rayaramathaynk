@@ -80,11 +80,14 @@ export function classifyHttpResult(
   }
 
   if (httpStatus === 503 || reason === "auth_unavailable") {
+    const datastoreFailure = reason === "datastore_unavailable";
     return {
       status: "error",
       category: "server",
-      message: "Server authentication is unavailable (server credentials not configured).",
-      details: `HTTP ${httpStatus} · ${latency}`,
+      message: datastoreFailure
+        ? "The datastore is unreachable. The health probe could not read settings."
+        : "Server authentication is unavailable (server credentials not configured).",
+      details: `HTTP ${httpStatus} · ${reason ?? "service unavailable"} · ${latency}`,
     };
   }
 
