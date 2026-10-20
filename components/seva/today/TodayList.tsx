@@ -37,6 +37,7 @@ import type { CounterBootstrap, IssuedReceipt, PaymentMode, SevaAction, SevaMe }
 import type { ReceiptListItem, RefundState } from "@/types/seva-receipts";
 
 import { CancelDialog, istClock, moneyBackLine, rupees, shortDate, shortNo, type CancelCandidate, type CancelChoice } from "./CancelDialog";
+import { MarkRefundedButton } from "./MarkRefundedButton";
 import { ReprintButton } from "./ReprintButton";
 import { SpoiledDialog } from "./SpoiledDialog";
 
@@ -639,7 +640,12 @@ export function TodayList({ me, can, token, deviceHeader, db, now = realNow }: T
 
   function renderMoneyLine(row: TodayRow): JSX.Element | null {
     const line = cancelledLine(row);
-    return line ? <Bilingual as="div" en={line.en} kn={line.kn} className="text-(length:--text-meta) text-(--muted-foreground)" /> : null;
+    return line ? (
+      <>
+        <Bilingual as="div" en={line.en} kn={line.kn} className="text-(length:--text-meta) text-(--muted-foreground)" />
+        <MarkRefundedButton receipt={row} allowed={can("receipt.cancel_any")} settle={apis.receipts.settleRefund} onDone={() => void load()} />
+      </>
+    ) : null;
   }
 
   function renderCard(card: TodayRow[]): JSX.Element {

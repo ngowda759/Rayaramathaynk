@@ -549,6 +549,27 @@ export const gapResolveSchema = z.object({
   note: reasonText(3, 500),
 });
 
+/** How the office paid a due refund back (A5-FIX M-3): the bank or UPI app, a bank transfer, or cash at the office. */
+export const REFUND_MODES = ['upi', 'bank_transfer', 'cash'] as const;
+export type RefundMode = (typeof REFUND_MODES)[number];
+
+/**
+ * Mark refund-due receipts as refunded (DB §9.9, A5-FIX M-3): the mode, the bank or UPI reference (at least 4 visible
+ * characters unless cash) and a note. The SQL function seva_settle_refund checks the same rules again.
+ */
+export const refundSettleSchema = z
+  .object({
+    receiptIds: z.array(dbId).min(1).max(31),
+    mode: z.enum(REFUND_MODES),
+    reference: z.string().trim().max(60, 'Keep this to 60 characters or fewer').optional(),
+    note: reasonText(3, 500),
+  })
+  .superRefine((body, ctx) => {
+    if (body.mode !== 'cash' && visibleChars(body.reference ?? '') < 4) {
+      ctx.addIssue({ code: 'custom', path: ['reference'], message: 'Type the bank or UPI reference' });
+    }
+  });
+
 export const EXPORT_PARTS = ['receipts', 'lines', 'sevas', 'cancelled', 'dayCloses', 'prasadam', 'rateChanges'] as const;
 
 export const exportAuditSchema = z
@@ -566,6 +587,7 @@ export const exportAuditSchema = z
 // ---------------------------------------------------------------------------------------------------------------
 
 export type CancelRequest = z.infer<typeof cancelSchema>;
+export type RefundSettleRequest = z.infer<typeof refundSettleSchema>;
 export type PrasadamGiveRequest = z.infer<typeof prasadamGiveSchema>;
 export type PrasadamUndoRequest = z.infer<typeof prasadamUndoSchema>;
 export type DayCloseRequest = z.infer<typeof dayCloseSchema>;

@@ -143,6 +143,38 @@ export const GAP_DIALOG = {
 /** A gap note needs at least this many characters (the server's gapResolveSchema). */
 export const GAP_NOTE_MIN = 3;
 
+/** Marking a due refund as paid back (DB §9.9, A5-FIX M-3): the register drawer and today's receipts. */
+export const REFUND_SETTLE = {
+  open: 'Mark refunded',
+  openLabel: (receiptNo: string): string => `Mark ${receiptNo} as refunded`,
+  title: (receiptNo: string): string => `Mark ${receiptNo} as refunded`,
+  description: {
+    en: 'Record how the office paid this money back. It is kept in the audit trail and clears "Refund due".',
+    kn: 'ಕಚೇರಿ ಈ ಹಣವನ್ನು ಹೇಗೆ ಹಿಂತಿರುಗಿಸಿತು ಎಂದು ದಾಖಲಿಸಿ. ಇದು ಲೆಕ್ಕಪರಿಶೋಧನೆ ದಾಖಲೆಯಲ್ಲಿ ಉಳಿಯುತ್ತದೆ.',
+  },
+  amount: (rupees: string): string => `Amount to pay back: ${rupees}`,
+  mode: { en: 'Paid back by', kn: 'ಹಿಂತಿರುಗಿಸಿದ ವಿಧಾನ' },
+  modes: {
+    upi: { en: 'UPI', kn: 'ಯುಪಿಐ' },
+    bank_transfer: { en: 'Bank transfer', kn: 'ಬ್ಯಾಂಕ್ ವರ್ಗಾವಣೆ' },
+    cash: { en: 'Cash at the office', kn: 'ಕಚೇರಿಯಲ್ಲಿ ನಗದು' },
+  },
+  reference: { en: 'Bank or UPI reference', kn: 'ಬ್ಯಾಂಕ್ ಅಥವಾ ಯುಪಿಐ ಉಲ್ಲೇಖ' },
+  referenceOptional: { en: 'Reference (optional for cash)', kn: 'ಉಲ್ಲೇಖ (ನಗದಿಗೆ ಐಚ್ಛಿಕ)' },
+  note: { en: 'Note (at least 3 letters)', kn: 'ಟಿಪ್ಪಣಿ (ಕನಿಷ್ಠ 3 ಅಕ್ಷರ)' },
+  save: 'Mark refunded',
+  cancel: 'Cancel',
+  done: 'Refund recorded.',
+  state: {
+    due: { en: 'Refund due', kn: 'ಮರುಪಾವತಿ ಬಾಕಿ' },
+    done: { en: 'Refunded', kn: 'ಮರುಪಾವತಿಯಾಗಿದೆ' },
+  },
+} as const;
+
+/** The server's refundSettleSchema: a note of 3 visible characters, a reference of 4 unless cash. */
+export const REFUND_NOTE_MIN = 3;
+export const REFUND_REFERENCE_MIN = 4;
+
 export const REPORTS = {
   title: { en: 'Reports', kn: 'ವರದಿಗಳು' },
   tabs: [

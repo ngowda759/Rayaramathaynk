@@ -4,6 +4,7 @@
  * as SevaClientError with the server's code.
  */
 
+import type { RefundSettleRequest } from "@/lib/seva/schemas";
 import type { CancelReasonCode, IssueResponse, PaymentMode } from "@/types/seva";
 import type { DevoteeMatch, ReceiptDetail, ReceiptListItem } from "@/types/seva-receipts";
 import { sevaFetch } from "./http";
@@ -53,6 +54,10 @@ export function receiptsApi(token: () => Promise<string>, device: () => string |
     },
     async resolveGap(id: number, b: { status: "entered_from_paper" | "declared_lost"; note: string }): Promise<void> {
       await call<{ ok: true }>(`/api/seva/gaps/${encodeURIComponent(String(id))}`, { method: "POST", body: b });
+    },
+    /** Marks refund-due receipts as refunded (A5-FIX M-3); temple admins and super admins. */
+    settleRefund(b: RefundSettleRequest): Promise<{ receipts: ReceiptListItem[] }> {
+      return call("/api/seva/receipts/refund", { method: "POST", body: b });
     },
   };
 }

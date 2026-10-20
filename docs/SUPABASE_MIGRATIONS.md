@@ -104,6 +104,7 @@ changes or drops what the website already has.
 | `20261031000000_seva_paper_size.sql` | the receipt paper size columns on `seva_settings` |
 | `20261101000000_seva_paper_size_not_null.sql` | `seva_settings.paper_size` NOT NULL (a null row set to `a5` first); not yet pushed |
 | `20261102000000_seva_final_fixes.sql` | final-review fixes (A5-FIX F2): offline sync pricing, closed-day cancel, sync and close rules, Replace this PC by year, gap ownership and guards, own-counter idempotency, view-only and reissue rules in SQL, visible-length reasons; not yet pushed |
+| `20261102000100_seva_refunds_paper.sql` | refunds and the paper book (A5-FIX F4): settling a due refund; not yet pushed |
 
 **Frozen files.** Every file up to and including `20261031000000_seva_paper_size.sql` was applied to the developer's
 test project: the files up to `20261030000000_seva_lists.sql` on 2026-10-19, `20261031000000_seva_paper_size.sql` on

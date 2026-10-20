@@ -9,8 +9,10 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { Chip } from "@/components/seva/ui/Chip";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { MarkRefundedButton } from "@/components/seva/today/MarkRefundedButton";
+import type { RefundSettleRequest } from "@/lib/seva/schemas";
 import { prasadamLabel } from "@/lib/seva/strings/receipt";
-import { DRAWER, MODE_LABEL, RECEIPT_STATUS } from "@/lib/seva/strings/reports";
+import { DRAWER, MODE_LABEL, RECEIPT_STATUS, REFUND_SETTLE } from "@/lib/seva/strings/reports";
 import { formatSevaDate } from "@/lib/seva/time";
 import type { ReceiptDetail, ReceiptListItem } from "@/types/seva-receipts";
 
@@ -23,6 +25,11 @@ export interface ReceiptDrawerProps {
   today: string;
   load(id: string): Promise<ReceiptDetail>;
   onClose(): void;
+  /**
+   * Settling a due refund from the drawer (A5-FIX M-3): `allowed` is the person's `receipt.cancel_any` right;
+   * `onSettled` lets the register reload its rows. Left out, the drawer offers no refund action.
+   */
+  refunds?: { allowed: boolean; settle(body: RefundSettleRequest): Promise<unknown>; onSettled(): void };
 }
 
 type DetailState = { kind: "loading" } | { kind: "ready"; receipt: ReceiptDetail } | { kind: "error"; message: string };
@@ -43,7 +50,7 @@ function Fact({ label, children }: { label: { en: string; kn: string }; children
  * with a link to the full receipt page. A side sheet on wide screens and a bottom sheet on a phone. It springs in and
  * animates out (MotionDialog, plan A4P-3); while it leaves it still shows the receipt it had.
  */
-export function ReceiptDrawer({ row, today, load, onClose }: ReceiptDrawerProps): JSX.Element {
+export function ReceiptDrawer({ row, today, load, onClose, refunds }: ReceiptDrawerProps): JSX.Element {
   // The last row opened, kept while the drawer animates out after `row` is cleared.
   const [shown, setShown] = useState<ReceiptListItem | null>(row);
   if (row !== null && row !== shown) setShown(row);
@@ -55,13 +62,15 @@ export function ReceiptDrawer({ row, today, load, onClose }: ReceiptDrawerProps)
       showCloseButton={false}
       className="max-h-[90vh] overflow-y-auto"
     >
-      {shown ? <DrawerBody key={shown.id} row={shown} today={today} load={load} onClose={onClose} /> : null}
+      {shown ? <DrawerBody key={shown.id} row={shown} today={today} load={load} onClose={onClose} refunds={refunds} /> : null}
     </MotionDialog>
   );
 }
 
-function DrawerBody({ row, today, load, onClose }: { row: ReceiptListItem } & Omit<ReceiptDrawerProps, "row">): JSX.Element {
+function DrawerBody({ row, today, load, onClose, refunds }: { row: ReceiptListItem } & Omit<ReceiptDrawerProps, "row">): JSX.Element {
   const [state, setState] = useState<DetailState>({ kind: "loading" });
+  // Bumped after a refund is settled, so the receipt and its history are read again.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -76,7 +85,7 @@ function DrawerBody({ row, today, load, onClose }: { row: ReceiptListItem } & Om
     return () => {
       alive = false;
     };
-  }, [load, row.id]);
+  }, [load, row.id, version]);
 
   return (
     <>
@@ -99,7 +108,23 @@ function DrawerBody({ row, today, load, onClose }: { row: ReceiptListItem } & Om
           {state.message}
         </p>
       ) : null}
-      {state.kind === "ready" ? <DrawerDetails receipt={state.receipt} today={today} /> : null}
+      {state.kind === "ready" ? (
+        <DrawerDetails
+          receipt={state.receipt}
+          today={today}
+          refunds={
+            refunds
+              ? {
+                  ...refunds,
+                  onSettled: () => {
+                    setVersion((n) => n + 1);
+                    refunds.onSettled();
+                  },
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="seva-secondary" onClick={onClose}>
@@ -113,7 +138,15 @@ function DrawerBody({ row, today, load, onClose }: { row: ReceiptListItem } & Om
   );
 }
 
-function DrawerDetails({ receipt, today }: { receipt: ReceiptDetail; today: string }): JSX.Element {
+function DrawerDetails({
+  receipt,
+  today,
+  refunds,
+}: {
+  receipt: ReceiptDetail;
+  today: string;
+  refunds?: ReceiptDrawerProps["refunds"];
+}): JSX.Element {
   const prasadam = prasadamLabel(receipt.prasadam);
   return (
     <div className="flex flex-col gap-4">
@@ -158,6 +191,20 @@ function DrawerDetails({ receipt, today }: { receipt: ReceiptDetail; today: stri
           {DRAWER.cancelled.en}: {DRAWER.by(receipt.cancel.by, issuedWhen(receipt.cancel.at, today))}
           {receipt.cancel.note ? ` - "${receipt.cancel.note}"` : ""}
         </p>
+      ) : null}
+
+      {receipt.refundState === "due" || receipt.refundState === "done" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2" data-testid="drawer-refund">
+          <Chip tone={receipt.refundState === "due" ? "attention" : "ok"}>{REFUND_SETTLE.state[receipt.refundState].en}</Chip>
+          {refunds ? (
+            <MarkRefundedButton
+              receipt={{ id: receipt.id, receiptNo: receipt.receiptNo, totalPaise: receipt.totalPaise, refundState: receipt.refundState }}
+              allowed={refunds.allowed}
+              settle={refunds.settle}
+              onDone={refunds.onSettled}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <ReceiptHistory history={receipt.history} />

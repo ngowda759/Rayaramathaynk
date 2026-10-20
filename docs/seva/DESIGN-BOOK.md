@@ -79,6 +79,10 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
     belongs to the retired PC; gaps are never deleted and only shrink, `last_no` only rises.
   - §7: reasons count only visible characters (3 at least) in checks and forms; view-only staff are refused in SQL
     by every admin and office write function.
+- 2026-10-20, final-review fixes, refunds and the paper book (A5-FIX F4, `20261102000100_seva_refunds_paper.sql`):
+  - §9.9, §6.5, §7.8: a temple admin or super admin marks a refund-due receipt as refunded (`receipts/refund`,
+    `seva_settle_refund`) with the mode (UPI, bank transfer or cash), a reference (unless cash) and a note, from the
+    register drawer or today's receipts; audited `receipt.refund_done`, and the "UPI refunds due" card clears (M-3).
 - 2026-10-19, configurable paper size (A4S-7, owner card `a5`): presets A5 (default, 148 x 210 mm), A6, one-third A4,
   the 80 mm and 58 mm rolls, and custom; portrait only, one receipt per sheet. It replaces the fixed 99 x 210 mm slip
   (D11, §9.10, §10, §13.2, §21 assumptions, O-05); the Follow-ups `paper` decision is superseded.
@@ -424,6 +428,7 @@ tests/unit/seva/**, tests/db/**, tests/e2e/seva/**   (new)
 | `receipts` | GET | TA, TV, SA; R (own counter today) | Register list with filters |
 | `receipts/[receiptId]` | GET | as above | One receipt with history |
 | `receipts/cancel` | POST | R (own, window, from the registered PC), TA, SA | Cancel one or more receipts |
+| `receipts/refund` | POST | TA, SA | Mark refund-due receipts as refunded: mode, reference, note (A5-FIX M-3) |
 | `receipts/[receiptId]/reissue` | POST | R (own, window), TA, SA | Spoiled print: cancel and reissue (today's receipts only, 9.8) |
 | `devotees/search` | GET | R (from the registered PC), TA, SA | Returning-devotee matches; 60 a minute per person (per server instance) |
 | `prasadam/lookup` | GET | P, TA, SA | Find by token or number |
@@ -899,6 +904,8 @@ seva_cancel_receipts(p_receipt_ids uuid[], p_reason_code text, p_note text, p_st
                      p_at timestamptz default null, p_cancelled_by_staff_no integer default null,
                      p_canceller_role text default null) returns jsonb
   -- offline cancel: p_cancelled_by_staff_no and p_canceller_role name who cancelled on the PC, p_at when; p_staff_id syncs
+seva_settle_refund(p_receipt_ids uuid[], p_mode text, p_reference text, p_note text, p_staff_id uuid) returns jsonb
+  -- A5-FIX M-3: refund 'due' -> 'done' with mode (upi | bank_transfer | cash), reference and note; receipt.refund_done
 seva_reissue_spoiled(p_receipt_id uuid, p_staff_id uuid, p_device_id uuid, p_qr_token text) returns jsonb
   -- today's receipts of this PC's own counter only (another counter: SEVA:validation)
 seva_issue_device(p_device_id uuid, p_allow_retired boolean) returns counter_devices  -- retired only for sync, inside its gap
@@ -1175,7 +1182,7 @@ back as codes with plain messages ("Paaduka Pooja was switched off in Seva setti
   Entered twice; Spoiled print (paper jam or misprint); Other (note required). The list is a sample to confirm (C-60).
 - **Money back:** cash cancelled the same business day is handed back from the drawer ("Give back Rs 820 in cash");
   `refund_state = done`. UPI cancellations set `refund_state = due`; the office refunds from the bank app and an admin
-  marks it done with a note. A receipt from an earlier day is refunded by the office, never from today's drawer (C-20).
+  marks it done with a note ("Mark refunded" in the register drawer or today's receipts: mode, reference, note). A receipt from an earlier day is refunded by the office, never from today's drawer (C-20).
 - Offline, a receipt still in the outbox can be cancelled; the cancel travels in the outbox after the issue. An offline
   cancel is of one's own receipt only, carries the canceller's staff no. (`cancelledByStaffNo`) and the time it was
   made, and is checked at sync against that person and that time, not against whoever is signed in when it is sent

@@ -262,7 +262,13 @@ function RegisterScreen(): JSX.Element {
         </m.div>
       ) : null}
 
-      <ReceiptDrawer row={openRow} today={today} load={loadDetail} onClose={() => setOpenRow(null)} />
+      <ReceiptDrawer
+        row={openRow}
+        today={today}
+        load={loadDetail}
+        onClose={() => setOpenRow(null)}
+        refunds={{ allowed: can("receipt.cancel_any"), settle: receipts.settleRefund, onSettled: () => setReloads((n) => n + 1) }}
+      />
       <GapResolveDialog
         gap={gap}
         busy={gapBusy}
