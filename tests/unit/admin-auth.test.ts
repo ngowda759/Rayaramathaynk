@@ -213,6 +213,57 @@ describe("verifyAdminUserResult — Supabase authorization", () => {
       expect(result.user.email).toBe("admin@t.org");
     }
   });
+
+  it.each([
+    "temple_admin",
+    "admin",
+    "billing",
+    "priest",
+    "staff",
+    "office_staff",
+  ])("accepts the recognized admin-console role %s", async (role) => {
+    mockUserRow({ role, active: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.role).toBe(role);
+  });
+
+  it("normalizes spaced/cased role labels before the allowlist check", async () => {
+    mockUserRow({ role: "Office Staff", active: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.role).toBe("office_staff");
+  });
+
+  it("denies non-admin console roles by default", async () => {
+    for (const role of ["volunteer", "devotee"]) {
+      jest.clearAllMocks();
+      mockGetAdminApp.mockResolvedValue({});
+      mockGetAuth.mockReturnValue({
+        verifyIdToken: jest.fn().mockResolvedValue({ uid: "u1", email: "a@b.c" }),
+      });
+      mockCreateAdminClient.mockReturnValue({ from: mockFrom });
+      mockFrom.mockReturnValue({ select: mockSelect });
+      mockSelect.mockReturnValue({ eq: mockEq });
+      mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle });
+      mockUserRow({ role, active: true });
+      const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("insufficient_role");
+    }
+  });
+
+  it("does not expose sensitive identifiers in the rejection body", async () => {
+    mockUserRow({ role: "devotee", active: true });
+    const result = await requireAdminUser(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const body = await result.response.json();
+      // The token and the raw role must not be echoed back to the caller.
+      expect(JSON.stringify(body)).not.toContain("abc");
+      expect(JSON.stringify(body)).not.toContain("devotee");
+    }
+  });
 });
 
 describe("verifyAdminUser (backwards-compatible wrapper)", () => {

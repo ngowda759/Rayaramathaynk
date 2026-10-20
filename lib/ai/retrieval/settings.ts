@@ -32,122 +32,102 @@ function asString(value: unknown): string | undefined {
 }
 
 /**
- * Default settings as fallback
- */
-const DEFAULT_SETTINGS: TempleSettings = {
-  name: "Sri Raghavendra Swamy Matha",
-  address: "Yelahanka New Town, Bengaluru, Karnataka, India",
-  phone: "+91 80 2847 1234",
-  email: "info@sriraghavendra.org",
-  timings: {
-      morningOpen: "6:00 AM",
-      morningClose: "12:00 PM",
-      eveningOpen: "5:00 PM",
-      eveningClose: "8:30 PM",
-  },
-  contact: {
-    phone: "+91 80 2847 1234",
-    email: "info@sriraghavendra.org",
-    address: "Yelahanka New Town, Bengaluru, Karnataka, India"
-  },
-  officeHours: {
-    weekday: "9:00 AM - 5:00 PM",
-    weekend: "10:00 AM - 4:00 PM"
-  },
-  visitorInfo: {
-    guidelines: "Please maintain silence.",
-    dressCode: "Traditional wear requested.",
-    photographyPolicy: "Not allowed inside sanctum.",
-    parking: "Available outside.",
-    facilities: "Restrooms and drinking water available.",
-    wheelchairAccess: "Available.",
-    drinkingWater: "Available.",
-    restrooms: "Available.",
-    prasada: "Available after daily pooja.",
-    annadanam: "Available on special occasions.",
-    accommodation: "Not available.",
-    volunteerInfo: "Contact office.",
-    testimonials: "Available on website.",
-    contact: "+91 80 2847 1234"
-  }
-};
-
-/**
  * Fetch temple settings from the Supabase `ai_settings` row.
  *
  * `ai_settings.temple_information` is the authoritative store for temple
  * timings, contact details and office hours (the same row the AI Settings admin
  * page edits); `visitor_information` / `temple_policies` hold visitor guidance.
  * There is no Firestore fallback.
+ *
+ * Returns `null` when the `main` row is missing or the query fails. It never
+ * substitutes invented temple facts (phone numbers, addresses, timings) — a
+ * wrong phone number is worse than an honest "unavailable" response.
  */
-async function fetchFromSupabase(): Promise<TempleSettings> {
-  try {
-    const { data, error } = await getSupabase()
-      .from(AI_SETTINGS_TABLE)
-      .select("temple_information, visitor_information, temple_policies")
-      .eq("id", AI_SETTINGS_ID)
-      .maybeSingle();
+async function fetchFromSupabase(): Promise<TempleSettings | null> {
+  const { data, error } = await getSupabase()
+    .from(AI_SETTINGS_TABLE)
+    .select("temple_information, visitor_information, temple_policies")
+    .eq("id", AI_SETTINGS_ID)
+    .maybeSingle();
 
-    if (error) {
-      console.error("[Settings Retrieval] Error fetching settings:", error.message);
-      return cachedSettings || DEFAULT_SETTINGS;
-    }
-
-    const row = data as AiSettingsRow;
-    if (!row) {
-      return DEFAULT_SETTINGS;
-    }
-
-    const templeInfo = (row.temple_information || {}) as Record<string, unknown>;
-    const visitorInfo = (row.visitor_information || {}) as Record<string, unknown>;
-    const templePolicies = (row.temple_policies || {}) as Record<string, unknown>;
-    const timings = (templeInfo.timings || {}) as Record<string, unknown>;
-    const contact = (templeInfo.contact || {}) as Record<string, unknown>;
-    const officeHours = (templeInfo.officeHours || {}) as Record<string, unknown>;
-
-    return {
-      name: DEFAULT_SETTINGS.name,
-      address: asString(contact.address) || DEFAULT_SETTINGS.address,
-      phone: asString(contact.phone) || DEFAULT_SETTINGS.phone,
-      email: asString(contact.email) || DEFAULT_SETTINGS.email,
-      timings: {
-        morningOpen: asString(timings.morningOpen) || DEFAULT_SETTINGS.timings.morningOpen,
-        morningClose: asString(timings.morningClose) || DEFAULT_SETTINGS.timings.morningClose,
-        eveningOpen: asString(timings.eveningOpen) || DEFAULT_SETTINGS.timings.eveningOpen,
-        eveningClose: asString(timings.eveningClose) || DEFAULT_SETTINGS.timings.eveningClose,
-      },
-      contact: {
-        phone: asString(contact.phone) || DEFAULT_SETTINGS.contact.phone,
-        email: asString(contact.email) || DEFAULT_SETTINGS.contact.email,
-        address: asString(contact.address) || DEFAULT_SETTINGS.contact.address,
-      },
-      officeHours: {
-        weekday: asString(officeHours.weekday) || DEFAULT_SETTINGS.officeHours.weekday,
-        weekend: asString(officeHours.weekend) || DEFAULT_SETTINGS.officeHours.weekend,
-        notes: asString(officeHours.notes) || DEFAULT_SETTINGS.officeHours.notes,
-      },
-      visitorInfo: {
-        guidelines: asString(visitorInfo.guidelines) || DEFAULT_SETTINGS.visitorInfo.guidelines,
-        dressCode: asString(templePolicies.dressCode) || asString(visitorInfo.dressCode) || DEFAULT_SETTINGS.visitorInfo.dressCode,
-        photographyPolicy: asString(templePolicies.photographyPolicy) || asString(visitorInfo.photographyPolicy) || DEFAULT_SETTINGS.visitorInfo.photographyPolicy,
-        parking: asString(visitorInfo.parking) || DEFAULT_SETTINGS.visitorInfo.parking,
-        facilities: asString(visitorInfo.facilities) || DEFAULT_SETTINGS.visitorInfo.facilities,
-        wheelchairAccess: asString(visitorInfo.wheelchairAccess) || DEFAULT_SETTINGS.visitorInfo.wheelchairAccess,
-        drinkingWater: asString(visitorInfo.drinkingWater) || DEFAULT_SETTINGS.visitorInfo.drinkingWater,
-        restrooms: asString(visitorInfo.restrooms) || DEFAULT_SETTINGS.visitorInfo.restrooms,
-        prasada: asString(visitorInfo.prasada) || DEFAULT_SETTINGS.visitorInfo.prasada,
-        annadanam: asString(visitorInfo.annadanam) || DEFAULT_SETTINGS.visitorInfo.annadanam,
-        accommodation: asString(visitorInfo.accommodation) || DEFAULT_SETTINGS.visitorInfo.accommodation,
-        volunteerInfo: asString(visitorInfo.volunteerInfo) || DEFAULT_SETTINGS.visitorInfo.volunteerInfo,
-        testimonials: asString(visitorInfo.testimonials) || DEFAULT_SETTINGS.visitorInfo.testimonials,
-        contact: asString(visitorInfo.contact) || DEFAULT_SETTINGS.visitorInfo.contact,
-      },
-      googleMapsUrl: asString(contact.googleMapsUrl),
-    };
-  } catch (error) {
-    console.error("[Settings Retrieval] Error fetching settings:", error);
-    return cachedSettings || DEFAULT_SETTINGS;
+  if (error) {
+    console.error("[Settings Retrieval] Error fetching settings:", error.message);
+    return null;
   }
+
+  const row = data as AiSettingsRow;
+  if (!row) {
+    console.warn("[Settings Retrieval] No ai_settings 'main' row found.");
+    return null;
+  }
+
+  const templeInfo = (row.temple_information || {}) as Record<string, unknown>;
+  const visitorInfo = (row.visitor_information || {}) as Record<string, unknown>;
+  const templePolicies = (row.temple_policies || {}) as Record<string, unknown>;
+  const timings = (templeInfo.timings || {}) as Record<string, unknown>;
+  const contact = (templeInfo.contact || {}) as Record<string, unknown>;
+  const officeHours = (templeInfo.officeHours || {}) as Record<string, unknown>;
+
+  const name = asString(templeInfo.name);
+  const address = asString(contact.address);
+  const phone = asString(contact.phone);
+  const email = asString(contact.email);
+
+  // An `ai_settings` row with an empty `temple_information` (the table default is
+  // `'{}'`) carries no facts at all. Report it as unavailable rather than
+  // returning blank fields that the composer would render as "Phone: ".
+  const hasTempleFacts =
+    Boolean(name || address || phone || email) ||
+    Boolean(asString(timings.morningOpen) || asString(timings.eveningOpen));
+  if (!hasTempleFacts) {
+    console.warn(
+      "[Settings Retrieval] ai_settings 'main' row has empty temple_information; treating temple settings as unavailable."
+    );
+    return null;
+  }
+
+  return {
+    name: name ?? "",
+    address: address ?? "",
+    phone: phone ?? "",
+    email: email ?? "",
+    timings: {
+      morningOpen: asString(timings.morningOpen) ?? "",
+      morningClose: asString(timings.morningClose) ?? "",
+      eveningOpen: asString(timings.eveningOpen) ?? "",
+      eveningClose: asString(timings.eveningClose) ?? "",
+    },
+    contact: {
+      phone: phone ?? "",
+      email: email ?? "",
+      address: address ?? "",
+    },
+    officeHours: {
+      weekday: asString(officeHours.weekday) ?? "",
+      weekend: asString(officeHours.weekend) ?? "",
+      notes: asString(officeHours.notes) ?? "",
+    },
+    visitorInfo: {
+      guidelines: asString(visitorInfo.guidelines) ?? "",
+      dressCode: asString(templePolicies.dressCode) || asString(visitorInfo.dressCode) || "",
+      photographyPolicy:
+        asString(templePolicies.photographyPolicy) ||
+        asString(visitorInfo.photographyPolicy) ||
+        "",
+      parking: asString(visitorInfo.parking) ?? "",
+      facilities: asString(visitorInfo.facilities) ?? "",
+      wheelchairAccess: asString(visitorInfo.wheelchairAccess) ?? "",
+      drinkingWater: asString(visitorInfo.drinkingWater) ?? "",
+      restrooms: asString(visitorInfo.restrooms) ?? "",
+      prasada: asString(visitorInfo.prasada) ?? "",
+      annadanam: asString(visitorInfo.annadanam) ?? "",
+      accommodation: asString(visitorInfo.accommodation) ?? "",
+      volunteerInfo: asString(visitorInfo.volunteerInfo) ?? "",
+      testimonials: asString(visitorInfo.testimonials) ?? "",
+      contact: asString(visitorInfo.contact) ?? "",
+    },
+    googleMapsUrl: asString(contact.googleMapsUrl),
+  };
 }
 
 /**
@@ -172,10 +152,10 @@ async function fetchTimingsFromSupabase(): Promise<TempleSettings["timings"] | n
     }
 
     return {
-      morningOpen: asString(timings.morningOpen) || DEFAULT_SETTINGS.timings.morningOpen,
-      morningClose: asString(timings.morningClose) || DEFAULT_SETTINGS.timings.morningClose,
-      eveningOpen: asString(timings.eveningOpen) || DEFAULT_SETTINGS.timings.eveningOpen,
-      eveningClose: asString(timings.eveningClose) || DEFAULT_SETTINGS.timings.eveningClose,
+      morningOpen: asString(timings.morningOpen) ?? "",
+      morningClose: asString(timings.morningClose) ?? "",
+      eveningOpen: asString(timings.eveningOpen) ?? "",
+      eveningClose: asString(timings.eveningClose) ?? "",
     };
   } catch (error) {
     console.error("[Settings Retrieval] Error fetching timings:", error);
@@ -201,13 +181,20 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
   }
 
   try {
-    // Try to get timings from separate collection
+    // Override timings only when the dedicated query returned usable values.
     const timings = await fetchTimingsFromSupabase();
-    
-    // Fetch base settings
     const settings = await fetchFromSupabase();
-    
-    // Override timings if available from separate collection
+
+    if (!settings) {
+      return {
+        data: null,
+        source: RetrievalType.FALLBACK,
+        confidence: 0,
+        retrievedAt: now,
+        fromCache: false,
+      };
+    }
+
     if (timings) {
       settings.timings = timings;
     }
@@ -218,16 +205,16 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
     return {
       data: settings,
       source: RetrievalType.REPOSITORY,
-      confidence: 95, // Slightly less than 100 due to potential defaults
+      confidence: 95, // Slightly less than 100 due to potential partial data
       retrievedAt: now,
       fromCache: false,
     };
   } catch (error) {
     console.error("[Settings Retrieval] Error:", error);
     return {
-      data: cachedSettings || DEFAULT_SETTINGS,
+      data: null,
       source: RetrievalType.FALLBACK,
-      confidence: 50,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
@@ -239,9 +226,9 @@ export async function getTempleSettings(): Promise<RetrievedData<TempleSettings>
  */
 export async function getTempleTimings(): Promise<RetrievedData<TempleSettings["timings"]>> {
   const result = await getTempleSettings();
-  
+
   return {
-    data: result.data?.timings || DEFAULT_SETTINGS.timings,
+    data: result.data?.timings ?? null,
     source: result.source,
     confidence: result.confidence,
     retrievedAt: result.retrievedAt,

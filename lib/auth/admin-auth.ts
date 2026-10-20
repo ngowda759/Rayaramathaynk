@@ -39,13 +39,23 @@ export type AdminAuthResult =
   | { ok: false; reason: AdminAuthFailureReason; status: number; message: string };
 
 /**
- * Roles permitted to use the admin AI APIs.
+ * Roles permitted to use the admin console and the AI APIs guarded here.
  *
  * This is an allowlist: access is denied unless the profile's role is
  * explicitly recognized. `users.role` defaults to `user` in the schema, so a
- * denylist would wrongly grant access to any un-migrated account.
+ * denylist would wrongly grant access to any un-migrated account. The seva
+ * roles `receptionist` and `prasadam_counter` are deliberately absent: they
+ * reach only `/api/seva/*` through the seva route guard.
  */
-const ALLOWED_ROLES = new Set(["super_admin", "admin", "billing"]);
+export const ADMIN_CONSOLE_ROLES: ReadonlySet<string> = new Set([
+  "super_admin",
+  "temple_admin",
+  "admin",
+  "billing",
+  "priest",
+  "staff",
+  "office_staff",
+]);
 
 function normalizeRole(role: unknown): string {
   return String(role || "").toLowerCase().replace(/\s+/g, "_");
@@ -166,7 +176,7 @@ export async function verifyAdminUserResult(
   }
 
   const role = normalizeRole(profile.role);
-  if (!ALLOWED_ROLES.has(role)) {
+  if (!ADMIN_CONSOLE_ROLES.has(role)) {
     console.warn(`[verifyAdminUser] User ${decoded.uid} has non-admin role ${role || "(empty)"}`);
     return {
       ok: false,

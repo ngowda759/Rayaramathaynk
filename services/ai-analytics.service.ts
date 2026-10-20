@@ -3,7 +3,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Intent } from "@/lib/ai/intent/types";
+import { Intent, IntentCategory } from "@/lib/ai/intent/types";
 import type {
   TokenUsageRecord,
   LatencyRecord,
@@ -27,32 +27,76 @@ import type {
 } from "@/types/ai-analytics";
 
 /**
- * Shape of a row returned by the Supabase `ai_token_usage` table.
- * Values are untyped because the table is not represented in Prisma yet.
+ * Real Supabase table names for AI analytics.
+ *
+ * These are the tables declared in `supabase/migrations/20260930000000_create_ai_tables.sql`
+ * and mirrored by `prisma/schema.prisma`. There is deliberately no token-usage
+ * entry: no `ai_token_usage` table exists in any migration or Prisma baseline,
+ * so token analytics has no destination and must report itself as unavailable
+ * rather than querying a relation that does not exist.
  */
-type TokenUsageRow = {
-  id: string;
-  session_id: string;
-  message_id: string;
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  estimated_cost: number;
-  timestamp: string;
-  intent: Intent;
-  language: "en" | "kn" | "mixed";
-};
-
-const COLLECTIONS = {
-  TOKEN_USAGE: "ai_token_usage",
+const TABLES = {
   LATENCY_RECORDS: "ai_latency_records",
   INTENT_DISTRIBUTION: "ai_intent_distribution",
-  UNKNOWN_QUESTIONS: "ai_unknown_questions",
-  AI_SETTINGS: "ai_settings",
+  UNKNOWN_QUESTIONS: "unknown_questions",
   CHAT_SESSIONS: "chat_sessions",
   CHAT_MESSAGES: "chat_messages",
 };
+
+/**
+ * Token usage analytics is not implemented: there is no destination table.
+ *
+ * `recordTokenUsage` has no callers and no migration declares an `ai_token_usage`
+ * table, so enabling it requires a reviewed schema addition. Until then the read
+ * path returns an explicit `available: false` instead of fabricating zeros, and
+ * the write path refuses instead of silently discarding the record.
+ */
+const TOKEN_USAGE_UNAVAILABLE_MESSAGE =
+  "Token usage analytics has no destination table (ai_token_usage). " +
+  "Enable it with a reviewed migration before recording token usage.";
+
+/** Raw row shapes for the AI analytics tables, matching the SQL columns. */
+interface LatencyRow {
+  id: string;
+  session_id: string | null;
+  total_latency: number | null;
+  intent_detection_time: number | null;
+  retrieval_time: number | null;
+  generation_time: number | null;
+  timestamp: string;
+  success: boolean | null;
+  error_type: string | null;
+}
+
+interface IntentDistributionRow {
+  id: string;
+  session_id: string | null;
+  message_id: string | null;
+  intent: string;
+  category: string | null;
+  language: string | null;
+  confidence: number | null;
+  timestamp: string;
+}
+
+interface UnknownQuestionRow {
+  id: string;
+  session_id: string | null;
+  question: string;
+  detected_intent: string | null;
+  confidence: number | null;
+  language: string | null;
+  timestamp: string;
+  status: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  added_to_knowledge_article_id: string | null;
+}
+
+/** Narrow an arbitrary column value to a supported language code. */
+function toLanguage(value: unknown): "en" | "kn" | "mixed" {
+  return value === "kn" || value === "mixed" ? value : "en";
+}
 
 /**
  * Get analytics tracking preferences.
@@ -83,41 +127,23 @@ function getDefaultSettings(): AIAnalyticsSettings {
 }
 
 /**
- * Record token usage for a message
+ * Record token usage for a message.
+ *
+ * There is no `ai_token_usage` destination table, so this refuses rather than
+ * dropping the record into a nonexistent relation. Wire it up only after a
+ * reviewed migration adds the table.
  */
 export async function recordTokenUsage(
   data: Omit<TokenUsageRecord, "id" | "timestamp">
 ): Promise<string> {
+  void data;
   const settings = await getAnalyticsSettings();
   if (!settings.enabled || !settings.trackTokenUsage) {
     return "";
   }
 
-  try {
-    const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
-    const { data: insertedData, error } = await supabase
-      .from(COLLECTIONS.TOKEN_USAGE)
-      .insert([{
-        session_id: data.sessionId,
-        message_id: data.messageId,
-        model: data.model,
-        input_tokens: data.inputTokens,
-        output_tokens: data.outputTokens,
-        total_tokens: data.totalTokens,
-        estimated_cost: data.estimatedCost,
-        intent: data.intent,
-        language: data.language,
-        timestamp: new Date().toISOString(),
-      }])
-      .select("id")
-      .single();
-
-    if (error) throw error;
-    return insertedData.id;
-  } catch (error) {
-    console.error("Error recording token usage:", error);
-    throw error;
-  }
+  console.error(`[ai-analytics] recordTokenUsage called but ${TOKEN_USAGE_UNAVAILABLE_MESSAGE}`);
+  throw new Error(TOKEN_USAGE_UNAVAILABLE_MESSAGE);
 }
 
 /**
@@ -142,7 +168,7 @@ export async function recordLatency(
         generation_time: data.generationTime,
         success: data.success,
         error_type: data.errorType,
-        model: (data as any).model || null,
+        model: data.model || null,
         session_id: data.sessionId,
         timestamp: new Date().toISOString()
       }])
@@ -264,54 +290,21 @@ export async function markUnknownQuestionReviewed(
 }
 
 /**
- * Get token usage summary and records
+ * Get token usage summary and records.
+ *
+ * Returns `available: false` with an empty summary because no `ai_token_usage`
+ * table exists. Callers must not present the empty summary as a real zero.
  */
 export async function getTokenUsage(
   params: AnalyticsQueryParams = {}
 ): Promise<TokenUsageResponse> {
-  try {
-    const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
-    const { startDate, endDate, intent, limit: limitCount = 100 } = params;
-
-    let queryBuilder = supabase.from(COLLECTIONS.TOKEN_USAGE).select("*");
-
-    if (startDate) {
-      queryBuilder = queryBuilder.gte("timestamp", new Date(startDate).toISOString());
-    }
-    if (endDate) {
-      queryBuilder = queryBuilder.lte("timestamp", new Date(endDate).toISOString());
-    }
-    if (intent) {
-      queryBuilder = queryBuilder.eq("intent", intent);
-    }
-
-    queryBuilder = queryBuilder.order("timestamp", { ascending: false }).limit(limitCount);
-
-    const { data, error } = await queryBuilder;
-    if (error) {
-      console.error("Error querying Supabase ai_token_usage:", error.message);
-      throw error;
-    }
-
-    const records: TokenUsageRecord[] = (data || []).map((row: TokenUsageRow) => ({
-      id: row.id,
-      sessionId: row.session_id,
-      messageId: row.message_id,
-      model: row.model,
-      inputTokens: row.input_tokens,
-      outputTokens: row.output_tokens,
-      totalTokens: row.total_tokens,
-      estimatedCost: row.estimated_cost,
-      timestamp: new Date(row.timestamp).getTime(),
-      intent: row.intent,
-      language: row.language,
-    }));
-
-    return { summary: calculateTokenSummary(records), records };
-  } catch (error) {
-    console.error("Error fetching token usage:", error);
-    throw error;
-  }
+  void params;
+  return {
+    summary: calculateTokenSummary([]),
+    records: [],
+    available: false,
+    unavailableReason: TOKEN_USAGE_UNAVAILABLE_MESSAGE,
+  };
 }
 
 /**
@@ -342,16 +335,16 @@ export async function getLatencyMetrics(
       throw error;
     }
 
-    const records: LatencyRecord[] = (snapshot || []).map((doc: any) => ({
+    const records: LatencyRecord[] = ((snapshot || []) as LatencyRow[]).map((doc) => ({
       id: doc.id,
-      sessionId: doc.session_id,
-      totalLatency: doc.total_latency,
-      intentDetectionTime: doc.intent_detection_time,
-      retrievalTime: doc.retrieval_time,
-      generationTime: doc.generation_time,
+      sessionId: doc.session_id ?? "",
+      totalLatency: doc.total_latency ?? 0,
+      intentDetectionTime: doc.intent_detection_time ?? 0,
+      retrievalTime: doc.retrieval_time ?? 0,
+      generationTime: doc.generation_time ?? 0,
       timestamp: new Date(doc.timestamp).getTime(),
-      success: doc.success,
-      errorType: doc.error_type,
+      success: doc.success ?? true,
+      errorType: (doc.error_type ?? undefined) as LatencyRecord["errorType"],
     }));
     
     return { summary: calculateLatencySummary(records), records };
@@ -393,14 +386,14 @@ export async function getIntentDistribution(
       throw error;
     }
 
-    const records: IntentDistributionRecord[] = (snapshot || []).map((doc: any) => ({
+    const records: IntentDistributionRecord[] = ((snapshot || []) as IntentDistributionRow[]).map((doc) => ({
       id: doc.id,
-      sessionId: doc.session_id,
+      sessionId: doc.session_id ?? "",
       messageId: doc.message_id || "",
-      intent: doc.intent,
-      category: doc.category,
-      language: doc.language,
-      confidence: doc.confidence,
+      intent: doc.intent as Intent,
+      category: (doc.category ?? "") as IntentCategory,
+      language: toLanguage(doc.language),
+      confidence: doc.confidence ?? 0,
       timestamp: new Date(doc.timestamp).getTime(),
     }));
     
@@ -443,17 +436,17 @@ export async function getUnknownQuestions(
       throw error;
     }
 
-    const records: UnknownQuestionRecord[] = (snapshot || []).map((doc: any) => ({
+    const records: UnknownQuestionRecord[] = ((snapshot || []) as UnknownQuestionRow[]).map((doc) => ({
       id: doc.id,
-      sessionId: doc.session_id,
-      messageId: doc.message_id || "",
+      sessionId: doc.session_id ?? "",
+      messageId: "",
       question: doc.question,
-      detectedIntent: doc.detected_intent,
-      confidence: doc.confidence,
-      language: doc.language,
+      detectedIntent: (doc.detected_intent ?? "") as Intent,
+      confidence: doc.confidence ?? 0,
+      language: toLanguage(doc.language),
       timestamp: new Date(doc.timestamp).getTime(),
       reviewed: doc.status !== 'pending' && doc.status !== 'unassigned',
-      reviewedBy: doc.reviewed_by,
+      reviewedBy: doc.reviewed_by ?? undefined,
       reviewedAt: doc.reviewed_at ? new Date(doc.reviewed_at).getTime() : undefined,
       addedToKnowledge: !!doc.added_to_knowledge_article_id,
     }));
@@ -525,22 +518,33 @@ export async function checkAIHealth(): Promise<HealthCheckResponse> {
         apiLatency: avgLatency || 0,
         errorRate: errorRate || 0,
         uptime: 100,
-        issues: [],
+        issues,
       },
       timestamp: Date.now(),
     };
     
     return response;
   } catch (error) {
+    // A failed health probe is an outage, not a zero. Report it as an explicit
+    // issue rather than fabricating a 100% error rate / healthy zero, so the
+    // dashboard never renders a query failure as a normal metric.
     console.error("Error checking AI health:", error);
     return {
       status: {
         status: "unhealthy",
         lastChecked: Date.now(),
         apiLatency: 0,
-        errorRate: 100,
+        errorRate: 0,
         uptime: 0,
-        issues: [],
+        issues: [
+          {
+            type: "retrieval_error",
+            message:
+              "Health metrics could not be read from the datastore. Values are unavailable, not zero.",
+            startedAt: Date.now(),
+            frequency: 1,
+          },
+        ],
       },
       timestamp: Date.now(),
     };
@@ -567,31 +571,26 @@ export async function getAnalyticsDashboard(
       checkAIHealth(),
     ]);
     
-    // Conversation/message counts from Supabase (read-only, best-effort).
-    let totalConversations = 0;
-    let totalMessages = 0;
+    // Conversation/message counts from Supabase. A query failure must surface as
+    // an error (the route returns 500) rather than a dashboard that silently
+    // reports zero conversations.
+    const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
 
-    try {
-      const supabase = typeof window === "undefined" ? createAdminClient() : createClient();
+    const { count: sessionsCount, error: sessionsError } = await supabase
+      .from(TABLES.CHAT_SESSIONS)
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", new Date(start).toISOString())
+      .lte("created_at", new Date(end).toISOString());
+    if (sessionsError) throw sessionsError;
+    const totalConversations = sessionsCount || 0;
 
-      const { count: sessionsCount, error: sessionsError } = await supabase
-        .from(COLLECTIONS.CHAT_SESSIONS)
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", new Date(start).toISOString())
-        .lte("created_at", new Date(end).toISOString());
-      if (sessionsError) throw sessionsError;
-      totalConversations = sessionsCount || 0;
-
-      const { count: messagesCount, error: messagesError } = await supabase
-        .from(COLLECTIONS.CHAT_MESSAGES)
-        .select("id", { count: "exact", head: true })
-        .gte("timestamp", new Date(start).toISOString())
-        .lte("timestamp", new Date(end).toISOString());
-      if (messagesError) throw messagesError;
-      totalMessages = messagesCount || 0;
-    } catch (error) {
-      console.warn("Could not get conversation counts:", error);
-    }
+    const { count: messagesCount, error: messagesError } = await supabase
+      .from(TABLES.CHAT_MESSAGES)
+      .select("id", { count: "exact", head: true })
+      .gte("timestamp", new Date(start).toISOString())
+      .lte("timestamp", new Date(end).toISOString());
+    if (messagesError) throw messagesError;
+    const totalMessages = messagesCount || 0;
 
     const dashboard: AIAnalyticsDashboard = {
       overview: {
@@ -607,6 +606,8 @@ export async function getAnalyticsDashboard(
         period: { start, end },
       },
       tokenUsage: tokenResponse.summary,
+      tokenUsageAvailable: tokenResponse.available,
+      tokenUsageUnavailableReason: tokenResponse.unavailableReason,
       latency: latencyResponse.summary,
       intentDistribution: intentResponse.summary,
       unknownQuestions: unknownResponse.summary,
@@ -777,7 +778,7 @@ function calculateIntentSummary(records: IntentDistributionRecord[]): IntentDist
   
   const categoryDistribution = Object.entries(byCategory)
     .map(([category, count]) => ({
-      category: category as any,
+      category: category as IntentCategory,
       count,
       percentage: total > 0 ? (count / total) * 100 : 0,
     }))

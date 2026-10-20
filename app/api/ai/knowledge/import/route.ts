@@ -82,7 +82,20 @@ export async function POST(request: NextRequest) {
   if (!guard.ok) return guard.response;
 
   try {
-    const { overwrite = false } = await request.json().catch(() => ({ overwrite: false }));
+    // The knowledge importer is additive only. A client-supplied `overwrite`
+    // flag is ignored on purpose: replacing an existing article would discard
+    // its content and its approval/review state. An authorized overwrite path
+    // (audited, explicitly requested) is a separate feature and is not enabled
+    // here.
+    const body = await request.json().catch(() => ({}));
+    if (body && typeof body === "object" && "overwrite" in body) {
+      const requested = (body as { overwrite?: unknown }).overwrite;
+      if (requested === true) {
+        console.warn(
+          "[ai/knowledge/import] Ignoring overwrite=true: overwrite is not authorized on this endpoint."
+        );
+      }
+    }
 
     const seedDir = path.join(process.cwd(), "seed", "ai");
 
@@ -95,27 +108,24 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Get existing approved articles from ai_knowledge, keyed by category.
-    const existingArticles = new Map<string, string>();
-    if (!overwrite) {
-      const { data, error } = await supabase
-        .from("ai_knowledge")
-        .select("id, slug, category")
-        .eq("approved", true);
+    // Deduplicate by slug, the column the database enforces as UNIQUE, and
+    // consider EVERY existing row (approved or not). Keying on category alone
+    // would let a seed file replace a same-slug article that is pending review.
+    const existingSlugs = new Set<string>();
+    const { data: existing, error: existingError } = await supabase
+      .from("ai_knowledge")
+      .select("id, slug");
 
-      if (error) {
-        console.error("Error reading existing knowledge:", error.message);
-        return NextResponse.json(
-          { success: false, error: "Failed to read existing knowledge" },
-          { status: 500 }
-        );
-      }
+    if (existingError) {
+      console.error("Error reading existing knowledge:", existingError.message);
+      return NextResponse.json(
+        { success: false, error: "Failed to read existing knowledge" },
+        { status: 500 }
+      );
+    }
 
-      for (const row of data || []) {
-        if (row.category) {
-          existingArticles.set(row.category, row.slug || row.id);
-        }
-      }
+    for (const row of existing || []) {
+      if (row.slug) existingSlugs.add(row.slug);
     }
 
     // Get seed files
@@ -139,37 +149,40 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Skip if exists and not overwriting
-        if (existingArticles.has(article.category)) {
-          results.push({ file, status: "skipped", message: "Already exists" });
-          skipped++;
-          continue;
-        }
-
         const slug =
           typeof article.slug === "string" && article.slug
             ? article.slug
             : slugify(article.title || article.category);
 
-        const { error } = await supabase.from("ai_knowledge").upsert(
-          {
-            slug,
-            title: article.title || article.category,
-            category: article.category,
-            language: typeof article.language === "string" ? article.language : "en",
-            keywords: Array.isArray(article.keywords) ? article.keywords : [article.category],
-            content: buildContent(article),
-            approved: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "slug" }
-        );
+        // Skip when the slug already exists. Because this runs BEFORE any write,
+        // an existing article is never replaced and its approval/review state
+        // and content are preserved.
+        if (existingSlugs.has(slug)) {
+          results.push({ file, status: "skipped", message: "Already exists" });
+          skipped++;
+          continue;
+        }
+
+        // Plain insert (no upsert): if a row with this slug appeared after our
+        // read, the UNIQUE constraint rejects the insert instead of overwriting.
+        const { error } = await supabase.from("ai_knowledge").insert({
+          slug,
+          title: article.title || article.category,
+          category: article.category,
+          language: typeof article.language === "string" ? article.language : "en",
+          keywords: Array.isArray(article.keywords) ? article.keywords : [article.category],
+          content: buildContent(article),
+          approved: true,
+          updated_at: new Date().toISOString(),
+        });
 
         if (error) {
           results.push({ file, status: "error", message: error.message });
           errors++;
           continue;
         }
+
+        existingSlugs.add(slug);
 
         results.push({ file, status: "imported", message: article.title });
         imported++;

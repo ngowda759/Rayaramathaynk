@@ -12,14 +12,11 @@ import {
   Intent,
 } from "@/lib/ai";
 
-// Import conversation session service
+// Import conversation session service (Supabase-only)
 import {
   generateSessionId,
-  getSession,
-  createSession,
   updateSession,
   getSessionContext,
-  clearSession,
 } from "@/services/conversation.service";
 
 // Import UX service
