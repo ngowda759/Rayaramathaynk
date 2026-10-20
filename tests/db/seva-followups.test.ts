@@ -299,3 +299,51 @@ describe('5: supersedesClientOrderId end to end (H-3)', () => {
     expect(await count(c.db, `action = 'receipt.superseded'`)).toBe(2);
   });
 });
+
+/** Test set-up only: moves a receipt back in time (the receipt guard forbids it, so triggers are off for the update). */
+async function backdate(c: Ctx, receiptId: string, minutes: number, businessDate?: string): Promise<void> {
+  await c.db.exec('SET session_replication_role = replica');
+  try {
+    await c.db.query(
+      `update seva_receipts set issued_at = issued_at - make_interval(mins => $2::int),
+                                business_date = coalesce($3::date, business_date)
+        where id = $1`,
+      [receiptId, minutes, businessDate ?? null],
+    );
+  } finally {
+    await c.db.exec('RESET session_replication_role');
+  }
+}
+
+describe('2: unprinted_online card', () => {
+  it('lists online receipts of today with no print record after 10 minutes', async () => {
+    const c = await setup();
+    expect(await card(c, 'unprinted_online')).toMatchObject({ level: 'ok', count: 0 });
+
+    const unprinted = await issueOnline(c, randomUUID(), c.staffId, [0, 1]);
+    const printed = await issueOnline(c);
+    const fresh = await issueOnline(c);
+    const cancelled = await issueOnline(c);
+    const yesterday = await issueOnline(c);
+    for (const r of [...unprinted.receipts, ...printed.receipts, ...cancelled.receipts]) await backdate(c, r.id, 11);
+    await backdate(c, yesterday.receipts[0].id, 11, addDays(c.today, -1));
+    await prints(c, [printed.receipts[0].id]);
+    await call<unknown>(
+      c,
+      `select seva_cancel_receipts($1::uuid[], 'wrong_seva', null, $2::uuid, true, null, null, null, $3::uuid) as r`,
+      [`{${cancelled.receipts[0].id}}`, c.adminId, c.deviceId],
+    );
+    // An offline receipt is printed on the PC before it is sent; it never counts here.
+    await sync(c, offlineOrder(c, { issuedAt: new Date(Date.now() - 20 * 60_000).toISOString(), running: [1] }));
+
+    const got = await card(c, 'unprinted_online');
+    expect(got).toMatchObject({ level: 'attention', count: 2 });
+    expect(got.detail.receipts).toBe(unprinted.receipts.map((r) => r.receipt_no).join(', '));
+    expect(got.detail.oldest_at).toEqual(expect.any(String));
+    expect(fresh.receipts).toHaveLength(1);
+
+    // Printing them clears the card.
+    await prints(c, unprinted.receipts.map((r) => r.id));
+    expect(await card(c, 'unprinted_online')).toMatchObject({ level: 'ok', count: 0 });
+  });
+});

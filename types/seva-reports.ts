@@ -60,7 +60,9 @@ export type NeedsAttentionId =
   /** The counter's UPI payee changed in the finance settings (A3 security gate H-1). */
   | 'upi_changed'
   /** Offline receipts that reached the office after their counter-day was closed (A5-FIX M-2). */
-  | 'synced_into_closed_day';
+  | 'synced_into_closed_day'
+  /** Online (C series) receipts of today with no print record 10 minutes after saving (A5-FIX F5, from H-3). */
+  | 'unprinted_online';
 
 /** One offline cancel on the `offline_cancels` card, newest first. */
 export interface OfflineCancelEntry {

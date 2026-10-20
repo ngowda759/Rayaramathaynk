@@ -199,6 +199,17 @@ function words(card: NeedsAttentionCard): { title: string; line: string; href: s
         href: DAY_CLOSES,
       };
     }
+    case "unprinted_online": {
+      const receipts = text(d, "receipts");
+      return {
+        title: plural(n, "online receipt not printed", "online receipts not printed"),
+        line:
+          n > 0
+            ? `${receipts ?? "Some receipts"}: no print 10 minutes after saving. Ask the counter whether the slip came out; reprint or cancel it from Today's receipts`
+            : "Every online receipt of today was printed",
+        href: REGISTER,
+      };
+    }
     default: {
       const unknown: never = card.id;
       return { title: String(unknown), line: "", href: null };

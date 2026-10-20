@@ -388,6 +388,7 @@ const NEEDS_ATTENTION_IDS: ReadonlySet<string> = new Set<NeedsAttentionId>([
   "offline_cancels",
   "upi_changed",
   "synced_into_closed_day",
+  "unprinted_online",
 ]);
 
 /** One entry of the offline_cancels card; the times pass through as the SQL wrote them. */

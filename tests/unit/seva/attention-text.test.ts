@@ -70,6 +70,13 @@ describe("attentionText", () => {
         line: /tem\*\*\*@sbi -> mat\*\*\*@sbi on Fri 16 Oct 2026/,
         href: "/seva/settings/counters",
       },
+      {
+        card: card("unprinted_online", 2, { receipts: "C1-023-10-2026/000124, C1-023-10-2026/000125", oldest_at: "2026-10-20T04:30:00Z" }),
+        title: "2 online receipts not printed",
+        line: /C1-023-10-2026\/000124, C1-023-10-2026\/000125: no print 10 minutes after saving.*reprint or cancel/,
+        href: "/seva/register",
+      },
+      { card: card("unprinted_online", 0), title: "0 online receipts not printed", line: /Every online receipt of today was printed/, href: "/seva/register" },
     ];
 
     for (const c of cases) {
