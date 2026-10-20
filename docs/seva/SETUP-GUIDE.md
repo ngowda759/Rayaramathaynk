@@ -959,8 +959,8 @@ account, set the role to **Super Admin** and click **Save**. Then run the script
 **Everyone else, including you,** is added afterwards on the **Staff and roles** page with **Onboard staff**. An email
 that already has a website account (yours, another website admin's, a devotee's) can be added too: Onboard staff
 shows its current role and offers **Link this account**. The person keeps their password and gets no email. The
-account's email must be verified (the person clicked the link in the email the website sent when they registered);
-an unverified account is refused.
+account's email must be verified; an unverified account is refused, and the person can send themselves the
+verification email again from `/seva` (**Send verification email**).
 
 What you need: your copy of the repository (how-to above), the new key file from B3 saved in it as
 `.firebase-adminsdk.json`, about 15 minutes.

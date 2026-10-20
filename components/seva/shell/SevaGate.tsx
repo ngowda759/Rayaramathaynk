@@ -5,9 +5,11 @@ import type { JSX, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { useSevaMe } from "@/hooks/seva/useSevaMe";
+import { useAuth } from "@/hooks/useAuth";
 import { SHELL } from "@/lib/seva/strings/shell";
 import { businessDate } from "@/lib/seva/time";
 import type { SevaAction } from "@/types/seva";
+import { VerifyEmailNotice } from "./VerifyEmailNotice";
 
 export interface SevaGateProps {
   /** The action the page exists for, e.g. 'counter.issue' for the counter or 'reports.view' for Reports. */
@@ -45,16 +47,24 @@ export function SevaGate({ action, children }: SevaGateProps): JSX.Element {
   }
 
   const pageScope = { receiptCounterId: me?.counter?.id, receiptBusinessDate: businessDate(new Date()) };
-  if (!me || !can(action, pageScope)) {
-    return (
-      <div className="mx-auto flex min-h-[40vh] max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
-        <Bilingual as="h1" en={SHELL.noAccess.en} kn={SHELL.noAccess.kn} className="font-semibold text-(--foreground)" />
-        <Bilingual as="div" en={SHELL.noAccessHint.en} kn={SHELL.noAccessHint.kn} className="text-(--muted-foreground)" />
-      </div>
-    );
-  }
+  if (!me || !can(action, pageScope)) return <NoAccess />;
 
   return <>{children}</>;
+}
+
+/**
+ * The bilingual "no access" screen. A signed-in person whose email is not verified also gets the way to verify it,
+ * since only a verified website account can be added as staff (VerifyEmailNotice).
+ */
+function NoAccess(): JSX.Element {
+  const { user } = useAuth();
+  return (
+    <div className="mx-auto flex min-h-[40vh] max-w-md flex-col items-center justify-center gap-3 p-6 text-center">
+      <Bilingual as="h1" en={SHELL.noAccess.en} kn={SHELL.noAccess.kn} className="font-semibold text-(--foreground)" />
+      <Bilingual as="div" en={SHELL.noAccessHint.en} kn={SHELL.noAccessHint.kn} className="text-(--muted-foreground)" />
+      {user && user.emailVerified === false ? <VerifyEmailNotice user={user} /> : null}
+    </div>
+  );
 }
 
 export default SevaGate;

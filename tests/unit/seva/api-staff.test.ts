@@ -509,8 +509,9 @@ describe("POST /api/seva/staff (an email that already has a website account)", (
     for (const body of [impostor, { ...impostor, linkExisting: true }]) {
       const refused = await errorOf(await POST(post(body)));
       expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email", reason: "unverified_account" } });
-      expect(String(refused.detail?.message)).toMatch(/verification email/);
-      expect(String(refused.detail?.message)).toMatch(/register again or contact the site owner/);
+      expect(String(refused.detail?.message)).toBe(
+        "This person's email is not verified. Ask them to sign in at the website, open /seva and click Send verification email, then click the link in that email. Then try again.",
+      );
     }
     expect(identityWrites()).toBe(0);
     expect(mockCalls).toEqual(["rpc.seva_next_staff_no", "rpc.seva_next_staff_no"]);

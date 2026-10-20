@@ -235,7 +235,7 @@ describe("Staff and roles", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("not verified");
-    expect(alert).toHaveTextContent("register again or contact the site owner");
+    expect(alert).toHaveTextContent("open /seva and click Send verification email");
     expect(screen.queryByRole("button", { name: "Link this account" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Send invite" }));

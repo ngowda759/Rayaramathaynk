@@ -131,13 +131,12 @@ export const STAFF_TEXT = {
     kn: 'ಈ ಖಾತೆ ಈಗ ನಿಷ್ಕ್ರಿಯವಾಗಿದೆ; ಜೋಡಿಸಿದರೆ ಅದು ಸಕ್ರಿಯವಾಗುತ್ತದೆ.',
   } as Bi,
   /**
-   * Anyone can register a login for any email, so only a verified one is linked. The website sends the verification
-   * email once, at registration (lib/auth.ts registerUser); it has no button to send it again (resendVerification in
-   * lib/auth.ts is not called by any page).
+   * Anyone can register a login for any email, so only a verified one is linked. The person sends themselves the
+   * verification email again from the /seva no-access screen (components/seva/shell/VerifyEmailNotice.tsx).
    */
   linkUnverified: {
-    en: 'This email has a website account, but the email is not verified, so it cannot be linked. Ask the person to open the verification email the website sent when they registered and click its link, then try again. The website has no button to send that email again: if it is lost, ask them to register again or contact the site owner.',
-    kn: 'ಈ ಇಮೇಲ್‌ಗೆ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ ಇದೆ, ಆದರೆ ಇಮೇಲ್ ಇನ್ನೂ ದೃಢೀಕರಿಸಲಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ ಜೋಡಿಸಲು ಆಗುವುದಿಲ್ಲ. ನೋಂದಣಿ ಮಾಡಿದಾಗ ವೆಬ್‌ಸೈಟ್ ಕಳುಹಿಸಿದ ದೃಢೀಕರಣ ಇಮೇಲ್ ತೆರೆದು ಅದರ ಲಿಂಕ್ ಒತ್ತಲು ಅವರಿಗೆ ಹೇಳಿ, ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ. ಆ ಇಮೇಲ್ ಸಿಗದಿದ್ದರೆ, ಮತ್ತೆ ನೋಂದಣಿ ಮಾಡಲು ಹೇಳಿ ಅಥವಾ ಸೈಟ್ ಮಾಲೀಕರನ್ನು ಸಂಪರ್ಕಿಸಿ.',
+    en: "This person's email is not verified. Ask them to sign in at the website, open /seva and click Send verification email, then click the link in that email. Then try again.",
+    kn: 'ಈ ವ್ಯಕ್ತಿಯ ಇಮೇಲ್ ದೃಢೀಕರಿಸಲಾಗಿಲ್ಲ. ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ಸೈನ್ ಇನ್ ಮಾಡಿ, /seva ತೆರೆದು "Send verification email" ಒತ್ತಲು ಅವರಿಗೆ ಹೇಳಿ, ನಂತರ ಆ ಇಮೇಲ್‌ನ ಲಿಂಕ್ ಒತ್ತಲು ಹೇಳಿ. ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
   } as Bi,
   linkDisabled: {
     en: 'This email has a website account, but its sign-in is switched off, so it cannot be linked. Ask the site owner to switch it on first (Firebase console, Authentication, Users), or use a different email.',
