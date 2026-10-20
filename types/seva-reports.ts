@@ -62,7 +62,9 @@ export type NeedsAttentionId =
   /** Offline receipts that reached the office after their counter-day was closed (A5-FIX M-2). */
   | 'synced_into_closed_day'
   /** Online (C series) receipts of today with no print record 10 minutes after saving (A5-FIX F5, from H-3). */
-  | 'unprinted_online';
+  | 'unprinted_online'
+  /** Outbox items the office refused that are not yet set aside on their counter PC (A5-FIX F5-1, from M-5). */
+  | 'sync_refused';
 
 /** One offline cancel on the `offline_cancels` card, newest first. */
 export interface OfflineCancelEntry {

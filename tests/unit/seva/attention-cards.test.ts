@@ -27,4 +27,21 @@ describe("fromSqlAttention (F5 cards)", () => {
       detail: { receipts: "C1-023-10-2026/000124, C1-023-10-2026/000125", oldest_at: "2026-10-20T10:00:00+05:30" },
     });
   });
+
+  it("reads sync_refused, its amount in paise", () => {
+    const [card] = fromSqlAttention([
+      {
+        id: "sync_refused",
+        level: "critical",
+        count: 1,
+        detail: { receipts: "OF1-023-10-2026/000004", amount: "105.00", oldest_at: "2026-10-20T10:00:00+05:30" },
+      },
+    ]);
+    expect(card).toEqual({
+      id: "sync_refused",
+      level: "critical",
+      count: 1,
+      detail: { receipts: "OF1-023-10-2026/000004", amountPaise: 10_500, oldest_at: "2026-10-20T10:00:00+05:30" },
+    });
+  });
 });

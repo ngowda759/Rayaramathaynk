@@ -403,3 +403,112 @@ describe('synced_into_closed_day counts paper-book entries into a closed day', (
     });
   });
 });
+
+describe('1: office-refused outbox items are reported and listed until set aside', () => {
+  function refusal(seq: number, over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      seq,
+      kind: 'order',
+      code: 'validation',
+      receipt_nos: [`OF1-023-10-2026/${pad(seq, 6)}`],
+      total: '105.00',
+      refused_at: new Date().toISOString(),
+      ...over,
+    };
+  }
+
+  function note(c: Ctx, item: Record<string, unknown>, staffId: string = c.staffId, deviceId: string = c.deviceId): Promise<{ duplicate: boolean }> {
+    return call(c, 'select seva_note_sync_refused($1::uuid, $2::jsonb, $3::uuid) as r', [deviceId, JSON.stringify(item), staffId]);
+  }
+
+  function setAside(c: Ctx, item: Record<string, unknown>, staffId: string = c.adminId): Promise<{ duplicate: boolean }> {
+    return call(c, 'select seva_note_refused_set_aside($1::uuid, $2::jsonb, $3::uuid) as r', [c.deviceId, JSON.stringify(item), staffId]);
+  }
+
+  it('writes one sync.refused row per item with the receipt numbers, the code and the PC; a repeat is a duplicate', async () => {
+    const c = await setup();
+    expect(await card(c, 'sync_refused')).toMatchObject({ level: 'ok', count: 0 });
+
+    await expect(note(c, refusal(4, { receipt_nos: ['OF1-023-10-2026/000004', 'OF1-023-10-2026/000005'], total: '210.00' }))).resolves.toEqual({
+      duplicate: false,
+    });
+    await expect(note(c, refusal(4))).resolves.toEqual({ duplicate: true });
+    await note(c, refusal(9, { kind: 'cancel', code: 'cancel_window_passed', total: '105.00' }));
+
+    const rows = await c.db.query<{ entity: string; entity_id: string; receipt_no: string; reason: string; actor_staff_id: string; after: Record<string, unknown> }>(
+      `select entity, entity_id, receipt_no, reason, actor_staff_id, after from audit_log where action = 'sync.refused' order by id`,
+    );
+    expect(rows.rows).toHaveLength(2);
+    expect(rows.rows[0]).toMatchObject({
+      entity: 'outbox_item',
+      entity_id: `${c.deviceId}:4`,
+      receipt_no: 'OF1-023-10-2026/000004',
+      reason: 'validation',
+      actor_staff_id: c.staffId,
+      after: {
+        device_id: c.deviceId,
+        device_label: 'Test PC',
+        counter_id: 1,
+        seq: 4,
+        kind: 'order',
+        code: 'validation',
+        receipt_nos: ['OF1-023-10-2026/000004', 'OF1-023-10-2026/000005'],
+        total: '210.00',
+      },
+    });
+
+    expect(await card(c, 'sync_refused')).toMatchObject({
+      level: 'critical',
+      count: 2,
+      detail: { receipts: 'OF1-023-10-2026/000004, OF1-023-10-2026/000005, OF1-023-10-2026/000009', amount: '315.00' },
+    });
+  });
+
+  it('a set-aside on the PC is recorded with its reason and takes the item off the card', async () => {
+    const c = await setup();
+    await note(c, refusal(4));
+    await note(c, refusal(5));
+
+    expect(await failure(setAside(c, { ...refusal(4), reason: '  ', set_aside_at: new Date().toISOString() }))).toMatchObject({
+      code: 'validation',
+      detail: { field: 'reason' },
+    });
+    await expect(setAside(c, { ...refusal(4), reason: 'Entered in the paper book p.14', set_aside_at: new Date().toISOString() })).resolves.toEqual({
+      duplicate: false,
+    });
+    await expect(setAside(c, { ...refusal(4), reason: 'Entered in the paper book p.14', set_aside_at: new Date().toISOString() })).resolves.toEqual({
+      duplicate: true,
+    });
+    const row = await c.db.query<{ entity_id: string; reason: string; actor_staff_id: string; after: Record<string, unknown> }>(
+      `select entity_id, reason, actor_staff_id, after from audit_log where action = 'sync.refused_set_aside'`,
+    );
+    expect(row.rows).toEqual([
+      expect.objectContaining({
+        entity_id: `${c.deviceId}:4`,
+        reason: 'Entered in the paper book p.14',
+        actor_staff_id: c.adminId,
+        after: expect.objectContaining({ seq: 4, code: 'validation', receipt_nos: ['OF1-023-10-2026/000004'] }),
+      }),
+    ]);
+    expect(await card(c, 'sync_refused')).toMatchObject({ count: 1, detail: { receipts: 'OF1-023-10-2026/000005' } });
+
+    // A set-aside whose refusal never reached the office records the refusal first, so nothing goes unseen.
+    await setAside(c, { ...refusal(7), reason: 'Entered in the paper book p.15', set_aside_at: new Date().toISOString() });
+    expect(await count(c.db, `action = 'sync.refused' and entity_id = '${c.deviceId}:7'`)).toBe(1);
+    expect(await card(c, 'sync_refused')).toMatchObject({ count: 1 });
+  });
+
+  it('refuses a view-only staff id, a bad item and an unknown PC', async () => {
+    const c = await setup();
+    await setViewOnly(c, c.staffId, true);
+    expect(await failure(note(c, refusal(1)))).toMatchObject({ code: 'forbidden', detail: { reason: 'view_only' } });
+    expect(await failure(note(c, refusal(1, { seq: 0 }), c.adminId))).toMatchObject({ code: 'validation', detail: { field: 'seq' } });
+    expect(await failure(note(c, refusal(1, { kind: 'payment' }), c.adminId))).toMatchObject({ code: 'validation', detail: { field: 'kind' } });
+    expect(await failure(note(c, refusal(1, { code: 'Not A Code!' }), c.adminId))).toMatchObject({ code: 'validation', detail: { field: 'code' } });
+    expect(await failure(note(c, refusal(1, { receipt_nos: 'x' }), c.adminId))).toMatchObject({ code: 'validation', detail: { field: 'receipt_nos' } });
+    expect(await failure(note(c, refusal(1), c.adminId, randomUUID()))).toMatchObject({ code: 'device_unknown' });
+    expect(await failure(setAside(c, { ...refusal(1), reason: 'Paper book', set_aside_at: new Date().toISOString() }, c.staffId))).toMatchObject({
+      code: 'forbidden',
+    });
+  });
+});

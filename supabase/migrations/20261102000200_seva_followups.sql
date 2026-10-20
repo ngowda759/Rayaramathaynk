@@ -344,9 +344,172 @@ BEGIN
                                            'detail', jsonb_strip_nulls(jsonb_build_object(
                                              'receipts', v_text, 'oldest_at', v_at)));
 
+  -- sync_refused (F5-1, from M-5): outbox items a counter PC reported as refused by the office (sync.refused) that
+  -- have not been set aside on that PC since (no sync.refused_set_aside of the same item), whatever period the
+  -- dashboard shows. Printed slips that are not in the register: critical. receipts names up to 50 of their numbers,
+  -- amount is their total, oldest_at the first refusal.
+  SELECT count(*)::int, coalesce(sum((a.after ->> 'total')::numeric), 0), min(a.at)
+    INTO v_n, v_num, v_at
+    FROM audit_log a
+   WHERE a.action = 'sync.refused'
+     AND NOT EXISTS (SELECT 1 FROM audit_log s
+                      WHERE s.action = 'sync.refused_set_aside' AND s.entity = 'outbox_item' AND s.entity_id = a.entity_id);
+  SELECT string_agg(x.no, ', ' ORDER BY x.id, x.ord) FILTER (WHERE x.rn <= 50) INTO v_text
+    FROM (
+      SELECT a.id, n.no, n.ord, row_number() OVER (ORDER BY a.id, n.ord) AS rn
+        FROM audit_log a
+        CROSS JOIN LATERAL jsonb_array_elements_text(a.after -> 'receipt_nos') WITH ORDINALITY AS n(no, ord)
+       WHERE a.action = 'sync.refused'
+         AND NOT EXISTS (SELECT 1 FROM audit_log s
+                          WHERE s.action = 'sync.refused_set_aside' AND s.entity = 'outbox_item' AND s.entity_id = a.entity_id)
+    ) x;
+  v_cards := v_cards || jsonb_build_object('id', 'sync_refused',
+                                           'level', CASE WHEN v_n > 0 THEN 'critical' ELSE 'ok' END,
+                                           'count', v_n,
+                                           'detail', jsonb_strip_nulls(jsonb_build_object(
+                                             'receipts', v_text, 'amount', v_num::numeric(12,2)::text,
+                                             'oldest_at', v_at)));
+
   RETURN v_cards;
 END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION seva_needs_attention(timestamptz, timestamptz, date) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION seva_needs_attention(timestamptz, timestamptz, date) TO service_role;
+
+-- =====================================================================================================
+-- F5-1. Office-refused outbox items are reported to the office, and so is their set-aside
+-- =====================================================================================================
+
+-- The outbox item a counter PC reports, checked and put in audit form:
+--   { seq: int > 0 (the PC's outbox number), kind: 'order' | 'cancel', code: the office's refusal code,
+--     receipt_nos: [text, up to 100 (none for a cancel whose receipts this PC no longer holds), each 1-40 characters], total: rupees >= 0, refused_at?: timestamptz }
+-- The PC is p_device: its id, label and counter go into the audit row. SEVA:validation names the field.
+CREATE OR REPLACE FUNCTION seva_refused_item_json(p_item jsonb, p_device counter_devices)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_seq bigint;
+  v_total numeric;
+BEGIN
+  IF p_item IS NULL OR jsonb_typeof(p_item) <> 'object' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'item')::text;
+  END IF;
+  IF jsonb_typeof(p_item -> 'seq') IS DISTINCT FROM 'number' OR (p_item ->> 'seq') !~ '^[0-9]{1,15}$' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'seq')::text;
+  END IF;
+  v_seq := (p_item ->> 'seq')::bigint;
+  IF v_seq < 1 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'seq')::text;
+  END IF;
+  IF (p_item ->> 'kind') IS NULL OR (p_item ->> 'kind') NOT IN ('order', 'cancel') THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'kind')::text;
+  END IF;
+  IF (p_item ->> 'code') IS NULL OR (p_item ->> 'code') !~ '^[a-z_]{1,64}$' THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'code')::text;
+  END IF;
+  IF jsonb_typeof(p_item -> 'receipt_nos') IS DISTINCT FROM 'array'
+     OR jsonb_array_length(p_item -> 'receipt_nos') > 100
+     OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_item -> 'receipt_nos') AS e(v)
+                 WHERE jsonb_typeof(e.v) <> 'string' OR char_length(e.v #>> '{}') NOT BETWEEN 1 AND 40) THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'receipt_nos')::text;
+  END IF;
+  v_total := seva_issue_arg_money(p_item ->> 'total', 'total');
+  IF v_total IS NULL OR v_total < 0 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'total')::text;
+  END IF;
+  RETURN jsonb_strip_nulls(jsonb_build_object(
+    'device_id', p_device.id, 'device_label', p_device.label, 'counter_id', p_device.counter_id,
+    'seq', v_seq, 'kind', p_item ->> 'kind', 'code', p_item ->> 'code', 'receipt_nos', p_item -> 'receipt_nos',
+    'total', v_total::numeric(12,2)::text,
+    'refused_at', seva_issue_arg_ts(p_item ->> 'refused_at', 'refused_at')));
+END;
+$$;
+
+-- Writes the sync.refused audit row for an outbox item the office refused (entity outbox_item, entity id
+-- '<device id>:<seq>', the first receipt number, the code as the reason), once: a repeat answers duplicate true and
+-- writes nothing. Called by the counter's POST counter/refused for the signed-in person (seva_issue_staff: active,
+-- not view-only) from the PC that holds the item (a retired one too: its late uploads can be refused).
+CREATE OR REPLACE FUNCTION seva_note_sync_refused(p_device_id uuid, p_item jsonb, p_staff_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_staff staff%ROWTYPE;
+  v_device counter_devices%ROWTYPE;
+  v_after jsonb;
+  v_key text;
+BEGIN
+  v_staff := seva_issue_staff(p_staff_id);
+  v_device := seva_issue_device(p_device_id, true);
+  v_after := seva_refused_item_json(p_item, v_device);
+  v_key := v_device.id::text || ':' || (v_after ->> 'seq');
+  PERFORM pg_advisory_xact_lock(hashtextextended('seva_outbox_item:' || v_key, 0));
+  IF EXISTS (SELECT 1 FROM audit_log a
+              WHERE a.action = 'sync.refused' AND a.entity = 'outbox_item' AND a.entity_id = v_key) THEN
+    RETURN jsonb_build_object('duplicate', true);
+  END IF;
+  PERFORM seva_audit('sync.refused', 'outbox_item', v_key, v_after -> 'receipt_nos' ->> 0, v_after ->> 'code',
+                     NULL, v_after, v_staff.id);
+  RETURN jsonb_build_object('duplicate', false);
+END;
+$$;
+
+-- Writes the sync.refused_set_aside audit row when a temple admin set a refused item aside on the PC (after its
+-- paper entry), with the reason (3-500 visible characters, else SEVA:validation field reason) and when it was done
+-- (set_aside_at), once per item. The route checks the admin's permission (gap.resolve); SQL refuses an inactive or
+-- view-only staff id (seva_ops_require_staff). When the item's refusal never reached the office, its sync.refused
+-- row is written first, so the office sees every refused slip.
+CREATE OR REPLACE FUNCTION seva_note_refused_set_aside(p_device_id uuid, p_item jsonb, p_staff_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_device counter_devices%ROWTYPE;
+  v_after jsonb;
+  v_key text;
+  v_reason text;
+BEGIN
+  PERFORM seva_ops_require_staff(p_staff_id);
+  v_device := seva_issue_device(p_device_id, true);
+  v_after := seva_refused_item_json(p_item, v_device);
+  v_reason := btrim(coalesce(p_item ->> 'reason', ''));
+  IF seva_visible_length(v_reason) < 3 OR char_length(v_reason) > 500 THEN
+    RAISE EXCEPTION 'SEVA:validation' USING DETAIL = jsonb_build_object('field', 'reason')::text;
+  END IF;
+  v_key := v_device.id::text || ':' || (v_after ->> 'seq');
+  PERFORM pg_advisory_xact_lock(hashtextextended('seva_outbox_item:' || v_key, 0));
+  IF EXISTS (SELECT 1 FROM audit_log a
+              WHERE a.action = 'sync.refused_set_aside' AND a.entity = 'outbox_item' AND a.entity_id = v_key) THEN
+    RETURN jsonb_build_object('duplicate', true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM audit_log a
+                  WHERE a.action = 'sync.refused' AND a.entity = 'outbox_item' AND a.entity_id = v_key) THEN
+    PERFORM seva_audit('sync.refused', 'outbox_item', v_key, v_after -> 'receipt_nos' ->> 0, v_after ->> 'code',
+                       NULL, v_after, p_staff_id);
+  END IF;
+  PERFORM seva_audit('sync.refused_set_aside', 'outbox_item', v_key, v_after -> 'receipt_nos' ->> 0, v_reason,
+                     NULL,
+                     v_after || jsonb_strip_nulls(jsonb_build_object(
+                       'set_aside_at', seva_issue_arg_ts(p_item ->> 'set_aside_at', 'set_aside_at'))),
+                     p_staff_id);
+  RETURN jsonb_build_object('duplicate', false);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION seva_refused_item_json(jsonb, counter_devices) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_refused_item_json(jsonb, counter_devices) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_note_sync_refused(uuid, jsonb, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_note_sync_refused(uuid, jsonb, uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION seva_note_refused_set_aside(uuid, jsonb, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION seva_note_refused_set_aside(uuid, jsonb, uuid) TO service_role;

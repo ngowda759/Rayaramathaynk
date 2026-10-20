@@ -19,6 +19,8 @@ import { SevaError, type SevaErrorCode } from "@/lib/seva/errors";
 import { fromPaise, toPaise } from "@/lib/seva/money";
 import { DEFAULT_PAPER_SIZE, isPaperSize } from "@/lib/seva/print/paper";
 import type { HeartbeatAnswer } from "@/lib/seva/offline/heartbeat";
+import type { RefusalReport, SetAsideReport } from "@/lib/seva/offline/refused";
+import { reasonText } from "@/lib/seva/schemas";
 import { can, mapFirestoreRole, SEVA_ACTIONS, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
 import { businessDate, istParts } from "@/lib/seva/time";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -74,6 +76,30 @@ export const heartbeatRequestSchema = z.object({
   clockSkewMs: z.number().int().min(-2_147_483_648).max(2_147_483_647),
   appVersion: z.string().trim().max(40),
 });
+
+/** One office-refused outbox item as the PC reports it (lib/seva/offline/refused.ts, A5-FIX F5-1). */
+const refusalReportFields = {
+  seq: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  kind: z.enum(["order", "cancel"]),
+  code: z.string().regex(/^[a-z_]{1,64}$/),
+  /** None for a cancel whose receipts this PC no longer holds. */
+  receiptNos: z.array(z.string().trim().min(1).max(40)).max(100),
+  totalPaise: z.number().int().min(0).max(99_999_999_999),
+  refusedAt: z.iso.datetime({ offset: true }).optional(),
+};
+
+/** `counter/refused`: the items the office refused, as the PC recorded them. */
+export const refusedReportSchema = z.object({
+  items: z.array(z.object(refusalReportFields)).min(1).max(200),
+}) satisfies z.ZodType<{ items: RefusalReport[] }>;
+
+/** `counter/refused/set-aside`: the refused items a temple admin set aside on the PC, with the reason and when. */
+export const setAsideReportSchema = z.object({
+  items: z
+    .array(z.object({ ...refusalReportFields, reason: reasonText(3, 500), setAsideAt: z.iso.datetime({ offset: true }) }))
+    .min(1)
+    .max(200),
+}) satisfies z.ZodType<{ items: SetAsideReport[] }>;
 
 // =====================================================================================================================
 // Reading SQL and table answers (anything unexpected is SevaError('internal'))
@@ -702,4 +728,65 @@ export async function syncOutbox(
     }
   }
   return { results, failure: null };
+}
+
+// =====================================================================================================================
+// Office-refused outbox items (A5-FIX F5-1)
+// =====================================================================================================================
+
+function sqlRefusal(r: RefusalReport): Json {
+  return {
+    seq: r.seq,
+    kind: r.kind,
+    code: r.code,
+    receipt_nos: r.receiptNos,
+    total: fromPaise(r.totalPaise),
+    ...(r.refusedAt ? { refused_at: r.refusedAt } : {}),
+  };
+}
+
+function duplicateOf(answer: unknown): boolean {
+  return bool(obj(answer).duplicate);
+}
+
+/**
+ * POST counter/refused: one `sync.refused` audit row per item (seva_note_sync_refused), written once - a repeat answers
+ * duplicate. The signed-in person and the PC are the guard's.
+ */
+export async function noteRefused(
+  actor: SevaActor,
+  device: VerifiedDevice,
+  items: RefusalReport[],
+): Promise<{ results: { seq: number; duplicate: boolean }[] }> {
+  const results: { seq: number; duplicate: boolean }[] = [];
+  for (const item of [...items].sort((a, b) => a.seq - b.seq)) {
+    const answer = await callRpc<unknown>("seva_note_sync_refused", {
+      p_device_id: device.id,
+      p_item: sqlRefusal(item),
+      p_staff_id: actor.staffId,
+    });
+    results.push({ seq: item.seq, duplicate: duplicateOf(answer) });
+  }
+  return { results };
+}
+
+/**
+ * POST counter/refused/set-aside: one `sync.refused_set_aside` audit row per item, with the reason and when it was set
+ * aside on the PC (seva_note_refused_set_aside), written once; it takes the item off the sync_refused card.
+ */
+export async function noteSetAside(
+  actor: SevaActor,
+  device: VerifiedDevice,
+  items: SetAsideReport[],
+): Promise<{ results: { seq: number; duplicate: boolean }[] }> {
+  const results: { seq: number; duplicate: boolean }[] = [];
+  for (const item of [...items].sort((a, b) => a.seq - b.seq)) {
+    const answer = await callRpc<unknown>("seva_note_refused_set_aside", {
+      p_device_id: device.id,
+      p_item: { ...sqlRefusal(item), reason: item.reason, set_aside_at: item.setAsideAt },
+      p_staff_id: actor.staffId,
+    });
+    results.push({ seq: item.seq, duplicate: duplicateOf(answer) });
+  }
+  return { results };
 }

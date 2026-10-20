@@ -147,4 +147,5 @@ export const ATTENTION_KN: Record<string, string> = {
   upi_changed: 'ಯುಪಿಐ ಐಡಿ ಬದಲಾವಣೆ',
   synced_into_closed_day: 'ಮುಕ್ತಾಯವಾದ ದಿನಕ್ಕೆ ಬಂದ ಆಫ್‌ಲೈನ್ ರಸೀದಿ',
   unprinted_online: 'ಮುದ್ರಣವಾಗದ ಆನ್‌ಲೈನ್ ರಸೀದಿಗಳು',
+  sync_refused: 'ಕಚೇರಿ ನಿರಾಕರಿಸಿದ ಆಫ್‌ಲೈನ್ ರಸೀದಿಗಳು',
 };

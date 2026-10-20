@@ -77,6 +77,13 @@ describe("attentionText", () => {
         href: "/seva/register",
       },
       { card: card("unprinted_online", 0), title: "0 online receipts not printed", line: /Every online receipt of today was printed/, href: "/seva/register" },
+      {
+        card: card("sync_refused", 2, { receipts: "OF1-023-10-2026/000004, OF1-023-10-2026/000009", amountPaise: 21_000 }, "critical"),
+        title: "2 offline items refused by the office",
+        line: /OF1-023-10-2026\/000004, OF1-023-10-2026\/000009: printed on a counter PC \(Rs 210\) but not in the register.*paper book.*sets them aside/,
+        href: "/seva/counter",
+      },
+      { card: card("sync_refused", 0), title: "0 offline items refused by the office", line: /refused nothing/, href: "/seva/counter" },
     ];
 
     for (const c of cases) {

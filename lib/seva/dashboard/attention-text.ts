@@ -210,6 +210,20 @@ function words(card: NeedsAttentionCard): { title: string; line: string; href: s
         href: REGISTER,
       };
     }
+    case "sync_refused": {
+      const receipts = text(d, "receipts");
+      const amount = num(d, "amountPaise");
+      return {
+        title: plural(n, "offline item refused by the office", "offline items refused by the office"),
+        line:
+          n > 0
+            ? `${receipts ? `${receipts}: ` : ""}printed on a counter PC${
+                amount > 0 ? ` (${formatRupees(amount, { decimals: amount % 100 !== 0 })})` : ""
+              } but not in the register. Write them in the paper book; then a temple admin sets them aside on that PC`
+            : "The office has refused nothing a counter PC sent",
+        href: SEVA_ROUTES.counter,
+      };
+    }
     default: {
       const unknown: never = card.id;
       return { title: String(unknown), line: "", href: null };
