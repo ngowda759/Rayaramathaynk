@@ -27,7 +27,12 @@ export interface SevaHeaderProps {
 }
 
 const COUNTER_LINK_COLUMNS: readonly SevaNavColumn[] = ["R", "TA", "SA"];
-const BACK_TO_DESK_COLUMNS: readonly SevaNavColumn[] = ["TA", "SA"];
+/**
+ * Who gets "Seva Entry menu" in the counter header: everyone with sections beyond the counter - temple admins,
+ * view-only ones too, and super admins - so the full-screen counter never traps them (owner's check 2026-10-20). A
+ * receptionist's Seva Entry is the counter, so they get no such link.
+ */
+const BACK_TO_DESK_COLUMNS: readonly SevaNavColumn[] = ["TA", "TV", "SA"];
 
 const PILL =
   "inline-flex min-h-11 items-center justify-center rounded-(--radius-pill) border px-3 py-1.5 text-center text-(length:--text-meta) leading-tight font-semibold whitespace-nowrap no-underline";
@@ -76,7 +81,7 @@ function headerLinks(variant: SevaHeaderProps["variant"], column: SevaNavColumn 
       links.push({ key: "dayClose", href: SEVA_ROUTES.dayClose, label: SHELL_NAV.closeDay });
     }
     if (BACK_TO_DESK_COLUMNS.includes(column)) {
-      links.push({ key: "desk", href: SEVA_ROUTES.dashboard, label: SHELL_NAV.sevaEntry });
+      links.push({ key: "desk", href: SEVA_ROUTES.dashboard, label: SHELL_NAV.sevaEntryMenu, emphasis: true });
     }
     return links;
   }

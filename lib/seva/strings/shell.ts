@@ -6,6 +6,8 @@ import type { Bi } from './common';
 
 export const SHELL_NAV: {
   sevaEntry: Bi;
+  /** The counter header's way back to the rest of the module (temple admins, view-only too, and super admins). */
+  sevaEntryMenu: Bi;
   receiptBook: Bi;
   dashboard: Bi;
   counter: Bi;
@@ -20,6 +22,7 @@ export const SHELL_NAV: {
   staffRoles: Bi;
 } = {
   sevaEntry: { en: 'Seva Entry', kn: 'ಸೇವಾ ನಮೂದು' },
+  sevaEntryMenu: { en: 'Seva Entry menu', kn: 'ಸೇವಾ ನಮೂದು ಮೆನು' },
   receiptBook: { en: 'Receipt Book', kn: 'ರಸೀದಿ ಪುಸ್ತಕ' },
   dashboard: { en: 'Dashboard', kn: 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್' },
   counter: { en: 'Counter', kn: 'ಕೌಂಟರ್' },

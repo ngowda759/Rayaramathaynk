@@ -323,6 +323,36 @@ describe("Seva Entry counter frame", () => {
     await renderFocus();
     expect(within(header()).getByRole("link", { name: /Seva Entry/ })).toHaveAttribute("href", "/seva");
   });
+
+  it("gives every role with other sections a keyboard-reachable Seva Entry menu link to /seva; a receptionist stays counter-only", async () => {
+    const cases: [SevaRole, SevaMe][] = [
+      ["temple_admin", meOf("temple_admin")],
+      ["temple_admin", meOf("temple_admin", { viewOnly: true })],
+      ["super_admin", meOf("super_admin")],
+    ];
+    for (const [role, me] of cases) {
+      as(role, me);
+      await renderFocus();
+      const menu = within(header()).getByRole("link", { name: /Seva Entry menu/ });
+      expect(menu).toHaveAttribute("href", "/seva");
+      // A plain link in the tab order: Tab reaches it, Enter follows it.
+      expect(menu.tagName).toBe("A");
+      expect(menu).not.toHaveAttribute("tabindex", "-1");
+      menu.focus();
+      expect(menu).toHaveFocus();
+      cleanup();
+    }
+
+    // While the profile loads, a temple admin already has the way back.
+    as("temple_admin", null);
+    await renderFocus();
+    expect(within(header()).getByRole("link", { name: /Seva Entry menu/ })).toHaveAttribute("href", "/seva");
+    cleanup();
+
+    as("receptionist", meOf("receptionist", { counter: "Counter 1" }));
+    await renderFocus();
+    expect(within(header()).queryByRole("link", { name: /Seva Entry menu/ })).toBeNull();
+  });
 });
 
 /* ---------- sign out ---------- */
