@@ -1,0 +1,16 @@
+{
+  "name": "Seva Entry",
+  "short_name": "Seva",
+  "description": "Seva Entry of Sri Raghavendra Swamy Matha: the seva counter, prasadam and the office desk",
+  "id": "/seva/counter",
+  "start_url": "/seva",
+  "scope": "/seva",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fbfaf7",
+  "theme_color": "#d97706",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/favicon.ico", "sizes": "32x32", "type": "image/x-icon" }
+  ]
+}

@@ -7,6 +7,18 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
+/**
+ * `seva`: Seva Entry module look on the module tokens (UI-REDESIGN-PLAN 5.4, DESIGN-BOOK 18). The popup and scrim
+ * are portalled out of the `.seva` wrapper, so they carry the `seva` class themselves. Below 640px the dialog
+ * becomes a bottom sheet. The default look is unchanged.
+ */
+type DialogVariant = "default" | "seva"
+
+const sevaOverlayClass = "seva bg-(--scrim) supports-backdrop-filter:backdrop-blur-none"
+
+const sevaPopupClass =
+  "seva w-[min(560px,calc(100%-2rem))] max-w-none gap-5 rounded-[22px] bg-(--card) p-6 text-(length:--text-ui) text-(--foreground) shadow-(--shadow-overlay) ring-0 sm:max-w-none max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[24px] max-sm:pb-[calc(var(--space-6)+env(safe-area-inset-bottom))]"
+
 function Dialog({ children, open, onOpenChange, ...props }: DialogPrimitive.Root.Props & { children?: React.ReactNode }) {
   // Handle controlled mode: only render when open is explicitly true
   // Handle uncontrolled mode: let base-ui handle state
@@ -52,17 +64,21 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  variant = "default",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  variant?: DialogVariant
 }) {
+  const seva = variant === "seva"
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {seva ? <DialogOverlay className={sevaOverlayClass} /> : <DialogOverlay />}
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/5 duration-100 outline-none sm:max-w-md dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:pointer-events-auto data-closed:pointer-events-none",
+          seva && sevaPopupClass,
           className
         )}
         {...props}
@@ -72,11 +88,15 @@ function DialogContent({
           <DialogPrimitive.Close
             data-slot="dialog-close"
             render={
-              <Button
-                variant="ghost"
-                className="absolute top-4 right-4 bg-secondary"
-                size="icon-sm"
-              />
+              seva ? (
+                <Button variant="seva-ghost" className="absolute top-3 right-3" size="icon" />
+              ) : (
+                <Button
+                  variant="ghost"
+                  className="absolute top-4 right-4 bg-secondary"
+                  size="icon-sm"
+                />
+              )
             }
           >
             <XIcon
@@ -126,12 +146,18 @@ function DialogFooter({
   )
 }
 
-function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
+function DialogTitle({
+  className,
+  variant = "default",
+  ...props
+}: DialogPrimitive.Title.Props & { variant?: DialogVariant }) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
         "font-heading text-base leading-none font-medium",
+        variant === "seva" &&
+          "pr-12 font-[family-name:var(--font-ui)] text-(length:--text-h3) leading-snug font-semibold text-(--foreground)",
         className
       )}
       {...props}

@@ -49,3 +49,9 @@ scripts/.*.mjs
 
 # Prisma generated client (never commit generated output)
 /generated/prisma
+
+# knowledge-base run state: keep briefs, verify reports and scripts; regenerable inventory JSON is ignored
+.claude/state/inventory/*.json
+
+# seva-entry digitalization: working state and checkpoints (local only, never committed)
+.claude/state/seva/

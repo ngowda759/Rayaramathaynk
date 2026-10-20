@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
   BookOpen,
   HandCoins,
   HeartHandshake,
   Calendar,
   Printer,
+  Receipt,
 } from "lucide-react";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
@@ -15,21 +18,13 @@ import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 
 import { donationService } from "@/services/donation.service";
 import { sevaBookingService } from "@/services/sevaBooking.service";
-import { receiptService } from "@/services/receipt.service";
 import { DonationRecord } from "@/types/donation";
 import { SevaBooking } from "@/types/seva-booking";
-import { Receipt } from "@/types/receipt";
-import { ReceiptReport } from "@/services/receipt.service";
-import { useAuth } from "@/hooks/useAuth";
-import toast from "react-hot-toast";
-import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
 
 type DateRange = "today" | "week" | "month" | "quarter" | "year" | "custom";
 
 function ReportsPageContent() {
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("month");
   const [customStart, setCustomStart] = useState("");
@@ -38,12 +33,9 @@ function ReportsPageContent() {
     revenue: { donationRevenue: 0, sevaRevenue: 0, totalRevenue: 0 },
     donations: { total: 0, received: 0, pending: 0, failed: 0 },
     bookings: { total: 0, confirmed: 0, completed: 0, pending: 0, cancelled: 0 },
-    receipts: { total: 0, collection: 0, upiCollection: 0 },
   });
   const [recentDonations, setRecentDonations] = useState<DonationRecord[]>([]);
   const [recentBookings, setRecentBookings] = useState<SevaBooking[]>([]);
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [receiptReport, setReceiptReport] = useState<ReceiptReport>({ summary: { total: 0, collection: 0, upiCollection: 0 }, sevaWise: [], timeline: [] });
 
   const dateRangeLabel = useMemo(() => {
     switch (dateRange) {
@@ -96,23 +88,6 @@ function ReportsPageContent() {
       try {
         const { startDate, endDate } = getDateRange();
 
-        let rReport: ReceiptReport = { summary: { total: 0, collection: 0, upiCollection: 0 }, sevaWise: [], timeline: [] };
-        if (user) {
-          try {
-            const idToken = await user.getIdToken();
-            rReport = await receiptService.getReceiptReport(
-              {
-                from: startDate.toISOString(),
-                to: endDate.toISOString(),
-              },
-              idToken
-            );
-          } catch (err) {
-            console.error("Failed to fetch receipts for reports:", err);
-            toast.error("Failed to load receipt report data.");
-          }
-        }
-
         const [donations, bookings] = await Promise.all([
           donationService.getDonations(),
           sevaBookingService.getAllBookings(),
@@ -142,7 +117,7 @@ function ReportsPageContent() {
           revenue: {
             donationRevenue,
             sevaRevenue,
-            totalRevenue: donationRevenue + sevaRevenue + rReport.summary.collection,
+            totalRevenue: donationRevenue + sevaRevenue,
           },
           donations: {
             total: filteredDonations.length,
@@ -157,17 +132,10 @@ function ReportsPageContent() {
             pending: filteredBookings.filter((b: SevaBooking) => b.status === "pending").length,
             cancelled: filteredBookings.filter((b: SevaBooking) => b.status === "cancelled").length,
           },
-          receipts: {
-            total: rReport.summary.total,
-            collection: rReport.summary.collection,
-            upiCollection: rReport.summary.upiCollection,
-          },
         });
 
         setRecentDonations(filteredDonations.slice(0, 10));
         setRecentBookings(filteredBookings.slice(0, 10));
-        setReceiptReport(rReport);
-        setReceipts([]); // Clear large array, fetch on demand when export is clicked
       } catch (error) {
         console.error("Failed to load reports:", error);
       } finally {
@@ -176,105 +144,11 @@ function ReportsPageContent() {
     }
 
     loadData();
-  }, [dateRange, customStart, customEnd, user]);
+  }, [dateRange, customStart, customEnd]);
 
   const handlePrint = () => {
     window.print();
   };
-
-  const exportReceiptsToCSV = async () => {
-    try {
-      setLoading(true);
-      const { startDate, endDate } = getDateRange();
-
-      let exportReceipts: Receipt[] = [];
-      if (user) {
-        const idToken = await user.getIdToken();
-        exportReceipts = await receiptService.getReceipts(
-          {
-            from: startDate.toISOString(),
-            to: endDate.toISOString(),
-            pageSize: 10000,
-            export: true,
-          },
-          idToken
-        );
-      }
-
-      if (exportReceipts.length === 0) {
-        toast.error("No receipt data to export");
-        setLoading(false);
-        return;
-      }
-
-      const headers = [
-        "Receipt Number",
-        "Date",
-        "Devotee Name",
-        "Mobile",
-        "Seva",
-        "Quantity",
-        "Rate",
-        "Amount",
-        "Total",
-        "Payment Mode",
-        "Payment Reference",
-        "Created By"
-      ];
-
-      const rows: string[] = [];
-      rows.push(headers.join(","));
-
-      exportReceipts.forEach(r => {
-        const dateStr = formatDate(r.createdAt);
-        const name = `"${r.devoteeName.replace(/"/g, '""')}"`;
-        const mobile = r.devoteePhone || "";
-        const total = r.totalAmount;
-        const paymentMode = r.paymentMode;
-        const paymentRef = `"${(r.paymentReference || "").replace(/"/g, '""')}"`;
-        const createdBy = `"${(r.createdBy || "").replace(/"/g, '""')}"`;
-
-        r.items.forEach((item, index) => {
-          const seva = `"${item.sevaName.replace(/"/g, '""')}"`;
-          const isFirst = index === 0;
-          const rowTotal = isFirst ? total : "";
-          const row = [
-            r.receiptNumber,
-            dateStr,
-            name,
-            mobile,
-            seva,
-            item.quantity,
-            item.rate,
-            item.amount,
-            rowTotal,
-            paymentMode,
-            paymentRef,
-            createdBy
-          ];
-          rows.push(row.join(","));
-        });
-      });
-
-      const csvData = rows.join("\n");
-      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `receipt_report_${dateRange}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error("Export failed:", err);
-      toast.error("Failed to export receipts");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sevaWiseCollection = receiptReport.sevaWise;
-  const timelineCollection = receiptReport.timeline;
 
   return (
     <div className="space-y-8">
@@ -325,14 +199,6 @@ function ReportsPageContent() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={exportReceiptsToCSV}
-            className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 print:hidden"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </button>
-
-          <button
             onClick={handlePrint}
             className="flex items-center gap-2 rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white hover:bg-stone-900 print:hidden"
           >
@@ -367,15 +233,29 @@ function ReportsPageContent() {
               icon={<BookOpen size={28} />}
             />
 
-            <ReportCard
-              title="Receipt Book Collection"
-              value={`₹${summary.receipts.collection.toLocaleString()}`}
-              icon={<BookOpen size={28} />}
-            />
+            <Link
+              href={SEVA_ROUTES.reports}
+              className="group rounded-xl border bg-white p-6 shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-stone-500">Receipts</p>
+                  <h2 className="mt-2 text-xl font-semibold text-stone-900">Counter receipts and collections</h2>
+                  <p className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-amber-700">
+                    Open Seva Entry reports
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  </p>
+                </div>
+                <div className="rounded-full bg-orange-100 p-3 text-orange-600">
+                  <Receipt size={28} aria-hidden="true" />
+                </div>
+              </div>
+            </Link>
 
             <ReportCard
               title="Total Revenue"
               value={`₹${summary.revenue.totalRevenue.toLocaleString()}`}
+              description="Donations and online sevas; counter receipts are in Seva Entry reports."
               icon={<HandCoins size={28} />}
             />
           </div>
@@ -434,87 +314,6 @@ function ReportsPageContent() {
                 />
               </div>
             </div>
-
-            <div className="rounded-xl border bg-white p-6">
-              <h2 className="mb-4 text-xl font-semibold">
-                Receipts Summary ({summary.receipts.total})
-              </h2>
-
-              <div className="space-y-3">
-                <SummaryRow
-                  label="UPI Collection"
-                  value={`₹${summary.receipts.upiCollection.toLocaleString()}` as any}
-                  color="green"
-                />
-                <SummaryRow
-                  label="Total Collection"
-                  value={`₹${summary.receipts.collection.toLocaleString()}` as any}
-                  color="blue"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Seva-wise Report */}
-          <div className="rounded-xl border bg-white p-6">
-            <h2 className="mb-4 text-xl font-semibold">Seva-wise Report</h2>
-            {sevaWiseCollection.length === 0 ? (
-              <p className="text-stone-500">No receipt data in this period</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b text-stone-500">
-                    <tr>
-                      <th className="py-2 font-medium">Seva</th>
-                      <th className="py-2 font-medium text-right">Quantity</th>
-                      <th className="py-2 font-medium text-right">Collection</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y text-stone-900">
-                    {sevaWiseCollection.map((row) => (
-                      <tr key={row.seva}>
-                        <td className="py-3">{row.seva}</td>
-                        <td className="py-3 text-right">{row.quantity}</td>
-                        <td className="py-3 text-right font-semibold text-amber-600">
-                          ₹{row.amount.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Receipt Collection Timeline */}
-          <div className="rounded-xl border bg-white p-6">
-            <h2 className="mb-4 text-xl font-semibold">Receipt Collection Timeline</h2>
-            {timelineCollection.length === 0 ? (
-              <p className="text-stone-500">No receipt data in this period</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b text-stone-500">
-                    <tr>
-                      <th className="py-2 font-medium">Period</th>
-                      <th className="py-2 font-medium text-right">Receipt Count</th>
-                      <th className="py-2 font-medium text-right">Total Collection</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y text-stone-900">
-                    {timelineCollection.map((row) => (
-                      <tr key={row.period}>
-                        <td className="py-3">{row.period}</td>
-                        <td className="py-3 text-right">{row.count}</td>
-                        <td className="py-3 text-right font-semibold text-amber-600">
-                          ₹{row.amount.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
 
           {/* Recent Transactions */}

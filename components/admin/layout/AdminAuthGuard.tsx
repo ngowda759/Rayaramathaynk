@@ -4,19 +4,38 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseConfigStatus } from "@/lib/firebase";
+import { safeReturnPath } from "@/lib/auth/safe-return";
+import { signInPath } from "@/lib/seva/routes";
+import type { SevaRole } from "@/types/seva";
 
-type Permission = 
-  | "admin" 
-  | "settings" 
-  | "finance" 
-  | "users" 
-  | "billing" 
-  | "administration";
+type Permission =
+  | "admin"
+  | "settings"
+  | "finance"
+  | "users"
+  | "billing"
+  | "administration"
+  // Seva Entry areas (DB §3.3): real role checks on the seva role from AuthContext (C-62 allow-list).
+  | "sevaCounter"
+  | "sevaPrasadam"
+  | "sevaAdmin";
+
+/** Who may open each seva area. View-only and per-action limits are checked by SevaGate and the seva API. */
+const SEVA_AREA_ROLES: Record<"sevaCounter" | "sevaPrasadam" | "sevaAdmin", readonly SevaRole[]> = {
+  sevaCounter: ["receptionist", "temple_admin", "super_admin"],
+  sevaPrasadam: ["prasadam_counter", "temple_admin", "super_admin"],
+  sevaAdmin: ["temple_admin", "super_admin"],
+};
 
 interface AdminAuthGuardProps {
   children: React.ReactNode;
   requiredPermission?: Permission;
   fallback?: React.ReactNode;
+  /**
+   * The page (path and query) to come back to after signing in. Seva Entry passes the page that was opened; without
+   * it a signed-out visitor goes to sign-in returning to the address's `redirect` or `/admin`, as before.
+   */
+  returnTo?: string;
 }
 
 // Simple loading spinner component
@@ -59,10 +78,11 @@ function AccessDenied() {
 export default function AdminAuthGuard({ 
   children, 
   requiredPermission,
+  returnTo,
 }: AdminAuthGuardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading, canAccessAdmin } = useAuth();
+  const { user, loading, canAccessAdmin, sevaRole } = useAuth();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -113,8 +133,13 @@ export default function AdminAuthGuard({
   // Check if user is logged in
   if (!user) {
     // Redirect to login with the return URL
-    const redirect = searchParams.get("redirect") || "/admin";
-    router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+    if (returnTo) {
+      router.replace(signInPath(returnTo));
+    } else {
+      // Only a path on this site is relayed to the sign-in page (A4S security gate, H-1).
+      const redirect = safeReturnPath(searchParams.get("redirect"), "/admin");
+      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+    }
     return <LoadingSpinner />;
   }
 
@@ -138,6 +163,11 @@ export default function AdminAuthGuard({
       case "billing":
       case "administration":
         hasPermission = canAccessAdmin;
+        break;
+      case "sevaCounter":
+      case "sevaPrasadam":
+      case "sevaAdmin":
+        hasPermission = typeof sevaRole === "string" && SEVA_AREA_ROLES[requiredPermission].includes(sevaRole);
         break;
     }
     

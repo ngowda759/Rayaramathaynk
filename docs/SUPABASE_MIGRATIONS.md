@@ -83,3 +83,47 @@ A dedicated manual workflow is available in `.github/workflows/supabase-migratio
 - **Dry-run fails:** If `supabase db push --dry-run` fails, review the migration files in `supabase/migrations/` for syntax errors or conflicts with the existing remote schema. Fix the SQL locally before retrying.
 - **Verification fails:** The `verify-supabase-migrations.ts` script checks both static schema expectations and the live database ledger. Ensure your migration files use the canonical 14-digit prefix (e.g., `20260907112632_create_core_tables.sql`).
 - **Connection issues:** Verify that the `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` are valid, and ensure the remote project is not paused.
+
+---
+
+## Seva Entry migrations
+
+Seva Entry adds the migration files below. They are additive (new tables, new columns with defaults, new functions); none
+changes or drops what the website already has.
+
+| File | What it adds |
+|---|---|
+| `20261020000000_seva_core.sql` | staff, counters, counter PCs, receipt series and years, number gaps, group counters, settings, denominations, festival days, the new `sevas` columns, rate history, the audit log, backup runs; row level security and revokes |
+| `20261020000100_seva_receipts.sql` | orders, receipts, receipt lines, day closes and counts, devotee profiles; guard triggers |
+| `20261020000200_seva_seed.sql` | series C1, OF1, W, WT; Counter 1; the cash denominations; a settings row with SAMPLE text |
+| `20261021000000_seva_functions_issue.sql` | issuing, offline sync, prints, cancel and spoiled reissue |
+| `20261021000100_seva_functions_ops.sql` | prasadam, counter PCs, number gaps, heartbeat, day close |
+| `20261021000200_seva_functions_admin.sql` | catalogue, settings, counter UPI change detection, staff, reports, Needs attention |
+| `20261029235900_seva_privilege_hardening.sql` | revokes `TRIGGER` and `REFERENCES` on the guarded tables |
+| `20261030000000_seva_lists.sql` | the gotra, nakshatra and rashi lists (`seva_list_items`) and their functions |
+| `20261031000000_seva_paper_size.sql` | the receipt paper size columns on `seva_settings` |
+| `20261101000000_seva_paper_size_not_null.sql` | `seva_settings.paper_size` NOT NULL (a null row set to `a5` first); not yet pushed |
+| `20261102000000_seva_final_fixes.sql` | final-review fixes (A5-FIX F2): offline sync pricing, closed-day cancel, sync and close rules, Replace this PC by year, gap ownership and guards, own-counter idempotency, view-only and reissue rules in SQL, visible-length reasons; not yet pushed |
+| `20261102000100_seva_refunds_paper.sql` | refunds and the paper book (A5-FIX F4): settling a due refund, entering a gap's slips from the paper book; not yet pushed |
+| `20261102000200_seva_followups.sql` | follow-ups to the final-review fixes (A5-FIX F5): view-only refused at the counter in SQL, the `unprinted_online` and `sync_refused` cards, office-refused outbox items and their set-aside, the reason on the close-day override; not yet pushed |
+| `20261102000300_seva_final_touches.sql` | the re-check's leftovers (FINAL-FIX, 2026-10-20); see its row in `docs/DATA-MODEL.md`; not yet pushed |
+
+**Frozen files.** Every file up to and including `20261031000000_seva_paper_size.sql` was applied to the developer's
+test project: the files up to `20261030000000_seva_lists.sql` on 2026-10-19, `20261031000000_seva_paper_size.sql` on
+2026-10-20. Such a file is never edited again: a change is a new file with a later timestamp, written to
+be additive and safe to run once on a database that already has the old ones.
+
+**How they were tested.**
+
+- Every seva migration runs in the database test layer (`npm run test:db`, `tests/db/**`) on **PGlite** (an in-process
+  Postgres), applied twice to prove each file is safe to run again, with tests for the SQL functions, guards and
+  triggers.
+- PGlite is Postgres 18 while Supabase runs **Postgres 15**, so the SQL avoids anything newer than 15 (no
+  `MERGE ... RETURNING`, `ANY_VALUE`, `JSON_TABLE` or SQL/JSON constructors); reviewers check this by reading the SQL.
+- The files were pushed with `npx supabase db push` to the developer's own Supabase test project (the files up to the
+  lists file on 2026-10-19, the paper size file after it).
+
+**Pushing a new migration to a test project.** From the repository folder, with the project linked once
+(`npx supabase login`, `npx supabase link --project-ref <ref>`), run `npx supabase db push --dry-run` to see which
+files are new, then `npx supabase db push`. On the live project the site owner runs the **Deploy Supabase
+Migrations** workflow instead (`docs/seva/SETUP-GUIDE.md` B1).

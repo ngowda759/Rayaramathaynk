@@ -2,39 +2,23 @@
 /**
  * Import Events to Firestore
  * 
- * Uses Firebase Admin SDK with environment variables.
+ * Uses Firebase Admin SDK with the service account from scripts/lib/admin-credentials.
  */
 
 import { initializeApp, cert } from "firebase-admin/app";
 import { Firestore, getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
+import { loadServiceAccount } from "./lib/admin-credentials";
 import * as fs from "fs";
 import * as path from "path";
 
 process.env.TZ = "Asia/Kolkata";
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-let privateKey = process.env.FIREBASE_PRIVATE_KEY || "";
-
-// Replace literal \n with actual newlines (handles both escaped and unescaped)
-privateKey = privateKey.replace(/\\n/g, "\n");
-
-if (!projectId || !clientEmail || !privateKey) {
-  console.error("❌ Missing Firebase environment variables:");
-  console.error("   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY");
-  console.error("\nPrivate key starts with:", privateKey.substring(0, 50));
-  process.exit(1);
-}
-
-// Validate private key format
-if (!privateKey.includes("-----BEGIN PRIVATE KEY-----")) {
-  console.error("❌ Invalid private key format - missing BEGIN marker");
-  process.exit(1);
-}
+const sa = loadServiceAccount();
+const projectId = sa.projectId;
 
 console.log("Initializing Firebase Admin SDK...");
 initializeApp({
-  credential: cert({ projectId, clientEmail, privateKey }),
+  credential: cert(sa),
   projectId,
 });
 

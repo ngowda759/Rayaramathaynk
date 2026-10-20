@@ -1,4 +1,8 @@
-import type { NavigationGroup } from "./types";
+import { SEVA_ROUTES } from "@/lib/seva/routes";
+import { SHELL_NAV } from "@/lib/seva/strings/shell";
+import type { SevaRole } from "@/types/seva";
+
+import type { NavigationGroup, NavigationItem } from "./types";
 
 export const navigation: NavigationGroup[] = [
   {
@@ -52,8 +56,9 @@ export const navigation: NavigationGroup[] = [
         icon: "billing",
       },
       {
-        title: "Receipt Book",
-        href: "/admin/receipts",
+        // The one Seva Entry item; the module's pages live in its own rail at /seva (plan A4S-3).
+        title: SHELL_NAV.sevaEntry.en,
+        href: SEVA_ROUTES.dashboard,
         icon: "receipt",
       },
       {
@@ -141,3 +146,67 @@ export const navigation: NavigationGroup[] = [
     ],
   },
 ];
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * Seva Entry in the website admin (DB §3.3; plans A3-6 and A4S-3). The module has its own screens at /seva with its
+ * own section rail (components/seva/shell/sections.ts); the website admin shows one "Seva Entry" item that opens it.
+ * The columns are those of the role x action matrix: R = Receptionist, P = Prasadam counter, TA = Temple admin,
+ * TV = Temple admin with view-only, SA = Super admin. The browser only hides; every page and API call checks again.
+ * ------------------------------------------------------------------------------------------------------------------ */
+
+export type SevaNavColumn = "R" | "P" | "TA" | "TV" | "SA";
+
+/**
+ * The matrix column for the sidebar. `viewOnly` is null while the seva profile is unknown; a temple admin then gets
+ * the view-only column (fail closed) until /api/seva/me says otherwise. No seva role (billing, priest, staff) -> null.
+ */
+export function sevaNavColumn(role: SevaRole | null | undefined, viewOnly: boolean | null): SevaNavColumn | null {
+  switch (role) {
+    case "receptionist":
+      return "R";
+    case "prasadam_counter":
+      return "P";
+    case "temple_admin":
+      return viewOnly === false ? "TA" : "TV";
+    case "super_admin":
+      return "SA";
+    default:
+      return null;
+  }
+}
+
+/** Where a seva-only role lands when it opens /admin; null keeps the admin dashboard. */
+export function sevaLandingPath(role: SevaRole | null | undefined): string | null {
+  if (role === "receptionist") return SEVA_ROUTES.counter;
+  if (role === "prasadam_counter") return SEVA_ROUTES.prasadam;
+  return null;
+}
+
+/** The website admin's one Seva Entry item: no sub-items, it opens the module. */
+function sevaEntryItem(): NavigationItem {
+  return { title: SHELL_NAV.sevaEntry.en, titleKn: SHELL_NAV.sevaEntry.kn, href: SEVA_ROUTES.dashboard, icon: "receipt" };
+}
+
+/**
+ * The admin sidebar with the Seva Entry item for one person.
+ * - No seva role: the groups are returned unchanged (existing users keep exactly what they had).
+ * - Receptionist and prasadam volunteer: one group with only the Seva Entry item.
+ * - Temple admin and super admin: every existing group; the Seva Entry item keeps its place in Finance, with its
+ *   Kannada label and no sub-items (the module's sections, Staff included, live in its own rail).
+ */
+export function withSevaNavigation(
+  groups: NavigationGroup[],
+  input: { column: SevaNavColumn | null },
+): NavigationGroup[] {
+  const { column } = input;
+  if (column === null) return groups;
+
+  if (column === "R" || column === "P") {
+    return [{ title: SHELL_NAV.sevaEntry.en, items: [sevaEntryItem()] }];
+  }
+
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => (item.href === SEVA_ROUTES.dashboard ? sevaEntryItem() : item)),
+  }));
+}

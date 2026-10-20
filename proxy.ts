@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, connectFirestoreEmulator } from "firebase/firestore";
 
 // Firebase config for proxy (server-side)
 const firebaseConfig = {
@@ -20,7 +20,18 @@ function initFirebase() {
   if (!db) {
     try {
       const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-      db = getFirestore(app);
+      const instance = getFirestore(app);
+      // Browser tests only (tests/e2e/seva): page views go to the local Firestore emulator, never a live project.
+      // Same once-per-instance registry as lib/firebase.ts, which may already have connected this instance.
+      if (process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1") {
+        const holder = globalThis as typeof globalThis & { __sevaFirebaseEmulators?: WeakSet<object> };
+        const connected = (holder.__sevaFirebaseEmulators ??= new WeakSet<object>());
+        if (!connected.has(instance)) {
+          connectFirestoreEmulator(instance, "127.0.0.1", 8080);
+          connected.add(instance);
+        }
+      }
+      db = instance;
     } catch (error) {
       console.error("Firebase init error in proxy:", error);
     }

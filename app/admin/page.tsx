@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { 
   Bell, Image, CalendarDays, BookOpen, Users, 
@@ -13,6 +14,8 @@ import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, getDocs, getCountFromServer, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getAnalyticsSummary } from "@/services/pageviews.service";
+import { sevaLandingPath } from "@/components/admin/layout/navigation";
+import { SHELL } from "@/lib/seva/strings/shell";
 
 interface PublicAnalyticsStats {
   totalUsers: number;
@@ -74,8 +77,11 @@ function SectionCard({ title, icon: Icon, iconColor, children }: {
 }
 
 export default function DashboardPage() {
-  const { profile } = useAuth();
-  
+  const { profile, sevaRole } = useAuth();
+  const router = useRouter();
+  // Receptionists open on the counter and prasadam volunteers on the prasadam page; the site dashboard is not theirs.
+  const landing = sevaLandingPath(sevaRole);
+
   const [publicStats, setPublicStats] = useState<PublicAnalyticsStats>({
     totalUsers: 0, activeVolunteers: 0, totalMembers: 0, totalDonations: 0,
     totalSevaBookings: 0, totalEvents: 0, upcomingEvents: 0, totalDonors: 0,
@@ -90,6 +96,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Send seva-only roles to their page before any Firestore count runs.
+    if (landing) {
+      router.replace(landing);
+      return;
+    }
+
     async function fetchPublicStats() {
       if (!db || !isFirebaseConfigured) { 
         setLoading(false); 
@@ -226,7 +238,7 @@ export default function DashboardPage() {
       finally { setLoading(false); }
     }
     fetchPublicStats();
-  }, []);
+  }, [landing, router]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
@@ -236,6 +248,15 @@ export default function DashboardPage() {
     setLoading(true);
     window.location.reload();
   };
+
+  if (landing) {
+    return (
+      <div role="status" aria-live="polite" className="flex min-h-[40vh] flex-col items-center justify-center gap-1 text-stone-600">
+        <span>{SHELL.opening.en}</span>
+        <span lang="kn" className="font-kannada text-[13px]">{SHELL.opening.kn}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

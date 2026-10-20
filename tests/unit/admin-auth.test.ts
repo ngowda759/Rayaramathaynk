@@ -152,6 +152,69 @@ describe("verifyAdminUserResult — profile checks", () => {
   });
 });
 
+describe("verifyAdminUserResult — admin console role allow-list (DB §17.4)", () => {
+  beforeEach(() => {
+    mockGetAuth.mockReturnValue({
+      verifyIdToken: jest.fn().mockResolvedValue({ uid: "u1", email: "a@b.c" }),
+    });
+  });
+
+  test.each([
+    "",
+    "user",
+    "devotee",
+    "Devotee ",
+    "volunteer",
+    "receptionist",
+    "prasadam_counter",
+    "Prasadam Counter",
+    "superadmin",
+  ])("role %j is refused with 403 insufficient_role", async (role) => {
+    mockUserDoc(true, { role, isActive: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result).toEqual({
+      ok: false,
+      reason: "insufficient_role",
+      status: 403,
+      message: expect.any(String),
+    });
+  });
+
+  test.each([
+    ["a missing role", undefined],
+    ["a null role", null],
+    ["an array role", ["super_admin"]],
+    ["a numeric role", 1],
+    ["an object role", { toString: () => "super_admin" }],
+  ])("%s is refused with 403 insufficient_role", async (_label, role) => {
+    mockUserDoc(true, { role, isActive: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("insufficient_role");
+      expect(result.status).toBe(403);
+    }
+  });
+
+  test.each([
+    ["super_admin", "super_admin"],
+    ["temple_admin", "temple_admin"],
+    ["Temple Admin", "temple_admin"],
+    ["admin", "admin"],
+    ["billing", "billing"],
+    ["Billing", "billing"],
+    ["priest", "priest"],
+    ["staff", "staff"],
+    ["office_staff", "office_staff"],
+    [" Office Staff ", "office_staff"],
+  ])("role %j is allowed (as %j)", async (role, normalized) => {
+    mockUserDoc(true, { role, isActive: true });
+    const result = await verifyAdminUserResult(makeRequest("Bearer abc"));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.role).toBe(normalized);
+  });
+});
+
 describe("verifyAdminUser (backwards-compatible wrapper)", () => {
   it("returns null for a missing header", async () => {
     expect(await verifyAdminUser(makeRequest(null))).toBeNull();
