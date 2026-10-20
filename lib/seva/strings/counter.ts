@@ -389,10 +389,14 @@ export const COUNTER_TEXT: {
   },
   printFailed: "Saved, but the slips did not print. Reprint them from Today's receipts.",
   offlineSaved: 'Saved offline.',
-  inDoubtTitle: { en: 'The office did not answer. Print as an offline receipt?', kn: 'ಕಚೇರಿ ಉತ್ತರಿಸಲಿಲ್ಲ. ಆಫ್‌ಲೈನ್ ರಸೀದಿಯಾಗಿ ಮುದ್ರಿಸಬೇಕೆ?' },
+  // Owner's check 2026-10-20: the popup read like a printer error. New Kannada - to be proof-read (O-03).
+  inDoubtTitle: {
+    en: "The temple's server did not answer in time",
+    kn: 'ಮಠದ ಸರ್ವರ್ ಸಮಯಕ್ಕೆ ಸರಿಯಾಗಿ ಉತ್ತರಿಸಲಿಲ್ಲ',
+  },
   inDoubtBody: {
-    en: 'The receipt gets an offline number from this PC. If the office did save it, the office cancels its copy, so the money is counted once.',
-    kn: 'ರಸೀದಿಗೆ ಈ ಕಂಪ್ಯೂಟರ್‌ನಿಂದ ಆಫ್‌ಲೈನ್ ಸಂಖ್ಯೆ ಸಿಗುತ್ತದೆ. ಹಣವನ್ನು ಒಮ್ಮೆ ಮಾತ್ರ ಎಣಿಸಲಾಗುತ್ತದೆ.',
+    en: 'This receipt may or may not have been saved at the office. "Yes, print offline" prints it now with an offline number from this PC; if the server did save it, the office cancels that copy, so the money is counted once. "No, keep the order" prints nothing and keeps the order on the screen; press Save again when the connection is back, and the server is asked about this same order first.',
+    kn: 'ಈ ರಸೀದಿ ಕಚೇರಿಯಲ್ಲಿ ಉಳಿದಿರಬಹುದು, ಉಳಿಯದೆಯೂ ಇರಬಹುದು. "ಹೌದು, ಆಫ್‌ಲೈನ್ ಮುದ್ರಿಸಿ": ಈ ಕಂಪ್ಯೂಟರ್‌ನ ಆಫ್‌ಲೈನ್ ಸಂಖ್ಯೆಯೊಂದಿಗೆ ಈಗಲೇ ಮುದ್ರಿಸುತ್ತದೆ; ಸರ್ವರ್ ಉಳಿಸಿದ್ದರೆ ಕಚೇರಿ ಆ ಪ್ರತಿಯನ್ನು ರದ್ದುಗೊಳಿಸುತ್ತದೆ, ಹಣವನ್ನು ಒಮ್ಮೆ ಮಾತ್ರ ಎಣಿಸಲಾಗುತ್ತದೆ. "ಬೇಡ, ಆದೇಶ ಉಳಿಸಿಕೊಳ್ಳಿ": ಏನೂ ಮುದ್ರಿಸುವುದಿಲ್ಲ, ಆದೇಶ ಪರದೆಯ ಮೇಲೆ ಉಳಿಯುತ್ತದೆ; ಸಂಪರ್ಕ ಬಂದ ಮೇಲೆ ಮತ್ತೆ ಉಳಿಸಿ, ಮೊದಲು ಇದೇ ಆದೇಶದ ಬಗ್ಗೆ ಸರ್ವರ್ ಅನ್ನು ಕೇಳಲಾಗುತ್ತದೆ.',
   },
   inDoubtYes: { en: 'Yes, print offline', kn: 'ಹೌದು, ಆಫ್‌ಲೈನ್ ಮುದ್ರಿಸಿ' },
   inDoubtNo: { en: 'No, keep the order', kn: 'ಬೇಡ, ಆದೇಶ ಉಳಿಸಿಕೊಳ್ಳಿ' },

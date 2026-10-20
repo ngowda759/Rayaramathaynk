@@ -41,7 +41,7 @@ test("asks before printing offline when the office does not answer", async ({ pa
   for (let i = 0; i < 3; i += 1) fake.failNext("/api/seva/counter/orders", "timeout");
 
   await page.keyboard.press("Control+Enter");
-  await expect(page.getByText("The office did not answer. Print as an offline receipt?")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("The temple's server did not answer in time")).toBeVisible({ timeout: 30_000 });
   expect(await printCount(page)).toBe(0);
   await page.getByRole("button", { name: "Yes, print offline" }).click();
 
