@@ -28,7 +28,7 @@ jest.mock("@/services/seva/settings.service", () => ({
 
 const TOKEN = "AbCdEfGhIjKlMnOpQrStUv";
 
-const RECEIPT: IssuedReceipt = {
+const RECEIPT: IssuedReceipt = { status: "issued" as const, channel: "counter" as const, issuedOffline: false, printCount: 1, counterName: "Counter 1", prasadam: "none" as const,
   id: "r1",
   clientReceiptId: "c1",
   receiptNo: "C1-023-10-2026/000124",

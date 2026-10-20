@@ -2,7 +2,7 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { checkAdminAuth } from '../../lib/auth/admin';
 
 jest.mock('../../lib/admin-firebase', () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
+  getAdminApp: jest.fn().mockResolvedValue({} as never),
 }));
 
 const verifyIdTokenMock = jest.fn();
@@ -46,14 +46,14 @@ describe('Admin Authentication Check', () => {
   });
 
   it('rejects when token verification fails', async () => {
-    verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token'));
+    verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token') as never);
     const req = createMockRequest('Bearer invalid-token');
     const result = await checkAdminAuth(req);
     expect(result).toBeNull();
   });
 
   it('resolves valid tokens', async () => {
-    verifyIdTokenMock.mockResolvedValueOnce({ uid: 'user-123' });
+    verifyIdTokenMock.mockResolvedValueOnce({ uid: 'user-123' } as never);
     const req = createMockRequest('Bearer valid-token');
     const result = await checkAdminAuth(req);
     expect(result).toEqual({ uid: 'user-123', role: 'user' });
@@ -76,7 +76,7 @@ describe('Admin Authentication Check', () => {
 
     it('rejects tokens when ADMIN_API_KEY is not set', async () => {
       delete process.env.ADMIN_API_KEY;
-      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback'));
+      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback') as never);
       const req = createMockRequest('Bearer some-random-string');
       const result = await checkAdminAuth(req);
       expect(result).toBeNull();
@@ -84,7 +84,7 @@ describe('Admin Authentication Check', () => {
 
     it('rejects incorrect tokens when ADMIN_API_KEY is set', async () => {
       process.env.ADMIN_API_KEY = 'secret-key';
-      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback'));
+      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback') as never);
       const req = createMockRequest('Bearer wrong-key');
       const result = await checkAdminAuth(req);
       expect(result).toBeNull();
