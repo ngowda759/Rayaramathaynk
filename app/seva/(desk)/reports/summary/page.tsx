@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 
+import { BoardRangeControl } from "@/components/seva/export/BoardRangeControl";
 import { BoardSummary, type BoardSummaryModel } from "@/components/seva/export/BoardSummary";
 import { PageSkeleton } from "@/components/seva/motion/PageSkeleton";
 import { PendingContent, PendingLine } from "@/components/seva/motion/PendingLine";
@@ -31,7 +32,9 @@ import { settingsApi } from "@/services/seva/settings.service";
 import type { SlipSettings } from "@/types/seva";
 
 /**
- * The board print summary (DB §12.6, C-42): `/seva/reports/summary?from&to`, opened from Export. It reads
+ * The board print summary (DB §12.6, C-42): `/seva/reports/summary?from&to`, opened from Export or the Reports tab. A
+ * range control above the sheets (hidden in print) picks This month, Last month, This year, Last year or custom dates
+ * and puts them in ?from=&to= (owner's fix, 2026-10-20). It reads
  * the range's receipts and cancellations from the export API, the previous period for the chart's ghost line
  * (`previousRange`), the changed-amount reasons from the audit trail, the seva summary (with last year and rate changes), the day closes and the number continuity; then
  * writes the `export.download` audit row (format 'print') once, and shows the two A4 sheets with a print button.
@@ -59,6 +62,7 @@ async function slipSettings(token: () => Promise<string>): Promise<Pick<SlipSett
 
 function SummaryScreen(): JSX.Element {
   const params = useSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const { me } = useSevaMe();
   // Opened from the Reports tab with no dates: this month, like the Export page's default.
@@ -83,6 +87,14 @@ function SummaryScreen(): JSX.Element {
   }, [user]);
   const api = useMemo(() => reportsApi(token), [token]);
   const preparedBy = me ? `${me.name} (${me.staffNo})` : "";
+
+  const chooseRange = useCallback(
+    (range: { from: string; to: string }) => {
+      const query = `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
+      router.replace(`${SEVA_ROUTES.reportsSummary}?${query}`, { scroll: false });
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (!validRange || !user || !me) return;
@@ -145,38 +157,50 @@ function SummaryScreen(): JSX.Element {
     };
   }, [validRange, from, to, user, me, api, token, preparedBy, loadKey]);
 
+  const rangeControl = <BoardRangeControl from={from} to={to} onChange={chooseRange} />;
+
   if (!validRange) {
     return (
-      <div role="alert" className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
-        <Bilingual as="div" en={BOARD.badRange.en} kn={BOARD.badRange.kn} className="font-semibold" />
-        <Link href={SEVA_ROUTES.reportsExport} className="text-(--link) underline">
-          {BOARD.backToExport.en}
-        </Link>
+      <div className="flex flex-col gap-4">
+        {rangeControl}
+        <div role="alert" className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
+          <Bilingual as="div" en={BOARD.badRange.en} kn={BOARD.badRange.kn} className="font-semibold" />
+          <Link href={SEVA_ROUTES.reportsExport} className="text-(--link) underline">
+            {BOARD.backToExport.en}
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (shown === null) {
     return (
-      <div data-report-skeleton="">
-        <PageSkeleton variant="detail" />
+      <div className="flex flex-col gap-4">
+        {rangeControl}
+        <div data-report-skeleton="">
+          <PageSkeleton variant="detail" />
+        </div>
       </div>
     );
   }
 
   if (shown.kind === "error") {
     return (
-      <div role="alert" className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
-        <p className="font-semibold">{shown.message}</p>
-        <Button variant="seva-primary" onClick={() => setAttempt((n) => n + 1)}>
-          {BOARD.tryAgain.en}
-        </Button>
+      <div className="flex flex-col gap-4">
+        {rangeControl}
+        <div role="alert" className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
+          <p className="font-semibold">{shown.message}</p>
+          <Button variant="seva-primary" onClick={() => setAttempt((n) => n + 1)}>
+            {BOARD.tryAgain.en}
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {rangeControl}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href={SEVA_ROUTES.reportsExport} className="text-(length:--text-ui) text-(--link) underline">
           {BOARD.backToExport.en}

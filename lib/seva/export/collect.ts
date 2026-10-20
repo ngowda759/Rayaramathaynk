@@ -178,11 +178,14 @@ export type ExportFormat = "xlsx" | "csv" | "tally" | "print";
 export const EXPORT_TICKS = ["summary", "receipts", "sevas", "cancelled", "dayCloses", "prasadam", "rateChanges"] as const;
 export type ExportTick = (typeof EXPORT_TICKS)[number];
 
-export type QuickRange = "today" | "month" | "lastMonth" | "year";
+export type QuickRange = "today" | "month" | "lastMonth" | "year" | "lastYear";
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
-/** The quick ranges in IST: Today, This month (1st to today), Last month (whole), This year (1 January to today). */
+/**
+ * The quick ranges in IST: Today, This month (1st to today), Last month (whole), This year (1 January to today), Last
+ * year (whole).
+ */
 export function quickRange(kind: QuickRange, now: Date): { from: string; to: string } {
   const today = businessDate(now);
   const [y, m] = today.split("-").map(Number);
@@ -198,6 +201,8 @@ export function quickRange(kind: QuickRange, now: Date): { from: string; to: str
     }
     case "year":
       return { from: `${y}-01-01`, to: today };
+    case "lastYear":
+      return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
   }
 }
 

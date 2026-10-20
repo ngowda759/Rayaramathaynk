@@ -130,6 +130,7 @@ describe("export choices", () => {
     expect(quickRange("month", now)).toEqual({ from: "2026-01-01", to: "2026-01-11" });
     expect(quickRange("lastMonth", now)).toEqual({ from: "2025-12-01", to: "2025-12-31" });
     expect(quickRange("year", now)).toEqual({ from: "2026-01-01", to: "2026-01-11" });
+    expect(quickRange("lastYear", now)).toEqual({ from: "2025-01-01", to: "2025-12-31" });
   });
 
   it("makes one CSV file per ticked part, the receipts as seva lines", () => {

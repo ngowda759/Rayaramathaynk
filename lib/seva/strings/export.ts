@@ -101,6 +101,7 @@ export const RANGE_LABELS: Record<QuickRange | 'custom', Bi> = {
   month: { en: 'This month', kn: 'ಈ ತಿಂಗಳು' },
   lastMonth: { en: 'Last month', kn: 'ಕಳೆದ ತಿಂಗಳು' },
   year: { en: 'This year', kn: 'ಈ ವರ್ಷ' },
+  lastYear: { en: 'Last year', kn: 'ಕಳೆದ ವರ್ಷ' },
   custom: { en: 'Custom range', kn: 'ಆಯ್ದ ಅವಧಿ' },
 };
 
@@ -125,7 +126,9 @@ export const BOARD = {
   backToExport: { en: 'Back to export', kn: 'ರಫ್ತಿಗೆ ಹಿಂತಿರುಗಿ' },
   loading: { en: 'Preparing the summary...', kn: 'ಸಾರಾಂಶ ಸಿದ್ಧವಾಗುತ್ತಿದೆ...' },
   failed: { en: 'The summary could not be prepared.', kn: 'ಸಾರಾಂಶ ಸಿದ್ಧಪಡಿಸಲಾಗಲಿಲ್ಲ.' },
-  badRange: { en: 'Open this page from Export with a start and end date.', kn: 'ಆರಂಭ ಮತ್ತು ಕೊನೆಯ ದಿನಾಂಕದೊಂದಿಗೆ ರಫ್ತು ಪುಟದಿಂದ ತೆರೆಯಿರಿ.' },
+  badRange: { en: 'Choose a range above, or open this page from Export.', kn: 'ಮೇಲೆ ಒಂದು ಅವಧಿಯನ್ನು ಆರಿಸಿ, ಅಥವಾ ರಫ್ತು ಪುಟದಿಂದ ತೆರೆಯಿರಿ.' },
+  range: { en: 'Summary range', kn: 'ಸಾರಾಂಶದ ಅವಧಿ' },
+  futureDate: { en: 'Dates after today cannot be chosen.', kn: 'ಇಂದಿನ ನಂತರದ ದಿನಾಂಕಗಳನ್ನು ಆರಿಸಲಾಗದು.' },
   tryAgain: { en: 'Try again', kn: 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ' },
   totalCollected: { en: 'Total collected', kn: 'ಒಟ್ಟು ಸಂಗ್ರಹ' },
   receipts: { en: 'Receipts', kn: 'ರಸೀದಿಗಳು' },
