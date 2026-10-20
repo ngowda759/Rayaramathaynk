@@ -654,7 +654,7 @@ nothing ever reaches it (M03-F35).
 | Piece | Web-only dependency | Verdict | Why |
 |---|---|---|---|
 | All 24 page files | Next.js App Router file routing, `app/(public)` groups, Server Components, `next/link`, `next/image` | **rewrite** | Routing and the server/client split have no RN equivalent; screens become React Navigation routes |
-| Every visual style | Tailwind class strings, gradients, `backdrop-blur`, `line-clamp`, `bg-[url(...)]` | **rewrite** | No CSS in RN; needs NativeWind or a StyleSheet port. Gradients need `expo-linear-gradient` |
+| Every visual style | Tailwind class strings, gradients, `backdrop-blur`, `line-clamp`, arbitrary background-image URL classes | **rewrite** | No CSS in RN; needs NativeWind or a StyleSheet port. Gradients need `expo-linear-gradient` |
 | `services/*.ts` (seva, sevaBooking, pooja, donation, donationCampaign, quote, profile) | `firebase/firestore` web SDK, `@/lib/firebase` | **adapt** | Logic is platform-agnostic; swap the web SDK for `@react-native-firebase/firestore` or call an HTTP API. `profile.service.ts` also uses `firebase/storage` |
 | `services/temple-areas.supabase.service.ts` | `@supabase/ssr` cookie-based server client, service-role admin client | **rewrite** | Server-only; a mobile client must go through an HTTP API, never the admin key |
 | `lib/sevas.ts` | Node `fs.readdirSync`, `process.cwd()` | **rewrite** | Filesystem scan; must become a data query |
