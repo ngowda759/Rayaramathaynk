@@ -45,3 +45,13 @@ one is already on the `main` branch, so Seva Entry does not fix them; they are l
 | # | Follow-up | Today | Where |
 |---|---|---|---|
 | 1 | A link from each row on **Day closes** to that counter and day's Close day page | An admin who must reopen a closed day types the address `/seva/day-close?counterId=<n>&date=<YYYY-MM-DD>` by hand (`docs/seva/README.md`, "Reopen a closed day") | `components/seva/reports/DayCloseList.tsx`, `components/seva/reports/DayCloseDetail.tsx` |
+
+## Known limits (accepted for Phase 1)
+
+Found by the final re-check (2026-10-20) and accepted, not fixed, in Phase 1.
+
+| # | Limit | What it means | What to do |
+|---|---|---|---|
+| N-4 | A refusal report carries the signed-in user, not the admin who set the item aside | The PC keeps who set an office-refused item aside, but the `sync.refused_set_aside` report goes out under whoever is signed in when it is sent; a report retried later can name another admin | Read the reason and time on the audit row; the PC's own record names the admin |
+| N-5 | SQL cannot check the role behind the close-day override | Roles live in Firestore, so `seva_close_day` cannot tell an admin from a receptionist; the route (`lib/seva/server/dayclose.ts`) sends `counterOfflineOk` only for a temple admin or super admin, and SQL still refuses view-only staff and needs the reason | Keep the role check in the route; every override is audited with its reason |
+| N-7 | "Replace this PC" records one year's unsent numbers | A PC that dies over New Year holding unsent numbers of both years (for example 2026/341-345 and 2027/1-3) gets a gap for the year given only; the new PC can reuse the other year's numbers, and a late upload of them is refused (it shows on the `sync_refused` card) | Record the other year's range by hand (the paper book and a written note to the office); there is no screen to open a gap by hand in Phase 1 |
