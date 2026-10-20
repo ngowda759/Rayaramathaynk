@@ -18,7 +18,7 @@ A short checklist, in order. Tick each box. Where a step needs many clicks, it n
   - **base repository:** `ngowda759/Rayaramathaynk`
   - **base:** `main`
   - **head repository:** `nikhilmn01/Rayaramathaynk`
-  - **compare:** `feature/seva-entry`
+  - **compare:** `main`
 - [ ] 4. Click **Create pull request**.
 - [ ] 5. In **Title**, type: `Seva Entry - digital seva counter, receipts, prasadam and dashboard`.
 - [ ] 6. In the description, paste these three lines:
