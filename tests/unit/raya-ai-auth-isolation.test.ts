@@ -131,7 +131,9 @@ describe("auth-provider separation", () => {
     expect(source).toContain("canAccessAdmin");
     // And the Supabase session may only satisfy the Raya AI subtree.
     expect(source).toContain("isRayaAiPath");
-    expect(source).toContain("isRayaAiLogin");
+    // The three unauthenticated Raya AI pages are exempted through the shared
+    // predicate, so the guard and the pages cannot drift apart.
+    expect(source).toContain("isRayaAiPublicAuthPath");
   });
 
   it("the Supabase session hook is client-only and never the security boundary", () => {
