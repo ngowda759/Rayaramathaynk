@@ -47,6 +47,14 @@ jobs:
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
 
+      # Fails closed on a missing, malformed or mismatched Supabase URL. This
+      # workflow can write to the destination when confirm_production is set, so
+      # the target project must be verified before any migration script runs.
+      - name: Guard approved Supabase project
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: node scripts/lib/guard-approved-supabase-url.mjs
+
       - name: Execute Staged Dump
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}

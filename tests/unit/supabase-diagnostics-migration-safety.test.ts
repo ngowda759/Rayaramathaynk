@@ -450,3 +450,95 @@ describe("ref extraction fails closed on malformed and ambiguous values", () => 
     expect(unrecognised.ref).toBe("");
   });
 });
+
+// --- Destination guard for write-capable Firestore migration workflows -------
+// Every workflow that can write to Supabase must verify the destination project
+// before any database-changing command. The Firestore migration workflows
+// authenticate with a URL + service key (not a ref), so they need the URL guard.
+describe("write-capable migration workflows verify the destination project", () => {
+  const urlGuard = resolve(root, "scripts/lib/guard-approved-supabase-url.mjs");
+
+  const DEST_WRITING_WORKFLOWS = [
+    "firestore-batched-migration.yml",
+    "firestore-staged-migration.yml",
+  ];
+  const GUARDED_REF_WORKFLOWS = [
+    "supabase-migrations.yml",
+    "ai-knowledge-migration-apply.yml",
+  ];
+
+  it.each(GUARDED_REF_WORKFLOWS)("%s runs the project-ref guard before any db command", (file) => {
+    const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
+    const guardAt = wf.indexOf("run: node scripts/lib/guard-approved-project.mjs");
+    expect(guardAt).toBeGreaterThan(-1);
+    const applyAt = wf.indexOf("run: node scripts/apply-ai-knowledge-migration.mjs");
+    if (applyAt > -1) expect(guardAt).toBeLessThan(applyAt);
+  });
+
+  it.each(DEST_WRITING_WORKFLOWS)(
+    "%s runs the URL guard before any migration script",
+    (file) => {
+      const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
+      const guardAt = wf.indexOf("run: node scripts/lib/guard-approved-supabase-url.mjs");
+      expect(guardAt).toBeGreaterThan(-1);
+
+      // The guard must precede the first script that can touch the destination.
+      const scriptMarkers = [
+        "npx tsx scripts/migrate-all-batched.ts",
+        "npx tsx scripts/migrate-staged-phase1.ts",
+        "node scripts/apply-ai-knowledge-migration.mjs",
+        "npx tsx scripts/fetch-checkpoint.ts",
+      ];
+      for (const marker of scriptMarkers) {
+        const at = wf.indexOf(marker);
+        if (at > -1) expect(guardAt).toBeLessThan(at);
+      }
+    },
+  );
+
+  it.each(DEST_WRITING_WORKFLOWS)("%s passes the URL via env, never interpolated into a shell", (file) => {
+    const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
+    const block = /- name: Guard approved Supabase project\n([\s\S]*?)\n\n/.exec(wf)?.[0] ?? "";
+    expect(block).toMatch(/NEXT_PUBLIC_SUPABASE_URL:\s*\$\{\{\s*secrets\.NEXT_PUBLIC_SUPABASE_URL\s*\}\}/);
+    expect(block).not.toMatch(/\$\{\{\s*inputs\./);
+  });
+
+  describe("URL guard refuses anything but the approved project", () => {
+    function runUrlGuard(env: Record<string, string>) {
+      return spawnSync("node", [urlGuard], { cwd: root, env: { ...process.env, ...env }, encoding: "utf8" });
+    }
+
+    it("refuses when the URL is missing", () => {
+      const r = runUrlGuard({ NEXT_PUBLIC_SUPABASE_URL: "" });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/is not set/);
+    });
+
+    it("refuses a hostname-suffix spoof", () => {
+      const r = runUrlGuard({ NEXT_PUBLIC_SUPABASE_URL: `https://${APPROVED}.supabase.co.evil.com` });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/does not resolve to a Supabase project ref/);
+    });
+
+    it("refuses a well-formed but unapproved project, and leaks no URL", () => {
+      const other = "https://zzzzzzzzzzzzzzzzzzzz.supabase.co";
+      const r = runUrlGuard({ NEXT_PUBLIC_SUPABASE_URL: other });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/not the approved production project/);
+      expect(r.stderr).not.toContain(other);
+    });
+
+    it("passes for the approved project", () => {
+      const r = runUrlGuard({ NEXT_PUBLIC_SUPABASE_URL: `https://${APPROVED}.supabase.co` });
+      expect(r.status).toBe(0);
+      expect(r.stdout).toMatch(/guard passed/);
+    });
+
+    it("reads the URL from the environment, not from argv, and hardcodes no ref", () => {
+      const src = readFileSync(urlGuard, "utf8");
+      expect(src).toMatch(/process\.env\.NEXT_PUBLIC_SUPABASE_URL/);
+      expect(src).not.toMatch(/process\.argv/);
+      expect(src).not.toMatch(new RegExp(APPROVED));
+    });
+  });
+});

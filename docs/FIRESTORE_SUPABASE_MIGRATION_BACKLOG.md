@@ -56,7 +56,7 @@ Confirmed against `main` `e6f8491`. "Rev-2" means the revision 2 audit text.
 | `app/api/admin/knowledge/**` | read/write via REST | knowledge articles | `ai_knowledge` |
 | `app/admin/ai/training/page.tsx` | read | `chatTraining` | none (EXCLUDE_SYSTEM) |
 
-`/api/chat` still reaches Firestore: `app/api/chat/route.ts:131` selects HYBRID
+`/api/chat` still reaches Firestore: `app/api/chat/route.ts:130-131` selects HYBRID
 mode, which calls the retrieval registry, which dispatches the `announcements`
 retriever (`lib/ai/retrieval/index.ts:222`) — a Firebase client-SDK read. **Raya
 AI is therefore not Supabase-only.**
@@ -127,13 +127,35 @@ statements in total (51 named `Deny …`, 5 permissive). Breakdown:
   `knowledge` → `ai_knowledge` or reclassifying it. Pinned by
   `tests/unit/migration-inventory-census.test.ts`.
 
+- **C-7 fix (implemented in this PR, code side).** The silent skip is now fail-closed
+  (`scripts/migrate-all-batched.ts:298-319`): a `MIGRATE` entry with no
+  `destinationTable` logs `::error::FATAL: … Refusing to report success.`
+  (`:303`), sets `overallSuccess = false` (`:304`), writes a `FAILED` manifest record
+  (`:309`, `failureReason: "MIGRATE collection has no destinationTable mapped"` at
+  `:318`), and `continue`s. The run can therefore never report `SUCCESS`:
+  `:496-497` maps a non-`SUCCESS` `overallStatus` to `process.exitCode = 1`. Pinned by
+  three new tests in `tests/unit/migrate-all-batched.test.ts` (`:244`, `:257`, `:285`).
+  The `knowledge` **mapping itself** (`knowledge` -> `ai_knowledge`, or reclassify to
+  `REVIEW`) is left to a reviewed PR (B-5); this PR only removes the silent-loss failure
+  mode.
+
 ### 1.5 Previously reported counts and tests
 
-- Rev-2's jest figure (2614) is stale: the suite now reports **2629 passing**
-  (this PR adds 15).
-- New regression suite: `tests/unit/workflow-shell-injection.test.ts` (15 tests).
-- Total for the two touched suites: 58. Full jest 2629. DB 234. Static migration
-  verification PASSED. Typecheck clean. Lint 0 errors.
+Revalidated 2026-10-21 (this PR revision):
+
+- Full suite: **191 suites / 2683 tests, all passing** (`npx jest`). Rev-2's 2614 and
+  the earlier 2629 are both stale.
+- New suites added by this PR:
+  - `tests/unit/firestore-export-artifact-safety.test.ts` (35 tests) — export PII containment.
+  - `tests/unit/migrate-all-batched.test.ts` +3 tests — fail-closed on a destination-less
+    `MIGRATE` entry.
+  - `tests/unit/supabase-diagnostics-migration-safety.test.ts` +12 tests — destination
+    guard for write-capable migration workflows.
+- `npm run typecheck` EXIT=0; `node .ai/scripts/validate-workflows.mjs` validates 24 files;
+  `node .ai/scripts/assert-trusted-review.mjs` passes for 4 workflows.
+- Live DB tests (`npm run test:db`) and live migration verification were **not** run:
+  there is no database access in this environment (see §3). Policy/RLS counts in §1.3 are
+  from the committed migrations, not from a live `pg_policies` read.
 
 ---
 
@@ -175,6 +197,24 @@ statements in total (51 named `Deny …`, 5 permissive). Breakdown:
   `members` — receipts, names, contact details and prayer/support messages. **This
   is a personal-data exposure and must be closed before the next export run.**
 
+**Status: containment implemented in this PR (B-2, code side).** The upload is now
+policy-gated rather than unconditional:
+
+- a `publish_artifact` `workflow_dispatch` input, default **false**;
+- a policy step that emits `allow=true` only when the repository is private **and**
+  an access-controlled destination token is configured. On a public repository it
+  always emits `allow=false`;
+- a hard-fail step (`exit 1`) when `publish_artifact=true` but publication is not
+  allowed, so the workflow fails loudly instead of leaking;
+- an always-run upload of **only `data/firestore-dump/MANIFEST.json`** (counts and
+  file names, no document bodies), retention 7 days;
+- the raw-data upload now requires
+  `if: steps.upload_policy.outputs.allow == 'true'`.
+
+Pinned by `tests/unit/firestore-export-artifact-safety.test.ts` (35 tests, static +
+behavioral). **Still owner-gated:** the workflow may only be dispatched after the
+owner approves the exact target environment and destination.
+
 **Verifying completeness without logging contents:** the MANIFEST records
 `{collection, status, docCount, file, reason}` only. The `Validate generated
 export` step already checks per-collection `docCount` against the file line count
@@ -192,12 +232,27 @@ PII redaction is uploaded; and confirm `production` environment reviewers.
 
 Approved production project (given by the owner, do not re-confirm against
 others): **ref `kvrkraqjuyxbraccxntk`**. CI `Supabase Preview` previously resolved
-its URL independently; that is treated as corroboration.
+its URL independently; that is treated as corroboration. The value is centralised in
+`scripts/lib/approved-project.mjs`; it is **not** duplicated in workflow YAML or in
+any other script.
 
 `supabase/config.toml` carries `project_id = "rayaramathaynk"`, which is the
 **local CLI project name**, not the hosted ref. It must not be read as the target.
 
-Live state (ledger, tables, counts, RLS) is **UNVERIFIED and is a blocker** —
+**Destination guard added in this PR (code side).** Three write-capable workflows now
+verify the destination before any database-changing command:
+
+- `supabase-migrations.yml` and `ai-knowledge-migration-apply.yml` run
+  `scripts/lib/guard-approved-project.mjs` (project-ref guard);
+- `firestore-batched-migration.yml` and `firestore-staged-migration.yml` run the new
+  `scripts/lib/guard-approved-supabase-url.mjs` (URL guard), because they authenticate
+  with `NEXT_PUBLIC_SUPABASE_URL` + a service-role key rather than a ref.
+
+Both guards read the value from the environment (never `argv`), fail closed on a
+missing/malformed/mismatched value, and print only a SHA-256 fingerprint. Pinned by
+`tests/unit/supabase-diagnostics-migration-safety.test.ts`.
+
+Live state (ledger, tables, counts, RLS) is **UNVERIFIED and remains a blocker** —
 there is no raw SQL/psql access and `SUPABASE_DB_URL` in this environment points
 at an unrelated project. See A-1/A-2 for the read-only verification required.
 
@@ -248,7 +303,7 @@ Per call site in §1.2:
   Field map: Firestore `isActive`→`active`, `publishedAt`→`published_at`,
   `expiresAt`→`expires_at`. Access control: public read, service-role write.
   Fail-safe: on Supabase error the retriever must return an empty result and the
-  chat route must return the existing "safe" fallback (`app/api/chat/route.ts:212`),
+  chat route must return the existing "safe" fallback (`app/api/chat/route.ts:212-222`),
   never a Firestore read.
 - **`chat.service.ts`** — split the remaining Firebase half onto the existing
   `chat_sessions`/`chat_messages` tables; keep `firestore_id` as provenance.
@@ -278,11 +333,12 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | A-2 | A | Read the live `supabase_migrations.schema_migrations` ledger, `information_schema.tables`, per-table row counts, and `pg_policies` | A-1 | Medium | Ledger shows whether `20261103000000` is applied; output is counts/names only | Owner |
 | A-3 | A | Re-audit all Firestore read/write call sites on `main` (Raya AI + Aaradhane + any admin route) | — | Low | All call sites enumerated with file:line | — |
 | B-1 | B | Retire/re-point the Aaradhane scheduled Firestore writer, or gate it behind `dry_run` so cron cannot write | A-3 | **Critical** | Cron no longer writes Firestore; `--dry-run` on schedule | Owner |
-| B-2 | B | Move `firestore-production-export` output to a non-public destination (private artifact/encrypted) and confirm reviewer protection | — | **Critical (PII)** | No decoded bodies externally readable; retention ≤7d | Owner |
+| B-2 | B | **Code side done in this PR:** export raw upload policy-gated (default refuse; public repo always refuses). **Owner side remains:** set `production` reviewers and approve destination | — | **Critical (PII)** | No decoded bodies externally readable; retention ≤7d; `publish_artifact=false` on public repo | Owner |
 | B-3 | B | Fix export completeness: enumerate nested subcollections, add `readTime` snapshot consistency, fail instead of skip, record per-path results, preflight quota check | — | Medium | MANIFEST covers nested paths; a missing collection fails the run | Owner (to run) |
 | B-4 | B | `20261103000000_add_auth_user_id_to_users.sql` — decide apply vs revert; if kept, confirm ordering after `20261102000300` | A-2 | Medium | A1-2 confirms ledger vs file; ordering decided | Owner |
 | B-4b | B | Move `20261006101759_seed_ai_settings.sql` out of the migration sequence | — | Low | Seed is not applied as a migration | — |
-| B-5 | B | Map `knowledge` → `ai_knowledge` (or reclassify), and make a destination-less `MIGRATE` entry fail the run instead of silently skipping | — | **High (silent data loss)** | No `MIGRATE` entry lacks a destination; a missing destination sets `overallSuccess=false`; census test updated | Reviewed PR |
+| B-5 | B | Map `knowledge` → `ai_knowledge` (or reclassify). **Fail-closed half done in this PR:** a destination-less `MIGRATE` entry now fails the run instead of silently skipping | — | **High (silent data loss)** | No `MIGRATE` entry lacks a destination; a missing destination sets `overallSuccess=false`; census test updated | Reviewed PR |
+| B-2b | B | **Done in this PR:** destination guard added to write-capable migration workflows (URL guard for the two Firestore workflows, ref guard for ai-knowledge) | — | High: wrong project = data loss | Every DB-changing workflow runs a guard before its first migration command; pinned by tests | Reviewed PR |
 | B-6 | B | Rotate the exposed Firebase service-account key and purge it from Git history | — | **Critical** | New key live; old key revoked; history rewritten | Owner + security |
 | C-1 | C | Create the `announcements` table + public-read policy | A-1 | Medium | `announcements` exists; policy limited to active/in-window | Reviewed PR |
 | C-2 | C | Add the missing policy for `seva_list_items` (service-role only, explicit) | A-2 | Medium | RLS policy present; no widening | Reviewed PR |
@@ -298,9 +354,13 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | F-2 | F | Run the approved production migration batch | F-1, E-2 | **Critical** | MANIFEST clean; post-migration verification passes | Owner + approval |
 | F-3 | F | Final cutover: remove all Firestore reads/writes and the credential | F-2 | High | No Firestore reference remains | Owner |
 
-**Freeze note:** the migration git-tracked workflows (`firestore-batched-migration.yml`,
-`firestore-staged-migration.yml`) currently lack a project-ref guard; only
-`supabase-migrations.yml` has one. Do not dispatch them until F-1 adds the guard.
+**Freeze note (updated in this PR).** The migration git-tracked workflows now carry a
+destination guard: `firestore-batched-migration.yml` and `firestore-staged-migration.yml`
+run `scripts/lib/guard-approved-supabase-url.mjs` before any migration script;
+`ai-knowledge-migration-apply.yml` and `supabase-migrations.yml` run
+`scripts/lib/guard-approved-project.mjs`. A wrong destination now fails closed instead of
+writing. The workflows are still **not** to be dispatched until the owner approves the
+target environment (see §9).
 
 ---
 
@@ -328,24 +388,21 @@ grant.
 ## 8. Evidence and commands
 
 ```bash
-# static: no untrusted expression interpolated into any run: block (24 workflows)
-npx jest tests/unit/workflow-shell-injection.test.ts
+# export PII containment: raw upload must be policy-gated everywhere
+npx jest tests/unit/firestore-export-artifact-safety.test.ts
 
-# behavioral: confirmation gates + the existing diagnostics suite
-npx jest tests/unit/supabase-diagnostics-migration-safety.test.ts tests/unit/workflow-shell-injection.test.ts
+# migrator must not report success while omitting a collection
+npx jest tests/unit/migrate-all-batched.test.ts
 
-# full suite, types, lint
+# destination guard for write-capable workflows (static + behavioral)
+npx jest tests/unit/supabase-diagnostics-migration-safety.test.ts
+
+# full suite, types
 npx jest
 npm run typecheck
-npm run lint
-
-# migration verification (static) and DB tests
-npm run verify:supabase-migrations:static
-npm run test:db
 
 # repository workflow validators
 node .ai/scripts/validate-workflows.mjs
-node .ai/scripts/validate-loop-config.mjs
 node .ai/scripts/assert-trusted-review.mjs
 
 # inventory count (expect length 61; 15 MIGRATE / 42 REVIEW / 2 EXCLUDE_SYSTEM / 2 EXCLUDE_AUTH)
@@ -354,16 +411,31 @@ const c={};for(const i of MIGRATION_INVENTORY)c[i.classification]=(c[i.classific
 console.log(MIGRATION_INVENTORY.length, c, EXCLUDED_AUTH_COLLECTIONS)'
 ```
 
+Executed results (2026-10-21): export safety 35 passed; migrate-all-batched suite passed;
+diagnostics safety 54 passed; full suite **191 suites / 2683 tests passed**; typecheck
+EXIT=0; workflow validators pass. Mutation checks confirmed each new guard test detects its
+defect (restored silent skip → failures; removed URL guard → failures; fail-open export
+policy → failures).
+
 ---
 
 ## 9. Exact next owner action
 
-1. **Approve or reject A-1**: give an owner-approved channel (Supabase dashboard
-   screenshot or MCP session) confirming ref `kvrkraqjuyxbraccxntk` is the
-   production project, so live ledger/schema/RLS verification (A-2) can proceed.
-2. **Authorise B-2**: close the public artifact path before the next export run.
-3. **Authorise B-6**: rotate `FIREBASE_PRIVATE_KEY` and purge it from history.
-4. **Decide B-1**: whether cron may keep writing Firestore until D-4 lands.
+1. **Confirm the production export workflow before it is ever dispatched.** The exact
+   workflow is `.github/workflows/firestore-production-export.yml` (`workflow_dispatch`
+   only; reads Firestore, writes to the runner + artifact). Approve the target
+   environment (`production`) and the output destination; keep `publish_artifact=false`
+   unless a private, access-controlled destination is configured. Manual steps if
+   approval is needed: (a) set the `production` environment required reviewers;
+   (b) decide whether any raw export may leave the runner at all; (c) dispatch with
+   `publish_artifact=false` and inspect only the MANIFEST.
+2. **Approve or reject A-1**: give an owner-approved channel (Supabase dashboard
+   screenshot or MCP session) confirming ref `kvrkraqjuyxbraccxntk` is the production
+   project, so live ledger/schema/RLS verification (A-2) can proceed.
+3. **Authorise B-6**: rotate `FIREBASE_PRIVATE_KEY` and purge it from Git history.
+4. **Decide B-1**: whether cron may keep writing Firestore until D-4 lands (B-1 stays
+   critical until then; this PR does **not** change the Aaradhane workflow).
+5. **Review B-5 mapping**: decide `knowledge` → `ai_knowledge` vs reclassify to `REVIEW`.
 
 No production write, export run, migration batch, schema change, RLS change,
 deployment, or merge is performed by this document.
