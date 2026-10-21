@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { POST } from "../../app/api/ai/settings/prompts/route";
 import { NextRequest } from "next/server";
@@ -55,6 +56,43 @@ describe("POST /api/ai/settings/prompts", () => {
       "admin-uid",
       undefined,
       "Test Prompt",
+      "draft"
+    );
+  });
+
+
+  it("should create the Raya AI Master System Prompt with correct requirements", async () => {
+    const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: mockUser,
+    });
+
+    (aiSettingsService.createPromptVersion as jest.Mock).mockResolvedValue("prompt_master_v1");
+
+    const masterPromptContent = fs.readFileSync('raya_ai_master_prompt.txt', 'utf8');
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "POST",
+      body: JSON.stringify({
+        content: masterPromptContent,
+        name: "Raya AI Master System Prompt",
+        status: "draft",
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.versionId).toBe("prompt_master_v1");
+    expect(json.name).toBe("Raya AI Master System Prompt");
+
+    expect(aiSettingsService.createPromptVersion).toHaveBeenCalledWith(
+      masterPromptContent,
+      "admin-uid",
+      undefined,
+      "Raya AI Master System Prompt",
       "draft"
     );
   });
