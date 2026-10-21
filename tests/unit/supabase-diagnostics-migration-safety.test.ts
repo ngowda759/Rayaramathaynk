@@ -80,18 +80,25 @@ function extractStepScript(yaml: string, stepName: string): string {
 
 /**
  * Run the "Check confirmation phrase" step exactly as GitHub would: the step body
- * with `CONFIRM` supplied through the environment, not substituted into the text.
- * Returns the exit status and whether the injected payload touched the sentinel.
+ * with its configured env var supplied through the environment, not substituted
+ * into the text. Returns the exit status and whether the injected payload touched
+ * the sentinel.
  */
 function runConfirmStep(confirmValue: string) {
   const script = extractStepScript(readFileSync(workflow, "utf8"), "Check confirmation phrase");
+  // Read the env var name from the step rather than assuming it, so renaming the
+  // variable cannot silently make this helper test nothing.
+  const envName =
+    /^\s*([A-Za-z_][A-Za-z0-9_]*):\s*\$\{\{\s*inputs\.confirm\s*\}\}\s*$/m.exec(
+      readFileSync(workflow, "utf8"),
+    )?.[1] ?? "CONFIRM_PHRASE";
   const sentinel = resolve(root, `.injection-sentinel-${process.pid}`);
   spawnSync("rm", ["-f", sentinel]);
   // Provide a payload that would create the sentinel if it were ever evaluated.
   const payload = confirmValue.replace(/__SENTINEL__/g, sentinel);
   const r = spawnSync("bash", ["-c", script], {
     cwd: root,
-    env: { ...process.env, CONFIRM: payload },
+    env: { ...process.env, [envName]: payload },
     encoding: "utf8",
   });
   const injected = spawnSync("test", ["-f", sentinel]).status === 0;
@@ -287,8 +294,8 @@ describe("migration workflow safety properties", () => {
     expect(wf).toMatch(/confirmation phrase did not match/);
     // The input is routed through step-level env and compared as a quoted shell
     // variable, never interpolated into the script text.
-    expect(wf).toMatch(/CONFIRM:\s*\$\{\{\s*inputs\.confirm\s*\}\}/);
-    expect(wf).toMatch(/if \[ "\$CONFIRM" != "apply-supabase-migrations" \]; then/);
+    expect(wf).toMatch(/CONFIRM_PHRASE:\s*\$\{\{\s*inputs\.confirm\s*\}\}/);
+    expect(wf).toMatch(/if \[\[ "\$CONFIRM_PHRASE" != "apply-supabase-migrations" \]\]; then/);
   });
 
   it("never interpolates untrusted inputs into any run: shell block", () => {

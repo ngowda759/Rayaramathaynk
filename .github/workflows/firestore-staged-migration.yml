@@ -28,10 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -54,21 +53,25 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          INPUT_COLLECTIONS: ${{ github.event.inputs.collections }}
         run: |
-          echo "Executing dump for collections: ${{ github.event.inputs.collections }}"
-          npx tsx scripts/dump-firestore-staged.ts ${{ github.event.inputs.collections }}
+          echo "Executing dump for collections: $INPUT_COLLECTIONS"
+          # shellcheck disable=SC2086  # intentional word-splitting of the list
+          npx tsx scripts/dump-firestore-staged.ts $INPUT_COLLECTIONS
 
       - name: Execute Phase 1 Migration
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_CONFIRM_PRODUCTION: ${{ github.event.inputs.confirm_production }}
         run: |
           ARGS=""
-          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          if [[ "$INPUT_DRY_RUN" == "true" ]]; then
             ARGS="$ARGS --dry-run"
           fi
-          if [ "${{ github.event.inputs.confirm_production }}" == "true" ]; then
+          if [[ "$INPUT_CONFIRM_PRODUCTION" == "true" ]]; then
             ARGS="$ARGS --confirm-production"
           fi
 
@@ -76,7 +79,7 @@ jobs:
           npx tsx scripts/migrate-staged-phase1.ts $ARGS
 
       - name: Upload Migration Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: migration-phase1-report
           path: MIGRATION_PHASE_1_REPORT.md

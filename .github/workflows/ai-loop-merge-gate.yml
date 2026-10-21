@@ -70,9 +70,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           set +e
-          node .ai/scripts/merge-gate.mjs --pr "${{ steps.pr.outputs.number }}" --json | tee /tmp/gate.json
+          node .ai/scripts/merge-gate.mjs --pr "$PR_NUMBER" --json | tee /tmp/gate.json
           status=${PIPESTATUS[0]}
           echo "status=${status}" >> "$GITHUB_OUTPUT"
           exit 0

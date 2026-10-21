@@ -115,8 +115,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
-          node .ai/scripts/wait-for-ci.mjs --pr "${{ steps.pr.outputs.number }}" --timeout-ms 900000
+          node .ai/scripts/wait-for-ci.mjs --pr "$PR_NUMBER" --timeout-ms 900000
 
       - name: Run the AI review
         if: ${{ steps.creds.outputs.available == 'true' && steps.pr.outputs.number != '' }}
@@ -126,8 +127,9 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_REVIEW_MODEL: ${{ vars.OPENROUTER_REVIEW_MODEL }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
-          node .ai/scripts/chatgpt-review.mjs --pr "${{ steps.pr.outputs.number }}"
+          node .ai/scripts/chatgpt-review.mjs --pr "$PR_NUMBER"
 
       - name: Report an unavailable reviewer credential
         if: ${{ always() && steps.creds.outputs.available != 'true' }}

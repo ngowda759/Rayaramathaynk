@@ -52,18 +52,18 @@ jobs:
       # migration-safety.test.ts, which runs this step against adversarial values.
       - name: Check confirmation phrase
         env:
-          CONFIRM: ${{ inputs.confirm }}
+          CONFIRM_PHRASE: ${{ inputs.confirm }}
+        shell: bash
         run: |
-          if [ "$CONFIRM" != "apply-supabase-migrations" ]; then
+          if [[ "$CONFIRM_PHRASE" != "apply-supabase-migrations" ]]; then
             echo "ERROR: confirmation phrase did not match. Refusing to run."
             exit 1
           fi
 
       - name: Checkout repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -88,7 +88,7 @@ jobs:
           echo "SUPABASE_DB_PASSWORD is present."
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: '1.200.0'
 
