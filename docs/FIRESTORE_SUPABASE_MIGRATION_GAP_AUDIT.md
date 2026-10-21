@@ -2,8 +2,9 @@
 
 **Type:** read-only audit. No migration, no schema change, no production write.
 **Repository:** `ngowda759/Rayaramathaynk`
-**Branch audited:** `main` @ `c56ef97ef86d2c8117d62455d117378c55d16d00` (merge of PR #351), verified against the GitHub API as the current `main` head at 2026-10-21T10:58:10Z.
+**Branch audited:** `main` @ `c56ef97ef86d2c8117d62455d117378c55d16d00` (merge of PR #351), which was the `main` head at 2026-10-21T10:58:10Z when revision 2 was written.
 **Audit date:** 2026-10-21 (revision 2 — re-validated against `main` @ `c56ef97`; revision 1 was against `665e6ff`)
+**Report scope note (added in the final review):** `main` has since moved to `53bad41` (11 commits ahead of `c56ef97`), so the audited revision — and the PR branch built on it — is now behind `main`. The PR branch is based on `665e6ff` and therefore does not itself contain PRs #351, #353, #354 or #355; because this PR only **adds** one documentation file and touches nothing else, merging it cannot revert those commits. The newer commits touch `lib/ai/ai-settings/{service,validation}.ts`, prompt-manager admin routes/tests, `raya_ai_master_prompt.txt`, and `public/data/panchanga/current.json`. None of them change the inventory, the mappers, the Supabase migrations, the workflows, the Firestore rules, or the `lib/ai/retrieval/*` files, so the migration findings below are unaffected. The test totals in §9 were, however, captured against `c56ef97` and have drifted on newer `main` (see §9).
 **Report status:** evidence-based; every status is traceable to a file/line, a command, or an explicitly-stated absence of evidence.
 
 ---
@@ -33,7 +34,7 @@
 
 ### 1.3 Scope note
 
-This is revision 2 of the audit. Revision 1 was prepared against `main` @ `665e6ff` and published as PR #352 (still open, draft). Revision 2 re-validates every finding against `main` @ `c56ef97`, corrects two claims that did not survive re-checking (the scheduled-workflow finding in §5.3 and the RLS policy census in §4.2), and adds §7.2 (batch sequence), §7.3 (verified commands), §9 (validation evidence) and §10 (completion checklist).
+This is revision 2 of the audit. Revision 1 was prepared against `main` @ `665e6ff` and published as PR #352 (still open; not a draft). Revision 2 re-validates every finding against `main` @ `c56ef97`, corrects two claims that did not survive re-checking (the scheduled-workflow finding in §5.3 and the RLS policy census in §4.2), and adds §7.2 (batch sequence), §7.3 (verified commands), §9 (validation evidence) and §10 (completion checklist).
 
 Per the audit instruction, **no fixes were implemented and no migration was run**. Nothing was written to Firestore, Supabase, migration history, or application behaviour. No Firestore data was deleted or modified. PR #352 is a documentation-only change; it was not merged.
 
@@ -121,7 +122,7 @@ Method: static analysis of `services/*.ts`, `lib/**`, `app/**`, `firestore.rules
 
 ### 2.3 Inventory integrity problems (all confirmed by reading the source)
 
-- `MIGRATION_INVENTORY` (`lib/supabase/migration-inventory.ts`) holds **59** entries: **15 MIGRATE**, **2 EXCLUDE_SYSTEM**, **42 REVIEW**, and **0 EXCLUDE_AUTH** — despite `EXCLUDED_AUTH_COLLECTIONS = ["users", "sessions"]` being spread in at line 10-15. `MIGRATION_INVENTORY` therefore excludes `users`/`sessions` from the array entirely while the docs claim they are classified. `FIREBASE_MIGRATION_PHASE1_AUDIT.md` §10 states "Total collections identified: 64"; the array has 59 entries and the set union with §2.1/§2.2 is larger still.
+- `MIGRATION_INVENTORY` (`lib/supabase/migration-inventory.ts`) has a **runtime length of 61** entries: **15 MIGRATE**, **2 EXCLUDE_SYSTEM**, **42 REVIEW**, and **2 EXCLUDE_AUTH** (`users`, `sessions`). `EXCLUDED_AUTH_COLLECTIONS = ["users", "sessions"]` is spread into the array at lines 14-19, so both auth collections **are** present and classified as `EXCLUDE_AUTH`; they are not omitted. (Verified by importing the module with `node --experimental-strip-types` and reading `MIGRATION_INVENTORY.length`: 61. Counting only the 59 literal `{ collection: … }` lines undercounts by the two spread-in entries, and grep cannot see the `EXCLUDE_AUTH` classification because it is applied programmatically in the `.map()`, not written as a literal.) `FIREBASE_MIGRATION_PHASE1_AUDIT.md` §10 states "Total collections identified: 64"; the array has 61 entries and the set union with §2.1/§2.2 is larger still.
 - `REVIEW_COLLECTIONS_REPORT.md` claims "Total REVIEW collections checked: 44". The array has **42** REVIEW entries.
 - `migration_report.md` claims "exactly **14** collections marked `MIGRATE`". The array has **15** (`knowledge` is the extra one and has no `destinationTable`).
 - Collections used by live code but **absent from the inventory**: `guruParampara` (`lib/aaradhane/firestore-source.ts:22`) and `test` (`app/admin/test/page.tsx:15`).
@@ -140,7 +141,7 @@ Firebase Storage is used in `app/admin/media/page.tsx:36` (`ref`, `listAll`, `ge
 |---|---|---|
 | `docs/FIRESTORE_SUPABASE_MIGRATION_STATUS.md` | 1 line, title only | **STUB — no content.** Any doc referencing it as the status source is wrong. |
 | `MIGRATION_DATA_RECONCILIATION_REPORT.md` | Names Supabase project `kvrkraqjuyxbraccxntk`; current env ref differs | **STALE/UNVERIFIABLE TARGET.** Its count table (`sevas` 10, `aaradhanes` 0, all others 0) cannot be attributed to the current environment's project. |
-| `FIREBASE_MIGRATION_PHASE1_AUDIT.md` | "Total collections identified: 64"; array has 59 | **CONTRADICTED.** Also lists `ai_token_usage` and `announcements` as ACTIVE with destinations that do not exist in any migration. |
+| `FIREBASE_MIGRATION_PHASE1_AUDIT.md` | "Total collections identified: 64"; array has 61 (runtime length) | **CONTRADICTED.** Also lists `ai_token_usage` and `announcements` as ACTIVE with destinations that do not exist in any migration. |
 | `FIREBASE_MIGRATION_PHASE1_AUDIT.md` §11 | Concludes the 10 `sevas` rows are seed data from `scripts/seed-supabase-sevas.ts` | **CONSISTENT** with `scripts/seed-supabase-sevas.ts` and `scripts/verify-supabase-sevas.ts` (`EXPECTED SOURCE COUNT: 10`). Treat `sevas` as seeded, not migrated. |
 | `docs/FIRESTORE_MIGRATION.md` | Describes `migrate-*.ts` scripts, `--dry-run`, reconciliation, ledger verification | **ACCURATE for the ETL tooling.** Does **not** claim data has been migrated. |
 | `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` §2.3 | Lists remaining Firestore AI files including `lib/ai/retrieval/settings.ts`, `aaradhane.ts`, `sevas.ts`, `events.ts` | **STALE.** Those four are now Supabase-only; `grep -rn firebase lib/ai/` returns only `lib/ai/retrieval/announcements.ts:4,5`. |
@@ -179,8 +180,9 @@ The sandbox `SUPABASE_DB_URL` points at a **Tournament** project (14 tables), no
 
 **45 tables** are declared, all with `ENABLE ROW LEVEL SECURITY`. There are **56 `CREATE POLICY` statements across 44 of the 45 tables**. The distribution is heavily weighted to deny-all:
 
-- **48 policies are explicitly named `Deny all …`** (write/update/delete denial).
-- **8 policies are permissive** (i.e. not named "Deny all"). They cover exactly **4 tables**:
+- **48 policies are named `Deny all …`** (all of them `FOR ALL TO public USING (false)`).
+- **3 policies are named `Deny …` but not `Deny all …`** — the three per-operation write/update/delete denials on `ai_knowledge` (`Deny public write/update/delete access to ai_knowledge`).
+- **5 policies are permissive reads** (named `Allow …`, none starting with `Deny`). They cover exactly **4 tables**:
 
 | Table | Permissive policy | Effect |
 |---|---|---|
@@ -191,7 +193,7 @@ The sandbox `SUPABASE_DB_URL` points at a **Tournament** project (14 tables), no
 
 - **`seva_list_items` enables RLS with no policy at all** (deny-all by default). It is the one table of the 45 with zero `CREATE POLICY` statements.
 
-So the earlier summary that "only 4 have non-deny-all policies" is correct in the sense of *tables with any permissive policy*, but it understated the policy coverage: 44 tables carry explicit policies, 48 of which are deliberate deny-alls. The security-relevant observation is unchanged and narrow: **only 4 tables are readable at all through RLS, and 41 tables are effectively service-role-only.** That matches `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` §2.2 ("RLS beyond deny-all" is a listed gap) — still true.
+So the earlier summary that "only 4 have non-deny-all policies" is correct in the sense of *tables with any permissive read policy*, but it understated the policy coverage: 44 tables carry at least one explicit policy, 48 of which are deliberate `Deny all` statements. The security-relevant observation is unchanged and narrow: **only 4 tables are readable at all through RLS, and 41 tables are effectively service-role-only.** That matches `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` §2.2 ("RLS beyond deny-all" is a listed gap) — still true.
 
 Tables: `sevas`, `daily_poojas`, `events`, `seva_bookings`, `settings_documents`, `chat_sessions`, `chat_messages`, `unknown_questions`, `ai_intent_distribution`, `ai_latency_records`, `users`, `profiles`, `donation_campaigns`, `donations`, `gallery_albums`, `gallery_media`, `testimonials`, `aaradhanes`, `volunteer_requests`, `site_settings`, `social_links`, `ai_settings`, `ai_knowledge`, `temple_areas`, plus 21 `seva_*`/ops tables (`staff`, `counters`, `counter_devices`, `seva_settings`, `cash_denominations`, `festival_days`, `festival_day_dates`, `receipt_series`, `receipt_series_years`, `receipt_number_gaps`, `group_counters`, `seva_rate_history`, `audit_log`, `ops_backup_runs`, `seva_orders`, `seva_receipts`, `seva_receipt_lines`, `day_closes`, `day_close_counts`, `devotee_profiles`, `seva_list_items`).
 
@@ -458,7 +460,7 @@ npm ci                                                    # restore deps
 npm run verify:supabase-migrations:static                 # 45 tables / 602 columns / RLS coverage; exit 2 = live skipped
 npm run firestore:dump                                    # read-only live Firestore dump -> data/firestore-dump/
 npm run dump:staged -- settings events                    # positional collection args; allowlist = {settings, events}
-npx jest tests/unit --silent                              # full unit suite (185 suites / 2247 tests)
+npx jest tests/unit --silent                              # full unit suite (185 suites / 2247 tests at c56ef97; 186 / 2264 at main @ 53bad41)
 ```
 
 Write-capable (do **not** run yet):
@@ -494,7 +496,7 @@ Export generation is deliberately a **CI** action, not a local one: `.github/wor
 ### 8.1 Report and documentation conflicts (consolidated)
 
 1. `docs/FIRESTORE_SUPABASE_MIGRATION_STATUS.md` is a 1-line stub but is named like the authoritative status file.
-2. `FIREBASE_MIGRATION_PHASE1_AUDIT.md` says 64 collections; the inventory array has 59; `REVIEW_COLLECTIONS_REPORT.md` says 44 REVIEW; the array has 42; `migration_report.md` says 14 MIGRATE; the array has 15.
+2. `FIREBASE_MIGRATION_PHASE1_AUDIT.md` says 64 collections; the inventory array has a runtime length of 61; `REVIEW_COLLECTIONS_REPORT.md` says 44 REVIEW; the array has 42; `migration_report.md` says 14 MIGRATE; the array has 15.
 3. `MIGRATION_DATA_RECONCILIATION_REPORT.md` targets a different Supabase project than the current environment.
 4. `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` §2.3 lists four `lib/ai/retrieval/*` files as Firestore-based that are now Supabase-only, and lists `conversation.service.ts`/`ai-analytics.service.ts` as Firestore-based when they are now Supabase-only.
 5. `PHASE_2_BATCH_1_DRY_RUN_REPORT.md` contains only placeholders.
@@ -514,9 +516,26 @@ Every result below was produced by a command run during this audit. Nothing is r
 | 2 | `npm run verify:supabase-migrations:static` | **exit 2**; "Migration files scanned: 32 / Tables declared: 45 / Column declarations parsed: 602 / Tables with RLS enabled: 45 / Tables WITHOUT RLS: none"; "LIVE DATABASE VERIFICATION SKIPPED (--static)" | Static schema expectations **PASS**. Exit `2` means *static passed, live skipped* — it is **not** a failure and **not** a live verification. |
 | 3 | `npx jest tests/unit/migration-helpers.test.ts tests/unit/migration-mappers.test.ts tests/unit/supabase-migration-coverage.test.ts tests/unit/no-firestore-analytics.test.ts tests/unit/ai-api-auth-wiring.test.ts tests/unit/raya-ai-auth-isolation.test.ts tests/unit/conversation-service-supabase.test.ts --silent` | **7 suites passed, 167 tests passed, 0 failed** | Migration mapper/coverage/guard logic is internally consistent. Does **not** validate any real data. |
 | 4 | `npx jest tests/unit --silent` | **185 suites passed, 2247 tests passed, 0 failed** | Full unit suite green on this revision. One suite emits a non-fatal `FATAL: Settings doc count mismatch. Manifest: 10, File: 1` log line yet still passes — worth a follow-up look, reported as an observation, not a failure. |
-| 5 | `git ls-remote` / GitHub API branch + PR reads | — | `main` = `c56ef97`; PR #352 open/draft; PR #351 merged, password-recovery only. |
+| 5 | `git ls-remote` / GitHub API branch + PR reads | — | `main` = `c56ef97` at audit time; PR #352 open, **not** a draft; PR #351 merged, password-recovery only. |
 
 **Not executed, and why:** no `migrate:*` script, no `firestore:dump`, no `supabase db push`, no live verification mode. Live verification requires `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, which are unset in this environment; only `SUPABASE_DB_URL` is present and it targets an unrelated project (§4.1). Running any write-capable command is prohibited by this task.
+
+### 9.1 Independent re-validation (final review, `main` @ `53bad41`)
+
+A separate read-only review re-ran the safe checks and re-imported the modules. Commands, exit codes and results:
+
+| # | Command | Result | Interpretation |
+|---|---|---|---|
+| R1 | `npm ci --no-audit --no-fund` | exit 0 | Dependencies restored. |
+| R2 | `npm run verify:supabase-migrations:static` | **exit 2**; "Migration files scanned: 32 / Tables declared: 45 / Column declarations parsed: 602 / Tables with RLS enabled: 45 / Tables WITHOUT RLS: none" | Matches §9 rows 2. Exit 2 = live skipped, not a CI pass. |
+| R3 | `npx jest tests/unit --silent` (on `main` @ `53bad41`) | **186 suites / 2264 tests passed**, 0 failed | The suite has grown since `c56ef97`; the §9 row 4 total of 185/2247 is correct **for `c56ef97` only**. |
+| R4 | `npx jest tests/unit --silent` (checked out at `c56ef97`) | **185 suites / 2247 tests passed**, 0 failed | Confirms the §9 row 4 figures were accurate for the audited revision. |
+| R5 | `npx jest … (the 7 named guard suites) --silent` | **7 suites / 167 tests passed** | Matches §9 row 3. |
+| R6 | `node --experimental-strip-types` importing `MIGRATION_INVENTORY` | runtime length **61**; 15 MIGRATE / 42 REVIEW / 2 EXCLUDE_SYSTEM / 2 EXCLUDE_AUTH | Corrects the earlier "59 / 0 EXCLUDE_AUTH" claim in §2.3 and §12. |
+| R7 | `python3` census over `supabase/migrations/*.sql` | 56 `CREATE POLICY` statements; 44 of 45 tables carry ≥1 policy; 48 named `Deny all …`; 3 further `Deny …` (all on `ai_knowledge`); 5 `Allow …` reads covering 4 tables; `seva_list_items` has none | Corrects the earlier "8 permissive" figure (actual permissive reads = 5). |
+| R8 | read-only `psycopg2` introspection of `SUPABASE_DB_URL` | 14 tables, all Tournament-domain (`teams`, `matches`, `players`, `tournaments`, …) | Confirms §4.1: the sandbox DB is not the temple DB. No temple count was read. |
+
+The re-validation changed only documentation text in this file (inventory entry count, the RLS permissive count, `main`-head drift, PR draft status, and the test-total provenance). No finding was reclassified and no migration status was upgraded.
 
 ---
 
@@ -554,11 +573,11 @@ These are reported because they affect the safety of the migration itself. **No 
 ## 12. Closing statement
 
 **Confirmed.**
-- `main` @ `c56ef97` is the audited revision and matches upstream (verified via the GitHub API at 2026-10-21T10:58:10Z). Only PR #351 landed between revision 1 (`665e6ff`) and revision 2; it touched password-recovery files only and has no migration impact.
+- `main` @ `c56ef97` was the audited revision and was upstream head at audit time (verified via the GitHub API at 2026-10-21T10:58:10Z). Only PR #351 landed between revision 1 (`665e6ff`) and revision 2; it touched password-recovery files only and has no migration impact. `main` has since advanced to `53bad41`; that drift does not alter any migration finding (see the scope note at the top).
 - No complete Firestore source export exists; `data/firestore-dump/` and `data/firestore-export/` do not exist and no `*.ndjson` is tracked.
 - The temple Supabase destination is **not** reachable from this environment; the sandbox DB is a different project.
-- 45 tables are declared across the 32 Supabase migrations, all RLS-enabled, 44 with at least one policy, 4 with a permissive (non-deny-all) policy. Verified by `npm run verify:supabase-migrations:static` → "Tables declared: 45 / Tables with RLS enabled: 45 / Tables WITHOUT RLS: none".
-- 59 entries exist in `MIGRATION_INVENTORY` (15 MIGRATE / 42 REVIEW / 2 EXCLUDE_SYSTEM / 0 EXCLUDE_AUTH).
+- 45 tables are declared across the 32 Supabase migrations, all RLS-enabled, 44 with at least one `CREATE POLICY`, 48 of the 56 policies being `Deny all …`, and 4 tables carrying a permissive `Allow …` read policy (`temple_areas`, `site_settings`, `social_links`, `ai_knowledge`). Tables/RLS verified by `npm run verify:supabase-migrations:static` → "Tables declared: 45 / Tables with RLS enabled: 45 / Tables WITHOUT RLS: none"; policy counts verified by an independent census of `supabase/migrations/*.sql`.
+- 61 entries exist in `MIGRATION_INVENTORY` at runtime (15 MIGRATE / 42 REVIEW / 2 EXCLUDE_SYSTEM / 2 EXCLUDE_AUTH). Verified by importing the module and reading `MIGRATION_INVENTORY.length`.
 - Raya AI is **not** Supabase-only: five in-scope dependencies remain, one of them on the live `/api/chat` path.
 - `events` has a live scheduled unattended Firestore writer (`aaradhane.yml`).
 - A service-account private key is committed to a public repository.
