@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 import {
   Search,
   RefreshCw,
@@ -47,6 +48,7 @@ const SOURCE_LABELS = {
 };
 
 export default function MultiSourceRetrievalDashboard({ className = "" }: MultiSourceRetrievalDashboardProps) {
+  const adminFetch = useAdminFetch();
   const [quickQueries, setQuickQueries] = useState<QuickQuery[]>([]);
   const [response, setResponse] = useState<MultiSourceResponse | null>(null);
   const [statistics, setStatistics] = useState<RetrievalStats | null>(null);
@@ -66,8 +68,8 @@ export default function MultiSourceRetrievalDashboard({ className = "" }: MultiS
 
     try {
       const [queriesRes, statsRes] = await Promise.all([
-        fetch("/api/ai/multi-source/quick-queries"),
-        fetch("/api/ai/multi-source/statistics"),
+        adminFetch("/api/ai/multi-source/quick-queries"),
+        adminFetch("/api/ai/multi-source/statistics"),
       ]);
 
       if (queriesRes.ok) {
@@ -82,7 +84,7 @@ export default function MultiSourceRetrievalDashboard({ className = "" }: MultiS
       }
 
       // Fetch initial overview
-      const overviewRes = await fetch("/api/ai/multi-source/overview");
+      const overviewRes = await adminFetch("/api/ai/multi-source/overview");
       if (overviewRes.ok) {
         const data = await overviewRes.json();
         setResponse(data);
@@ -99,7 +101,7 @@ export default function MultiSourceRetrievalDashboard({ className = "" }: MultiS
     setError(null);
 
     try {
-      const res = await fetch("/api/ai/multi-source/query", {
+      const res = await adminFetch("/api/ai/multi-source/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
@@ -113,7 +115,7 @@ export default function MultiSourceRetrievalDashboard({ className = "" }: MultiS
       setResponse(data);
 
       // Refresh statistics
-      const statsRes = await fetch("/api/ai/multi-source/statistics");
+      const statsRes = await adminFetch("/api/ai/multi-source/statistics");
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStatistics(statsData.statistics);

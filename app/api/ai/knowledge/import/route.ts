@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -78,7 +78,7 @@ function slugify(value: string): string {
 export async function POST(request: NextRequest) {
   // This endpoint writes knowledge articles; it must require an authenticated
   // admin, exactly like the other protected AI APIs.
-  const guard = await requireAdminUser(request);
+  const guard = await requireRayaAdminUser(request);
   if (!guard.ok) return guard.response;
 
   try {

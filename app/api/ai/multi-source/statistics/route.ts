@@ -1,10 +1,16 @@
 // API Route: /api/ai/multi-source/statistics
 // Get retrieval statistics and freshness
+//
+// Raya AI administration surface: the same guard as every other /api/ai route.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getRetrievalStats, getDataFreshness, getQueryHistory } from "@/services/multi-source-retrieval.service";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const guard = await requireRayaAdminUser(request);
+  if (!guard.ok) return guard.response;
+
   try {
     const stats = getRetrievalStats();
     const freshness = getDataFreshness();

@@ -22,8 +22,8 @@ jest.mock("@/lib/supabase/admin", () => ({
 }));
 
 const mockRequireAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
+jest.mock("@/lib/auth/raya-admin-auth", () => ({
+  requireRayaAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
 }));
 
 jest.mock("@/lib/ai/ai-settings/seed-data", () => ({

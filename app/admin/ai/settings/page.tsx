@@ -113,7 +113,7 @@ function describeFailure(
     case "insufficient_role":
       return "Your account does not have administrator permissions.";
     case "auth_unavailable":
-      return "Server authentication is unavailable (Firebase Admin not configured).";
+      return "Server authentication is unavailable (Supabase is not configured).";
     default:
       break;
   }

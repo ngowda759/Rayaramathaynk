@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useSupabaseSession } from "@/hooks/useSupabaseSession";
 import { useCallback } from "react";
 
 export interface AdminFetchOptions extends RequestInit {
@@ -29,19 +29,23 @@ function jsonResponse(status: number, body: Record<string, unknown>): Response {
 }
 
 /**
- * Admin fetch that attaches a fresh Firebase ID token to every request.
+ * Admin fetch that attaches a fresh Supabase Auth access token to every request.
  *
- * - Waits for the auth context to finish initializing before firing a request,
- *   so a protected call is never sent without a token.
- * - Retrieves the ID token with `getIdToken()` (which transparently refreshes
- *   an expired token) and sends it as `Authorization: Bearer <token>`.
+ * Raya AI administration authenticates with Supabase Auth (the temple's other
+ * admin pages still use Firebase). The session cookie set by `@supabase/ssr` is
+ * sent automatically to same-origin route handlers; the access token is also
+ * attached as `Authorization: Bearer` so the server guard can verify it
+ * explicitly and so non-cookie callers work the same way.
+ *
+ * - Waits for the session to finish initializing before firing a request, so a
+ *   protected call is never sent without a token.
  * - Preserves the caller's method, headers and body.
  * - Always returns a real `Response` (including for pre-network failures) so
  *   callers can inspect `status`/`ok` uniformly.
  * - Enforces a bounded timeout to prevent indefinite loading states.
  */
 export function useAdminFetch() {
-  const { user, loading } = useAuth();
+  const { session, loading } = useSupabaseSession();
 
   const adminFetch = useCallback(
     async (input: RequestInfo | URL, init?: AdminFetchOptions): Promise<Response> => {
@@ -54,21 +58,11 @@ export function useAdminFetch() {
         });
       }
 
-      if (!user) {
+      const token = session?.access_token;
+      if (!session || !token) {
         return jsonResponse(ADMIN_FETCH_STATUS.NO_USER, {
           error: "No authenticated user found.",
           reason: "no_user",
-        });
-      }
-
-      let token: string;
-      try {
-        token = await user.getIdToken();
-      } catch (error) {
-        console.error("Failed to get ID token for adminFetch:", error);
-        return jsonResponse(ADMIN_FETCH_STATUS.TOKEN_FAILED, {
-          error: "Failed to retrieve authentication token.",
-          reason: "token_failed",
         });
       }
 
@@ -119,7 +113,7 @@ export function useAdminFetch() {
         }
       }
     },
-    [user, loading]
+    [session, loading]
   );
 
   return adminFetch;

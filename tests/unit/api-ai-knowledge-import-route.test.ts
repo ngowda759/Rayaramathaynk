@@ -5,8 +5,8 @@
 jest.mock("server-only", () => ({}), { virtual: true });
 
 const mockRequireAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
+jest.mock("@/lib/auth/raya-admin-auth", () => ({
+  requireRayaAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
 }));
 
 // `insert` is the only write the route may perform.

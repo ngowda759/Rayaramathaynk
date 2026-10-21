@@ -1,8 +1,13 @@
 import { renderHook, act } from "@testing-library/react";
 import { useAdminFetch, ADMIN_FETCH_STATUS } from "../../hooks/useAdminFetch";
-import { useAuth } from "../../hooks/useAuth";
+import { useSupabaseSession } from "../../hooks/useSupabaseSession";
 
-jest.mock("../../hooks/useAuth");
+jest.mock("../../hooks/useSupabaseSession");
+
+/** Build a minimal Supabase session shape with the fields the hook reads. */
+function session(accessToken: string) {
+  return { access_token: accessToken };
+}
 
 describe("useAdminFetch Hook", () => {
   const originalFetch = global.fetch;
@@ -21,10 +26,9 @@ describe("useAdminFetch Hook", () => {
     global.fetch = originalFetch;
   });
 
-  it("appends the Authorization header when a user exists", async () => {
-    const mockGetIdToken = jest.fn().mockResolvedValue("mock-token-123");
-    (useAuth as jest.Mock).mockReturnValue({
-      user: { getIdToken: mockGetIdToken },
+  it("appends the Supabase access token as a Bearer header when a session exists", async () => {
+    (useSupabaseSession as jest.Mock).mockReturnValue({
+      session: session("supabase-token-123"),
       loading: false,
     });
 
@@ -33,14 +37,13 @@ describe("useAdminFetch Hook", () => {
       await result.current("/api/test");
     });
 
-    expect(mockGetIdToken).toHaveBeenCalled();
     const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
     const headers = fetchCall[1].headers as Headers;
-    expect(headers.get("Authorization")).toBe("Bearer mock-token-123");
+    expect(headers.get("Authorization")).toBe("Bearer supabase-token-123");
   });
 
   it("does NOT call fetch while authentication is still initializing", async () => {
-    (useAuth as jest.Mock).mockReturnValue({ user: null, loading: true });
+    (useSupabaseSession as jest.Mock).mockReturnValue({ session: null, loading: true });
 
     const { result } = renderHook(() => useAdminFetch());
     let res: Response | undefined;
@@ -54,8 +57,8 @@ describe("useAdminFetch Hook", () => {
     expect(body.reason).toBe("auth_initializing");
   });
 
-  it("returns a real 401 Response when the user is unauthenticated after init", async () => {
-    (useAuth as jest.Mock).mockReturnValue({ user: null, loading: false });
+  it("returns a real 401 Response when there is no session after init", async () => {
+    (useSupabaseSession as jest.Mock).mockReturnValue({ session: null, loading: false });
 
     const { result } = renderHook(() => useAdminFetch());
     let res: Response | undefined;
@@ -70,31 +73,9 @@ describe("useAdminFetch Hook", () => {
     expect(body.reason).toBe("no_user");
   });
 
-  it("returns a 401 Response when token retrieval fails", async () => {
-    const mockGetIdToken = jest
-      .fn()
-      .mockRejectedValue(new Error("Token generation failed"));
-    (useAuth as jest.Mock).mockReturnValue({
-      user: { getIdToken: mockGetIdToken },
-      loading: false,
-    });
-
-    const { result } = renderHook(() => useAdminFetch());
-    let res: Response | undefined;
-    await act(async () => {
-      res = await result.current("/api/test");
-    });
-
-    expect(global.fetch).not.toHaveBeenCalled();
-    expect(res?.status).toBe(401);
-    const body = await res!.json();
-    expect(body.reason).toBe("token_failed");
-  });
-
   it("preserves caller-supplied headers, method and body", async () => {
-    const mockGetIdToken = jest.fn().mockResolvedValue("mock-token-123");
-    (useAuth as jest.Mock).mockReturnValue({
-      user: { getIdToken: mockGetIdToken },
+    (useSupabaseSession as jest.Mock).mockReturnValue({
+      session: session("supabase-token-123"),
       loading: false,
     });
 
@@ -112,7 +93,7 @@ describe("useAdminFetch Hook", () => {
 
     const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
     const headers = fetchCall[1].headers as Headers;
-    expect(headers.get("Authorization")).toBe("Bearer mock-token-123");
+    expect(headers.get("Authorization")).toBe("Bearer supabase-token-123");
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("X-Custom-Header")).toBe("custom-value");
     expect(fetchCall[1].method).toBe("PUT");
@@ -120,9 +101,8 @@ describe("useAdminFetch Hook", () => {
   });
 
   it("returns a 408 Response when the request times out", async () => {
-    const mockGetIdToken = jest.fn().mockResolvedValue("mock-token-123");
-    (useAuth as jest.Mock).mockReturnValue({
-      user: { getIdToken: mockGetIdToken },
+    (useSupabaseSession as jest.Mock).mockReturnValue({
+      session: session("supabase-token-123"),
       loading: false,
     });
 

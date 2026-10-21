@@ -137,6 +137,6 @@ describe("No Firestore dependencies in Analytics queries", () => {
     expect(content).not.toContain("@/lib/firebase");
     // Reading approved knowledge requires an authenticated admin, since the
     // route reads through the service-role client (which bypasses RLS).
-    expect(content).toContain("requireAdminUser");
+    expect(content).toContain("requireRayaAdminUser");
   });
 });
