@@ -82,6 +82,15 @@ function sqlColumns(table: string): Set<string> | null {
     columns.add(name);
   }
 
+  // Columns added by later, additive migrations (`ALTER TABLE ... ADD COLUMN`).
+  const addRe = new RegExp(
+    `ALTER\\s+TABLE\\s+(?:public\\.)?"?${table}"?\\s+ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"?([A-Za-z_][A-Za-z0-9_]*)"?`,
+    "gi"
+  );
+  for (const add of migrationSql.matchAll(addRe)) {
+    columns.add(add[1]);
+  }
+
   return columns;
 }
 

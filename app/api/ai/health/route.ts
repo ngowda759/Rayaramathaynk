@@ -3,7 +3,7 @@
 // Read-only health probe for the AI Health dashboard.
 //
 // This endpoint deliberately uses the SAME authentication mechanism as every
-// other protected AI API (`requireAdminUser`) so an authentication problem is
+// other protected AI API (`requireRayaAdminUser`) so an authentication problem is
 // reported as an authentication problem — not as a database connectivity
 // failure.
 //
@@ -12,7 +12,7 @@
 // warnings.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 import { aiAdminRepository } from "@/lib/ai/ai-settings/admin-repository";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ function hasContent(value: unknown): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requireAdminUser(request);
+  const guard = await requireRayaAdminUser(request);
   if (!guard.ok) return guard.response;
 
   // Read-only connectivity probe: reading the settings document exercises the

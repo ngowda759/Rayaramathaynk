@@ -3,10 +3,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAnalyticsDashboard } from "@/services/ai-analytics.service";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireAdminUser(request);
+  const guard = await requireRayaAdminUser(request);
   if (!guard.ok) return guard.response;
   try {
     const searchParams = request.nextUrl.searchParams;

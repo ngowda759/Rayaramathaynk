@@ -90,15 +90,15 @@ export const AIResponsesSchema = z.object({
 });
 
 export const PromptSettingsSchema = z.object({
-  currentPromptId: z.string(),
-  defaultPrompt: z.string(),
+  currentPromptId: z.string().nullish().transform(v => v ?? ""),
+  defaultPrompt: z.string().nullish().transform(v => v ?? ""),
   versions: z.array(
     z.object({
       id: z.string(),
-      name: z.string(),
-      version: z.number(),
+      name: z.string().nullish().transform(v => v ?? "Unnamed Prompt"),
+      version: z.number().nullish().transform(v => v ?? 1),
       content: z.string(),
-      status: z.enum(["draft", "review", "published", "archived"]),
+      status: z.enum(["draft", "review", "published", "archived"]).nullish().transform(v => v ?? "draft"),
       createdAt: z.union([z.string(), z.date()]).transform((val) => new Date(val)),
       updatedAt: z.union([z.string(), z.date()]).transform((val) => new Date(val)),
       createdBy: z.string(),
@@ -108,7 +108,7 @@ export const PromptSettingsSchema = z.object({
       rollbackOf: z.string().optional(),
       changeNotes: z.string().optional(),
     })
-  ),
+  ).nullish().transform(v => v ?? []),
 });
 
 export const IntentSettingsSchema = z.object({

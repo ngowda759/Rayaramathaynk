@@ -47,6 +47,7 @@
     "dump:staged": "npx tsx scripts/dump-firestore-staged.ts",
     "migrate:events-from-json": "npx tsx scripts/migrate-events-to-supabase-from-json.ts",
     "seed:supabase-sevas": "npx tsx scripts/seed-supabase-sevas.ts",
+    "diagnose:raya-admin-login": "tsx scripts/diagnose-raya-admin-login.ts",
     "verify:supabase-migrations": "npx tsx --conditions=react-server scripts/verify-supabase-migrations.ts",
     "verify:supabase-migrations:static": "npx tsx --conditions=react-server scripts/verify-supabase-migrations.ts --static",
     "verify:supabase-migrations:json": "npx tsx --conditions=react-server scripts/verify-supabase-migrations.ts --json",

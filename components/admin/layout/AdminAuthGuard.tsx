@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { useSupabaseSession } from "@/hooks/useSupabaseSession";
 import { getFirebaseConfigStatus } from "@/lib/firebase";
 import { safeReturnPath } from "@/lib/auth/safe-return";
+import { isRayaAiPublicAuthPath } from "@/lib/auth/raya-auth-routes";
 import { signInPath } from "@/lib/seva/routes";
 import type { SevaRole } from "@/types/seva";
 
@@ -91,7 +93,21 @@ export default function AdminAuthGuard({
 }: AdminAuthGuardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { user, loading, canAccessAdmin, sevaRole } = useAuth();
+  // Raya AI pages authenticate with Supabase Auth, not Firebase. A Supabase
+  // session on /admin/ai/* must satisfy this guard so the Raya AI console is
+  // reachable without a Firebase sign-in. Every other /admin/** path is
+  // unchanged: it still requires the Firebase session and role.
+  const { session: supabaseSession, loading: supabaseLoading } = useSupabaseSession();
+  // The Raya AI sign-in, recovery-request and reset pages establish or repair the
+  // Supabase session, so they render ungated. Gating the reset page would drop the
+  // recovery `?code=`/`?token_hash=` before it can be exchanged (redirect loops and
+  // a silent bounce to sign-in), and gating the sign-in page would loop outright.
+  const isRayaAiPublicAuth = isRayaAiPublicAuthPath(pathname);
+  const isRayaAiPath =
+    !isRayaAiPublicAuth &&
+    (pathname === "/admin/ai" || pathname.startsWith("/admin/ai/"));
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -103,9 +119,28 @@ export default function AdminAuthGuard({
     return () => clearTimeout(timer);
   }, []);
 
-  // Show loading while checking auth
-  if (loading || !isClient) {
+  // Show loading while checking auth. On Raya AI paths the Supabase session must
+  // also settle before deciding, otherwise a signed-in admin would be bounced.
+  if (loading || !isClient || (isRayaAiPath && supabaseLoading)) {
     return <LoadingSpinner />;
+  }
+
+  // The Raya AI authentication pages render inside this layout but must not be
+  // gated by either auth provider; they are the entry points that establish or
+  // repair the session.
+  if (isRayaAiPublicAuth) {
+    return <>{children}</>;
+  }
+
+  // Raya AI administration is satisfied by a Supabase session. The server-side
+  // role/active check happens on every /api/ai request; this is only routing.
+  if (isRayaAiPath) {
+    if (!supabaseSession) {
+      const redirect = safeReturnPath(searchParams.get("redirect"), pathname);
+      router.replace(`/admin/ai/login?redirect=${encodeURIComponent(redirect)}`);
+      return <LoadingSpinner />;
+    }
+    return <>{children}</>;
   }
 
   // Check if Firebase is configured
