@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSupabaseSession } from "@/hooks/useSupabaseSession";
 import { getFirebaseConfigStatus } from "@/lib/firebase";
 import { safeReturnPath } from "@/lib/auth/safe-return";
+import { isRayaAiPublicAuthPath } from "@/lib/auth/raya-auth-routes";
 import { signInPath } from "@/lib/seva/routes";
 import type { SevaRole } from "@/types/seva";
 
@@ -90,10 +91,13 @@ export default function AdminAuthGuard({
   // reachable without a Firebase sign-in. Every other /admin/** path is
   // unchanged: it still requires the Firebase session and role.
   const { session: supabaseSession, loading: supabaseLoading } = useSupabaseSession();
-  // The Raya AI sign-in page itself is not gated (otherwise it would loop).
-  const isRayaAiLogin = pathname === "/admin/ai/login";
+  // The Raya AI sign-in, recovery-request and reset pages establish or repair the
+  // Supabase session, so they render ungated. Gating the reset page would drop the
+  // recovery `?code=`/`?token_hash=` before it can be exchanged (redirect loops and
+  // a silent bounce to sign-in), and gating the sign-in page would loop outright.
+  const isRayaAiPublicAuth = isRayaAiPublicAuthPath(pathname);
   const isRayaAiPath =
-    !isRayaAiLogin &&
+    !isRayaAiPublicAuth &&
     (pathname === "/admin/ai" || pathname.startsWith("/admin/ai/"));
   const [isClient, setIsClient] = useState(false);
 
@@ -112,9 +116,10 @@ export default function AdminAuthGuard({
     return <LoadingSpinner />;
   }
 
-  // The Raya AI sign-in page renders inside this layout but must not be gated by
-  // either auth provider; it is the entry point that establishes the session.
-  if (isRayaAiLogin) {
+  // The Raya AI authentication pages render inside this layout but must not be
+  // gated by either auth provider; they are the entry points that establish or
+  // repair the session.
+  if (isRayaAiPublicAuth) {
     return <>{children}</>;
   }
 

@@ -158,4 +158,35 @@ describe("AdminAuthGuard — Raya AI authentication isolation", () => {
     expect(mockReplace).not.toHaveBeenCalled();
     view.unmount();
   });
+
+  // A password-reset link arrives with `?code=`/`?token_hash=`/`#access_token=`.
+  // Gating the reset page would bounce the visitor (and drop the credential)
+  // before it could be exchanged, so both recovery pages must render ungated.
+  it.each(["/admin/ai/forgot-password", "/admin/ai/reset-password"])(
+    "renders %s without gating, so a reset link is never bounced",
+    async (pathname) => {
+      mockPathname.current = pathname;
+      const view = render(
+        <AdminAuthGuard requiredPermission="admin">
+          <p>recovery form</p>
+        </AdminAuthGuard>,
+      );
+      await waitFor(() => expect(view.getByText("recovery form")).toBeTruthy());
+      expect(mockReplace).not.toHaveBeenCalled();
+      view.unmount();
+    },
+  );
+
+  it("keeps a Supabase-session-free AI page gated even with the recovery pages exempt", async () => {
+    mockPathname.current = "/admin/ai/reset-password/extra";
+    render(
+      <AdminAuthGuard requiredPermission="admin">
+        <p>inside</p>
+      </AdminAuthGuard>,
+    );
+    await waitFor(() => expect(mockReplace).toHaveBeenCalled());
+    expect(mockReplace.mock.calls[0][0]).toBe(
+      `/admin/ai/login?redirect=${encodeURIComponent("/admin/ai/reset-password/extra")}`,
+    );
+  });
 });
