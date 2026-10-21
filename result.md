@@ -1,22 +1,26 @@
-### Summary of Post-Merge Verification for BOT-004 Analytics Migration
+# Investigation and Fix Report
 
-**1. Secure the Supabase service-role boundary:**
-* Added the `server-only` directive to `lib/supabase/admin.ts` and also added an explicit `if (typeof window !== 'undefined') throw new Error(...)` to ensure no client leakage escapes.
-* Removed `createAdminClient` dynamic imports from client components (`services/settings.service.ts`) to fix the build errors.
-* This was achieved by wrapping writes behind server actions by creating a new `app/actions/settings.ts` file, ensuring server isolation.
-* Ensured `typeof window === 'undefined' ? await createAdminClient() : createClient()` is used correctly in `lib/ai/knowledge/repository.ts` and `lib/ai/ai-settings/repository.ts` to seamlessly default back to `createClient` on the client side without executing the `createAdminClient` module graph.
+## Root Cause
+The root cause of the authorization failure in the Raya AI Prompt Manager was twofold:
+1. **Frontend Request Mismatch:** The frontend (`app/admin/ai/prompts/page.tsx`) was incorrectly passing the prompt ID as a query string parameter (`?id=...`) and entirely omitting the required `action` field in the payload for `PUT` requests (e.g., `update`, `publish`, `rollback`). The backend `PUT` endpoint strictly expects `versionId` and `action` in the JSON payload body. This mismatched contract likely caused HTTP 400 Bad Request responses (manifesting as authorization or saving errors in the UI due to generic catch blocks).
+2. **Legacy Firebase Dependency:** There existed an outdated proxy route (`app/api/admin/prompts`) using `verifyAdminUser` from Firebase Auth. `adminFetch` automatically attaches Supabase Access tokens via headers, which are incompatible with this legacy Firebase route. However, the frontend was generally calling the new Supabase-backed API directly, but the unused legacy route and improper payload handling created friction and errors in the flow.
 
-**2. Secure the new settings server actions:**
-* Built out `verifyAdminForAction` directly tied to existing `checkAdminAuth` logic from `lib/auth/admin`. It reconstructs the `NextRequest` header context native to Next.js server actions.
-* Eliminated the environment `NODE_ENV === "development"` bypasses enforcing strict administration boundary tests using the newly created explicit Zod schema payload checks in the `app/actions/settings.ts` server actions.
-* Verified testing via `tests/unit/bot-004-auth.test.ts` for strict authorization coverage preventing token gaps and guaranteeing proper boundaries.
-* Added `tests/unit/bot-004-action.test.ts` to fully exercise the action controllers validating all Zod logic, Missing Headers constraints, Role Blocks, and authorized successes.
-* Added `tests/unit/bot-004-behavior.test.ts` verifying all endpoints correctly protect environments (Test/Dev vs Prod) preventing users without tokens from saving configuration data.
+## Affected Files
+*   `app/admin/ai/prompts/page.tsx`: Updated to correctly send `versionId` and `action` inside the JSON body instead of the URL query, and changed `DELETE` to a `PUT` with an `archived` status (as the backend does not implement `DELETE`).
+*   `tests/unit/raya-admin-prompts.test.ts` (New): Created regression tests validating that only authorized admins can create master prompts via `POST`.
+*   `app/api/admin/prompts/route.ts` & `app/api/admin/prompts/[id]/route.ts`: Removed entirely to eliminate legacy Firebase dependencies and enforce a single path for prompt management.
 
-**3. Correct the test and report discrepancy & Run Checks:**
-* Verified that the latest commit on `main` is correct (`7e11191`), and confirmed the idempotency of the logic stored in `scripts/migrate-ai-analytics.ts`. The script safely maps based on the source document ID.
-* Added all the new behavioral tests explicitly defined inside `bot-004-behavior.test.ts` , `bot-004-action.test.ts`, and `bot-004-auth.test.ts`.
-* Output execution proved testing successfully completed across all suites.
-* Lint and typechecks passed successfully. The main build passes securely without NextJS compilation errors.
+## Fix
+*   **Payload Structuring:** Refactored `handleSave`, `handleStatusChange`, `handleDelete` (converted to archive), and `handleRollback` in `app/admin/ai/prompts/page.tsx` to align strictly with the expected server-side contract: `{ versionId, action, ...updates }`.
+*   **Legacy Cleanup:** Removed the legacy Firebase-backed proxy routes under `app/api/admin/prompts` to prevent any possibility of fallback logic intercepting or failing on Supabase tokens.
+*   **Test Coverage:** Added `tests/unit/raya-admin-prompts.test.ts` to mock Supabase Auth successfully and verify the creation logic.
 
-I have executed `.ai/scripts/assert-trusted-review.mjs` verifying the workflow integrity. Everything is now committed. No data migrations or schema changes occurred.
+## Test Results
+-   **Unit Tests:** Executed `npx jest tests/unit/raya-admin-prompts.test.ts` successfully (3 passing tests).
+-   **Static Analysis:** Executed `npm run typecheck` and `npm run lint` successfully.
+-   **Build:** Executed `npm run build` and Next.js compiled the production build flawlessly.
+
+## Deployment Steps
+None outside of the standard CI/CD deployment pipeline.
+
+The authorized administrator can now reliably save and retrieve the Raya AI master system prompt via Supabase Auth without triggering generic or mismatched errors.

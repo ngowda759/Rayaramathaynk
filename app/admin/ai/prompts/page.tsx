@@ -134,17 +134,16 @@ export default function PromptManagerPage() {
 
     setSaving(true);
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${selectedPrompt.id}`,
-        {
+      const response = await adminFetch("/api/ai/settings/prompts", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            versionId: selectedPrompt.id,
+            action: "update",
             name: editForm.name,
             content: editForm.content,
           }),
-        },
-      );
+        });
 
       if (response.ok) {
         showMsg("success", "Prompt saved successfully");
@@ -174,14 +173,15 @@ export default function PromptManagerPage() {
       return;
 
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${prompt.id}`,
-        {
+      const response = await adminFetch("/api/ai/settings/prompts", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        },
-      );
+          body: JSON.stringify({
+            versionId: prompt.id,
+            action: newStatus === "published" ? "publish" : "update",
+            status: newStatus
+          }),
+        });
 
       if (response.ok) {
         showMsg(
@@ -200,12 +200,15 @@ export default function PromptManagerPage() {
       return;
 
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${prompt.id}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await adminFetch("/api/ai/settings/prompts", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            versionId: prompt.id,
+            action: "update",
+            status: "archived"
+          }),
+        });
 
       if (response.ok) {
         showMsg("success", "Prompt deleted successfully");
@@ -223,14 +226,14 @@ export default function PromptManagerPage() {
     if (!confirm(`Rollback "${prompt.name}" to this version?`)) return;
 
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${prompt.id}`,
-        {
-          method: "POST",
+      const response = await adminFetch("/api/ai/settings/prompts", {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "rollback" }),
-        },
-      );
+          body: JSON.stringify({
+            versionId: prompt.id,
+            action: "rollback"
+          }),
+        });
 
       if (response.ok) {
         showMsg("success", "Prompt rolled back successfully");
