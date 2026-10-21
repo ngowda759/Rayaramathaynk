@@ -11,6 +11,12 @@ jest.mock("../../lib/auth/raya-admin-auth", () => ({
 jest.mock("../../lib/ai/ai-settings", () => ({
   aiSettingsService: {
     createPromptVersion: jest.fn(),
+    updatePromptVersion: jest.fn(),
+    publishPromptVersion: jest.fn(),
+    rollbackPromptVersion: jest.fn(),
+    getPromptVersions: jest.fn(),
+    getCurrentPrompt: jest.fn(),
+    getPromptSettings: jest.fn(),
   },
 }));
 
@@ -90,5 +96,205 @@ describe("POST /api/ai/settings/prompts", () => {
     const json = await res.json();
     expect(json.error).toBe("Content is required");
     expect(aiSettingsService.createPromptVersion).not.toHaveBeenCalled();
+  });
+});
+
+import { PUT } from "../../app/api/ai/settings/prompts/route";
+
+describe("PUT /api/ai/settings/prompts", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("should update a prompt when authorized", async () => {
+    const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: mockUser,
+    });
+
+    (aiSettingsService.updatePromptVersion as jest.Mock).mockResolvedValue(undefined);
+    (aiSettingsService.getPromptVersions as jest.Mock).mockResolvedValue([]);
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "PUT",
+      body: JSON.stringify({
+        versionId: "prompt_v1_123",
+        action: "update",
+        content: "Updated Master Prompt",
+        name: "Test Prompt Updated",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+
+    expect(aiSettingsService.updatePromptVersion).toHaveBeenCalledWith(
+      "prompt_v1_123",
+      { content: "Updated Master Prompt", name: "Test Prompt Updated" },
+      "admin-uid"
+    );
+  });
+
+  it("should publish a prompt when authorized", async () => {
+    const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: mockUser,
+    });
+
+    (aiSettingsService.publishPromptVersion as jest.Mock).mockResolvedValue(undefined);
+    (aiSettingsService.getPromptVersions as jest.Mock).mockResolvedValue([]);
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "PUT",
+      body: JSON.stringify({
+        versionId: "prompt_v1_123",
+        action: "publish",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+
+    expect(aiSettingsService.publishPromptVersion).toHaveBeenCalledWith(
+      "prompt_v1_123",
+      "admin-uid"
+    );
+  });
+
+  it("should rollback a prompt when authorized", async () => {
+    const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: mockUser,
+    });
+
+    (aiSettingsService.rollbackPromptVersion as jest.Mock).mockResolvedValue(undefined);
+    (aiSettingsService.getPromptVersions as jest.Mock).mockResolvedValue([]);
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "PUT",
+      body: JSON.stringify({
+        versionId: "prompt_v1_123",
+        action: "rollback",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+
+    expect(aiSettingsService.rollbackPromptVersion).toHaveBeenCalledWith(
+      "prompt_v1_123",
+      "admin-uid"
+    );
+  });
+
+  it("should archive a prompt when authorized via update", async () => {
+    const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: mockUser,
+    });
+
+    (aiSettingsService.updatePromptVersion as jest.Mock).mockResolvedValue(undefined);
+    (aiSettingsService.getPromptVersions as jest.Mock).mockResolvedValue([]);
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "PUT",
+      body: JSON.stringify({
+        versionId: "prompt_v1_123",
+        action: "update",
+        status: "archived",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+
+    expect(aiSettingsService.updatePromptVersion).toHaveBeenCalledWith(
+      "prompt_v1_123",
+      { status: "archived" },
+      "admin-uid"
+    );
+  });
+
+  it("should reject unauthorized users for PUT", async () => {
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403 }),
+    });
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "PUT",
+      body: JSON.stringify({
+        versionId: "prompt_v1_123",
+        action: "update",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(403);
+    expect(aiSettingsService.updatePromptVersion).not.toHaveBeenCalled();
+  });
+
+  it("should handle invalid actions", async () => {
+    const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: mockUser,
+    });
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "PUT",
+      body: JSON.stringify({
+        versionId: "prompt_v1_123",
+        action: "invalid_action",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe("Unknown action: invalid_action");
+    expect(aiSettingsService.updatePromptVersion).not.toHaveBeenCalled();
+  });
+});
+
+describe("Auth checks", () => {
+  it("should handle expired tokens by verifying requireRayaAdminUser handles it", async () => {
+    // This is essentially testing the integration with requireRayaAdminUser
+    // The actual token validation happens inside raya-admin-auth.ts which has its own tests
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Authentication token has expired.", reason: "expired_token" }), { status: 401 }),
+    });
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "POST",
+      body: JSON.stringify({ content: "test" }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.reason).toBe("expired_token");
+  });
+
+  it("should handle authenticated non-admins", async () => {
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "This account does not have administrator permissions.", reason: "insufficient_role" }), { status: 403 }),
+    });
+
+    const req = new NextRequest("http://localhost/api/ai/settings/prompts", {
+      method: "POST",
+      body: JSON.stringify({ content: "test" }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.reason).toBe("insufficient_role");
   });
 });
