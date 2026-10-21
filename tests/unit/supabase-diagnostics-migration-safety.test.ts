@@ -18,6 +18,99 @@ const workflow = resolve(root, ".github/workflows/supabase-migrations.yml");
 
 const APPROVED = "kvrkraqjuyxbraccxntk";
 
+/**
+ * Extract every `run:` shell script body from a workflow YAML file.
+ *
+ * Deliberately regex-based rather than YAML-parser based: no YAML library is a
+ * declared dependency of this project, and a transitive one would be fragile.
+ * `run:` blocks here are all literal block scalars, which this handles.
+ */
+function runBlocks(yaml: string): string[] {
+  const lines = yaml.split("\n");
+  const blocks: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^(\s*)run:\s*(.*)$/.exec(lines[i]);
+    if (!m) continue;
+    const indent = m[1].length;
+    const inline = m[2];
+    if (inline && !inline.startsWith("|") && !inline.startsWith(">")) {
+      blocks.push(inline);
+      continue;
+    }
+    const body: string[] = [];
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j];
+      if (line.trim() === "") {
+        body.push("");
+        continue;
+      }
+      const lead = line.length - line.trimStart().length;
+      if (lead <= indent) break;
+      body.push(line.slice(indent + 2));
+    }
+    blocks.push(body.join("\n"));
+  }
+  return blocks;
+}
+
+/** Return the shell body of the named workflow step, dedented. */
+function extractStepScript(yaml: string, stepName: string): string {
+  const lines = yaml.split("\n");
+  const start = lines.findIndex((l) => l.trim() === `- name: ${stepName}`);
+  if (start === -1) throw new Error(`step not found: ${stepName}`);
+  for (let i = start; i < lines.length && i < start + 40; i++) {
+    const m = /^(\s*)run:\s*\|?\s*$/.exec(lines[i]) || /^(\s*)run:\s*(.*)$/.exec(lines[i]);
+    if (!m) continue;
+    const indent = m[1].length;
+    const body: string[] = [];
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j];
+      if (line.trim() === "") {
+        body.push("");
+        continue;
+      }
+      const lead = line.length - line.trimStart().length;
+      if (lead <= indent) break;
+      body.push(line.slice(indent + 2));
+    }
+    return body.join("\n");
+  }
+  throw new Error(`no run: block in step: ${stepName}`);
+}
+
+/**
+ * Run the "Check confirmation phrase" step exactly as GitHub would: the step body
+ * with `CONFIRM` supplied through the environment, not substituted into the text.
+ * Returns the exit status and whether the injected payload touched the sentinel.
+ */
+function runConfirmStep(confirmValue: string) {
+  const script = extractStepScript(readFileSync(workflow, "utf8"), "Check confirmation phrase");
+  const sentinel = resolve(root, `.injection-sentinel-${process.pid}`);
+  spawnSync("rm", ["-f", sentinel]);
+  // Provide a payload that would create the sentinel if it were ever evaluated.
+  const payload = confirmValue.replace(/__SENTINEL__/g, sentinel);
+  const r = spawnSync("bash", ["-c", script], {
+    cwd: root,
+    env: { ...process.env, CONFIRM: payload },
+    encoding: "utf8",
+  });
+  const injected = spawnSync("test", ["-f", sentinel]).status === 0;
+  spawnSync("rm", ["-f", sentinel]);
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, injected };
+}
+
+/** Evaluate an expression against the approved-project library in a real node process. */
+function evalInLib(expr: string): unknown {
+  const url = pathToFileURL(approvedLib).href;
+  const r = spawnSync(
+    "node",
+    ["--input-type=module", "-e", `import * as m from ${JSON.stringify(url)}; process.stdout.write(JSON.stringify(${expr}))`],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (r.status !== 0) throw new Error(`lib eval failed: ${r.stderr}`);
+  return JSON.parse(r.stdout);
+}
+
 /** Spawn the diagnostic with a clean Supabase environment plus `env`. */
 function runDiagnostic(env: Record<string, string | undefined>) {
   const base = { ...process.env };
@@ -44,18 +137,6 @@ function runGuard(env: Record<string, string | undefined>) {
 }
 
 describe("approved-project library", () => {
-  /** Evaluate an expression against the library inside a real node process. */
-  function evalInLib(expr: string): unknown {
-    const url = pathToFileURL(approvedLib).href;
-    const r = spawnSync(
-      "node",
-      ["--input-type=module", "-e", `import * as m from ${JSON.stringify(url)}; process.stdout.write(JSON.stringify(${expr}))`],
-      { cwd: root, encoding: "utf8" },
-    );
-    if (r.status !== 0) throw new Error(`lib eval failed: ${r.stderr}`);
-    return JSON.parse(r.stdout);
-  }
-
   it("names exactly one approved project and derives its URL", () => {
     expect(evalInLib("m.APPROVED_PROJECT_REF")).toBe(APPROVED);
     expect(evalInLib("m.APPROVED_PROJECT_URL")).toBe(`https://${APPROVED}.supabase.co`);
@@ -201,9 +282,23 @@ describe("migration workflow safety properties", () => {
     expect(wf).toMatch(/cancel-in-progress:\s*false/);
   });
 
-  it("requires a typed confirmation phrase", () => {
+  it("requires a typed confirmation phrase via a quoted environment variable", () => {
     expect(wf).toMatch(/apply-supabase-migrations/);
     expect(wf).toMatch(/confirmation phrase did not match/);
+    // The input is routed through step-level env and compared as a quoted shell
+    // variable, never interpolated into the script text.
+    expect(wf).toMatch(/CONFIRM:\s*\$\{\{\s*inputs\.confirm\s*\}\}/);
+    expect(wf).toMatch(/if \[ "\$CONFIRM" != "apply-supabase-migrations" \]; then/);
+  });
+
+  it("never interpolates untrusted inputs into any run: shell block", () => {
+    // Regression guard for the shell-injection class: `${{ inputs.x }}` inside a
+    // `run:` script is substituted as text, so a value like `$(...)` or `; ...`
+    // executes and `$(echo apply-supabase-migrations)` can even satisfy a check.
+    for (const block of runBlocks(wf)) {
+      expect(block).not.toMatch(/\$\{\{\s*inputs\./);
+      expect(block).not.toMatch(/\$\{\{\s*github\.event\.inputs\./);
+    }
   });
 
   it("runs the project-ref guard before any database-changing command", () => {
@@ -236,5 +331,115 @@ describe("migration workflow safety properties", () => {
 
   it("notes that environment protection must be configured by the owner", () => {
     expect(wf).toMatch(/required reviewers|protection rules/i);
+  });
+});
+
+describe("confirmation step is injection-proof (behavioral)", () => {
+  const sentinelPayloads: Array<[string, string]> = [
+    ["command substitution", "$(touch __SENTINEL__)"],
+    ["backtick substitution", "`touch __SENTINEL__`"],
+    ["semicolon separator", 'x"; touch __SENTINEL__; echo "'],
+    ["logical AND", 'x" && touch __SENTINEL__ && echo "'],
+    ["pipeline", 'x" | touch __SENTINEL__ #'],
+    ["newline separator", 'x"\ntouch __SENTINEL__\n"'],
+    ["forged phrase via substitution", "$(echo apply-supabase-migrations)"],
+    ["forged phrase via backticks", "`echo apply-supabase-migrations`"],
+    ["single-quote breakout", "'; touch __SENTINEL__; echo '"],
+    ["backslash escape", 'x\\"; touch __SENTINEL__; echo "'],
+  ];
+
+  it.each(sentinelPayloads)("rejects %s without executing it", (_label, payload) => {
+    const r = runConfirmStep(payload);
+    expect(r.status).not.toBe(0);
+    expect(r.injected).toBe(false);
+    expect(r.stdout).not.toMatch(/apply-supabase-migrations/);
+  });
+
+  it("rejects empty, whitespace, wrong-case and near-miss values", () => {
+    for (const v of ["", " ", "APPLY-SUPABASE-MIGRATIONS", "apply-supabase-migration", " apply-supabase-migrations", "apply-supabase-migrations ", "-apply-supabase-migrations"]) {
+      const r = runConfirmStep(v);
+      expect(r.status).not.toBe(0);
+    }
+  });
+
+  it("accepts the exact phrase and nothing more", () => {
+    const r = runConfirmStep("apply-supabase-migrations");
+    expect(r.status).toBe(0);
+    expect(r.injected).toBe(false);
+  });
+});
+
+describe("ref extraction fails closed on malformed and ambiguous values", () => {
+  const BAD = "aaaaaaaaaaaaaaaaaaaa";
+
+  it("rejects refs never found in a real Supabase URL shape", () => {
+    const cases: Array<[string, string]> = [
+      ["hostname suffix", `https://${APPROVED}.supabase.co.evil.com`],
+      ["userinfo trick", `https://${APPROVED}.supabase.co@evil.com`],
+      ["path-only mention", `https://evil.com/${APPROVED}.supabase.co`],
+      ["prefixed label", `https://evil-${APPROVED}.supabase.co`],
+      ["extra label", `https://a.b.supabase.co`],
+      ["wrong suffix", `https://${APPROVED}.supabase.io`],
+      ["not a url", "not a url"],
+      ["empty", ""],
+    ];
+    for (const [label, value] of cases) {
+      expect([label, evalInLib(`m.refFromSupabaseUrl(${JSON.stringify(value)})`)]).toEqual([label, ""]);
+    }
+  });
+
+  it("refuses ambiguous DB URLs where username and host disagree", () => {
+    const ambiguous = [
+      `postgresql://postgres.${APPROVED}:pw@db.${BAD}.supabase.co:5432/postgres`,
+      `postgresql://postgres.${BAD}:pw@db.${APPROVED}.supabase.co:5432/postgres`,
+    ];
+    for (const url of ambiguous) {
+      expect(evalInLib(`m.refFromDbUrl(${JSON.stringify(url)})`)).toBe("");
+      const analysis = evalInLib(`m.analyzeDbUrlRef(${JSON.stringify(url)})`) as {
+        ambiguous: boolean;
+        ref: string;
+      };
+      expect(analysis.ambiguous).toBe(true);
+      expect(analysis.ref).toBe("");
+    }
+  });
+
+  it("resolves unambiguously only when sources agree", () => {
+    const bothAgree = `postgresql://postgres.${APPROVED}:pw@db.${APPROVED}.supabase.co:5432/postgres`;
+    expect(evalInLib(`m.refFromDbUrl(${JSON.stringify(bothAgree)})`)).toBe(APPROVED);
+    const analysis = evalInLib(`m.analyzeDbUrlRef(${JSON.stringify(bothAgree)})`) as {
+      ambiguous: boolean;
+    };
+    expect(analysis.ambiguous).toBe(false);
+  });
+
+  it("rejects malformed, unrecognised and partially-matching DB URLs", () => {
+    const cases = [
+      `postgresql://postgres.${APPROVED}EXTRA:pw@aws-1-ap-south-1.pooler.supabase.com:5432/postgres`,
+      `postgresql://postgres.ZZ${APPROVED}:pw@aws-1-ap-south-1.pooler.supabase.com:5432/postgres`,
+      `postgresql://u:p@h/d?x=postgres.${APPROVED}`,
+      `postgresql://p:pw@db.${APPROVED}.supabase.co.evil.com:5432/db`,
+      "postgresql://bad host/pw",
+      "not a url",
+      "",
+    ];
+    for (const url of cases) {
+      expect([url, evalInLib(`m.refFromDbUrl(${JSON.stringify(url)})`)]).toEqual([url, ""]);
+    }
+  });
+
+  it("flags a malformed DB URL distinctly from an unrecognised one", () => {
+    const malformed = evalInLib('m.analyzeDbUrlRef("postgresql://bad host/pw")') as {
+      malformed: boolean;
+      ambiguous: boolean;
+    };
+    expect(malformed.malformed).toBe(true);
+    expect(malformed.ambiguous).toBe(false);
+    const unrecognised = evalInLib('m.analyzeDbUrlRef("postgresql://u:p@h:5432/db")') as {
+      malformed: boolean;
+      ref: string;
+    };
+    expect(unrecognised.malformed).toBe(false);
+    expect(unrecognised.ref).toBe("");
   });
 });

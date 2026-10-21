@@ -44,9 +44,17 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
     steps:
+      # `inputs.confirm` is untrusted input. It is passed through an environment
+      # variable and compared as a quoted shell variable, never interpolated into
+      # the script text: `${{ inputs.confirm }}` inside `run:` would let a value
+      # like `$(...)` or `; ...` execute, and `$(echo apply-supabase-migrations)`
+      # would even satisfy the check. See tests/unit/supabase-diagnostics-
+      # migration-safety.test.ts, which runs this step against adversarial values.
       - name: Check confirmation phrase
+        env:
+          CONFIRM: ${{ inputs.confirm }}
         run: |
-          if [ "${{ inputs.confirm }}" != "apply-supabase-migrations" ]; then
+          if [ "$CONFIRM" != "apply-supabase-migrations" ]; then
             echo "ERROR: confirmation phrase did not match. Refusing to run."
             exit 1
           fi

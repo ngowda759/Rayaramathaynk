@@ -24,10 +24,10 @@
 
 import { createClient } from "@supabase/supabase-js";
 import {
+  analyzeDbUrlRef,
   APPROVED_PROJECT_REF,
   fingerprint,
   isApprovedRef,
-  refFromDbUrl,
   refFromSupabaseUrl,
 } from "./lib/approved-project.mjs";
 
@@ -56,10 +56,20 @@ function checkProjectIdentity(): void {
   head("Project identity (must be the approved project)");
   info(`approved project ref: ${APPROVED_PROJECT_REF} (fingerprint ${fingerprint(APPROVED_PROJECT_REF)})`);
 
-  const sources: Array<{ label: string; present: boolean; ref: string }> = [
+  const dbAnalysis = analyzeDbUrlRef(dbUrl);
+  const sources: Array<{ label: string; present: boolean; ref: string; reason?: string }> = [
     { label: "SUPABASE_PROJECT_REF", present: !!projectRef, ref: projectRef },
     { label: "NEXT_PUBLIC_SUPABASE_URL (ref from host)", present: !!url, ref: refFromSupabaseUrl(url) },
-    { label: "SUPABASE_DB_URL (ref from username/host)", present: !!dbUrl, ref: refFromDbUrl(dbUrl) },
+    {
+      label: "SUPABASE_DB_URL (ref from username/host)",
+      present: !!dbUrl,
+      ref: dbAnalysis.ref,
+      reason: dbAnalysis.ambiguous
+        ? "the username and hostname name different projects"
+        : dbAnalysis.malformed
+          ? "the value is not a parseable URL"
+          : undefined,
+    },
   ];
 
   const present = sources.filter((s) => s.present);
@@ -77,7 +87,10 @@ function checkProjectIdentity(): void {
       continue;
     }
     if (!s.ref) {
-      fail(`${s.label}: present but no project ref could be derived from it (cannot verify identity).`);
+      fail(
+        `${s.label}: present but no project ref could be derived from it` +
+          `${s.reason ? ` (${s.reason})` : ""}. Cannot verify identity.`
+      );
       continue;
     }
     const matches = isApprovedRef(s.ref);
