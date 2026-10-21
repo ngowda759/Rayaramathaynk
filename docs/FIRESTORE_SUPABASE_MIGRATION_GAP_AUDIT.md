@@ -2,8 +2,8 @@
 
 **Type:** read-only audit. No migration, no schema change, no production write.
 **Repository:** `ngowda759/Rayaramathaynk`
-**Branch audited:** `main` @ `665e6ffd9c2c71365a30b565df4c64cdbd7016fa` (merge of PR #350), verified against the GitHub API as the current `main` head at 2026-10-21T09:04:42Z.
-**Audit date:** 2026-10-21
+**Branch audited:** `main` @ `c56ef97ef86d2c8117d62455d117378c55d16d00` (merge of PR #351), verified against the GitHub API as the current `main` head at 2026-10-21T10:58:10Z.
+**Audit date:** 2026-10-21 (revision 2 — re-validated against `main` @ `c56ef97`; revision 1 was against `665e6ff`)
 **Report status:** evidence-based; every status is traceable to a file/line, a command, or an explicitly-stated absence of evidence.
 
 ---
@@ -16,7 +16,8 @@
 2. **Because source completeness cannot be established, no collection can be marked `MIGRATED_VERIFIED`.** Per the task's own rule, a destination table existing is not evidence of migration. This audit therefore contains **zero** `MIGRATED_VERIFIED` rows.
 3. **The destination database cannot be reconciled from this environment.** The sandbox `SUPABASE_DB_URL` resolves to an unrelated project (public schema tables: `teams`, `matches`, `players`, `tournaments`, …) — not the temple database. Temple destination counts are therefore `UNKNOWN`, not zero. See §4.1.
 4. **Raya AI is not yet Supabase-only.** Five in-scope runtime dependencies on Firestore remain reachable, including one on the live `/api/chat` path. See §6.
-5. **Two security issues of a different kind than migration status were found** and are reported in §9 because they are material to any data-migration work: a service-account private key is committed to a **public** repository, and the committed rules let any authenticated user create `donations` documents.
+5. **`events` has a live, scheduled, unattended Firestore writer.** `.github/workflows/aaradhane.yml` runs on cron `30 3 1 1 *` (every 1 January) and invokes `scripts/generate-aaradhane.ts` **without `--dry-run`**, reaching `updateFirestoreWithAdmin()` → `docRef.set()/update()` on the `events` collection. Migrating `events` rows is therefore not sufficient for cutover; the scheduled writer must also be disabled or re-pointed. See §5.3.
+6. **Two security issues of a different kind than migration status were found** and are reported in §11 because they are material to any data-migration work: a service-account private key is committed to a **public** repository, and the committed rules let any authenticated user create `donations` documents.
 
 ### 1.2 Primary blockers
 
@@ -28,10 +29,13 @@
 | B4 | `docs/FIRESTORE_SUPABASE_MIGRATION_STATUS.md` is a title-only stub (1 line) | No authoritative status document exists; multiple root-level reports contradict each other (§8.1). |
 | B5 | Five in-scope Raya AI Firestore dependencies remain | Supabase-only target for Raya AI is unmet. |
 | B6 | Committed service-account private key in a public repo | Credential exposure; must be rotated regardless of migration state. |
+| B7 | `events` has a scheduled unattended Firestore writer (`aaradhane.yml`, cron `30 3 1 1 *`) | Cutting `events` over to Supabase requires disabling/re-pointing this workflow, not just migrating rows. |
 
 ### 1.3 Scope note
 
-Per the audit instruction, no fixes were implemented and no PR was opened. The report is committed on a branch only. Nothing was written to Firestore, Supabase, migration history, or application behaviour.
+This is revision 2 of the audit. Revision 1 was prepared against `main` @ `665e6ff` and published as PR #352 (still open, draft). Revision 2 re-validates every finding against `main` @ `c56ef97`, corrects two claims that did not survive re-checking (the scheduled-workflow finding in §5.3 and the RLS policy census in §4.2), and adds §7.2 (batch sequence), §7.3 (verified commands), §9 (validation evidence) and §10 (completion checklist).
+
+Per the audit instruction, **no fixes were implemented and no migration was run**. Nothing was written to Firestore, Supabase, migration history, or application behaviour. No Firestore data was deleted or modified. PR #352 is a documentation-only change; it was not merged.
 
 ---
 
@@ -173,7 +177,21 @@ The sandbox `SUPABASE_DB_URL` points at a **Tournament** project (14 tables), no
 
 ### 4.2 Static destination schema (from `supabase/migrations/*.sql` + `prisma/`)
 
-**45 tables** are declared, all with `ENABLE ROW LEVEL SECURITY`. Only **4** have any non-deny-all policy: `site_settings` (public SELECT), `social_links` (public SELECT), `ai_knowledge` (public SELECT where `approved = true`), `temple_areas` (public SELECT). `seva_list_items` enables RLS with **no policy at all**. This matches `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` §2.2 ("RLS beyond deny-all" is a listed gap) — still true.
+**45 tables** are declared, all with `ENABLE ROW LEVEL SECURITY`. There are **56 `CREATE POLICY` statements across 44 of the 45 tables**. The distribution is heavily weighted to deny-all:
+
+- **48 policies are explicitly named `Deny all …`** (write/update/delete denial).
+- **8 policies are permissive** (i.e. not named "Deny all"). They cover exactly **4 tables**:
+
+| Table | Permissive policy | Effect |
+|---|---|---|
+| `temple_areas` | `Allow public read access to temple_areas` (×2, from `20240523000000` and `20240915`) | `FOR SELECT USING (true)` — fully public read |
+| `site_settings` | `Allow public read access to site_settings` | `FOR SELECT TO public USING (true)` — fully public read |
+| `social_links` | `Allow public read access to social_links` | `FOR SELECT TO public USING (true)` — fully public read |
+| `ai_knowledge` | `Allow public read access to approved articles` | `FOR SELECT TO public USING (approved = true)` — public read of approved rows only |
+
+- **`seva_list_items` enables RLS with no policy at all** (deny-all by default). It is the one table of the 45 with zero `CREATE POLICY` statements.
+
+So the earlier summary that "only 4 have non-deny-all policies" is correct in the sense of *tables with any permissive policy*, but it understated the policy coverage: 44 tables carry explicit policies, 48 of which are deliberate deny-alls. The security-relevant observation is unchanged and narrow: **only 4 tables are readable at all through RLS, and 41 tables are effectively service-role-only.** That matches `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` §2.2 ("RLS beyond deny-all" is a listed gap) — still true.
 
 Tables: `sevas`, `daily_poojas`, `events`, `seva_bookings`, `settings_documents`, `chat_sessions`, `chat_messages`, `unknown_questions`, `ai_intent_distribution`, `ai_latency_records`, `users`, `profiles`, `donation_campaigns`, `donations`, `gallery_albums`, `gallery_media`, `testimonials`, `aaradhanes`, `volunteer_requests`, `site_settings`, `social_links`, `ai_settings`, `ai_knowledge`, `temple_areas`, plus 21 `seva_*`/ops tables (`staff`, `counters`, `counter_devices`, `seva_settings`, `cash_denominations`, `festival_days`, `festival_day_dates`, `receipt_series`, `receipt_series_years`, `receipt_number_gaps`, `group_counters`, `seva_rate_history`, `audit_log`, `ops_backup_runs`, `seva_orders`, `seva_receipts`, `seva_receipt_lines`, `day_closes`, `day_close_counts`, `devotee_profiles`, `seva_list_items`).
 
@@ -284,16 +302,26 @@ Two mapping gaps are visible statically and are worth pre-registering before any
 
 ### 5.3 Scheduled jobs and workflows
 
-**No workflow is scheduled.** Every Firestore-touching workflow is `workflow_dispatch`-only:
+Four workflows have a `schedule:` (cron) trigger: `aaradhane.yml`, `panchanga.yml`, `seva-backup.yml`, `seva-maintenance.yml`. Of these, **exactly one — `aaradhane.yml` — has an active Firestore write path**, and it is the only *unattended* Firestore writer in the repository:
 
 | Workflow | Trigger | Firestore activity |
 |---|---|---|
+| `.github/workflows/aaradhane.yml` | **`schedule` (cron `30 3 1 1 *`, every Jan 1) + `workflow_dispatch`** | **Active scheduled WRITE.** Step "Generate and Update Aaradhane Events" runs `npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year $TARGET_YEAR` **without `--dry-run`**, which reaches `lib/aaradhane/firestore-admin.ts` and calls `updateFirestoreWithAdmin()` — `docRef.update()` / `docRef.set()` on collection `events` (`firestore-admin.ts:19,215-229`). |
+| `.github/workflows/panchanga.yml` | `schedule` (4 crons) | No Firestore reference. |
+| `.github/workflows/seva-backup.yml` | `schedule` (daily) | No Firestore reference (Supabase-native seva counter). |
+| `.github/workflows/seva-maintenance.yml` | `schedule` (monthly) | No Firestore reference. |
 | `.github/workflows/firestore-batched-migration.yml` | `workflow_dispatch` | runs `scripts/fetch-checkpoint.ts`, `scripts/migrate-all-batched.ts` |
 | `.github/workflows/firestore-production-export.yml` | `workflow_dispatch` | `npm run firestore:dump`; uploads `data/firestore-export/`, `data/firestore-dump/` |
 | `.github/workflows/firestore-staged-migration.yml` | `workflow_dispatch` | `dump-firestore-staged.ts`, `migrate-staged-phase1.ts` |
 | `.github/workflows/firestore-review-counts.yml` | `workflow_dispatch` | `scripts/read-firestore-counts.ts` (read-only) |
-| `.github/workflows/aaradhane.yml` | (contains firebase strings) | generation job |
 | `.github/workflows/ci.yml` | push / PR | **no Firestore**; job `build` = "Lint, typecheck, test, build" |
+
+Two caveats on the `aaradhane.yml` write path, both verified in source:
+
+1. The write is reached only when the *guard* step passes: the write step is gated on `inputs.dry_run != 'true' && steps.check_panchanga.outputs.exists == 'true'`. For a cron run `inputs.dry_run` is empty, so the guard reduces to "Panchanga data for the target year already exists in `data/panchanga/<year>/`". If it does not exist, the workflow takes the dry-run branch instead.
+2. `generate-aaradhane.ts` defaults `firestore: false`, which selects the **local** Guru Parampara data file for *reading* — but the final "STEP 3: Updating Firestore" block calls `updateFirestoreWithAdmin()` **unconditionally** whenever `--dry-run` is absent (`generate-aaradhane.ts:216-231`). Reading from local data does **not** imply writing only locally.
+
+Consequence for the migration: the `events` collection has a live, scheduled, unattended writer. Cutting `events` over to Supabase requires disabling or re-pointing this path, not merely migrating rows.
 
 ### 5.4 Test-only
 
@@ -357,7 +385,7 @@ Status vocabulary is restricted to the seven permitted values.
 | 1 | **Source export (all collections)** | `BLOCKED_SOURCE_EXPORT` | `data/firestore-dump/` and `data/firestore-export/` do not exist; no `*.ndjson` tracked | Firebase credentials in CI (`FIREBASE_SERVICE_ACCOUNT_JSON`); daily Firestore read quota | Blocks all verification | Run `.github/workflows/firestore-production-export.yml` (read-only) and store the artifact | A complete dump exists with a MANIFEST listing every collection and a document count per collection |
 | 2 | **Resolve the destination project** | `REVIEW_MAPPING` | Report cites `kvrkraqjuyxbraccxntk`; current env ref differs; sandbox DB is a Tournament project | Ops decision | Reconciliation against the wrong DB silently "passes" | Confirm the temple project ref with the owner; re-issue a read-only `SUPABASE_DB_URL` for it | A single named project ref is agreed and the 45 tables are listed from it |
 | 3 | `sevas` | `PENDING_BOTH` | `mapSeva` exists; 10 rows are seed data (`scripts/seed-supabase-sevas.ts`); source count UNKNOWN | #1, #2 | Seed rows may mask missing production rows | Export, then dry-run `npm run migrate:sevas` | `source = inserts + updates + validationFailures` and dest count equals source count |
-| 4 | `events` | `PENDING_BOTH` | `mapEvent` + `CORE_FIELD_SPECS.events`; test JSON = 38 docs | #1, #2 | Timestamp conversion | Export, then dry-run `npm run migrate:core` | Counts reconcile; no unmapped fields reported |
+| 4 | `events` | `PENDING_BOTH` | `mapEvent` + `CORE_FIELD_SPECS.events`; test JSON = 38 docs; **plus a scheduled unattended Firestore writer** (`aaradhane.yml`, B7) | #1, #2, **B7** | Timestamp conversion; scheduled writer will keep re-creating Firestore rows after migration | Export, then dry-run `npm run migrate:core`; **and** retire/re-point the `aaradhane.yml` write step | Counts reconcile; no unmapped fields reported; `aaradhane.yml` no longer writes Firestore |
 | 5 | `dailyPoojas` | `PENDING_BOTH` | `mapDailyPooja` | #1, #2 | `days text[]` shape | as above | as above |
 | 6 | `sevaBookings` | `PENDING_BOTH` | `mapSevaBooking` exists but **no field spec** | #1, #2 | **Unmapped-field audit is skipped for this collection** | Add a `FieldCoverageSpec`, then migrate | Field coverage reports PASS |
 | 7 | `testimonials` | `PENDING_BOTH` | `mapTestimonial` | #1, #2 | — | `npm run migrate:content` dry-run | Counts reconcile |
@@ -372,7 +400,7 @@ Status vocabulary is restricted to the seven permitted values.
 | 16 | `sessions`, `bookmarks` | `EXPLICITLY_EXCLUDED` | `sessions` EXCLUDE_AUTH; `bookmarks` marked not-required in `FIREBASE_MIGRATION_PHASE1_AUDIT.md` | — | Low value, auth-linked | Confirm exclusion in writing | Owner sign-off recorded |
 | 17 | `system`, `chatTraining` | `EXPLICITLY_EXCLUDED` | `migration-inventory.ts:22-23` EXCLUDE_SYSTEM | — | `chatTraining` is still live AI admin code | Confirm scope | Decision recorded |
 | 18 | `profiles` | `PENDING_BOTH` | `mapProfile` | #1, #2 | Inventory says REVIEW, migrator migrates it | Decide and align | Inventory and migrator agree |
-| 19 | `donations` | `PENDING_BOTH` | `mapDonation` | #1, #2 | Committed rules let any signed-in user create (see §9) | Decide mapping, then migrate | Counts reconcile |
+| 19 | `donations` | `PENDING_BOTH` | `mapDonation` | #1, #2 | Committed rules let any signed-in user create (see §11) | Decide mapping, then migrate | Counts reconcile |
 | 20 | `donation_campaigns` + `donationCampaigns` | `REVIEW_MAPPING` | `mapDonationCampaign`; two source aliases | #1, #2 | Double-migration | Pick canonical source | One source, counts reconcile |
 | 21 | `settings/*` + `homepage/config` | `REVIEW_MAPPING` | `mapSettingsDocument` (JSONB-lossless) + inline `site_settings`/`social_links` | #1, #2; settings/homepage conflict unresolved | Split mapping needs a rule | Define the doc→table rule, then `npm run migrate:settings` | Every settings doc lands in exactly one destination with no loss |
 | 22 | `ai_settings` | `REVIEW_MAPPING` | No ETL mapper; seeded by `seed-ai-settings-supabase.ts`; Firestore reader at `lib/ai/ai-settings/admin-repository.ts:31` | Decide: seed vs migrate | Two sources of truth for AI config | Decide and remove the loser | Only one writer remains |
@@ -399,7 +427,54 @@ Status vocabulary is restricted to the seven permitted values.
 #31 Storage ──── independent workstream
 #32 RLS ─────── independent, security-driven
 #33 key rotation ─ independent, do first (security)
+#B7 events scheduled writer ──→ must precede #4 cutover (code change, not data)
 ```
+
+### 7.2 Proposed batch migration and reconciliation sequence
+
+Ordered so that each batch is independently verifiable and no batch depends on an unverified predecessor. **No step below has been executed by this audit.**
+
+| Phase | Batch | Collections | Command (dry-run first) | Reconciliation gate |
+|---|---|---|---|---|
+| 0 | Pre-flight | — | none (read-only) | Export artifact exists with per-collection counts; destination project ref confirmed |
+| 1 | Core reference data | `sevas`, `dailyPoojas` | `npm run migrate:core -- --dry-run` | `source = inserts + updates + validationFailures`; dest count == source count |
+| 2 | Core transactional | `events`, `sevaBookings` | `npm run migrate:core -- --dry-run`; `npm run migrate:seva-bookings -- --dry-run` | as above; **`sevaBookings` field spec must exist first** (#6) |
+| 3 | Content | `testimonials`, `galleryAlbums`, `galleryMedia`, `volunteer_requests`, `aaradhane` | `npm run migrate:content -- --dry-run` | as above; canonical `aaradhane` source decided (#9) |
+| 4 | Settings | `settings/*`, `homepage/config` | `npm run migrate:settings -- --dry-run` | every settings doc lands in exactly one destination, JSONB-lossless |
+| 5 | AI / Raya | `chat_sessions`, `messages`, `unknown_questions`, `ai_intent_distribution`, `ai_latency_records`, `knowledge` | `npm run migrate:ai -- --dry-run` | as above; `lastIntent`/`lastTopic`/`preferredLanguage` listed as intentional exclusions |
+| 6 | Batched remainder | all remaining `MIGRATE` entries | `npm run migrate:phase1 -- --batch <n> --dry-run` | per-batch manifest status `SUCCESS` |
+| 7 | Code cutover | `events` scheduled writer, Raya AI 5 deps | — | `grep -rn firebase lib/ai/` empty; `aaradhane.yml` no longer writes Firestore |
+
+`migrate:phase1` is **dry-run by default** in the sense that it refuses to run without `--batch`/`--collections`; note the flag is `--dry-run`, and `--retry-failed` requires `--batch` or `--collections` (`scripts/migrate-all-batched.ts:147-155,176`).
+
+### 7.3 Exact, verified commands
+
+All argument syntax below was read from the scripts and `package.json`, not inferred. **Do not run the write-capable variants until the source export exists and the destination project is confirmed.**
+
+Read-only (safe to run now, no writes):
+
+```bash
+npm ci                                                    # restore deps
+npm run verify:supabase-migrations:static                 # 45 tables / 602 columns / RLS coverage; exit 2 = live skipped
+npm run firestore:dump                                    # read-only live Firestore dump -> data/firestore-dump/
+npm run dump:staged -- settings events                    # positional collection args; allowlist = {settings, events}
+npx jest tests/unit --silent                              # full unit suite (185 suites / 2247 tests)
+```
+
+Write-capable (do **not** run yet):
+
+```bash
+npm run migrate:core -- --dry-run
+npm run migrate:content -- --dry-run
+npm run migrate:ai -- --dry-run
+npm run migrate:settings -- --dry-run
+npm run migrate:sevas -- --dry-run
+npm run migrate:daily-poojas -- --dry-run
+npm run migrate:seva-bookings -- --dry-run
+npm run migrate:phase1 -- --batch 1 --dry-run             # --dry-run; add --batch-size <n> to reshape batches
+```
+
+Export generation is deliberately a **CI** action, not a local one: `.github/workflows/firestore-production-export.yml` (`workflow_dispatch`) is the intended path, so that the service-account secret is supplied by GitHub and never handled locally.
 
 ---
 
@@ -429,7 +504,42 @@ Status vocabulary is restricted to the seven permitted values.
 
 ---
 
-## 9. Security observations relevant to this migration
+## 9. Validation evidence (commands actually executed by this audit)
+
+Every result below was produced by a command run during this audit. Nothing is reported as passing that was not run.
+
+| # | Command | Result | Interpretation |
+|---|---|---|---|
+| 1 | `npm ci --no-audit --no-fund` | exit 0 | Dependencies restored; `node_modules` was absent at session start. |
+| 2 | `npm run verify:supabase-migrations:static` | **exit 2**; "Migration files scanned: 32 / Tables declared: 45 / Column declarations parsed: 602 / Tables with RLS enabled: 45 / Tables WITHOUT RLS: none"; "LIVE DATABASE VERIFICATION SKIPPED (--static)" | Static schema expectations **PASS**. Exit `2` means *static passed, live skipped* — it is **not** a failure and **not** a live verification. |
+| 3 | `npx jest tests/unit/migration-helpers.test.ts tests/unit/migration-mappers.test.ts tests/unit/supabase-migration-coverage.test.ts tests/unit/no-firestore-analytics.test.ts tests/unit/ai-api-auth-wiring.test.ts tests/unit/raya-ai-auth-isolation.test.ts tests/unit/conversation-service-supabase.test.ts --silent` | **7 suites passed, 167 tests passed, 0 failed** | Migration mapper/coverage/guard logic is internally consistent. Does **not** validate any real data. |
+| 4 | `npx jest tests/unit --silent` | **185 suites passed, 2247 tests passed, 0 failed** | Full unit suite green on this revision. One suite emits a non-fatal `FATAL: Settings doc count mismatch. Manifest: 10, File: 1` log line yet still passes — worth a follow-up look, reported as an observation, not a failure. |
+| 5 | `git ls-remote` / GitHub API branch + PR reads | — | `main` = `c56ef97`; PR #352 open/draft; PR #351 merged, password-recovery only. |
+
+**Not executed, and why:** no `migrate:*` script, no `firestore:dump`, no `supabase db push`, no live verification mode. Live verification requires `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, which are unset in this environment; only `SUPABASE_DB_URL` is present and it targets an unrelated project (§4.1). Running any write-capable command is prohibited by this task.
+
+---
+
+## 10. Migration completion checklist
+
+Migration may be declared complete only when **all** of the following hold. Each item names its evidence source. None are satisfied today except where noted.
+
+| # | Criterion | Evidence required | Current |
+|---|---|---|---|
+| 1 | Every in-scope collection accounted for | Inventory covers all code-referenced collections incl. `guruParampara`, `test`, `donations` | ❌ gaps (§2.3) |
+| 2 | Trustworthy source inventory/export exists | `data/firestore-dump/` artifact + MANIFEST with per-collection counts | ❌ (B1) |
+| 3 | Every field mapped or explicitly excluded | `auditFieldCoverage` PASS per collection, with `FieldCoverageSpec` present | ❌ `sevaBookings` has none (§4.4) |
+| 4 | No unexplained source→target count discrepancies | `reconcileCounts` PASS: `source = inserts + updates + excludedMalformed + validationFailures + writeFailures` | ❌ not performed |
+| 5 | Validation/write failures resolved or accepted | Documented disposition per failing doc (e.g. `unknown_questions` doc `1cMSdGgkHf1gtgkGxn3z`) | ❌ undecided |
+| 6 | Reconciled against the correct production project | Single agreed project ref; counts read from it | ❌ (B3) |
+| 7 | All in-scope app dependencies cut over | `grep -rn "firebase/firestore\|firebase-admin" app lib services` returns only excluded paths | ❌ (§5) |
+| 8 | No Firestore fallback in Raya AI | `grep -rn firebase lib/ai/` empty; guard test passes | ❌ (§6) |
+| 9 | No legacy Firestore data deleted | Firestore collections intact; no delete operations issued | ✅ preserved (nothing run) |
+| 10 | Scheduled writer retired | `aaradhane.yml` no longer writes Firestore `events` | ❌ (B7) |
+
+---
+
+## 11. Security observations relevant to this migration
 
 These are reported because they affect the safety of the migration itself. **No secret value is reproduced in this report.**
 
@@ -441,16 +551,16 @@ These are reported because they affect the safety of the migration itself. **No 
 
 ---
 
-## 10. Closing statement
+## 12. Closing statement
 
 **Confirmed.**
-- `main` @ `665e6ff` is the audited revision and matches upstream.
+- `main` @ `c56ef97` is the audited revision and matches upstream (verified via the GitHub API at 2026-10-21T10:58:10Z). Only PR #351 landed between revision 1 (`665e6ff`) and revision 2; it touched password-recovery files only and has no migration impact.
 - No complete Firestore source export exists; `data/firestore-dump/` and `data/firestore-export/` do not exist and no `*.ndjson` is tracked.
 - The temple Supabase destination is **not** reachable from this environment; the sandbox DB is a different project.
-- 45 tables are declared across the Supabase migrations, all RLS-enabled, 4 with non-deny-all policies.
+- 45 tables are declared across the 32 Supabase migrations, all RLS-enabled, 44 with at least one policy, 4 with a permissive (non-deny-all) policy. Verified by `npm run verify:supabase-migrations:static` → "Tables declared: 45 / Tables with RLS enabled: 45 / Tables WITHOUT RLS: none".
 - 59 entries exist in `MIGRATION_INVENTORY` (15 MIGRATE / 42 REVIEW / 2 EXCLUDE_SYSTEM / 0 EXCLUDE_AUTH).
 - Raya AI is **not** Supabase-only: five in-scope dependencies remain, one of them on the live `/api/chat` path.
-- No Firestore-touching workflow is scheduled; all are manual.
+- `events` has a live scheduled unattended Firestore writer (`aaradhane.yml`).
 - A service-account private key is committed to a public repository.
 
 **Unknown.**
@@ -460,12 +570,14 @@ These are reported because they affect the safety of the migration itself. **No 
 - Whether `kvrkraqjuyxbraccxntk` is the temple production project.
 - Whether `guruParampara` and `test` hold production data.
 - Whether the committed key has already been rotated.
+- Whether the scheduled `aaradhane.yml` run has actually executed on a real cron (and thus written `events`) — GitHub Actions run history was not inspected.
 
 **Blocked.**
 - All `MIGRATED_VERIFIED` determinations, on the absence of a source export (B1) and a reachable, correctly-identified destination (B2/B3).
 - Raya AI Supabase-only compliance, on the missing `announcements` destination (#23) and the un-designed `knowledge_*` schema (#28).
+- `events` cutover, on retiring the scheduled Firestore writer (B7) in addition to the data migration.
 
 **Safest next step.**
 Rotate the exposed Firebase service-account key first (security, independent of migration), then run the read-only `.github/workflows/firestore-production-export.yml` to obtain the missing source export, then confirm the temple Supabase project ref and re-run the read-only destination introspection. Only after all three should any `migrate:*` script be dry-run.
 
-**Not done, deliberately.** No migration was executed. No Firestore, Supabase, schema, or migration-history write occurred. No fix was implemented. No PR was opened.
+**Not done, deliberately.** No migration was executed. No Firestore, Supabase, schema, or migration-history write occurred. No fix was implemented. No PR was merged. No Firestore data was deleted or modified.
