@@ -461,7 +461,8 @@ export class AISettingsService {
     const currentVersion = settings.prompt.versions.find(
       (v) => v.id === settings.prompt.currentPromptId
     );
-    return currentVersion?.content || settings.prompt.defaultPrompt;
+    const fallback = settings.prompt.defaultPrompt;
+    return currentVersion?.content || (fallback ? fallback : "Prompt not configured");
   }
 
   async getPromptVersions(): Promise<PromptVersion[]> {
