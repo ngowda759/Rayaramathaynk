@@ -1,14 +1,41 @@
-permissions:
-  contents: read
-
+# Applies pending Supabase migrations to the approved production project.
+#
+# Safety properties (do not weaken):
+#   - workflow_dispatch only; it never runs on push or on a schedule;
+#   - bound to the `production` environment, so a protected environment requires
+#     a human approval before the job starts (see the note below);
+#   - serialised by a concurrency group, so two runs cannot overlap;
+#   - a hard project-ref guard runs BEFORE `supabase link` and before any
+#     database-changing command, and refuses any ref but the approved one;
+#   - `db push` runs only after the guard and a dry-run have both succeeded.
+#
+# NOTE ON ENVIRONMENT PROTECTION: `environment: production` only pauses for a human
+# if the repository's `production` environment has required reviewers configured.
+# At the time of writing the environment exists but carries NO protection rules, so
+# this workflow is dispatch-gated but not reviewer-gated. Enabling required reviewers
+# on that environment is an owner action (Settings > Environments) and is required to
+# make the human-approval step real.
 name: Deploy Supabase Migrations
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: apply-supabase-migrations'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-migrations-production
+  cancel-in-progress: false
 
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
 
@@ -17,6 +44,13 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
     steps:
+      - name: Check confirmation phrase
+        run: |
+          if [ "${{ inputs.confirm }}" != "apply-supabase-migrations" ]; then
+            echo "ERROR: confirmation phrase did not match. Refusing to run."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -29,12 +63,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: '1.200.0'
+      # Fails closed on a missing, malformed or mismatched project ref. Runs before
+      # any database-changing command, and before the CLI is even installed.
+      - name: Guard approved project ref
+        run: node scripts/lib/guard-approved-project.mjs
 
-      - name: Validate Supabase project ref and secrets
+      - name: Validate Supabase secrets
         env:
           DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         shell: bash
@@ -43,14 +77,12 @@ jobs:
             echo "ERROR: SUPABASE_DB_PASSWORD secret is not available."
             exit 1
           fi
-          echo "Project ref length: ${#SUPABASE_PROJECT_REF}"
+          echo "SUPABASE_DB_PASSWORD is present."
 
-          if [[ ! "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
-            echo "ERROR: SUPABASE_PROJECT_REF is not a valid 20-character Supabase project ref."
-            exit 1
-          fi
-
-          echo "Project ref format is valid."
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: '1.200.0'
 
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
