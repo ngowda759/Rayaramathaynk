@@ -108,13 +108,30 @@ describe("Raya AI reset-password — link redemption", () => {
     expect(mockVerifyOtp).toHaveBeenCalledWith({ type: "recovery", token_hash: "hash-1" });
   });
 
-  it("opens the form on a PASSWORD_RECOVERY event for an implicit fragment link", async () => {
+  it("opens the form when the client reports PASSWORD_RECOVERY for a fragment link", async () => {
+    // The fragment is redeemed during initialization, but the event can land
+    // after this page has already decided there is no session; the handler is
+    // the safety net, so assert it flips the gate on its own.
     setUrl("/admin/ai/reset-password#access_token=tok&refresh_token=r&type=recovery");
-    mockGetSession.mockResolvedValue({ data: { session: { access_token: "t" } } });
+    mockGetSession.mockResolvedValue({ data: { session: null } });
     render(<RayaAiResetPasswordPage />);
+    expect(await screen.findByTestId("raya-auth-error")).toHaveTextContent(/invalid, has expired/i);
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+
     await waitFor(() => expect(authChangeHandler).not.toBeNull());
     authChangeHandler?.("PASSWORD_RECOVERY");
     expect(await screen.findByLabelText("New password")).toBeInTheDocument();
+  });
+
+  it("ignores unrelated auth events", async () => {
+    setUrl("/admin/ai/reset-password#access_token=tok&refresh_token=r&type=recovery");
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+    render(<RayaAiResetPasswordPage />);
+    await screen.findByTestId("raya-auth-error");
+    await waitFor(() => expect(authChangeHandler).not.toBeNull());
+    authChangeHandler?.("TOKEN_REFRESHED");
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    expect(screen.getByTestId("raya-auth-error")).toBeInTheDocument();
   });
 
   it("unsubscribes from auth events on unmount", async () => {
