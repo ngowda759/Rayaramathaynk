@@ -79,8 +79,14 @@ describe("readRecoveryIntent", () => {
 describe("evaluateRecoveryGate", () => {
   it("stays resolving while the link is being checked", () => {
     expect(
-      evaluateRecoveryGate({ resolving: true, hasSession: false, recoveryVerified: false, linkError: false })
-        .state
+      evaluateRecoveryGate({
+        resolving: true,
+        hasSession: false,
+        recoveryVerified: false,
+        sawRecoveryCredential: false,
+        linkError: false,
+        exchangeFailed: false,
+      }).state
     ).toBe("resolving");
   });
 
@@ -89,9 +95,12 @@ describe("evaluateRecoveryGate", () => {
       resolving: false,
       hasSession: true,
       recoveryVerified: true,
+      sawRecoveryCredential: true,
       linkError: true,
+      exchangeFailed: false,
     });
     expect(gate.state).toBe("error");
+    if (gate.state === "error") expect(gate.reason).toBe("link-error");
   });
 
   it("refuses the form when there is no session", () => {
@@ -99,10 +108,15 @@ describe("evaluateRecoveryGate", () => {
       resolving: false,
       hasSession: false,
       recoveryVerified: false,
+      sawRecoveryCredential: true,
       linkError: false,
+      exchangeFailed: false,
     });
     expect(gate.state).toBe("no-session");
-    if (gate.state === "no-session") expect(gate.message).toBe(RECOVERY_GATE_MESSAGES.noSession);
+    if (gate.state === "no-session") {
+      expect(gate.message).toBe(RECOVERY_GATE_MESSAGES.noSession);
+      expect(gate.reason).toBe("no-session");
+    }
   });
 
   it("refuses the form for an ordinary session that did not come from a recovery link", () => {
@@ -110,17 +124,54 @@ describe("evaluateRecoveryGate", () => {
       resolving: false,
       hasSession: true,
       recoveryVerified: false,
+      sawRecoveryCredential: false,
       linkError: false,
+      exchangeFailed: false,
     });
     expect(gate.state).toBe("not-recovery");
+    if (gate.state === "not-recovery") expect(gate.reason).toBe("not-recovery");
   });
 
-  it("opens the form only for a verified recovery session", () => {
+  it("reports an expired link distinctly from a rejected redirect", () => {
+    const gate = evaluateRecoveryGate({
+      resolving: false,
+      hasSession: false,
+      recoveryVerified: false,
+      sawRecoveryCredential: true,
+      linkError: false,
+      exchangeFailed: true,
+    });
+    expect(gate.state).toBe("error");
+    if (gate.state === "error") expect(gate.reason).toBe("expired-link");
+  });
+
+  it("opens the form for a verified recovery session", () => {
     const gate = evaluateRecoveryGate({
       resolving: false,
       hasSession: true,
       recoveryVerified: true,
+      sawRecoveryCredential: true,
       linkError: false,
+      exchangeFailed: false,
+    });
+    expect(gate.state).toBe("ready");
+  });
+
+  /**
+   * The production failure: the SDK redeems a `?code=` link during its own
+   * initialization and erases it from the address bar, so the page's effect sees
+   * a stripped URL. The credential was *observed* at entry even though the
+   * exchange was performed by the SDK, not by the page, so `recoveryVerified`
+   * stays false. A session plus an observed credential must still open the form.
+   */
+  it("opens the form when the SDK consumed the credential before the page could verify it", () => {
+    const gate = evaluateRecoveryGate({
+      resolving: false,
+      hasSession: true,
+      recoveryVerified: false,
+      sawRecoveryCredential: true,
+      linkError: false,
+      exchangeFailed: false,
     });
     expect(gate.state).toBe("ready");
   });

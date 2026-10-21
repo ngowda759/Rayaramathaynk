@@ -68,6 +68,32 @@ describe("Raya AI recovery flow is Supabase-native", () => {
     expect(source).toMatch(/gate\.state === ["']ready["']/);
   });
 
+  it("the reset page reads the credential from the entry URL, not the stripped live URL", () => {
+    const source = read(RESET);
+    // The SDK redeems a `?code=` link during its own initialization and deletes
+    // it from the address bar; reading `window.location` in the page effect loses
+    // the credential and produced the "open this page from the reset link" bug.
+    expect(source).toContain("getEntryLocationHref");
+    expect(source).toContain("hasRecoveryCredential");
+    expect(source).toContain("sawRecoveryCredential");
+  });
+
+  it("the browser client captures the entry URL at module scope", () => {
+    const source = read("lib/supabase/client.ts");
+    // Module scope is what makes the capture ordered before any client exists.
+    expect(source).toContain("entryLocationHref");
+    expect(source).toContain("getEntryLocationHref");
+    // The capture must not read anything secret.
+    expect(source).not.toMatch(/SERVICE_ROLE|serviceRole/);
+  });
+
+  it("the reset page reports a redacted diagnostic and never a credential", () => {
+    const source = read(RESET);
+    expect(source).toContain("recoveryDiagnosticLine");
+    // It must not print a token, code, hash or session object.
+    expect(source).not.toMatch(/console\.(log|info)\([^)]*(session|token|code|hash)/i);
+  });
+
   it("the reset page reads the existing session before exchanging the code", () => {
     const source = read(RESET);
     // `getSession()` awaits client initialization, which already redeems a

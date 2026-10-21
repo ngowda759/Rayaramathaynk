@@ -3,17 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, getEntryLocationHref } from "@/lib/supabase/client";
 import { describeAuthFailure, toAuthErrorLike } from "@/lib/auth/raya-auth-errors";
 import { RAYA_AI_AUTH_ROUTES } from "@/lib/auth/raya-auth-routes";
 import {
   RECOVERY_GATE_MESSAGES,
   evaluateRecoveryGate,
+  hasRecoveryCredential,
   readRecoveryIntent,
   validateNewPassword,
   type RecoveryGateState,
 } from "@/lib/auth/raya-password-recovery";
 import { getSupabaseConfigStatus } from "@/lib/supabase/config";
+import {
+  recoveryDiagnosticAdvice,
+  recoveryDiagnosticLine,
+  type RecoveryDiagnosticFacts,
+} from "@/lib/auth/raya-recovery-diagnostics";
 import RayaAiAuthShell from "@/components/admin/ai/RayaAiAuthShell";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
@@ -45,29 +51,29 @@ export default function RayaAiResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Boolean-only facts about this attempt, for the redacted diagnostic line.
+  const [facts, setFacts] = useState<RecoveryDiagnosticFacts | null>(null);
   // Set once the SDK reports a recovery session (the PASSWORD_RECOVERY event, or
   // a code/token this page redeemed itself).
   const recoveryVerified = useRef(false);
-  // True when the page was opened from a recovery link at all.
-  const arrivedViaLink = useRef(false);
 
   const resolveRecoverySession = useCallback(async () => {
     const supabase = createClient();
-    const intent = readRecoveryIntent(window.location.href);
-    arrivedViaLink.current = intent.shape !== "none" || intent.isRecovery;
-
-    // Any failure - a rejected exchange, a thrown fetch, an unreadable URL -
-    // means the link cannot be used, so the page says so rather than leaving a
-    // spinner or an empty form.
-    const failLink = () =>
-      setGate(
-        evaluateRecoveryGate({
-          resolving: false,
-          hasSession: false,
-          recoveryVerified: false,
-          linkError: true,
-        })
-      );
+    // The address the document was *entered* with, not the live one: the SDK
+    // redeems a PKCE `?code=` (or a `#access_token=` fragment) during its own
+    // initialization and erases it from the address bar. By the time this effect
+    // runs - after AdminAuthGuard has already created the client and awaited it -
+    // `window.location` no longer carries the credential, so reading it here was
+    // why a valid link was reported as "open this page from the reset link".
+    const entryUrl = getEntryLocationHref() ?? window.location.href;
+    const entryIntent = readRecoveryIntent(entryUrl);
+    // A `?token_hash=` link is the one shape the SDK does not consume, so the live
+    // URL can still hold it; consider both so no supported format is missed.
+    const liveIntent = readRecoveryIntent(window.location.href);
+    const intent = entryIntent.shape !== "none" ? entryIntent : liveIntent;
+    const sawRecoveryCredential =
+      hasRecoveryCredential(entryUrl) || hasRecoveryCredential(window.location.href);
+    let exchangeFailed = false;
 
     try {
       // `getSession()` awaits client initialization, which is what redeems a
@@ -76,31 +82,28 @@ export default function RayaAiResetPasswordPage() {
       let session = (await supabase.auth.getSession()).data.session;
 
       if (intent.errorCode) {
-        failLink();
-        return;
-      }
-
-      if (!session && intent.shape === "pkce-code" && intent.code) {
+        exchangeFailed = true;
+      } else if (!session && intent.shape === "pkce-code" && intent.code) {
+        // Only reached when initialization did not consume the code, so this is
+        // not a double redemption.
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(intent.code);
         if (exchangeError) {
-          failLink();
-          return;
+          exchangeFailed = true;
+        } else {
+          recoveryVerified.current = true;
+          session = (await supabase.auth.getSession()).data.session;
         }
-        recoveryVerified.current = true;
-        session = (await supabase.auth.getSession()).data.session;
-      }
-
-      if (!session && intent.shape === "otp-token-hash" && intent.tokenHash) {
+      } else if (!session && intent.shape === "otp-token-hash" && intent.tokenHash) {
         const { error: otpError } = await supabase.auth.verifyOtp({
           type: "recovery",
           token_hash: intent.tokenHash,
         });
         if (otpError) {
-          failLink();
-          return;
+          exchangeFailed = true;
+        } else {
+          recoveryVerified.current = true;
+          session = (await supabase.auth.getSession()).data.session;
         }
-        recoveryVerified.current = true;
-        session = (await supabase.auth.getSession()).data.session;
       }
 
       if (session && intent.shape !== "none") {
@@ -112,16 +115,51 @@ export default function RayaAiResetPasswordPage() {
         evaluateRecoveryGate({
           resolving: false,
           hasSession: Boolean(session),
-          // A session obtained from a recovery link is proof enough: only the
-          // browser that requested the reset holds the PKCE verifier.
-          recoveryVerified: recoveryVerified.current || (arrivedViaLink.current && Boolean(session)),
+          recoveryVerified: recoveryVerified.current,
+          sawRecoveryCredential,
           linkError: false,
+          exchangeFailed,
         })
       );
+      setFacts({
+        linkShape: intent.shape,
+        sawCredential: sawRecoveryCredential,
+        hasSession: Boolean(session),
+        recoveryVerified: recoveryVerified.current,
+        linkError: false,
+        exchangeFailed,
+        configOk: getSupabaseConfigStatus().isConfigured,
+      });
     } catch {
-      failLink();
+      setGate(
+        evaluateRecoveryGate({
+          resolving: false,
+          hasSession: false,
+          recoveryVerified: false,
+          sawRecoveryCredential,
+          linkError: true,
+          exchangeFailed: false,
+        })
+      );
+      setFacts({
+        linkShape: intent.shape,
+        sawCredential: sawRecoveryCredential,
+        hasSession: false,
+        recoveryVerified: false,
+        linkError: true,
+        exchangeFailed: false,
+        configOk: getSupabaseConfigStatus().isConfigured,
+      });
     }
   }, []);
+
+  // One redacted line per attempt, so a support report can name the category.
+  // The line is built from booleans only - no code, token, hash or session ever
+  // reaches it (see lib/auth/raya-recovery-diagnostics.ts).
+  useEffect(() => {
+    if (!facts) return;
+    console.info(recoveryDiagnosticLine(facts));
+  }, [facts]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -218,6 +256,11 @@ export default function RayaAiResetPasswordPage() {
           <p role="alert" data-testid="raya-auth-error" className="text-sm text-red-600">
             {gate.message}
           </p>
+          {facts && (
+            <p className="text-sm text-stone-600" data-testid="raya-recovery-advice">
+              {recoveryDiagnosticAdvice(facts)}
+            </p>
+          )}
           {!config.isConfigured && (
             <p className="text-sm text-stone-500">
               This deployment is missing its Supabase configuration, so no reset link

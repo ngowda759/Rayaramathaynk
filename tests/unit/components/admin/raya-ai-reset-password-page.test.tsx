@@ -23,6 +23,11 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: jest.fn() }),
 }));
 
+// `getEntryLocationHref` mirrors production: it is captured once, when the
+// module is first evaluated. `entryLocation` lets a test choose whether the page
+// was entered with a recovery credential (the SDK already stripped it from the
+// live URL by the time the page runs) or with a bare URL.
+let entryLocation: string | null = null;
 jest.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
@@ -37,6 +42,7 @@ jest.mock("@/lib/supabase/client", () => ({
       },
     },
   }),
+  getEntryLocationHref: () => entryLocation,
 }));
 
 import RayaAiResetPasswordPage from "@/app/admin/ai/reset-password/page";
@@ -51,6 +57,15 @@ const originalHref = window.location.href;
 
 function setUrl(url: string) {
   window.history.replaceState(null, "", url);
+  // By default the page was entered at exactly this URL, so the pre-fix
+  // behaviour (reading the live URL) and the fixed behaviour agree.
+  entryLocation = window.location.href;
+}
+
+/** Simulate the SDK having consumed `?code=` before the page mounted. */
+function setEntryUrlWhileLiveUrlIsStripped(entryUrl: string, liveUrl: string) {
+  window.history.replaceState(null, "", liveUrl);
+  entryLocation = new URL(entryUrl, window.location.origin).href;
 }
 
 beforeEach(() => {
@@ -62,6 +77,7 @@ beforeEach(() => {
   mockSignOut.mockReset().mockResolvedValue({ error: null });
   mockUnsubscribe.mockReset();
   authChangeHandler = null;
+  entryLocation = null;
   process.env.NEXT_PUBLIC_SUPABASE_URL = REAL_URL;
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = REAL_KEY;
   setUrl("/admin/ai/reset-password");
@@ -165,6 +181,59 @@ describe("Raya AI reset-password — the form is gated on a recovery session", (
     setUrl("/admin/ai/reset-password?error=access_denied&error_code=otp_expired");
     render(<RayaAiResetPasswordPage />);
     expect(await screen.findByTestId("raya-auth-error")).toHaveTextContent(/could not be used/i);
+  });
+
+  /**
+   * The exact production failure. AdminAuthGuard mounts before this page, its
+   * `useSupabaseSession()` creates the browser client, and the SDK redeems the
+   * PKCE `?code=` during that construction - deleting it from the address bar.
+   * The page therefore sees a session and a *stripped* URL, and used to render
+   * "open this page from the password reset link in your email".
+   */
+  it("opens the form when the SDK already consumed ?code= and stripped the URL", async () => {
+    setEntryUrlWhileLiveUrlIsStripped(
+      "/admin/ai/reset-password?code=abc-123",
+      "/admin/ai/reset-password"
+    );
+    mockGetSession.mockResolvedValue({ data: { session: { access_token: "t" } } });
+    render(<RayaAiResetPasswordPage />);
+    expect(await screen.findByLabelText("New password")).toBeInTheDocument();
+    // The credential was consumed by initialization, so it must not be re-exchanged.
+    expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("does the same for a stripped fragment link", async () => {
+    setEntryUrlWhileLiveUrlIsStripped(
+      "/admin/ai/reset-password#access_token=t&refresh_token=r&type=recovery",
+      "/admin/ai/reset-password"
+    );
+    mockGetSession.mockResolvedValue({ data: { session: { access_token: "t" } } });
+    render(<RayaAiResetPasswordPage />);
+    expect(await screen.findByLabelText("New password")).toBeInTheDocument();
+  });
+
+  it("still refuses an ordinary signed-in visitor whose entry URL had no credential", async () => {
+    setEntryUrlWhileLiveUrlIsStripped("/admin/ai/reset-password", "/admin/ai/reset-password");
+    mockGetSession.mockResolvedValue({ data: { session: { access_token: "t" } } });
+    render(<RayaAiResetPasswordPage />);
+    expect(await screen.findByTestId("raya-auth-error")).toHaveTextContent(
+      /from the password reset link/i
+    );
+    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+  });
+
+  it("names the failure category in a redacted diagnostic line", async () => {
+    const info = jest.spyOn(console, "info").mockImplementation(() => {});
+    setEntryUrlWhileLiveUrlIsStripped("/admin/ai/reset-password", "/admin/ai/reset-password");
+    mockGetSession.mockResolvedValue({ data: { session: { access_token: "t" } } });
+    render(<RayaAiResetPasswordPage />);
+    await screen.findByTestId("raya-auth-error");
+    await waitFor(() => expect(info).toHaveBeenCalled());
+    const line = info.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(line).toContain("reason=not-recovery");
+    // The line carries booleans and categories only - never a credential.
+    expect(line).not.toMatch(/access_token|refresh_token|token_hash|code=/);
+    info.mockRestore();
   });
 
   it("reports a failed code exchange instead of showing a broken form", async () => {
