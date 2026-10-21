@@ -70,6 +70,11 @@ export default function PromptManagerPage() {
       setLoading(true);
       const response = await adminFetch("/api/ai/settings/prompts");
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to load prompts");
+      }
+
       const versions = data.versions || [];
       setPrompts(versions);
 

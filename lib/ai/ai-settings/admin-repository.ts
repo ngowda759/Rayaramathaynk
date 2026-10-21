@@ -130,13 +130,18 @@ export class AIAdminRepository {
 
   async updatePromptSettings(promptSettings: PromptSettings, userId: string): Promise<void> {
     const supabase = this.getSupabase();
-    await supabase
+    const { error } = await supabase
       .from(AI_SETTINGS_COLLECTION)
       .update({
         prompt: promptSettings,
         updated_by: userId,
       })
       .eq("id", AI_SETTINGS_DOC_ID);
+
+    if (error) {
+      console.error("Error updating prompt settings in Supabase:", error);
+      throw new Error("Failed to update prompt settings in database");
+    }
   }
 
   async createPromptVersion(
@@ -178,6 +183,16 @@ export class AIAdminRepository {
       },
       userId
     );
+
+    // Verify persistence by reading the saved data back
+    const verifySettings = await this.getSettings();
+    if (!verifySettings) {
+      throw new Error("Failed to verify prompt persistence: settings not found");
+    }
+    const savedVersion = verifySettings.prompt.versions.find(v => v.id === newVersion.id);
+    if (!savedVersion) {
+      throw new Error("Failed to verify prompt persistence: version not saved");
+    }
 
     return newVersion.id;
   }

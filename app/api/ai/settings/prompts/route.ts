@@ -16,10 +16,18 @@ export async function GET(request: NextRequest) {
     const promptVersions = await aiSettingsService.getPromptVersions();
     const currentPrompt = await aiSettingsService.getCurrentPrompt();
     const promptSettings = await aiSettingsService.getPromptSettings();
+
+    if (!promptVersions) {
+      return NextResponse.json(
+        { error: "Failed to read prompt versions" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       versions: promptVersions,
       currentPrompt,
-      currentPromptId: promptSettings.currentPromptId,
+      currentPromptId: promptSettings ? promptSettings.currentPromptId : "",
     });
   } catch (error) {
     console.error("Error fetching prompt versions:", error);
