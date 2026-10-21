@@ -134,25 +134,27 @@ export default function PromptManagerPage() {
 
     setSaving(true);
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${selectedPrompt.id}`,
-        {
+      const response = await adminFetch("/api/ai/settings/prompts", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            versionId: selectedPrompt.id,
+            action: "update",
             name: editForm.name,
             content: editForm.content,
           }),
-        },
-      );
+        });
 
+      const data = await response.json();
       if (response.ok) {
         showMsg("success", "Prompt saved successfully");
         setIsEditing(false);
         loadPrompts();
+      } else {
+        showMsg("error", data.error || "Failed to save prompt");
       }
     } catch (error) {
-      showMsg("error", "Failed to save prompt");
+      showMsg("error", "Failed to save prompt. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -174,24 +176,28 @@ export default function PromptManagerPage() {
       return;
 
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${prompt.id}`,
-        {
+      const response = await adminFetch("/api/ai/settings/prompts", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        },
-      );
+          body: JSON.stringify({
+            versionId: prompt.id,
+            action: newStatus === "published" ? "publish" : "update",
+            status: newStatus
+          }),
+        });
 
+      const data = await response.json();
       if (response.ok) {
         showMsg(
           "success",
           `Prompt ${newStatus === "published" ? "published" : newStatus === "archived" ? "archived" : "updated"} successfully`,
         );
         loadPrompts();
+      } else {
+        showMsg("error", data.error || "Failed to update prompt status");
       }
     } catch (error) {
-      showMsg("error", "Failed to update prompt status");
+      showMsg("error", "Failed to update prompt status. Please try again.");
     }
   };
 
@@ -200,22 +206,28 @@ export default function PromptManagerPage() {
       return;
 
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${prompt.id}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await adminFetch("/api/ai/settings/prompts", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            versionId: prompt.id,
+            action: "update",
+            status: "archived"
+          }),
+        });
 
+      const data = await response.json();
       if (response.ok) {
         showMsg("success", "Prompt deleted successfully");
         if (selectedPrompt?.id === prompt.id) {
           setSelectedPrompt(null);
         }
         loadPrompts();
+      } else {
+        showMsg("error", data.error || "Failed to delete prompt");
       }
     } catch (error) {
-      showMsg("error", "Failed to delete prompt");
+      showMsg("error", "Failed to delete prompt. Please try again.");
     }
   };
 
@@ -223,21 +235,24 @@ export default function PromptManagerPage() {
     if (!confirm(`Rollback "${prompt.name}" to this version?`)) return;
 
     try {
-      const response = await adminFetch(
-        `/api/ai/settings/prompts?id=${prompt.id}`,
-        {
-          method: "POST",
+      const response = await adminFetch("/api/ai/settings/prompts", {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "rollback" }),
-        },
-      );
+          body: JSON.stringify({
+            versionId: prompt.id,
+            action: "rollback"
+          }),
+        });
 
+      const data = await response.json();
       if (response.ok) {
         showMsg("success", "Prompt rolled back successfully");
         loadPrompts();
+      } else {
+        showMsg("error", data.error || "Failed to rollback prompt");
       }
     } catch (error) {
-      showMsg("error", "Failed to rollback prompt");
+      showMsg("error", "Failed to rollback prompt. Please try again.");
     }
   };
 
