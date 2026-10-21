@@ -86,9 +86,25 @@ export function readRecoveryIntent(url: string): RecoveryIntent {
 export type RecoveryGateState =
   | { state: "resolving" }
   | { state: "ready" }
-  | { state: "error"; message: string }
-  | { state: "no-session"; message: string }
-  | { state: "not-recovery"; message: string };
+  | { state: "error"; reason: RecoveryFailureReason; message: string }
+  | { state: "no-session"; reason: RecoveryFailureReason; message: string }
+  | { state: "not-recovery"; reason: RecoveryFailureReason; message: string };
+
+/**
+ * Why the reset form is not available. Safe to log or display: it names a
+ * *category* of failure and never a token, code, hash or session credential.
+ * It exists so a support report can say "expired link" instead of "it did not
+ * work", which is what the page could not previously distinguish.
+ */
+export type RecoveryFailureReason =
+  /** The redirect itself carried an error, or the credential was rejected. */
+  | "link-error"
+  /** The credential was already used or has aged out. */
+  | "expired-link"
+  /** The link was accepted but produced no session (e.g. opened in another browser). */
+  | "no-session"
+  /** A session exists, but it was not established by a recovery link. */
+  | "not-recovery";
 
 const NO_SESSION_MESSAGE =
   "This password reset link is invalid, has expired, or was already used. " +
@@ -104,20 +120,44 @@ const LINK_ERROR_MESSAGE =
  * Decide what the reset page may show.
  *
  * `hasSession` is the live Supabase session; `recoveryVerified` is true only when
- * this page actually redeemed a recovery link (PKCE exchange, `verifyOtp`, a
- * `PASSWORD_RECOVERY` event, or a recovery-marked URL at load). Both are required:
- * a session alone is not proof that the person arrived through a reset link.
+ * a recovery link was actually redeemed for this page (a `PASSWORD_RECOVERY`
+ * event, a code/OTP this page exchanged, or a recovery-marked URL the page saw
+ * *before* the SDK stripped it).
+ *
+ * A session alone is not proof that the person arrived through a reset link -
+ * an ordinary signed-in administrator who opens this address must not be shown a
+ * password form - but it *is* proof when the page also observed the recovery
+ * credential. `sawRecoveryCredential` covers the case where the SDK redeemed the
+ * link during initialization and removed `?code=` before this page could read
+ * the URL: the page records the credential's presence at mount, then pairs that
+ * record with the session the redemption produced.
  */
 export function evaluateRecoveryGate(input: {
   resolving: boolean;
   hasSession: boolean;
   recoveryVerified: boolean;
+  /** True when a recovery credential (code, token_hash or recovery fragment) was present in the URL at mount. */
+  sawRecoveryCredential: boolean;
   linkError: boolean;
+  /** True when the credential was present but the exchange reported it unusable. */
+  exchangeFailed: boolean;
 }): RecoveryGateState {
   if (input.resolving) return { state: "resolving" };
-  if (input.linkError) return { state: "error", message: LINK_ERROR_MESSAGE };
-  if (!input.hasSession) return { state: "no-session", message: NO_SESSION_MESSAGE };
-  if (!input.recoveryVerified) return { state: "not-recovery", message: NOT_RECOVERY_MESSAGE };
+  if (input.linkError) {
+    return { state: "error", reason: "link-error", message: LINK_ERROR_MESSAGE };
+  }
+  if (input.exchangeFailed) {
+    return { state: "error", reason: "expired-link", message: LINK_ERROR_MESSAGE };
+  }
+  if (!input.hasSession) {
+    return { state: "no-session", reason: "no-session", message: NO_SESSION_MESSAGE };
+  }
+  // A session plus an observed recovery credential is a recovery session: the
+  // credential was consumed by the SDK's initialization, and only the browser
+  // that requested the reset holds the PKCE verifier that made it work.
+  if (!input.recoveryVerified && !input.sawRecoveryCredential) {
+    return { state: "not-recovery", reason: "not-recovery", message: NOT_RECOVERY_MESSAGE };
+  }
   return { state: "ready" };
 }
 
@@ -152,4 +192,23 @@ export function validateNewPassword(password: string, confirmation: string): Pas
 /** The absolute address a recovery email should return to. */
 export function recoveryRedirectUrl(origin: string, resetPath: string): string {
   return `${origin.replace(/\/+$/, "")}${resetPath}`;
+}
+
+/**
+ * True when the URL carries something that can only be a recovery credential:
+ * a PKCE `code`, an OTP `token_hash`, or an implicit `#access_token=` fragment.
+ *
+ * The reset page calls this against the address the document was *entered* with,
+ * because the Supabase SDK redeems a PKCE code or fragment during its
+ * initialization and erases it from `window.location` before the page's effect
+ * runs. Reading the live URL at that point would always say "no credential",
+ * which is the bug this predicate exists to avoid.
+ *
+ * It reports presence only - the credential's value is never returned, logged or
+ * compared.
+ */
+export function hasRecoveryCredential(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const intent = readRecoveryIntent(url);
+  return intent.shape !== "none";
 }

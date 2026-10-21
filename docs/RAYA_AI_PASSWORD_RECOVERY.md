@@ -81,6 +81,63 @@ The form is shown only for a session that came from a recovery link. A session
 that did not (an ordinary signed-in session) is refused, so the page cannot be
 used to change a password without the emailed link.
 
+### Why the page must read the *entry* URL, not the live one
+
+The Supabase browser client is a singleton whose SDK **auto-initializes in its
+constructor** (`GoTrueClient` calls `this.initialize()`), and that initialization
+is what redeems a `?code=` or `#access_token=` link. It then **deletes the
+credential from the address bar**.
+
+That interacts badly with the layout. `app/admin/layout.tsx` wraps every admin
+page in `AdminAuthGuard`, and the guard mounts *before* the page and calls
+`useSupabaseSession()` → `createClient()`. So by the time the reset page's effect
+runs:
+
+1. the guard has already constructed the client,
+2. the SDK has already redeemed the `?code=` link and created a session,
+3. the SDK has already erased `?code=` from `window.location`.
+
+A page that read `window.location` at that moment saw a session but no
+credential, and rendered *"Open this page from the password reset link in your
+email to choose a new password"* — even though the person had just clicked that
+exact link. This was the reported production symptom, and it was an ordering
+race, not a credential problem.
+
+`lib/supabase/client.ts` therefore captures the entry URL **at module scope**.
+That placement is what makes it correct: the module defines
+`createBrowserClient`, so it has necessarily been evaluated before any client can
+be constructed, and the capture cannot lose the race. A capture inside a page
+component would race the guard again. The captured value is a URL (already in the
+address bar and browser history), never a secret, and the page reduces it to a
+boolean with `hasRecoveryCredential` before using it.
+
+The gate accepts a session when either the page redeemed the credential itself
+(`recoveryVerified`) or the credential was observed at entry
+(`sawRecoveryCredential`). The second case is the one the SDK's own redemption
+produces.
+
+## Diagnosing a recovery failure
+
+The reset page writes one redacted line to the console per attempt, for example:
+
+```
+raya-ai/recovery reason=not-recovery link=none credential=absent session=present verified=no config=ok
+```
+
+Every field is a boolean or a member of a closed set, so the line cannot carry a
+`code`, `token_hash`, `access_token` or session. The `reason` names the category:
+
+| `reason` | Meaning | What to do |
+| --- | --- | --- |
+| `link-error` | The redirect carried an error, or the deployment is unconfigured | Check `config=`; request a new link |
+| `expired-link` | The credential was present but rejected | Request a new link |
+| `no-session` | No session after the attempt; `credential=present` means it was opened in another browser | Open the newest link in the same browser that requested it |
+| `not-recovery` | A session exists but no recovery credential was ever seen | Open the link from the email, not the address directly |
+| `ready` | The form is shown | — |
+
+The page also shows the matching sentence to the person, so a screenshot is
+enough to identify the category.
+
 ## Diagnosing a sign-in failure
 
 `signInWithPassword` answers the same `invalid_credentials` for an unknown email
@@ -120,3 +177,5 @@ and `active`, and `lib/auth/raya-admin-auth.ts` still enforces them on every
 | `tests/unit/components/admin/raya-ai-forgot-password-page.test.tsx` | Reset request, `redirectTo`, enumeration safety |
 | `tests/unit/components/admin/raya-ai-reset-password-page.test.tsx` | Link redemption, gating, `updateUser` |
 | `tests/unit/admin-auth-guard-redirect.test.tsx` | The recovery pages render ungated |
+| `tests/unit/raya-ai-recovery-entry-url.test.ts` | The real `@supabase/ssr` client strips `?code=` during construction; the entry URL still holds it |
+| `tests/unit/raya-recovery-diagnostics.test.ts` | The redacted diagnostic names each failure category and cannot carry a credential |
