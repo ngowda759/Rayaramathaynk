@@ -139,18 +139,63 @@ statements in total (51 named `Deny …`, 5 permissive). Breakdown:
   `REVIEW`) is left to a reviewed PR (B-5); this PR only removes the silent-loss failure
   mode.
 
+#### C-8 to C-10 (final security review of this PR, 2026-10-21)
+
+Three guard-coverage defects found by verifying the *tests* rather than trusting them. All
+three are fixed in this PR; each fix is pinned by a regression test that was mutation-checked
+(revert the fix -> the new test fails).
+
+- **C-8 (test false negative - workflow injection detector).** The `run:` injection detector in
+  `tests/unit/workflow-shell-injection.test.ts` matched expressions with `\$\{\{[^}]*...`, which
+  stops at the first `}`. Any expression whose nested braces precede the untrusted token was
+  therefore truncated and missed: `format('{0}', inputs.confirm)`, `toJSON(steps)`,
+  `fromJSON(inputs.x).field`, `join(needs.x, ',')`. The token list also omitted
+  `github.head_ref`, `github.ref_name`, `github.base_ref`, `github.actor`,
+  `github.triggering_actor`, `github.event_path` and `github.event.ref`, all of which carry
+  author-controlled text. Fixed by brace-depth expression extraction (`extractExpressions`)
+  plus a broadened token list. No workflow in the repository currently contains such an
+  expression (independent scan: 0 hits, before and after), so this was a latent detector gap,
+  not a live vulnerability - but it made the repository-wide "every workflow is clean"
+  assertion weaker than it claimed.
+- **C-9 (missing destination guard - destructive writer).**
+  `.github/workflows/resolve-raya-ai-baseline.yml` `INSERT`s a row into
+  `supabase_migrations.schema_migrations` (via `scripts/resolve-baseline-raya-ai.mjs`, `:142`)
+  but ran no destination guard, unlike the two sibling apply workflows. A stale
+  `SUPABASE_PROJECT_REF` could therefore have written the baseline row to an unapproved project.
+  Fixed by adding the `guard-approved-project.mjs` step before the resolve step, and by adding
+  this workflow to the guarded-workflow list. A new repository-wide completeness test now fails
+  if any workflow invokes a known database writer without a preceding guard.
+- **C-10 (test false negative - export PII containment).** The raw-export sweep detector in
+  `tests/unit/firestore-export-artifact-safety.test.ts` matched only a bare
+  `data/firestore-dump/` line, so `path: data/firestore-dump/**`, `path: data/firestore-dump`,
+  `path: data/firestore-export/*` and a nested `path: data/firestore-export/records/` all
+  bypassed the un-gated-upload assertion while still sweeping raw documents. Fixed by parsing
+  every `path:` value (inline and block) and treating any raw-export-root directory or glob as a
+  sweep, while still allowing a targeted single file such as `.../MANIFEST.json`. The workflow's
+  actual gating was already correct; only the check was blind to these forms.
+
+Owner-only, not a code defect: the GitHub environment `Production` currently has
+`protection_rules: []`, so `environment: production` does not by itself require a human
+approval. The workflows that rely on that approval (`ai-knowledge-migration-apply.yml`,
+`supabase-migrations.yml`, `resolve-raya-ai-baseline.yml`) need required reviewers configured
+before they are treated as human-gated. Environment names are case-insensitive, so the lowercase
+`production` binding itself is correct.
+
+
 ### 1.5 Previously reported counts and tests
 
 Revalidated 2026-10-21 (this PR revision):
 
-- Full suite: **191 suites / 2683 tests, all passing** (`npx jest`). Rev-2's 2614 and
-  the earlier 2629 are both stale.
+- Full suite: **191 suites / 2689 tests, all passing** (`npx jest`). Rev-2's 2614 and the
+  earlier 2629/2683 are all stale.
 - New suites added by this PR:
-  - `tests/unit/firestore-export-artifact-safety.test.ts` (35 tests) — export PII containment.
+  - `tests/unit/firestore-export-artifact-safety.test.ts` (36 tests) — export PII containment.
   - `tests/unit/migrate-all-batched.test.ts` +3 tests — fail-closed on a destination-less
     `MIGRATE` entry.
-  - `tests/unit/supabase-diagnostics-migration-safety.test.ts` +12 tests — destination
-    guard for write-capable migration workflows.
+  - `tests/unit/supabase-diagnostics-migration-safety.test.ts` (56 tests) — destination guard
+    for write-capable migration workflows, plus the writer/guard completeness check.
+  - `tests/unit/workflow-shell-injection.test.ts` (18 tests) — repo-wide `run:` injection guard,
+    including the nested-brace and ref/actor regression cases (C-8).
 - `npm run typecheck` EXIT=0; `node .ai/scripts/validate-workflows.mjs` validates 24 files;
   `node .ai/scripts/assert-trusted-review.mjs` passes for 4 workflows.
 - Live DB tests (`npm run test:db`) and live migration verification were **not** run:
@@ -339,6 +384,8 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | B-4b | B | Move `20261006101759_seed_ai_settings.sql` out of the migration sequence | — | Low | Seed is not applied as a migration | — |
 | B-5 | B | Map `knowledge` → `ai_knowledge` (or reclassify). **Fail-closed half done in this PR:** a destination-less `MIGRATE` entry now fails the run instead of silently skipping | — | **High (silent data loss)** | No `MIGRATE` entry lacks a destination; a missing destination sets `overallSuccess=false`; census test updated | Reviewed PR |
 | B-2b | B | **Done in this PR:** destination guard added to write-capable migration workflows (URL guard for the two Firestore workflows, ref guard for ai-knowledge) | — | High: wrong project = data loss | Every DB-changing workflow runs a guard before its first migration command; pinned by tests | Reviewed PR |
+| B-2c | B | **Done in this PR (C-9):** destination guard added to `resolve-raya-ai-baseline.yml`, which `INSERT`s into `supabase_migrations.schema_migrations` | — | High: wrong project = bad ledger | Every writer runs a guard before its first DB command; completeness test enumerates all workflows | Reviewed PR |
+| C-5 | C | Configure required reviewers on the `Production` GitHub environment | — | High: `environment: production` is currently not a human gate (`protection_rules: []`) | Environment blocks until a reviewer approves | Owner |
 | B-6 | B | Rotate the exposed Firebase service-account key and purge it from Git history | — | **Critical** | New key live; old key revoked; history rewritten | Owner + security |
 | C-1 | C | Create the `announcements` table + public-read policy | A-1 | Medium | `announcements` exists; policy limited to active/in-window | Reviewed PR |
 | C-2 | C | Add the missing policy for `seva_list_items` (service-role only, explicit) | A-2 | Medium | RLS policy present; no widening | Reviewed PR |
@@ -357,10 +404,11 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 **Freeze note (updated in this PR).** The migration git-tracked workflows now carry a
 destination guard: `firestore-batched-migration.yml` and `firestore-staged-migration.yml`
 run `scripts/lib/guard-approved-supabase-url.mjs` before any migration script;
-`ai-knowledge-migration-apply.yml` and `supabase-migrations.yml` run
-`scripts/lib/guard-approved-project.mjs`. A wrong destination now fails closed instead of
-writing. The workflows are still **not** to be dispatched until the owner approves the
-target environment (see §9).
+`ai-knowledge-migration-apply.yml`, `supabase-migrations.yml` and
+`resolve-raya-ai-baseline.yml` run `scripts/lib/guard-approved-project.mjs`. A wrong
+destination now fails closed instead of writing. The workflows are still **not** to be
+dispatched until the owner approves the target environment (see §9), and the `Production`
+environment itself must gain required reviewers (C-5).
 
 ---
 
@@ -405,17 +453,25 @@ npm run typecheck
 node .ai/scripts/validate-workflows.mjs
 node .ai/scripts/assert-trusted-review.mjs
 
+# injection detector: nested-brace and ref/actor regression cases (C-8)
+npx jest tests/unit/workflow-shell-injection.test.ts
+
+# writer/guard completeness across all workflows (C-9)
+npx jest tests/unit/supabase-diagnostics-migration-safety.test.ts
+
 # inventory count (expect length 61; 15 MIGRATE / 42 REVIEW / 2 EXCLUDE_SYSTEM / 2 EXCLUDE_AUTH)
 npx tsx -e 'import {MIGRATION_INVENTORY,EXCLUDED_AUTH_COLLECTIONS} from "./lib/supabase/migration-inventory";
 const c={};for(const i of MIGRATION_INVENTORY)c[i.classification]=(c[i.classification]||0)+1;
 console.log(MIGRATION_INVENTORY.length, c, EXCLUDED_AUTH_COLLECTIONS)'
 ```
 
-Executed results (2026-10-21): export safety 35 passed; migrate-all-batched suite passed;
-diagnostics safety 54 passed; full suite **191 suites / 2683 tests passed**; typecheck
-EXIT=0; workflow validators pass. Mutation checks confirmed each new guard test detects its
-defect (restored silent skip → failures; removed URL guard → failures; fail-open export
-policy → failures).
+Executed results (2026-10-21, final security review): export safety 36 passed; migrate-all-batched
+18 passed; diagnostics safety 56 passed; workflow-shell-injection 18 passed; inventory census 5
+passed; full suite **191 suites / 2689 tests passed**; typecheck EXIT=0; both workflow validators
+pass. Mutation checks confirmed each new guard test detects its defect: restored silent skip →
+failures; removed URL guard → failures; fail-open export policy → failures; reverted injection
+token list → 2 failures; removed baseline guard → 2 failures; weak export sweep matcher → 1
+failure.
 
 ---
 
@@ -436,6 +492,10 @@ policy → failures).
 4. **Decide B-1**: whether cron may keep writing Firestore until D-4 lands (B-1 stays
    critical until then; this PR does **not** change the Aaradhane workflow).
 5. **Review B-5 mapping**: decide `knowledge` → `ai_knowledge` vs reclassify to `REVIEW`.
+6. **Configure the `Production` environment (C-5).** It currently has
+   `protection_rules: []`, so `environment: production` does not pause for a human. Add
+   required reviewers before any of `ai-knowledge-migration-apply.yml`,
+   `supabase-migrations.yml` or `resolve-raya-ai-baseline.yml` is treated as human-gated.
 
 No production write, export run, migration batch, schema change, RLS change,
 deployment, or merge is performed by this document.

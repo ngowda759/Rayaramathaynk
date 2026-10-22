@@ -24,8 +24,42 @@ const root = resolve(__dirname, "../..");
 const wfDir = resolve(root, ".github/workflows");
 const EXPORT_WF = resolve(wfDir, "firestore-production-export.yml");
 
-/** The paths that contain (or may contain) decoded production document bodies. */
-const RAW_EXPORT_DIR = /^\s*data\/firestore-(dump|export)\/\s*$/m;
+/**
+ * The raw-export directory roots. Any upload of these paths can expose decoded
+ * production documents, so it must be policy-gated.
+ */
+const RAW_EXPORT_ROOT = /^data\/firestore-(dump|export)\b/;
+
+/**
+ * Every `path:` value in an upload step's `with:` block that would sweep a raw
+ * export *directory* (or a glob over one) rather than upload a single named file.
+ *
+ * Regression: matching only a bare `data/firestore-dump/` line missed the inline
+ * forms `path: data/firestore-dump/**`, `path: data/firestore-dump` and a nested
+ * `path: data/firestore-export/records/`, each of which still sweeps raw data.
+ * A value ending in a file extension (for example `.../MANIFEST.json`) is a
+ * targeted single-file upload and is not a sweep.
+ */
+export function rawExportDirPaths(withBlock: string): string[] {
+  const lines = withBlock.split("\n");
+  const values: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s*path:\s*(.*)$/.exec(lines[i]);
+    if (!m) continue;
+    const inline = m[1].trim();
+    if (inline && !inline.startsWith("|") && !inline.startsWith(">")) {
+      values.push(inline);
+      continue;
+    }
+    const indent = lines[i].length - lines[i].trimStart().length;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j].trim() === "") continue;
+      if (lines[j].length - lines[j].trimStart().length <= indent) break;
+      values.push(lines[j].trim());
+    }
+  }
+  return values.filter((p) => RAW_EXPORT_ROOT.test(p) && !/\.[a-z0-9]+$/i.test(p));
+}
 
 export interface ParsedStep {
   name: string;
@@ -107,9 +141,9 @@ describe("Firestore export artifact containment", () => {
       for (const step of parseSteps(text)) {
         if (!/upload-artifact@/.test(step.uses ?? "")) continue;
         const withBlock = step.withRaw ?? "";
-        // Only a directory upload (a `path:` block on its own line) can sweep the
-        // whole export; a targeted single file such as MANIFEST.json cannot.
-        if (!RAW_EXPORT_DIR.test(withBlock)) continue;
+        // Only a directory/glob upload can sweep the whole export; a targeted
+        // single file such as MANIFEST.json cannot.
+        if (rawExportDirPaths(withBlock).length === 0) continue;
         // Any upload of a raw export directory must be conditional on the policy
         // output, so it cannot fire on a public repository by default.
         expect(step.if ?? "").toContain("upload_policy");
@@ -121,7 +155,7 @@ describe("Firestore export artifact containment", () => {
     const rawUpload = steps.find(
       (s) =>
         /upload-artifact@/.test(s.uses ?? "") &&
-        RAW_EXPORT_DIR.test(s.withRaw ?? ""),
+        rawExportDirPaths(s.withRaw ?? "").length > 0,
     );
     expect(rawUpload).toBeDefined();
     expect(rawUpload!.if).toBe("steps.upload_policy.outputs.allow == 'true'");
@@ -134,7 +168,7 @@ describe("Firestore export artifact containment", () => {
     expect(manifestUpload).toBeDefined();
     expect(manifestUpload!.if).toBeUndefined();
     // The MANIFEST upload must not also sweep a raw export directory.
-    expect(RAW_EXPORT_DIR.test(manifestUpload!.withRaw ?? "")).toBe(false);
+    expect(rawExportDirPaths(manifestUpload!.withRaw ?? "")).toEqual([]);
   });
 
   it("contains a step that hard-fails when publication is requested but not allowed", () => {
@@ -145,6 +179,24 @@ describe("Firestore export artifact containment", () => {
 
   it("defaults publish_artifact to false", () => {
     expect(yaml).toMatch(/publish_artifact:[\s\S]*?default:\s*false/);
+  });
+
+  it("treats inline-glob and nested-directory uploads as raw-data sweeps", () => {
+    // Regression: matching only a bare `data/firestore-dump/` line let these forms
+    // slip past the un-gated-upload check while still sweeping raw documents.
+    const sweeps = [
+      "        with:\n          name: x\n          path: data/firestore-dump/**",
+      "        with:\n          name: x\n          path: data/firestore-dump",
+      "        with:\n          name: x\n          path: data/firestore-export/*",
+      "        with:\n          name: x\n          path: data/firestore-export/records/",
+      "        with:\n          name: x\n          path: |\n            data/firestore-dump/",
+    ];
+    for (const block of sweeps) {
+      expect([block, rawExportDirPaths(block).length > 0]).toEqual([block, true]);
+    }
+    // A targeted single file is not a sweep and must not be flagged.
+    const targeted = "        with:\n          name: x\n          path: data/firestore-dump/MANIFEST.json";
+    expect(rawExportDirPaths(targeted)).toEqual([]);
   });
 });
 

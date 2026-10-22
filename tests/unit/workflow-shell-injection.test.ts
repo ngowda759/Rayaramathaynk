@@ -24,23 +24,59 @@ const root = resolve(__dirname, "../..");
 const wfDir = resolve(root, ".github/workflows");
 
 /**
+ * A single `${{ ... }}` expression, matched with brace-depth awareness.
+ *
+ * A naive `\$\{\{[^}]*` terminator stops at the first `}`, so any expression
+ * containing a nested brace (for example `format('{0}', inputs.confirm)`, or an
+ * object literal) is truncated before its dangerous token and slips through
+ * undetected. Scanning with depth tracking closes that gap.
+ */
+export function extractExpressions(script: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < script.length) {
+    const open = script.indexOf("${{", i);
+    if (open === -1) break;
+    let depth = 1;
+    let j = open + 3;
+    while (j < script.length) {
+      if (script.startsWith("${{", j)) {
+        depth += 1;
+        j += 3;
+        continue;
+      }
+      if (script.startsWith("}}", j)) {
+        depth -= 1;
+        j += 2;
+        if (depth === 0) break;
+        continue;
+      }
+      j += 1;
+    }
+    out.push(script.slice(open + 3, depth === 0 ? j - 2 : script.length));
+    i = j;
+  }
+  return out;
+}
+
+/**
  * Expressions that carry attacker-controlled or step-derived data. Secrets and
  * `github.repository`/`github.ref` are deliberately absent: they are trusted and
  * are normally passed through `env:` anyway.
+ *
+ * The token list covers the whole untrusted surface, not only the shapes seen in
+ * the repository today: ref/actor/event-path contexts (`github.head_ref`,
+ * `github.ref_name`, `github.actor`, and similar) and the `inputs`/`steps`/
+ * `needs`/`matrix`/`env` contexts, which also reach a script when wrapped in
+ * `format()`, `toJSON()` or `join()`.
  */
-const UNTRUSTED = new RegExp(
-  String.raw`\$\{\{[^}]*\b(` +
-    [
-      String.raw`inputs\.`,
-      String.raw`github\.event\.inputs\.`,
-      String.raw`steps\.`,
-      String.raw`needs\.`,
-      String.raw`matrix\.`,
-      String.raw`env\.`,
-      // event payloads that can contain author-supplied text
-      String.raw`github\.event\.(pull_request|issue|comment|review|discussion|commits|head_commit|workflow_run|client_payload)\b`,
-    ].join("|") +
-    String.raw`)`,
+const UNTRUSTED_TOKENS = new RegExp(
+  [
+    // Contexts reachable as `inputs.x`, but also bare inside `toJSON(steps)`.
+    String.raw`\b(inputs|steps|needs|matrix|env)\b`,
+    String.raw`github\.event\b`,
+    String.raw`github\.(head_ref|ref_name|base_ref|actor|triggering_actor|event_path|head_commit|workflow_run|token)\b`,
+  ].join("|"),
 );
 
 type RunBlock = { file: string; line: number; body: string };
@@ -75,7 +111,9 @@ export function runBlocks(file: string, yaml: string): RunBlock[] {
 
 /** All untrusted interpolations found in a workflow's run: blocks. */
 export function findUnsafeInterpolations(file: string, yaml: string): RunBlock[] {
-  return runBlocks(file, yaml).filter((b) => UNTRUSTED.test(b.body));
+  return runBlocks(file, yaml).filter((b) =>
+    extractExpressions(b.body).some((e) => UNTRUSTED_TOKENS.test(e)),
+  );
 }
 
 function workflowFiles(): string[] {
@@ -174,6 +212,55 @@ describe("static: no untrusted expression is interpolated into a run: block", ()
     expect(findUnsafeInterpolations("synthetic.yml", bad)).toHaveLength(1);
     const bad2 = ['        run: echo "${{ github.event.inputs.batch }}"'].join("\n");
     expect(findUnsafeInterpolations("synthetic.yml", bad2)).toHaveLength(1);
+  });
+
+  it("detects untrusted tokens hidden inside a nested-brace expression", () => {
+    // Regression: a `[^}]*` terminator stopped at the first `}`, so an expression
+    // whose nested braces precede the token was truncated and missed entirely.
+    const cases = [
+      `echo "\${{ format('{0}', inputs.confirm) }}"`,
+      `echo "\${{ format('a{1}b', steps.x.outputs.y) }}"`,
+      `echo "\${{ toJSON(steps) }}"`,
+      `echo "\${{ fromJSON(inputs.payload).field }}"`,
+      `echo "\${{ join(needs.build.outputs.items, ',') }}"`,
+    ];
+    for (const body of cases) {
+      const yaml = ["jobs:", "  x:", "    steps:", "      - name: S", "        run: |", `          ${body}`].join("\n");
+      expect([body, findUnsafeInterpolations("synthetic.yml", yaml)]).toEqual([
+        body,
+        [expect.objectContaining({ file: "synthetic.yml" })],
+      ]);
+    }
+  });
+
+  it("detects ref, actor and event-path contexts, not only event payloads", () => {
+    // Regression: these all carry author-controlled text but were absent from the
+    // token list, so `${{ github.head_ref }}` in a run: block passed silently.
+    for (const expr of [
+      "github.head_ref",
+      "github.ref_name",
+      "github.base_ref",
+      "github.actor",
+      "github.triggering_actor",
+      "github.event_path",
+      "github.event.ref",
+    ]) {
+      const yaml = ["jobs:", "  x:", "    steps:", "      - name: S", "        run: |", `          echo "\${{ ${expr} }}"`].join("\n");
+      expect([expr, findUnsafeInterpolations("synthetic.yml", yaml)]).toEqual([
+        expr,
+        [expect.objectContaining({ file: "synthetic.yml" })],
+      ]);
+    }
+  });
+
+  it("extractExpressions handles nesting, adjacency and unterminated input", () => {
+    expect(extractExpressions("\${{ a }} and \${{ b }}")).toEqual([" a ", " b "]);
+    expect(extractExpressions("\${{ format('{0}', inputs.x) }}")).toEqual([
+      " format('{0}', inputs.x) ",
+    ]);
+    // Unterminated: returns the remainder rather than silently dropping it.
+    expect(extractExpressions("prefix \${{ inputs.x")).toEqual([" inputs.x"]);
+    expect(extractExpressions("no expressions here")).toEqual([]);
   });
 
   it("every workflow in the repository is clean", () => {

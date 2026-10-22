@@ -6,7 +6,7 @@
  * nothing: no database, no GitHub API, no network.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -465,14 +465,23 @@ describe("write-capable migration workflows verify the destination project", () 
   const GUARDED_REF_WORKFLOWS = [
     "supabase-migrations.yml",
     "ai-knowledge-migration-apply.yml",
+    // Regression: this workflow INSERTs into supabase_migrations.schema_migrations
+    // but previously had no destination guard, so a stale SUPABASE_PROJECT_REF could
+    // have written the baseline row to an unapproved project.
+    "resolve-raya-ai-baseline.yml",
   ];
 
   it.each(GUARDED_REF_WORKFLOWS)("%s runs the project-ref guard before any db command", (file) => {
     const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
     const guardAt = wf.indexOf("run: node scripts/lib/guard-approved-project.mjs");
     expect(guardAt).toBeGreaterThan(-1);
-    const applyAt = wf.indexOf("run: node scripts/apply-ai-knowledge-migration.mjs");
-    if (applyAt > -1) expect(guardAt).toBeLessThan(applyAt);
+    for (const marker of [
+      "run: node scripts/apply-ai-knowledge-migration.mjs",
+      "run: node scripts/resolve-baseline-raya-ai.mjs",
+    ]) {
+      const at = wf.indexOf(marker);
+      if (at > -1) expect(guardAt).toBeLessThan(at);
+    }
   });
 
   it.each(DEST_WRITING_WORKFLOWS)(
@@ -501,6 +510,36 @@ describe("write-capable migration workflows verify the destination project", () 
     const block = /- name: Guard approved Supabase project\n([\s\S]*?)\n\n/.exec(wf)?.[0] ?? "";
     expect(block).toMatch(/NEXT_PUBLIC_SUPABASE_URL:\s*\$\{\{\s*secrets\.NEXT_PUBLIC_SUPABASE_URL\s*\}\}/);
     expect(block).not.toMatch(/\$\{\{\s*inputs\./);
+  });
+
+  it("every workflow that invokes a database writer also runs a destination guard", () => {
+    // Completeness guard: adding a new writer invocation without a guard is the
+    // failure mode this suite exists to catch, so detect it repository-wide rather
+    // than from a hand-maintained list that can silently fall behind.
+    const DB_WRITERS = [
+      "npx tsx scripts/migrate-all-batched.ts",
+      "npx tsx scripts/migrate-staged-phase1.ts",
+      "node scripts/apply-ai-knowledge-migration.mjs",
+      "node scripts/resolve-baseline-raya-ai.mjs",
+    ];
+    const GUARDS = [
+      "scripts/lib/guard-approved-project.mjs",
+      "scripts/lib/guard-approved-supabase-url.mjs",
+    ];
+    const missing: string[] = [];
+    for (const file of readdirSync(resolve(root, ".github/workflows"))) {
+      if (!file.endsWith(".yml") && !file.endsWith(".yaml")) continue;
+      const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
+      const writerAt = Math.min(
+        ...DB_WRITERS.map((m) => wf.indexOf(m)).filter((i) => i > -1),
+      );
+      if (!Number.isFinite(writerAt)) continue;
+      const guardAt = Math.min(
+        ...GUARDS.map((g) => wf.indexOf(g)).filter((i) => i > -1),
+      );
+      if (!Number.isFinite(guardAt) || guardAt > writerAt) missing.push(file);
+    }
+    expect(missing).toEqual([]);
   });
 
   describe("URL guard refuses anything but the approved project", () => {

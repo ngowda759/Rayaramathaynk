@@ -55,6 +55,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fails closed on a missing, malformed or mismatched project ref. This step
+      # writes a row to supabase_migrations.schema_migrations, so the target project
+      # must be verified before the resolve script runs.
+      - name: Guard approved project ref
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/lib/guard-approved-project.mjs
+
       - name: Resolve baseline (re-runs the read-only scoped gate first)
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
