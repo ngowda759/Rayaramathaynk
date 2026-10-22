@@ -1,16 +1,36 @@
 # PR-D4a — Aaradhane writer: deterministic keys, idempotent upsert, explicit apply
 
-Status: **PROPOSAL ONLY.** Not implemented. No code, workflow, schema, credential or
-database change. Production migration status remains **HOLD**.
+Status: **IMPLEMENTED on this branch** (code + tests). Not enabled in the workflow.
+Production migration status remains **HOLD**.
 
 Parent: `docs/AARADHANE_SUPABASE_CUTOVER_PLAN.md`. Read
 `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md` first — it corrects three specifics that
 this proposal depends on.
 
-Scope: the **writer only**. This PR does **not** touch the workflow, does not enable the
-Supabase writer, and does not add the `events` `SELECT` policy. It may be built and
-tested while the live cron still writes to Firestore, because nothing here is wired into
-`aaradhane.yml`.
+Scope: the **writer only**. This PR does **not** enable the Supabase writer in the
+workflow and does not add the `events` `SELECT` policy.
+
+### Implementation record
+
+| File | Change |
+|---|---|
+| `lib/aaradhane/supabase-writer.ts` | **New.** The Supabase/PostgreSQL writer: canonical key, ownership filter, batch upsert on `firestore_id` with per-row fallback, explicit `apply`, provenance-column reporting |
+| `lib/aaradhane/generator.ts` | Firestore removed: `generateAaradhanaeEvents` now takes guru records as an argument and returns events; `eventToFirestoreDocument` deleted |
+| `scripts/generate-aaradhane.ts` | Firestore write and `--firestore`/`--seed` paths removed; writes to Supabase via the new writer; writing requires `--apply` |
+| `lib/aaradhane/firestore{,-admin,-rest,-source}.ts` | **Deleted** (the writer being replaced, plus three unreferenced modules) |
+| `scripts/generate-events-firestore.ts`, `scripts/import-events.ts`, `scripts/seed-guru-parampara.ts`, `scripts/seed-guru-to-firestore.ts` | **Deleted** (further Firestore writers to the same collection) |
+| `tests/unit/aaradhane/supabase-writer.test.ts` | **New.** 20 tests: key, status, mapping, ownership, plan-only, upsert, retry |
+| `tests/unit/aaradhane/firestore-write-retirement.test.ts` | **New.** 6 tests pinning the absence of every Firestore write path |
+
+Two deliberate deviations from the proposal as written:
+
+- **Provenance columns are not written.** `auto_generated`, `year`, `guru`,
+  `parampara_number`, `raghavendra_phase`, `lunar_calendar`, `rituals`, `offerings` and
+  `significance` have no destination column yet. They are dropped by default and
+  reported by `unmappedFields()` on every run, rather than silently discarded. Writing
+  them requires the schema change in §3.2 of the parent plan, which stays on hold.
+- **`--dry-run` is retained as an accepted no-op.** It cannot cause a write, and
+  `--apply --dry-run` is refused rather than resolved.
 
 ## 1. Objective
 

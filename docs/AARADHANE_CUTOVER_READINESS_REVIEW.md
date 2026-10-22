@@ -1,7 +1,7 @@
 # Aaradhane cutover — implementation-readiness review of PR #360
 
-Status: **read-only review. No code, workflow, schema, credential or database change.**
-Production migration status remains **HOLD**.
+Status: **read-only review, plus a record of what has since been implemented.** No
+schema, credential or database change. Production migration status remains **HOLD**.
 
 Reviewed: PR #360 (`docs/AARADHANE_SUPABASE_CUTOVER_PLAN.md`, head `bedaf908`, base `78454f5a`).
 
@@ -9,6 +9,22 @@ Verdict: **NOT READY as written.** The plan's direction is sound, but three of i
 load-bearing specifics are contradicted by the repository. They are cheap to fix now
 and expensive to discover mid-implementation. The plan must be corrected before PR-D4a
 starts. Corrections are listed in §7 and were applied to the plan in this change.
+
+## 0. What has since been implemented
+
+The corrections below were applied to the plan, and the writer half (PR-D4a) plus the
+containment half of PR-D4b are now implemented on this branch. Each correction maps to
+shipped code:
+
+| Correction | Where it landed |
+|---|---|
+| §2 — key is `${guru.id}-${year}`, no prefix, no phase suffix | `lib/aaradhane/supabase-writer.ts` (`canonicalEventId`); asserted in `supabase-writer.test.ts` |
+| §4 — ownership cannot key on `auto_generated`/`year` (columns do not exist) | Ownership keys on the canonical key plus `category = "Aaradhane"`; provenance columns reported, not written |
+| §5 — the write was armed today via dispatch, not by cron alone | The write is removed entirely: the credential step and every Firestore writer are deleted, and no step passes `--apply` |
+| §3 — the reader surface is wider than stated | Re-enumerated in the plan's §3.8; no reader changed here |
+
+Remaining work is the *enabling* half of PR-D4b (schema decision, the `--apply` step, a
+`concurrency` group) and PR-D4c (reader cutover). Neither is started.
 
 ## 1. What the review checked
 

@@ -1,9 +1,39 @@
 # Aaradhane scheduled writer — Supabase cutover plan (PR-D4)
 
-Status: **PLAN ONLY — not implemented.** No code, workflow, schema, credential or
-production change is made by this document. Production migration status stays
-**HOLD** until source-data reconciliation and the remaining migration decisions are
-resolved.
+Status: **PARTIALLY IMPLEMENTED.** The writer, the Firestore-write retirement and the
+guard/test work described below are implemented in code on this branch. Production
+migration status stays **HOLD**: no schema change has been applied, the workflow
+still does not write, and no data has been moved.
+
+## 0. Owner decision and what "done" means
+
+The owner's decision is that **Firestore must receive no writes from the Aaradhane
+system. Supabase is the target and the sole database for all Aaradhane data.**
+
+That decision is stronger than "disable the workflow". Disabling the scheduled job
+alone leaves every other write path intact — the module the job called, the
+standalone generator, the seeders, and the second Firestore writer to the same
+collection. The requirement is therefore that the *application code* moves, not just
+the schedule:
+
+- the Firestore Admin SDK persistence is **replaced** by a Supabase/PostgreSQL
+  implementation built on the existing Supabase clients;
+- the **writer** is replaced, not wrapped;
+- every consumer of the generated events — the live cron and the admin readers — is
+  accounted for.
+
+What this branch delivers toward that:
+
+| Requirement | State |
+|---|---|
+| Supabase writer replacing the Firestore Admin SDK writer | Implemented (`lib/aaradhane/supabase-writer.ts`) |
+| Firestore write paths removed from the execution path | Implemented (4 modules + 4 scripts deleted; workflow credential step and write step removed) |
+| `environment: production` on the database-writing job | Implemented (see §3.6 and the caveat in §6) |
+| Destination guard before the first connection | Implemented (reuses `guard-approved-project.mjs`) |
+| Workflow-completeness tests enumerating all writers | Implemented (8 writers, plus shell-form and alias-resolution coverage) |
+| Schema change to persist provenance columns | **Not done** — held (§3.2) |
+| Enabling the Supabase write in the workflow | **Not done** — held (§3.6) |
+| Reader cutover / Firestore retirement | **Not done** — separate PR-D4c |
 
 Backlog items covered: **B-1** (retire/re-point the scheduled Firestore writer),
 **D-4** (Aaradhane writer → Supabase upsert). See
@@ -156,41 +186,95 @@ The current default is dangerous: absence of a flag means *write*. Invert it.
 
 ### 3.6 Workflow re-point (the B-1 part)
 
-The cutover PR must, in one change:
+**Implemented on this branch:**
 
-1. Remove the Firestore write (`updateFirestoreWithAdmin`) and the
-   `firebase-admin-key.json` materialisation step.
-2. Point the live step at the Supabase writer.
-3. Add the canonical destination guard **before the first connection or write** —
-   reuse `scripts/lib/guard-approved-supabase-url.mjs` (the same guard the two
-   Firestore migration workflows use); do not create a new guard.
-4. Add `environment: production` to the job, matching the other write-capable jobs.
-5. Add a `concurrency` group so two runs cannot interleave.
-6. Keep the schedule, but make the scheduled path non-writing until the owner enables
-   it, so the cutover cannot write to production on its first tick by accident.
-7. Add `scripts/generate-events-firestore.ts` to the B-1 removal inventory. It is a
-   **second** Admin-SDK writer to the same `events` collection and is invoked by no
-   workflow, so a workflow census will not surface it.
+1. Removed the Firestore write (`updateFirestoreWithAdmin`), the
+   `firebase-admin-key.json` materialisation step, and the
+   `FIREBASE_SERVICE_ACCOUNT` / `GOOGLE_APPLICATION_CREDENTIALS` wiring. The workflow
+   can no longer authenticate to Firestore at all.
+2. The former live step is retained under its original condition but always passes
+   `--dry-run`; no step in the workflow passes `--apply`. This keeps the job structure
+   and its trigger intact while removing the write, so nothing about the schedule
+   changes behaviour beyond the write itself.
+3. Added the canonical destination guard **before the first connection or write**:
+   `scripts/lib/guard-approved-supabase-url.mjs`, the same guard the two Firestore
+   migration workflows use. The writer authenticates with
+   `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, not a project ref, so the
+   URL guard is the one that checks the credential actually in use. No new guard was
+   written.
+4. Added `environment: production` to the job, matching the other write-capable jobs.
+   See the caveat in §6 — this is not a working approval gate until the owner
+   configures required reviewers.
+5. Deleted `scripts/generate-events-firestore.ts` and `scripts/import-events.ts`. The
+   former was a **second** Admin-SDK writer to the same `events` collection invoked by
+   no workflow, so a workflow census would never have surfaced it; the latter
+   `add()`ed every row with no de-duplication.
+
+**Held (not done, deliberately):**
+
+6. The Supabase write is **not** enabled in the workflow. The step that would call the
+   writer still does not exist; enabling it is PR-D4b and requires the schema decision
+   in §3.2.
+7. No `concurrency` group was added. The scheduled path performs no write, so
+   interleaving is not currently possible; a `concurrency` group belongs with the step
+   that enables the write.
+8. The `trigger` on the inventory entry is recorded as `scheduled` because the cron
+   remains. The entry asserts the guard and environment binding, not that a write
+   occurs.
 
 ### 3.7 Inventory / test coverage
 
-- `tests/unit/workflow-writer-inventory.ts` deliberately excludes Firestore-only
-  writers (`DB_SIGNALS` is Postgres-specific, lines 553-560). Once the Aaradhane writer
-  targets Supabase it **becomes** a Postgres writer and must be added to
-  `DB_WRITER_INVENTORY`, so the completeness check enumerates it.
-- New tests: deterministic-key derivation; upsert idempotency (running twice yields the
-  same rows); IST date derivation across a DST-free year boundary; the ownership filter;
-  the "no implicit delete" property; and a behavioral test that a default/`--dry-run`
-  run writes nothing (same stubbed-client technique as the `seva-maintenance` purge
-  test).
+**Implemented on this branch:**
+
+- `tests/unit/workflow-writer-inventory.ts` deliberately excluded Firestore-only writers
+  (`DB_SIGNALS` is Postgres-specific). Now that the Aaradhane writer targets Supabase it
+  **is** a Postgres writer, so `aaradhane-generate` was added to `DB_WRITER_INVENTORY`.
+  The completeness test now enumerates **eight** writers, and a fixed count makes a ninth
+  a conscious decision rather than a silent widening.
+- Two detector gaps were found and closed while adding the entry:
+  - The command matcher compared a command's tokens with a single literal space, so
+    `--project "tsconfig.scripts.json"` (a quoted argument the shell would strip) did not
+    match and the writer would have been invisible. It now matches `\s+` between tokens
+    and tolerates a quoted argument.
+  - `referencedScripts` only saw literal `scripts/…` paths, so a workflow that ran the
+    writer through `npm run generate:aaradhane` — which invokes `npx tsx`, a different
+    command string — named no path and would not have been enumerated. It now resolves
+    `npm run <name>` through `package.json` (following aliases of aliases).
+- New writer tests (20) and retirement tests (6) cover deterministic-key derivation,
+  upsert idempotency, the ownership filter, the "no implicit delete" property, and that a
+  default/`--dry-run` run writes nothing (same stubbed-client technique as the
+  `seva-maintenance` purge test).
+- The retirement test also asserts the shell forms that could run the writer
+  (`$( … )`, `bash -c`, `eval`, `sudo sh -c`) are recognised, with a non-vacuity control
+  so a detector that matches nothing cannot pass.
 - **Assert against the golden files already in the repository.** `data/exports/` holds
   `supabase-events-2026.json`, `supabase-events-2027.json` and `supabase-events-all.json`
-  (38 rows across 2026–2027) in exactly the row shape this writer must produce. Use them
-  rather than inventing fixtures. Note their `start_date` values are UTC-midnight ISO
-  strings and several fields carry the **strings** `"None"`/`"True"`/`"False"` — assert
-  the intended values, do not reproduce that artefact.
-- **Retire the false premise:** the plan's tests must assert the key form the code
-  actually uses (`${guru.id}-${year}`), not the `generated-<year>-<slug>` string from §4.
+  (38 rows across 2026–2027) in exactly the row shape this writer must produce. The
+  writer's `start_date`/`end_date` form matches them. Several fields in those files carry
+  the **strings** `"None"`/`"True"`/`"False"`; that artefact is not reproduced.
+- **Retired the false premise:** the tests assert the key form the code actually uses
+  (`${guru.id}-${year}`), not the `generated-<year>-<slug>` string from §4.
+
+### 3.8 Consumer audit (cron and admin readers)
+
+The owner's requirement is that every consumer of the generated events is accounted for,
+not just the writer. The surface, verified on this branch:
+
+| Consumer | Path | Reads | Effect of this change |
+|---|---|---|---|
+| Live cron | `.github/workflows/aaradhane.yml` | — | No longer writes anywhere; produces a preview only |
+| Public events service | `services/event.service.ts:46,58` | Supabase `events` (anon key) | Unchanged. Already Supabase-only |
+| Public Aaradhane page | `app/(public)/aaradhane/page.tsx` | via the service layer | Unchanged |
+| Raya AI retrieval | `lib/ai/retrieval/events.ts:24` | Supabase `events` (admin + anon) | Unchanged. Already Supabase-only |
+| Admin Aaradhane API | `app/api/admin/aaradhane/route.ts` | via the service layer | Unchanged |
+
+No reader on this path reads `guruParampara` from Firestore, so no reader depends on the
+deleted modules. The one remaining Firestore-touching admin surface is
+`app/admin/settings/guru-parampara/page.tsx`, which reads and writes the
+`guruParampara/aaradhanaes` document with the web SDK. It is **out of scope here** — it
+is not a consumer of generated `events` and it is not on the generator's write path — but
+it must be retired or re-pointed before Firestore is decommissioned. That is recorded as
+a PR-D4c dependency rather than silently left behind.
 
 ## 4. Explicitly out of scope
 
@@ -224,8 +308,15 @@ The cutover PR must, in one change:
 
 ## 6. Owner actions required
 
+**Only an owner can do these; none is achievable from the repository.**
+
+- **Configure required reviewers on the `production` environment.** `environment:
+  production` is now present on the Aaradhane job, but the YAML alone does not pause
+  anything — it only becomes a human gate once the owner adds required reviewers to that
+  environment in Settings → Environments. Until then the binding is inert, and this
+  document does not claim otherwise.
 - Decide the phase-key form (read the real `raghavendraPhase` values and approve the
-  suffix).
+  suffix). The shipped code already uses `${guru.id}-${year}` with no suffix.
 - Approve the `date`-column migration and the back-fill policy for existing rows.
 - Confirm the reader cutover sequence, or accept that the writer moves while readers
   stay on Firebase for one cycle.
@@ -233,24 +324,34 @@ The cutover PR must, in one change:
   manual first run.
 - Reconcile the generated expected count for the target year against the destination
   before retiring Firestore.
+- Decide the fate of `app/admin/settings/guru-parampara/page.tsx`, the last admin surface
+  still reading and writing `guruParampara/aaradhanaes` in Firestore (§3.8).
 
 ## 7. Proposed PR sequence
 
 Each phase has its own proposal with dependencies and acceptance criteria:
 
 1. **PR-D4a** — writer: deterministic keys, idempotent upsert, ownership filter,
-   explicit `--apply`, IST `date` handling, unit + behavioral tests. Firestore writer
-   left in place, Supabase writer **not** enabled in the workflow.
+   explicit `--apply`, unit + behavioral tests. **Implemented on this branch**, including
+   the Firestore-write retirement (the deleted modules and scripts). The Supabase writer
+   is **not** enabled in the workflow.
    → `docs/PR-D4a_AARADHANE_WRITER.md`
 2. **PR-D4b** — workflow re-point: guard, `environment: production`, `concurrency`,
-   scheduled path non-writing, Firestore writer and credential step removed.
+   scheduled path non-writing, Firestore writer and credential step removed. **The
+   removal and containment half is implemented on this branch** (§3.6): the credential
+   step, the write flag and the Firestore modules are gone, and the guard and environment
+   binding are in place. What remains for PR-D4b is the *enabling* half — the schema
+   decision, the step that calls the writer with `--apply`, and a `concurrency` group.
    → `docs/PR-D4b_AARADHANE_WORKFLOW.md`
 3. **PR-D4c** (separate) — reader cutover and Firestore retirement, after
-   reconciliation. Must also add the missing `events` `SELECT` policy and fix
+   reconciliation. Must also add the missing `events` `SELECT` policy, fix
    `services/event.service.ts`, which reads Supabase with the anon key against a
-   deny-all table and silently returns `[]`.
+   deny-all table and silently returns `[]`, and retire or re-point
+   `app/admin/settings/guru-parampara/page.tsx` (§3.8).
    → `docs/PR-D4c_READER_CUTOVER.md`
 
 Readiness review of this plan: `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md`.
 
-No step may be merged while production migration status is HOLD.
+No step may be merged while production migration status is HOLD. Nothing on this branch
+writes to production: the workflow performs no write, no schema has been applied, and no
+data has been moved.

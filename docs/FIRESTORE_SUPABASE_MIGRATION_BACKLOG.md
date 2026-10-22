@@ -506,7 +506,10 @@ independently proven here. See A-1/A-2 for the read-only verification the owner 
   readiness review: `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md` §2.
 - **Second writer to the same collection:** `scripts/generate-events-firestore.ts`
   also writes `events` via the Admin SDK. No workflow invokes it, so a workflow
-  census will not surface it — add it to the B-1 removal inventory by hand.
+  census will not surface it. **Deleted** in PR-D4a, together with
+  `scripts/import-events.ts`, `scripts/seed-guru-parampara.ts`,
+  `scripts/seed-guru-to-firestore.ts` and the four `lib/aaradhane/firestore*.ts`
+  modules.
 - **Proposed PRs:** `docs/PR-D4a_AARADHANE_WRITER.md`,
   `docs/PR-D4b_AARADHANE_WORKFLOW.md`, `docs/PR-D4c_READER_CUTOVER.md`.
 - **Idempotency:** `INSERT … ON CONFLICT (id) DO UPDATE` keyed on the deterministic
@@ -579,7 +582,7 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | A-1 | A | Independently confirm the production project identity (ref `kvrkraqjuyxbraccxntk`) via the Supabase dashboard / MCP against trusted config | — | High: wrong project = data loss | Identity matched by an owner-approved channel; recorded without printing secrets | Owner |
 | A-2 | A | Read the live `supabase_migrations.schema_migrations` ledger, `information_schema.tables`, per-table row counts, and `pg_policies` | A-1 | Medium | Ledger shows whether `20261103000000` is applied; output is counts/names only | Owner |
 | A-3 | A | Re-audit all Firestore read/write call sites on `main` (Raya AI + Aaradhane + any admin route) | — | Low | All call sites enumerated with file:line | — |
-| B-1 | B | Retire/re-point the Aaradhane scheduled Firestore writer, or gate it behind `dry_run` so cron cannot write | A-3 | **Critical** | Cron no longer writes Firestore; `--dry-run` on schedule | Owner |
+| B-1 | B | Retire/re-point the Aaradhane scheduled Firestore writer, or gate it behind `dry_run` so cron cannot write. **Code side done in PR-D4a:** the Firestore write, the credential step and all eight Firestore writer modules/scripts are removed; the workflow passes `--dry-run` and no step passes `--apply`; a destination guard and `environment: production` are in place. **Owner side remains:** add required reviewers to the `production` environment, or the binding is inert | A-3 | **Critical** | Cron no longer writes Firestore; `--dry-run` on schedule; a regression test fails if any Firestore write returns | Owner |
 | B-2 | B | **Code side done in this PR:** export raw upload policy-gated (default refuse; public repo always refuses). **Owner side remains:** set `production` reviewers and approve destination | — | **Critical (PII)** | No decoded bodies externally readable; retention ≤7d; `publish_artifact=false` on public repo | Owner |
 | B-3 | B | Fix export completeness: enumerate nested subcollections, add `readTime` snapshot consistency, fail instead of skip, record per-path results, preflight quota check | — | Medium | MANIFEST covers nested paths; a missing collection fails the run | Owner (to run) |
 | B-4 | B | `20261103000000_add_auth_user_id_to_users.sql` — decide apply vs revert; if kept, confirm ordering after `20261102000300` | A-2 | Medium | A1-2 confirms ledger vs file; ordering decided | Owner |

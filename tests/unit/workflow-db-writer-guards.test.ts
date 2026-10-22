@@ -43,11 +43,15 @@ const scripts = readPackageScripts();
 const ALL_INVENTORY = [...DB_WRITER_INVENTORY, ...DB_CONNECTION_INVENTORY];
 
 describe("database-writer inventory", () => {
-  it("enumerates exactly the seven database-writing jobs", () => {
-    // A fixed count is the point: adding an eighth writer means consciously
+  it("enumerates exactly the eight database-writing jobs", () => {
+    // A fixed count is the point: adding a ninth writer means consciously
     // extending this list (and its guard), not silently widening the surface.
-    expect(DB_WRITER_INVENTORY).toHaveLength(7);
+    // `aaradhane-generate` was added here when the Aaradhane generator became a
+    // Supabase writer (PR-D4a/D4b); it was previously a Firestore-only writer and
+    // deliberately invisible to the Postgres detector.
+    expect(DB_WRITER_INVENTORY).toHaveLength(8);
     expect(DB_WRITER_INVENTORY.map((w) => w.id).sort()).toEqual([
+      "aaradhane-generate",
       "ai-knowledge-migration-apply",
       "firestore-batched-migration",
       "firestore-staged-migration",
@@ -450,6 +454,62 @@ describe("no database writer escapes the inventory", () => {
       .map((v) => v.message)
       .join(" ");
     expect(messages).toMatch(/guard wrapper "guard_url" is defined 2 times/);
+  });
+
+  it("recognises every shell form that runs the script writer, so none hides", () => {
+    // The Aaradhane writer is a Node script rather than `psql`, so it hides behind a
+    // different set of shell forms. Each of these runs the same command; all must be
+    // recognised, or a `--apply` call could be added in a form the scanner ignores.
+    const command = "npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts";
+    const forms = [
+      `${command} --year 2027 --apply`,
+      `${command} --year "$YEAR" --apply`,
+      `result="$(${command} --year 2027 --apply)"`,
+      "npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --apply",
+      `bash -c '${command} --year 2027 --apply'`,
+      `eval '${command} --year 2027 --apply'`,
+      `sudo sh -c '${command} --apply'`,
+      // A quoted argument in the middle must not defeat the prefix match.
+      `npx ts-node --project "tsconfig.scripts.json" scripts/generate-aaradhane.ts --apply`,
+    ];
+    for (const form of forms) {
+      expect(`${form} :: ${commandStatements(form, command, scripts).length > 0}`).toBe(
+        `${form} :: true`,
+      );
+    }
+
+    // The npm alias runs `npx tsx …`, a different command string, and names no
+    // `scripts/…` path in the workflow body. It must still resolve to the writer, or
+    // `npm run generate:aaradhane` would be a way around the completeness check.
+    expect(referencedScripts("npm run generate:aaradhane -- --year 2027 --apply")).toContain(
+      "scripts/generate-aaradhane.ts",
+    );
+    // The same resolution through a shell wrapper, and for an alias that is itself
+    // an alias, so an indirection cannot hide the script.
+    expect(referencedScripts("bash -c 'npm run generate:aaradhane'")).toContain(
+      "scripts/generate-aaradhane.ts",
+    );
+
+    // Non-vacuity the other way: the same script without the writer path is still a
+    // hit (the command text is what matters), but an unrelated command is not.
+    expect(commandStatements("npx ts-node scripts/other.ts", command, scripts)).toEqual([]);
+  });
+
+  it("detects the Aaradhane writer being dropped from the inventory", () => {
+    // The inventory is what makes the per-entry guard checks run. Removing the entry
+    // must not silently reduce the guarded surface, so the completeness test has to
+    // see the workflow again through its own detector.
+    const known = new Set(
+      DB_WRITER_INVENTORY.filter((w) => w.id !== "aaradhane-generate").map((w) => w.file),
+    );
+    expect(known.has("aaradhane.yml")).toBe(false);
+
+    const bodies = parseWorkflow(readWorkflow("aaradhane.yml"))
+      .flatMap((j) => j.steps)
+      .map((s) => s.runBody);
+    expect(bodies.some((b) => referencedScripts(b).some((rel) => scriptTouchesDatabase(rel)))).toBe(
+      true,
+    );
   });
 
   it("recognises every shell form that runs a writer, so none hides (A-2l)", () => {
