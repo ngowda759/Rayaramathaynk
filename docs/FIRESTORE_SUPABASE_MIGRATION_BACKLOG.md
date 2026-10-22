@@ -313,6 +313,15 @@ same PR.
   substitution, no `always()`-outcome rule). It now imports the single canonical
   implementation from `tests/unit/workflow-writer-inventory.ts`, so the two suites
   cannot drift and no guard logic is duplicated.
+- **A-2k (a shadowed guard wrapper).** `prisma-baseline-drift-gate.yml` invokes the
+  guard through a shell function, `guard_url()`, so the candidate URL can be passed
+  positionally. A second definition of `guard_url` — whose body need not mention the
+  guard at all — replaces the first, and because the guard command text is still
+  present and still ordered before the probe, every check passed while the guard no
+  longer ran. Neutering the guard *call* (`if false; then`) was already caught;
+  shadowing the function it calls was not. `guardOrderingViolations` now reports any
+  function whose body contains the guard command and whose name is defined more than
+  once in the job.
 
 ### 1.5 Previously reported counts and tests
 
