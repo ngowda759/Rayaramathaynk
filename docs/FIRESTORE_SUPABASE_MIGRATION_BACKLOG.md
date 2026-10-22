@@ -181,26 +181,67 @@ approval. The workflows that rely on that approval (`ai-knowledge-migration-appl
 before they are treated as human-gated. Environment names are case-insensitive, so the lowercase
 `production` binding itself is correct.
 
+#### N-3 to N-5 (verifying the *tests*, second pass, 2026-10-21)
+
+Found by mutating the real workflows rather than trusting the suite's green result. N-3 and N-4 are
+fixed in this PR; N-5 is documented and deliberately out of scope.
+
+- **N-3 (test false negative — guard *ordering*).** Every ordering assertion in
+  `tests/unit/supabase-diagnostics-migration-safety.test.ts` compared raw `indexOf` text offsets.
+  A text offset cannot tell "the guard runs" from "the guard's text is present", so a guard step
+  that was `if: false`, `continue-on-error: true`, or `run: echo "node …/guard-approved-project.mjs"`
+  still **passed**. Only a guard physically moved after the push failed. Fixed by parsing the
+  workflow into steps per job and comparing **(step index, statement index)**; a guard that is
+  disabled, continue-on-error, not actually invoked, or ordered after the command is now reported.
+  `stepIsDisabled()` is deliberately narrow (only a literal `false`) so legitimate conditions such
+  as `!cancelled()` or `${{ inputs.dry_run == false }}` are not false positives.
+- **N-4 (test false negative — completeness check matched nothing).** The repo-wide
+  "every migration writer is guarded" test used one shared marker list
+  (`npx tsx scripts/migrate-*.ts`, …) that matches **no** command in `supabase-migrations.yml`,
+  whose writer is `npm run supabase:migrations:push` → `supabase db push`. That workflow was
+  therefore never checked. Fixed by listing the database-changing command(s) per workflow and by
+  resolving `npm run <script>` through `package.json` to the underlying command. Each check also
+  asserts the guard and the command are genuinely *present*, so it cannot pass by finding nothing.
+- **N-5 (real defect, out of scope — unguarded `psql` writers).** `seva-backup.yml` and
+  `seva-maintenance.yml` run `psql` against `SEVA_BACKUP_DB_URL` and have no destination guard.
+  This is a different secret and not a migration, so it is excluded from the migration-writer check
+  rather than allowlisted: adding `psql` to the denylist makes the suite fail, which is the correct
+  signal. Tracked as **B-7** in §6.
+
+Mutation evidence (real `.github/workflows/supabase-migrations.yml`, not a fixture): before the fix
+3 of 5 mutations slipped through; after the fix all 5 are caught — guard moved after the push, push
+moved before the guard, `if: false`, `continue-on-error: true`, and guard replaced by `echo`.
+
+**C-10 extension (same pass).** The export sweep detector also exempted anything ending in a file
+extension, so `data/firestore-dump/*.ndjson` and `*.json` counted as a "targeted single file" and
+bypassed the un-gated-upload assertion. Fixed: any `*`, `?`, `[]` or `{}` path is a sweep; only a
+literal `NAME.ext` stays targeted.
+
+
 
 ### 1.5 Previously reported counts and tests
 
 Revalidated 2026-10-21 (this PR revision):
 
-- Full suite: **191 suites / 2689 tests, all passing** (`npx jest`). Rev-2's 2614 and the
-  earlier 2629/2683 are all stale.
+- Full suite: **191 suites / 2691 tests, all passing** (`npx jest`). Rev-2's 2614 and the
+  earlier 2629/2683/2689 are all stale.
 - New suites added by this PR:
-  - `tests/unit/firestore-export-artifact-safety.test.ts` (36 tests) — export PII containment.
+  - `tests/unit/firestore-export-artifact-safety.test.ts` (37 tests) — export PII containment.
   - `tests/unit/migrate-all-batched.test.ts` +3 tests — fail-closed on a destination-less
     `MIGRATE` entry.
-  - `tests/unit/supabase-diagnostics-migration-safety.test.ts` (56 tests) — destination guard
-    for write-capable migration workflows, plus the writer/guard completeness check.
+  - `tests/unit/supabase-diagnostics-migration-safety.test.ts` (57 tests) — destination guard
+    for write-capable migration workflows, plus the writer/guard completeness check. The
+    guard-ordering assertions are step-aware and non-vacuous (see §1.4, N-3/N-4).
   - `tests/unit/workflow-shell-injection.test.ts` (18 tests) — repo-wide `run:` injection guard,
     including the nested-brace and ref/actor regression cases (C-8).
-- `npm run typecheck` EXIT=0; `node .ai/scripts/validate-workflows.mjs` validates 24 files;
+- `npm run typecheck` EXIT=0; `npm run lint` 0 errors; `npm run build` EXIT=0;
+  `node .ai/scripts/validate-workflows.mjs` validates 24 files;
   `node .ai/scripts/assert-trusted-review.mjs` passes for 4 workflows.
-- Live DB tests (`npm run test:db`) and live migration verification were **not** run:
-  there is no database access in this environment (see §3). Policy/RLS counts in §1.3 are
-  from the committed migrations, not from a live `pg_policies` read.
+- Local DB tests (`npm run test:db`) **do** run: 16 suites / 234 tests pass against an
+  in-process **PGlite** instance (`tests/db/harness.ts`), which replays the committed SQL.
+  This validates the migration files parse and apply; it says nothing about the hosted
+  destination. Live verification against the hosted project was **not** run (§3).
+  Policy/RLS counts in §1.3 are from the committed migrations, not a live `pg_policies` read.
 
 ---
 
@@ -297,9 +338,28 @@ Both guards read the value from the environment (never `argv`), fail closed on a
 missing/malformed/mismatched value, and print only a SHA-256 fingerprint. Pinned by
 `tests/unit/supabase-diagnostics-migration-safety.test.ts`.
 
-Live state (ledger, tables, counts, RLS) is **UNVERIFIED and remains a blocker** —
-there is no raw SQL/psql access and `SUPABASE_DB_URL` in this environment points
-at an unrelated project. See A-1/A-2 for the read-only verification required.
+Live state (ledger, tables, counts, RLS) is **UNVERIFIED and remains a blocker** — there is no
+`psql`, and the database reachable from this environment is **not** the production project.
+
+**Read-only identity check performed 2026-10-21** (credentials used only in-process; only
+non-secret facts recorded):
+
+| Value | SHA-256 prefix of ref |
+|---|---|
+| Approved production ref, from `scripts/lib/approved-project.mjs` | `233ede17c9c7` |
+| Sandbox `SUPABASE_PROJECT_REF` | `72b54d98a3dc` |
+| Sandbox `SUPABASE_DB_URL` (ref parsed from pooler username) | `72b54d98a3dc` |
+
+The two differ, so the sandbox credential does **not** point at the approved production
+project. A read-only query of the sandbox database returned `public` tables
+`teams`, `matches`, `players`, `tournaments`, `courts`, … and **no** `events`,
+`seva_bookings` or `announcements` — confirming it is an unrelated project. Nothing was
+written; `set_session(readonly=True)` was set before any query.
+
+Consequence: **no in-scope table can be reported `MIGRATED_VERIFIED` from this environment**,
+and destination row counts must be reported `UNKNOWN`, never `0`. The approved ref itself is
+still only *asserted* by the owner in this document; it is corroborated by CI, not
+independently proven here. See A-1/A-2 for the read-only verification the owner must run.
 
 ---
 
@@ -387,6 +447,7 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | B-2c | B | **Done in this PR (C-9):** destination guard added to `resolve-raya-ai-baseline.yml`, which `INSERT`s into `supabase_migrations.schema_migrations` | — | High: wrong project = bad ledger | Every writer runs a guard before its first DB command; completeness test enumerates all workflows | Reviewed PR |
 | C-5 | C | Configure required reviewers on the `Production` GitHub environment | — | High: `environment: production` is currently not a human gate (`protection_rules: []`) | Environment blocks until a reviewer approves | Owner |
 | B-6 | B | Rotate the exposed Firebase service-account key and purge it from Git history | — | **Critical** | New key live; old key revoked; history rewritten | Owner + security |
+| B-7 | B | Add a destination guard to the `psql` writers `seva-backup.yml` and `seva-maintenance.yml` (they authenticate with `SEVA_BACKUP_DB_URL`, a different secret) | — | Medium: wrong DB = bad backup/restore | Both workflows verify their destination before any `psql` write; pinned by a test that includes `psql` in the writer denylist | Reviewed PR |
 | C-1 | C | Create the `announcements` table + public-read policy | A-1 | Medium | `announcements` exists; policy limited to active/in-window | Reviewed PR |
 | C-2 | C | Add the missing policy for `seva_list_items` (service-role only, explicit) | A-2 | Medium | RLS policy present; no widening | Reviewed PR |
 | C-3 | C | Consolidate the duplicate `temple_areas` policies (`20240523000000`, `20240915`) | A-2 | Low | One policy; no behaviour change | Reviewed PR |
@@ -465,13 +526,20 @@ const c={};for(const i of MIGRATION_INVENTORY)c[i.classification]=(c[i.classific
 console.log(MIGRATION_INVENTORY.length, c, EXCLUDED_AUTH_COLLECTIONS)'
 ```
 
-Executed results (2026-10-21, final security review): export safety 36 passed; migrate-all-batched
-18 passed; diagnostics safety 56 passed; workflow-shell-injection 18 passed; inventory census 5
-passed; full suite **191 suites / 2689 tests passed**; typecheck EXIT=0; both workflow validators
-pass. Mutation checks confirmed each new guard test detects its defect: restored silent skip →
-failures; removed URL guard → failures; fail-open export policy → failures; reverted injection
-token list → 2 failures; removed baseline guard → 2 failures; weak export sweep matcher → 1
-failure.
+Executed results (2026-10-21, second pass): export safety **37 passed**; migrate-all-batched
+18 passed; diagnostics safety **57 passed**; workflow-shell-injection 18 passed; inventory census 5
+passed; full suite **191 suites / 2691 tests passed**; typecheck EXIT=0; lint 0 errors; build EXIT=0;
+`test:db` 16 suites / 234 tests passed (PGlite); both workflow validators pass.
+
+Mutation checks confirmed each guard test detects its defect. Recorded results:
+
+- Real `.github/workflows/supabase-migrations.yml`, five mutations — guard moved after the push
+  (2 failed), push moved before the guard (2 failed), `if: false` (2 failed),
+  `continue-on-error: true` (2 failed), guard replaced by `echo` (3 failed). Before the N-3 fix the
+  middle three passed, i.e. were not detected.
+- Weak export sweep matcher (`*.ndjson` treated as a targeted file) → the new glob test fails.
+- Earlier rev: restored silent skip → failures; removed URL guard → failures; fail-open export
+  policy → failures; reverted injection token list → 2 failures; removed baseline guard → 2 failures.
 
 ---
 
