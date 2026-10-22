@@ -37,8 +37,10 @@ const RAW_EXPORT_ROOT = /^data\/firestore-(dump|export)\b/;
  * Regression: matching only a bare `data/firestore-dump/` line missed the inline
  * forms `path: data/firestore-dump/**`, `path: data/firestore-dump` and a nested
  * `path: data/firestore-export/records/`, each of which still sweeps raw data.
- * A value ending in a file extension (for example `.../MANIFEST.json`) is a
- * targeted single-file upload and is not a sweep.
+ * A literal single filename such as `.../MANIFEST.json` is a targeted upload and
+ * is not a sweep. A *glob* that merely ends in an extension (`*.ndjson`,
+ * `*.json`) is still a sweep: the earlier extension check exempted it, which let
+ * an extension-qualified glob past the un-gated-upload check.
  */
 export function rawExportDirPaths(withBlock: string): string[] {
   const lines = withBlock.split("\n");
@@ -58,7 +60,14 @@ export function rawExportDirPaths(withBlock: string): string[] {
       values.push(lines[j].trim());
     }
   }
-  return values.filter((p) => RAW_EXPORT_ROOT.test(p) && !/\.[a-z0-9]+$/i.test(p));
+  return values.filter((p) => {
+    if (!RAW_EXPORT_ROOT.test(p)) return false;
+    // Any glob or brace/bracket expansion sweeps more than one file.
+    if (/[*?[\]{}]/.test(p)) return true;
+    // Otherwise: a literal path with no extension is a directory sweep; a
+    // literal path ending in an extension names one file and is not a sweep.
+    return !/\.[a-z0-9]+$/i.test(p);
+  });
 }
 
 export interface ParsedStep {
@@ -197,6 +206,29 @@ describe("Firestore export artifact containment", () => {
     // A targeted single file is not a sweep and must not be flagged.
     const targeted = "        with:\n          name: x\n          path: data/firestore-dump/MANIFEST.json";
     expect(rawExportDirPaths(targeted)).toEqual([]);
+  });
+
+  it("treats extension-qualified globs as sweeps but literal files as targeted", () => {
+    // Regression: the extension check exempted `*.ndjson` / `*.json`, so a glob
+    // that sweeps every raw record still counted as a "targeted single file".
+    const sweeps = [
+      "        with:\n          name: x\n          path: data/firestore-dump/*.ndjson",
+      "        with:\n          name: x\n          path: data/firestore-dump/*.json",
+      "        with:\n          name: x\n          path: data/firestore-export/records/*.ndjson",
+      "        with:\n          name: x\n          path: data/firestore-dump/record?.json",
+      "        with:\n          name: x\n          path: data/firestore-dump/{a,b}.json",
+    ];
+    for (const block of sweeps) {
+      expect([block, rawExportDirPaths(block).length > 0]).toEqual([block, true]);
+    }
+    // Literal single files stay targeted, including the MANIFEST the workflow uploads.
+    const targeted = [
+      "        with:\n          name: x\n          path: data/firestore-dump/MANIFEST.json",
+      "        with:\n          name: x\n          path: data/firestore-export/MANIFEST.json",
+    ];
+    for (const block of targeted) {
+      expect([block, rawExportDirPaths(block)]).toEqual([block, []]);
+    }
   });
 });
 

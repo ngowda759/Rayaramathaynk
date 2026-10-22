@@ -78,6 +78,246 @@ function extractStepScript(yaml: string, stepName: string): string {
   throw new Error(`no run: block in step: ${stepName}`);
 }
 
+/** The npm scripts declared by package.json, used to resolve `npm run x` aliases. */
+function readPackageScripts(): Record<string, string> {
+  return (JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).scripts ?? {}) as Record<
+    string,
+    string
+  >;
+}
+
+interface ParsedStep {
+  job: string;
+  index: number;
+  name: string;
+  uses?: string;
+  if?: string;
+  continueOnError: boolean;
+  runBody: string;
+}
+
+/**
+ * Parse a workflow into its steps, grouped by job.
+ *
+ * Regex-based on purpose: no YAML library is a declared dependency. A step is a
+ * `- ...` list item at indent >= 4 that sits under a job in `jobs:`.
+ */
+function parseWorkflowSteps(yaml: string): ParsedStep[] {
+  const lines = yaml.split("\n");
+
+  const jobHeaders: { name: string; line: number }[] = [];
+  let inJobs = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+$/, "");
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const indent = line.length - line.trimStart().length;
+    if (/^jobs:\s*$/.test(trimmed)) {
+      inJobs = true;
+      continue;
+    }
+    if (!inJobs) continue;
+    const m = /^([A-Za-z0-9_.-]+):\s*$/.exec(trimmed);
+    if (m && indent === 2) jobHeaders.push({ name: m[1], line: i });
+  }
+  const jobEnd = new Map<string, number>();
+  for (let i = 0; i < jobHeaders.length; i++) {
+    jobEnd.set(jobHeaders[i].name, jobHeaders[i + 1]?.line ?? lines.length);
+  }
+
+  const starts: { line: number; job: string }[] = [];
+  let currentJob = "";
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+$/, "");
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const indent = line.length - line.trimStart().length;
+    const header = jobHeaders.find((h) => h.line === i);
+    if (header) {
+      currentJob = header.name;
+      continue;
+    }
+    if (currentJob && /^-\s/.test(trimmed) && indent >= 4) starts.push({ line: i, job: currentJob });
+  }
+
+  const steps: ParsedStep[] = [];
+  const counts = new Map<string, number>();
+  for (let s = 0; s < starts.length; s++) {
+    const { line: from, job } = starts[s];
+    const next = starts[s + 1];
+    const to = next && next.job === job ? next.line : jobEnd.get(job) ?? lines.length;
+    const chunk = lines.slice(from, to);
+
+    // Locate the run block and its span so step-level keys (`if:`,
+    // `continue-on-error:`) are read from everything *outside* the shell body.
+    const runIdx = chunk.findIndex((l) => /^\s*run:\s*/.test(l));
+    let runEnd = -1;
+    let runBody = "";
+    if (runIdx >= 0) {
+      const m = /^(\s*)run:\s*(.*)$/.exec(chunk[runIdx]);
+      const runIndent = m[1].length;
+      const inline = m[2];
+      if (inline && !inline.startsWith("|") && !inline.startsWith(">")) {
+        runBody = inline;
+        runEnd = runIdx + 1;
+      } else {
+        const body: string[] = [];
+        let j = runIdx + 1;
+        for (; j < chunk.length; j++) {
+          const l = chunk[j];
+          if (l.trim() === "") {
+            body.push("");
+            continue;
+          }
+          if (l.length - l.trimStart().length <= runIndent) break;
+          body.push(l.slice(runIndent + 2));
+        }
+        runBody = body.join("\n");
+        runEnd = j;
+      }
+    }
+    const keyRegion = chunk.filter((_, i) => i < runIdx || i >= runEnd).join("\n");
+
+    const index = counts.get(job) ?? 0;
+    counts.set(job, index + 1);
+    steps.push({
+      job,
+      index,
+      name: /^\s*-\s*name:\s*(.*)$/.exec(chunk[0])?.[1]?.trim() ?? "",
+      uses: /^\s*uses:\s*(\S+)/m.exec(keyRegion)?.[1],
+      if: /^\s*if:\s*(.*)$/m.exec(keyRegion)?.[1]?.trim(),
+      continueOnError: /^\s*continue-on-error:\s*true\s*$/m.test(keyRegion),
+      runBody,
+    });
+  }
+  return steps;
+}
+
+/** Split a shell body into the individual commands it may run. */
+function shellStatements(body: string): string[] {
+  return body
+    .split(/\n|;|&&|\|\||\|/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const CMD_PREFIX = "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:sudo\\s+|exec\\s+)?";
+
+/**
+ * Statement indices within `body` that actually invoke `command` as a command,
+ * directly or through an npm script whose value starts with `command`.
+ */
+function commandStatements(
+  body: string,
+  command: string,
+  scripts: Record<string, string>,
+): number[] {
+  const sts = shellStatements(body);
+  const direct = new RegExp(`^${CMD_PREFIX}${escapeRegExp(command)}(?:\\s|$)`);
+  const hits: number[] = [];
+  sts.forEach((s, i) => {
+    if (direct.test(s)) hits.push(i);
+  });
+  for (const [name, value] of Object.entries(scripts)) {
+    if (!String(value).trim().startsWith(command)) continue;
+    const alias = new RegExp(`^${CMD_PREFIX}npm\\s+run\\s+${escapeRegExp(name)}(?:\\s|$)`);
+    sts.forEach((s, i) => {
+      if (alias.test(s) && !hits.includes(i)) hits.push(i);
+    });
+  }
+  return hits.sort((a, b) => a - b);
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Whether a step's `if:` makes it never run in practice.
+ *
+ * Deliberately narrow: only an expression that reduces to a literal `false`
+ * (with or without `${{ }}`) is treated as disabling. A legitimate condition
+ * such as `!cancelled()`, an event check, or `inputs.dry_run == false` must not
+ * be reported, or the check would fail on unrelated changes and lose its
+ * authority.
+ */
+function stepIsDisabled(step: ParsedStep): boolean {
+  if (!step.if) return false;
+  const normalized = step.if
+    .replace(/^\$\{\{/, "")
+    .replace(/\}\}$/, "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .trim();
+  return normalized === "false";
+}
+
+/**
+ * Every way the workflow can run one of `commands` without having run
+ * `guardCommand` first, inside the same job.
+ *
+ * Ordering compares (step index, statement index), not raw text offset. That is
+ * what makes this robust: a guard whose text is still present but which is
+ * disabled with `if: false`, marked `continue-on-error`, echoed rather than
+ * executed, or simply moved after the command is reported as a violation.
+ */
+function guardOrderingViolations(
+  yaml: string,
+  commands: string[],
+  guardCommand: string,
+  scripts: Record<string, string>,
+): string[] {
+  const steps = parseWorkflowSteps(yaml);
+  const violations: string[] = [];
+  for (const job of [...new Set(steps.map((s) => s.job))]) {
+    const jobSteps = steps.filter((s) => s.job === job).sort((a, b) => a.index - b.index);
+
+    let guardPos: { step: number; stmt: number } | null = null;
+    let guardStep: ParsedStep | null = null;
+    for (const step of jobSteps) {
+      const hits = commandStatements(step.runBody, guardCommand, scripts);
+      if (hits.length > 0) {
+        guardPos = { step: step.index, stmt: hits[0] };
+        guardStep = step;
+        break;
+      }
+    }
+
+    for (const command of commands) {
+      let cmdPos: { step: number; stmt: number } | null = null;
+      for (const step of jobSteps) {
+        const hits = commandStatements(step.runBody, command, scripts);
+        if (hits.length > 0) {
+          cmdPos = { step: step.index, stmt: hits[0] };
+          break;
+        }
+      }
+      if (!cmdPos) continue;
+
+      if (!guardPos || !guardStep) {
+        violations.push(`job "${job}": runs "${command}" with no guard step`);
+        continue;
+      }
+      const runsAfterGuard =
+        guardPos.step < cmdPos.step ||
+        (guardPos.step === cmdPos.step && guardPos.stmt < cmdPos.stmt);
+      if (!runsAfterGuard) {
+        violations.push(
+          `job "${job}": "${command}" (step ${cmdPos.step}) does not run after the guard (step ${guardPos.step})`,
+        );
+        continue;
+      }
+      if (stepIsDisabled(guardStep)) {
+        violations.push(`job "${job}": guard is disabled by if: ${guardStep.if}`);
+      }
+      if (guardStep.continueOnError) {
+        violations.push(`job "${job}": guard is continue-on-error, so it cannot fail the job`);
+      }
+    }
+  }
+  return violations;
+}
+
 /**
  * Run the "Check confirmation phrase" step exactly as GitHub would: the step body
  * with its configured env var supplied through the environment, not substituted
@@ -309,18 +549,110 @@ describe("migration workflow safety properties", () => {
   });
 
   it("runs the project-ref guard before any database-changing command", () => {
-    // Match the step commands, not prose in the header comment.
-    const guardAt = wf.indexOf("run: node scripts/lib/guard-approved-project.mjs");
-    const linkAt = wf.indexOf("run: supabase link --project-ref");
-    const dryRunAt = wf.indexOf("run: npm run supabase:migrations:dry-run");
-    const pushAt = wf.indexOf("run: npm run supabase:migrations:push");
-    expect(guardAt).toBeGreaterThan(-1);
-    expect(linkAt).toBeGreaterThan(-1);
-    expect(dryRunAt).toBeGreaterThan(-1);
-    expect(pushAt).toBeGreaterThan(-1);
-    expect(guardAt).toBeLessThan(linkAt);
-    expect(guardAt).toBeLessThan(dryRunAt);
-    expect(guardAt).toBeLessThan(pushAt);
+    // Step-aware ordering, not text offsets: `link` and `push` are resolved
+    // through their npm aliases (`supabase db push`), and a guard that is
+    // disabled, continue-on-error, echoed, or moved after the command fails here
+    // even though its text is still present in the file.
+    const guardCommand = "node scripts/lib/guard-approved-project.mjs";
+    const dbCommands = ["supabase link", "supabase db push"];
+    const scripts = readPackageScripts();
+
+    const violations = guardOrderingViolations(wf, dbCommands, guardCommand, scripts);
+    expect(violations).toEqual([]);
+
+    // Non-vacuity: the workflow must really contain both the guard and the
+    // commands this assertion reasons about. Without this, a renamed step could
+    // silently reduce the check above to "found nothing to check".
+    const steps = parseWorkflowSteps(wf);
+    expect(steps.length).toBeGreaterThan(0);
+    for (const command of [guardCommand, ...dbCommands]) {
+      const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
+      expect(`${command}:${found}`).toBe(`${command}:true`);
+    }
+    // The dry-run must also still be present, and must not itself be a push.
+    const dryRun = steps.some(
+      (s) => commandStatements(s.runBody, "npm run supabase:migrations:dry-run", scripts).length > 0,
+    );
+    expect(dryRun).toBe(true);
+  });
+
+  it("catches each way the guard can be neutered or reordered", () => {
+    // The regression this suite exists for: the old offset-based check compared
+    // `indexOf` positions, so all of these variants passed it. Each must fail now.
+    const guard = "node scripts/lib/guard-approved-project.mjs";
+    const commands = ["supabase link", "supabase db push"];
+    const scripts = readPackageScripts();
+    const wrap = (steps: string) =>
+      [
+        "name: T",
+        "on:",
+        "  workflow_dispatch:",
+        "permissions:",
+        "  contents: read",
+        "jobs:",
+        "  migrate:",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        steps,
+        "",
+      ].join("\n");
+    const push = ["      - name: Push", "        run: supabase db push"].join("\n");
+    const guardStep = ["      - name: Guard", `        run: ${guard}`].join("\n");
+
+    const cases: Record<string, string> = {
+      "guard placed after the command": wrap([push, guardStep].join("\n")),
+      "guard disabled with if: false": wrap(
+        [["      - name: Guard", "        if: ${{ false }}", `        run: ${guard}`].join("\n"), push].join("\n"),
+      ),
+      "guard disabled with bare if: false": wrap(
+        [["      - name: Guard", "        if: false", `        run: ${guard}`].join("\n"), push].join("\n"),
+      ),
+      "guard marked continue-on-error": wrap(
+        [
+          ["      - name: Guard", "        continue-on-error: true", `        run: ${guard}`].join("\n"),
+          push,
+        ].join("\n"),
+      ),
+      "guard merely echoed, not executed": wrap(
+        [["      - name: Guard", `        run: echo "${guard}"`].join("\n"), push].join("\n"),
+      ),
+      "guard named only in a step name": wrap(
+        [["      - name: " + guard, "        run: echo hi"].join("\n"), push].join("\n"),
+      ),
+      "guard present but no push": wrap(guardStep),
+    };
+
+    // Every variant except the last must be reported.
+    for (const [label, yaml] of Object.entries(cases)) {
+      const violations = guardOrderingViolations(yaml, commands, guard, scripts);
+      if (label === "guard present but no push") {
+        expect(`${label}:${violations.length === 0}`).toBe(`${label}:true`);
+      } else {
+        expect(`${label}:${violations.length > 0}`).toBe(`${label}:true`);
+      }
+    }
+
+    // A legitimate `if:` must NOT be mistaken for a disabled guard, or the check
+    // would fail on unrelated edits and lose its authority.
+    const allowedIfs = [
+      "${{ github.event_name == 'workflow_dispatch' }}",
+      "!cancelled()",
+      "${{ inputs.dry_run == false }}",
+    ];
+    for (const condition of allowedIfs) {
+      const yaml = wrap(
+        [["      - name: Guard", `        if: ${condition}`, `        run: ${guard}`].join("\n"), push].join("\n"),
+      );
+      expect(`${condition}:${JSON.stringify(guardOrderingViolations(yaml, commands, guard, scripts))}`).toBe(
+        `${condition}:[]`,
+      );
+    }
+
+    // Control: the correct arrangement is clean, so the checks above are not
+    // passing merely because everything is reported.
+    expect(guardOrderingViolations(wrap([guardStep, push].join("\n")), commands, guard, scripts)).toEqual(
+      [],
+    );
   });
 
   it("keeps least-privilege permissions", () => {
@@ -471,36 +803,66 @@ describe("write-capable migration workflows verify the destination project", () 
     "resolve-raya-ai-baseline.yml",
   ];
 
+  // The db-changing command each guarded-ref workflow must not reach before its
+  // guard. Listed per file, not as one repo-wide marker list: a single shared list
+  // silently checked nothing for `supabase-migrations.yml`, whose commands are
+  // `supabase link` / `supabase db push` rather than a migration script.
+  const GUARDED_REF_COMMANDS: Record<string, string[]> = {
+    "supabase-migrations.yml": ["supabase link", "supabase db push"],
+    "ai-knowledge-migration-apply.yml": ["node scripts/apply-ai-knowledge-migration.mjs"],
+    "resolve-raya-ai-baseline.yml": ["node scripts/resolve-baseline-raya-ai.mjs"],
+  };
+
   it.each(GUARDED_REF_WORKFLOWS)("%s runs the project-ref guard before any db command", (file) => {
     const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
-    const guardAt = wf.indexOf("run: node scripts/lib/guard-approved-project.mjs");
-    expect(guardAt).toBeGreaterThan(-1);
-    for (const marker of [
-      "run: node scripts/apply-ai-knowledge-migration.mjs",
-      "run: node scripts/resolve-baseline-raya-ai.mjs",
-    ]) {
-      const at = wf.indexOf(marker);
-      if (at > -1) expect(guardAt).toBeLessThan(at);
+    const guardCommand = "node scripts/lib/guard-approved-project.mjs";
+    const commands = GUARDED_REF_COMMANDS[file];
+    // If a workflow is added to GUARDED_REF_WORKFLOWS without commands here, fail
+    // loudly rather than checking nothing.
+    expect(commands).toBeDefined();
+    const scripts = readPackageScripts();
+
+    const violations = guardOrderingViolations(wf, commands, guardCommand, scripts);
+    expect(violations).toEqual([]);
+
+    // Non-vacuity: assert the guard and each command are genuinely present, so the
+    // check above cannot pass by finding nothing.
+    const steps = parseWorkflowSteps(wf);
+    expect(steps.length).toBeGreaterThan(0);
+    for (const command of [guardCommand, ...commands]) {
+      const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
+      expect(`${file} ${command}:${found}`).toBe(`${file} ${command}:true`);
     }
   });
+
+  // The migration scripts each workflow actually invokes, listed per file so the
+  // check is real rather than a shared marker list that happens to match nothing.
+  const DEST_WRITING_COMMANDS: Record<string, string[]> = {
+    "firestore-batched-migration.yml": [
+      "npx tsx scripts/fetch-checkpoint.ts",
+      "npx tsx scripts/migrate-all-batched.ts",
+    ],
+    "firestore-staged-migration.yml": ["npx tsx scripts/migrate-staged-phase1.ts"],
+  };
 
   it.each(DEST_WRITING_WORKFLOWS)(
     "%s runs the URL guard before any migration script",
     (file) => {
       const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
-      const guardAt = wf.indexOf("run: node scripts/lib/guard-approved-supabase-url.mjs");
-      expect(guardAt).toBeGreaterThan(-1);
+      const guardCommand = "node scripts/lib/guard-approved-supabase-url.mjs";
+      const commands = DEST_WRITING_COMMANDS[file];
+      expect(commands).toBeDefined();
+      const scripts = readPackageScripts();
 
-      // The guard must precede the first script that can touch the destination.
-      const scriptMarkers = [
-        "npx tsx scripts/migrate-all-batched.ts",
-        "npx tsx scripts/migrate-staged-phase1.ts",
-        "node scripts/apply-ai-knowledge-migration.mjs",
-        "npx tsx scripts/fetch-checkpoint.ts",
-      ];
-      for (const marker of scriptMarkers) {
-        const at = wf.indexOf(marker);
-        if (at > -1) expect(guardAt).toBeLessThan(at);
+      const violations = guardOrderingViolations(wf, commands, guardCommand, scripts);
+      expect(violations).toEqual([]);
+
+      // Non-vacuity: the guard and every command must genuinely be present.
+      const steps = parseWorkflowSteps(wf);
+      expect(steps.length).toBeGreaterThan(0);
+      for (const command of [guardCommand, ...commands]) {
+        const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
+        expect(`${file} ${command}:${found}`).toBe(`${file} ${command}:true`);
       }
     },
   );
@@ -512,32 +874,51 @@ describe("write-capable migration workflows verify the destination project", () 
     expect(block).not.toMatch(/\$\{\{\s*inputs\./);
   });
 
-  it("every workflow that invokes a database writer also runs a destination guard", () => {
-    // Completeness guard: adding a new writer invocation without a guard is the
-    // failure mode this suite exists to catch, so detect it repository-wide rather
-    // than from a hand-maintained list that can silently fall behind.
+  it("every workflow that invokes a migration writer also runs a destination guard", () => {
+    // Completeness guard: adding a new migration-writer invocation without a guard
+    // is the failure mode this suite exists to catch. Detection is step-aware and
+    // covers the `supabase` CLI itself, not just the migration scripts: `supabase
+    // link` and `supabase db push` are the two commands that reach a project. The
+    // previous text-offset version of this check used only the four script paths
+    // below, so a new `supabase db push` workflow was invisible to it.
+    //
+    // Scope note: this covers *migration* writers. It does not cover the Seva
+    // backup/maintenance tooling, which uses `psql` against its own
+    // `SEVA_BACKUP_DB_URL` secret; that separate destructive path is recorded in
+    // the migration backlog rather than silently allowlisted here.
     const DB_WRITERS = [
       "npx tsx scripts/migrate-all-batched.ts",
       "npx tsx scripts/migrate-staged-phase1.ts",
       "node scripts/apply-ai-knowledge-migration.mjs",
       "node scripts/resolve-baseline-raya-ai.mjs",
+      "supabase link",
+      "supabase db push",
     ];
     const GUARDS = [
-      "scripts/lib/guard-approved-project.mjs",
-      "scripts/lib/guard-approved-supabase-url.mjs",
+      "node scripts/lib/guard-approved-project.mjs",
+      "node scripts/lib/guard-approved-supabase-url.mjs",
     ];
+    const scripts = readPackageScripts();
+
     const missing: string[] = [];
     for (const file of readdirSync(resolve(root, ".github/workflows"))) {
       if (!file.endsWith(".yml") && !file.endsWith(".yaml")) continue;
       const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
-      const writerAt = Math.min(
-        ...DB_WRITERS.map((m) => wf.indexOf(m)).filter((i) => i > -1),
+      const steps = parseWorkflowSteps(wf);
+
+      // Which of the known writers this workflow really executes (a command in a
+      // `run:` body, or an npm alias that resolves to one), and which guards it has.
+      const writerCommands = DB_WRITERS.filter((w) =>
+        steps.some((s) => commandStatements(s.runBody, w, scripts).length > 0),
       );
-      if (!Number.isFinite(writerAt)) continue;
-      const guardAt = Math.min(
-        ...GUARDS.map((g) => wf.indexOf(g)).filter((i) => i > -1),
+      if (writerCommands.length === 0) continue;
+
+      const hasGuard = GUARDS.some((g) =>
+        steps.some((s) => commandStatements(s.runBody, g, scripts).length > 0),
       );
-      if (!Number.isFinite(guardAt) || guardAt > writerAt) missing.push(file);
+      if (!hasGuard) {
+        missing.push(`${file} (writes via ${writerCommands.join(", ")})`);
+      }
     }
     expect(missing).toEqual([]);
   });
