@@ -26,17 +26,20 @@ export const workflowsDir = resolve(__dirname, "../..", ".github/workflows");
  * one. Omitting them made the destination probe invisible to the ordering check.
  */
 const CMD_PREFIX =
-  "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:sudo\\s+|exec\\s+|command\\s+)?(?:if\\s+|!\\s+)?";
+  "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:sudo\\s+|exec\\s+|command\\s+)?" +
+  "(?:(?:if\\s+)?!\\s+|if\\s+|then\\s+|xargs\\s+)?";
 
 /**
- * A command-substitution assignment prefix, as in `removed="$(psql "$URL" …)"`.
+ * A command-substitution prefix: an assignment whose value is a substitution
+ * (`removed="$(psql …)"`, `` removed=`psql …` ``), or the substitution opener on
+ * its own (`"$(psql …"`, `` `psql …` ``).
  *
  * The Seva purge and the backup's version probe both capture `psql` output this
  * way. Without this prefix the statement begins with `removed="$(psql`, so an
  * anchored `^psql` test misses the write entirely — the false negative this
- * module exists to close.
+ * module exists to close. Both the `$( )` and backtick forms are recognised.
  */
-const SUBST_PREFIX = '(?:[A-Za-z_][A-Za-z0-9_]*="?\\$\\()?';
+const SUBST_PREFIX = '(?:(?:[A-Za-z_][A-Za-z0-9_]*=)?(?:"\\$\\(' + "|`))?";
 
 export interface Step {
   name: string;
@@ -157,10 +160,24 @@ export function parseWorkflow(yaml: string): Job[] {
 
 /** Split a shell body into the individual commands it may run. */
 export function shellStatements(body: string): string[] {
-  return body
+  const out = body
     .split(/\n|;|&&|\|\||\|/)
     .map((s) => s.trim())
     .filter(Boolean);
+  // Unwrap a nested shell so a command hidden inside `bash -c '…'`, `sh -c "…"`,
+  // `eval …` or `xargs …` is seen as the command it is. Without this, those forms
+  // are a way to run a writer the inventory scan never looks inside.
+  for (const statement of [...out]) {
+    const nested = /^(?:sudo\s+)?(?:bash|sh|zsh|dash)\s+-[a-z]*c\s+(.*)$/.exec(statement);
+    const evalMatch = /^(?:sudo\s+)?eval\s+(.*)$/.exec(statement);
+    const inner = nested?.[1] ?? evalMatch?.[1];
+    if (!inner) continue;
+    for (const part of inner.split(/\n|;|&&|\|\||\|/)) {
+      const stripped = part.trim().replace(/^['"]|['"]$/g, "").trim();
+      if (stripped) out.push(stripped);
+    }
+  }
+  return out;
 }
 
 /**

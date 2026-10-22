@@ -452,6 +452,42 @@ describe("no database writer escapes the inventory", () => {
     expect(messages).toMatch(/guard wrapper "guard_url" is defined 2 times/);
   });
 
+  it("recognises every shell form that runs a writer, so none hides (A-2l)", () => {
+    // A writer wrapped in a form the scanner does not look inside is a writer the
+    // guard-ordering check never sees. Each of these is a way to run the same
+    // `psql` call; all must be recognised. `bash -c`/`eval` are unwrapped, the
+    // `$( )` and backtick substitutions and the `if !`/`xargs` prefixes are
+    // matched directly.
+    const forms = [
+      'psql "$DB_URL" -c "select 1"',
+      'removed="$(psql "$DB_URL" -c "select 1")"',
+      'removed=`psql "$DB_URL" -c "select 1"`',
+      'PGOPTIONS= psql "$DB_URL" -c "select 1"',
+      'sudo psql "$DB_URL" -c "select 1"',
+      'command psql "$DB_URL" -c "select 1"',
+      'if ! psql "$DB_URL" -c "select 1"; then echo no; fi',
+      'echo "select 1" | xargs psql "$DB_URL"',
+      `bash -c 'psql "$DB_URL" -c "select 1"'`,
+      `eval 'psql "$DB_URL" -c "select 1"'`,
+      'pg_dump "$DB_URL" > f',
+      'pg_restore -d "$DB_URL" f',
+    ];
+    for (const form of forms) {
+      expect(`${form} :: ${postgresCliStatements(form, scripts).length > 0}`).toBe(`${form} :: true`);
+    }
+
+    // These never connect, and must stay excluded, or every install step would
+    // look like a writer and the inventory would fill with false positives.
+    const nonWriters = [
+      "command -v psql >/dev/null",
+      "sudo apt-get install -y postgresql-client",
+      'echo "psql is installed"',
+    ];
+    for (const form of nonWriters) {
+      expect(`${form} :: ${postgresCliStatements(form, scripts).length}`).toBe(`${form} :: 0`);
+    }
+  });
+
   it("detects a raw client call that reads a different, unguarded secret (mutation control)", () => {
     // Ordering alone is not protection: a psql call added *after* the guard but
     // reading some other connection variable connects to a destination the guard
