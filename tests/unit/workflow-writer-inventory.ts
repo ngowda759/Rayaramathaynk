@@ -665,6 +665,37 @@ export function guardOrderingViolations(
       });
     }
 
+    // A guard invoked through a shell function can be shadowed. The verified
+    // wrapper is defined once, then a later definition of the same name — whose
+    // body need not mention the guard at all — replaces it. The guard command text
+    // is still present and still ordered first, so every other check passes while
+    // the guard no longer runs. Report any guard-wrapping function name that is
+    // defined more than once in the job.
+    const shellText = job.steps.map((s) => s.runBody).join("\n");
+    const defRe = /(?:^|\n)[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(\)[ \t]*\{/g;
+    const defs: { name: string; start: number; bodyStart: number }[] = [];
+    for (let m = defRe.exec(shellText); m; m = defRe.exec(shellText)) {
+      defs.push({ name: m[1], start: m.index, bodyStart: m.index + m[0].length });
+    }
+    const defCounts = new Map<string, number>();
+    const guardWrapperNames = new Set<string>();
+    defs.forEach((def, i) => {
+      defCounts.set(def.name, (defCounts.get(def.name) ?? 0) + 1);
+      const end = i + 1 < defs.length ? defs[i + 1].start : shellText.length;
+      if (shellText.slice(def.bodyStart, end).includes(guardCommand)) {
+        guardWrapperNames.add(def.name);
+      }
+    });
+    for (const name of guardWrapperNames) {
+      const count = defCounts.get(name) ?? 0;
+      if (count > 1) {
+        violations.push({
+          job: job.name,
+          message: `guard wrapper "${name}" is defined ${count} times; a later definition shadows the verified guard`,
+        });
+      }
+    }
+
     // Raw client statements are writers in their own right, and may read a
     // different credential than the guarded one.
     if (guardVar) {

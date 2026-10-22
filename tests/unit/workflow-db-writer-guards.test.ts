@@ -417,6 +417,41 @@ describe("no database writer escapes the inventory", () => {
     }
   });
 
+  it("detects a guard wrapper that a later definition shadows (mutation control)", () => {
+    // The Prisma gate invokes the shared guard through a shell function so the
+    // candidate URL can be passed positionally. A second definition of that same
+    // function — with a body that need not mention the guard at all — replaces it.
+    // The guard text is still present and still ordered first, so ordering,
+    // presence, credential-scope and `if:` checks all pass while the guard no
+    // longer runs.
+    const yaml = readWorkflow("prisma-baseline-drift-gate.yml");
+    const guardCommand = "node scripts/lib/guard-approved-db-url.mjs";
+    const clean = guardOrderingViolations(
+      yaml,
+      ["node scripts/lib/probe-pg-url.mjs"],
+      guardCommand,
+      scripts,
+      "PRISMA_DATABASE_URL_CANDIDATE",
+    );
+    expect(clean).toEqual([]);
+
+    const mutated = yaml.replace(
+      '          guard_url() {\n',
+      "          guard_url() { return 0; }\n          guard_url() {\n",
+    );
+    expect(mutated).not.toBe(yaml);
+    const messages = guardOrderingViolations(
+      mutated,
+      ["node scripts/lib/probe-pg-url.mjs"],
+      guardCommand,
+      scripts,
+      "PRISMA_DATABASE_URL_CANDIDATE",
+    )
+      .map((v) => v.message)
+      .join(" ");
+    expect(messages).toMatch(/guard wrapper "guard_url" is defined 2 times/);
+  });
+
   it("detects a raw client call that reads a different, unguarded secret (mutation control)", () => {
     // Ordering alone is not protection: a psql call added *after* the guard but
     // reading some other connection variable connects to a destination the guard
