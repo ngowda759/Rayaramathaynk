@@ -949,8 +949,18 @@ Send this message (it holds no secret; fill in the brackets):
 
 ## B5. Make yourself staff 001
 
-The seva module needs one first super admin, staff number 001. On the live site that is you (or the person you
-choose; the account must already be able to sign in to the site).
+The seva module needs one first super admin, staff number 001. On the live site that is **Nikhil**: you run the
+script below with **Nikhil's live email** (the address he signs in to the live site with). The account must already
+be able to sign in to the site.
+
+**First, give Nikhil the website admin right away** (2 minutes): open **Website admin**, then **Users**, open Nikhil's
+account, set the role to **Super Admin** and click **Save**. Then run the script.
+
+**Everyone else, including you,** is added afterwards on the **Staff and roles** page with **Onboard staff**. An email
+that already has a website account (yours, another website admin's, a devotee's) can be added too: Onboard staff
+shows its current role and offers **Link this account**. The person keeps their password and gets no email. The
+account's email must be verified; an unverified account is refused, and the person can send themselves the
+verification email again from `/seva` (**Send verification email**).
 
 What you need: your copy of the repository (how-to above), the new key file from B3 saved in it as
 `.firebase-adminsdk.json`, about 15 minutes.
@@ -959,12 +969,12 @@ What you need: your copy of the repository (how-to above), the new key file from
    files**), holding two lines: `NEXT_PUBLIC_SUPABASE_URL=https://<live project ref>.supabase.co` and
    `SUPABASE_SERVICE_ROLE_KEY=<the live service_role key>`. Git ignores `.env.local`.
 2. Open a terminal in that folder and type
-   `npx tsx scripts/seva/create-first-super-admin.ts --email <the email you sign in with>`, then press **Enter**.
+   `npx tsx scripts/seva/create-first-super-admin.ts --email <Nikhil's live email>`, then press **Enter**.
    It prints no secret.
    What you should see now: a message that staff 001 was created. If it prints an error, send Nikhil the error text
    (it holds no secret).
-3. Sign out of the website and sign in again.
-   What you should see now: a **Seva Entry** item in the admin menu; it opens `/seva`. From here, everyone else is
+3. Nikhil signs out of the website and signs in again.
+   What he should see now: a **Seva Entry** item in the admin menu; it opens `/seva`. From here, everyone else is
    added on the **Staff and roles** page.
 4. Delete `.env.local` (click it, hold **Shift**, press **Delete**, click **Yes**) unless you will run another script
    soon.

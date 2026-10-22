@@ -43,14 +43,16 @@ export function SevaModuleShell({ children }: SevaModuleShellProps) {
 
 /**
  * Inside the Suspense boundary, because it reads the address. A signed-out visitor is sent to sign in and comes back
- * to the page they opened, with its query (plan A4S-2), not to the website admin.
+ * to the page they opened, with its query (plan A4S-2), not to the website admin. A signed-in website member without
+ * the admin console (devotee, volunteer) is let through to the pages' SevaGate, which shows them the no-access screen
+ * and, when their email is not verified, the way to verify it; with no seva role they get no sections and no seva call.
  */
 function GuardedSeva({ children }: SevaModuleShellProps) {
   const pathname = usePathname() ?? "";
   const search = useSearchParams()?.toString() ?? "";
   const returnTo = search ? `${pathname}?${search}` : pathname;
   return (
-    <AdminAuthGuard requiredPermission="billing" returnTo={returnTo}>
+    <AdminAuthGuard requiredPermission="billing" returnTo={returnTo} allowSignedInNonAdmin>
       <SevaMeProvider>
         <SevaMotion>
           <div className="seva">

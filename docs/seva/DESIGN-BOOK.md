@@ -113,6 +113,15 @@ one line each; the sections named are corrected in place. `DECISIONS.md` and the
 - 2026-10-18, backup retention as built (A2): the nightly copy is kept 30 days and the first-of-month copy 90 days,
   the most GitHub allows on default settings; where the 12-month monthly copies live is still open (§16.1, C-57).
 - 2026-10-19, demo data: `scripts/seva/seed-demo-data.ts`, guarded and for test projects only (`docs/seva/README.md`).
+- 2026-10-20, Onboard staff links an existing website account (owner's go-ahead after go-live testing; §3.2, §3.4,
+  §13.6): an email that already has a sign-in answers `existing_account` (with the current role) before any write; on
+  "Link this account" (`linkExisting: true`) its uid is used, no login is made and no set-password email goes, the role
+  is set, the staff row is made, and a `staff.onboard` audit row records `linked_existing`, `previous_role` and
+  `previous_active`. Already staff is refused; a super admin's account is linked only by a super admin. After the
+  security review the same day: only a verified, enabled login is linked (`unverified_account`, `disabled_account`
+  refused up front, since anyone can register a login for any email); a link's partial failure carries
+  `previous_role` and `previous_active`; an existing account with a website admin-console role, or an inactive one,
+  is linked only by a super admin (403 `needs_super_admin` for a temple admin).
 
 ## 1. Purpose and why
 

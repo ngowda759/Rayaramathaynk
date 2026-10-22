@@ -524,6 +524,8 @@ export const staffOnboardSchema = z
     role: sevaRole,
     viewOnly: z.boolean(),
     staffNo: z.number().int().min(1).max(999).optional(),
+    /** The office confirmed that an email which already has a website account is linked, not given a new login. */
+    linkExisting: z.boolean().optional(),
   })
   .superRefine((s, ctx) => {
     if (s.viewOnly && s.role !== 'temple_admin') {

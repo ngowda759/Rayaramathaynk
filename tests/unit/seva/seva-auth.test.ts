@@ -86,6 +86,7 @@ function hashOf(text: string): string {
 const fakeIdentity: jest.Mocked<IdentityAdapter> = {
   verifyRequest: jest.fn(),
   getAccessProfile: jest.fn(),
+  findLoginByEmail: jest.fn(),
   createLogin: jest.fn(),
   setAccessProfile: jest.fn(),
   setLoginEnabled: jest.fn(),

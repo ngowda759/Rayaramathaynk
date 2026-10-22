@@ -114,6 +114,40 @@ export const STAFF_TEXT = {
     `Staff no. ${staffNo} is onboarded, but the set-password email was not sent.`,
   sendEmailAgain: 'Send the email again',
 
+  // Onboard dialog: the email already has a website account (link it instead of making a new login)
+  linkTitle: { en: 'Existing website account', kn: 'ಈಗಿರುವ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ' } as Bi,
+  linkQuestion: (who: string, currentRole: string, newRole: string): Bi => ({
+    en: `${who} already has a website account (current role: ${currentRole}). Add them as staff and set their role to ${newRole}? They keep their password.`,
+    kn: `${who} ಅವರಿಗೆ ಈಗಾಗಲೇ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ ಇದೆ (ಈಗಿನ ಪಾತ್ರ: ${currentRole}). ಅವರನ್ನು ಸಿಬ್ಬಂದಿಯಾಗಿ ಸೇರಿಸಿ, ಪಾತ್ರವನ್ನು ${newRole} ಎಂದು ಬದಲಿಸಬೇಕೆ? ಅವರ ಪಾಸ್‌ವರ್ಡ್ ಬದಲಾಗುವುದಿಲ್ಲ.`,
+  }),
+  linkNoRole: 'none',
+  linkConfirm: { en: 'Link this account', kn: 'ಈ ಖಾತೆಯನ್ನು ಜೋಡಿಸಿ' } as Bi,
+  linkCancel: { en: 'Cancel', kn: 'ರದ್ದುಮಾಡಿ' } as Bi,
+  linking: 'Linking...',
+  linked: (staffNo: string): string => `Account linked · staff no. ${staffNo}`,
+  linkedHint: 'They can sign in with their existing password.',
+  linkInactive: {
+    en: 'This account is currently inactive; linking makes it active.',
+    kn: 'ಈ ಖಾತೆ ಈಗ ನಿಷ್ಕ್ರಿಯವಾಗಿದೆ; ಜೋಡಿಸಿದರೆ ಅದು ಸಕ್ರಿಯವಾಗುತ್ತದೆ.',
+  } as Bi,
+  /**
+   * Anyone can register a login for any email, so only a verified one is linked. The person sends themselves the
+   * verification email again from the /seva no-access screen (components/seva/shell/VerifyEmailNotice.tsx).
+   */
+  linkUnverified: {
+    en: "This person's email is not verified. Ask them to sign in at the website, open /seva and click Send verification email, then click the link in that email. Then try again.",
+    kn: 'ಈ ವ್ಯಕ್ತಿಯ ಇಮೇಲ್ ದೃಢೀಕರಿಸಲಾಗಿಲ್ಲ. ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ಸೈನ್ ಇನ್ ಮಾಡಿ, /seva ತೆರೆದು "Send verification email" ಒತ್ತಲು ಅವರಿಗೆ ಹೇಳಿ, ನಂತರ ಆ ಇಮೇಲ್‌ನ ಲಿಂಕ್ ಒತ್ತಲು ಹೇಳಿ. ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+  } as Bi,
+  linkDisabled: {
+    en: 'This email has a website account, but its sign-in is switched off, so it cannot be linked. Ask the site owner to switch it on first (Firebase console, Authentication, Users), or use a different email.',
+    kn: 'ಈ ಇಮೇಲ್‌ಗೆ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ ಇದೆ, ಆದರೆ ಅದರ ಸೈನ್ ಇನ್ ನಿಲ್ಲಿಸಲಾಗಿದೆ, ಆದ್ದರಿಂದ ಜೋಡಿಸಲು ಆಗುವುದಿಲ್ಲ. ಮೊದಲು ಅದನ್ನು ಆನ್ ಮಾಡಲು ಸೈಟ್ ಮಾಲೀಕರಿಗೆ ಹೇಳಿ, ಅಥವಾ ಬೇರೆ ಇಮೇಲ್ ಬಳಸಿ.',
+  } as Bi,
+  /** 403 `needs_super_admin`: the existing account holds a website admin-console role or is inactive (C-62). */
+  linkNeedsSuperAdmin: {
+    en: 'Only a super admin can add this account: it already has a website admin role or is switched off.',
+    kn: 'ಈ ಖಾತೆಯನ್ನು ಮುಖ್ಯ ನಿರ್ವಾಹಕರು ಮಾತ್ರ ಸೇರಿಸಬಹುದು: ಇದಕ್ಕೆ ಈಗಾಗಲೇ ವೆಬ್‌ಸೈಟ್ ನಿರ್ವಾಹಕ ಪಾತ್ರ ಇದೆ ಅಥವಾ ಇದು ನಿಷ್ಕ್ರಿಯವಾಗಿದೆ.',
+  } as Bi,
+
   // Drawer
   staffNoLine: (staffNo: string, email: string): string => `Staff no. ${staffNo} · ${email}`,
   save: 'Save',

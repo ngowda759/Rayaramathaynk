@@ -6,6 +6,10 @@
  * For temple admins who are not view-only and for super admins (DB §6.5, §13.6). Which role a person may give is
  * judged per request in lib/seva/server/staff.ts (only a super admin gives Super admin). After a successful onboard
  * the client sends Firebase's own set-password email (C-56).
+ *
+ * An email that already has a website account answers 400 `existing_account` (StaffExistingAccountDetail) until the
+ * request carries `linkExisting: true`; the account is then linked (no new login, answer `linkedExisting: true`) and
+ * the client sends no set-password email. The body goes to onboardStaff as parsed, `linkExisting` included.
  */
 
 import type { NextRequest } from "next/server";

@@ -45,6 +45,23 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
     return { role: data.role, isActive: data.isActive === true };
   },
 
+  async findLoginByEmail(email) {
+    try {
+      const user = await (await adminAuth()).getUserByEmail(email);
+      return {
+        externalUid: user.uid,
+        displayName: typeof user.displayName === "string" ? user.displayName : null,
+        // Fail closed: anything but a plain true is unverified, anything but a plain false is disabled.
+        emailVerified: user.emailVerified === true,
+        disabled: user.disabled !== false,
+      };
+    } catch (error) {
+      // No login with this email: the person is new. Any other failure (an outage) is the server's and answers 500.
+      if (errorCode(error) === "auth/user-not-found") return null;
+      throw error;
+    }
+  },
+
   async createLogin({ email, displayName }) {
     try {
       const user = await (await adminAuth()).createUser({ email, displayName, emailVerified: false, disabled: false });
