@@ -160,22 +160,33 @@ export function parseWorkflow(yaml: string): Job[] {
 
 /** Split a shell body into the individual commands it may run. */
 export function shellStatements(body: string): string[] {
-  const out = body
-    .split(/\n|;|&&|\|\||\|/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  // Unwrap a nested shell so a command hidden inside `bash -c '…'`, `sh -c "…"`,
+  const split = (s: string) =>
+    s
+      .split(/\n|;|&&|\|\||\|/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+  const out = split(body);
+  // Unwrap nested shells so a command hidden inside `bash -c '…'`, `sh -c "…"`,
   // `eval …` or `xargs …` is seen as the command it is. Without this, those forms
-  // are a way to run a writer the inventory scan never looks inside.
-  for (const statement of [...out]) {
-    const nested = /^(?:sudo\s+)?(?:bash|sh|zsh|dash)\s+-[a-z]*c\s+(.*)$/.exec(statement);
-    const evalMatch = /^(?:sudo\s+)?eval\s+(.*)$/.exec(statement);
-    const inner = nested?.[1] ?? evalMatch?.[1];
-    if (!inner) continue;
-    for (const part of inner.split(/\n|;|&&|\|\||\|/)) {
-      const stripped = part.trim().replace(/^['"]|['"]$/g, "").trim();
-      if (stripped) out.push(stripped);
+  // are a way to run a writer the inventory scan never looks inside. Iterated to a
+  // fixpoint (bounded) so `bash -c 'bash -c "psql …"'` does not hide behind one
+  // layer of unwrapping.
+  const nestedRe = /^(?:sudo\s+)?(?:(?:bash|sh|zsh|dash)\s+-[a-z]*c|eval)\s+(.*)$/;
+  for (let depth = 0; depth < 5; depth++) {
+    let unwrapped = 0;
+    for (const statement of [...out]) {
+      const inner = nestedRe.exec(statement)?.[1];
+      if (!inner) continue;
+      for (const part of split(inner)) {
+        const stripped = part.replace(/^['"]|['"]$/g, "").trim();
+        if (stripped && !out.includes(stripped)) {
+          out.push(stripped);
+          unwrapped++;
+        }
+      }
     }
+    if (unwrapped === 0) break;
   }
   return out;
 }

@@ -322,6 +322,19 @@ same PR.
   shadowing the function it calls was not. `guardOrderingViolations` now reports any
   function whose body contains the guard command and whose name is defined more than
   once in the job.
+- **A-2l (writer hidden in a shell form the scanner did not look inside).**
+  `postgresCliStatements` matched a bare command and the `$( )` substitution, but not
+  the backtick substitution (`` `psql …` ``), a negated condition (`if ! psql …`), or a
+  nested shell (`bash -c 'psql …'`, `eval '…'`). A writer in any of those forms was
+  invisible, so it was neither enumerated nor ordered against the guard.
+  `shellStatements` now unwraps `bash|sh|zsh -c` and `eval` bodies and re-splits them,
+  and the command prefix accepts the backtick and `if !`/`xargs` forms. `command -v
+  psql` and apt-install lines stay excluded, so install steps are not misread as
+  writers.
+- **A-2m (only one layer of nesting unwrapped).** The A-2l unwrap ran once, so
+  `bash -c 'bash -c "psql …"'` left the writer one level down and still invisible.
+  Unwrapping is now iterated to a fixpoint (bounded at five levels), so a doubly
+  nested shell is seen.
 
 ### 1.5 Previously reported counts and tests
 

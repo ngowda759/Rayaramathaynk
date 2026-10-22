@@ -469,6 +469,9 @@ describe("no database writer escapes the inventory", () => {
       'echo "select 1" | xargs psql "$DB_URL"',
       `bash -c 'psql "$DB_URL" -c "select 1"'`,
       `eval 'psql "$DB_URL" -c "select 1"'`,
+      `sudo sh -c 'psql "$DB_URL" -c "select 1"'`,
+      // Nested unwrapping is iterated, so two layers do not hide the writer.
+      `bash -c 'bash -c "psql \\"$DB_URL\\" -c \\"select 1\\""'`,
       'pg_dump "$DB_URL" > f',
       'pg_restore -d "$DB_URL" f',
     ];
