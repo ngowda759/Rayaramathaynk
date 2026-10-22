@@ -10,6 +10,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import {
+  commandStatements,
+  guardOrderingViolations,
+  parseWorkflow,
+  readPackageScripts,
+} from "./workflow-writer-inventory";
+
 const root = resolve(__dirname, "../..");
 const diagnostic = resolve(root, "scripts/diagnose-supabase-connectivity.ts");
 const guard = resolve(root, "scripts/lib/guard-approved-project.mjs");
@@ -78,245 +85,6 @@ function extractStepScript(yaml: string, stepName: string): string {
   throw new Error(`no run: block in step: ${stepName}`);
 }
 
-/** The npm scripts declared by package.json, used to resolve `npm run x` aliases. */
-function readPackageScripts(): Record<string, string> {
-  return (JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).scripts ?? {}) as Record<
-    string,
-    string
-  >;
-}
-
-interface ParsedStep {
-  job: string;
-  index: number;
-  name: string;
-  uses?: string;
-  if?: string;
-  continueOnError: boolean;
-  runBody: string;
-}
-
-/**
- * Parse a workflow into its steps, grouped by job.
- *
- * Regex-based on purpose: no YAML library is a declared dependency. A step is a
- * `- ...` list item at indent >= 4 that sits under a job in `jobs:`.
- */
-function parseWorkflowSteps(yaml: string): ParsedStep[] {
-  const lines = yaml.split("\n");
-
-  const jobHeaders: { name: string; line: number }[] = [];
-  let inJobs = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].replace(/\s+$/, "");
-    const trimmed = line.trim();
-    if (trimmed === "" || trimmed.startsWith("#")) continue;
-    const indent = line.length - line.trimStart().length;
-    if (/^jobs:\s*$/.test(trimmed)) {
-      inJobs = true;
-      continue;
-    }
-    if (!inJobs) continue;
-    const m = /^([A-Za-z0-9_.-]+):\s*$/.exec(trimmed);
-    if (m && indent === 2) jobHeaders.push({ name: m[1], line: i });
-  }
-  const jobEnd = new Map<string, number>();
-  for (let i = 0; i < jobHeaders.length; i++) {
-    jobEnd.set(jobHeaders[i].name, jobHeaders[i + 1]?.line ?? lines.length);
-  }
-
-  const starts: { line: number; job: string }[] = [];
-  let currentJob = "";
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].replace(/\s+$/, "");
-    const trimmed = line.trim();
-    if (trimmed === "" || trimmed.startsWith("#")) continue;
-    const indent = line.length - line.trimStart().length;
-    const header = jobHeaders.find((h) => h.line === i);
-    if (header) {
-      currentJob = header.name;
-      continue;
-    }
-    if (currentJob && /^-\s/.test(trimmed) && indent >= 4) starts.push({ line: i, job: currentJob });
-  }
-
-  const steps: ParsedStep[] = [];
-  const counts = new Map<string, number>();
-  for (let s = 0; s < starts.length; s++) {
-    const { line: from, job } = starts[s];
-    const next = starts[s + 1];
-    const to = next && next.job === job ? next.line : jobEnd.get(job) ?? lines.length;
-    const chunk = lines.slice(from, to);
-
-    // Locate the run block and its span so step-level keys (`if:`,
-    // `continue-on-error:`) are read from everything *outside* the shell body.
-    const runIdx = chunk.findIndex((l) => /^\s*run:\s*/.test(l));
-    let runEnd = -1;
-    let runBody = "";
-    if (runIdx >= 0) {
-      const m = /^(\s*)run:\s*(.*)$/.exec(chunk[runIdx]);
-      const runIndent = m[1].length;
-      const inline = m[2];
-      if (inline && !inline.startsWith("|") && !inline.startsWith(">")) {
-        runBody = inline;
-        runEnd = runIdx + 1;
-      } else {
-        const body: string[] = [];
-        let j = runIdx + 1;
-        for (; j < chunk.length; j++) {
-          const l = chunk[j];
-          if (l.trim() === "") {
-            body.push("");
-            continue;
-          }
-          if (l.length - l.trimStart().length <= runIndent) break;
-          body.push(l.slice(runIndent + 2));
-        }
-        runBody = body.join("\n");
-        runEnd = j;
-      }
-    }
-    const keyRegion = chunk.filter((_, i) => i < runIdx || i >= runEnd).join("\n");
-
-    const index = counts.get(job) ?? 0;
-    counts.set(job, index + 1);
-    steps.push({
-      job,
-      index,
-      name: /^\s*-\s*name:\s*(.*)$/.exec(chunk[0])?.[1]?.trim() ?? "",
-      uses: /^\s*uses:\s*(\S+)/m.exec(keyRegion)?.[1],
-      if: /^\s*if:\s*(.*)$/m.exec(keyRegion)?.[1]?.trim(),
-      continueOnError: /^\s*continue-on-error:\s*true\s*$/m.test(keyRegion),
-      runBody,
-    });
-  }
-  return steps;
-}
-
-/** Split a shell body into the individual commands it may run. */
-function shellStatements(body: string): string[] {
-  return body
-    .split(/\n|;|&&|\|\||\|/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-const CMD_PREFIX = "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:sudo\\s+|exec\\s+)?";
-
-/**
- * Statement indices within `body` that actually invoke `command` as a command,
- * directly or through an npm script whose value starts with `command`.
- */
-function commandStatements(
-  body: string,
-  command: string,
-  scripts: Record<string, string>,
-): number[] {
-  const sts = shellStatements(body);
-  const direct = new RegExp(`^${CMD_PREFIX}${escapeRegExp(command)}(?:\\s|$)`);
-  const hits: number[] = [];
-  sts.forEach((s, i) => {
-    if (direct.test(s)) hits.push(i);
-  });
-  for (const [name, value] of Object.entries(scripts)) {
-    if (!String(value).trim().startsWith(command)) continue;
-    const alias = new RegExp(`^${CMD_PREFIX}npm\\s+run\\s+${escapeRegExp(name)}(?:\\s|$)`);
-    sts.forEach((s, i) => {
-      if (alias.test(s) && !hits.includes(i)) hits.push(i);
-    });
-  }
-  return hits.sort((a, b) => a - b);
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Whether a step's `if:` makes it never run in practice.
- *
- * Deliberately narrow: only an expression that reduces to a literal `false`
- * (with or without `${{ }}`) is treated as disabling. A legitimate condition
- * such as `!cancelled()`, an event check, or `inputs.dry_run == false` must not
- * be reported, or the check would fail on unrelated changes and lose its
- * authority.
- */
-function stepIsDisabled(step: ParsedStep): boolean {
-  if (!step.if) return false;
-  const normalized = step.if
-    .replace(/^\$\{\{/, "")
-    .replace(/\}\}$/, "")
-    .trim()
-    .replace(/^['"]|['"]$/g, "")
-    .trim();
-  return normalized === "false";
-}
-
-/**
- * Every way the workflow can run one of `commands` without having run
- * `guardCommand` first, inside the same job.
- *
- * Ordering compares (step index, statement index), not raw text offset. That is
- * what makes this robust: a guard whose text is still present but which is
- * disabled with `if: false`, marked `continue-on-error`, echoed rather than
- * executed, or simply moved after the command is reported as a violation.
- */
-function guardOrderingViolations(
-  yaml: string,
-  commands: string[],
-  guardCommand: string,
-  scripts: Record<string, string>,
-): string[] {
-  const steps = parseWorkflowSteps(yaml);
-  const violations: string[] = [];
-  for (const job of [...new Set(steps.map((s) => s.job))]) {
-    const jobSteps = steps.filter((s) => s.job === job).sort((a, b) => a.index - b.index);
-
-    let guardPos: { step: number; stmt: number } | null = null;
-    let guardStep: ParsedStep | null = null;
-    for (const step of jobSteps) {
-      const hits = commandStatements(step.runBody, guardCommand, scripts);
-      if (hits.length > 0) {
-        guardPos = { step: step.index, stmt: hits[0] };
-        guardStep = step;
-        break;
-      }
-    }
-
-    for (const command of commands) {
-      let cmdPos: { step: number; stmt: number } | null = null;
-      for (const step of jobSteps) {
-        const hits = commandStatements(step.runBody, command, scripts);
-        if (hits.length > 0) {
-          cmdPos = { step: step.index, stmt: hits[0] };
-          break;
-        }
-      }
-      if (!cmdPos) continue;
-
-      if (!guardPos || !guardStep) {
-        violations.push(`job "${job}": runs "${command}" with no guard step`);
-        continue;
-      }
-      const runsAfterGuard =
-        guardPos.step < cmdPos.step ||
-        (guardPos.step === cmdPos.step && guardPos.stmt < cmdPos.stmt);
-      if (!runsAfterGuard) {
-        violations.push(
-          `job "${job}": "${command}" (step ${cmdPos.step}) does not run after the guard (step ${guardPos.step})`,
-        );
-        continue;
-      }
-      if (stepIsDisabled(guardStep)) {
-        violations.push(`job "${job}": guard is disabled by if: ${guardStep.if}`);
-      }
-      if (guardStep.continueOnError) {
-        violations.push(`job "${job}": guard is continue-on-error, so it cannot fail the job`);
-      }
-    }
-  }
-  return violations;
-}
 
 /**
  * Run the "Check confirmation phrase" step exactly as GitHub would: the step body
@@ -563,7 +331,7 @@ describe("migration workflow safety properties", () => {
     // Non-vacuity: the workflow must really contain both the guard and the
     // commands this assertion reasons about. Without this, a renamed step could
     // silently reduce the check above to "found nothing to check".
-    const steps = parseWorkflowSteps(wf);
+    const steps = parseWorkflow(wf).flatMap((j) => j.steps);
     expect(steps.length).toBeGreaterThan(0);
     for (const command of [guardCommand, ...dbCommands]) {
       const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
@@ -632,13 +400,29 @@ describe("migration workflow safety properties", () => {
       }
     }
 
-    // A legitimate `if:` must NOT be mistaken for a disabled guard, or the check
-    // would fail on unrelated edits and lose its authority.
-    const allowedIfs = [
+    // A condition that can be false at run time must be reported, because the
+    // guard would then be skipped while the write below it still runs.
+    // `github.event_name == 'workflow_dispatch'` is deliberately in this list: it
+    // is not a static false, but it is an unverifiable condition on a guard, and
+    // the correct place for an event gate is on the write step, not the guard.
+    const reportedIfs = [
       "${{ github.event_name == 'workflow_dispatch' }}",
-      "!cancelled()",
+      "${{ github.event_name == 'push' }}",
       "${{ inputs.dry_run == false }}",
+      "!true",
     ];
+    for (const condition of reportedIfs) {
+      const yaml = wrap(
+        [["      - name: Guard", `        if: ${condition}`, `        run: ${guard}`].join("\n"), push].join("\n"),
+      );
+      expect(`${condition}:${guardOrderingViolations(yaml, commands, guard, scripts).length > 0}`).toBe(
+        `${condition}:true`,
+      );
+    }
+
+    // Run-guaranteeing conditions must NOT be reported, or the check would fail on
+    // an unrelated edit and lose its authority.
+    const allowedIfs = ["always()", "!cancelled()", "success()"];
     for (const condition of allowedIfs) {
       const yaml = wrap(
         [["      - name: Guard", `        if: ${condition}`, `        run: ${guard}`].join("\n"), push].join("\n"),
@@ -827,7 +611,7 @@ describe("write-capable migration workflows verify the destination project", () 
 
     // Non-vacuity: assert the guard and each command are genuinely present, so the
     // check above cannot pass by finding nothing.
-    const steps = parseWorkflowSteps(wf);
+    const steps = parseWorkflow(wf).flatMap((j) => j.steps);
     expect(steps.length).toBeGreaterThan(0);
     for (const command of [guardCommand, ...commands]) {
       const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
@@ -858,7 +642,7 @@ describe("write-capable migration workflows verify the destination project", () 
       expect(violations).toEqual([]);
 
       // Non-vacuity: the guard and every command must genuinely be present.
-      const steps = parseWorkflowSteps(wf);
+      const steps = parseWorkflow(wf).flatMap((j) => j.steps);
       expect(steps.length).toBeGreaterThan(0);
       for (const command of [guardCommand, ...commands]) {
         const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
@@ -906,7 +690,7 @@ describe("write-capable migration workflows verify the destination project", () 
     for (const file of readdirSync(resolve(root, ".github/workflows"))) {
       if (!file.endsWith(".yml") && !file.endsWith(".yaml")) continue;
       const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
-      const steps = parseWorkflowSteps(wf);
+      const steps = parseWorkflow(wf).flatMap((j) => j.steps);
 
       // Which of the known writers this workflow really executes (a command in a
       // `run:` body, or an npm alias that resolves to one), and which guards it has.

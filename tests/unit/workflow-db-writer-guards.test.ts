@@ -58,6 +58,22 @@ describe("database-writer inventory", () => {
     ]);
   });
 
+  it("declares a guard style for every entry, so none is silently skipped", () => {
+    // Regression: `seva-maintenance` — the destructive writer — shipped without a
+    // `guardStyle`. The membership check filters on `guardStyle === "step"`, so an
+    // absent value skipped that entry entirely: it could have used a private,
+    // non-shared guard and still passed. Every entry must declare its style.
+    for (const entry of ALL_INVENTORY) {
+      expect(`${entry.id}:${entry.guardStyle}`).toMatch(
+        new RegExp(`^${entry.id}:(step|in-script)$`),
+      );
+    }
+    // And the destructive writer must be one the guard-membership check inspects.
+    const purge = DB_WRITER_INVENTORY.find((w) => w.id === "seva-maintenance")!;
+    expect(purge.guardStyle).toBe("step");
+    expect(GUARD_COMMANDS).toContain(purge.guard);
+  });
+
   it("uses only guard scripts that exist and are shared, not re-implemented", () => {
     for (const entry of ALL_INVENTORY) {
       if (entry.guardStyle !== "step") continue;
@@ -105,7 +121,9 @@ describe.each(DB_WRITER_INVENTORY)("$file ($id)", (entry) => {
   });
 
   it("runs its destination guard before every database command", () => {
-    expect(guardOrderingViolations(yaml, entry.commands, entry.guard, scripts)).toEqual([]);
+    expect(
+      guardOrderingViolations(yaml, entry.commands, entry.guard, scripts, entry.guardVar),
+    ).toEqual([]);
   });
 
   it("passes the guarded value through env, never interpolated into the shell", () => {
@@ -340,8 +358,92 @@ describe("no database writer escapes the inventory", () => {
       ["bash scripts/seva/backup.sh"],
       "node scripts/lib/guard-approved-db-url.mjs",
       scripts,
+      "SEVA_BACKUP_DB_URL",
     );
     expect(violations.map((v) => v.message).join(" ")).toMatch(/continue-on-error/);
+  });
+
+  it("detects a conditional guard, which may be skipped (mutation control)", () => {
+    // A guard whose condition can be false at run time may be skipped while the
+    // write below it still runs. Previously only a literal `false` was caught, so
+    // every other condition passed — including `github.event_name == 'push'`,
+    // which is never true for the dispatch/schedule triggers these workflows use.
+    const yaml = readWorkflow("seva-backup.yml");
+    for (const condition of [
+      "if: false",
+      "if: ${{ false }} # note",
+      "if: !true",
+      "if: github.event_name == 'push'",
+      "if: ${{ inputs.mode == 'never' }}",
+      "if: ${{ inputs.dry_run == false }}",
+    ]) {
+      const mutated = yaml.replace(
+        "      - name: Guard approved database URL\n        id: guard\n",
+        `      - name: Guard approved database URL\n        id: guard\n        ${condition}\n`,
+      );
+      expect(mutated).not.toBe(yaml);
+      const messages = guardOrderingViolations(
+        mutated,
+        ["bash scripts/seva/backup.sh"],
+        "node scripts/lib/guard-approved-db-url.mjs",
+        scripts,
+        "SEVA_BACKUP_DB_URL",
+      )
+        .map((v) => v.message)
+        .join(" ");
+      expect(`${condition} :: ${/guard is conditional|disabled by if/.test(messages)}`).toBe(
+        `${condition} :: true`,
+      );
+    }
+
+    // Run-guaranteeing conditions must NOT be reported, or the check would fail on
+    // an unrelated edit and lose its authority.
+    for (const condition of ["if: always()", "if: !cancelled()", "if: success()"]) {
+      const mutated = yaml.replace(
+        "      - name: Guard approved database URL\n        id: guard\n",
+        `      - name: Guard approved database URL\n        id: guard\n        ${condition}\n`,
+      );
+      expect(mutated).not.toBe(yaml);
+      const messages = guardOrderingViolations(
+        mutated,
+        ["bash scripts/seva/backup.sh"],
+        "node scripts/lib/guard-approved-db-url.mjs",
+        scripts,
+        "SEVA_BACKUP_DB_URL",
+      )
+        .map((v) => v.message)
+        .join(" ");
+      expect(`${condition} :: ${messages === ""}`).toBe(`${condition} :: true`);
+    }
+  });
+
+  it("detects a raw client call that reads a different, unguarded secret (mutation control)", () => {
+    // Ordering alone is not protection: a psql call added *after* the guard but
+    // reading some other connection variable connects to a destination the guard
+    // never verified.
+    const yaml = readWorkflow("seva-backup.yml");
+    const mutated = yaml.replace(
+      "      - name: Record the run in ops_backup_runs",
+      [
+        "      - name: Sneaky write with an unguarded URL",
+        "        env:",
+        "          OTHER_DB_URL: $" + "{{ secrets.SOME_OTHER_DB_URL }}",
+        "        run: psql \"$OTHER_DB_URL\" -c 'delete from x'",
+        "",
+        "      - name: Record the run in ops_backup_runs",
+      ].join("\n"),
+    );
+    expect(mutated).not.toBe(yaml);
+    const messages = guardOrderingViolations(
+      mutated,
+      ["bash scripts/seva/backup.sh"],
+      "node scripts/lib/guard-approved-db-url.mjs",
+      scripts,
+      "SEVA_BACKUP_DB_URL",
+    )
+      .map((v) => v.message)
+      .join(" ");
+    expect(messages).toMatch(/connects with OTHER_DB_URL, but the guard verified SEVA_BACKUP_DB_URL/);
   });
 });
 
@@ -376,7 +478,13 @@ describe("the read-only Prisma connection path verifies its destination", () => 
 
   it("still refuses to run the probe before verifying the destination", () => {
     const yaml = readWorkflow(entry.file);
-    const violations = guardOrderingViolations(yaml, entry.commands, entry.guard, scripts);
+    const violations = guardOrderingViolations(
+      yaml,
+      entry.commands,
+      entry.guard,
+      scripts,
+      entry.guardVar,
+    );
     expect(violations).toEqual([]);
   });
 

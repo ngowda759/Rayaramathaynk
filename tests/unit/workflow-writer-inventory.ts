@@ -112,25 +112,27 @@ export function parseWorkflow(yaml: string): Job[] {
       let runBody = "";
       if (runIdx >= 0) {
         const m = /^(\s*)run:\s*(.*)$/.exec(body[runIdx]);
-        const runIndent = m[1].length;
-        const inline = m[2];
-        if (inline && !inline.startsWith("|") && !inline.startsWith(">")) {
-          runBody = inline;
-          runEnd = runIdx + 1;
-        } else {
-          const out: string[] = [];
-          let k = runIdx + 1;
-          for (; k < body.length; k++) {
-            const l = body[k];
-            if (l.trim() === "") {
-              out.push("");
-              continue;
+        if (m) {
+          const runIndent = m[1].length;
+          const inline = m[2];
+          if (inline && !inline.startsWith("|") && !inline.startsWith(">")) {
+            runBody = inline;
+            runEnd = runIdx + 1;
+          } else {
+            const out: string[] = [];
+            let k = runIdx + 1;
+            for (; k < body.length; k++) {
+              const l = body[k];
+              if (l.trim() === "") {
+                out.push("");
+                continue;
+              }
+              if (l.length - l.trimStart().length <= runIndent) break;
+              out.push(l.slice(runIndent + 2));
             }
-            if (l.length - l.trimStart().length <= runIndent) break;
-            out.push(l.slice(runIndent + 2));
+            runBody = out.join("\n");
+            runEnd = k;
           }
-          runBody = out.join("\n");
-          runEnd = k;
         }
       }
       // Keys are read only from outside the shell body, so a `run:` line such as
@@ -196,19 +198,22 @@ export function readPackageScripts(): Record<string, string> {
 /**
  * Whether a step's `if:` makes it never run in practice.
  *
- * Deliberately narrow: only an expression that reduces to a literal `false` is
- * treated as disabling, so a legitimate condition such as `!cancelled()` or
- * `inputs.dry_run == false` is not a false positive.
+ * Only expressions that reduce to a literal `false` are treated as disabling, so
+ * a legitimate condition such as `!cancelled()` or `inputs.dry_run == false` is
+ * not a false positive. A trailing YAML comment and the `!true` / quoted forms are
+ * handled, because each of those is a way to write "never" that a plain
+ * `=== "false"` comparison would miss.
  */
 export function stepIsDisabled(step: Step): boolean {
   if (!step.if) return false;
   const normalized = step.if
+    .replace(/\s+#.*$/, "") // trailing YAML comment
     .replace(/^\$\{\{/, "")
     .replace(/\}\}$/, "")
     .trim()
     .replace(/^['"]|['"]$/g, "")
     .trim();
-  return normalized === "false";
+  return normalized === "false" || normalized === "!true";
 }
 
 /**
@@ -377,6 +382,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     destructive: true,
     trigger: "scheduled",
     environment: "",
+    guardStyle: "step",
   },
 ];
 
@@ -462,6 +468,26 @@ export const POSTGRES_CLI_RE = new RegExp(
 );
 
 /**
+ * Whether an npm script's value, when run, reaches a database.
+ *
+ * Two shapes are recognised, because both appear in this repository:
+ *   - the value *is* a Postgres CLI command (`prisma migrate diff …`,
+ *     `supabase db push`, `psql …`);
+ *   - the value *invokes* a `scripts/…` file that opens a connection
+ *     (`npx tsx scripts/migrate-core-to-supabase.ts`).
+ *
+ * Resolving the alias matters: `npm run migrate:core` is invisible to a scan for
+ * literal `psql`/`prisma` text, so without this a workflow that switched from a
+ * direct command to an npm alias would silently leave the inventory.
+ */
+function npmScriptValueReachesDatabase(value: string): boolean {
+  const v = String(value ?? "").trim();
+  if (!v) return false;
+  if (/^(npx\s+)?(prisma|supabase|psql|pg_dump|pg_restore)\s/.test(v)) return true;
+  return referencedScripts(v).some(scriptTouchesDatabase);
+}
+
+/**
  * Statements that reach Postgres through an npm script alias, resolved through
  * package.json (for example `npm run prisma:drift` -> `prisma migrate diff`).
  */
@@ -470,7 +496,7 @@ export function postgresCliStatements(
   scripts: Record<string, string>,
 ): string[] {
   const aliasTargets = Object.entries(scripts)
-    .filter(([, value]) => /^(npx\s+)?(prisma|supabase)\s/.test(String(value).trim()))
+    .filter(([, value]) => npmScriptValueReachesDatabase(value))
     .map(([name]) => name);
   return shellStatements(body).filter((s) => {
     if (POSTGRES_CLI_RE.test(s)) return true;
@@ -541,6 +567,44 @@ export function workflowFiles(): string[] {
     .sort();
 }
 
+/**
+ * The database-URL environment variable a raw client statement connects with.
+ *
+ * `psql "$SEVA_BACKUP_DB_URL" …` -> "SEVA_BACKUP_DB_URL". Returns "" when the
+ * statement names no recognisable variable.
+ */
+export function dbUrlVarIn(statement: string): string {
+  return /\$\{?([A-Za-z_][A-Za-z0-9_]*DB_URL)\}?/.exec(statement)?.[1] ?? "";
+}
+
+/**
+ * Whether a step's `if:` can reduce how often the step runs.
+ *
+ * `always()`, `success()` and `!cancelled()` are *run-guaranteeing* for a guard:
+ * they never cause the guard to be skipped while a later, default-condition
+ * database step still runs. Anything else — a literal `false`, or a condition the
+ * checker cannot evaluate such as `github.event_name == 'push'` or
+ * `inputs.dry_run == false` — may be false at run time, which would skip the guard
+ * while leaving the write in place. Those are reported rather than guessed about.
+ */
+export function guardIfMaySkip(ifExpr: string): boolean {
+  const normalized = String(ifExpr ?? "")
+    .replace(/\s+#.*$/, "")
+    .replace(/^\$\{\{/, "")
+    .replace(/\}\}$/, "")
+    .trim();
+  if (!normalized) return false;
+  const guaranteeing = [
+    "always()",
+    "success()",
+    "!cancelled()",
+    "!failure()",
+    "!cancelled() && !failure()",
+    "!failure() && !cancelled()",
+  ];
+  return !guaranteeing.includes(normalized);
+}
+
 export interface OrderingViolation {
   job: string;
   message: string;
@@ -555,12 +619,25 @@ export interface OrderingViolation {
  * than executed, or moved after the command is reported. A write step whose `if:`
  * runs regardless of earlier failure must also name the guard's outcome, since
  * `always()` would otherwise bypass a failed guard.
+ *
+ * When `guardVar` is supplied, two further invariants are enforced:
+ *
+ *   - the guard step must be unconditional. Any `if:` on a destination guard is a
+ *     potential bypass and there is no legitimate reason for one, so a conditional
+ *     guard is reported rather than guessed about (a condition such as
+ *     `github.event_name == 'push'` is never true for the dispatch/schedule events
+ *     these workflows actually use, and no static check can evaluate it);
+ *   - a raw `psql`/`pg_dump`/`pg_restore` statement must connect with the same
+ *     variable the guard verified. A psql call reading a *different* secret than
+ *     the guarded one is unverified even though a guard step ran earlier in the
+ *     job.
  */
 export function guardOrderingViolations(
   yaml: string,
   commands: string[],
   guardCommand: string,
   scripts: Record<string, string>,
+  guardVar?: string,
 ): OrderingViolation[] {
   const jobs = parseWorkflow(yaml);
   const violations: OrderingViolation[] = [];
@@ -574,6 +651,35 @@ export function guardOrderingViolations(
         guardStep = step;
         guardStmt = hits[0];
         break;
+      }
+    }
+
+    // A guard whose condition may be false at run time can be skipped while the
+    // write below it still runs. Only run-guaranteeing conditions are accepted;
+    // everything else (a literal `false`, or a condition such as
+    // `github.event_name == 'push'` that no static check can evaluate) is reported.
+    if (guardStep && guardIfMaySkip(guardStep.if)) {
+      violations.push({
+        job: job.name,
+        message: `guard is conditional (if: ${guardStep.if}) and may be skipped`,
+      });
+    }
+
+    // Raw client statements are writers in their own right, and may read a
+    // different credential than the guarded one.
+    if (guardVar) {
+      for (const step of job.steps) {
+        for (const statement of rawDbClientStatements(step.runBody)) {
+          const used = dbUrlVarIn(statement);
+          if (used && used !== guardVar) {
+            violations.push({
+              job: job.name,
+              message:
+                `raw database command in step "${step.name}" connects with ${used}, ` +
+                `but the guard verified ${guardVar}`,
+            });
+          }
+        }
       }
     }
 

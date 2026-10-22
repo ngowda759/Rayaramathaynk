@@ -273,6 +273,47 @@ Environment bindings are **deployment controls, not approval gates**: `productio
 still has `protection_rules: []` (C-5), so `environment: production` does not by
 itself pause for a human. PR-A2 does not claim otherwise.
 
+#### A-2f..A-2j: gaps found by the independent review round (2026-10-22)
+
+An adversarial re-read of the execution paths — shell syntax, helper scripts,
+command substitutions and `if:` semantics — found five more defects in PR-A2's own
+checking layer. None affected a live workflow's behaviour, but each was a way the
+suite could have passed while a guard was absent or bypassed. All are fixed in the
+same PR.
+
+- **A-2f (inventory entry skipped by its own check).** `seva-maintenance` — the
+  **destructive** writer — was missing `guardStyle`. The "uses only shared guards"
+  assertion filters on `guardStyle === "step"`, so the one entry where a private,
+  re-implemented guard would matter most was silently skipped. `guardStyle` is now
+  required on every entry, and the missing value is a type error
+  (`tests/unit/workflow-writer-inventory.ts:380`). A regression test pins it.
+- **A-2g (a conditional guard is not a guard).** Only a literal `false` counted as
+  disabling, so `if: github.event_name == 'push'` — never true for the
+  dispatch/schedule triggers these workflows use — passed as a valid guard. Any
+  guard condition that can be false at run time is now reported; only
+  run-guaranteeing conditions (`always()`, `success()`, `!cancelled()`) are
+  accepted. The old expectation that blessed
+  `github.event_name == 'workflow_dispatch'` on a guard was itself the bug: an
+  event gate belongs on the write step, not the guard
+  (`tests/unit/supabase-diagnostics-migration-safety.test.ts`).
+- **A-2h (guard credential ≠ writer credential).** A `psql` statement added after
+  the guard but reading a *different* connection variable connected to a
+  destination the guard never verified, and was invisible because raw `psql`
+  statements are not inventory `commands`. `guardOrderingViolations` now compares
+  the variable each raw client call uses against `guardVar`.
+- **A-2i (npm-alias blind spot).** The completeness detector resolved `npm run`
+  aliases only when the script value began with `prisma`/`supabase`. An alias such
+  as `npm run migrate:core` (`npx tsx scripts/migrate-core-to-supabase.ts`) was
+  invisible, so a workflow switching from a direct command to an alias could leave
+  the inventory. Aliases are now resolved through the script's own referenced
+  `scripts/` paths and `scriptTouchesDatabase`.
+- **A-2j (duplicated parser and guard).** `supabase-diagnostics-migration-safety.test.ts`
+  carried its own copy of the parser and of `guardOrderingViolations`, weaker than
+  the canonical one (no `if`/`!` prefix, no `command` wrapper, no command
+  substitution, no `always()`-outcome rule). It now imports the single canonical
+  implementation from `tests/unit/workflow-writer-inventory.ts`, so the two suites
+  cannot drift and no guard logic is duplicated.
+
 ### 1.5 Previously reported counts and tests
 
 Revalidated 2026-10-21 (this PR revision):
