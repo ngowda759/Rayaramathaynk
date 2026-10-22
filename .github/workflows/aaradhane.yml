@@ -29,16 +29,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: "npm"
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
@@ -51,14 +50,22 @@ jobs:
 
       - name: Determine target year
         id: year
+        env:
+          INPUT_YEAR: ${{ inputs.year }}
         run: |
           # Default to next year
           CURRENT_YEAR=$(date +%Y)
           TARGET_YEAR=$((CURRENT_YEAR + 1))
           
-          # Use input year if provided
-          if [ -n "${{ inputs.year }}" ]; then
-            TARGET_YEAR=${{ inputs.year }}
+          # Use input year if provided. Validated here so the value that reaches
+          # later steps (via this step's output) is always a plain 4-digit year.
+          if [[ -n "$INPUT_YEAR" ]]; then
+            if [[ "$INPUT_YEAR" =~ ^[0-9]{4}$ ]]; then
+              TARGET_YEAR="$INPUT_YEAR"
+            else
+              echo "::error::year input must be exactly four digits (e.g. 2027); got a different value."
+              exit 1
+            fi
           fi
           
           echo "target_year=$TARGET_YEAR" >> $GITHUB_OUTPUT
@@ -66,8 +73,9 @@ jobs:
 
       - name: Check if Panchanga data exists
         id: check_panchanga
+        env:
+          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
         run: |
-          TARGET_YEAR=${{ steps.year.outputs.target_year }}
           PANCHANGA_DIR="data/panchanga/$TARGET_YEAR"
           
           if [ -d "$PANCHANGA_DIR" ]; then
@@ -83,8 +91,9 @@ jobs:
 
       - name: Generate Panchanga data if needed
         if: steps.check_panchanga.outputs.exists != 'true'
+        env:
+          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
         run: |
-          TARGET_YEAR=${{ steps.year.outputs.target_year }}
           mkdir -p "data/panchanga/$TARGET_YEAR"
           
           # Generate Panchanga for each day of the year
@@ -236,17 +245,18 @@ jobs:
 
       - name: Generate Aaradhane Events (Dry Run)
         if: inputs.dry_run == 'true' || steps.check_panchanga.outputs.exists != 'true'
+        env:
+          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
         run: |
-          TARGET_YEAR=${{ steps.year.outputs.target_year }}
-          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year $TARGET_YEAR --dry-run
+          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year "$TARGET_YEAR" --dry-run
 
       - name: Generate and Update Aaradhane Events
         if: inputs.dry_run != 'true' && steps.check_panchanga.outputs.exists == 'true'
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-admin-key.json
+          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
         run: |
-          TARGET_YEAR=${{ steps.year.outputs.target_year }}
           
           # Check if Firebase is configured
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
@@ -260,21 +270,29 @@ jobs:
 
       - name: Upload Aaradhane Data
         if: steps.check_panchanga.outputs.exists != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: aaradhane-panchanga-${{ steps.year.outputs.target_year }}
           path: data/panchanga/${{ steps.year.outputs.target_year }}/
           retention-days: 30
 
       - name: Summary
+        env:
+          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
+          PANCHANGA_EXISTS: ${{ steps.check_panchanga.outputs.exists }}
+          PANCHANGA_FILES: ${{ steps.check_panchanga.outputs.file_count }}
+          IS_DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          TARGET_YEAR=${{ steps.year.outputs.target_year }}
           echo "## Aaradhane Event Generation Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Year:** $TARGET_YEAR" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Panchanga Data:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Exists: ${{ steps.check_panchanga.outputs.exists }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Files: ${{ steps.check_panchanga.outputs.file_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Exists: $PANCHANGA_EXISTS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Files: $PANCHANGA_FILES" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** ${{ inputs.dry_run == 'true' && 'Dry Run' || 'Live Update' }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "$IS_DRY_RUN" == "true" ]]; then
+            echo "**Mode:** Dry Run" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Mode:** Live Update" >> "$GITHUB_STEP_SUMMARY"
+          fi

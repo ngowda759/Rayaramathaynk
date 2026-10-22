@@ -2,6 +2,15 @@ name: Firestore Production Export
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_artifact:
+        description: >-
+          Publish the raw export data as a build artifact. This is REFUSED unless
+          the repository is private, because the export contains decoded
+          production documents (receipts, contacts, messages). Leave false to
+          publish only the non-personal MANIFEST for verification.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -11,10 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -224,10 +232,51 @@ jobs:
             echo "- **Status:** ❌ Export Failed (MANIFEST not found)" >> $GITHUB_STEP_SUMMARY
           fi
 
-          echo "- **Artifact Name:** firestore-production-export" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact Name:** firestore-production-export-manifest (non-personal MANIFEST; raw data publication is policy-gated and refused on a public repository)" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload export artifact
-        uses: actions/upload-artifact@v4
+      # Containment: the export contains decoded production documents (receipts,
+      # contacts, messages). On a public repository an Actions artifact is
+      # world-readable, so the raw data must NEVER be uploaded there automatically.
+      - name: Evaluate artifact upload policy
+        id: upload_policy
+        env:
+          INPUT_PUBLISH_ARTIFACT: ${{ inputs.publish_artifact }}
+          REPO_PRIVATE: ${{ github.event.repository.private }}
+          PUBLISH_TOKEN: ${{ secrets.FIRESTORE_EXPORT_ARTIFACT_TOKEN }}
+        run: |
+          publish="${INPUT_PUBLISH_ARTIFACT:-false}"
+          private="${REPO_PRIVATE:-false}"
+          allow_publish="false"
+          if [[ "$publish" != "true" ]]; then
+            echo "::notice::Raw export artifact refused by default. Publishing MANIFEST only."
+          elif [[ "$private" == "true" ]]; then
+            if [[ -n "$PUBLISH_TOKEN" ]]; then
+              allow_publish="true"
+            else
+              echo "::warning::publish_artifact requested but the private artifact destination is not configured; refusing to upload raw data to a public artifact."
+            fi
+          else
+            echo "::warning::publish_artifact requested on a public repository; refusing to upload raw export data to a world-readable artifact."
+          fi
+          echo "allow=$allow_publish" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse unsafe artifact publication
+        if: inputs.publish_artifact == true && steps.upload_policy.outputs.allow != 'true'
+        run: |
+          echo "::error::Refusing to upload production PII to a public artifact. Configure an access-controlled destination (private repository or an approved private artifact destination) before re-running."
+          exit 1
+
+      - name: Upload verification MANIFEST (no document bodies)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: firestore-production-export-manifest
+          path: data/firestore-dump/MANIFEST.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload raw export artifact (private destination, explicit opt-in)
+        if: steps.upload_policy.outputs.allow == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: firestore-production-export
           path: |

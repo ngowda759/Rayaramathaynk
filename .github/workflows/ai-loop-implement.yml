@@ -78,14 +78,17 @@ jobs:
 
       - name: Mark the task in progress
         if: ${{ steps.task.outputs.id != '' }}
-        run: node .ai/scripts/loop-tasks.mjs start --task "${{ steps.task.outputs.id }}"
+        env:
+          TASK_ID: ${{ steps.task.outputs.id }}
+        run: node .ai/scripts/loop-tasks.mjs start --task "$TASK_ID"
 
       - name: Dispatch the implementation conversation
         if: ${{ steps.task.outputs.id != '' }}
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          TASK_ID: ${{ steps.task.outputs.id }}
         run: |
           node .ai/scripts/dispatch-conversation.mjs \
             --stage implement \
-            --task "${{ steps.task.outputs.id }}"
+            --task "$TASK_ID"

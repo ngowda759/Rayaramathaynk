@@ -2,16 +2,34 @@
 //
 // Purpose: determine, from inside GitHub Actions (where the real secrets live),
 // which layer of the Supabase stack is reachable and which is not:
-//   1. REST/PostgREST data path  (what the running app uses)
-//   2. Supabase Auth             (whether the project has Auth enabled)
-//   3. Raw PostgreSQL            (what Prisma migrations will use)
+//   1. Project identity          (must be the one approved project)
+//   2. REST/PostgREST data path  (what the running app uses)
+//   3. Supabase Auth             (whether the project has Auth enabled)
+//   4. Raw PostgreSQL            (what Prisma migrations will use)
 //
-// This script performs SELECTs and capability probes only. It never writes,
-// never mutates schema and never prints a credential, key or password. Hostnames
-// are printed because they are public (NEXT_PUBLIC_SUPABASE_URL is shipped to
-// browsers); secrets are reduced to presence plus length.
+// This script performs SELECTs and capability probes only. It never writes, never
+// mutates schema and never prints a credential, key or password.
+//
+// Exit status AGREES with the printed summary: 0 only when every required check
+// passed and the project identity was verified; 1 otherwise (including an
+// unhandled exception, and including an identity that cannot be verified).
+//
+// On log output and secret masking: GitHub Actions masks any occurrence of a
+// secret's value - including the project ref inside NEXT_PUBLIC_SUPABASE_URL -
+// so the ref renders as `***` in CI logs and cannot be "un-masked" from here.
+// We therefore never rely on printing the ref as evidence. Instead we compare
+// the configured values against the approved constant and print only booleans
+// plus short SHA-256 fingerprints, which are not substrings of any secret and so
+// survive masking.
 
 import { createClient } from "@supabase/supabase-js";
+import {
+  analyzeDbUrlRef,
+  APPROVED_PROJECT_REF,
+  fingerprint,
+  isApprovedRef,
+  refFromSupabaseUrl,
+} from "./lib/approved-project.mjs";
 
 const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
 const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
@@ -30,66 +48,83 @@ const fail = (s: string) => {
 const ok = (s: string) => line("  [ok]   " + s);
 const info = (s: string) => line("  [info] " + s);
 
-/** Hostnames are public; credentials are not. */
-function hostOf(u: string): string {
-  try {
-    return new URL(u).hostname;
-  } catch {
-    return "(unparseable)";
+/**
+ * Verify every configured source of the project ref against the approved ref.
+ * Fails closed: a mismatch fails, and so does the inability to verify at all.
+ */
+function checkProjectIdentity(): void {
+  head("Project identity (must be the approved project)");
+  info(`approved project ref: ${APPROVED_PROJECT_REF} (fingerprint ${fingerprint(APPROVED_PROJECT_REF)})`);
+
+  const dbAnalysis = analyzeDbUrlRef(dbUrl);
+  const sources: Array<{ label: string; present: boolean; ref: string; reason?: string }> = [
+    { label: "SUPABASE_PROJECT_REF", present: !!projectRef, ref: projectRef },
+    { label: "NEXT_PUBLIC_SUPABASE_URL (ref from host)", present: !!url, ref: refFromSupabaseUrl(url) },
+    {
+      label: "SUPABASE_DB_URL (ref from username/host)",
+      present: !!dbUrl,
+      ref: dbAnalysis.ref,
+      reason: dbAnalysis.ambiguous
+        ? "the username and hostname name different projects"
+        : dbAnalysis.malformed
+          ? "the value is not a parseable URL"
+          : undefined,
+    },
+  ];
+
+  const present = sources.filter((s) => s.present);
+  if (present.length === 0) {
+    fail(
+      "No project-ref source is configured (SUPABASE_PROJECT_REF, NEXT_PUBLIC_SUPABASE_URL, " +
+        "SUPABASE_DB_URL are all empty). Identity cannot be verified; refusing to pass."
+    );
+    return;
+  }
+
+  for (const s of sources) {
+    if (!s.present) {
+      info(`${s.label}: absent (not checked)`);
+      continue;
+    }
+    if (!s.ref) {
+      fail(
+        `${s.label}: present but no project ref could be derived from it` +
+          `${s.reason ? ` (${s.reason})` : ""}. Cannot verify identity.`
+      );
+      continue;
+    }
+    const matches = isApprovedRef(s.ref);
+    info(`${s.label}: fingerprint ${fingerprint(s.ref)} matches approved: ${matches}`);
+    if (!matches) {
+      fail(
+        `${s.label} does not resolve to the approved project. ` +
+          `expected fingerprint ${fingerprint(APPROVED_PROJECT_REF)}, got ${fingerprint(s.ref)}.`
+      );
+    }
+  }
+
+  if (failures === 0) {
+    ok(`All ${present.length} configured project-ref source(s) resolve to the approved project.`);
   }
 }
 
-function refFromHost(u: string): string {
-  try {
-    const h = new URL(u).hostname;
-    return h.endsWith(".supabase.co") ? h.split(".")[0] : "";
-  } catch {
-    return "";
-  }
-}
-
-async function main() {
+async function main(): Promise<number> {
   head("Environment presence (no values)");
   info(`NEXT_PUBLIC_SUPABASE_URL: ${url ? "present" : "MISSING"}`);
   info(`NEXT_PUBLIC_SUPABASE_ANON_KEY: ${anonKey ? `present (len ${anonKey.length})` : "absent"}`);
   info(`SUPABASE_SERVICE_ROLE_KEY: ${serviceKey ? `present (len ${serviceKey.length})` : "MISSING"}`);
   info(`SUPABASE_DB_URL: ${dbUrl ? "present" : "absent (migration path untested)"}`);
-  info(`SUPABASE_PROJECT_REF: ${projectRef ? `present (len ${projectRef.length})` : "absent"}`);
+  info(`SUPABASE_PROJECT_REF: ${projectRef ? "present" : "absent"}`);
 
-  head("Project identity");
-  if (!url) {
-    fail("NEXT_PUBLIC_SUPABASE_URL is missing; cannot identify the project.");
-  } else {
-    const host = hostOf(url);
-    const urlRef = refFromHost(url);
-    info(`API host: ${host}`);
-    info(`ref derived from host: ${urlRef || "(host is not *.supabase.co)"}`);
-    if (projectRef) {
-      const match = urlRef === projectRef;
-      info(`host ref == SUPABASE_PROJECT_REF: ${match}`);
-      if (!match) {
-        fail(
-          "The API URL and SUPABASE_PROJECT_REF point at different projects. " +
-            "The workflow computes the API URL from the ref, so one of them is stale."
-        );
-      }
-    }
-  }
+  checkProjectIdentity();
 
-  if (dbUrl) {
-    const dbHost = hostOf(dbUrl);
-    const isPooler = /\.pooler\.supabase\.com$/.test(dbHost);
-    info(`DB host: ${dbHost}`);
-    info(`DB is a Supavisor pooler: ${isPooler}`);
-    if (isPooler) {
-      // Shape: aws-0-<region>.pooler.supabase.com -> region is labels[1]
-      const labels = dbHost.split(".");
-      info(`pooler region: ${labels[1] || "(unknown)"}`);
-      info(
-        "NOTE: for a pooler URL the project ref lives in the USERNAME " +
-          "(postgres.<ref>), not in the hostname. The hostname carries the region."
-      );
-    }
+  // Identity is a precondition for trusting anything measured below.
+  if (failures > 0) {
+    head("Summary");
+    line("Project identity could not be verified against the approved project.");
+    line("Skipping layer probes: results from an unverified target are not evidence.");
+    line(`\n${failures} check(s) failed.`);
+    return 1;
   }
 
   head("REST / PostgREST data path (service role)");
@@ -109,9 +144,7 @@ async function main() {
       "ai_latency_records",
     ];
     for (const t of tables) {
-      const { count, error } = await sb
-        .from(t)
-        .select("*", { count: "exact", head: true });
+      const { count, error } = await sb.from(t).select("*", { count: "exact", head: true });
       if (error) {
         fail(`${t}: ${error.code || ""} ${error.message}`);
       } else {
@@ -197,20 +230,23 @@ async function main() {
 
   head("Summary");
   if (failures === 0) {
-    line("All probed layers are reachable.");
+    line("All required checks passed against the approved project.");
   } else {
-    line(`${failures} layer(s) failed. See [FAIL] entries above.`);
+    line(`${failures} check(s) failed. See [FAIL] entries above.`);
   }
   line(
-    "\nNo credentials were printed. Hostnames shown are public " +
-      "(NEXT_PUBLIC_SUPABASE_URL is exposed to browsers by design)."
+    "\nNo credentials were printed. The approved ref appears in CI logs only as " +
+      "its SHA-256 fingerprint, because GitHub masks the ref itself."
   );
-
-  // Never fail the workflow: this is a diagnostic, and its value is the report.
-  process.exit(0);
+  return failures === 0 ? 0 : 1;
 }
 
-main().catch((e) => {
-  console.error("Diagnostic crashed:", (e as Error).message);
-  process.exit(0);
-});
+main()
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((e) => {
+    // An unhandled exception must never look like success.
+    console.error("Diagnostic crashed:", (e as Error).message);
+    process.exitCode = 1;
+  });

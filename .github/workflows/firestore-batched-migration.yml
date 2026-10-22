@@ -43,12 +43,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.inputs.target_ref || github.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -66,15 +66,25 @@ jobs:
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL" && false)
           test -n "$SUPABASE_SERVICE_ROLE_KEY" || (echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY" && false)
 
+      # Fails closed on a missing, malformed or mismatched Supabase URL. This
+      # workflow can write to the destination when dry_run is false, so the
+      # target project must be verified before any migration script runs.
+      - name: Guard approved Supabase project
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: node scripts/lib/guard-approved-supabase-url.mjs
+
       - name: Download Previous Migration Manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_BATCH_SIZE: ${{ github.event.inputs.batch_size }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           ARGS=""
-          if [ -n "${{ github.event.inputs.batch_size }}" ]; then
-            ARGS="$ARGS --batch-size ${{ github.event.inputs.batch_size }}"
+          if [[ -n "$INPUT_BATCH_SIZE" ]]; then
+            ARGS="$ARGS --batch-size $INPUT_BATCH_SIZE"
           fi
-          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          if [[ "$INPUT_DRY_RUN" == "true" ]]; then
             ARGS="$ARGS --dry-run"
           fi
           npx tsx scripts/fetch-checkpoint.ts $ARGS
@@ -86,21 +96,26 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INPUT_BATCH: ${{ github.event.inputs.batch }}
+          INPUT_BATCH_SIZE: ${{ github.event.inputs.batch_size }}
+          INPUT_COLLECTIONS: ${{ github.event.inputs.collections }}
+          INPUT_RETRY_FAILED: ${{ github.event.inputs.retry_failed }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           ARGS=""
-          if [ -n "${{ github.event.inputs.batch }}" ]; then
-            ARGS="$ARGS --batch ${{ github.event.inputs.batch }}"
+          if [[ -n "$INPUT_BATCH" ]]; then
+            ARGS="$ARGS --batch $INPUT_BATCH"
           fi
-          if [ -n "${{ github.event.inputs.batch_size }}" ]; then
-            ARGS="$ARGS --batch-size ${{ github.event.inputs.batch_size }}"
+          if [[ -n "$INPUT_BATCH_SIZE" ]]; then
+            ARGS="$ARGS --batch-size $INPUT_BATCH_SIZE"
           fi
-          if [ -n "${{ github.event.inputs.collections }}" ]; then
-            ARGS="$ARGS --collections ${{ github.event.inputs.collections }}"
+          if [[ -n "$INPUT_COLLECTIONS" ]]; then
+            ARGS="$ARGS --collections $INPUT_COLLECTIONS"
           fi
-          if [ "${{ github.event.inputs.retry_failed }}" == "true" ]; then
+          if [[ "$INPUT_RETRY_FAILED" == "true" ]]; then
             ARGS="$ARGS --retry-failed"
           fi
-          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          if [[ "$INPUT_DRY_RUN" == "true" ]]; then
             ARGS="$ARGS --dry-run"
           fi
 
@@ -108,14 +123,14 @@ jobs:
           npx tsx scripts/migrate-all-batched.ts $ARGS
 
       - name: Upload Migration Manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: migration-manifest
           path: data/migration-manifest.json
           if-no-files-found: ignore
 
       - name: Upload Migration Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: migration-report
           path: docs/FIRESTORE_SUPABASE_MIGRATION_STATUS.md

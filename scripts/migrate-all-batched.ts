@@ -296,7 +296,28 @@ export async function executePlan(
 
   for (const { item, batchIndex } of plan.collectionsToRun) {
     if (!item.destinationTable) {
-      console.warn(`Skipping ${item.collection} (no destination table mapped)`);
+      // A MIGRATE entry with no destination is an inventory defect, not a no-op.
+      // Fail the run (non-zero exit + FAILED record) so a batch can never report
+      // success while silently omitting a collection. Fix by adding the
+      // destination mapping in migration-inventory.ts.
+      console.error(`::error::FATAL: ${item.collection} is classified MIGRATE but has no destinationTable mapped. Refusing to report success.`);
+      overallSuccess = false;
+      manifest.records[item.collection] = {
+        collection: item.collection,
+        destination: undefined,
+        batch: batchIndex,
+        status: "FAILED",
+        sourceCount: 0,
+        destinationCount: 0,
+        migratedCount: 0,
+        skippedCount: 0,
+        failedCount: 0,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        verificationStatus: "UNKNOWN",
+        failureReason: "MIGRATE collection has no destinationTable mapped"
+      };
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
       continue;
     }
 
