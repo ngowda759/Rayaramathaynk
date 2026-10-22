@@ -21,14 +21,17 @@
 
 import "server-only";
 import type { NextRequest } from "next/server";
+import { isAdminConsoleRole } from "@/lib/auth/admin-auth";
 import { z } from "zod";
 import { SevaError } from "@/lib/seva/errors";
 import { can, mapFirestoreRole, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
 import type { StaffOnboardRequest, StaffUpdateRequest } from "@/lib/seva/schemas";
+import { STAFF_TEXT } from "@/lib/seva/strings/staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SevaAction, SevaRole } from "@/types/seva";
 import type {
   StaffChangeStep,
+  StaffExistingAccountDetail,
   StaffListFilter,
   StaffMember,
   StaffOnboardResponse,
@@ -239,9 +242,13 @@ interface Step {
 
 /**
  * Runs the steps in order. A failure before anything was written throws that error as it is; a failure after any
- * write went through throws SevaError('partial_failure') with StaffPartialFailure as its detail.
+ * write went through throws SevaError('partial_failure') with StaffPartialFailure as its detail, plus `overwritten`
+ * (what a linked account's profile held before) so a retry or the office can see what was replaced.
  */
-async function runSteps(steps: readonly Step[]): Promise<void> {
+async function runSteps(
+  steps: readonly Step[],
+  overwritten: Pick<StaffPartialFailure, "previous_role" | "previous_active"> = {},
+): Promise<void> {
   const done: StaffChangeStep[] = [];
   for (const { step, writes } of steps) {
     if (writes.length === 0) continue;
@@ -256,6 +263,7 @@ async function runSteps(steps: readonly Step[]): Promise<void> {
           failed: step,
           ...(partly.length > 0 ? { partly } : {}),
           cause: error instanceof SevaError ? error.code : "internal",
+          ...overwritten,
         };
         throw new SevaError("partial_failure", { ...detail });
       }
@@ -273,9 +281,69 @@ export interface OnboardOptions {
   createLogin?: (login: { email: string; displayName: string }) => Promise<{ externalUid: string }>;
 }
 
+const EXISTING_ACCOUNT = "This email already has a sign-in account.";
+
+/** What a linked account's profile held before the link overwrote it: for the audit row and a partial failure. */
+interface LinkedLogin {
+  externalUid: string;
+  previousRole: string | null;
+  /** The Firestore `isActive` before the link; null when there was no profile. */
+  previousActive: boolean | null;
+}
+
+/**
+ * An email that already has a website account (a website admin, a devotee, the site owner). Without the office's
+ * confirmation (`linkExisting`) the answer is 400 existing_account (StaffExistingAccountDetail) before any write, so
+ * the dialog can ask first. Either way, and before that question is ever asked, the account is refused when it is
+ * already staff, when its sign-in is switched off (`disabled_account`), or when its email is not verified
+ * (`unverified_account`): anyone can register a login for any email, through the website or straight against
+ * Firebase, so linking an unverified one would hand staff access and the website admin to whoever registered it.
+ * Only a super admin (staff.grant_super_admin) links an account that already holds a website admin-console role
+ * (super admin, temple admin, admin, billing, priest, staff, office staff - the admin allow-list, C-62) or that is
+ * inactive on the website: a link overwrites that role and switches the account on. A temple admin gets 403
+ * `needs_super_admin`, also before the question.
+ */
+async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnboardRequest): Promise<LinkedLogin | null> {
+  const identity = getIdentityAdapter();
+  const login = await identity.findLoginByEmail(input.email);
+  if (!login) return null;
+  const [staff, profile] = await Promise.all([
+    findStaff(db, "firebase_uid", login.externalUid),
+    identity.getAccessProfile(login.externalUid),
+  ]);
+  if (staff) throw invalid("email", `This website account is already staff (staff no. ${staffNoText(staff.staffNo)})`);
+  if (login.disabled) {
+    throw new SevaError("validation", { field: "email", reason: "disabled_account", message: STAFF_TEXT.linkDisabled.en });
+  }
+  if (!login.emailVerified) {
+    throw new SevaError("validation", { field: "email", reason: "unverified_account", message: STAFF_TEXT.linkUnverified.en });
+  }
+  const previousRole = typeof profile?.role === "string" ? profile.role : null;
+  const previousActive = profile ? profile.isActive : null;
+  if ((isAdminConsoleRole(profile?.role) || previousActive === false) && !can(actor, "staff.grant_super_admin")) {
+    throw new SevaError("forbidden", { reason: "needs_super_admin", message: STAFF_TEXT.linkNeedsSuperAdmin.en });
+  }
+  if (input.linkExisting !== true) {
+    const detail: StaffExistingAccountDetail = {
+      field: "email",
+      reason: "existing_account",
+      currentRole: previousRole,
+      currentlyActive: previousActive,
+      displayName: login.displayName,
+      message: EXISTING_ACCOUNT,
+    };
+    throw new SevaError("validation", { ...detail });
+  }
+  return { externalUid: login.externalUid, previousRole, previousActive };
+}
+
 /**
  * Onboards a person (row 18; super admin needs row 19): login -> profile (role, active) -> `seva_staff_onboard`
  * (status invited, the staff.onboard audit row inside). The staff number is the one asked for, else the next free one.
+ *
+ * An email that already has a website account is linked instead, once the office confirms (`linkExisting`): its uid
+ * is used and no login is made (they keep their password, so no set-password email), the profile gets the role, then
+ * the staff row, then a second staff.onboard audit row recording `linked_existing` and the role it had before.
  */
 export async function onboardStaff(
   actor: SevaActor,
@@ -295,21 +363,27 @@ export async function onboardStaff(
   const [sameNo, sameEmail] = await Promise.all([findStaff(db, "staff_no", staffNo), findStaff(db, "email", input.email)]);
   if (sameNo) throw invalid("staffNo", `Staff no. ${staffNoText(staffNo)} is already taken`);
   if (sameEmail) throw invalid("email", "This email already belongs to a staff member");
+  const linked = await existingLogin(db, actor, input);
 
   const identity = getIdentityAdapter();
   const createLogin = opts.createLogin ?? ((login) => identity.createLogin(login));
-  let externalUid = "";
+  let externalUid = linked?.externalUid ?? "";
   let staffId = "";
-  await runSteps([
-    {
-      step: "identity",
-      writes: [
+  const loginWrites: Write[] = linked
+    ? []
+    : [
         {
           name: "login",
           run: async () => {
             externalUid = (await createLogin({ email: input.email, displayName: input.fullName })).externalUid;
           },
         },
+      ];
+  await runSteps([
+    {
+      step: "identity",
+      writes: [
+        ...loginWrites,
         {
           name: "profile",
           run: () =>
@@ -344,8 +418,34 @@ export async function onboardStaff(
         },
       ],
     },
-  ]);
-  return { staffId, staffNo };
+    {
+      step: "audit",
+      writes: linked
+        ? [
+            {
+              name: "row",
+              run: () =>
+                callRpc<unknown>("seva_audit", {
+                  p_action: "staff.onboard",
+                  p_entity: "staff",
+                  p_entity_id: staffId,
+                  p_receipt_no: null,
+                  p_reason: null,
+                  p_before: null,
+                  p_after: {
+                    linked_existing: true,
+                    previous_role: linked.previousRole,
+                    previous_active: linked.previousActive,
+                    role: input.role,
+                  },
+                  p_staff_id: actor.staffId,
+                }),
+            },
+          ]
+        : [],
+    },
+  ], linked ? { previous_role: linked.previousRole, previous_active: linked.previousActive } : {});
+  return linked ? { staffId, staffNo, linkedExisting: true } : { staffId, staffNo };
 }
 
 const STATUS_ACTION: Record<NonNullable<StaffUpdateRequest["status"]>, SevaAction> = {

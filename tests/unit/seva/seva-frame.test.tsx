@@ -516,6 +516,105 @@ describe("frames inside the module layout", () => {
   });
 });
 
+/* ---------- a signed-in website member (devotee, volunteer) on /seva ---------- */
+
+describe("a signed-in website member without admin access on /seva", () => {
+  /** A devotee or volunteer: signed in, no admin console, no seva role. Nothing is mocked in useSevaMe. */
+  function member(emailVerified: boolean, role = "devotee"): AuthValue {
+    return {
+      user: { uid: `uid-${role}`, emailVerified, getIdToken: () => Promise.resolve("id-token") },
+      profile: { role },
+      loading: false,
+      sevaRole: null,
+      canAccessAdmin: false,
+      logout: jest.fn(() => Promise.resolve()),
+    };
+  }
+
+  async function renderSevaPage(pathname = "/seva"): Promise<void> {
+    mockPath.current = pathname;
+    const SevaLayout = (await import("@/app/seva/layout")).default;
+    const DeskLayout = (await import("@/app/seva/(desk)/layout")).default;
+    const { SevaGate } = await import("@/components/seva/shell/SevaGate");
+    render(
+      <SevaLayout>
+        <DeskLayout>
+          <SevaGate action="reports.view">
+            <p>dashboard figures</p>
+          </SevaGate>
+        </DeskLayout>
+      </SevaLayout>,
+    );
+  }
+
+  it("sees the no-access screen with the verify-email notice when unverified, not a redirect to /", async () => {
+    mockAuth = member(false);
+    await renderSevaPage();
+    expect(await screen.findByText("You do not have access to this page.")).toBeInTheDocument();
+    expect(screen.getByText("Your email address is not verified yet. Staff access needs a verified email.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Send verification email/ })).toBeInTheDocument();
+    expect(screen.queryByText("dashboard figures")).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
+    // Nothing else leaks: no seva API call at all (not even /me, since there is no seva role), and no sections.
+    expect(mockSevaFetch).not.toHaveBeenCalled();
+    expect(rail()).toBeNull();
+    expect(phoneBar()).toBeNull();
+    expect(hrefs(header()).filter((href) => href.startsWith("/seva") || href.startsWith("/admin"))).toEqual([]);
+    expect(signOut()).toBeInTheDocument();
+  });
+
+  it("a verified member (devotee or volunteer) sees the plain no-access screen", async () => {
+    for (const role of ["devotee", "volunteer"]) {
+      mockAuth = member(true, role);
+      await renderSevaPage("/seva/counter");
+      expect(await screen.findByText("You do not have access to this page.")).toBeInTheDocument();
+      expect(screen.queryByText(/Your email address is not verified yet/)).toBeNull();
+      expect(screen.queryByRole("button", { name: /verification/ })).toBeNull();
+      expect(mockReplace).not.toHaveBeenCalled();
+      cleanup();
+    }
+  });
+
+  it("a signed-out visitor to /seva still goes to sign-in, with the page to come back to", async () => {
+    mockAuth = { user: null, loading: false, canAccessAdmin: false, sevaRole: null };
+    mockPath.search = "";
+    await renderSevaPage("/seva/register");
+    await waitFor(() => expect(mockReplace).toHaveBeenCalled());
+    expect(mockReplace).toHaveBeenCalledWith("/login?redirect=%2Fseva%2Fregister");
+    expect(screen.queryByText("You do not have access to this page.")).toBeNull();
+  });
+
+  it("every other AdminAuthGuard use still sends a devotee to /", async () => {
+    const AdminAuthGuard = (await import("@/components/admin/layout/AdminAuthGuard")).default;
+    mockAuth = member(false);
+    for (const permission of [undefined, "billing", "admin", "sevaAdmin"] as const) {
+      mockReplace.mockReset();
+      const view = render(
+        <AdminAuthGuard requiredPermission={permission}>
+          <p>admin page</p>
+        </AdminAuthGuard>,
+      );
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/"));
+      expect(screen.queryByText("admin page")).toBeNull();
+      view.unmount();
+    }
+  });
+
+  it("the desk and counter frames show a non-staff person no sections and no module links", async () => {
+    mockAuth = member(true);
+    await renderDesk("/seva/settings/receipt");
+    expect(rail()).toBeNull();
+    expect(phoneBar()).toBeNull();
+    expect(hrefs(header()).filter((href) => href.startsWith("/seva") || href.startsWith("/admin"))).toEqual([]);
+    cleanup();
+
+    mockAuth = member(true);
+    await renderFocus();
+    expect(hrefs(header()).filter((href) => href.startsWith("/seva") || href.startsWith("/admin"))).toEqual([]);
+    expect(within(header()).queryByRole("link", { name: /Today|Close day|Seva Entry menu/ })).toBeNull();
+  });
+});
+
 /* ---------- the site chat bubble ---------- */
 
 describe("site chat bubble", () => {

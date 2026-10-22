@@ -322,8 +322,12 @@ export function StaffList({ api, sendInvite, me, can, startOnboarding = false }:
           sendInvite={sendInvite}
           can={can}
           onWritten={() => void load()}
-          onOnboarded={({ staffNo }) =>
-            setNotice({ title: STAFF_TEXT.inviteSent(staffNoText(staffNo)), hint: STAFF_TEXT.inviteSentHint })
+          onOnboarded={({ staffNo, linkedExisting }) =>
+            setNotice(
+              linkedExisting
+                ? { title: STAFF_TEXT.linked(staffNoText(staffNo)), hint: STAFF_TEXT.linkedHint }
+                : { title: STAFF_TEXT.inviteSent(staffNoText(staffNo)), hint: STAFF_TEXT.inviteSentHint },
+            )
           }
         />
       </div>

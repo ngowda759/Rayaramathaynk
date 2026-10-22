@@ -61,6 +61,10 @@ const mockProfiles: Record<string, { role: unknown; isActive: boolean }> = {};
 const mockIdentity: jest.Mocked<IdentityAdapter> = {
   verifyRequest: jest.fn(),
   getAccessProfile: jest.fn(async (uid: string) => mockProfiles[uid] ?? null),
+  findLoginByEmail: jest.fn(async (email: string) => {
+    const uid = mockLogins[email];
+    return uid ? { externalUid: uid, displayName: null, emailVerified: true, disabled: false } : null;
+  }),
   createLogin: jest.fn(async () => ({ externalUid: "unused" })),
   setAccessProfile: jest.fn(async () => {
     mockCalls.push("identity.setAccessProfile");

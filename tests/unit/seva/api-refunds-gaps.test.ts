@@ -57,6 +57,7 @@ const OTHER_ID = "22222222-2222-4222-8222-222222222222";
 const fakeIdentity: jest.Mocked<IdentityAdapter> = {
   verifyRequest: jest.fn(),
   getAccessProfile: jest.fn(),
+  findLoginByEmail: jest.fn(),
   createLogin: jest.fn(),
   setAccessProfile: jest.fn(),
   setLoginEnabled: jest.fn(),

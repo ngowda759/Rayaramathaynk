@@ -38,6 +38,14 @@ interface AdminAuthGuardProps {
    * it a signed-out visitor goes to sign-in returning to the address's `redirect` or `/admin`, as before.
    */
   returnTo?: string;
+  /**
+   * Set ONLY by the Seva Entry module shell (/seva). A signed-in person who cannot open the admin console (website
+   * role devotee or volunteer) is let through instead of being sent to "/", so the module's own SevaGate shows its
+   * no-access screen and, when their email is not verified, the way to verify it (only a verified website account can
+   * be added as staff). They get no seva sections and no seva API call (no seva role), every seva page checks its
+   * action with SevaGate, and the seva API checks every call. Signed-out visitors still go to sign-in.
+   */
+  allowSignedInNonAdmin?: boolean;
 }
 
 // Simple loading spinner component
@@ -81,6 +89,7 @@ export default function AdminAuthGuard({
   children, 
   requiredPermission,
   returnTo,
+  allowSignedInNonAdmin = false,
 }: AdminAuthGuardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -180,6 +189,8 @@ export default function AdminAuthGuard({
 
   // Check if user can access admin (only super_admin, temple_admin, priest, staff, billing)
   if (!canAccessAdmin) {
+    // Seva Entry only: the module's own gate shows them its no-access screen (see allowSignedInNonAdmin).
+    if (allowSignedInNonAdmin) return <>{children}</>;
     // Redirect non-admin users to home page
     router.replace("/");
     return <LoadingSpinner />;
