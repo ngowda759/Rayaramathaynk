@@ -1,16 +1,35 @@
 name: Seva monthly maintenance
 
 # Monthly purge of devotee profiles not seen for three years (seva_purge_devotee_profiles(), C-64).
-# The cron below fires at 21:30 UTC on the 1st, which is 03:00 IST on the 2nd - thirty minutes after that night's
-# backup (seva-backup.yml, 21:00 UTC), so the profiles about to go are in a fresh encrypted copy.
 #
-# Repository secret (name only): SEVA_BACKUP_DB_URL, the same Supabase session pooler string the backup uses.
-# The secret reaches the steps only through env: and is checked for shape before any client sees it.
+# DESTRUCTIVE AUTHORIZATION (see docs/SECURITY_DESTRUCTIVE_AUTHORIZATION.md):
+#   Passing the database-URL guard below proves only that the target is the approved
+#   project. It is NOT authorization to delete rows, and an `environment:` binding is
+#   NOT authorization either. Deletion therefore requires an authorization that a
+#   scheduled run structurally cannot supply:
+#     - the run must be a `workflow_dispatch` (a cron run has no `inputs`), and
+#     - the operator must type an exact phrase in the `confirm_purge` input.
+#   The cron below therefore performs NO deletion. It exists only to surface a
+#   failed/absent backup window and is retained so the schedule does not silently
+#   disappear from the Actions UI. Nothing in this workflow enables the purge.
+#
+# The cron fires at 21:30 UTC on the 1st, which is 03:00 IST on the 2nd - thirty
+# minutes after that night's backup (seva-backup.yml, 21:00 UTC), so a purge that IS
+# authorized by a human later in the day still runs against a fresh encrypted copy.
+#
+# Repository secret (name only): SEVA_BACKUP_DB_URL, the same Supabase session pooler
+# string the backup uses. The secret reaches the steps only through env: and is
+# checked for shape before any client sees it.
 
 on:
   schedule:
     - cron: '30 21 1 * *'
   workflow_dispatch:
+    inputs:
+      confirm_purge:
+        description: 'Type exactly: purge-devotee-profiles (required to authorize deletion)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -41,13 +60,13 @@ jobs:
           persist-credentials: false
 
       # Fails closed on a missing, malformed, ambiguous or mismatched database URL.
-      # This workflow runs a destructive purge on a schedule, so the target must be
-      # verified before any client sees the connection string. Runs before the first
-      # `psql`.
+      # This workflow runs a destructive purge, so the target must be verified before
+      # any client sees the connection string. Runs before the first `psql`.
       #
       # NOTE: passing this guard only proves the URL points at the approved project.
       # It is NOT authorization to purge. See the comment on the purge step.
       - name: Guard approved database URL
+        id: guard
         env:
           SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
         run: node scripts/lib/guard-approved-db-url.mjs
@@ -65,12 +84,30 @@ jobs:
           fi
 
       # DESTRUCTIVE: calls public.seva_purge_devotee_profiles(), which DELETEs devotee
-      # profiles not seen for three years. Passing the URL guard above proves only
-      # that the target is the approved project; it is not approval to delete. This
-      # step is unchanged by the guard PR and still runs on the schedule below.
+      # profiles not seen for three years.
+      #
+      # Authorization is deliberately NOT the database-URL guard and NOT an
+      # environment binding: neither distinguishes an authorized deletion from an
+      # unattended cron run. The condition below requires (a) a workflow_dispatch,
+      # which a scheduled event can never be, and (b) an exact typed phrase. The
+      # `inputs.confirm_purge` value is compared as a quoted shell variable, never
+      # interpolated into the script text. A scheduled run takes the `else` branch
+      # and deletes nothing.
       - name: Purge devotee profiles not seen for three years
+        id: purge
         env:
           SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+          CONFIRM_PURGE: ${{ inputs.confirm_purge }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          if [ "$EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "Scheduled run: a purge requires an explicit workflow_dispatch with the typed confirmation phrase."
+            echo "No rows were deleted."
+            exit 0
+          fi
+          if [ "$CONFIRM_PURGE" != "purge-devotee-profiles" ]; then
+            echo "::error::Refusing to purge: the confirmation phrase did not match."
+            exit 1
+          fi
           removed="$(psql "$SEVA_BACKUP_DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -c "select public.seva_purge_devotee_profiles();")"
           echo "Devotee profiles purged: ${removed}"

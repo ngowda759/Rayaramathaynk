@@ -12,6 +12,8 @@ Related documents:
 - `docs/RAYA_AI_SUPABASE_MIGRATION_PLAN.md` — Raya AI cutover plan
 - `docs/SUPABASE_MIGRATIONS.md` — migration mechanics
 - `docs/SECURITY_SUPABASE_ACCESS_TOKEN_ROTATION.md` — token rotation runbook
+- `docs/SECURITY_DESTRUCTIVE_AUTHORIZATION.md` — why the Seva purge needs an
+  authorization a scheduled run cannot supply (B-7 / C-64)
 - `MIGRATION_VERIFICATION_REPORT.md` — stale (see C-6 below)
 
 ---
@@ -202,11 +204,11 @@ fixed in this PR; N-5 is documented and deliberately out of scope.
   therefore never checked. Fixed by listing the database-changing command(s) per workflow and by
   resolving `npm run <script>` through `package.json` to the underlying command. Each check also
   asserts the guard and the command are genuinely *present*, so it cannot pass by finding nothing.
-- **N-5 (real defect, out of scope — unguarded `psql` writers).** `seva-backup.yml` and
-  `seva-maintenance.yml` run `psql` against `SEVA_BACKUP_DB_URL` and have no destination guard.
-  This is a different secret and not a migration, so it is excluded from the migration-writer check
-  rather than allowlisted: adding `psql` to the denylist makes the suite fail, which is the correct
-  signal. Tracked as **B-7** in §6.
+- **N-5 (real defect — unguarded `psql` writers).** `seva-backup.yml` and
+  `seva-maintenance.yml` run `psql` against `SEVA_BACKUP_DB_URL` and had no destination guard.
+  This is a different secret and not a migration, so it was excluded from the migration-writer
+  check rather than allowlisted: adding `psql` to the denylist makes the suite fail, which is the
+  correct signal. Tracked as **B-7** in §6. **Closed by PR-A1 and PR-A2** (see §1.6).
 
 Mutation evidence (real `.github/workflows/supabase-migrations.yml`, not a fixture): before the fix
 3 of 5 mutations slipped through; after the fix all 5 are caught — guard moved after the push, push
@@ -217,7 +219,122 @@ extension, so `data/firestore-dump/*.ndjson` and `*.json` counted as a "targeted
 bypassed the un-gated-upload assertion. Fixed: any `*`, `?`, `[]` or `{}` path is a sweep; only a
 literal `NAME.ext` stays targeted.
 
+### 1.6 PR-A2: the seven-writer audit (2026-10-22)
 
+PR-A2 closed the remaining writer-protection gaps. All seven database-writing jobs
+are now enumerated in one place, `tests/unit/workflow-writer-inventory.ts`, and
+pinned by `tests/unit/workflow-db-writer-guards.test.ts`.
+
+| Workflow | Writer | Guard (before first connection) | Environment |
+|---|---|---|---|
+| `supabase-migrations.yml` | `supabase link`, `supabase db push` | `guard-approved-project.mjs` | `production` |
+| `ai-knowledge-migration-apply.yml` | `scripts/apply-ai-knowledge-migration.mjs` | `guard-approved-project.mjs` | `production` |
+| `resolve-raya-ai-baseline.yml` | `scripts/resolve-baseline-raya-ai.mjs` | `guard-approved-project.mjs` | `production` |
+| `firestore-batched-migration.yml` | `scripts/migrate-all-batched.ts` | `guard-approved-supabase-url.mjs` | `production` (**added**) |
+| `firestore-staged-migration.yml` | `scripts/migrate-staged-phase1.ts` | `guard-approved-supabase-url.mjs` | `production` (**added**) |
+| `seva-backup.yml` | `psql` (version probe) + `psql` insert into `ops_backup_runs` | `guard-approved-db-url.mjs` | none (scheduled) |
+| `seva-maintenance.yml` | `psql` call to `seva_purge_devotee_profiles()` | `guard-approved-db-url.mjs` | none (scheduled) |
+
+Read-only but connected, enumerated separately in `DB_CONNECTION_INVENTORY`:
+`prisma-baseline-drift-gate.yml` and `diagnose-supabase-connectivity.yml`.
+
+Gaps closed in PR-A2:
+
+- **A-2a (unguarded connection path — `prisma-baseline-drift-gate.yml`).** The
+  workflow opened a real Postgres session (a reachability probe, then
+  `prisma migrate diff`) and accepted an operator-supplied
+  `prisma_database_url_override` with **no destination verification at all**. Now
+  every candidate URL — the override and each derived pooler string — is passed
+  through the existing `guard-approved-db-url.mjs` before the probe connects. The
+  guard is reused, not re-implemented.
+- **A-2b (`always()` bypass in `seva-backup.yml`).** The `ops_backup_runs` insert
+  ran on `if: always()`, so it would write to the database even when the
+  destination guard had refused. It now requires
+  `steps.guard.outcome == 'success'`, keeping the "record every run" behaviour for
+  every failure *after* verification.
+- **A-2c (detector blind spot).** The migration-writer check could not see `psql`
+  writes at all, in particular the command-substitution form
+  `removed="$(psql "$URL" …)"`. The shared parser now recognises bare,
+  env-prefixed, `sudo`/`exec`/`command`-wrapped, `if`/`!`-prefixed and
+  command-substitution forms, and resolves `npm run <script>` through
+  `package.json`.
+- **A-2d (environment bindings).** `production` added to the two Firestore
+  migration jobs. It is **not** added to the two scheduled Seva jobs: a
+  reviewer-gated environment would stall the nightly backup, and the guard — not
+  an approval prompt — is the control on a schedule. No workflow claims the
+  binding is an effective human gate; that remains owner-only (C-5).
+- **A-2e (destructive authorization — `seva-maintenance.yml`).** The purge is a
+  separate problem from "which database is the destination". It is now gated on
+  `github.event_name == workflow_dispatch` plus an exact typed phrase, so a cron
+  run structurally cannot delete. See `docs/SECURITY_DESTRUCTIVE_AUTHORIZATION.md`.
+  The purge was not enabled, dispatched, or executed.
+
+Environment bindings are **deployment controls, not approval gates**: `production`
+still has `protection_rules: []` (C-5), so `environment: production` does not by
+itself pause for a human. PR-A2 does not claim otherwise.
+
+#### A-2f..A-2j: gaps found by the independent review round (2026-10-22)
+
+An adversarial re-read of the execution paths — shell syntax, helper scripts,
+command substitutions and `if:` semantics — found five more defects in PR-A2's own
+checking layer. None affected a live workflow's behaviour, but each was a way the
+suite could have passed while a guard was absent or bypassed. All are fixed in the
+same PR.
+
+- **A-2f (inventory entry skipped by its own check).** `seva-maintenance` — the
+  **destructive** writer — was missing `guardStyle`. The "uses only shared guards"
+  assertion filters on `guardStyle === "step"`, so the one entry where a private,
+  re-implemented guard would matter most was silently skipped. `guardStyle` is now
+  required on every entry, and the missing value is a type error
+  (`tests/unit/workflow-writer-inventory.ts:380`). A regression test pins it.
+- **A-2g (a conditional guard is not a guard).** Only a literal `false` counted as
+  disabling, so `if: github.event_name == 'push'` — never true for the
+  dispatch/schedule triggers these workflows use — passed as a valid guard. Any
+  guard condition that can be false at run time is now reported; only
+  run-guaranteeing conditions (`always()`, `success()`, `!cancelled()`) are
+  accepted. The old expectation that blessed
+  `github.event_name == 'workflow_dispatch'` on a guard was itself the bug: an
+  event gate belongs on the write step, not the guard
+  (`tests/unit/supabase-diagnostics-migration-safety.test.ts`).
+- **A-2h (guard credential ≠ writer credential).** A `psql` statement added after
+  the guard but reading a *different* connection variable connected to a
+  destination the guard never verified, and was invisible because raw `psql`
+  statements are not inventory `commands`. `guardOrderingViolations` now compares
+  the variable each raw client call uses against `guardVar`.
+- **A-2i (npm-alias blind spot).** The completeness detector resolved `npm run`
+  aliases only when the script value began with `prisma`/`supabase`. An alias such
+  as `npm run migrate:core` (`npx tsx scripts/migrate-core-to-supabase.ts`) was
+  invisible, so a workflow switching from a direct command to an alias could leave
+  the inventory. Aliases are now resolved through the script's own referenced
+  `scripts/` paths and `scriptTouchesDatabase`.
+- **A-2j (duplicated parser and guard).** `supabase-diagnostics-migration-safety.test.ts`
+  carried its own copy of the parser and of `guardOrderingViolations`, weaker than
+  the canonical one (no `if`/`!` prefix, no `command` wrapper, no command
+  substitution, no `always()`-outcome rule). It now imports the single canonical
+  implementation from `tests/unit/workflow-writer-inventory.ts`, so the two suites
+  cannot drift and no guard logic is duplicated.
+- **A-2k (a shadowed guard wrapper).** `prisma-baseline-drift-gate.yml` invokes the
+  guard through a shell function, `guard_url()`, so the candidate URL can be passed
+  positionally. A second definition of `guard_url` — whose body need not mention the
+  guard at all — replaces the first, and because the guard command text is still
+  present and still ordered before the probe, every check passed while the guard no
+  longer ran. Neutering the guard *call* (`if false; then`) was already caught;
+  shadowing the function it calls was not. `guardOrderingViolations` now reports any
+  function whose body contains the guard command and whose name is defined more than
+  once in the job.
+- **A-2l (writer hidden in a shell form the scanner did not look inside).**
+  `postgresCliStatements` matched a bare command and the `$( )` substitution, but not
+  the backtick substitution (`` `psql …` ``), a negated condition (`if ! psql …`), or a
+  nested shell (`bash -c 'psql …'`, `eval '…'`). A writer in any of those forms was
+  invisible, so it was neither enumerated nor ordered against the guard.
+  `shellStatements` now unwraps `bash|sh|zsh -c` and `eval` bodies and re-splits them,
+  and the command prefix accepts the backtick and `if !`/`xargs` forms. `command -v
+  psql` and apt-install lines stay excluded, so install steps are not misread as
+  writers.
+- **A-2m (only one layer of nesting unwrapped).** The A-2l unwrap ran once, so
+  `bash -c 'bash -c "psql …"'` left the writer one level down and still invisible.
+  Unwrapping is now iterated to a fixpoint (bounded at five levels), so a doubly
+  nested shell is seen.
 
 ### 1.5 Previously reported counts and tests
 
@@ -448,6 +565,7 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | C-5 | C | Configure required reviewers on the `Production` GitHub environment | — | High: `environment: production` is currently not a human gate (`protection_rules: []`) | Environment blocks until a reviewer approves | Owner |
 | B-6 | B | Rotate the exposed Firebase service-account key and purge it from Git history | — | **Critical** | New key live; old key revoked; history rewritten | Owner + security |
 | B-7 | B | Add a destination guard to the `psql` writers `seva-backup.yml` and `seva-maintenance.yml` (they authenticate with `SEVA_BACKUP_DB_URL`, a different secret) | — | Medium: wrong DB = bad backup/restore | Both workflows verify their destination before any `psql` write; pinned by a test that includes `psql` in the writer denylist | Reviewed PR |
+| B-7b | B | **Done in PR-A2:** enumerate all seven database writers (including the `psql` ones and the read-only Prisma connection path) in one inventory, and gate the destructive purge on an authorization a scheduled run cannot supply | B-7 | High: an unattended deletion | `tests/unit/workflow-db-writer-guards.test.ts` fails if a writer is dropped from the inventory or loses its guard; the purge requires `workflow_dispatch` + a typed phrase (`docs/SECURITY_DESTRUCTIVE_AUTHORIZATION.md`) | Reviewed PR |
 | C-1 | C | Create the `announcements` table + public-read policy | A-1 | Medium | `announcements` exists; policy limited to active/in-window | Reviewed PR |
 | C-2 | C | Add the missing policy for `seva_list_items` (service-role only, explicit) | A-2 | Medium | RLS policy present; no widening | Reviewed PR |
 | C-3 | C | Consolidate the duplicate `temple_areas` policies (`20240523000000`, `20240915`) | A-2 | Low | One policy; no behaviour change | Reviewed PR |
@@ -462,14 +580,20 @@ Phases: **A** read-only verification · **B** export/data-quality prep ·
 | F-2 | F | Run the approved production migration batch | F-1, E-2 | **Critical** | MANIFEST clean; post-migration verification passes | Owner + approval |
 | F-3 | F | Final cutover: remove all Firestore reads/writes and the credential | F-2 | High | No Firestore reference remains | Owner |
 
-**Freeze note (updated in this PR).** The migration git-tracked workflows now carry a
-destination guard: `firestore-batched-migration.yml` and `firestore-staged-migration.yml`
-run `scripts/lib/guard-approved-supabase-url.mjs` before any migration script;
-`ai-knowledge-migration-apply.yml`, `supabase-migrations.yml` and
-`resolve-raya-ai-baseline.yml` run `scripts/lib/guard-approved-project.mjs`. A wrong
-destination now fails closed instead of writing. The workflows are still **not** to be
-dispatched until the owner approves the target environment (see §9), and the `Production`
-environment itself must gain required reviewers (C-5).
+**Freeze note (updated in PR-A2).** Every database-writing workflow now carries a
+destination guard that runs before its first connection or write: the two Firestore
+migration workflows run `scripts/lib/guard-approved-supabase-url.mjs`; the three
+migration/apply workflows run `scripts/lib/guard-approved-project.mjs`; the Seva
+backup and maintenance workflows and the read-only Prisma drift gate run
+`scripts/lib/guard-approved-db-url.mjs`. All seven writers are enumerated in
+`tests/unit/workflow-writer-inventory.ts` and pinned by
+`tests/unit/workflow-db-writer-guards.test.ts`. A wrong destination now fails closed
+instead of connecting. The workflows are still **not** to be dispatched until the
+owner approves the target environment (see §9), and the `Production` environment
+itself must gain required reviewers (C-5) — the `environment: production` binding is
+a deployment control, not a human approval gate, until that is configured. The
+scheduled Seva purge additionally requires an explicit dispatch plus a typed phrase
+(`docs/SECURITY_DESTRUCTIVE_AUTHORIZATION.md`) and does not delete on a cron run.
 
 ---
 

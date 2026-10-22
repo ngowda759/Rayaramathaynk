@@ -68,12 +68,33 @@ jobs:
           OVERRIDE: ${{ inputs.prisma_database_url_override }}
         run: |
           set -eu
+
+          # Destination verification, before the first database connection.
+          # This workflow opens a real Postgres session (the reachability probe
+          # below, then `prisma migrate diff`). A stale SUPABASE_PROJECT_REF, or an
+          # operator-supplied override, would otherwise reach an unapproved
+          # database. The guard is the repository's existing approved-database-URL
+          # guard, reused rather than reimplemented; it reads the URL from the
+          # environment and prints only a fingerprint.
+          guard_url() {
+            GUARD_DB_URL_VAR=PRISMA_DATABASE_URL_CANDIDATE \
+            PRISMA_DATABASE_URL_CANDIDATE="$1" \
+              node scripts/lib/guard-approved-db-url.mjs
+          }
+
           if [ -n "${OVERRIDE:-}" ]; then
             echo "::add-mask::$OVERRIDE"
+            # The override must ALSO resolve to the approved project. Otherwise it
+            # would be an unguarded way to point this workflow at any database.
+            if ! guard_url "$OVERRIDE"; then
+              echo "::error::Refusing: prisma_database_url_override does not resolve to the approved production project."
+              exit 1
+            fi
             echo "url=$OVERRIDE" >> "$GITHUB_OUTPUT"
-            echo "Using operator-supplied PRISMA_DATABASE_URL (masked)."
+            echo "Using operator-supplied PRISMA_DATABASE_URL (masked, destination verified)."
             exit 0
           fi
+
           if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
             echo "ERROR: SUPABASE_PROJECT_REF secret is not available."; exit 1
           fi
@@ -109,6 +130,12 @@ jobs:
           for HOST in "${HOSTS[@]}"; do
             CAND="postgresql://postgres.${SUPABASE_PROJECT_REF}:${PW}@${HOST}:5432/postgres?sslmode=require"
             echo "::add-mask::$CAND"
+            # Verified before the probe, so no connection is attempted to an
+            # unapproved project even transiently.
+            if ! guard_url "$CAND"; then
+              echo "::error::Refusing: the derived connection string does not resolve to the approved production project."
+              exit 1
+            fi
             if node scripts/lib/probe-pg-url.mjs "$CAND"; then
               echo "Reachable via ${HOST}:5432 (session pooler)."
               URL="$CAND"
