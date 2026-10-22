@@ -142,8 +142,14 @@ describe("seva backup and maintenance workflows", () => {
 
   it("records failed runs too", () => {
     const blocks = steps(read(BACKUP_WORKFLOW));
+    // The record step still runs after any failure (so failed runs are recorded),
+    // but it must not run when the destination guard refused: `always()` alone
+    // would write to an unverified database. It therefore also requires the guard's
+    // outcome. See tests/unit/workflow-db-writer-guards.test.ts.
     const recordIndex = blocks.findIndex(
-      (block) => /^\s+if: always\(\)\s*$/m.test(block) && block.includes("ops_backup_runs"),
+      (block) =>
+        /^\s+if: always\(\) && steps\.guard\.outcome == 'success'\s*$/m.test(block) &&
+        block.includes("ops_backup_runs"),
     );
     expect(recordIndex).toBeGreaterThanOrEqual(0);
     const record = blocks[recordIndex];

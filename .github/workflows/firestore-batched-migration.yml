@@ -41,6 +41,11 @@ permissions:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    # Write-capable (dry_run=false reaches the destination). Binding the job to the
+    # `production` environment is a deployment-control and environment-secret
+    # boundary; it only becomes a human approval gate once the owner configures
+    # required reviewers on that environment (Settings > Environments).
+    environment: production
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

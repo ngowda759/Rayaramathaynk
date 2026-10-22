@@ -59,6 +59,7 @@ jobs:
       # records every run in ops_backup_runs), so the target must be verified before
       # any client sees the connection string. Runs before the first `psql`.
       - name: Guard approved database URL
+        id: guard
         env:
           SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
         run: node scripts/lib/guard-approved-db-url.mjs
@@ -128,7 +129,12 @@ jobs:
           if-no-files-found: error
 
       - name: Record the run in ops_backup_runs
-        if: always()
+        # `always()` alone would run this database write even when the destination
+        # guard refused the target, which is exactly the case the guard exists to
+        # prevent. Gating on the guard's outcome keeps the "record every run"
+        # behaviour for every failure *after* verification, while making a failed
+        # guard skip the write rather than connect to an unverified database.
+        if: always() && steps.guard.outcome == 'success'
         env:
           SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
           STARTED_AT: ${{ steps.start.outputs.started_at }}

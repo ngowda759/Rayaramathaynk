@@ -882,10 +882,12 @@ describe("write-capable migration workflows verify the destination project", () 
     // previous text-offset version of this check used only the four script paths
     // below, so a new `supabase db push` workflow was invisible to it.
     //
-    // Scope note: this covers *migration* writers. It does not cover the Seva
-    // backup/maintenance tooling, which uses `psql` against its own
-    // `SEVA_BACKUP_DB_URL` secret; that separate destructive path is recorded in
-    // the migration backlog rather than silently allowlisted here.
+    // Scope note: this covers *migration* writers only. The Seva backup/maintenance
+    // `psql` writers, the read-only Prisma connection path, and the Firestore
+    // scheduled writer are enumerated and guarded by
+    // `tests/unit/workflow-db-writer-guards.test.ts`, which is the authoritative
+    // seven-writer inventory. This check is kept as a narrower, migration-specific
+    // regression net and is intentionally not widened here.
     const DB_WRITERS = [
       "npx tsx scripts/migrate-all-batched.ts",
       "npx tsx scripts/migrate-staged-phase1.ts",
