@@ -49,8 +49,19 @@ jobs:
       - name: Check out the backup scripts
         uses: actions/checkout@v4
         with:
-          sparse-checkout: scripts/seva
+          sparse-checkout: |
+            scripts/seva
+            scripts/lib
           persist-credentials: false
+
+      # Fails closed on a missing, malformed, ambiguous or mismatched database URL.
+      # This workflow runs on a nightly schedule and writes to the database (it
+      # records every run in ops_backup_runs), so the target must be verified before
+      # any client sees the connection string. Runs before the first `psql`.
+      - name: Guard approved database URL
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+        run: node scripts/lib/guard-approved-db-url.mjs
 
       - name: Check the database secret
         id: db_secret

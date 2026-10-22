@@ -35,8 +35,22 @@ jobs:
       - name: Check out the backup scripts
         uses: actions/checkout@v4
         with:
-          sparse-checkout: scripts/seva
+          sparse-checkout: |
+            scripts/seva
+            scripts/lib
           persist-credentials: false
+
+      # Fails closed on a missing, malformed, ambiguous or mismatched database URL.
+      # This workflow runs a destructive purge on a schedule, so the target must be
+      # verified before any client sees the connection string. Runs before the first
+      # `psql`.
+      #
+      # NOTE: passing this guard only proves the URL points at the approved project.
+      # It is NOT authorization to purge. See the comment on the purge step.
+      - name: Guard approved database URL
+        env:
+          SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
+        run: node scripts/lib/guard-approved-db-url.mjs
 
       - name: Check the database secret
         env:
@@ -50,6 +64,10 @@ jobs:
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends postgresql-client
           fi
 
+      # DESTRUCTIVE: calls public.seva_purge_devotee_profiles(), which DELETEs devotee
+      # profiles not seen for three years. Passing the URL guard above proves only
+      # that the target is the approved project; it is not approval to delete. This
+      # step is unchanged by the guard PR and still runs on the schedule below.
       - name: Purge devotee profiles not seen for three years
         env:
           SEVA_BACKUP_DB_URL: ${{ secrets.SEVA_BACKUP_DB_URL }}
