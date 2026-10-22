@@ -27,6 +27,19 @@ So the workflow is a **scheduled database writer with no destination guard**, an
 `events` cannot be cut over by migrating rows alone: the workflow must be retired or
 re-pointed. This is why the cutover is its own change and not part of PR-A2.
 
+**The write is armed right now, and the cron gate is not protection.** The live step is
+gated on the panchanga step's output, evaluated before any generation runs
+(`aaradhane.yml:254`): `if: inputs.dry_run != 'true' && steps.check_panchanga.outputs.exists == 'true'`.
+`check_panchanga` (`:75`) sets `exists=true` only when
+`data/panchanga/<TARGET_YEAR>/` already exists in the checkout, and the cron targets
+`CURRENT_YEAR + 1`. As of 2026-10-22 the target is **2027** and
+`data/panchanga/2027/` exists (365 files), so `exists=true` **today** — any
+`workflow_dispatch` without `dry_run=true` reaches the live write step immediately.
+The one tick the gate protects is the next cron fire (2027-01-01, target 2028, no
+panchanga directory), and that protection disappears the moment 2028 panchanga is
+committed. The guard must therefore land **before the next dispatch and before the next
+panchanga commit** — there is no grace period. Readiness review §5.
+
 ## 2. Verified current state (evidence)
 
 | Fact | Evidence |
@@ -57,21 +70,23 @@ corrected in this change; §4 is retained as the proposal it is.
 
 ### 3.1 Deterministic IDs
 
-Write `events.firestore_id = \`generated-${year}-${guru.id}\`` (the existing
-`eventKey`, `generator.ts:211`). `guru.id` is a stable slug (`data/aaradhane/gurus.ts`,
-e.g. `madhvacharya`), so the key is stable across runs. This is what makes an upsert
-idempotent: a re-run updates the same row instead of inserting a duplicate.
+Write `firestore_id = \`${guru.id}-${year}\`` — the existing `eventKey`
+(`generator.ts:211`) **as-is**. This is already the shipped convention:
+`data/exports/supabase-events-2027.json` contains `madhvacharya-2027`,
+`raghavendra-poorva-2027`, `raghavendra-madhya-2027`, `raghavendra-uttara-2027`.
 
-Sri Raghavendra has more than one Aaradhane phase per year. The phase **must** be part
-of the key, not a heuristic:
+Two corrections to the earlier draft of this plan, both from the readiness review
+(`docs/AARADHANE_CUTOVER_READINESS_REVIEW.md` §2):
 
-```
-generated-<year>-<guruId>            // gurus without phases
-generated-<year>-<guruId>-<phase>    // e.g. -aradhana / -punyaradhane
-```
-
-Leaving the phase out would collapse two distinct events onto one row. The exact phase
-labels come from the existing `raghavendraPhase` values in `generator.ts`.
+- **No `generated-` prefix.** The prefix appears nowhere in `scripts/`, `lib/`, `app/`,
+  `services/` or `data/`. Adopting it would make the scheduled writer disagree with
+  `npm run migrate:events-from-json` (`scripts/migrate-events-to-supabase-from-json.ts`),
+  duplicating every row under two `firestore_id` values.
+- **No phase suffix.** The three Raghavendra phases are already **separate guru records**
+  with distinct IDs (`data/aaradhane/gurus.ts:311,327,343` — `raghavendra-poorva`,
+  `-madhya`, `-uttara`), so `${guru.id}-${year}` already disambiguates them. A suffix
+  would produce `raghavendra-poorva-2027-poorva`. The "two phases collapse onto one row"
+  risk below is real only if `guru.id` is omitted from the key.
 
 ### 3.2 Idempotent upsert
 
@@ -82,9 +97,14 @@ shape (`scripts/migrate-events-to-supabase-from-json.ts:28-30`,
 
 Two guards the existing precedent does not have and this path needs:
 
-1. **Ownership.** Only rows whose `firestore_id` starts with `generated-` may be
-   written, and the payload must carry `auto_generated`/`year`. Without this, a future
-   row could collide with a manually curated event.
+1. **Ownership.** Only rows whose `firestore_id` is `${guru.id}-${year}` for a guru in
+   the generator's own list may be written. **The `auto_generated` / `year` columns this
+   guard would naturally read do not exist**: the writer emits 19 fields and the
+   Supabase `events` table has columns for only 9 of them
+   (`20260907112632_create_core_tables.sql:53-70`; `CORE_FIELD_SPECS.events`,
+   `lib/supabase/migration-mappers.ts:668-682`). Add `auto_generated` and `year` (and
+   see §3.3) in the same migration as the date columns, or enforce the filter in code
+   against the generated set. Readiness review §4.
 2. **Deletion policy.** A re-run must never delete rows it did not generate. If the
    expected set for a year shrinks, the stale generated rows must be left alone or
    removed by an explicit, separately authorised step — never by an implicit "delete
@@ -148,6 +168,9 @@ The cutover PR must, in one change:
 5. Add a `concurrency` group so two runs cannot interleave.
 6. Keep the schedule, but make the scheduled path non-writing until the owner enables
    it, so the cutover cannot write to production on its first tick by accident.
+7. Add `scripts/generate-events-firestore.ts` to the B-1 removal inventory. It is a
+   **second** Admin-SDK writer to the same `events` collection and is invoked by no
+   workflow, so a workflow census will not surface it.
 
 ### 3.7 Inventory / test coverage
 
@@ -155,13 +178,19 @@ The cutover PR must, in one change:
   writers (`DB_SIGNALS` is Postgres-specific, lines 553-560). Once the Aaradhane writer
   targets Supabase it **becomes** a Postgres writer and must be added to
   `DB_WRITER_INVENTORY`, so the completeness check enumerates it.
-- New tests: deterministic-key derivation (including the phase suffix); upsert
-  idempotency (running twice yields the same rows); IST date derivation across a
-  DST-free year boundary; the ownership filter; the "no implicit delete" property; and
-  a behavioral test that a default/`--dry-run` run writes nothing (same stubbed-client
-  technique as the `seva-maintenance` purge test).
+- New tests: deterministic-key derivation; upsert idempotency (running twice yields the
+  same rows); IST date derivation across a DST-free year boundary; the ownership filter;
+  the "no implicit delete" property; and a behavioral test that a default/`--dry-run`
+  run writes nothing (same stubbed-client technique as the `seva-maintenance` purge
+  test).
+- **Assert against the golden files already in the repository.** `data/exports/` holds
+  `supabase-events-2026.json`, `supabase-events-2027.json` and `supabase-events-all.json`
+  (38 rows across 2026–2027) in exactly the row shape this writer must produce. Use them
+  rather than inventing fixtures. Note their `start_date` values are UTC-midnight ISO
+  strings and several fields carry the **strings** `"None"`/`"True"`/`"False"` — assert
+  the intended values, do not reproduce that artefact.
 - **Retire the false premise:** the plan's tests must assert the key form the code
-  actually uses, not the `generated-<year>-<slug>` string from §4.
+  actually uses (`${guru.id}-${year}`), not the `generated-<year>-<slug>` string from §4.
 
 ## 4. Explicitly out of scope
 
@@ -169,18 +198,25 @@ The cutover PR must, in one change:
   raw production export.
 - No schema, RLS, credential or application-behaviour change in this PR.
 - No change to `services/aaradhane.service.ts` (it does not read `events`) and no
-  change to the admin/stats readers, which still use the Firebase client SDK. Their
-  cutover is a **separate** decision and must not be bundled here.
+  change to the readers. **The reader surface is split three ways and one branch is
+  already broken**: 15 files read Supabase through `services/event.service.ts` using the
+  **anon** key against a **deny-all** RLS table, and `getEvents()` swallows the error and
+  returns `[]` — so the public events list, the homepage strip, the admin events table
+  and the event detail page read nothing today. The remaining readers use the Firebase
+  SDK directly. The `events` `SELECT` policy the backlog requires does not exist. All of
+  this is PR-D4c. Readiness review §3; `docs/PR-D4c_READER_CUTOVER.md`.
 
 ## 5. Risks
 
-1. **Duplicate rows** if the phase is omitted from the key (two phases → one row).
+1. **Duplicate rows** if the key omits `guru.id`. With `${guru.id}-${year}` the three
+   Raghavendra phases are already distinct guru IDs, so this cannot happen — but a
+   "helpful" prefix or suffix would re-introduce it (§3.1).
 2. **Silent no-write** if the reader cutover is assumed but only the writer moved —
    the public page reads `aaradhane`/`aaradhanes`, not `events`, so the writer change
    alone is invisible to the public site. Confirm which reader each consumer uses
    before retiring Firestore.
-3. **Schema change** (`date` columns) needs its own reviewed migration and a
-   back-fill decision for any existing rows.
+3. **Schema change** (`date` columns, plus `auto_generated`/`year` for ownership) needs
+   its own reviewed migration and a back-fill decision for any existing rows.
 4. **Default-flip** (`--apply` required) changes CLI behaviour; any other caller of
    `generate-aaradhane.ts` must be found first.
 5. **First-tick write** if the scheduled path is enabled in the same change that
@@ -200,12 +236,21 @@ The cutover PR must, in one change:
 
 ## 7. Proposed PR sequence
 
+Each phase has its own proposal with dependencies and acceptance criteria:
+
 1. **PR-D4a** — writer: deterministic keys, idempotent upsert, ownership filter,
    explicit `--apply`, IST `date` handling, unit + behavioral tests. Firestore writer
    left in place, Supabase writer **not** enabled in the workflow.
+   → `docs/PR-D4a_AARADHANE_WRITER.md`
 2. **PR-D4b** — workflow re-point: guard, `environment: production`, `concurrency`,
    scheduled path non-writing, Firestore writer and credential step removed.
+   → `docs/PR-D4b_AARADHANE_WORKFLOW.md`
 3. **PR-D4c** (separate) — reader cutover and Firestore retirement, after
-   reconciliation.
+   reconciliation. Must also add the missing `events` `SELECT` policy and fix
+   `services/event.service.ts`, which reads Supabase with the anon key against a
+   deny-all table and silently returns `[]`.
+   → `docs/PR-D4c_READER_CUTOVER.md`
+
+Readiness review of this plan: `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md`.
 
 No step may be merged while production migration status is HOLD.

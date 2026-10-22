@@ -496,10 +496,19 @@ independently proven here. See A-1/A-2 for the read-only verification the owner 
   and predecessors).
 - **Deterministic IDs:** the writer does **not** use deterministic IDs today (see
   §1.1). Use the existing `eventKey` `` `${guru.id}-${year}` `` as the Supabase
-  `firestore_id` so a re-run cannot duplicate a row. The preferred key form is
-  `generated-<year>-<guruId>`; gurus with more than one Aaradhane phase (Sri
-  Raghavendra) need the phase in the key too, or two events collapse onto one row.
-  Full design: `docs/AARADHANE_SUPABASE_CUTOVER_PLAN.md` §3.1.
+  `firestore_id` so a re-run cannot duplicate a row. This is **already the shipped
+  convention**: `data/exports/supabase-events-2027.json` carries `madhvacharya-2027`
+  and `raghavendra-poorva-2027`. Do **not** add a `generated-` prefix (it appears
+  nowhere in the repository and would duplicate every row against
+  `npm run migrate:events-from-json`) and do **not** add a phase suffix (the three
+  Raghavendra phases are already separate guru IDs — `raghavendra-poorva`,
+  `-madhya`, `-uttara`). Full design: `docs/AARADHANE_SUPABASE_CUTOVER_PLAN.md` §3.1;
+  readiness review: `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md` §2.
+- **Second writer to the same collection:** `scripts/generate-events-firestore.ts`
+  also writes `events` via the Admin SDK. No workflow invokes it, so a workflow
+  census will not surface it — add it to the B-1 removal inventory by hand.
+- **Proposed PRs:** `docs/PR-D4a_AARADHANE_WRITER.md`,
+  `docs/PR-D4b_AARADHANE_WORKFLOW.md`, `docs/PR-D4c_READER_CUTOVER.md`.
 - **Idempotency:** `INSERT … ON CONFLICT (id) DO UPDATE` keyed on the deterministic
   ID; never insert-then-insert.
 - **Time zone / dates:** the job runs 03:30 UTC. Aaradhane dates are Indian civil
@@ -518,9 +527,14 @@ independently proven here. See A-1/A-2 for the read-only verification the owner 
   workflow_dispatch-only manual fallback for one cycle; reconcile by counting
   `events` for the target year against the generated expected count before
   retiring Firestore.
-- **Minimum implementation change:** one PR that (a) replaces the Firestore write
-  with a Supabase upsert, (b) removes the Firestore dependency and credential, and
-  (c) adds an acceptance test. **Acceptance tests:** deterministic IDs are stable
+- **Minimum implementation change:** the original guidance was one PR that
+  (a) replaces the Firestore write with a Supabase upsert, (b) removes the
+  Firestore dependency and credential, and (c) adds an acceptance test. The
+  readiness review splits this into **three** PRs (writer / workflow / readers)
+  because the reader surface turns out to be split three ways and one branch is
+  already broken, and because a schema+RLS change must not ride along with a
+  workflow change. PR-D4a and PR-D4b together cover (a)–(c); PR-D4c carries the
+  reader work. **Acceptance tests:** deterministic IDs are stable
   across two runs; a second run changes no row count; a cancelled run leaves no
   partial year; a non-Supabase-available run fails loudly without writing.
 
