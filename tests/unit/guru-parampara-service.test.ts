@@ -7,12 +7,16 @@
  * directly from the browser. It now goes through this service behind an
  * admin-guarded route. These tests pin the parts that make that safe: the
  * document key matches the migration container, the read distinguishes "not
- * saved yet" from "read failed", the save is an idempotent upsert, and a
- * malformed payload is rejected at the boundary rather than stored.
+ * saved yet" from "read failed", a malformed payload is rejected at the boundary,
+ * and — the reason this file grew — a save cannot overwrite content it did not
+ * read, nor create the row from a reader that saw nothing.
  */
 
 import {
+  ABSENT_REVISION,
+  computeRevision,
   GURU_PARAMPARA_DOCUMENT_KEY,
+  GuruParamparaConflictError,
   GuruParamparaValidationError,
   parseGuruParamparaData,
 } from "@/services/guru-parampara.service";
@@ -45,6 +49,9 @@ const validPayload = {
     { id: "1", number: "01", name: "Madwacharyaru", kannada: "ಮಧ್ವಾಚಾರ್ಯರು", description: "d" },
   ],
 };
+
+/** The stored revision for `validPayload`, as `getWithRevision` would report it. */
+const storedRevision = computeRevision(validPayload);
 
 beforeEach(() => {
   mockUpsert.mockReset();
@@ -84,15 +91,39 @@ describe("parseGuruParamparaData", () => {
   });
 });
 
-describe("get", () => {
-  it("returns null when no document has been saved yet", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
-    await expect(guruParamparaService.get()).resolves.toBeNull();
+describe("computeRevision", () => {
+  it("is stable for structurally equal payloads regardless of key order", () => {
+    const reordered = {
+      gurus: validPayload.gurus,
+      subheadingKannada: validPayload.subheadingKannada,
+      heading: validPayload.heading,
+      headingKannada: validPayload.headingKannada,
+      subheading: validPayload.subheading,
+    };
+    expect(computeRevision(reordered as typeof validPayload)).toBe(storedRevision);
   });
 
-  it("returns the parsed document when present", async () => {
+  it("changes when the content changes", () => {
+    expect(computeRevision({ ...validPayload, heading: "Other" })).not.toBe(storedRevision);
+  });
+});
+
+describe("get / getWithRevision", () => {
+  it("returns null and the absent revision when no document has been saved yet", async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    await expect(guruParamparaService.get()).resolves.toBeNull();
+    await expect(guruParamparaService.getWithRevision()).resolves.toEqual({
+      data: null,
+      revision: ABSENT_REVISION,
+    });
+  });
+
+  it("returns the parsed document and its revision when present", async () => {
     mockMaybeSingle.mockResolvedValue({ data: { data: validPayload }, error: null });
-    await expect(guruParamparaService.get()).resolves.toEqual(validPayload);
+    await expect(guruParamparaService.getWithRevision()).resolves.toEqual({
+      data: validPayload,
+      revision: storedRevision,
+    });
   });
 
   it("throws on a read failure instead of returning null", async () => {
@@ -102,9 +133,11 @@ describe("get", () => {
 });
 
 describe("save", () => {
-  it("upserts on document_key so a re-save updates rather than duplicates", async () => {
+  it("upserts on document_key when the caller presents the current revision", async () => {
+    mockMaybeSingle.mockResolvedValue({ data: { data: validPayload }, error: null });
     mockUpsert.mockResolvedValue({ error: null });
-    await guruParamparaService.save(validPayload);
+
+    await guruParamparaService.save(validPayload, { expectedRevision: storedRevision });
 
     expect(mockUpsert).toHaveBeenCalledTimes(1);
     const [row, options] = mockUpsert.mock.calls[0];
@@ -116,13 +149,62 @@ describe("save", () => {
 
   it("refuses to write a malformed payload, so the row cannot be corrupted", async () => {
     await expect(
-      guruParamparaService.save({ ...validPayload, gurus: [{ id: "1" }] }),
+      guruParamparaService.save(
+        { ...validPayload, gurus: [{ id: "1" }] },
+        { expectedRevision: storedRevision },
+      ),
     ).rejects.toThrow(GuruParamparaValidationError);
     expect(mockUpsert).not.toHaveBeenCalled();
   });
 
   it("throws on a write failure rather than reporting success", async () => {
+    mockMaybeSingle.mockResolvedValue({ data: { data: validPayload }, error: null });
     mockUpsert.mockResolvedValue({ error: { message: "write denied" } });
-    await expect(guruParamparaService.save(validPayload)).rejects.toThrow(/write denied/);
+    await expect(
+      guruParamparaService.save(validPayload, { expectedRevision: storedRevision }),
+    ).rejects.toThrow(/write denied/);
+  });
+
+  it("refuses a save with no revision, so it cannot overwrite blindly", async () => {
+    await expect(
+      guruParamparaService.save(validPayload, { expectedRevision: "" }),
+    ).rejects.toThrow(GuruParamparaConflictError);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a save whose revision is stale, so a concurrent edit is not lost", async () => {
+    // The stored document changed after the caller read it: same shape, new heading.
+    const changed = { ...validPayload, heading: "Changed elsewhere" };
+    mockMaybeSingle.mockResolvedValue({ data: { data: changed }, error: null });
+
+    await expect(
+      guruParamparaService.save(validPayload, { expectedRevision: storedRevision }),
+    ).rejects.toThrow(/changed since it was read/);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses to create the row from a reader that saw nothing (missing-data guard)", async () => {
+    // This is the guruParampara hazard: no `settings_documents` row exists, the
+    // page shows built-in defaults, and a save would make those defaults the
+    // stored content. It must fail closed instead.
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    await expect(
+      guruParamparaService.save(validPayload, { expectedRevision: ABSENT_REVISION }),
+    ).rejects.toThrow(/Run the settings data migration/);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("creates the row only when the caller explicitly permits it (owner-gated)", async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockUpsert.mockResolvedValue({ error: null });
+
+    await guruParamparaService.save(validPayload, {
+      expectedRevision: ABSENT_REVISION,
+      allowCreate: true,
+    });
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert.mock.calls[0][0].data).toEqual(validPayload);
   });
 });

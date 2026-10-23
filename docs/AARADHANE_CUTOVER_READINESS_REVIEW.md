@@ -130,6 +130,50 @@ on this and should be updated rather than duplicated:
 outside this task's scope (it would change application behaviour and RLS). PR-D4c owns
 them.
 
+### 3.1 Decision — `services/aaradhane.service.ts` is **not** retired by PR #360
+
+Population D (`services/aaradhane.service.ts`) is the last Firestore **writer** on the
+Aaradhane feature. It is tracked by an allowlist entry in
+`tests/unit/aaradhane/firestore-write-retirement.test.ts`, and that entry must not be read
+as evidence that the cutover is complete. It is evidence of the opposite: the writer is
+still there, and the test asserts it is still there.
+
+**Decision: retire it, but in the reader/cutover phase (PR-D4c), not in PR #360.** This
+is a *sequencing* decision, not a deferral of the requirement. The reasons are concrete,
+and each is checkable in the repository today:
+
+1. **The destination is not writable or readable by the app's roles.** `aaradhane` and
+   `aaradhanes` are both classified `MIGRATE → aaradhanes`
+   (`lib/supabase/migration-inventory.ts:32-33`), and `aaradhanes` carries a single
+   `FOR ALL TO public USING (false)` policy
+   (`20261001000000_create_content_tables.sql:194-196`). The retirement test now asserts
+   that denial, so removing the writer without adding the policy fails the suite.
+2. **The callers are browser components using the anon key.** Four `"use client"`
+   components call the service directly — `AaradhaneTable.tsx`, `CreateAaradhane.tsx`,
+   `EditAaradhane.tsx`, `AaradhaneStats.tsx` — plus the public page
+   `app/(public)/aaradhane/page.tsx` and the admin API routes. That is a
+   population-A-style cutover (server-route routing or a narrow policy), the same split
+   PR-D4c made for `events`, not a one-line client swap.
+3. **The delete semantics are buggy and must not be ported.** `deleteAaradhane` falls
+   back from `aaradhane` to `aaradhanes`, but Firestore `deleteDoc` resolves on a missing
+   document, so the fallback is unreachable and a record living only in `aaradhanes` is
+   never deleted while the UI reports success (tracked as R-082). Fixing that is part of
+   the move.
+4. **PR #360's mandate is writer-only.** Bundling an RLS policy and a reader re-route
+   into it would ride a policy change along with a workflow/writer change — exactly what
+   §8 says must not happen.
+
+**How the gap is closed (PR-D4c acceptance):** add the `aaradhanes` `SELECT` policy and
+re-route the four admin components through a server route using the service-role client;
+fix the delete semantics; then delete the writer *and* the allowlist entry in the same
+change. Until all four hold, the entry stays and the suite enforces it.
+
+**What would make retirement wrong, and is therefore rejected:** removing the allowlist
+entry while the writer still exists, or treating "it is on an allowlist" as "the cutover
+is done". The test now fails in both cases.
+
+---
+
 ## 4. BLOCKER — the ownership filter cannot be built as specified
 
 The plan's §3.2 says the payload "must carry `auto_generated`/`year`" so the writer can
@@ -300,3 +344,17 @@ Detailed criteria are in the three proposal documents. The gates that decide "do
 5. Decide whether the cron is disabled, or kept and made non-writing, until a manual
    first run is approved.
 6. Sequence: confirm PR-D4b lands before the next panchanga commit for a future year.
+7. **`services/aaradhane.service.ts` (resolved, recorded in §3.1): retire it, but in
+   PR-D4c — after the `aaradhanes` `SELECT` policy, the server-route re-route of the four
+   admin components, and the delete-semantics fix. PR #360 keeps the allowlist entry and
+   the retirement test now asserts the destination is still deny-all, so the entry cannot
+   be mistaken for a completed cutover.**
+8. **`guruParampara` save authorization (resolved, design in
+   `docs/SETTINGS_SAVE_GUARD.md`): the save is now revision-gated and refuses to create
+   the row from a reader that saw nothing. Confirm the ordering — run
+   `npm run migrate:settings` before the cutover is used — and decide whether an owner
+   ever wants the deliberate create path enabled (it is off in the route by default).**
+9. **`events` `SELECT` policy deployment sequence (resolved, design in
+   `docs/EVENTS_POLICY_DEPLOYMENT_SEQUENCE.md`): apply the policy migration and deploy
+   the reader code together, policy first. Confirm the owner will apply the policy via
+   the gated `supabase-migrations.yml` dispatch, not by hand.**

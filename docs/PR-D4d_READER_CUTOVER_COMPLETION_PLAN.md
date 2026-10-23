@@ -192,11 +192,23 @@ an admin opening the page sees the built-in defaults rather than the live Firest
 content, and the first **Save** writes those defaults over the container — a silent
 content loss that looks like a successful save.
 
-**Owner decision (new):** confirm the ordering before the admin page is used in
-production — either (a) run `npm run migrate:settings` so the `guruParampara` row exists
-before the cutover is deployed, or (b) keep the Firestore read until the settings data
-migration has run. Do **not** treat the code cutover as complete on its own. Verify with a
-read-only `select data from settings_documents where document_key = 'guruParampara'`.
+**Owner decision (resolved — see `docs/SETTINGS_SAVE_GUARD.md`).** The ordering is still
+required — run `npm run migrate:settings` so the `guruParampara` row exists before the
+cutover is used — but the silent-overwrite path is now closed in code, so the ordering is
+no longer the *only* thing preventing content loss:
+
+- GET returns a `revision` (`computeRevision(data)`, or the sentinel `absent` when no row
+  exists); PUT requires it back as `expectedRevision`.
+- A save whose revision is missing or stale is refused with `409`.
+- A save that would **create** the row from a reader that saw nothing (revision `absent`)
+  is refused with `409` unless the caller passes `allowCreate: true`, which the route does
+  not accept from the request body.
+- The page disables **Save** while the document is missing and shows a banner naming
+  `npm run migrate:settings`.
+
+Verify with a read-only `select data from settings_documents where document_key =
+'guruParampara'` before relying on the page. The residual (a true simultaneous
+compare-and-swap) is recorded as a follow-up in `docs/SETTINGS_SAVE_GUARD.md` §5.
 
 
 ---
@@ -288,6 +300,12 @@ Each subsection states the decision, the recommended option, and what it unblock
   readers are cut over, because a reader with no row returns nothing (or the page's
   defaults) and the next save can overwrite live content. `npm run migrate:settings` is the
   only writer of those rows. Record the check (read-only) as the gate for U3.
+- **For `guru-parampara` the ordering is now defence in depth, not the only control:** the
+  revision guard in `docs/SETTINGS_SAVE_GUARD.md` refuses a save that would create the row
+  from a reader that saw nothing, so the ordering protects against *missing* content while
+  the guard protects against *overwriting* it. U3's readers should adopt the same
+  revision/`expectedRevision` pattern when they move, rather than relying on ordering
+  alone.
 
 ### 4.9 `notifications` — check before creating anything
 
@@ -422,4 +440,16 @@ U1 is the live defect; U0 and U3-U4 are mechanical; U5-U10 need the schema decis
 11. **Confirm the `guruParampara` data-migration ordering** (§3.4): the admin page is
     already code-cut-over to `settings_documents` in PR #360, but the row is only populated
     by `npm run migrate:settings`. Confirm the row exists (read-only) before the page is
-    used, or the first Save overwrites live content with the in-file defaults.
+    used. The silent-overwrite path is now also closed in code — the save is
+    revision-gated and refuses to create the row from a reader that saw nothing
+    (`docs/SETTINGS_SAVE_GUARD.md`) — so this ordering is defence in depth rather than the
+    only control.
+12. **Confirm the `events` policy deployment sequence** (§4.8/§3.1): apply the policy and
+    deploy the reader code together, policy first
+    (`docs/EVENTS_POLICY_DEPLOYMENT_SEQUENCE.md`). Confirm the admin draft-invisibility
+    limitation is acceptable until PR-D4c's admin re-route, or ship the re-route with the
+    policy.
+13. **Confirm `services/aaradhane.service.ts` retirement timing** (§3.1 of
+    `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md`): retire it in PR-D4c, after the
+    `aaradhanes` policy, the server-route re-route of the four admin components, and the
+    delete-semantics fix.

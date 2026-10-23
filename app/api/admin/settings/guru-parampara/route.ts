@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminUser } from "@/lib/auth/admin-auth";
 import {
+  computeRevision,
+  GuruParamparaConflictError,
   GuruParamparaValidationError,
   guruParamparaService,
 } from "@/services/guru-parampara.service";
@@ -18,6 +20,12 @@ import {
  * (`services/aaradhane.service.ts` still writes the separate `aaradhane` /
  * `aaradhanes` collections; that needs an RLS policy on `aaradhanes` and is
  * tracked as a PR-D4c follow-up, not part of this change.)
+ *
+ * The GET response carries the document's `revision`, and PUT requires it back
+ * (`expectedRevision`). That pairing is what stops a page that loaded the
+ * built-in defaults — because the `settings_documents` row does not exist yet —
+ * from saving those defaults over live content: with no row the revision is
+ * `absent`, and a create is refused unless `allowCreate` is set.
  */
 
 export async function GET(request: NextRequest) {
@@ -25,8 +33,8 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   try {
-    const data = await guruParamparaService.get();
-    return NextResponse.json({ success: true, data });
+    const { data, revision } = await guruParamparaService.getWithRevision();
+    return NextResponse.json({ success: true, data, revision });
   } catch (error) {
     console.error("[API] Error reading guru parampara settings:", error);
     return NextResponse.json(
@@ -50,10 +58,34 @@ export async function PUT(request: NextRequest) {
     );
   }
 
+  if (typeof body !== "object" || body === null) {
+    return NextResponse.json(
+      { success: false, error: "Request body must be a JSON object" },
+      { status: 400 },
+    );
+  }
+
+  const { expectedRevision, data } = body as {
+    expectedRevision?: unknown;
+    data?: unknown;
+  };
+
+  // `allowCreate` is deliberately not accepted from the request body: creating the
+  // row is an owner-gated operation, not something an admin can opt into per call.
   try {
-    const data = await guruParamparaService.save(body);
-    return NextResponse.json({ success: true, data });
+    const saved = await guruParamparaService.save(data, {
+      expectedRevision: typeof expectedRevision === "string" ? expectedRevision : "",
+    });
+    // Return the new revision so the client can save again without reloading.
+    return NextResponse.json({
+      success: true,
+      data: saved,
+      revision: computeRevision(saved),
+    });
   } catch (error) {
+    if (error instanceof GuruParamparaConflictError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 });
+    }
     if (error instanceof GuruParamparaValidationError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }

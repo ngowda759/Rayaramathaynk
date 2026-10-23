@@ -195,12 +195,19 @@ describe("Aaradhane writes to Supabase only", () => {
  * fails the suite, so the surface cannot widen unnoticed.
  */
 describe("remaining Aaradhane Firestore writers are tracked, not forgotten", () => {
-  const TRACKED_FOLLOWUPS: Array<{ file: string; reason: string }> = [
+  const TRACKED_FOLLOWUPS: Array<{
+    file: string;
+    destinationTable: string;
+    reason: string;
+  }> = [
     {
       file: "services/aaradhane.service.ts",
+      destinationTable: "aaradhanes",
       reason:
-        "admin CRUD for the aaradhane/aaradhanes collections; needs an RLS policy on the " +
-        "aaradhanes table, so it moves with the reader/cutover phase (PR-D4c follow-up)",
+        "admin CRUD for the aaradhane/aaradhanes collections; the destination table " +
+        "`aaradhanes` is deny-all under RLS and the four admin components call the service " +
+        "directly with the anon key, so the move needs a SELECT policy AND server-route " +
+        "routing (PR-D4c reader/cutover phase)",
     },
   ];
 
@@ -230,6 +237,44 @@ describe("remaining Aaradhane Firestore writers are tracked, not forgotten", () 
       if (writes.length > 0) untracked.push(rel);
     }
     expect(untracked).toEqual([]);
+  });
+
+  it("is not proof the cutover is done: each destination is still deny-all, so the entry cannot be deleted yet", () => {
+    // An allowlist entry records a *known gap*, not a completed migration. If the
+    // destination table were already readable by the roles the app uses, retiring
+    // the writer would be a one-line swap and this list should shrink. Asserting
+    // the denial keeps that reasoning honest: the entry may only be removed in the
+    // same change that adds the policy and re-routes the callers.
+    const contentTables = read(
+      "supabase/migrations/20261001000000_create_content_tables.sql",
+    );
+    for (const { destinationTable } of TRACKED_FOLLOWUPS) {
+      const denyAll = new RegExp(
+        `CREATE\\s+POLICY\\s+"Deny all public access to ${destinationTable}"\\s+` +
+          `ON\\s+${destinationTable}\\s+FOR\\s+ALL\\s+TO\\s+public\\s+USING\\s*\\(\\s*false\\s*\\)`,
+        "i",
+      );
+      expect(contentTables).toMatch(denyAll);
+      // And no later migration has quietly opened it.
+      const migrations = readdirSync(path.join(ROOT, "supabase", "migrations")).filter((f) =>
+        f.endsWith(".sql"),
+      );
+      for (const file of migrations) {
+        const sql = read(path.join("supabase", "migrations", file));
+        const opens = new RegExp(
+          `CREATE\\s+POLICY\\s+"[^"]*"[\\s\\S]{0,120}?ON\\s+${destinationTable}\\b[\\s\\S]{0,200}?USING\\s*\\(\\s*(?!false)`,
+          "i",
+        );
+        expect(`${file}:${opens.test(sql)}`).toBe(`${file}:false`);
+      }
+    }
+  });
+
+  it("names the decision document that records retire-or-keep", () => {
+    // The decision must be written down, not inferred from the allowlist.
+    const decision = read("docs/AARADHANE_CUTOVER_READINESS_REVIEW.md");
+    expect(decision).toMatch(/services\/aaradhane\.service\.ts/);
+    expect(decision).toMatch(/retire|retirement/i);
   });
 
   it("keeps a non-vacuity control for the call detector", () => {
