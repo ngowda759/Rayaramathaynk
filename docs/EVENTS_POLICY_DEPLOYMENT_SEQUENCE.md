@@ -72,25 +72,47 @@ must close the admin path.
 
 ## 4. Recommended sequence — apply the policy **before** the merge
 
-The decisive fact is that **merging this PR deploys it.** `.github/workflows/deploy.yml`
-runs on `push` to `main` and executes `vercel deploy --prebuilt --prod`; it has no
-`environment:` gate and no approval step. There is no separate "deploy" button to hold
-back. Meanwhile the policy is applied only by a manual `workflow_dispatch`
-(`supabase-migrations.yml`), and nothing auto-applies it. So the two halves of this change
-can never land "together in one release" — the policy is a separate, owner-triggered
-action, and the code ships the instant the PR is merged.
+The decisive fact is that **merging this PR deploys it.** A push to `main` reaches
+production with no in-repo approval gate, and the policy is applied by a separate,
+owner-triggered action. So the two halves can never land "together in one release": the
+code ships the instant the PR is merged, and the policy does not ship with it.
+
+**Which mechanism performs the deploy.** Two paths exist and only one is live:
+
+- `.github/workflows/deploy.yml` contains `vercel deploy --prebuilt --prod` and has no
+  `environment:` gate, but it is **disabled** (`state: disabled_manually`) and its last run
+  was 2026-07-13. It is therefore *not* what deploys today. This much is a static property
+  of the file and the workflow's recorded state.
+- **The observed live production deployer is Vercel's own Git integration.** On the merge
+  commit it created a `Production` deployment (`vercel[bot]`, environment `Production`,
+  2026-10-23T10:27:40Z, ~2.5 minutes after the merge), with no GitHub-side gate at all.
+  This is an **external observation**, not a repository fact: it comes from the Vercel
+  deployment record for that commit, and **no static test over this repository can
+  establish it** — the repository contains no artifact of it.
+
+Both paths share the property that matters here — **no in-repo approval gate stands between
+a push to `main` and a production deploy** — so the ordering rule holds regardless of which
+one runs. Do not read "`deploy.yml` has no `environment:`" as the proof of that. What the
+static test can show is narrow: no in-repo workflow that runs a `vercel deploy`/`vercel
+build` command declares an `environment:` gate. It does **not** prove that every possible
+deployment path is ungated — a differently-invoked deploy, or the live Vercel Git
+integration, would be invisible to it.
+
+Meanwhile the policy is applied only by a manual `workflow_dispatch`
+(`supabase-migrations.yml`). Note that this is the *documented* path, and on 2026-10-23 it
+was not the path that actually applied the policy — see the closing note.
 
 That inverts the naive order. The correct sequence is:
 
 1. **Apply the policy first** — dispatch `supabase-migrations.yml` with the confirmation
-   phrase. This is safe with the *current* code live: the policy only grants anon `SELECT`
-   on `published = true` rows, and today's `getEvents()` returns `[]` on the denial, so the
-   worst case is that the currently-blank public list starts showing published events. It
-   cannot break anything that works today.
+   phrase. This is safe with the *pre-merge* code live: the policy only grants anon
+   `SELECT` on `published = true` rows, and the pre-merge `getEvents()` returned `[]` on
+   the denial, so the worst case is that the currently-blank public list starts showing
+   published events. It cannot break anything that works today.
 2. **Verify, read-only** (§5), that the policy exists and that a published row is readable
    while an unpublished one is not.
-3. **Then merge PR #360.** `deploy.yml` deploys the reader code to production with the
-   policy already present, so the public events page and the homepage strip work
+3. **Then merge PR #360.** The push to `main` deploys the reader code to production with
+   the policy already present, so the public events page and the homepage strip work
    immediately.
 4. **Then** PR-D4c's admin re-route, so the admin list can see drafts again.
 
@@ -132,29 +154,68 @@ None of these run in CI or in this PR; they are the owner's gate.
 
 ## 6. What would break, and the guard
 
-- **Merging before the policy** → `deploy.yml` ships the reader to production while
+- **Merging before the policy** → the push to `main` ships the reader to production while
   `events` is deny-all, so the public events list and homepage strip show an error state.
   **This is the one order that breaks production**, and it is the order a plain "merge when
   CI is green" would take. §4's step 1 exists to prevent it.
-- **Applying the policy first** → no break; the policy is additive and the current reader
-  already tolerates the denial.
+- **Applying the policy first** → no break; the policy is additive and the pre-merge reader
+  already tolerated the denial.
 - **Policy too broad** (e.g. `USING (true)`) → drafts leak. The policy text is asserted by
   `events-select-policy.test.ts` (`USING (published = true)`, no `USING (true)`, `SELECT`
   only, `TO anon, authenticated`).
-- **Policy applied by a non-gated path** → the same test asserts no other workflow
-  references the migration file, so only the manual dispatch can apply it.
+- **Policy applied by a non-gated in-repo path** → the same test asserts no workflow other
+  than `supabase-migrations.yml` references the migration file, so within the repository the
+  manual dispatch is the only path that would apply it. (That does not exclude an external
+  actor — see §8 — but nothing in the repo applies it automatically.)
 
 ## 7. Owner actions (GitHub/Supabase configuration, not code)
 
 1. Dispatch `supabase-migrations.yml` with the confirmation phrase to apply the policy,
-   after reviewing the SQL. This is the only supported way to apply it, and it must happen
+   after reviewing the SQL. This is the supported way to apply it, and it must happen
    **before** the merge.
 2. Ensure the `production` environment has required reviewers if the dispatch is to be
-   reviewer-gated; the workflow's own header states the environment currently carries no
-   protection rules.
+   reviewer-gated. **As of 2026-10-23 the `Production` environment has
+   `protection_rules: []`, so it pauses for nobody.** This is an owner-only setting
+   (Settings > Environments).
 3. Decide whether the admin draft-invisibility limitation (§3) is acceptable until PR-D4c,
    or whether the admin re-route must ship with the policy.
-4. Note for the merge decision: because `deploy.yml` has no approval gate, **merging is
-   deploying**. If the owner wants a deploy gate rather than a policy-first ordering, that
-   is a repository/workflow change (add `environment: production` + reviewers to
-   `deploy.yml`), which this PR deliberately does not make.
+4. Note for the merge decision: because no in-repo path gates a production deploy,
+   **merging is deploying**. If the owner wants a deploy gate rather than a policy-first
+   ordering, that is a repository/Vercel change (enable `deploy.yml` with
+   `environment: production` + required reviewers, or gate the Vercel Git integration),
+   which this document deliberately does not make.
+
+## 8. Observed outcome of the 2026-10-23 merge (recorded, not assumed)
+
+PR #360 was merged **before** this sequence was followed, so the record is worth keeping
+straight rather than claiming the plan held.
+
+| Time (UTC, 2026-10-23) | Event |
+| --- | --- |
+| 05:56 | `4a1f109f` adds the policy migration **to the branch**, not `main` |
+| 10:24:53 | PR #360 merged into `main` (`ce266e7c`) |
+| 10:25:13 | `pages build and deployment` check starts (this is the `deploy` check-run on the merge commit — it is GitHub Pages, not Vercel) |
+| 10:27:40 | Vercel `Production` deployment of `ce266e7c` by `vercel[bot]` — **reader code live** |
+| 10:30:07 | `supabase-migrations.yml` dispatched manually (`run 39939546372`) |
+| 10:31:20 | That run reports **"Remote database is up to date"** — it applied nothing |
+
+Two conclusions:
+
+1. **The policy was not applied by that dispatch.** The `supabase migration list` output
+   from the run already shows `20261105000000` in *both* the LOCAL and REMOTE columns
+   before the `db push` step, and `db push` then found nothing to do — its own summary was
+   "Remote database is up to date". **That output shows the dispatch applied nothing; it
+   does not show which mechanism did apply the policy.** The evidence does not identify the
+   external actor. *Most plausibly* it was the Supabase GitHub integration's own
+   preview/deploy hook, which is outside this repository and cannot be audited from the
+   YAML — but that remains an inference, not a confirmed fact. **Do not treat "the dispatch
+   succeeded" as evidence the policy was applied by the dispatch**, and do not treat the
+   integration explanation as established without independent evidence.
+2. **There was a real window (≈10:27:40 → policy live) in which the reader code was live
+   and the policy was not.** The public events page survived it: a read-only check of
+   production `rayaramathaynk.vercel.app/events` renders real published events, so the
+   window closed without a user-visible error. That is luck of timing, not the plan
+   working. The next cutover must apply the policy *first* and verify it before merging.
+
+The residual limitation in §3 (drafts invisible to the admin list) is **live** and is
+PR-D4c's to close.
