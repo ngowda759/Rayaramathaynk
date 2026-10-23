@@ -21,13 +21,59 @@ export const workflowsDir = resolve(__dirname, "../..", ".github/workflows");
 /**
  * Statement prefixes that still execute the following command.
  *
- * `if`/`!` are included because a command used as a shell condition
- * (`if node …/probe-pg-url.mjs "$URL"; then`) is executed exactly like a bare
- * one. Omitting them made the destination probe invisible to the ordering check.
+ * A writer wrapped in a form the scanner does not look inside is a writer the
+ * completeness and guard-ordering checks never see. Two classes are handled:
+ *
+ *  - shell conditions (`if`, `then`, `!`) and `xargs`, because each runs the
+ *    command exactly like a bare one; and
+ *  - command *wrappers* — `sudo`, `exec`, `nice`, `nohup`, `setsid`, `ionice`,
+ *    `stdbuf`, `env`, `timeout`, `xargs`, `command -p` — because each ultimately
+ *    executes the command that follows it. Optional flags (and `timeout`'s
+ *    duration, `env`'s `NAME=value` assignments, `sudo`'s user/group) are consumed
+ *    so the real command is reached.
+ *
+ * `command` is restricted to `-p`/`--` (which still run the command) so the
+ * lookup forms `command -v`/`-V`, which do not connect, stay excluded.
  */
+
+/**
+ * The arguments a wrapper accepts before the real command. Permissive on purpose:
+ * flags (`-u postgres`, `-n 10`, `-k 5`), `NAME=value` assignments, durations and
+ * bare values. The wrapper alternation is followed by an anchored known-command
+ * match, so permissiveness cannot manufacture a match where no `psql`/`pg_dump`/
+ * `pg_restore` token exists — the regex engine backtracks to let the command match.
+ */
+const WRAP_ARGS = "(?:\\s+(?:-\\S+|[A-Za-z0-9_./:=@+,-]+))*";
+
+const CMD_WRAPPERS = [
+  "sudo" + WRAP_ARGS,
+  "exec",
+  "nice" + WRAP_ARGS,
+  "nohup",
+  "setsid",
+  "ionice" + WRAP_ARGS,
+  "stdbuf" + WRAP_ARGS,
+  "timeout" + WRAP_ARGS,
+  "env" + WRAP_ARGS,
+  "xargs(?:\\s+-\\S+)*",
+  "command(?:\\s+(?:-p|--))?",
+  "if",
+  "then",
+  "!",
+];
+
+/**
+ * An optional path in front of the command name — absolute (`/usr/bin/psql`,
+ * `/usr/lib/postgresql/15/bin/psql`) or relative (`./psql`, `../bin/psql`,
+ * `bin/psql`). Without this a path-qualified invocation is a way to run a writer
+ * the anchored `^psql` test misses entirely.
+ */
+const CMD_PATH = "(?:(?:/|\\.{1,2}/)?(?:[-A-Za-z0-9._+]+/)*)";
+
 const CMD_PREFIX =
-  "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*(?:sudo\\s+|exec\\s+|command\\s+)?" +
-  "(?:(?:if\\s+)?!\\s+|if\\s+|then\\s+|xargs\\s+)?";
+  "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*" +
+  `(?:(?:${CMD_WRAPPERS.join("|")})\\s+)*` +
+  CMD_PATH;
 
 /**
  * A command-substitution prefix: an assignment whose value is a substitution
@@ -40,6 +86,19 @@ const CMD_PREFIX =
  * module exists to close. Both the `$( )` and backtick forms are recognised.
  */
 const SUBST_PREFIX = '(?:(?:[A-Za-z_][A-Za-z0-9_]*=)?(?:"\\$\\(' + "|`))?";
+
+/**
+ * A shell variable whose name denotes a database connection string.
+ *
+ * Matching only `*DB_URL` (the names the current workflows happen to use) left a
+ * hole in the A-2h invariant: a `psql "$DATABASE_URL" …` call added after the guard,
+ * reading a *different* secret, was invisible to both `rawDbClientStatements` and
+ * `dbUrlVarIn`, so it was never ordered against the guard. Any conventional
+ * connection-string variable name is recognised instead: a `URL`/`URI`/`DSN`/`CONN`
+ * substring or the word `DATABASE` (covers `DATABASE_URL`, `SUPABASE_DB_URL`,
+ * `PG_URL`, `SEVA_BACKUP_DB_URL`, `DIRECT_CONN`).
+ */
+const DB_URL_VAR = "[A-Za-z_][A-Za-z0-9_]*(?:URL|URI|DSN|CONN|DATABASE)[A-Za-z0-9_]*";
 
 export interface Step {
   name: string;
@@ -266,7 +325,7 @@ export function rawDbClientStatements(body: string): string[] {
   return shellStatements(body).filter(
     (s) =>
       new RegExp(`^${SUBST_PREFIX}${CMD_PREFIX}(psql|pg_dump|pg_restore)(?:\\s|$)`).test(s) &&
-      /\$\{?[A-Za-z_][A-Za-z0-9_]*DB_URL\}?/.test(s),
+      new RegExp(`\\$\\{?(${DB_URL_VAR})\\}?`).test(s),
   );
 }
 
@@ -602,7 +661,7 @@ export function workflowFiles(): string[] {
  * statement names no recognisable variable.
  */
 export function dbUrlVarIn(statement: string): string {
-  return /\$\{?([A-Za-z_][A-Za-z0-9_]*DB_URL)\}?/.exec(statement)?.[1] ?? "";
+  return new RegExp(`\\$\\{?(${DB_URL_VAR})\\}?`).exec(statement)?.[1] ?? "";
 }
 
 /**

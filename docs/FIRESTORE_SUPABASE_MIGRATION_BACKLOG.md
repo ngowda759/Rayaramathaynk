@@ -335,6 +335,25 @@ same PR.
   `bash -c 'bash -c "psql …"'` left the writer one level down and still invisible.
   Unwrapping is now iterated to a fixpoint (bounded at five levels), so a doubly
   nested shell is seen.
+- **A-2n (path-qualified and wrapper-qualified invocations, and the
+  connection-variable name gate — residual gaps).** A post-merge re-audit of the
+  seven writers found two more ways a `psql`/`pg_dump`/`pg_restore` call could stay
+  invisible, both in the detector rather than in a live workflow:
+  - `postgresCliStatements`/`rawDbClientStatements` matched only a bare command name.
+    `/usr/bin/psql …`, `/usr/lib/postgresql/15/bin/psql …`, `env psql …`, `env -i psql
+    …`, `command -p psql …` and `timeout 30 psql …` all escaped, so a writer switched to
+    any of those forms would have dropped out of the inventory completeness check *and*
+    the guard-ordering check. The command prefix now accepts a leading path (absolute
+    or relative) and the execution wrappers (`sudo`, `exec`, `nice`, `nohup`, `setsid`,
+    `ionice`, `stdbuf`, `env`, `timeout`, `xargs`, `command -p`), consuming their flags
+    and arguments. `command -v`/`-V` and apt-install lines stay excluded.
+  - The A-2h invariant ("a raw client call must connect with the guarded variable")
+    only fired for a variable name ending in `DB_URL`. `psql "$DATABASE_URL" …` — a
+    second, unguarded secret — was invisible, so it was never ordered against the
+    guard. The recognised names now include any `URL`/`URI`/`DSN`/`CONN`/`DATABASE`
+    connection variable, and `rawDbClientStatements` uses the same matcher.
+  Regression tests enumerate every shell form, the variable names, and a mutation that
+  adds a `psql "$DATABASE_URL"` writer after the guard (previously zero violations).
 
 ### 1.5 Previously reported counts and tests
 
