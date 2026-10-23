@@ -106,8 +106,9 @@ describe("events public-read policy migration", () => {
  * *before* the merge, because merging deploys. That claim rests on the deploy path
  * being ungated. These tests pin the parts of that claim the repository can actually
  * prove, and — importantly — do **not** pretend `deploy.yml` is the live deployer: it
- * is disabled, and the real deployer (Vercel's Git integration) lives outside this
- * repo, so no static test can observe it. See §4 and §8 of the doc.
+ * is disabled, and the observed live deployer (Vercel's Git integration) lives outside
+ * this repo, so no static test can observe it. Which mechanism actually deploys
+ * production cannot be established from the repository at all. See §4 and §8.
  */
 describe("deploy-on-merge coupling (the reason the policy must be applied first)", () => {
   const workflowDir = path.join(process.cwd(), ".github/workflows");
@@ -128,10 +129,14 @@ describe("deploy-on-merge coupling (the reason the policy must be applied first)
     expect(deploy).not.toMatch(/^\s*environment:/m);
   });
 
-  it("no in-repo workflow gates a production deploy", () => {
-    // The repository-side half of "merging is deploying". The live deployer is the
-    // Vercel Git integration, which is not in this repo and cannot be asserted here;
-    // what this can prove is that nothing in the repo would stop it either.
+  it("no workflow that runs a `vercel deploy`/`vercel build` command is environment-gated", () => {
+    // Scoped to what a static scan of `.github/workflows` can actually see: files
+    // that contain a `vercel deploy`/`vercel build` command *and* an `environment:`
+    // key. It does NOT prove that every deployment path is ungated — a workflow that
+    // deploys by another command (e.g. `npx vercel`, `amondnet/vercel-action`), or the
+    // live Vercel Git integration itself, is invisible to this grep. Read it as
+    // "nothing in the repo would stop a Vercel-command deploy either", not as a
+    // complete census of deploy paths.
     const gated = fs
       .readdirSync(workflowDir)
       .filter((f) => f.endsWith(".yml"))
