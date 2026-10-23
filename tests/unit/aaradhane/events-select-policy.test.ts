@@ -103,25 +103,43 @@ describe("events public-read policy migration", () => {
  * is applied.
  *
  * `docs/EVENTS_POLICY_DEPLOYMENT_SEQUENCE.md` §4 says the policy must be applied
- * *before* the merge, because merging deploys. That claim is only true while the two
- * facts below hold. If `deploy.yml` ever gains an approval gate, the merge stops being
- * a deploy and the ordering relaxes — so this test documents *why* the rule exists and
- * fails loudly if either fact changes, rather than letting the doc rot.
+ * *before* the merge, because merging deploys. That claim rests on the deploy path
+ * being ungated. These tests pin the parts of that claim the repository can actually
+ * prove, and — importantly — do **not** pretend `deploy.yml` is the live deployer: it
+ * is disabled, and the real deployer (Vercel's Git integration) lives outside this
+ * repo, so no static test can observe it. See §4 and §8 of the doc.
  */
 describe("deploy-on-merge coupling (the reason the policy must be applied first)", () => {
   const workflowDir = path.join(process.cwd(), ".github/workflows");
 
-  it("deploy.yml deploys to production on push to main", () => {
+  it("deploy.yml would deploy to production on push to main if it were enabled", () => {
+    // Static property of the file. This does NOT mean deploy.yml is what deploys:
+    // it is disabled (see the next test). It matters because enabling it would
+    // deploy straight to production on a push.
     const deploy = fs.readFileSync(path.join(workflowDir, "deploy.yml"), "utf8");
     expect(deploy).toMatch(/push:\s*\n\s*branches:\s*\[main\]/);
     expect(deploy).toMatch(/vercel deploy --prebuilt --prod/);
   });
 
-  it("deploy.yml has no approval gate, so merging is deploying", () => {
-    // No `environment:` on the job means no required-reviewer pause. This is the
-    // fact that makes a policy-first ordering mandatory; if it changes, update §4.
+  it("deploy.yml carries no approval gate, so enabling it would be ungated", () => {
+    // No `environment:` on the job means no required-reviewer pause. Kept as an
+    // assertion so that adding a gate is a deliberate, visible change.
     const deploy = fs.readFileSync(path.join(workflowDir, "deploy.yml"), "utf8");
     expect(deploy).not.toMatch(/^\s*environment:/m);
+  });
+
+  it("no in-repo workflow gates a production deploy", () => {
+    // The repository-side half of "merging is deploying". The live deployer is the
+    // Vercel Git integration, which is not in this repo and cannot be asserted here;
+    // what this can prove is that nothing in the repo would stop it either.
+    const gated = fs
+      .readdirSync(workflowDir)
+      .filter((f) => f.endsWith(".yml"))
+      .filter((f) => {
+        const yaml = fs.readFileSync(path.join(workflowDir, f), "utf8");
+        return /vercel\s+(deploy|build)/.test(yaml) && /^\s*environment:/m.test(yaml);
+      });
+    expect(gated).toEqual([]);
   });
 
   it("applying the policy is manual only, so it cannot race the deploy", () => {
