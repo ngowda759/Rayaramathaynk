@@ -21,6 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { GeneratedAaradhaneEvent } from "@/types/aaradhane-generator";
+import { businessDate } from "@/lib/seva/time";
 
 export const EVENTS_TABLE = "events";
 
@@ -128,8 +129,12 @@ export interface AaradhaneEventRow {
 /**
  * Derive the display status from the event's civil dates.
  *
- * Compared at day granularity in UTC so the result does not depend on the host
- * time zone; the dates are already Indian civil dates.
+ * The dates are Indian civil dates (`YYYY-MM-DD`), so "today" must be the IST
+ * calendar date, not the UTC one. Deriving it from `now.toISOString()` used the
+ * UTC date, which is a day behind IST between 18:30 and 24:00 UTC — an event
+ * whose end day was today IST would already read `Completed` during that window.
+ * The IST date comes from the shared `businessDate` helper so there is one
+ * definition of the Indian business day in the repository.
  */
 export function determineEventStatus(
   startDate: string,
@@ -138,7 +143,7 @@ export function determineEventStatus(
 ): "Upcoming" | "Ongoing" | "Completed" {
   const start = Date.parse(`${startDate}T00:00:00Z`);
   const end = Date.parse(`${endDate}T23:59:59Z`);
-  const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+  const today = Date.parse(`${businessDate(now)}T00:00:00Z`);
 
   if (Number.isNaN(start) || Number.isNaN(end)) {
     throw new Error(`Invalid event dates: start=${startDate} end=${endDate}`);

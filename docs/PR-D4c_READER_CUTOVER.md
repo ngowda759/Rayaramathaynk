@@ -1,7 +1,10 @@
 # PR-D4c — Reader cutover: `events` SELECT policy, `event.service.ts` fix, field reconciliation
 
-Status: **PROPOSAL ONLY.** Not implemented. No RLS, schema, code, credential or database
-change. Production migration status remains **HOLD**.
+Status: **PARTIALLY IMPLEMENTED.** The `events` SELECT policy, the `event.service.ts`
+error-surfacing fix and the `EVENTS_COLLECTION` dead-constant removal are implemented in
+this branch. The reader cutover for populations A and B is **not** complete: no Supabase
+equivalent exists for most of population A's collections (see §10). No credential or
+database change has been made. Production migration status remains **HOLD**.
 
 Parent: `docs/AARADHANE_SUPABASE_CUTOVER_PLAN.md`. Depends on PR-D4b. Read
 `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md` §3 first — this PR is larger than the
@@ -227,3 +230,48 @@ cutover. No production data movement.
 2. Approve the policy predicate and role, and confirm drafts must not be public.
 3. Choose the population-B split: server route for admin, anon+policy for public.
 4. Choose the `date`/`active` reconciliation (Option A recommended).
+
+## 10. Implementation status (this branch)
+
+Implemented, all covered by tests in `tests/unit/`:
+
+- **§3.1 `events` SELECT policy** — `supabase/migrations/20261105000000_events_public_select_policy.sql`,
+  additive and reviewed; asserts `published = true` for role `anon`, `SELECT` only, no
+  `ALL`, no draft exposure (`tests/unit/aaradhane/events-select-policy.test.ts`). Prepared,
+  **not applied**.
+- **§3.2 (partial) `event.service.ts` no longer hides a read failure** — `getEvents()` /
+  `getEvent()` throw `EventReadError` instead of returning `[]`, so the broken anon read is
+  visible rather than masquerading as "no events". Callers updated:
+  `app/admin/events/[id]/edit/page.tsx` distinguishes a read failure from `notFound()`;
+  `components/events/EventGrid.tsx` renders an error state.
+  (`tests/unit/event-service-supabase-reads.test.ts`.)
+- **§3.4 `EVENTS_COLLECTION`** dead constant removed from `services/aaradhane.service.ts`.
+- **IST civil-date correctness** — `determineEventStatus` in `lib/aaradhane/supabase-writer.ts`
+  derives "today" from the IST calendar date (reusing `lib/seva/time.ts`) rather than the
+  UTC `toISOString()` date, so an event on the IST boundary day is not misclassified.
+
+### 10.1 Remaining gap — why the reader cutover is not complete
+
+Population A reads seven Firestore collections. Five have a Supabase table; two do not:
+
+| Firestore collection | Supabase table | Cutover possible |
+|---|---|---|
+| `events` | `events` | yes — policy + service done |
+| `gallery` | `gallery_albums`, `gallery_media` | yes, but a reader rewrite |
+| `donations` | `donations` | yes, but a reader rewrite |
+| `users` | `users` | yes (server-side only) |
+| `announcements` | **none** | **no — table must be created first** |
+| `timings` | **none** | **no — table must be created first** |
+| `sevaBookings` | `seva_bookings` | yes, but a reader rewrite |
+
+`services/daily-spiritual.service.ts` reads `announcements` and `timings`, neither of which
+has a Supabase table; pointing those readers at Supabase would silently return nothing.
+Creating them is a **schema decision for the owner**, not a mechanical change, and is out
+of scope for a reader-only PR. The population-A cutover is therefore blocked on that
+decision and must not be bundled here.
+
+The population-B admin reader (Option 1, a service-role route authorised by the existing
+Firebase admin guard) is not implemented in this branch: `event.service.ts` still reads
+with the anon key, and the §3.1 policy is what makes that read succeed. Moving the admin
+list to a server route is a follow-up that needs its own review.
+

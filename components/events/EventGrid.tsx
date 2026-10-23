@@ -24,6 +24,7 @@ function toDate(date: any): Date {
 export default function EventGrid({ limit }: Props) {
   const [events, setEvents] = useState<TempleEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<EventFilter>("upcoming");
 
   useEffect(() => {
@@ -34,6 +35,10 @@ export default function EventGrid({ limit }: Props) {
           : await eventService.getPublishedEvents();
 
         setEvents(data);
+      } catch (err) {
+        // A read failure is shown, not rendered as "no events": an empty grid after a
+        // denied or failed read is indistinguishable from a temple with nothing on.
+        setError(err instanceof Error ? err.message : "Unable to load events.");
       } finally {
         setLoading(false);
       }
@@ -57,6 +62,17 @@ export default function EventGrid({ limit }: Props) {
     return (
       <div className="py-16 text-center text-stone-500">
         Loading events...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-3xl border border-dashed border-red-300 bg-red-50 p-16 text-center">
+        <h3 className="text-2xl font-semibold text-red-900">Events unavailable</h3>
+        <p className="mt-4 text-red-800">
+          We could not load events right now. Please try again shortly.
+        </p>
       </div>
     );
   }

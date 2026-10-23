@@ -18,6 +18,23 @@ function toTimestamp(date: any): number {
   return 0;
 }
 
+/**
+ * A read that reached the database and was refused, or failed on the way.
+ *
+ * Thrown instead of returning `[]`. The previous behaviour swallowed the error and
+ * returned an empty array, which is indistinguishable from "there are no events" —
+ * exactly how the RLS denial on `events` left the public list and the homepage strip
+ * blank with nothing to explain it. A caller that wants to tolerate the failure must
+ * now say so (`catch`), and the message carries the database's own text so the cause
+ * is visible.
+ */
+export class EventReadError extends Error {
+  constructor(message: string, readonly cause?: unknown) {
+    super(message);
+    this.name = "EventReadError";
+  }
+}
+
 function mapSupabaseEventToTempleEvent(event: any): TempleEvent {
   return {
     id: event.firestore_id,
@@ -40,31 +57,35 @@ function mapSupabaseEventToTempleEvent(event: any): TempleEvent {
 
 class EventService {
   async getEvents(): Promise<TempleEvent[]> {
-    console.log("[EventService] getEvents called from Supabase");
-    
-    try {
-      const { data, error } = await supabase.from('events').select('*');
-      if (error) throw error;
-
-      return data.map(mapSupabaseEventToTempleEvent);
-    } catch (error) {
-      console.error("[EventService] Error fetching events:", error);
-      return [];
+    const { data, error } = await supabase.from('events').select('*');
+    if (error) {
+      // Surfaced, never swallowed: an empty array must mean "no rows", so a
+      // permission failure cannot masquerade as that.
+      throw new EventReadError(
+        `Could not read events from Supabase: ${error.message}` +
+          (error.code ? ` (code ${error.code})` : ""),
+        error
+      );
     }
+    return (data ?? []).map(mapSupabaseEventToTempleEvent);
   }
 
   async getEvent(id: string): Promise<TempleEvent | null> {
-    try {
-      const { data, error } = await supabase.from('events').select('*').eq('firestore_id', id).single();
-      if (error) {
-        if (error.code === 'PGRST116') return null; // not found
-        throw error;
-      }
-      return mapSupabaseEventToTempleEvent(data);
-    } catch (error) {
-      console.error("[EventService] Error fetching event:", error);
-      return null;
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('firestore_id', id)
+      .maybeSingle();
+    if (error) {
+      throw new EventReadError(
+        `Could not read event "${id}" from Supabase: ${error.message}` +
+          (error.code ? ` (code ${error.code})` : ""),
+        error
+      );
     }
+    // `maybeSingle` returns null (not an error) for zero rows, so a missing event is
+    // a legitimate null; a failure is not.
+    return data ? mapSupabaseEventToTempleEvent(data) : null;
   }
 
   async addEvent(event: TempleEvent) {

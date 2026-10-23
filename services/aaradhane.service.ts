@@ -15,7 +15,6 @@ import { Aaradhane, AaradhaneStats } from "@/types/aaradhane";
 
 const COLLECTION_NAME = "aaradhane";
 const AARADHANES_COLLECTION = "aaradhanes"; // With 's' - alternative collection name
-const EVENTS_COLLECTION = "events";
 
 function isAaradhaneUpcoming(dates: string[]): boolean {
   if (!dates || dates.length === 0) return false;

@@ -117,6 +117,21 @@ describe("Aaradhane Supabase writer", () => {
     it("rejects unparseable dates instead of guessing", () => {
       expect(() => determineEventStatus("not-a-date", "2027-08-16", now)).toThrow(/Invalid event dates/);
     });
+
+    it("uses the IST civil date, not the UTC one, near the day boundary", () => {
+      // 2027-08-16T19:00:00Z is 2027-08-17 00:30 IST. An event ending on the 17th
+      // is still Ongoing in India; using the UTC date (the 16th) would report it
+      // Completed a day early, in the 18:30–24:00 UTC window every evening.
+      const istLateEvening = new Date("2027-08-16T19:00:00Z");
+      expect(determineEventStatus("2027-08-17", "2027-08-17", istLateEvening)).toBe("Ongoing");
+
+      // And the mirror: 2027-08-16T18:00:00Z is 2027-08-16 23:30 IST, so an event
+      // that ended the previous day is Completed (not still Ongoing), while one that
+      // ends today is still Ongoing — both are still "today" in India.
+      const istJustBeforeMidnight = new Date("2027-08-16T18:00:00Z");
+      expect(determineEventStatus("2027-08-15", "2027-08-15", istJustBeforeMidnight)).toBe("Completed");
+      expect(determineEventStatus("2027-08-16", "2027-08-16", istJustBeforeMidnight)).toBe("Ongoing");
+    });
   });
 
   describe("row mapping", () => {

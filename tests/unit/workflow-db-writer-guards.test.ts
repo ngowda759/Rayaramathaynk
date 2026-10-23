@@ -42,6 +42,30 @@ const scripts = readPackageScripts();
 
 const ALL_INVENTORY = [...DB_WRITER_INVENTORY, ...DB_CONNECTION_INVENTORY];
 
+/**
+ * The `concurrency.group` values declared by a workflow.
+ *
+ * Parsed line by line rather than with one regex: the block-matching pattern
+ * `(?:[ \t]+.*\n)*?[ \t]+group:` backtracks exponentially on a run of indented
+ * blank lines (CodeQL js/redos), and the parse reads more clearly as a scan.
+ */
+function concurrencyGroups(yaml: string): string[] {
+  const groups: string[] = [];
+  const lines = yaml.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^concurrency:[^\S\n]*$/.test(lines[i])) continue;
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j];
+      // Blank lines belong to the block; the first non-indented line ends it.
+      if (line.trim() === "") continue;
+      if (!/^[ \t]/.test(line)) break;
+      const group = /^[ \t]+group:[ \t]*(\S+)/.exec(line);
+      if (group) groups.push(group[1].replace(/^["']|["']$/g, ""));
+    }
+  }
+  return groups;
+}
+
 describe("database-writer inventory", () => {
   it("enumerates exactly the eight database-writing jobs", () => {
     // A fixed count is the point: adding a ninth writer means consciously
@@ -158,9 +182,7 @@ describe.each(DB_WRITER_INVENTORY)("$file ($id)", (entry) => {
     // Two overlapping runs of the same writer can interleave writes. The workflow
     // must declare the concurrency group the inventory expects - and must not set
     // `cancel-in-progress: true`, which could abort a run mid-write.
-    const groups = [...yaml.matchAll(/^concurrency:\s*\n(?:[ \t]+.*\n)*?[ \t]+group:\s*(\S+)/gm)].map(
-      (m) => m[1].replace(/^["']|["']$/g, ""),
-    );
+    const groups = concurrencyGroups(yaml);
     if (entry.concurrencyGroup === "") {
       expect(groups).toEqual([]);
       return;
@@ -169,6 +191,23 @@ describe.each(DB_WRITER_INVENTORY)("$file ($id)", (entry) => {
     // prefix so an interpolated group is still recognised.
     expect(groups.some((g) => g.startsWith(entry.concurrencyGroup))).toBe(true);
     expect(yaml).not.toMatch(/cancel-in-progress:\s*true/);
+  });
+
+  it("parses a concurrency group without backtracking on blank indented lines", () => {
+    // Regression for the CodeQL js/redos finding: the previous block regex
+    // `^concurrency:\s*\n(?:[ \t]+.*\n)*?[ \t]+group:` had overlapping quantifiers,
+    // so a run of indented blank lines after `concurrency:` backtracked
+    // exponentially. The line-based parse must terminate and still find the group.
+    const pathological = ["concurrency:"]
+      .concat(Array.from({ length: 40 }, () => "  \t "))
+      .concat(["  group: ci-x", "  cancel-in-progress: false"])
+      .join("\n");
+
+    const started = Date.now();
+    expect(concurrencyGroups(pathological)).toEqual(["ci-x"]);
+    // Generous bound: a linear scan is sub-millisecond; the old regex was the
+    // pathological case, not the timing itself.
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 
   it("does not let an always-run step bypass the guard", () => {
