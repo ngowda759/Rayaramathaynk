@@ -17,7 +17,7 @@
  * dispatch.
  */
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -37,6 +37,7 @@ import {
   scriptTouchesDatabase,
   stepIsDisabled,
   workflowFiles,
+  workflowsDir,
 } from "./workflow-writer-inventory";
 
 const scripts = readPackageScripts();
@@ -86,6 +87,23 @@ describe("database-writer inventory", () => {
     const stepGuards = ALL_INVENTORY.filter((w) => w.guardStyle === "step").map((w) => w.guard);
     expect(new Set(stepGuards).size).toBe(3);
     expect(stepGuards.every((g) => GUARD_COMMANDS.includes(g))).toBe(true);
+  });
+
+  it("documents that a YAML environment binding is not a configured approval gate", () => {
+    // A YAML `environment: production` declaration is a *deployment* control. It only
+    // becomes a human approval gate once the owner configures required reviewers on
+    // that GitHub environment — which no file in this repository can assert. The
+    // audit document must keep that distinction explicit, or a reader will take the
+    // binding for an approval and the C-5 owner action will look already done.
+    const backlog = readFileSync(
+      join(workflowsDir, "..", "..", "docs", "FIRESTORE_SUPABASE_MIGRATION_BACKLOG.md"),
+      "utf8",
+    );
+    expect(backlog).toMatch(/deployment control[s]?, not (?:an )?approval gate/i);
+    expect(backlog).toMatch(/protection_rules:\s*\[\]/);
+    expect(backlog).toMatch(/required reviewers/i);
+    // And it must name C-5 as the owner action that turns the binding into a gate.
+    expect(backlog).toMatch(/\bC-5\b/);
   });
 
   it("keeps backup, migration and maintenance responsibilities separate", () => {
@@ -501,6 +519,17 @@ describe("no database writer escapes the inventory", () => {
       'command -p psql "$DB_URL" -c "select 1"',
       'if ! psql "$DB_URL" -c "select 1"; then echo no; fi',
       'echo "select 1" | xargs psql "$DB_URL"',
+      'xargs -0 psql "$DB_URL" -c "select 1"',
+      'xargs -n1 psql "$DB_URL" -c "select 1"',
+      'xargs -n 1 psql "$DB_URL" -c "select 1"',
+      'xargs -I{} psql "$DB_URL" -c "select 1"',
+      'xargs -I {} psql "$DB_URL" -c "select 1"',
+      'xargs -a list psql "$DB_URL" -c "select 1"',
+      'xargs -P 4 -n 2 psql "$DB_URL" -c "select 1"',
+      'xargs -- psql "$DB_URL" -c "select 1"',
+      'xargs -I {} env psql "$DB_URL" -c "select 1"',
+      'sudo xargs -0 psql "$DB_URL" -c "select 1"',
+      'xargs -I{} /usr/bin/psql "$DB_URL" -c "select 1"',
       `bash -c 'psql "$DB_URL" -c "select 1"'`,
       `eval 'psql "$DB_URL" -c "select 1"'`,
       `sudo sh -c 'psql "$DB_URL" -c "select 1"'`,
@@ -536,6 +565,12 @@ describe("no database writer escapes the inventory", () => {
       'echo "psql is installed"',
       "env FOO=bar",
       "ls bin/psql",
+      // `xargs` runs the command it is given, not a later argument, so a bare
+      // command word after the options is not a writer.
+      "xargs echo psql",
+      "xargs -I {} echo psql",
+      "xargs -a list echo psql",
+      "ls | xargs -0 echo",
     ];
     for (const form of nonWriters) {
       expect(`${form} :: ${postgresCliStatements(form, scripts).length}`).toBe(`${form} :: 0`);

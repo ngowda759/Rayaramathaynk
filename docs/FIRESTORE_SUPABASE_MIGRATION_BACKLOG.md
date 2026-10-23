@@ -354,6 +354,21 @@ same PR.
     connection variable, and `rawDbClientStatements` uses the same matcher.
   Regression tests enumerate every shell form, the variable names, and a mutation that
   adds a `psql "$DATABASE_URL"` writer after the guard (previously zero violations).
+- **A-2o (`xargs` options with a separate value).** The A-2n wrapper handling consumed
+  only `-\S+` runs of `xargs` flags, so options whose value is a *separate* token —
+  `xargs -I {} psql …`, `xargs -a list psql …`, `xargs -n 1 psql …`, `xargs -P 4 psql
+  …` — left the placeholder as the apparent command and the writer stayed invisible.
+  `xargs` now consumes its value-taking options (`-I`, `-n`, `-P`, `-s`, `-E`, `-a`,
+  `-d`, `-L`) as well as the joined forms (`-I{}`, `-n1`, `-0`). A bare command word is
+  still *not* consumed: `xargs echo psql` runs `echo`, so treating it as a writer would
+  be a false positive, and the tests assert it stays excluded.
+- **A-2p (the environment binding was checked anywhere in the file, not on the writing
+  job).** The environment test collected every `environment:` in the workflow, so a
+  multi-job workflow could carry the binding on an unrelated job and still pass. It now
+  requires the binding on the job that actually runs the writer, and separately asserts
+  that the audit document keeps the distinction between a YAML `environment:`
+  declaration and configured required reviewers (a declaration is a deployment control,
+  not an approval gate).
 
 ### 1.5 Previously reported counts and tests
 

@@ -45,6 +45,18 @@ export const workflowsDir = resolve(__dirname, "../..", ".github/workflows");
  */
 const WRAP_ARGS = "(?:\\s+(?:-\\S+|[A-Za-z0-9_./:=@+,-]+))*";
 
+/**
+ * `xargs`'s arguments before the command it runs. Like `WRAP_ARGS`, but a handful
+ * of options take a *separate* value (`xargs -I {}`, `xargs -n 1`, `xargs -a file`,
+ * `xargs -P 4`, `xargs -s`, `xargs -E`, `xargs -d`, `xargs -L`), which a bare
+ * `-\S+` run cannot consume. The value-taking options are listed first so the
+ * placeholder/value token is not mistaken for the command.
+ *
+ * A bare command word (`xargs echo psql`) is deliberately *not* consumed: `xargs`
+ * runs `echo`, not `psql`, so treating that as a writer would be a false positive.
+ */
+const XARGS_ARGS = "(?:\\s+(?:-[InPsEadL]\\s+\\S+|-[^\\s]+))*";
+
 const CMD_WRAPPERS = [
   "sudo" + WRAP_ARGS,
   "exec",
@@ -55,7 +67,7 @@ const CMD_WRAPPERS = [
   "stdbuf" + WRAP_ARGS,
   "timeout" + WRAP_ARGS,
   "env" + WRAP_ARGS,
-  "xargs(?:\\s+-\\S+)*",
+  "xargs" + XARGS_ARGS,
   "command(?:\\s+(?:-p|--))?",
   "if",
   "then",
