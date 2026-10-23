@@ -11,7 +11,7 @@
  *   2. the read-only-but-connected Prisma drift gate, which accepted an
  *      operator-supplied connection string with no destination verification.
  *
- * This suite enumerates all seven database-writing jobs plus the connection path
+ * This suite enumerates all eight database-writing jobs plus the connection path
  * explicitly, so removing one from the inventory — or removing its guard — fails
  * here. Everything is file- and process-based: no database, no network, no
  * dispatch.
