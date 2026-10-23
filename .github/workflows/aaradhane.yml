@@ -13,19 +13,38 @@ on:
         required: false
         type: string
       dry_run:
-        description: "Dry run (don't update Firestore)"
+        description: "Dry run. Leave true: Firestore writes are retired, and this workflow does not write to Supabase yet."
         required: false
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
   id-token: write
 
+# Two overlapping runs could interleave a scheduled and a manual dispatch, and the
+# second would re-derive the target year while the first is mid-write once the
+# Supabase write is enabled (PR-D4b). Serialise them. `cancel-in-progress: false`
+# is deliberate: cancelling a run part-way through a year's writes is worse than
+# letting it finish, and the writer is idempotent on `firestore_id`.
+concurrency:
+  group: aaradhane-generate
+  cancel-in-progress: false
+
 jobs:
   generate-aaradhane:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Destination binding. `environment: production` is only a human gate once the
+    # owner configures required reviewers on that environment; the YAML alone does
+    # not pause anything. It is added here because this job carries the Supabase
+    # writer (enabled in PR-D4b), so the gate exists before the write is enabled.
+    environment: production
+    env:
+      # Consumed by the shared approved-Supabase-URL guard below. This is the same
+      # credential the writer authenticates with, so the guard verifies the
+      # destination the write would actually reach.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
 
     steps:
       - name: Checkout repository
@@ -228,20 +247,12 @@ jobs:
           
           echo "Panchanga generation complete"
 
-      - name: Setup Firebase Admin
-        if: inputs.dry_run != 'true'
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "Warning: FIREBASE_SERVICE_ACCOUNT secret not set"
-            echo "Dry run mode will be enforced"
-            echo "dry_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "$FIREBASE_SERVICE_ACCOUNT" > firebase-admin-key.json
-            export GOOGLE_APPLICATION_CREDENTIALS="firebase-admin-key.json"
-            echo "Firebase Admin configured"
-          fi
+      # Destination guard, reused from the Firestore migration workflows. The writer
+      # authenticates with a Supabase URL plus a service-role key, not a project ref,
+      # so this is the guard that checks the credential actually in use. It fails
+      # closed and runs before either generation step. No duplicate guard is added.
+      - name: Verify approved Supabase URL
+        run: node scripts/lib/guard-approved-supabase-url.mjs
 
       - name: Generate Aaradhane Events (Dry Run)
         if: inputs.dry_run == 'true' || steps.check_panchanga.outputs.exists != 'true'
@@ -250,23 +261,17 @@ jobs:
         run: |
           npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year "$TARGET_YEAR" --dry-run
 
-      - name: Generate and Update Aaradhane Events
+      # Firestore writes are retired. This step keeps its original condition but
+      # ALWAYS passes --dry-run, so neither the cron nor a manual dispatch (even
+      # one that sets dry_run=false) can write to Firestore. No step in this
+      # workflow passes --apply.
+      - name: Generate Aaradhane Events (preview only)
         if: inputs.dry_run != 'true' && steps.check_panchanga.outputs.exists == 'true'
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          GOOGLE_APPLICATION_CREDENTIALS: firebase-admin-key.json
           TARGET_YEAR: ${{ steps.year.outputs.target_year }}
         run: |
-          
-          # Check if Firebase is configured
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "Firebase service account not configured. Skipping Firestore update."
-            echo "Run with --dry-run to see what would be created."
-            exit 0
-          fi
-          
-          echo "Generating Aaradhane events for year $TARGET_YEAR..."
-          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year $TARGET_YEAR
+          echo "Firestore writes are retired; generating a preview only."
+          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year "$TARGET_YEAR" --dry-run
 
       - name: Upload Aaradhane Data
         if: steps.check_panchanga.outputs.exists != 'true'
@@ -291,8 +296,8 @@ jobs:
           echo "- Exists: $PANCHANGA_EXISTS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Files: $PANCHANGA_FILES" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ "$IS_DRY_RUN" == "true" ]]; then
-            echo "**Mode:** Dry Run" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "**Mode:** Live Update" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          # No mode writes to a database: Firestore writes are retired and the
+          # Supabase write is not enabled. Do not report "Live Update" for a run
+          # that cannot update anything.
+          echo "**Mode:** Preview only (no database write)" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Requested dry run:** $IS_DRY_RUN" >> "$GITHUB_STEP_SUMMARY"

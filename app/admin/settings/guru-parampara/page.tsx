@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, Save, RotateCcw, Plus, Trash2, GripVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,8 +26,7 @@ interface GuruParamparaData {
   gurus: Guru[];
 }
 
-const COLLECTION = "settings";
-const DOCUMENT = "guruParampara";
+const GURU_PARAMPARA_ENDPOINT = "/api/admin/settings/guru-parampara";
 
 const defaultData: GuruParamparaData = {
   heading: "Guru Parampara",
@@ -159,50 +157,94 @@ const defaultData: GuruParamparaData = {
 };
 
 export default function GuruParamparaSettingsPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<GuruParamparaData>(defaultData);
+  // The revision the loaded data was derived from. `null` means "not loaded yet",
+  // which disables Save rather than letting a save guess. `absent` means the row
+  // does not exist; the API refuses that save, and the banner below explains why.
+  const [revision, setRevision] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    async function loadData() {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-      try {
-        const docRef = doc(db, COLLECTION, DOCUMENT);
-        const docSnap = await getDoc(docRef);
+    // The admin shell already gates rendering on a signed-in user, so there is
+    // nothing to load before one exists. Returning early (rather than setting
+    // state synchronously here) keeps this effect free of cascading renders.
+    if (!user) return;
 
-        if (docSnap.exists()) {
-          setData({ ...defaultData, ...docSnap.data() } as GuruParamparaData);
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        const token = await user!.getIdToken();
+        const response = await fetch(GURU_PARAMPARA_ENDPOINT, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        const body = (await response.json()) as {
+          data: GuruParamparaData | null;
+          revision: string;
+        };
+        if (cancelled) return;
+        if (body.data) {
+          setData({ ...defaultData, ...body.data });
+          setRevision(body.revision);
+          setMissing(false);
+        } else {
+          // No stored document: show the defaults for reference, but mark them as
+          // unsaved built-ins so Save cannot overwrite migrated content with them.
+          setRevision(body.revision);
+          setMissing(true);
         }
       } catch (error) {
         console.error("Error loading data:", error);
         toast.error("Failed to load settings");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     loadData();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   async function saveData() {
-    if (!db) {
-      toast.error("Firebase not configured");
-      return;
-    }
+    if (revision === null) return;
     setSaving(true);
     try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      await setDoc(docRef, {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      const token = await user?.getIdToken();
+      const response = await fetch(GURU_PARAMPARA_ENDPOINT, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        // The revision is sent with the payload so the API can refuse a save that
+        // would overwrite a document changed since this page loaded it.
+        body: JSON.stringify({ expectedRevision: revision, data }),
+      });
 
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string; revision?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error || `Request failed with status ${response.status}`);
+      }
+
+      // A successful save becomes the new baseline for the next save. The API
+      // returns the revision it stored, so the client never has to recompute it.
+      if (body?.revision) setRevision(body.revision);
+      setMissing(false);
       toast.success("Guru Parampara saved successfully!");
     } catch (error) {
       console.error("Error saving data:", error);
-      toast.error("Failed to save settings");
+      toast.error(error instanceof Error ? error.message : "Failed to save settings");
     } finally {
       setSaving(false);
     }
@@ -288,13 +330,28 @@ export default function GuruParamparaSettingsPage() {
         </Button>
         <Button
           onClick={saveData}
-          disabled={saving}
+          disabled={saving || revision === null || missing}
           className="bg-orange-600 hover:bg-orange-700"
         >
           <Save className="mr-2 h-4 w-4" />
           {saving ? "Saving..." : "Save Changes"}
         </Button>
       </div>
+
+      {missing && (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          <strong className="font-semibold">
+            No Guru Parampara content has been migrated yet.
+          </strong>{" "}
+          The values below are the built-in defaults, not the temple&apos;s stored content.
+          Saving is disabled so these defaults cannot overwrite live content. Run{" "}
+          <code className="rounded bg-amber-100 px-1">npm run migrate:settings</code> to move
+          the stored document into Supabase, then reload this page.
+        </div>
+      )}
 
       {/* Page Header */}
       <div className="rounded-xl border bg-white p-6 shadow-sm">

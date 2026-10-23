@@ -14,6 +14,9 @@ export default async function EditEventPage({
 }: Props) {
   const { id } = await params;
 
+  // A read failure must not be presented as "event not found": `notFound()` is for a
+  // genuinely absent row. A denied or failed read rethrows so Next.js renders the
+  // error boundary, rather than silently redirecting the admin to a 404.
   const event = await eventService.getEvent(id);
 
   if (!event) {

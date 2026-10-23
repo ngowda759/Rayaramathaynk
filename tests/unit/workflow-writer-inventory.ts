@@ -135,6 +135,21 @@ function escapeRegExp(s: string): string {
 }
 
 /**
+ * Build the anchored pattern that matches `command` as a whole command.
+ *
+ * Whitespace between the tokens is matched as `\s+` rather than a single literal
+ * space, and an argument may be wrapped in quotes (the shell removes them before
+ * execution, so `--project "tsconfig.scripts.json"` runs the same command as the
+ * unquoted form). Matching the literal text alone made the quoted form a way to
+ * run a writer that the scanner never saw.
+ */
+function commandPattern(command: string): string {
+  const tokens = command.split(/\s+/).map(escapeRegExp);
+  const body = tokens.join('"?\\s+"?');
+  return `^${SUBST_PREFIX}${CMD_PREFIX}${body}(?:\\s|$|["']|\\))`;
+}
+
+/**
  * Parse a workflow into jobs, each with its ordered steps.
  *
  * Regex-based on purpose: no YAML library is a declared dependency. Step-level
@@ -273,14 +288,14 @@ export function commandStatements(
   scripts: Record<string, string>,
 ): number[] {
   const statements = shellStatements(body);
-  const direct = new RegExp(`^${SUBST_PREFIX}${CMD_PREFIX}${escapeRegExp(command)}(?:\\s|$)`);
+  const direct = new RegExp(commandPattern(command));
   const hits: number[] = [];
   statements.forEach((s, i) => {
     if (direct.test(s)) hits.push(i);
   });
   for (const [name, value] of Object.entries(scripts)) {
     if (!String(value).trim().startsWith(command)) continue;
-    const alias = new RegExp(`^${SUBST_PREFIX}${CMD_PREFIX}npm\\s+run\\s+${escapeRegExp(name)}(?:\\s|$)`);
+    const alias = new RegExp(commandPattern(`npm run ${name}`));
     statements.forEach((s, i) => {
       if (alias.test(s) && !hits.includes(i)) hits.push(i);
     });
@@ -347,7 +362,7 @@ export interface WriterEntry {
   /** Workflow file name under .github/workflows/. */
   file: string;
   /** What the writer does, for failure messages. */
-  kind: "migration" | "backup" | "purge" | "baseline" | "connect";
+  kind: "migration" | "backup" | "purge" | "baseline" | "connect" | "writer";
   /** Commands that reach the database (guards excluded). */
   commands: string[];
   /** Raw `psql`/`pg_dump`/`pg_restore` statements, when the writer uses them. */
@@ -371,6 +386,13 @@ export interface WriterEntry {
    * connectivity diagnostic verifies identity before it opens any connection).
    */
   guardStyle: "step" | "in-script";
+  /**
+   * Expected workflow-level `concurrency.group`, or "" when the workflow is not
+   * expected to serialise. Two overlapping runs of the same database writer can
+   * interleave writes, so every writer either declares a group here or states
+   * deliberately that it has none.
+   */
+  concurrencyGroup: string;
 }
 
 /**
@@ -381,6 +403,24 @@ export interface WriterEntry {
  * forgetting this list, both fail the completeness test.
  */
 export const DB_WRITER_INVENTORY: WriterEntry[] = [
+  {
+    id: "aaradhane-generate",
+    file: "aaradhane.yml",
+    kind: "writer",
+    // The writer itself. Only the `--apply` path reaches Supabase, and this
+    // workflow never passes it (see the containment note in the YAML), but the
+    // command is enumerated so removing the guard — or wiring `--apply` in — is
+    // caught rather than passing silently.
+    commands: ["npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts"],
+    rawCli: false,
+    guard: "node scripts/lib/guard-approved-supabase-url.mjs",
+    guardVar: "NEXT_PUBLIC_SUPABASE_URL",
+    destructive: false,
+    trigger: "scheduled",
+    environment: "production",
+    guardStyle: "step",
+    concurrencyGroup: "aaradhane-generate",
+  },
   {
     id: "supabase-migrations",
     file: "supabase-migrations.yml",
@@ -393,6 +433,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "supabase-migrations-production",
   },
   {
     id: "ai-knowledge-migration-apply",
@@ -406,6 +447,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "ai-knowledge-migration-apply",
   },
   {
     id: "resolve-raya-ai-baseline",
@@ -419,6 +461,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "resolve-raya-ai-baseline",
   },
   {
     id: "firestore-batched-migration",
@@ -435,6 +478,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "",
   },
   {
     id: "firestore-staged-migration",
@@ -451,6 +495,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "",
   },
   {
     // Nightly encrypted backup. Writes a row to public.ops_backup_runs on every
@@ -468,6 +513,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     // schedule. The guard, not an approval prompt, is the control on the schedule.
     environment: "",
     guardStyle: "step",
+    concurrencyGroup: "seva-backup",
   },
   {
     // Monthly destructive purge of devotee profiles. DELETEs rows.
@@ -482,6 +528,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "scheduled",
     environment: "",
     guardStyle: "step",
+    concurrencyGroup: "seva-maintenance",
   },
 ];
 
@@ -521,6 +568,7 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "",
     guardStyle: "step",
+    concurrencyGroup: "",
   },
   {
     // Read-only connectivity diagnostic. It opens a Postgres session and probes
@@ -539,6 +587,7 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "",
     guardStyle: "in-script",
+    concurrencyGroup: "",
   },
 ];
 
@@ -613,9 +662,33 @@ export function postgresCliStatements(
  */
 export function referencedScripts(body: string): string[] {
   const out = new Set<string>();
-  for (const m of body.matchAll(/(?:^|[\s"'(])(scripts\/[A-Za-z0-9_./-]+\.(?:ts|mjs|js|sh))/g)) {
+  const SCRIPT_PATH = /(?:^|[\s"'(])(scripts\/[A-Za-z0-9_./-]+\.(?:ts|mjs|js|sh))/g;
+
+  for (const m of body.matchAll(SCRIPT_PATH)) {
     out.add(m[1]);
   }
+
+  // An npm alias is an indirection around the same script. A workflow that runs
+  // `npm run generate:aaradhane` names no `scripts/…` path at all, so without
+  // resolving the alias the writer would be invisible to the completeness check —
+  // and the guard-ordering check never runs. Resolve every `npm run <name>` through
+  // package.json and collect the scripts it reaches, so the alias cannot hide a
+  // writer. Aliases that invoke another alias are followed to a bounded depth.
+  const scripts = readPackageScripts();
+  const seen = new Set<string>();
+  const queue = [...body.matchAll(/npm\s+run\s+([A-Za-z0-9:_-]+)/g)].map((m) => m[1]);
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const value = scripts[name];
+    if (typeof value !== "string") continue;
+    for (const m of value.matchAll(SCRIPT_PATH)) {
+      out.add(m[1]);
+    }
+    for (const m of value.matchAll(/npm\s+run\s+([A-Za-z0-9:_-]+)/g)) queue.push(m[1]);
+  }
+
   return [...out];
 }
 
