@@ -125,6 +125,31 @@ Only after every file in population A and B is verified against Supabase:
   declared and never used (dead), so it should not survive as a false lead.
 - Confirm no `collection(db, "events")` remains.
 
+### 3.5 Migrate `services/aaradhane.service.ts` off Firestore (required follow-up)
+
+`services/aaradhane.service.ts` is *not* an `events` reader — it correctly excludes
+`events`. It is, however, the last Firestore **writer** on the Aaradhane feature: it
+runs `addDoc`/`updateDoc`/`deleteDoc` against the separate `aaradhane` and `aaradhanes`
+collections (`:227,241,250,263`). PR #360 leaves it in place and tracks it (see
+`docs/FIRESTORE_SUPABASE_MIGRATION_BACKLOG.md` §4.1, and the `TRACKED_FOLLOWUPS`
+allowlist in `tests/unit/aaradhane/firestore-write-retirement.test.ts`), because the
+migration is not writer-only:
+
+- The destination table `aaradhanes` exists
+  (`20261001000000_create_content_tables.sql:176`) but is **deny-all** under RLS
+  (`:194-196`), so it needs a policy — RLS work, which belongs here.
+- The admin CRUD surface (`app/api/admin/aaradhane/**`,
+  `components/admin/aaradhane/*`) is a reader *and* writer, so it is a population-A-style
+  cutover, not a one-line swap.
+- The existing delete fallback is unreachable (Firestore `deleteDoc` resolves on a
+  missing document), so a record living only in `aaradhanes` is never deleted while the
+  UI reports success — fix the semantics during the move, do not port the bug
+  (tracked as **R-082** in `docs/rearchitecture/REACT-NATIVE-MIGRATION-AND-FAULTS.md`).
+
+Until this lands, the allowlist entry must not be removed; the retirement suite fails if
+the file stops writing Firestore without the entry being deleted, and fails if any
+*other* Aaradhane-path file starts writing Firestore.
+
 ## 4. Acceptance criteria
 
 **Policy**
@@ -178,7 +203,9 @@ cutover. No production data movement.
 - `app/admin/page.tsx`, `app/admin/content/page.tsx`, `app/admin/featured/page.tsx`,
   `app/api/public/stats/route.ts`, `services/dashboard.service.ts`,
   `services/daily-spiritual.service.ts` — population A
-- `services/aaradhane.service.ts` — remove the dead constant
+- `services/aaradhane.service.ts` — remove the dead constant *and* migrate the
+  `aaradhane`/`aaradhanes` CRUD off Firestore (§3.5); needs an `aaradhanes` RLS policy
+- `supabase/migrations/<ts>_aaradhanes_rls.sql` — additive policy for the `aaradhanes` table
 - `docs/rearchitecture/REACT-NATIVE-MIGRATION-AND-FAULTS.md` — close **R-104** (the
   `date`/`active` mismatch) and correct **R-361**, whose "Raya AI answers from Firestore"
   premise is stale (`lib/ai/retrieval/events.ts` queries Supabase and contains no

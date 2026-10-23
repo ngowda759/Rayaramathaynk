@@ -315,6 +315,17 @@ a PR-D4c dependency rather than silently left behind.
   anything — it only becomes a human gate once the owner adds required reviewers to that
   environment in Settings → Environments. Until then the binding is inert, and this
   document does not claim otherwise.
+  - **Verified 2026-10-22 (read-only API):** `GET /repos/ngowda759/Rayaramathaynk/environments`
+    returns the `Production` environment with `"protection_rules": []` and
+    `"can_admins_bypass": true`. The binding is therefore **currently inert**: it is
+    *not* an effective approval gate, and no change in this PR makes it one. This
+    cannot be fixed from the repository — it is an owner-only setting.
+  - **Exact owner action:** Settings → Environments → `Production` → *Deployment
+    protection rules* → enable **Required reviewers**, add at least one reviewer, and
+    leave **Prevent self-review** on. (Optionally restrict *Deployment branches* to
+    `main`.) Re-check with the same API call until `protection_rules` is non-empty.
+  - Note the environment name is capitalised `Production`; the workflow's
+    `environment: production` matches case-insensitively.
 - Decide the phase-key form (read the real `raghavendraPhase` values and approve the
   suffix). The shipped code already uses `${guru.id}-${year}` with no suffix.
 - Approve the `date`-column migration and the back-fill policy for existing rows.

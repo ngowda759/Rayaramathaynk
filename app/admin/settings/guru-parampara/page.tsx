@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, Save, RotateCcw, Plus, Trash2, GripVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,8 +26,7 @@ interface GuruParamparaData {
   gurus: Guru[];
 }
 
-const COLLECTION = "settings";
-const DOCUMENT = "guruParampara";
+const GURU_PARAMPARA_ENDPOINT = "/api/admin/settings/guru-parampara";
 
 const defaultData: GuruParamparaData = {
   heading: "Guru Parampara",
@@ -159,45 +157,66 @@ const defaultData: GuruParamparaData = {
 };
 
 export default function GuruParamparaSettingsPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<GuruParamparaData>(defaultData);
 
   useEffect(() => {
-    async function loadData() {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-      try {
-        const docRef = doc(db, COLLECTION, DOCUMENT);
-        const docSnap = await getDoc(docRef);
+    // The admin shell already gates rendering on a signed-in user, so there is
+    // nothing to load before one exists. Returning early (rather than setting
+    // state synchronously here) keeps this effect free of cascading renders.
+    if (!user) return;
 
-        if (docSnap.exists()) {
-          setData({ ...defaultData, ...docSnap.data() } as GuruParamparaData);
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        const token = await user!.getIdToken();
+        const response = await fetch(GURU_PARAMPARA_ENDPOINT, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        const body = (await response.json()) as { data: GuruParamparaData | null };
+        if (!cancelled && body.data) {
+          setData({ ...defaultData, ...body.data });
         }
       } catch (error) {
         console.error("Error loading data:", error);
         toast.error("Failed to load settings");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     loadData();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   async function saveData() {
-    if (!db) {
-      toast.error("Firebase not configured");
-      return;
-    }
     setSaving(true);
     try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      await setDoc(docRef, {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      const token = await user?.getIdToken();
+      const response = await fetch(GURU_PARAMPARA_ENDPOINT, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(data),
+      });
+
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error || `Request failed with status ${response.status}`);
+      }
 
       toast.success("Guru Parampara saved successfully!");
     } catch (error) {

@@ -154,6 +154,23 @@ describe.each(DB_WRITER_INVENTORY)("$file ($id)", (entry) => {
     expect(yaml).not.toMatch(/required reviewers (?:are|is) configured/i);
   });
 
+  it("serialises concurrent runs, so two writers cannot interleave", () => {
+    // Two overlapping runs of the same writer can interleave writes. The workflow
+    // must declare the concurrency group the inventory expects - and must not set
+    // `cancel-in-progress: true`, which could abort a run mid-write.
+    const groups = [...yaml.matchAll(/^concurrency:\s*\n(?:[ \t]+.*\n)*?[ \t]+group:\s*(\S+)/gm)].map(
+      (m) => m[1].replace(/^["']|["']$/g, ""),
+    );
+    if (entry.concurrencyGroup === "") {
+      expect(groups).toEqual([]);
+      return;
+    }
+    // A group may be an expression (`ci-${{ github.ref }}`); compare the static
+    // prefix so an interpolated group is still recognised.
+    expect(groups.some((g) => g.startsWith(entry.concurrencyGroup))).toBe(true);
+    expect(yaml).not.toMatch(/cancel-in-progress:\s*true/);
+  });
+
   it("does not let an always-run step bypass the guard", () => {
     for (const job of jobs) {
       const guard = job.steps.find(
@@ -510,6 +527,29 @@ describe("no database writer escapes the inventory", () => {
     expect(bodies.some((b) => referencedScripts(b).some((rel) => scriptTouchesDatabase(rel)))).toBe(
       true,
     );
+  });
+
+  it("keeps the Supabase write activation disabled until the prerequisites pass", () => {
+    // The Supabase writer exists in the workflow as an enumerated command, but the
+    // write must stay off. `--apply` is the only flag that reaches Supabase, and no
+    // step may pass it. This is the containment half of PR-D4b; the enabling half
+    // is a separate, reviewed change.
+    const yaml = readWorkflow("aaradhane.yml");
+    const bodies = parseWorkflow(yaml)
+      .flatMap((j) => j.steps)
+      .map((s) => s.runBody);
+    // Check executed step bodies, not the raw file: the YAML comments explain that
+    // no step passes `--apply`, and those comments must not satisfy the assertion.
+    for (const body of bodies) {
+      expect(body).not.toMatch(/--apply\b/);
+    }
+
+    // Non-vacuity: the detector must still see the writer command, otherwise the
+    // assertion above would pass for a workflow that no longer contains it at all.
+    const writer = DB_WRITER_INVENTORY.find((w) => w.id === "aaradhane-generate")!;
+    expect(
+      bodies.some((b) => commandStatements(b, writer.commands[0], scripts).length > 0),
+    ).toBe(true);
   });
 
   it("recognises every shell form that runs a writer, so none hides (A-2l)", () => {

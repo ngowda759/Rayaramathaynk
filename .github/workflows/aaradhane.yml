@@ -22,6 +22,15 @@ permissions:
   contents: read
   id-token: write
 
+# Two overlapping runs could interleave a scheduled and a manual dispatch, and the
+# second would re-derive the target year while the first is mid-write once the
+# Supabase write is enabled (PR-D4b). Serialise them. `cancel-in-progress: false`
+# is deliberate: cancelling a run part-way through a year's writes is worse than
+# letting it finish, and the writer is idempotent on `firestore_id`.
+concurrency:
+  group: aaradhane-generate
+  cancel-in-progress: false
+
 jobs:
   generate-aaradhane:
     runs-on: ubuntu-latest

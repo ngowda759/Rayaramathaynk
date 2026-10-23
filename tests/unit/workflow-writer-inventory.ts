@@ -315,6 +315,13 @@ export interface WriterEntry {
    * connectivity diagnostic verifies identity before it opens any connection).
    */
   guardStyle: "step" | "in-script";
+  /**
+   * Expected workflow-level `concurrency.group`, or "" when the workflow is not
+   * expected to serialise. Two overlapping runs of the same database writer can
+   * interleave writes, so every writer either declares a group here or states
+   * deliberately that it has none.
+   */
+  concurrencyGroup: string;
 }
 
 /**
@@ -341,6 +348,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "scheduled",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "aaradhane-generate",
   },
   {
     id: "supabase-migrations",
@@ -354,6 +362,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "supabase-migrations-production",
   },
   {
     id: "ai-knowledge-migration-apply",
@@ -367,6 +376,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "ai-knowledge-migration-apply",
   },
   {
     id: "resolve-raya-ai-baseline",
@@ -380,6 +390,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "resolve-raya-ai-baseline",
   },
   {
     id: "firestore-batched-migration",
@@ -396,6 +407,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "",
   },
   {
     id: "firestore-staged-migration",
@@ -412,6 +424,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "production",
     guardStyle: "step",
+    concurrencyGroup: "",
   },
   {
     // Nightly encrypted backup. Writes a row to public.ops_backup_runs on every
@@ -429,6 +442,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     // schedule. The guard, not an approval prompt, is the control on the schedule.
     environment: "",
     guardStyle: "step",
+    concurrencyGroup: "seva-backup",
   },
   {
     // Monthly destructive purge of devotee profiles. DELETEs rows.
@@ -443,6 +457,7 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     trigger: "scheduled",
     environment: "",
     guardStyle: "step",
+    concurrencyGroup: "seva-maintenance",
   },
 ];
 
@@ -482,6 +497,7 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "",
     guardStyle: "step",
+    concurrencyGroup: "",
   },
   {
     // Read-only connectivity diagnostic. It opens a Postgres session and probes
@@ -500,6 +516,7 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     trigger: "manual",
     environment: "",
     guardStyle: "in-script",
+    concurrencyGroup: "",
   },
 ];
 

@@ -95,13 +95,22 @@ describe("migration ordering (supabase db push rejects out-of-order files)", () 
     expect(version > LAST_APPLIED_IN_PRODUCTION).toBe(true);
   });
 
-  it("is the newest local migration file", () => {
+  it("is a pending migration, not one production has already applied", () => {
+    // `supabase db push` applies the *pending* migrations (those newer than the
+    // remote ledger) in filename order. The original form of this guard asserted
+    // this file "is the newest local migration", which fails the moment any
+    // legitimate newer migration lands and does not express what `db push`
+    // requires. What matters is that this migration is itself pending (so it will
+    // be applied) and sorts after the remote ledger (so it is not out of order).
     const versions = fs
       .readdirSync(path.join(process.cwd(), "supabase/migrations"))
       .filter((f) => f.endsWith(".sql"))
-      .map((f) => f.split("_")[0])
-      .sort();
-    expect(versions[versions.length - 1]).toBe(version);
+      .map((f) => f.split("_")[0]);
+    const pending = versions.filter((v) => v > LAST_APPLIED_IN_PRODUCTION).sort();
+
+    expect(pending).toContain(version);
+    // Exactly one file may hold this version, or `db push` cannot order them.
+    expect(versions.filter((v) => v === version)).toHaveLength(1);
   });
 });
 

@@ -541,6 +541,48 @@ independently proven here. See A-1/A-2 for the read-only verification the owner 
   across two runs; a second run changes no row count; a cancelled run leaves no
   partial year; a non-Supabase-available run fails loudly without writing.
 
+### 4.1 What PR #360 (D4a/D4b) does and does not close
+
+PR #360 retires every Firestore write on the **generated-`events` execution
+path**: `lib/aaradhane/generator.ts` is pure, `scripts/generate-aaradhane.ts`
+writes only through `lib/aaradhane/supabase-writer.ts`, and the four
+`lib/aaradhane/firestore*.ts` modules plus the four Firestore scripts are
+deleted. `tests/unit/aaradhane/firestore-write-retirement.test.ts` fails if any
+of that is reintroduced. The scheduled workflow passes `--dry-run` on every path
+and carries no Firebase credential, so neither the cron nor a manual dispatch can
+reach a Firestore write.
+
+Two things it deliberately does **not** close:
+
+- **Reader cutover and the `events` SELECT policy (PR-D4c).** `event.service.ts`
+  reads Supabase with the anon key against a deny-all table and swallows the
+  error into `[]`; the row-filtered SELECT policy is prepared but not applied, and
+  its live state is unconfirmed. A schema+RLS change must not ride along with a
+  writer change, so this is a separate PR. `services/aaradhane.service.ts` reads
+  and writes the separate `aaradhane`/`aaradhanes` collections and is included
+  there for the same reason: the `aaradhanes` destination is deny-all under RLS
+  (`20261001000000_create_content_tables.sql:194-196`) and needs a policy before
+  it can move.
+- **Enabling the Supabase write (PR-D4b enabling half).** The write stays off
+  until the provenance migration is reviewed and applied, the destination is
+  verified, and the `Production` environment has required reviewers (C-5).
+
+#### Tracked follow-up: `services/aaradhane.service.ts`
+
+This is the one remaining Firestore **writer** on the Aaradhane *feature* after
+PR #360. It is not on the generated-`events` execution path (it explicitly
+excludes `events`), so it does not violate the "no Firestore writes for
+Aaradhane events" objective, but it is tracked rather than left silent:
+
+- It is listed in `tests/unit/aaradhane/firestore-write-retirement.test.ts`
+  under `TRACKED_FOLLOWUPS`, an **allowlist that must shrink, never grow**: a
+  repo-wide scan fails the suite if any other `aaradhane`-path file gains a
+  Firestore write call.
+- The migration to Supabase is a **required follow-up**, owned by the PR-D4c
+  reader/cutover phase because it depends on the `aaradhanes` RLS policy.
+- The list is self-checking: a test fails if the file no longer writes Firestore,
+  forcing it to be removed from the allowlist once migrated.
+
 ---
 
 ## 5. Raya AI cutover design
