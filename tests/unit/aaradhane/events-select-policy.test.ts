@@ -97,3 +97,40 @@ describe("events public-read policy migration", () => {
     }
   });
 });
+
+/**
+ * The ordering invariant that decides whether this PR can be merged before the policy
+ * is applied.
+ *
+ * `docs/EVENTS_POLICY_DEPLOYMENT_SEQUENCE.md` §4 says the policy must be applied
+ * *before* the merge, because merging deploys. That claim is only true while the two
+ * facts below hold. If `deploy.yml` ever gains an approval gate, the merge stops being
+ * a deploy and the ordering relaxes — so this test documents *why* the rule exists and
+ * fails loudly if either fact changes, rather than letting the doc rot.
+ */
+describe("deploy-on-merge coupling (the reason the policy must be applied first)", () => {
+  const workflowDir = path.join(process.cwd(), ".github/workflows");
+
+  it("deploy.yml deploys to production on push to main", () => {
+    const deploy = fs.readFileSync(path.join(workflowDir, "deploy.yml"), "utf8");
+    expect(deploy).toMatch(/push:\s*\n\s*branches:\s*\[main\]/);
+    expect(deploy).toMatch(/vercel deploy --prebuilt --prod/);
+  });
+
+  it("deploy.yml has no approval gate, so merging is deploying", () => {
+    // No `environment:` on the job means no required-reviewer pause. This is the
+    // fact that makes a policy-first ordering mandatory; if it changes, update §4.
+    const deploy = fs.readFileSync(path.join(workflowDir, "deploy.yml"), "utf8");
+    expect(deploy).not.toMatch(/^\s*environment:/m);
+  });
+
+  it("applying the policy is manual only, so it cannot race the deploy", () => {
+    const migrations = fs.readFileSync(
+      path.join(workflowDir, "supabase-migrations.yml"),
+      "utf8",
+    );
+    // Dispatch-gated, and it must not be reachable from a push.
+    expect(migrations).toMatch(/workflow_dispatch:/);
+    expect(migrations).not.toMatch(/^\s*push:/m);
+  });
+});

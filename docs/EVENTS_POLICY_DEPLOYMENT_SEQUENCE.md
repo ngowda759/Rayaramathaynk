@@ -67,26 +67,43 @@ re-route. Therefore, until PR-D4c's admin re-route lands:
   error and shows nothing — but it is a residual limitation: drafts are invisible to the
   admin until the re-route lands.
 
-That limitation, not a regression, is why the sequence below still deploys policy and
-code together, and why PR-D4c must close the admin path.
+That limitation, not a regression, is why §4 gates the merge on the policy and why PR-D4c
+must close the admin path.
 
-## 4. Recommended sequence
+## 4. Recommended sequence — apply the policy **before** the merge
 
-**Deploy the policy and the reader code as one release, policy first.** Concretely:
+The decisive fact is that **merging this PR deploys it.** `.github/workflows/deploy.yml`
+runs on `push` to `main` and executes `vercel deploy --prebuilt --prod`; it has no
+`environment:` gate and no approval step. There is no separate "deploy" button to hold
+back. Meanwhile the policy is applied only by a manual `workflow_dispatch`
+(`supabase-migrations.yml`), and nothing auto-applies it. So the two halves of this change
+can never land "together in one release" — the policy is a separate, owner-triggered
+action, and the code ships the instant the PR is merged.
 
-1. **Merge the reader code** (`services/event.service.ts` surfacing the error,
-   `EventGrid` error state, the admin edit page rethrow) into `main`. On its own this
-   changes an empty grid into a visible error — a *worse-looking but more honest* page
-   while the policy is absent. Acceptable only if step 2 follows in the same release.
-2. **Apply the policy migration** via the gated dispatch (`supabase-migrations.yml`), so
-   the `events` `SELECT` policy exists before the new code serves traffic. Applying it
-   before the code is harmless: an unused permissive read policy changes nothing for a
-   reader that already fails closed.
-3. **Verify** with the read-only checks in §5.
+That inverts the naive order. The correct sequence is:
 
-Order matters in exactly one direction: **policy before code is safe; code before policy
-is a window of visible errors on the public events page.** If a single atomic release is
-not possible, apply the policy first and deploy code second.
+1. **Apply the policy first** — dispatch `supabase-migrations.yml` with the confirmation
+   phrase. This is safe with the *current* code live: the policy only grants anon `SELECT`
+   on `published = true` rows, and today's `getEvents()` returns `[]` on the denial, so the
+   worst case is that the currently-blank public list starts showing published events. It
+   cannot break anything that works today.
+2. **Verify, read-only** (§5), that the policy exists and that a published row is readable
+   while an unpublished one is not.
+3. **Then merge PR #360.** `deploy.yml` deploys the reader code to production with the
+   policy already present, so the public events page and the homepage strip work
+   immediately.
+4. **Then** PR-D4c's admin re-route, so the admin list can see drafts again.
+
+**Do not merge before step 1.** Merging first deploys `EventReadError` while `events` is
+still deny-all, so the public events list and the homepage upcoming-events strip render an
+error state instead of events — a production regression, caused by the deploy-on-merge
+coupling, not by the code.
+
+If the owner wants the `guruParampara` guard (which has no policy dependency) in
+production before the policy work is scheduled, the safe split is to **merge that part
+alone** — but that requires unbundling it from the reader change, which is a PR-scope
+decision, not something this branch can do by itself. Absent that split, the whole PR is
+gated on step 1.
 
 **Do not** apply the policy and then leave the admin list un-migrated indefinitely: the
 draft-invisibility limitation in §3 is real and PR-D4c owns closing it. If the admin list
@@ -115,9 +132,12 @@ None of these run in CI or in this PR; they are the owner's gate.
 
 ## 6. What would break, and the guard
 
-- **Applying without the code** → no change; the policy is additive.
-- **Code without the policy** → public events page shows the surfaced read error until the
-  policy lands. This is why §4 pairs them.
+- **Merging before the policy** → `deploy.yml` ships the reader to production while
+  `events` is deny-all, so the public events list and homepage strip show an error state.
+  **This is the one order that breaks production**, and it is the order a plain "merge when
+  CI is green" would take. §4's step 1 exists to prevent it.
+- **Applying the policy first** → no break; the policy is additive and the current reader
+  already tolerates the denial.
 - **Policy too broad** (e.g. `USING (true)`) → drafts leak. The policy text is asserted by
   `events-select-policy.test.ts` (`USING (published = true)`, no `USING (true)`, `SELECT`
   only, `TO anon, authenticated`).
@@ -127,9 +147,14 @@ None of these run in CI or in this PR; they are the owner's gate.
 ## 7. Owner actions (GitHub/Supabase configuration, not code)
 
 1. Dispatch `supabase-migrations.yml` with the confirmation phrase to apply the policy,
-   after reviewing the SQL. This is the only supported way to apply it.
+   after reviewing the SQL. This is the only supported way to apply it, and it must happen
+   **before** the merge.
 2. Ensure the `production` environment has required reviewers if the dispatch is to be
    reviewer-gated; the workflow's own header states the environment currently carries no
    protection rules.
 3. Decide whether the admin draft-invisibility limitation (§3) is acceptable until PR-D4c,
    or whether the admin re-route must ship with the policy.
+4. Note for the merge decision: because `deploy.yml` has no approval gate, **merging is
+   deploying**. If the owner wants a deploy gate rather than a policy-first ordering, that
+   is a repository/workflow change (add `environment: production` + reviewers to
+   `deploy.yml`), which this PR deliberately does not make.
