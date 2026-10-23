@@ -17,7 +17,7 @@
  * dispatch.
  */
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,6 +26,7 @@ import {
   DB_WRITER_INVENTORY,
   GUARD_COMMANDS,
   commandStatements,
+  dbUrlVarIn,
   guardOrderingViolations,
   parseWorkflow,
   postgresCliStatements,
@@ -36,6 +37,7 @@ import {
   scriptTouchesDatabase,
   stepIsDisabled,
   workflowFiles,
+  workflowsDir,
 } from "./workflow-writer-inventory";
 
 const scripts = readPackageScripts();
@@ -87,6 +89,23 @@ describe("database-writer inventory", () => {
     expect(stepGuards.every((g) => GUARD_COMMANDS.includes(g))).toBe(true);
   });
 
+  it("documents that a YAML environment binding is not a configured approval gate", () => {
+    // A YAML `environment: production` declaration is a *deployment* control. It only
+    // becomes a human approval gate once the owner configures required reviewers on
+    // that GitHub environment — which no file in this repository can assert. The
+    // audit document must keep that distinction explicit, or a reader will take the
+    // binding for an approval and the C-5 owner action will look already done.
+    const backlog = readFileSync(
+      join(workflowsDir, "..", "..", "docs", "FIRESTORE_SUPABASE_MIGRATION_BACKLOG.md"),
+      "utf8",
+    );
+    expect(backlog).toMatch(/deployment control[s]?, not (?:an )?approval gate/i);
+    expect(backlog).toMatch(/protection_rules:\s*\[\]/);
+    expect(backlog).toMatch(/required reviewers/i);
+    // And it must name C-5 as the owner action that turns the binding into a gate.
+    expect(backlog).toMatch(/\bC-5\b/);
+  });
+
   it("keeps backup, migration and maintenance responsibilities separate", () => {
     const byId = new Map(DB_WRITER_INVENTORY.map((w) => [w.id, w]));
     expect(byId.get("seva-backup")?.kind).toBe("backup");
@@ -136,12 +155,23 @@ describe.each(DB_WRITER_INVENTORY)("$file ($id)", (entry) => {
       expect(step.runBody).not.toMatch(/\$\{\{\s*secrets\./);
     }
   });
-  it("has the expected environment binding, and never fakes approval", () => {
-    const bindings = jobs.map((j) => j.environment).filter(Boolean);
+  it("has the expected environment binding on the job that writes, and never fakes approval", () => {
+    // The binding must be on the job that actually reaches the database, not merely
+    // present somewhere in the file: a multi-job workflow could carry the binding on
+    // an unrelated job and still pass a file-wide check.
+    const writingJobs = jobs.filter((job) =>
+      job.steps.some(
+        (s) =>
+          entry.commands.some((c) => commandStatements(s.runBody, c, scripts).length > 0) ||
+          (entry.rawCli && rawDbClientStatements(s.runBody).length > 0),
+      ),
+    );
+    expect(writingJobs.length).toBeGreaterThan(0);
+    const bindings = writingJobs.map((j) => j.environment);
     if (entry.environment === "") {
-      expect(bindings).toEqual([]);
+      expect(bindings.every((b) => b === "")).toBe(true);
     } else {
-      expect(bindings).toEqual([entry.environment]);
+      expect(bindings).toEqual(writingJobs.map(() => entry.environment));
     }
     // `environment: production` only becomes a human gate once the owner configures
     // required reviewers on that environment. Nothing in the YAML can assert that,
@@ -295,6 +325,25 @@ describe("no database writer escapes the inventory", () => {
         scripts,
       ).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("still finds a raw writer invoked through a path or a wrapper (A-2n mutation control)", () => {
+    // A writer switched to `/usr/bin/psql`, or wrapped in `env`/`timeout`/`sudo`,
+    // must stay visible to the raw-client detector. Otherwise it would silently
+    // drop out of the inventory completeness check AND the guard-ordering check —
+    // the same class of blind spot that hid the Seva writers originally.
+    const yaml = readWorkflow("seva-maintenance.yml");
+    for (const prefix of ["/usr/bin/", "./bin/", "env ", "env -i ", "sudo ", "timeout 30 ", "nice "]) {
+      const mutated = yaml.replace(
+        'removed="$(psql "$SEVA_BACKUP_DB_URL"',
+        `removed="$(${prefix}psql "$SEVA_BACKUP_DB_URL"`,
+      );
+      expect(mutated).not.toBe(yaml);
+      const found = parseWorkflow(mutated)
+        .flatMap((j) => j.steps)
+        .some((s) => rawDbClientStatements(s.runBody).length > 0);
+      expect(`${prefix}:${found}`).toBe(`${prefix}:true`);
+    }
   });
 
   it("detects a guard moved after the write (mutation control)", () => {
@@ -452,12 +501,14 @@ describe("no database writer escapes the inventory", () => {
     expect(messages).toMatch(/guard wrapper "guard_url" is defined 2 times/);
   });
 
-  it("recognises every shell form that runs a writer, so none hides (A-2l)", () => {
+  it("recognises every shell form that runs a writer, so none hides (A-2l, A-2n)", () => {
     // A writer wrapped in a form the scanner does not look inside is a writer the
     // guard-ordering check never sees. Each of these is a way to run the same
     // `psql` call; all must be recognised. `bash -c`/`eval` are unwrapped, the
     // `$( )` and backtick substitutions and the `if !`/`xargs` prefixes are
-    // matched directly.
+    // matched directly, and the A-2n pass adds the execution wrappers
+    // (`env`, `nice`, `nohup`, `setsid`, `ionice`, `stdbuf`, `timeout`,
+    // `command -p`) and path-qualified invocations.
     const forms = [
       'psql "$DB_URL" -c "select 1"',
       'removed="$(psql "$DB_URL" -c "select 1")"',
@@ -465,13 +516,39 @@ describe("no database writer escapes the inventory", () => {
       'PGOPTIONS= psql "$DB_URL" -c "select 1"',
       'sudo psql "$DB_URL" -c "select 1"',
       'command psql "$DB_URL" -c "select 1"',
+      'command -p psql "$DB_URL" -c "select 1"',
       'if ! psql "$DB_URL" -c "select 1"; then echo no; fi',
       'echo "select 1" | xargs psql "$DB_URL"',
+      'xargs -0 psql "$DB_URL" -c "select 1"',
+      'xargs -n1 psql "$DB_URL" -c "select 1"',
+      'xargs -n 1 psql "$DB_URL" -c "select 1"',
+      'xargs -I{} psql "$DB_URL" -c "select 1"',
+      'xargs -I {} psql "$DB_URL" -c "select 1"',
+      'xargs -a list psql "$DB_URL" -c "select 1"',
+      'xargs -P 4 -n 2 psql "$DB_URL" -c "select 1"',
+      'xargs -- psql "$DB_URL" -c "select 1"',
+      'xargs -I {} env psql "$DB_URL" -c "select 1"',
+      'sudo xargs -0 psql "$DB_URL" -c "select 1"',
+      'xargs -I{} /usr/bin/psql "$DB_URL" -c "select 1"',
       `bash -c 'psql "$DB_URL" -c "select 1"'`,
       `eval 'psql "$DB_URL" -c "select 1"'`,
       `sudo sh -c 'psql "$DB_URL" -c "select 1"'`,
       // Nested unwrapping is iterated, so two layers do not hide the writer.
       `bash -c 'bash -c "psql \\"$DB_URL\\" -c \\"select 1\\""'`,
+      // A-2n: execution wrappers and path-qualified invocations.
+      'env psql "$DB_URL" -c "select 1"',
+      'env -i psql "$DB_URL" -c "select 1"',
+      'nice psql "$DB_URL" -c "select 1"',
+      'nohup psql "$DB_URL" -c "select 1"',
+      'setsid psql "$DB_URL" -c "select 1"',
+      'ionice -c2 psql "$DB_URL" -c "select 1"',
+      'stdbuf -oL psql "$DB_URL" -c "select 1"',
+      'timeout 30 psql "$DB_URL" -c "select 1"',
+      'sudo env psql "$DB_URL" -c "select 1"',
+      '/usr/bin/psql "$DB_URL" -c "select 1"',
+      '/usr/lib/postgresql/15/bin/psql "$DB_URL" -c "select 1"',
+      './psql "$DB_URL" -c "select 1"',
+      'bin/psql "$DB_URL" -c "select 1"',
       'pg_dump "$DB_URL" > f',
       'pg_restore -d "$DB_URL" f',
     ];
@@ -483,12 +560,76 @@ describe("no database writer escapes the inventory", () => {
     // look like a writer and the inventory would fill with false positives.
     const nonWriters = [
       "command -v psql >/dev/null",
+      "command -V psql",
       "sudo apt-get install -y postgresql-client",
       'echo "psql is installed"',
+      "env FOO=bar",
+      "ls bin/psql",
+      // `xargs` runs the command it is given, not a later argument, so a bare
+      // command word after the options is not a writer.
+      "xargs echo psql",
+      "xargs -I {} echo psql",
+      "xargs -a list echo psql",
+      "ls | xargs -0 echo",
     ];
     for (const form of nonWriters) {
       expect(`${form} :: ${postgresCliStatements(form, scripts).length}`).toBe(`${form} :: 0`);
     }
+  });
+
+  it("recognises every connection-variable name a raw writer can read (A-2n)", () => {
+    // The A-2h invariant ("a raw client call must connect with the guarded
+    // variable") only fires when the statement's variable is recognised. Matching
+    // just `*DB_URL` let `psql "$DATABASE_URL" …` through unseen, so a writer
+    // reading a second secret was never ordered against the guard.
+    const names = [
+      "$DATABASE_URL",
+      "$SUPABASE_DB_URL",
+      "$SEVA_BACKUP_DB_URL",
+      "$PG_URL",
+      "$DIRECT_CONN",
+      "$MY_DSN",
+    ];
+    for (const name of names) {
+      const statement = `psql "${name}" -c "delete from x"`;
+      expect(`${name} :: ${rawDbClientStatements(statement).length > 0}`).toBe(`${name} :: true`);
+      expect(`${name} :: ${dbUrlVarIn(statement)}`).toBe(
+        `${name} :: ${name.slice(1)}`,
+      );
+    }
+    // A statement that reads no connection variable is not a raw writer.
+    expect(rawDbClientStatements('psql --version')).toEqual([]);
+    expect(dbUrlVarIn("psql --version")).toBe("");
+  });
+
+  it("catches a raw writer that reads a second, unguarded connection variable (A-2n)", () => {
+    // End-to-end: the exact mutation the widened matcher exists to catch. Before
+    // A-2n this produced zero violations — the psql call was invisible.
+    const yaml = readWorkflow("seva-backup.yml");
+    const mutated = yaml.replace(
+      "      - name: Record the run in ops_backup_runs",
+      [
+        "      - name: Sneaky delete via a second secret",
+        "        env:",
+        "          DATABASE_URL: $" + "{{ secrets.SOME_OTHER_URL }}",
+        '        run: psql "$DATABASE_URL" -c "delete from x"',
+        "",
+        "      - name: Record the run in ops_backup_runs",
+      ].join("\n"),
+    );
+    expect(mutated).not.toBe(yaml);
+    const messages = guardOrderingViolations(
+      mutated,
+      ["bash scripts/seva/backup.sh"],
+      "node scripts/lib/guard-approved-db-url.mjs",
+      scripts,
+      "SEVA_BACKUP_DB_URL",
+    )
+      .map((v) => v.message)
+      .join(" ");
+    expect(messages).toMatch(
+      /connects with DATABASE_URL, but the guard verified SEVA_BACKUP_DB_URL/,
+    );
   });
 
   it("detects a raw client call that reads a different, unguarded secret (mutation control)", () => {
