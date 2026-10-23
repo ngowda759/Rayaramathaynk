@@ -63,7 +63,7 @@ No schema decision needed. Each is an independent change.
 | `unknown_questions` | `unknown_questions` | `services/analytics.service.ts` |
 | `chat_sessions` | `chat_sessions` | `app/admin/page.tsx` (count) |
 | `users` | `users` | `services/auth.service.ts`, `services/user.service.ts`, `lib/auth.ts`, `lib/auth/admin.ts`, `app/admin/page.tsx` (count), `app/api/public/stats/route.ts` (count) — server-side, `EXCLUDE_AUTH` (§4.3) |
-| `settings/<doc>` | `settings_documents` | 4 public pages + 13 `app/admin/settings/**` pages + `app/admin/billing/**` + `components/layout/Footer.tsx` + `hooks/useFinanceSettings.ts` + `lib/device/settings.ts` — §3.1 |
+| `settings/<doc>` | `settings_documents` | 4 public pages + **11** `app/admin/settings/**` pages + `app/admin/billing/**` + `components/layout/Footer.tsx` + `hooks/useFinanceSettings.ts` + `lib/device/settings.ts` — §3.1. `guru-parampara` is **already migrated** (PR #360, §3.4) and `homepage` reads `homepage/config`, not `settings/<doc>`; neither is counted here. |
 | `events` | `events` | `lib/firebase.ts` (`getNextUpcomingEvent`), `services/daily-spiritual.service.ts`, `app/admin/content/page.tsx` (count), `app/admin/featured/page.tsx`, `app/admin/test-firebase/page.tsx` |
 
 ### 2.2 Group 2 — no Supabase table (schema decision required)
@@ -173,6 +173,32 @@ table that already has a public `SELECT` policy; do not add one as part of a rea
 without the owner's approval (the `events` policy in PR-D4c is the precedent for how that
 approval is requested and recorded).
 
+### 3.4 Already migrated — admin `guru-parampara` (PR #360)
+
+`app/admin/settings/guru-parampara/page.tsx` no longer reads or writes Firestore. PR #360
+replaced its browser-side `getDoc`/`setDoc` on `settings/guruParampara` with an
+admin-guarded route (`app/api/admin/settings/guru-parampara/route.ts`) over
+`services/guru-parampara.service.ts`, which reads/upserts a `settings_documents` row with
+`document_key = "guruParampara"` (§3.1). This is the first `settings/<doc>` reader off
+Firestore, so the §2.1 `settings/<doc>` row excludes it.
+
+**This is a code cutover only — the data dependency is unresolved and must be stated, not
+assumed.** `services/guru-parampara.service.ts` `get()` returns `null` when no
+`settings_documents` row exists yet, and the page then falls back to its in-file
+`defaultData`. The Firestore document is moved into that row only by
+`npm run migrate:settings` (`scripts/migrate-settings.ts`, which reads the `settings`
+collection and maps `guruParampara` via `mapSettingsDocument`). Until that migration runs,
+an admin opening the page sees the built-in defaults rather than the live Firestore
+content, and the first **Save** writes those defaults over the container — a silent
+content loss that looks like a successful save.
+
+**Owner decision (new):** confirm the ordering before the admin page is used in
+production — either (a) run `npm run migrate:settings` so the `guruParampara` row exists
+before the cutover is deployed, or (b) keep the Firestore read until the settings data
+migration has run. Do **not** treat the code cutover as complete on its own. Verify with a
+read-only `select data from settings_documents where document_key = 'guruParampara'`.
+
+
 ---
 
 ## 4. The schema decisions (owner-gated)
@@ -253,6 +279,16 @@ Each subsection states the decision, the recommended option, and what it unblock
   `gallery_albums`/`gallery_media` and `poojas` by `daily_poojas` — for those two, drop the
   count rather than create a table. Decide with the owner which the stats page should show.
 
+### 4.8 `settings/<doc>` container — confirm the data migration precedes the code cutover
+
+- The `settings/<doc>` readers land in `settings_documents` (§3.1). One of them,
+  `guru-parampara`, is **already code-cut-over** in PR #360 (§3.4); the rest (U3) follow the
+  same container.
+- **Decision:** confirm the ordering — the `settings_documents` rows must exist before the
+  readers are cut over, because a reader with no row returns nothing (or the page's
+  defaults) and the next save can overwrite live content. `npm run migrate:settings` is the
+  only writer of those rows. Record the check (read-only) as the gate for U3.
+
 ### 4.9 `notifications` — check before creating anything
 
 - Referenced by `services/testimonial.service.ts`. Confirm whether it is live before
@@ -325,7 +361,7 @@ U1 is the live defect; U0 and U3-U4 are mechanical; U5-U10 need the schema decis
 | **U0** | Delete dead `services/dashboard.service.ts` + `.client.ts` (§2.4) | none | trivial |
 | **U1** | Apply the `events` `SELECT` policy; verify the public list and homepage strip against the live DB | owner approval (PR-D4c §9) | low |
 | **U2** | Population-B admin `events` reader → server route (service-role, existing admin guard) | U1 | low |
-| **U3** | `settings/<doc>` readers (public pages, admin settings, billing, footer, finance hook, device) → `settings_documents` via §3.1 | confirm `document_key` format | low |
+| **U3** | `settings/<doc>` readers (public pages, admin settings, billing, footer, finance hook, device) → `settings_documents` via §3.1 (`guru-parampara` already done in PR #360) | confirm `document_key` format; confirm the `settings_documents` rows exist first (§4.8) | low |
 | **U4** | Group 1 mechanical readers (gallery, donations, donation_campaigns, sevas, sevaBookings, testimonials, dailyPoojas, volunteer_requests, unknown_questions, chat_sessions, users, events, remaining `daily-spiritual`) | none | medium (volume) |
 | **U5** | `announcements` table + policy + readers (§4.1) | owner schema decision | medium |
 | **U6** | `homepage` → `settings_documents` (§4.4) | owner decision | low |
@@ -383,3 +419,7 @@ U1 is the live defect; U0 and U3-U4 are mechanical; U5-U10 need the schema decis
 8. Confirm what `pageviews.service.ts`'s `sessions` collection holds (§4.13).
 9. Decide whether the analytics collections are migrated or dropped (§4.13).
 10. Decide whether the `knowledge_workflow` family is migrated or deferred (§4.14).
+11. **Confirm the `guruParampara` data-migration ordering** (§3.4): the admin page is
+    already code-cut-over to `settings_documents` in PR #360, but the row is only populated
+    by `npm run migrate:settings`. Confirm the row exists (read-only) before the page is
+    used, or the first Save overwrites live content with the in-file defaults.

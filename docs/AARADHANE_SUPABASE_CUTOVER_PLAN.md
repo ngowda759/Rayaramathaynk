@@ -269,12 +269,13 @@ not just the writer. The surface, verified on this branch:
 | Admin Aaradhane API | `app/api/admin/aaradhane/route.ts` | via the service layer | Unchanged |
 
 No reader on this path reads `guruParampara` from Firestore, so no reader depends on the
-deleted modules. The one remaining Firestore-touching admin surface is
-`app/admin/settings/guru-parampara/page.tsx`, which reads and writes the
-`guruParampara/aaradhanaes` document with the web SDK. It is **out of scope here** — it
-is not a consumer of generated `events` and it is not on the generator's write path — but
-it must be retired or re-pointed before Firestore is decommissioned. That is recorded as
-a PR-D4c dependency rather than silently left behind.
+deleted modules. `app/admin/settings/guru-parampara/page.tsx` **was** the last
+Firestore-touching admin surface; PR #360 has since moved it off the web SDK onto an
+admin-guarded route over `services/guru-parampara.service.ts` (`settings_documents`,
+`document_key = "guruParampara"`). That is a code cutover only: the destination row is
+populated by `npm run migrate:settings`, so the settings data migration must precede the
+cutover being used in production (see `docs/PR-D4d_READER_CUTOVER_COMPLETION_PLAN.md` §3.4
+and §4.8). No `guruParampara` reader remains on the Firestore SDK.
 
 ## 4. Explicitly out of scope
 
@@ -335,8 +336,9 @@ a PR-D4c dependency rather than silently left behind.
   manual first run.
 - Reconcile the generated expected count for the target year against the destination
   before retiring Firestore.
-- Decide the fate of `app/admin/settings/guru-parampara/page.tsx`, the last admin surface
-  still reading and writing `guruParampara/aaradhanaes` in Firestore (§3.8).
+- Decide the fate of `app/admin/settings/guru-parampara/page.tsx` (already code-cut-over to
+  Supabase in PR #360 — see §3.8) and confirm the `guruParampara` data migration ordering
+  before the cutover is used in production.
 
 ## 7. Proposed PR sequence
 
@@ -355,10 +357,10 @@ Each phase has its own proposal with dependencies and acceptance criteria:
    decision, the step that calls the writer with `--apply`, and a `concurrency` group.
    → `docs/PR-D4b_AARADHANE_WORKFLOW.md`
 3. **PR-D4c** (separate) — reader cutover and Firestore retirement, after
-   reconciliation. Must also add the missing `events` `SELECT` policy, fix
+   reconciliation. Must also add the missing `events` `SELECT` policy and fix
    `services/event.service.ts`, which reads Supabase with the anon key against a
-   deny-all table and silently returns `[]`, and retire or re-point
-   `app/admin/settings/guru-parampara/page.tsx` (§3.8).
+   deny-all table and silently returns `[]`. (The admin `guru-parampara` page, formerly
+   listed here, was already re-pointed to Supabase in PR #360 — see §3.8.)
    → `docs/PR-D4c_READER_CUTOVER.md`
 
 Readiness review of this plan: `docs/AARADHANE_CUTOVER_READINESS_REVIEW.md`.
