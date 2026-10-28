@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Seva, SevaRequest } from "@/types/seva";
@@ -90,13 +91,13 @@ class SevaService {
     if (data.active !== undefined) update.active = data.active;
     if (data.displayOrder !== undefined) update.display_order = data.displayOrder;
     update.updated_at = new Date().toISOString();
-    const { error } = await supabase.from("sevas").update(update).eq("firestore_id", id);
+    const { error } = await supabase.from("sevas").update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update seva: ${error.message}`);
   }
 
   async deleteSeva(id: string) {
     const supabase = createAdminClient();
-    const { error } = await supabase.from("sevas").delete().eq("firestore_id", id);
+    const { error } = await supabase.from("sevas").delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete seva: ${error.message}`);
   }
 }

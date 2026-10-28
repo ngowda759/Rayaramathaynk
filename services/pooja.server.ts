@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DailyPooja, PoojaStats } from "@/types/pooja";
@@ -46,7 +47,7 @@ export const poojaService = {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read daily pooja: ${error.message}`);
     return data ? rowToPooja(data) : null;
@@ -94,13 +95,13 @@ export const poojaService = {
     if (data.displayOrder !== undefined) update.display_order = data.displayOrder;
     if (data.days !== undefined) update.days = data.days;
     if (data.notes !== undefined) update.notes = data.notes;
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update daily pooja: ${error.message}`);
   },
 
   async deletePooja(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete daily pooja: ${error.message}`);
   },
 

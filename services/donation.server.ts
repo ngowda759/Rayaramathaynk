@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DonationRecord, DonationRequest, DonationStatus } from "@/types/donation";
@@ -75,7 +76,7 @@ class DonationService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", donationId)
+      .or(rowIdFilter(donationId))
       .maybeSingle();
     if (error) throw new Error(`Could not read donation: ${error.message}`);
     return data ? rowToDonation(data) : null;
@@ -85,7 +86,7 @@ class DonationService {
     const supabase = createAdminClient();
     const update: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     if (status === "received") update.collected_at = new Date().toISOString();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", donationId);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(donationId));
     if (error) throw new Error(`Could not update donation: ${error.message}`);
   }
 
@@ -107,13 +108,13 @@ class DonationService {
     if (data.collectedBy !== undefined) update.collected_by = data.collectedBy;
     if (data.collectedAt !== undefined) update.collected_at = data.collectedAt || null;
     update.updated_at = new Date().toISOString();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", donationId);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(donationId));
     if (error) throw new Error(`Could not update donation: ${error.message}`);
   }
 
   async deleteDonation(donationId: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", donationId);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(donationId));
     if (error) throw new Error(`Could not delete donation: ${error.message}`);
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DonationCampaign, DonationCampaignRequest } from "@/types/donationCampaign";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 const TABLE = "donation_campaigns";
 
@@ -45,7 +46,7 @@ class DonationCampaignService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read donation campaign: ${error.message}`);
     return data ? rowToCampaign(data) : null;
@@ -79,13 +80,13 @@ class DonationCampaignService {
     if (data.active !== undefined) update.active = data.active;
     if (data.displayOrder !== undefined) update.display_order = data.displayOrder;
     update.updated_at = new Date().toISOString();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update donation campaign: ${error.message}`);
   }
 
   async deleteCampaign(id: string) {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete donation campaign: ${error.message}`);
   }
 }

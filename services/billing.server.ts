@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -95,7 +96,7 @@ class BillingService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read bill: ${error.message}`);
     return data ? rowToBill(data) : null;
@@ -202,13 +203,13 @@ class BillingService {
     update.updated_at = new Date().toISOString();
 
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update bill: ${error.message}`);
   }
 
   async deleteBill(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete bill: ${error.message}`);
   }
 
@@ -217,7 +218,7 @@ class BillingService {
     const { error } = await supabase
       .from(TABLE)
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("firestore_id", id);
+      .or(rowIdFilter(id));
     if (error) throw new Error(`Could not update bill status: ${error.message}`);
   }
 
@@ -243,7 +244,7 @@ class BillingService {
         status,
         updated_at: new Date().toISOString(),
       })
-      .eq("firestore_id", billId);
+      .or(rowIdFilter(billId));
     if (error) throw new Error(`Could not add bill payment: ${error.message}`);
   }
 

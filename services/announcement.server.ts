@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Announcement, AnnouncementRequest } from "@/types/announcement";
@@ -70,13 +71,13 @@ class AnnouncementService {
     if (announcement.message !== undefined) update.message = announcement.message;
     if (announcement.link !== undefined) update.link = announcement.link;
     if (announcement.isActive !== undefined) update.is_active = announcement.isActive;
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update announcement: ${error.message}`);
   }
 
   async deleteAnnouncement(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete announcement: ${error.message}`);
   }
 
@@ -85,7 +86,7 @@ class AnnouncementService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read announcement: ${error.message}`);
     return data ? rowToAnnouncement(data) : null;

@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Member, MemberRequest, Volunteer, VolunteerRequest } from "@/types/volunteer";
@@ -58,7 +59,7 @@ export const memberService = {
     const { data, error } = await supabase
       .from(MEMBERS_TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read member: ${error.message}`);
     return data ? rowToMember(data) : null;
@@ -91,13 +92,13 @@ export const memberService = {
     if (data.sex !== undefined) update.sex = data.sex;
     if (data.active !== undefined) update.active = data.active;
     if (data.address !== undefined) update.address = data.address;
-    const { error } = await supabase.from(MEMBERS_TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(MEMBERS_TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update member: ${error.message}`);
   },
 
   async deleteMember(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(MEMBERS_TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(MEMBERS_TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete member: ${error.message}`);
   },
 };
@@ -118,7 +119,7 @@ export const volunteerService = {
     const { data, error } = await supabase
       .from(VOLUNTEERS_TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read volunteer: ${error.message}`);
     return data ? rowToVolunteer(data) : null;
@@ -151,13 +152,13 @@ export const volunteerService = {
     if (data.sex !== undefined) update.sex = data.sex;
     if (data.active !== undefined) update.active = data.active;
     if (data.address !== undefined) update.address = data.address;
-    const { error } = await supabase.from(VOLUNTEERS_TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(VOLUNTEERS_TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update volunteer: ${error.message}`);
   },
 
   async deleteVolunteer(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(VOLUNTEERS_TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(VOLUNTEERS_TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete volunteer: ${error.message}`);
   },
 };

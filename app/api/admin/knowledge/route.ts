@@ -1,116 +1,90 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import {
+  approveArticle,
+  clearKnowledgeCache,
+  createArticle,
   getKnowledgeArticles,
   getPendingArticles,
-  clearKnowledgeCache,
 } from "@/lib/ai/knowledge/repository";
-import { addDocument, getDocuments } from "@/lib/firebase-admin-rest";
 import { SEED_ARTICLES } from "@/lib/ai/knowledge/seed";
-
-const COLLECTION_NAME = "knowledge";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/admin/knowledge
- * Get all knowledge articles (including unpublished)
- * Includes both Firestore articles and seed data
+ * GET /api/admin/knowledge - every knowledge article, approved or pending.
+ *
+ * Reads Supabase `ai_knowledge` through the repository. The seed corpus is appended
+ * read-only so the console shows what the assistant falls back to; it is never written.
+ * Admin-only.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
-    // Get articles from Firestore
-    const documents = await getDocuments(COLLECTION_NAME);
+    const [approved, pending] = await Promise.all([getKnowledgeArticles(), getPendingArticles()]);
+    const stored = [...approved, ...pending].map((a) => ({ ...a, isSeed: false }));
 
-     
-    const firestoreArticles = documents.map((doc: any) => {
-      const data = doc.fields || doc;
-      const name: string = doc.name || '';
-      return {
-        id: name.split('/').pop() || '',
-        slug: data.slug?.stringValue || '',
-        title: data.title?.stringValue || '',
-        kannadaTitle: data.kannadaTitle?.stringValue,
-        category: data.category?.stringValue || 'general',
-        keywords: data.keywords?.arrayValue?.values?.map((v: { stringValue?: string }) => v.stringValue || '') || [],
-        content: data.content?.stringValue || '',
-        kannadaContent: data.kannadaContent?.stringValue,
-        language: data.language?.stringValue || 'en',
-        approved: data.approved?.booleanValue ?? false,
-        createdAt: data.createdAt?.timestampValue || new Date().toISOString(),
-        updatedAt: data.updatedAt?.timestampValue || new Date().toISOString(),
-      };
-    });
-
-    // Get seed articles - note: SEED_ARTICLES uses Omit<KnowledgeArticle, "id">
-    // so we generate the id from slug
     const seedArticles = SEED_ARTICLES.map((article, index) => ({
       id: (article as unknown as { id?: string }).id || article.slug || `seed-${index}`,
-      slug: article.slug || '',
-      title: article.title || '',
+      slug: article.slug || "",
+      title: article.title || "",
       kannadaTitle: article.kannadaTitle,
-      category: article.category || 'general',
+      category: article.category || "general",
       keywords: article.keywords || [],
-      content: article.content || '',
+      content: article.content || "",
       kannadaContent: article.kannadaContent,
-      language: article.language || 'en',
+      language: article.language || "en",
       approved: true,
-      createdAt: article.createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt: article.updatedAt?.toISOString() || new Date().toISOString(),
+      createdAt: article.createdAt ?? new Date(),
+      updatedAt: article.updatedAt ?? new Date(),
       isSeed: true,
     }));
 
-    // Combine Firestore articles with seed articles
-    const articles = [
-      ...firestoreArticles.map(a => ({ ...a, isSeed: false })),
-      ...seedArticles
-    ];
+    const articles = [...stored, ...seedArticles];
 
     return NextResponse.json({
       success: true,
       articles,
       count: articles.length,
-      firestoreCount: firestoreArticles.length,
+      storedCount: stored.length,
       seedCount: seedArticles.length,
     });
   } catch (error) {
     console.error("Error fetching articles:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch articles" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to fetch articles" }, { status: 500 });
   }
 }
 
 /**
- * POST /api/admin/knowledge
- * Create a new knowledge article (auto-approved for admin)
- * Uses REST Admin SDK to bypass security rules
+ * POST /api/admin/knowledge - create a knowledge article, published immediately.
+ *
+ * Admin-authored articles are trusted, so they skip the review queue and are stored
+ * approved. Admin-only.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { slug, title, content, keywords, category, language } = body;
 
     if (!title) {
-      return NextResponse.json(
-        { success: false, error: "Title is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "Title is required" }, { status: 400 });
     }
 
-    // Use REST Admin SDK for write operations (bypasses security rules)
-    const id = await addDocument(COLLECTION_NAME, {
+    const id = await createArticle({
       slug: slug || `article-${Date.now()}`,
       title,
       content: content || "",
       keywords: keywords || [],
       category: category || "general",
       language: language || "en",
-      approved: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
-
+    await approveArticle(id);
     clearKnowledgeCache();
 
     return NextResponse.json({
@@ -120,9 +94,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Error creating article:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to create article" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to create article" }, { status: 500 });
   }
 }

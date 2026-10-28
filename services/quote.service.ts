@@ -20,6 +20,7 @@ import {
   Weekday,
 } from "@/types/quote";
 import { eventService } from "./event.service";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 const TABLE = "quotes";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
@@ -299,7 +300,7 @@ class QuoteService {
       const { data, error } = await supabase
         .from(TABLE)
         .select("*")
-        .eq("firestore_id", id)
+        .or(rowIdFilter(id))
         .maybeSingle();
       if (error) throw new Error(error.message);
       return data ? rowToQuote(data) : null;
@@ -395,7 +396,7 @@ class QuoteService {
     if (updates.rotationGroup !== undefined) update.rotation_group = updates.rotationGroup;
     if (updates.stats !== undefined) update.stats = updates.stats;
     update.updated_at = new Date().toISOString();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update quote: ${error.message}`);
   }
 
@@ -404,7 +405,7 @@ class QuoteService {
    */
   async deleteQuote(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete quote: ${error.message}`);
   }
 
@@ -767,7 +768,7 @@ class QuoteService {
               lastViewedAt: new Date().toISOString(),
             },
           })
-          .eq("firestore_id", id);
+          .or(rowIdFilter(id));
         if (error) throw new Error(error.message);
       }
     } catch (error) {

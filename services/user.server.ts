@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TempleUser, TempleUserCreate, TempleUserUpdate } from "@/types/user";
@@ -41,7 +42,7 @@ class UserService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read user: ${error.message}`);
     return data ? rowToUser(data) : null;
@@ -73,13 +74,13 @@ class UserService {
     if (user.role !== undefined) update.role = user.role;
     if (user.active !== undefined) update.active = user.active;
     update.updated_at = new Date().toISOString();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update user: ${error.message}`);
   }
 
   async deleteUser(id: string) {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete user: ${error.message}`);
   }
 }

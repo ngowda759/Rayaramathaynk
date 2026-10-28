@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Aaradhane, AaradhaneStats } from "@/types/aaradhane";
@@ -59,7 +60,7 @@ export const aaradhaneService = {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read aaradhane: ${error.message}`);
     return data ? rowToAaradhane(data) : null;
@@ -110,7 +111,7 @@ export const aaradhaneService = {
     if (data.displayOrder !== undefined) update.display_order = data.displayOrder;
 
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update aaradhane: ${error.message}`);
   },
 
@@ -119,7 +120,7 @@ export const aaradhaneService = {
     const { data, error } = await supabase
       .from(TABLE)
       .delete()
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .select("id");
     if (error) throw new Error(`Could not delete aaradhane: ${error.message}`);
     if (!data || data.length === 0) {

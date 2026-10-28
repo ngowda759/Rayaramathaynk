@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { GalleryAlbum, GalleryMedia, GalleryMediaRequest } from "@/types/gallery";
@@ -74,7 +75,7 @@ export const galleryService = {
     const { data, error } = await supabase
       .from(ALBUM_TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read gallery album: ${error.message}`);
     return data ? rowToAlbum(data) : null;
@@ -107,13 +108,13 @@ export const galleryService = {
     if (album.coverImage !== undefined) update.cover_image = album.coverImage;
     if (album.active !== undefined) update.active = album.active;
     if (album.displayOrder !== undefined) update.display_order = album.displayOrder;
-    const { error } = await supabase.from(ALBUM_TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(ALBUM_TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update gallery album: ${error.message}`);
   },
 
   async deleteAlbum(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(ALBUM_TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(ALBUM_TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete gallery album: ${error.message}`);
   },
 
@@ -160,7 +161,7 @@ export const galleryService = {
     const { data, error } = await supabase
       .from(MEDIA_TABLE)
       .select("*")
-      .eq("firestore_id", id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) throw new Error(`Could not read gallery media: ${error.message}`);
     return data ? rowToMedia(data) : null;
@@ -213,7 +214,7 @@ export const galleryService = {
     if (media.isFeatured !== undefined) update.is_featured = media.isFeatured;
     if (media.displayOrder !== undefined) update.display_order = media.displayOrder;
     if (media.tags !== undefined) update.tags = media.tags;
-    const { error } = await supabase.from(MEDIA_TABLE).update(update).eq("firestore_id", id);
+    const { error } = await supabase.from(MEDIA_TABLE).update(update).or(rowIdFilter(id));
     if (error) throw new Error(`Could not update gallery media: ${error.message}`);
   },
 
@@ -223,7 +224,7 @@ export const galleryService = {
 
   async deleteMedia(id: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(MEDIA_TABLE).delete().eq("firestore_id", id);
+    const { error } = await supabase.from(MEDIA_TABLE).delete().or(rowIdFilter(id));
     if (error) throw new Error(`Could not delete gallery media: ${error.message}`);
   },
 

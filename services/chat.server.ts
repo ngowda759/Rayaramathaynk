@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AIMessage, ChatSession, Testimonial, VolunteerRequest, ChatFeedback } from "@/types/ai";
@@ -45,7 +46,7 @@ export async function updateChatSession(
   const { error } = await supabase
     .from("chat_sessions")
     .update(updates)
-    .eq("firestore_id", sessionId);
+    .or(rowIdFilter(sessionId));
 
   if (error) throw new Error(`Failed to update chat session: ${error.message}`);
 }
@@ -68,7 +69,7 @@ export async function getChatSession(sessionId: string): Promise<ChatSession | n
   const { data, error } = await supabase
     .from("chat_sessions")
     .select("*")
-    .eq("firestore_id", sessionId)
+    .or(rowIdFilter(sessionId))
     .maybeSingle();
 
   if (error) throw new Error(`Failed to get chat session: ${error.message}`);
@@ -219,7 +220,7 @@ export async function approveTestimonial(testimonialId: string): Promise<void> {
   const { error } = await supabase
     .from(AI_TESTIMONIALS)
     .update({ approved: true })
-    .eq("firestore_id", testimonialId);
+    .or(rowIdFilter(testimonialId));
   if (error) throw new Error(`Failed to approve testimonial: ${error.message}`);
 }
 
@@ -228,7 +229,7 @@ export async function deleteTestimonial(testimonialId: string): Promise<void> {
   const { error } = await supabase
     .from(AI_TESTIMONIALS)
     .delete()
-    .eq("firestore_id", testimonialId);
+    .or(rowIdFilter(testimonialId));
   if (error) throw new Error(`Failed to delete testimonial: ${error.message}`);
 }
 
@@ -289,7 +290,7 @@ export async function updateVolunteerRequestStatus(
   const { error } = await supabase
     .from(AI_VOLUNTEER_REQUESTS)
     .update({ status })
-    .eq("firestore_id", requestId);
+    .or(rowIdFilter(requestId));
   if (error) throw new Error(`Failed to update volunteer request: ${error.message}`);
 }
 

@@ -31,6 +31,7 @@ import type {
   ArticleHistory,
 } from "@/types/knowledge-workflow";
 import { CATEGORY_DISPLAY_NAMES } from "@/lib/ai/knowledge/types";
+import { apiFetch } from "@/lib/api/fetch";
 
 interface KnowledgeWorkflowDashboardProps {
   currentUserId?: string;
@@ -409,20 +410,14 @@ export default function KnowledgeWorkflowDashboard({
     setError(null);
 
     try {
-      const [articlesRes, statsRes] = await Promise.all([
-        fetch("/api/knowledge/workflow/articles"),
-        fetch("/api/knowledge/workflow/statistics"),
+      // The workflow routes are admin-only, so both calls carry the ID token.
+      const [articlesData, statsData] = await Promise.all([
+        apiFetch<{ articles?: WorkflowArticle[] }>("/api/knowledge/workflow/articles"),
+        apiFetch<{ statistics?: WorkflowStatistics }>("/api/knowledge/workflow/statistics"),
       ]);
 
-      if (articlesRes.ok) {
-        const data = await articlesRes.json();
-        setArticles(data.articles || []);
-      }
-
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setStatistics(data.statistics);
-      }
+      setArticles(articlesData.articles || []);
+      setStatistics(statsData.statistics ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
     } finally {
@@ -432,18 +427,20 @@ export default function KnowledgeWorkflowDashboard({
 
   const fetchArticleDetails = async (articleId: string) => {
     try {
-      const res = await fetch(
+      const data = await apiFetch<{
+        versions?: ArticleVersion[];
+        history?: ArticleHistory;
+        comments?: ReviewComment[];
+        committeeApproval?: CommitteeApproval;
+      }>(
         `/api/knowledge/workflow/articles/${articleId}?includeHistory=true&includeVersions=true&includeComments=true&includeApprovals=true`
       );
-      if (res.ok) {
-        const data = await res.json();
-        setArticleDetails({
-          versions: data.versions,
-          history: data.history,
-          comments: data.comments,
-          committeeApproval: data.committeeApproval,
-        });
-      }
+      setArticleDetails({
+        versions: data.versions,
+        history: data.history,
+        comments: data.comments,
+        committeeApproval: data.committeeApproval,
+      });
     } catch (err) {
       console.error("Failed to fetch article details:", err);
     }
@@ -453,21 +450,16 @@ export default function KnowledgeWorkflowDashboard({
     if (!selectedArticle) return;
 
     try {
-      const res = await fetch(`/api/knowledge/workflow/articles/${selectedArticle.id}`, {
+      // The acting user is derived server-side from the verified token, so no
+      // author field is sent.
+      await apiFetch(`/api/knowledge/workflow/articles/${selectedArticle.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          updatedBy: currentUserId,
-          comment,
-        }),
+        body: { action, comment },
       });
 
-      if (res.ok) {
-        fetchData();
-        fetchArticleDetails(selectedArticle.id);
-        setSelectedArticle(null);
-      }
+      fetchData();
+      fetchArticleDetails(selectedArticle.id);
+      setSelectedArticle(null);
     } catch (err) {
       console.error("Action failed:", err);
     }

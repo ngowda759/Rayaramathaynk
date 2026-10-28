@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 /**
  * Profile Service - Devotee profile management
@@ -66,7 +67,7 @@ class ProfileService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", uid)
+      .or(rowIdFilter(uid))
       .maybeSingle();
     if (error) throw new Error(`Could not read profile: ${error.message}`);
     return data ? rowToProfile(data) : null;
@@ -122,7 +123,7 @@ class ProfileService {
     if (data.nakshatra !== undefined) update.nakshatra = data.nakshatra;
 
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", uid);
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(uid));
     if (error) throw new Error(`Could not update profile: ${error.message}`);
   }
 
@@ -147,7 +148,7 @@ class ProfileService {
     const { error } = await supabase
       .from(TABLE)
       .update({ preferences, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
+      .or(rowIdFilter(uid));
     if (error) throw new Error(`Could not update preferences: ${error.message}`);
   }
 
@@ -182,7 +183,7 @@ class ProfileService {
     const { error } = await supabase
       .from(TABLE)
       .update({ [column]: values, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
+      .or(rowIdFilter(uid));
     if (error) throw new Error(`Could not update profile: ${error.message}`);
   }
 
@@ -223,7 +224,7 @@ class ProfileService {
     const { error } = await supabase
       .from(TABLE)
       .update({ bookmarks, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
+      .or(rowIdFilter(uid));
     if (error) throw new Error(`Could not add bookmark: ${error.message}`);
     return created;
   }
@@ -236,7 +237,7 @@ class ProfileService {
     const { error } = await supabase
       .from(TABLE)
       .update({ bookmarks, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
+      .or(rowIdFilter(uid));
     if (error) throw new Error(`Could not remove bookmark: ${error.message}`);
   }
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 /**
  * Testimonials, stored in Supabase `testimonials`.
@@ -54,7 +55,7 @@ export async function rejectTestimonial(id: string, reason?: string): Promise<vo
       approved: false,
       rejection_reason: reason || "Your testimonial did not meet our guidelines.",
     })
-    .eq("firestore_id", id);
+    .or(rowIdFilter(id));
   if (error) throw new Error(`Could not reject testimonial: ${error.message}`);
 }
 
@@ -84,7 +85,7 @@ export async function getTestimonial(id: string): Promise<Testimonial | null> {
   const { data, error } = await supabase
     .from(TABLE)
     .select("*")
-    .eq("firestore_id", id)
+    .or(rowIdFilter(id))
     .maybeSingle();
   if (error) throw new Error(`Could not read testimonial: ${error.message}`);
   return data ? rowToTestimonial(data) : null;
@@ -165,7 +166,7 @@ export async function updateTestimonial(
   if (data.image !== undefined) update.image = data.image || null;
   if (data.approved !== undefined) update.approved = data.approved;
   if (data.rejected !== undefined) update.rejected = data.rejected;
-  const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+  const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
   if (error) throw new Error(`Could not update testimonial: ${error.message}`);
 }
 
@@ -175,6 +176,6 @@ export async function approveTestimonial(id: string): Promise<void> {
 
 export async function deleteTestimonial(id: string): Promise<void> {
   const supabase = createAdminClient();
-  const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+  const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
   if (error) throw new Error(`Could not delete testimonial: ${error.message}`);
 }

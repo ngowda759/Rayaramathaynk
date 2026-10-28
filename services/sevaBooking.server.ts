@@ -1,4 +1,5 @@
 import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SevaBooking, SevaBookingRequest, SevaBookingStatus, PaymentStatus } from "@/types/seva-booking";
@@ -92,7 +93,7 @@ class SevaBookingService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("firestore_id", bookingId)
+      .or(rowIdFilter(bookingId))
       .maybeSingle();
     if (error) throw new Error(`Could not read seva booking: ${error.message}`);
     return data ? rowToBooking(data) : null;
@@ -103,7 +104,7 @@ class SevaBookingService {
     const { error } = await supabase
       .from(TABLE)
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("firestore_id", bookingId);
+      .or(rowIdFilter(bookingId));
     if (error) throw new Error(`Could not update seva booking: ${error.message}`);
   }
 
@@ -122,13 +123,13 @@ class SevaBookingService {
         status: paymentData.paymentStatus === "completed" ? "confirmed" : "pending",
         updated_at: new Date().toISOString(),
       })
-      .eq("firestore_id", bookingId);
+      .or(rowIdFilter(bookingId));
     if (error) throw new Error(`Could not update seva booking payment: ${error.message}`);
   }
 
   async deleteBooking(bookingId: string): Promise<void> {
     const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", bookingId);
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(bookingId));
     if (error) throw new Error(`Could not delete seva booking: ${error.message}`);
   }
 }
