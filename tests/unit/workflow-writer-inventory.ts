@@ -537,6 +537,7 @@ export const GUARD_COMMANDS = [
   "node scripts/lib/guard-approved-project.mjs",
   "node scripts/lib/guard-approved-supabase-url.mjs",
   "node scripts/lib/guard-approved-db-url.mjs",
+  "node scripts/lib/guard-test-project.mjs",
 ];
 
 /**
@@ -588,6 +589,32 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     environment: "",
     guardStyle: "in-script",
     concurrencyGroup: "",
+  },
+  {
+    // Test-only migration verification. Runs `supabase migration list` and
+    // `supabase db push --dry-run` against a dedicated TEST project: it links and
+    // inspects, but never applies (no `db push`, no seed, no SQL write). It is
+    // enumerated here because `supabase link`/`migration` are Postgres-connecting
+    // commands; the destination guard refuses anything but an allow-listed test
+    // project and always refuses the approved production project.
+    id: "supabase-migrations-test",
+    file: "supabase-migrations-test.yml",
+    kind: "connect",
+    commands: [
+      "supabase link",
+      "supabase migration list",
+      "supabase db push",
+    ],
+    rawCli: false,
+    guard: "node scripts/lib/guard-test-project.mjs",
+    guardVar: "TEST_SUPABASE_PROJECT_REF",
+    destructive: false,
+    trigger: "manual",
+    // No environment binding: this verifies a test project, and there is no
+    // production credential in the file to gate.
+    environment: "",
+    guardStyle: "step",
+    concurrencyGroup: "supabase-migrations-test",
   },
 ];
 

@@ -78,6 +78,42 @@ A dedicated manual workflow is available in `.github/workflows/supabase-migratio
 2. Select **Deploy Supabase Migrations** from the left sidebar.
 3. Click **Run workflow**, select the branch (e.g., `main`), and confirm.
 
+## Test-project migration verification (read-only)
+
+`.github/workflows/supabase-migrations-test.yml` (`Verify Supabase Migrations (Test Project)`)
+verifies pending migrations against a **dedicated test project**, separately from the
+production deploy above. It is safe to run at any time because it never applies anything.
+
+### What the workflow does:
+1. Triggers manually via `workflow_dispatch`, and requires the typed confirmation phrase
+   `verify-test-supabase-migrations`.
+2. Fails with an actionable message if the test project ref, the allowlist or the
+   test credentials are not configured — it never falls back to production.
+3. Runs `scripts/lib/guard-test-project.mjs`, which refuses anything that is not
+   explicitly allow-listed as a test project. It **always refuses the approved
+   production project**.
+4. Links to the test project and runs `supabase migration list`, then
+   `supabase db push --dry-run`.
+
+### What it deliberately does NOT do:
+- **No `supabase db push`:** the only `db push` is the `--dry-run` form. Nothing is applied.
+- **No data or seed step:** it does not run seed or migration scripts.
+- **No production credential:** every credential is `TEST_`-prefixed, and the workflow
+  binds no `environment: production`.
+
+### Configuration (owner action, once)
+
+1. Create a dedicated Supabase **test** project (never the production project).
+2. Set repository variable `TEST_SUPABASE_PROJECT_REFS` to a comma-separated allowlist of
+   test project refs. A malformed entry, or the production ref, makes the guard refuse.
+3. Optionally set repository variable `TEST_SUPABASE_URL` to the test project's API URL.
+   When set, it must resolve to the dispatched ref — the ref is never inferred from a URL
+   substring.
+4. Set repository secrets `TEST_SUPABASE_ACCESS_TOKEN` and `TEST_SUPABASE_DB_PASSWORD`
+   from the test project only.
+
+Then dispatch the workflow with `test_project_ref` set to an allow-listed ref.
+
 ## Troubleshooting
 
 - **Dry-run fails:** If `supabase db push --dry-run` fails, review the migration files in `supabase/migrations/` for syntax errors or conflicts with the existing remote schema. Fix the SQL locally before retrying.
