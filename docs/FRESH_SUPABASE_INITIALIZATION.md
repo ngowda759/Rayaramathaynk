@@ -104,6 +104,38 @@ There is therefore **no supported production seed path**. Initializing productio
 separate, reviewed change with its own approval, and is **not** performed by this
 repository's automation or by any pull request.
 
+## Test-project migration verification (safe, read-only)
+
+`.github/workflows/supabase-migrations-test.yml` (`Verify Supabase Migrations (Test Project)`)
+verifies pending migrations against a **dedicated test project**. It is separate from the
+production deploy workflow and never applies anything:
+
+- `workflow_dispatch` only — never on push or a schedule;
+- no `environment: production` binding and no production secret referenced; every
+  credential is `TEST_`-prefixed;
+- `scripts/lib/guard-test-project.mjs` runs before `supabase link` and before any
+  Supabase command, and refuses anything that is not explicitly allow-listed as a test
+  project — in particular it **always refuses the approved production project**;
+- the only database commands are `supabase migration list` and
+  `supabase db push --dry-run`. There is no `supabase db push`, no seed command and no
+  SQL write;
+- when the test project, the allowlist or the test credentials are not configured, the
+  job fails with an actionable message instead of falling back to production or inferring
+  a project from a URL.
+
+To use it, an owner first configures (see the failure message for the same list):
+
+1. A dedicated Supabase **test** project (never the production project).
+2. Repository variable `TEST_SUPABASE_PROJECT_REFS` — a comma-separated allowlist of test
+   project refs. A malformed entry, or the production ref, makes the guard refuse.
+3. Repository variable `TEST_SUPABASE_URL` — the test project's API URL (optional; when
+   set, it must resolve to the dispatched ref).
+4. Repository secrets `TEST_SUPABASE_ACCESS_TOKEN` and `TEST_SUPABASE_DB_PASSWORD` — from
+   the test project only.
+
+Then dispatch the workflow with `test_project_ref` set to an allow-listed ref and the
+confirmation phrase `verify-test-supabase-migrations`.
+
 ## Production rollout (owner actions, separately approved)
 
 Schema and data are deployed in two separate, individually approved steps.

@@ -683,6 +683,10 @@ describe("write-capable migration workflows verify the destination project", () 
     const GUARDS = [
       "node scripts/lib/guard-approved-project.mjs",
       "node scripts/lib/guard-approved-supabase-url.mjs",
+      // The test-project allowlist guard. The test-only verification workflow runs
+      // `supabase link` / `supabase db push --dry-run` against a dedicated test
+      // project, so it must run a destination guard too.
+      "node scripts/lib/guard-test-project.mjs",
     ];
     const scripts = readPackageScripts();
 
