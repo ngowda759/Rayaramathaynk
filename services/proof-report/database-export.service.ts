@@ -1,100 +1,56 @@
-// Since this runs as a script, we need to handle Firebase differently
-// We'll read the data directly from the Firebase SDK structure
-
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { DatabaseContent } from '@/types/proof-report';
-import { TempleEvent } from '@/types/event';
-import { Seva } from '@/types/seva';
-import { GalleryAlbum, GalleryMedia } from '@/types/gallery';
-import { Announcement } from '@/types/announcement';
-import { DailyPooja } from '@/types/pooja';
-import { SiteSettings } from '@/types/settings';
-import { HomepageConfig } from '@/types/homepage';
-import { DonationRecord } from '@/types/donation';
 
+/**
+ * Reads the application content the proof report summarises, from Supabase.
+ *
+ * This is a developer utility (`npm run generate:proof-report`), not a runtime request
+ * path, so it uses the service-role client directly rather than an API route. It
+ * previously read the Firestore collections events, announcements, sevas, dailyPoojas,
+ * donations, galleryAlbums, galleryMedia, settings/config and homepage/config; those
+ * live in Supabase now, so no Firestore client is used.
+ *
+ * The returned `DatabaseContent` shape is unchanged, so `proof-report.service.ts`,
+ * `temple-validator.service.ts` and `html-generator.service.ts` consume the same
+ * fields. Every read degrades to an empty list on error, matching the previous
+ * `.catch(() => ({ docs: [] }))` behaviour.
+ */
 export class DatabaseExportService {
-  private firebaseConfig: {
-    apiKey?: string;
-    authDomain?: string;
-    projectId?: string;
-    storageBucket?: string;
-    messagingSenderId?: string;
-    appId?: string;
-  };
-
-  constructor() {
-    this.firebaseConfig = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    };
-  }
-
+  /** True when the service-role credentials the export needs are present. */
   isConfigured(): boolean {
-    return !!(
-      this.firebaseConfig.apiKey &&
-      this.firebaseConfig.projectId &&
-      this.firebaseConfig.authDomain &&
-      this.firebaseConfig.appId
-    );
+    return !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   }
 
   async exportDatabase(): Promise<DatabaseContent> {
     if (!this.isConfigured()) {
-      console.log('[DatabaseExportService] Firebase not configured, returning empty data');
+      console.log('[DatabaseExportService] Supabase not configured, returning empty data');
       return this.getEmptyContent();
     }
 
     try {
-      // Dynamic import to avoid issues when Firebase isn't configured
-      const { initializeApp, getApps } = await import('firebase/app');
-      const { getFirestore, getDocs, getDoc, doc, collection } = await import('firebase/firestore');
-
-      const firebaseConfig = {
-        apiKey: this.firebaseConfig.apiKey,
-        authDomain: this.firebaseConfig.authDomain,
-        projectId: this.firebaseConfig.projectId,
-        storageBucket: this.firebaseConfig.storageBucket,
-        messagingSenderId: this.firebaseConfig.messagingSenderId,
-        appId: this.firebaseConfig.appId,
+      // Dynamic import so the module stays loadable where `server-only` is unavailable
+      // (the proof-report unit test runs under Jest), as the previous Firestore version did.
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const supabase = createAdminClient();
+      const read = async (table: string): Promise<any[]> => {
+        const { data, error } = await supabase.from(table).select('*');
+        if (error) {
+          console.warn(`[DatabaseExportService] Could not read ${table}: ${error.message}`);
+          return [];
+        }
+        return data ?? [];
       };
 
-      const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-
-      const [
-        eventsSnap,
-        announcementsSnap,
-        sevasSnap,
-        poojasSnap,
-        donationsSnap,
-        galleryAlbumsSnap,
-        galleryMediaSnap,
-        settingsSnap,
-        homepageSnap,
-      ] = await Promise.all([
-        getDocs(collection(db, 'events')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'announcements')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'sevas')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'dailyPoojas')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'donations')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'galleryAlbums')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'galleryMedia')).catch(() => ({ docs: [] })),
-        getDoc(doc(db, 'settings', 'config')).catch(() => null),
-        getDoc(doc(db, 'homepage', 'config')).catch(() => null),
-      ]);
-
-      const events: TempleEvent[] = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() } as TempleEvent));
-      const announcements: Announcement[] = announcementsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement));
-      const sevas: Seva[] = sevasSnap.docs.map(d => ({ id: d.id, ...d.data() } as Seva));
-      const poojas: DailyPooja[] = poojasSnap.docs.map(d => ({ id: d.id, ...d.data() } as DailyPooja));
-      const donations: DonationRecord[] = donationsSnap.docs.map(d => ({ id: d.id, ...d.data() } as DonationRecord));
-      const galleryAlbums: GalleryAlbum[] = galleryAlbumsSnap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryAlbum));
-      const galleryMedia: GalleryMedia[] = galleryMediaSnap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryMedia));
-      const settings: SiteSettings | undefined = settingsSnap?.exists() ? { id: settingsSnap.id, ...settingsSnap.data() } as SiteSettings : undefined;
-      const homepage: HomepageConfig | undefined = homepageSnap?.exists() ? { ...homepageSnap.data() } as HomepageConfig : undefined;
+      const [events, announcements, sevas, poojas, donations, galleryAlbums, galleryMedia] =
+        await Promise.all([
+          read('events'),
+          read('announcements'),
+          read('sevas'),
+          read('daily_poojas'),
+          read('donations'),
+          read('gallery_albums'),
+          read('gallery_media'),
+        ]);
 
       return {
         events,
@@ -104,8 +60,8 @@ export class DatabaseExportService {
         donations,
         galleryAlbums,
         galleryMedia,
-        settings,
-        homepage,
+        settings: await this.readSiteSettings(supabase),
+        homepage: await this.readSettingsDocument(supabase, 'homepage'),
       };
     } catch (error) {
       console.error('[DatabaseExportService] Error exporting database:', error);
@@ -113,15 +69,49 @@ export class DatabaseExportService {
     }
   }
 
+  /** `site_settings` is a single snake_case row; the report reads camelCase fields. */
+  private async readSiteSettings(
+    supabase: SupabaseClient
+  ): Promise<Record<string, unknown> | undefined> {
+    const { data, error } = await supabase.from('site_settings').select('*').limit(1).maybeSingle();
+    if (error) {
+      console.warn(`[DatabaseExportService] Could not read site_settings: ${error.message}`);
+      return undefined;
+    }
+    if (!data) return undefined;
+    return {
+      templeName: data.temple_name,
+      contactEmail: data.contact_email,
+      contactPhone: data.contact_phone,
+      address: data.address,
+    };
+  }
+
+  private async readSettingsDocument(
+    supabase: SupabaseClient,
+    key: string
+  ): Promise<Record<string, unknown> | undefined> {
+    const { data, error } = await supabase
+      .from('settings_documents')
+      .select('data')
+      .eq('document_key', key)
+      .maybeSingle();
+    if (error) {
+      console.warn(`[DatabaseExportService] Could not read ${key} settings: ${error.message}`);
+      return undefined;
+    }
+    return data ? (data.data as Record<string, unknown>) : undefined;
+  }
+
   private getEmptyContent(): DatabaseContent {
     return {
-      events: [] as TempleEvent[],
-      announcements: [] as Announcement[],
-      sevas: [] as Seva[],
-      poojas: [] as DailyPooja[],
-      donations: [] as DonationRecord[],
-      galleryAlbums: [] as GalleryAlbum[],
-      galleryMedia: [] as GalleryMedia[],
+      events: [],
+      announcements: [],
+      sevas: [],
+      poojas: [],
+      donations: [],
+      galleryAlbums: [],
+      galleryMedia: [],
     };
   }
 

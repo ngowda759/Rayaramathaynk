@@ -87,7 +87,7 @@ describe('Proof Report Generator', () => {
       dbExport = new DatabaseExportService();
     });
 
-    it('should handle unconfigured Firebase gracefully', async () => {
+    it('should handle unconfigured Supabase gracefully', async () => {
       const content = await dbExport.exportDatabase();
       
       // Should return empty content structure
