@@ -681,3 +681,25 @@ Working log archived; see daily logs. Not this repository.
   report it as a passing CI exit code.
   Local-only safety refs: tag `safety/rev2-d80536d`, branch `backup/pre-rebase-0b76948`.
 
+
+### PR #363 — fresh Supabase-native data cutover (2026-10-28)
+
+- Branch `feat/fresh-supabase-initialization`, PR #363 (**draft, must stay unmerged**). Head `b0b7211`.
+  CI all green incl. Vercel. Scope: application data Firestore→Supabase; **Firebase Auth unchanged**.
+- **The 6c982811 Vercel failure was the same root cause as the CI lint failure**, not an infra flake:
+  `next.config.ts` does NOT set `eslint.ignoreDuringBuilds`, so `next build` runs ESLint, and 4
+  `react-hooks/set-state-in-effect` **errors** failed the build
+  (`app/admin/billing/{create,page,settings}/page.tsx`, `hooks/useGallery.ts`). Now 0 lint errors.
+- **Unit suite = 201 suites / 2619 tests; DB suite (`npm run test:db`) = 17 suites / 238 tests.**
+  `npm run test:db` needs `node --experimental-vm-modules` (set in the npm script) — running
+  `npx jest -c jest.db.config.ts <file>` directly fails on `import.meta`.
+- **`tests/unit/seva/no-old-addresses.test.ts` scans `git ls-files`** — a deleted file must be
+  `git add`ed (staged) or the test ENOENTs on the still-tracked path.
+- Removed as dead: `services/dashboard.service.ts` + `services/dashboard.service.client.ts`
+  (superseded by `/api/admin/dashboard-stats`), `app/admin/test{,‑firebase}/page.tsx` (raw Firestore
+  smoke pages), and the Firestore reader in `services/proof-report/database-export.service.ts`.
+- Only Firestore application-data calls left are `users` auth-profile docs in `lib/auth.ts`,
+  `lib/auth/admin.ts`, `services/auth.service.ts` (out of scope). Type-only `Timestamp`/`FieldValue`
+  imports remain in `lib/date.ts`, `types/{billing,profile,user}.ts`. Every Supabase repo uses
+  `row.firestore_id || row.id` as a legacy public-id fallback — that is NOT a Firestore client.
+- Seed verified idempotent on isolated PGlite: run 1 = 69 rows, run 2 = +0.
