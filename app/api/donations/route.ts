@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { donationService } from "@/services/donation.service";
 
-export async function GET() {
-  try {
-    const donations = await donationService.getDonations();
-    return NextResponse.json(donations);
-  } catch (error) {
-    console.error("[API] Error fetching donations:", error);
-    return NextResponse.json({ error: "Failed to fetch donations" }, { status: 500 });
-  }
-}
+import { donationService } from "@/services/donation.server";
+import type { DonationRequest } from "@/types/donation";
 
+/** Public donation submission. The admin list lives at `/api/admin/donations`. */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    
-    // Validation
-    if (!body.amount || body.amount <= 0) {
-      return NextResponse.json({ error: "Valid amount is required" }, { status: 400 });
+    const body = (await request.json()) as DonationRequest;
+    if (!body?.amount || body.amount <= 0) {
+      return NextResponse.json({ error: "A valid amount is required" }, { status: 400 });
     }
-    
-    const donationId = await donationService.createDonation(body);
-    return NextResponse.json({ id: donationId, message: "Donation recorded successfully" }, { status: 201 });
+    if (!body.donorName) {
+      return NextResponse.json({ error: "Donor name is required" }, { status: 400 });
+    }
+    const id = await donationService.createDonation(body);
+    return NextResponse.json({ id, message: "Donation recorded successfully" }, { status: 201 });
   } catch (error) {
-    console.error("[API] Error creating donation:", error);
-    return NextResponse.json({ error: "Failed to create donation" }, { status: 500 });
+    console.error("[donations] create failed:", error);
+    return NextResponse.json({ error: "Failed to record donation" }, { status: 500 });
   }
 }

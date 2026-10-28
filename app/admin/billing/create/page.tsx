@@ -39,6 +39,7 @@ export default function CreateBillPage() {
   const { settings: financeSettings } = useFinanceSettings();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize the form defaults from the loaded finance settings document.
     setSettings(financeSettings);
     if (financeSettings.billing?.defaultDueDays) {
       const due = new Date();

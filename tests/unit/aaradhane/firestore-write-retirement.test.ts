@@ -205,14 +205,26 @@ describe("the Aaradhane feature has no Firestore writers", () => {
     expect(untracked).toEqual([]);
   });
 
-  it("services/aaradhane.service.ts reads and writes Supabase, not Firestore", () => {
-    const source = read("services/aaradhane.service.ts");
-    expect(source).toContain("@/lib/supabase/admin");
-    // The only surviving "firestore" tokens are the nullable `firestore_id` column
-    // name; the Firestore *client* imports are gone.
-    expect(source).not.toContain("firebase");
-    expect(source).not.toMatch(/from\s+["']firebase\/firestore["']/);
-    expect(source).not.toContain("@/lib/firebase");
+  it("the Aaradhane feature reads and writes Supabase, not Firestore", () => {
+    // The feature is split so the service-role client can never reach a browser
+    // bundle: `aaradhane.server.ts` owns the Supabase admin client and the
+    // server-only guard, and `aaradhane.service.ts` is the browser-facing module
+    // that talks to the guarded `/api/**` routes.
+    const server = read("services/aaradhane.server.ts");
+    expect(server).toContain("@/lib/supabase/admin");
+    expect(server).toContain("server-only");
+
+    const client = read("services/aaradhane.service.ts");
+    expect(client).toContain("@/lib/api/fetch");
+    expect(client).not.toContain("@/lib/supabase/admin");
+
+    for (const source of [server, client]) {
+      // The only surviving "firestore" tokens are the nullable `firestore_id`
+      // column name; the Firestore *client* imports are gone.
+      expect(source).not.toContain("firebase");
+      expect(source).not.toMatch(/from\s+["']firebase\/firestore["']/);
+      expect(source).not.toContain("@/lib/firebase");
+    }
   });
 
   it("the destination table is readable by the roles the public page uses", () => {

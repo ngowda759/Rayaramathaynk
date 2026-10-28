@@ -1,115 +1,46 @@
-/**
- * Testimonials, stored in Supabase `testimonials`.
- *
- * There is no Firestore path and no built-in set of sample testimonials: devotee
- * testimonials are not invented (docs/CONTENT-GUIDELINES.md — "Fabricated facts").
- * Until a real testimonial is approved, the public page shows its own empty state.
- *
- * Reads use the public client (RLS exposes approved rows); writes use the service-role
- * admin client. A read failure throws so the caller sees a real error.
- */
-
-import { createClient } from "@/lib/supabase/client";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { apiFetch } from "@/lib/api/fetch";
 import { Testimonial } from "@/types/homepage";
 
-const TABLE = "testimonials";
+/**
+ * Devotee testimonials, stored in Supabase `testimonials`.
+ *
+ * The table is deny-all under RLS, so the browser never reads it directly: approved
+ * testimonials are served from `/api/testimonials/devotee`, public submission posts
+ * there, and the admin console uses the admin-guarded `/api/admin/testimonials`
+ * routes. The server uses the service role. There is no Firestore path and no
+ * built-in sample testimonials: devotee testimonials are not invented
+ * (docs/CONTENT-GUIDELINES.md — "Fabricated facts"). Until a real testimonial is
+ * approved, the public page shows its own empty state.
+ */
 
-function rowToTestimonial(row: any): Testimonial {
-  return {
-    id: row.firestore_id || row.id,
-    name: row.name || "",
-    location: row.location || "",
-    quote: row.quote || "",
-    years: row.years || "",
-    image: row.image || undefined,
-    phone: row.phone || undefined,
-    approved: row.approved ?? false,
-    rejected: row.rejected ?? false,
-    rejectionReason: row.rejection_reason || undefined,
-    submittedBy: row.submitted_by || "public",
-    createdAt: row.created_at,
-  } as Testimonial;
+export async function getApprovedTestimonials(): Promise<Testimonial[]> {
+  return apiFetch<Testimonial[]>("/api/testimonials/devotee", { auth: false });
 }
 
 export async function getPendingTestimonials(): Promise<Testimonial[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("*")
-    .eq("submitted_by", "public")
-    .eq("approved", false)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Could not read pending testimonials: ${error.message}`);
-  return (data ?? []).map(rowToTestimonial);
-}
-
-export async function rejectTestimonial(id: string, reason?: string): Promise<void> {
-  const supabase = createAdminClient();
-  const { error } = await supabase
-    .from(TABLE)
-    .update({
-      rejected: true,
-      approved: false,
-      rejection_reason: reason || "Your testimonial did not meet our guidelines.",
-    })
-    .eq("firestore_id", id);
-  if (error) throw new Error(`Could not reject testimonial: ${error.message}`);
-}
-
-export async function getApprovedTestimonials(): Promise<Testimonial[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("*")
-    .eq("approved", true)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Could not read testimonials: ${error.message}`);
-  return (data ?? []).map(rowToTestimonial);
+  return apiFetch<Testimonial[]>("/api/admin/testimonials?pending=1");
 }
 
 export async function getAllTestimonials(): Promise<Testimonial[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Could not read testimonials: ${error.message}`);
-  return (data ?? []).map(rowToTestimonial);
+  return apiFetch<Testimonial[]>("/api/admin/testimonials");
 }
 
 export async function getTestimonial(id: string): Promise<Testimonial | null> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("*")
-    .eq("firestore_id", id)
-    .maybeSingle();
-  if (error) throw new Error(`Could not read testimonial: ${error.message}`);
-  return data ? rowToTestimonial(data) : null;
+  try {
+    return await apiFetch<Testimonial>(`/api/admin/testimonials/${encodeURIComponent(id)}`);
+  } catch {
+    return null;
+  }
 }
 
 export async function createTestimonial(
   testimonial: Omit<Testimonial, "id" | "createdAt">
 ): Promise<string> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from(TABLE)
-    .insert({
-      name: testimonial.name,
-      location: testimonial.location,
-      quote: testimonial.quote,
-      years: testimonial.years || "",
-      image: testimonial.image || null,
-      phone: testimonial.phone || null,
-      approved: testimonial.approved ?? false,
-      rejected: testimonial.rejected ?? false,
-      submitted_by: testimonial.submittedBy || "admin",
-    })
-    .select("firestore_id, id")
-    .single();
-  if (error) throw new Error(`Could not create testimonial: ${error.message}`);
-  return data.firestore_id || data.id;
+  const { id } = await apiFetch<{ id: string }>("/api/admin/testimonials", {
+    method: "POST",
+    body: testimonial,
+  });
+  return id;
 }
 
 export async function submitTestimonial(submission: {
@@ -121,7 +52,6 @@ export async function submitTestimonial(submission: {
 }): Promise<string> {
   let imageUrl: string | undefined = submission.image;
 
-  // A base64 data URL is uploaded to storage; a failure is non-fatal.
   if (submission.image && submission.image.startsWith("data:")) {
     try {
       const { storageService } = await import("@/services/storage.service");
@@ -138,42 +68,34 @@ export async function submitTestimonial(submission: {
     }
   }
 
-  return createTestimonial({
-    name: submission.name,
-    location: submission.location,
-    quote: submission.quote,
-    years: "Devotee",
-    image: imageUrl,
-    phone: submission.phone,
-    submittedBy: "public",
-    approved: false,
-    rejected: false,
+  const { id } = await apiFetch<{ id: string }>("/api/testimonials/devotee", {
+    method: "POST",
+    body: { ...submission, image: imageUrl },
   });
+  return id;
 }
 
 export async function updateTestimonial(
   id: string,
   data: Partial<Omit<Testimonial, "id" | "createdAt">>
 ): Promise<void> {
-  const supabase = createAdminClient();
-  const update: Record<string, unknown> = {};
-  if (data.name !== undefined) update.name = data.name;
-  if (data.location !== undefined) update.location = data.location;
-  if (data.quote !== undefined) update.quote = data.quote;
-  if (data.years !== undefined) update.years = data.years;
-  if (data.image !== undefined) update.image = data.image || null;
-  if (data.approved !== undefined) update.approved = data.approved;
-  if (data.rejected !== undefined) update.rejected = data.rejected;
-  const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
-  if (error) throw new Error(`Could not update testimonial: ${error.message}`);
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, { method: "PUT", body: data });
 }
 
 export async function approveTestimonial(id: string): Promise<void> {
-  await updateTestimonial(id, { approved: true });
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { approved: true },
+  });
+}
+
+export async function rejectTestimonial(id: string, reason?: string): Promise<void> {
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { rejected: true, rejectionReason: reason },
+  });
 }
 
 export async function deleteTestimonial(id: string): Promise<void> {
-  const supabase = createAdminClient();
-  const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
-  if (error) throw new Error(`Could not delete testimonial: ${error.message}`);
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

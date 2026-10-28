@@ -7,7 +7,6 @@ import Image from "next/image";
 import { useProfile } from "@/context/ProfileContext";
 import { useAuthContext } from "@/context/AuthContext";
 import { eventService } from "@/services/event.service";
-import { quoteService } from "@/services/quote.service";
 import { galleryService } from "@/services/gallery.service";
 import { knowledgeService } from "@/services/knowledge.service";
 import { CardSkeleton } from "@/components/common/SkeletonLoader";

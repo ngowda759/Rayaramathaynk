@@ -39,6 +39,7 @@ export default function BillingSettingsPage() {
 
   useEffect(() => {
     if (financeSettings.billing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize the form from the loaded finance settings document.
       setSettings({ ...defaultBillingSettings, ...financeSettings.billing });
     }
   }, [financeSettings]);

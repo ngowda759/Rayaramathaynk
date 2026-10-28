@@ -1,252 +1,91 @@
-/**
- * Profile Service - Devotee profile management
- *
- * Profiles live in Supabase `profiles`. There is no Firestore path and no Firestore
- * Storage path: profile images are uploaded to Vercel Blob through the existing
- * `storageService`, the same mechanism gallery and testimonial images already use.
- *
- * Reads use the public client; writes use the service-role admin client because
- * `profiles` is deny-all under RLS. A read failure throws so the caller sees a real
- * error rather than a silently empty profile.
- */
-
-import { createClient } from "@/lib/supabase/client";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { apiFetch } from "@/lib/api/fetch";
+import { getAuthToken } from "@/lib/api/auth-token";
 import {
   DevoteeProfile,
   ProfileUpdateData,
   PreferencesUpdateData,
   Bookmark,
   BookmarkType,
-  DEFAULT_USER_PREFERENCES,
 } from "@/types/profile";
-import { Locale } from "@/lib/i18n";
 
-const TABLE = "profiles";
-
-/** Convert a Supabase `profiles` row to `DevoteeProfile`. */
-function rowToProfile(row: any): DevoteeProfile {
-  return {
-    uid: row.firestore_id || row.uid || row.id,
-    name: row.name || "",
-    email: row.email || "",
-    phone: row.phone || "",
-    profileImage: row.profile_image || "",
-    bio: row.bio || "",
-    gotra: row.gotra || "",
-    nakshatra: row.nakshatra || "",
-    preferences: {
-      language: (row.preferences?.language as Locale) || DEFAULT_USER_PREFERENCES.language,
-      timezone: row.preferences?.timezone || DEFAULT_USER_PREFERENCES.timezone,
-      theme: row.preferences?.theme || DEFAULT_USER_PREFERENCES.theme,
-      notifications: {
-        ...DEFAULT_USER_PREFERENCES.notifications,
-        ...row.preferences?.notifications,
-      },
-      device: {
-        ...DEFAULT_USER_PREFERENCES.device,
-        ...row.preferences?.device,
-      },
-    },
-    favorites: row.favorites || [],
-    recentlyViewed: row.recently_viewed || [],
-    bookmarks: (row.bookmarks || []).map((b: any) => ({
-      ...b,
-      createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
-    })),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
+/**
+ * Devotee profiles, stored in Supabase `profiles`.
+ *
+ * `profiles` is deny-all under RLS, so the browser never reads the table directly.
+ * Every call goes through the signed-in user's own `/api/profile` routes, which verify
+ * the Firebase ID token and derive the profile key from the token's `uid` — the caller
+ * can only ever reach their own profile. Profile images go to Vercel Blob through
+ * `storageService`; there is no Firestore path.
+ *
+ * The `uid` argument is kept for call-site compatibility; the server ignores it and
+ * uses the verified token identity.
+ */
 class ProfileService {
-  async getProfile(uid: string): Promise<DevoteeProfile | null> {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select("*")
-      .eq("firestore_id", uid)
-      .maybeSingle();
-    if (error) throw new Error(`Could not read profile: ${error.message}`);
-    return data ? rowToProfile(data) : null;
-  }
-
-  async saveProfile(
-    uid: string,
-    data: Partial<DevoteeProfile>,
-    email?: string
-  ): Promise<DevoteeProfile> {
-    const existing = await this.getProfile(uid);
-
-    const preferences = {
-      ...DEFAULT_USER_PREFERENCES,
-      ...(existing?.preferences || {}),
-      ...(data.preferences || {}),
-    };
-
-    const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).upsert(
-      {
-        firestore_id: uid,
-        uid,
-        name: data.name ?? existing?.name ?? "",
-        email: email || data.email || existing?.email || "",
-        phone: data.phone ?? existing?.phone ?? "",
-        profile_image: data.profileImage ?? existing?.profileImage ?? "",
-        bio: data.bio ?? existing?.bio ?? "",
-        gotra: data.gotra ?? existing?.gotra ?? "",
-        nakshatra: data.nakshatra ?? existing?.nakshatra ?? "",
-        preferences,
-        favorites: data.favorites ?? existing?.favorites ?? [],
-        recently_viewed: data.recentlyViewed ?? existing?.recentlyViewed ?? [],
-        bookmarks: data.bookmarks ?? existing?.bookmarks ?? [],
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "firestore_id" }
-    );
-    if (error) throw new Error(`Could not save profile: ${error.message}`);
-
-    const saved = await this.getProfile(uid);
-    if (!saved) throw new Error("Profile was saved but could not be re-read");
-    return saved;
-  }
-
-  async updateProfile(uid: string, data: ProfileUpdateData): Promise<void> {
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (data.name !== undefined) update.name = data.name;
-    if (data.phone !== undefined) update.phone = data.phone;
-    if (data.profileImage !== undefined) update.profile_image = data.profileImage;
-    if (data.bio !== undefined) update.bio = data.bio;
-    if (data.gotra !== undefined) update.gotra = data.gotra;
-    if (data.nakshatra !== undefined) update.nakshatra = data.nakshatra;
-
-    const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", uid);
-    if (error) throw new Error(`Could not update profile: ${error.message}`);
-  }
-
-  async updatePreferences(uid: string, data: PreferencesUpdateData): Promise<void> {
-    const profile = await this.getProfile(uid);
-    if (!profile) throw new Error("Profile not found");
-
-    const preferences: DevoteeProfile["preferences"] = {
-      ...profile.preferences,
-      ...(data.language !== undefined ? { language: data.language } : {}),
-      ...(data.timezone !== undefined ? { timezone: data.timezone } : {}),
-      ...(data.theme !== undefined ? { theme: data.theme } : {}),
-      ...(data.notifications !== undefined
-        ? { notifications: { ...profile.preferences.notifications, ...data.notifications } }
-        : {}),
-      ...(data.device !== undefined
-        ? { device: { ...profile.preferences.device, ...data.device } }
-        : {}),
-    };
-
-    const supabase = createAdminClient();
-    const { error } = await supabase
-      .from(TABLE)
-      .update({ preferences, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
-    if (error) throw new Error(`Could not update preferences: ${error.message}`);
-  }
-
-  async uploadProfileImage(uid: string, file: File): Promise<string> {
-    const { storageService } = await import("@/services/storage.service");
-
-    const existing = await this.getProfile(uid);
-    if (existing?.profileImage) {
-      await storageService.deleteFile(existing.profileImage).catch(() => undefined);
-    }
-
-    const extension = file.name.split(".").pop() || "jpg";
-    const filename = `${uid}_${Date.now()}.${extension}`;
-    const result = await storageService.uploadFile(file, filename, "profile");
-
-    await this.updateProfile(uid, { profileImage: result.url });
-    return result.url;
-  }
-
-  async deleteProfileImage(uid: string): Promise<void> {
-    const { storageService } = await import("@/services/storage.service");
-
-    const profile = await this.getProfile(uid);
-    if (profile?.profileImage) {
-      await storageService.deleteFile(profile.profileImage).catch(() => undefined);
-      await this.updateProfile(uid, { profileImage: "" });
+  async getProfile(_uid: string): Promise<DevoteeProfile | null> {
+    try {
+      return await apiFetch<DevoteeProfile>("/api/profile");
+    } catch {
+      return null;
     }
   }
 
-  private async writeList(uid: string, column: string, values: string[]): Promise<void> {
-    const supabase = createAdminClient();
-    const { error } = await supabase
-      .from(TABLE)
-      .update({ [column]: values, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
-    if (error) throw new Error(`Could not update profile: ${error.message}`);
+  async saveProfile(_uid: string, data: Partial<DevoteeProfile>): Promise<DevoteeProfile> {
+    return apiFetch<DevoteeProfile>("/api/profile", { method: "POST", body: data });
   }
 
-  async addFavorite(uid: string, itemId: string): Promise<void> {
-    const profile = await this.getProfile(uid);
-    const favorites = Array.from(new Set([...(profile?.favorites || []), itemId]));
-    await this.writeList(uid, "favorites", favorites);
+  async updateProfile(_uid: string, data: ProfileUpdateData): Promise<void> {
+    await apiFetch("/api/profile", { method: "PUT", body: data });
   }
 
-  async removeFavorite(uid: string, itemId: string): Promise<void> {
-    const profile = await this.getProfile(uid);
-    const favorites = (profile?.favorites || []).filter((id) => id !== itemId);
-    await this.writeList(uid, "favorites", favorites);
+  async updatePreferences(_uid: string, data: PreferencesUpdateData): Promise<void> {
+    await apiFetch("/api/profile/preferences", { method: "PUT", body: data });
   }
 
-  async addRecentlyViewed(uid: string, itemId: string): Promise<void> {
-    const profile = await this.getProfile(uid);
-    const recentlyViewed = [
-      itemId,
-      ...(profile?.recentlyViewed || []).filter((id) => id !== itemId),
-    ].slice(0, 20);
-    await this.writeList(uid, "recently_viewed", recentlyViewed);
+  async uploadProfileImage(_uid: string, file: File): Promise<string> {
+    const token = await getAuthToken();
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch("/api/profile/image", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (!response.ok) throw new Error(`Failed to upload profile image (${response.status})`);
+    const { url } = (await response.json()) as { url: string };
+    return url;
   }
 
-  async addBookmark(
-    uid: string,
-    bookmark: Omit<Bookmark, "id" | "createdAt">
-  ): Promise<Bookmark> {
-    const profile = await this.getProfile(uid);
-    const created: Bookmark = {
-      ...bookmark,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-      createdAt: new Date(),
-    };
-    const bookmarks = [...(profile?.bookmarks || []), created];
-
-    const supabase = createAdminClient();
-    const { error } = await supabase
-      .from(TABLE)
-      .update({ bookmarks, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
-    if (error) throw new Error(`Could not add bookmark: ${error.message}`);
-    return created;
+  async deleteProfileImage(_uid: string): Promise<void> {
+    await apiFetch("/api/profile/image", { method: "DELETE" });
   }
 
-  async removeBookmark(uid: string, bookmarkId: string): Promise<void> {
-    const profile = await this.getProfile(uid);
-    const bookmarks = (profile?.bookmarks || []).filter((b) => b.id !== bookmarkId);
-
-    const supabase = createAdminClient();
-    const { error } = await supabase
-      .from(TABLE)
-      .update({ bookmarks, updated_at: new Date().toISOString() })
-      .eq("firestore_id", uid);
-    if (error) throw new Error(`Could not remove bookmark: ${error.message}`);
+  async addFavorite(_uid: string, itemId: string): Promise<void> {
+    await apiFetch("/api/profile/favorites", { method: "POST", body: { itemId } });
   }
 
-  async getBookmarks(uid: string, type?: BookmarkType): Promise<Bookmark[]> {
-    const profile = await this.getProfile(uid);
-    const bookmarks = profile?.bookmarks || [];
-    return type ? bookmarks.filter((b) => b.type === type) : bookmarks;
+  async removeFavorite(_uid: string, itemId: string): Promise<void> {
+    await apiFetch("/api/profile/favorites", { method: "DELETE", body: { itemId } });
   }
 
-  async isFavorited(uid: string, itemId: string): Promise<boolean> {
-    const profile = await this.getProfile(uid);
+  async addRecentlyViewed(_uid: string, itemId: string): Promise<void> {
+    await apiFetch("/api/profile/recently-viewed", { method: "POST", body: { itemId } });
+  }
+
+  async addBookmark(_uid: string, bookmark: Omit<Bookmark, "id" | "createdAt">): Promise<Bookmark> {
+    return apiFetch<Bookmark>("/api/profile/bookmarks", { method: "POST", body: bookmark });
+  }
+
+  async removeBookmark(_uid: string, bookmarkId: string): Promise<void> {
+    await apiFetch("/api/profile/bookmarks", { method: "DELETE", body: { bookmarkId } });
+  }
+
+  async getBookmarks(_uid: string, type?: BookmarkType): Promise<Bookmark[]> {
+    const query = type ? `?type=${encodeURIComponent(type)}` : "";
+    return apiFetch<Bookmark[]>(`/api/profile/bookmarks${query}`);
+  }
+
+  async isFavorited(_uid: string, itemId: string): Promise<boolean> {
+    const profile = await this.getProfile(_uid);
     return profile?.favorites.includes(itemId) || false;
   }
 }

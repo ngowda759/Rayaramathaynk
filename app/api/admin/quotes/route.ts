@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { quoteService } from "@/services/quote.service";
+import { quoteService } from "@/services/quote.server";
 import { verifyAdminUser } from "@/lib/auth/admin-auth";
 
 // GET /api/admin/quotes - List all quotes with optional filters

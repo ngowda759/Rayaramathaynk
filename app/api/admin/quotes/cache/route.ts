@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { quoteService } from "@/services/quote.service";
+import { quoteService } from "@/services/quote.server";
 
 // POST /api/admin/quotes/cache - Clear quote cache
 export async function POST() {

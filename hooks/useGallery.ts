@@ -18,6 +18,7 @@ export function useGallery(featuredOnly = false, albumId?: string) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern: the load starts in this effect.
     setLoading(true);
 
     async function load() {

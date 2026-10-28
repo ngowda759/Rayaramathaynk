@@ -1,71 +1,29 @@
-import { createClient } from "@/lib/supabase/client";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { HomepageConfig } from "@/types/homepage";
 
-const DOCUMENT_KEY = "homepage";
-
 /**
- * Homepage configuration, stored in Supabase `settings_documents`
+ * Public homepage configuration, stored in Supabase `settings_documents`
  * (`document_key = 'homepage'`), the same lossless JSONB container the guru-parampara
  * and other complex settings documents use.
  *
- * Reads use the public client (settings_documents is deny-all under RLS, so the public
- * read is served through the admin-guarded path in practice; the admin form and the
- * server use the service-role client). There is no Firestore path.
+ * `settings_documents` is deny-all under RLS, so the browser never reads it directly:
+ * this module calls the public `/api/public/homepage` route, which reads with the
+ * service role. There is no Firestore path. `getDefaultConfig` returns the built-in
+ * defaults synchronously so the first paint is never blank.
+ *
+ * The admin form reads and writes through `useSettingsDocument("homepage", …, { admin: true })`,
+ * not through this module.
  */
 class HomepageService {
   async getHomepage(): Promise<HomepageConfig> {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("settings_documents")
-      .select("data")
-      .eq("document_key", DOCUMENT_KEY)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Could not read homepage settings: ${error.message}`);
-    }
-    if (!data) {
+    try {
+      const response = await fetch("/api/public/homepage", { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      const data = (await response.json()) as Partial<HomepageConfig>;
+      return { ...this.getDefaultConfig(), ...data };
+    } catch (error) {
+      console.error("[homepage] Failed to load homepage settings:", error);
       return this.getDefaultConfig();
     }
-
-    return {
-      ...this.getDefaultConfig(),
-      ...(data.data as HomepageConfig),
-    };
-  }
-
-  async saveHomepage(config: HomepageConfig): Promise<void> {
-    const supabase = createAdminClient();
-    const cleanData = this.removeUndefined(config);
-    const { error } = await supabase.from("settings_documents").upsert(
-      {
-        document_key: DOCUMENT_KEY,
-        data: cleanData,
-        source_field_count: Object.keys(cleanData).length,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "document_key" }
-    );
-    if (error) {
-      throw new Error(`Could not save homepage settings: ${error.message}`);
-    }
-  }
-
-  /** Recursively remove undefined values, which JSONB cannot store. */
-  private removeUndefined(obj: any): any {
-    if (obj === undefined) return undefined;
-    if (obj === null) return null;
-    if (Array.isArray(obj)) return obj.map((item) => this.removeUndefined(item));
-    if (typeof obj === "object") {
-      const result: any = {};
-      for (const key of Object.keys(obj)) {
-        const value = obj[key];
-        if (value !== undefined) result[key] = this.removeUndefined(value);
-      }
-      return result;
-    }
-    return obj;
   }
 
   getDefaultConfig(): HomepageConfig {

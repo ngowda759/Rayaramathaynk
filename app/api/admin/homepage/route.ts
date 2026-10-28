@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminUser } from "@/lib/auth/admin-auth";
-import { homepageService } from "@/services/homepage.service";
+import { homepageService } from "@/services/homepage.server";
 
 /**
  * Homepage settings API (admin only).

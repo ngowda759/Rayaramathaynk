@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminUser } from "@/lib/auth/admin-auth";
-import { donationService } from "@/services/donation.service";
+import { donationService } from "@/services/donation.server";
 
 /**
  * Recent donations for the admin notification dropdown.

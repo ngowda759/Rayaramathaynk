@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { quoteService } from "@/services/quote.service";
+import { quoteService } from "@/services/quote.server";
 
 // GET /api/quotes/stats
 export async function GET() {

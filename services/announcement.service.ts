@@ -1,93 +1,47 @@
-import { createClient } from "@/lib/supabase/client";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { apiFetch } from "@/lib/api/fetch";
 import { Announcement, AnnouncementRequest } from "@/types/announcement";
-
-const TABLE = "announcements";
-
-function rowToAnnouncement(row: any): Announcement {
-  return {
-    id: row.firestore_id || row.id,
-    title: row.title || "",
-    message: row.message || "",
-    link: row.link || "",
-    isActive: row.is_active ?? true,
-    createdAt: row.created_at ? new Date(row.created_at).getTime() : null,
-    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
-  };
-}
 
 /**
  * Temple announcements, stored in Supabase `announcements`.
  *
- * Reads use the public client (RLS exposes active rows); writes use the service-role
- * admin client because the table is deny-all for writes under RLS. There is no
- * Firestore path. A read failure throws so the caller sees a real error rather than
- * an empty list that looks like "no announcements".
+ * The browser never talks to Supabase directly: the table is deny-all for writes
+ * under RLS, so this module calls the same-origin `/api/announcements` routes. The
+ * server reads with the service role and requires an authenticated administrator for
+ * every write. There is no Firestore path. A failure throws so the caller sees a real
+ * error rather than an empty list that looks like "no announcements".
  */
 class AnnouncementService {
   async getAnnouncements(): Promise<Announcement[]> {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select("*")
-      .order("display_order", { ascending: true });
-    if (error) throw new Error(`Could not read announcements: ${error.message}`);
-    return (data ?? []).map(rowToAnnouncement);
+    return apiFetch<Announcement[]>("/api/announcements", { auth: false });
   }
 
   async getActiveAnnouncements(): Promise<Announcement[]> {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select("*")
-      .eq("is_active", true)
-      .order("display_order", { ascending: true });
-    if (error) throw new Error(`Could not read announcements: ${error.message}`);
-    return (data ?? []).map(rowToAnnouncement);
+    const all = await apiFetch<Announcement[]>("/api/announcements?active=1", { auth: false });
+    return all;
   }
 
   async addAnnouncement(announcement: AnnouncementRequest): Promise<string> {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from(TABLE)
-      .insert({
-        title: announcement.title,
-        message: announcement.message ?? "",
-        link: announcement.link ?? "",
-        is_active: announcement.isActive ?? true,
-      })
-      .select("firestore_id, id")
-      .single();
-    if (error) throw new Error(`Could not create announcement: ${error.message}`);
-    return data.firestore_id || data.id;
+    const { id } = await apiFetch<{ id: string }>("/api/announcements", {
+      method: "POST",
+      body: announcement,
+    });
+    return id;
   }
 
   async updateAnnouncement(id: string, announcement: Partial<AnnouncementRequest>): Promise<void> {
-    const supabase = createAdminClient();
-    const update: Record<string, unknown> = {};
-    if (announcement.title !== undefined) update.title = announcement.title;
-    if (announcement.message !== undefined) update.message = announcement.message;
-    if (announcement.link !== undefined) update.link = announcement.link;
-    if (announcement.isActive !== undefined) update.is_active = announcement.isActive;
-    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
-    if (error) throw new Error(`Could not update announcement: ${error.message}`);
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}`, { method: "PUT", body: announcement });
   }
 
   async deleteAnnouncement(id: string): Promise<void> {
-    const supabase = createAdminClient();
-    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
-    if (error) throw new Error(`Could not delete announcement: ${error.message}`);
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
   async getAnnouncement(id: string): Promise<Announcement | null> {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select("*")
-      .eq("firestore_id", id)
-      .maybeSingle();
-    if (error) throw new Error(`Could not read announcement: ${error.message}`);
-    return data ? rowToAnnouncement(data) : null;
+    try {
+      return await apiFetch<Announcement>(`/api/announcements/${encodeURIComponent(id)}`, { auth: false });
+    } catch {
+      return null;
+    }
   }
 }
 

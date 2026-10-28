@@ -36,6 +36,7 @@ function BillingPageContent() {
   // Billing on/off is part of the finance settings document (Supabase).
   useEffect(() => {
     if (settingsLoading) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize the toggle from the loaded finance settings document.
     setBillingEnabled(financeSettings.billingEnabled ?? false);
     if (financeSettings.billingEnabled) {
       void loadBills();

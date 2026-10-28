@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Daily Spiritual Dashboard Service
  * Epic 1: Fetches and combines all daily spiritual data for the homepage dashboard
@@ -11,8 +13,8 @@ import {
   DailySpiritualDashboard,
 } from "@/types/daily-spiritual";
 import type { Announcement } from "@/types/announcement";
-import { homepageService } from "./homepage.service";
-import { quoteService } from "./quote.service";
+import { homepageService } from "./homepage.server";
+import { quoteService } from "./quote.server";
 
 /**
  * Parse time string to minutes from midnight

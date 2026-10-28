@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { homepageService } from "@/services/homepage.service";
+import { homepageService } from "@/services/homepage.server";
 
 /**
  * Public homepage configuration.
