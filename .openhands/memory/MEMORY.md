@@ -684,8 +684,19 @@ Working log archived; see daily logs. Not this repository.
 
 ### PR #363 — fresh Supabase-native data cutover (2026-10-28)
 
-- Branch `feat/fresh-supabase-initialization`, PR #363 (**draft, must stay unmerged**). Head `b0b7211`.
+- Branch `feat/fresh-supabase-initialization`, PR #363 (**must stay unmerged**; owner marked it
+  ready-for-review at 2026-10-28T10:38Z — do NOT merge). Head `52a4fbe` (was `739abe9` → `d2c3bf2`).
   CI all green incl. Vercel. Scope: application data Firestore→Supabase; **Firebase Auth unchanged**.
+- **CRITICAL BUG fixed on this branch (d2c3bf2): `apiFetch` sent no Authorization header.**
+  `lib/api/auth-token.ts`'s `setAuthTokenGetter` had ZERO callers, so `getAuthToken()` always returned
+  `null` and every `apiFetch`-based `/api/admin/**` call (donations, testimonials, featured, content,
+  gallery, volunteers, pooja, chat, announcements, billing, users) was rejected 401 by `requireAdminUser`.
+  Fix: `context/AuthContext.tsx` registers the getter on mount (`auth.currentUser?.getIdToken()`) and clears
+  it on unmount; `tests/unit/api-fetch-auth-header.test.ts` pins it. The Raya-AI pages use a separate working
+  path (`useRayaAuth` + explicit `getIdToken()`); `hooks/useSettingsDocument.ts` also authenticates directly.
+- **`origin`'s embedded `ghu_…` token is expired** — `git push origin …` hangs on a password prompt. Fix:
+  `git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/ngowda759/Rayaramathaynk.git"`
+  then `GIT_TERMINAL_PROMPT=0 git push`. `gh` CLI is unauthenticated; use the API tools.
 - **The 6c982811 Vercel failure was NOT the CI lint failure** (earlier note wrong). Next 16 `next build` does
   NOT run ESLint at all (`next lint` removed; `version-16.md`: "next build no longer runs linting"). At 6c982811
   the Vercel/Turbopack build failed with `'server-only' cannot be imported from a Client Component module` (~15
