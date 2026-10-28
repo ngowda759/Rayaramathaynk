@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 
-import { homepageService } from "@/services/homepage.service";
+import { useAuth } from "@/hooks/useAuth";
 import { HomepageConfig } from "@/types/homepage";
 
 import { DEFAULT_HOMEPAGE_CONFIG } from "./constants";
@@ -16,6 +16,7 @@ import {
 } from "./validation";
 
 export function useHomepageForm() {
+  const { user } = useAuth();
   const [formData, setFormData] =
     useState<HomepageFormData>(DEFAULT_HOMEPAGE_CONFIG);
 
@@ -32,7 +33,14 @@ export function useHomepageForm() {
        
       setLoading(true);
 
-      const data = await homepageService.getHomepage();
+      const token = await user?.getIdToken();
+      const loadResponse = await fetch("/api/admin/homepage", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!loadResponse.ok) {
+        throw new Error(`Failed to load homepage settings (${loadResponse.status})`);
+      }
+      const { data } = (await loadResponse.json()) as { data: HomepageConfig };
 
        
       setFormData({
@@ -45,7 +53,7 @@ export function useHomepageForm() {
        
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -83,7 +91,18 @@ export function useHomepageForm() {
       setSaving(true);
 
       console.log("[HomepageForm] Saving form data:", JSON.stringify(formData, null, 2));
-      await homepageService.saveHomepage(formData);
+      const token = await user?.getIdToken();
+      const saveResponse = await fetch("/api/admin/homepage", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(formData),
+      });
+      if (!saveResponse.ok) {
+        throw new Error(`Failed to save homepage settings (${saveResponse.status})`);
+      }
       console.log("[HomepageForm] Save successful");
 
       // Revalidate the homepage to reflect changes immediately

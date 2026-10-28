@@ -10,16 +10,11 @@ import { Button } from "@/components/ui/button";
 import { useFinanceSettings } from "@/hooks/useFinanceSettings";
 import { billingService } from "@/services/billing.service";
 import { Bill, BillStatus } from "@/types/billing";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
-
-const SETTINGS_DOC = "financeSettings";
-const SETTINGS_COLLECTION = "settings";
 
 function BillingPageContent() {
   const router = useRouter();
-  useFinanceSettings(); // Initialize finance settings
+  const { settings: financeSettings, loading: settingsLoading } = useFinanceSettings();
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -38,34 +33,17 @@ function BillingPageContent() {
     }
   }, []);
 
+  // Billing on/off is part of the finance settings document (Supabase).
   useEffect(() => {
-     
-    async function loadBillingStatus() {
-      try {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setBillingEnabled(data.billingEnabled ?? false);
-          if (data.billingEnabled) {
-            await loadBills();
-          } else {
-            setLoading(false);
-          }
-        } else {
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("Error loading billing status:", error);
-        setLoading(false);
-      }
+    if (settingsLoading) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize the toggle from the loaded finance settings document.
+    setBillingEnabled(financeSettings.billingEnabled ?? false);
+    if (financeSettings.billingEnabled) {
+      void loadBills();
+    } else {
+      setLoading(false);
     }
-    loadBillingStatus();
-  }, []);
+  }, [settingsLoading, financeSettings.billingEnabled, loadBills]);
 
   const filteredBills = useMemo(() => {
     const keyword = search.toLowerCase().trim();

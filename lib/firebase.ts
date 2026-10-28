@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { Auth, connectAuthEmulator, getAuth } from "firebase/auth";
-import { Firestore, connectFirestoreEmulator, getFirestore, getDocs, collection } from "firebase/firestore";
+import { Firestore, connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
 // Validate Firebase configuration
@@ -142,102 +142,6 @@ export async function initializeAuthPersistence(authInstance: Auth): Promise<voi
     } catch (sessionError) {
       console.error("Failed to set session persistence:", sessionError);
     }
-  }
-}
-
-// Helper to get next upcoming event
-export interface NextEventInfo {
-  title: string;
-  date: Date;
-}
-
-// Helper to convert various date formats to Date object
-function toDate(dateValue: Date | number | string | { toDate: () => Date } | null | undefined): Date | null {
-  if (!dateValue) return null;
-  if (dateValue instanceof Date) return dateValue;
-  if (typeof dateValue === 'object' && 'toDate' in dateValue && typeof dateValue.toDate === 'function') {
-    return dateValue.toDate();
-  }
-  if (typeof dateValue === 'number') return new Date(dateValue);
-  if (typeof dateValue === 'string') {
-    const parsed = new Date(dateValue);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  }
-  return null;
-}
-
-export async function getNextUpcomingEvent(): Promise<NextEventInfo | null> {
-  if (!db) {
-    console.log("[getNextUpcomingEvent] Firebase db not available");
-    return null;
-  }
-
-  try {
-    const now = new Date();
-    console.log("[getNextUpcomingEvent] Fetching events at:", now.toISOString());
-    
-    // Get all events without complex query (avoiding index requirements)
-    const snapshot = await getDocs(collection(db, "events"));
-    
-    console.log("[getNextUpcomingEvent] Total events in DB:", snapshot.size);
-    
-    if (snapshot.empty) {
-      return null;
-    }
-
-    // Filter and sort client-side
-    const upcomingEvents: Array<{ title: string; date: Date; endDate: Date }> = [];
-    
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
-      
-      // Skip unpublished events (if published field exists and is false)
-      if (data.published === false) {
-        continue;
-      }
-      
-      const startDate = toDate(data.startDate);
-      const endDate = toDate(data.endDate);
-      
-      if (!startDate && !endDate) {
-        continue;
-      }
-      
-      // Use endDate if available, otherwise startDate
-      const eventEndDate = endDate || startDate!;
-      const eventStartDate = startDate || endDate!;
-      
-      // Skip past events
-      if (eventEndDate < now) {
-        continue;
-      }
-      
-      upcomingEvents.push({
-        title: data.title || "Upcoming Event",
-        date: eventStartDate,
-        endDate: eventEndDate,
-      });
-    }
-    
-    // Sort by start date ascending
-    upcomingEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
-    
-    console.log("[getNextUpcomingEvent] Upcoming events count:", upcomingEvents.length);
-    
-    if (upcomingEvents.length === 0) {
-      return null;
-    }
-    
-    const nextEvent = upcomingEvents[0];
-    console.log("[getNextUpcomingEvent] Next event:", nextEvent.title, "on", nextEvent.date.toISOString());
-    
-    return {
-      title: nextEvent.title,
-      date: nextEvent.date,
-    };
-  } catch (error) {
-    console.error("[getNextUpcomingEvent] Error fetching events:", error);
-    return null;
   }
 }
 

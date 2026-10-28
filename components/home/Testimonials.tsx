@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Quote, Star, MessageSquare } from "lucide-react";
-import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
+import { getApprovedTestimonials } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -15,7 +15,7 @@ export default function Testimonials() {
   const [direction, setDirection] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch testimonials from Firestore
@@ -142,7 +142,19 @@ export default function Testimonials() {
           </p>
         </motion.div>
 
-        {/* Testimonial Card */}
+        {/* Testimonial Card. With no approved testimonials yet the card is left
+            empty on purpose: devotee testimonials are never invented, so the
+            section shows its heading and a neutral placeholder until the first
+            real submission is approved in the admin console. */}
+        {!currentTestimonial ? (
+          <div className="mx-auto mt-16 max-w-3xl rounded-[32px] border border-amber-100/80 bg-gradient-to-br from-white to-amber-50/30 p-10 text-center shadow-2xl md:p-14">
+            <p className="text-lg italic leading-relaxed text-stone-600">
+              {loading
+                ? "Loading devotee experiences…"
+                : "Devotee experiences will appear here once they are shared and approved."}
+            </p>
+          </div>
+        ) : (
         <div className="relative mt-16">
           <div className="flex items-center justify-center gap-4">
             
@@ -310,6 +322,7 @@ export default function Testimonials() {
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* Testimonial Submission Modal */}

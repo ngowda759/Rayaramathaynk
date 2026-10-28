@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
+
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 
 interface DonationNotification {
   id: string;
@@ -12,70 +13,73 @@ interface DonationNotification {
   createdAt: Date;
 }
 
+interface RecentDonationRow {
+  id: string;
+  donorName?: string;
+  amount?: number;
+  purpose?: string;
+  paymentMode?: string;
+  createdAt?: string;
+}
+
+/**
+ * Recent donation notifications for the admin header dropdown.
+ *
+ * Reads `/api/admin/donations/recent`, which is guarded by `requireAdminUser` and reads
+ * Supabase `donations` with the service-role client. There is no Firestore listener. A
+ * failed read leaves the list empty rather than falling back to Firestore.
+ */
 export function useDonationNotifications() {
+  const adminFetch = useAdminFetch();
   const [notifications, setNotifications] = useState<DonationNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchDonations() {
-      if (typeof window === "undefined") return;
-      if (!db) return;
-      
       try {
         setLoading(true);
         setError(null);
-        
-        const { collection, query, orderBy, limit, getDocs } = await import("firebase/firestore");
-        
-        const donationsRef = collection(db, "donations");
-        const donationsQuery = query(
-          donationsRef,
-          orderBy("createdAt", "desc"),
-          limit(20)
-        );
 
-        const snapshot = await getDocs(donationsQuery);
-        
-        const donations: DonationNotification[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          // Only show donations from last 7 days
-          const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now());
-          const daysDiff = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-          
-          if (daysDiff <= 7) {
-            donations.push({
-              id: doc.id,
-              donorName: data.donorName || "Anonymous",
-              amount: data.amount || 0,
-              purpose: data.purpose || "General Donation",
-              paymentMode: data.paymentMode || "unknown",
-              createdAt,
-            });
-          }
-        });
-        
+        const response = await adminFetch("/api/admin/donations/recent");
+        if (!response.ok) throw new Error(`Failed to load donations (${response.status})`);
+        const { data } = (await response.json()) as { data: RecentDonationRow[] };
+
+        const donations: DonationNotification[] = (data ?? []).map((row) => ({
+          id: row.id,
+          donorName: row.donorName || "Anonymous",
+          amount: row.amount || 0,
+          purpose: row.purpose || "General Donation",
+          paymentMode: row.paymentMode || "unknown",
+          createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
+        }));
+
+        if (cancelled) return;
         setNotifications(donations);
         setUnreadCount(donations.length);
-        setLoading(false);
       } catch (err: any) {
         console.log("Donation notifications unavailable:", err?.message);
-        setError(null); // Don't show error, just empty state
-        setNotifications([]);
-        setUnreadCount(0);
-        setLoading(false);
+        if (!cancelled) {
+          setError(null);
+          setNotifications([]);
+          setUnreadCount(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchDonations();
-    
-    // Refresh every 60 seconds
     const interval = setInterval(fetchDonations, 60000);
-    
-    return () => clearInterval(interval);
-  }, []);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [adminFetch]);
 
   const markAsRead = (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));

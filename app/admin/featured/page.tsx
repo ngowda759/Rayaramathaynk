@@ -26,19 +26,8 @@ import {
   Clock,
   ExternalLink
 } from "lucide-react";
-import { db } from "@/lib/firebase";
-import { 
-  collection, 
-  getDocs, 
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-  query,
-  orderBy
-} from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api/fetch";
 
 interface FeaturedItem {
   id: string;
@@ -103,96 +92,16 @@ export default function FeaturedContentPage() {
   const loadFeaturedContent = useCallback(async () => {
     setLoading(true);
     try {
-      // Load featured items from Firestore
-      if (db) {
-        const featuredSnap = await getDocs(
-          query(collection(db, "featuredContent"), orderBy("priority", "asc"))
-        );
-        
-        if (!featuredSnap.empty) {
-          const items: FeaturedItem[] = [];
-          featuredSnap.docs.forEach(doc => {
-            const data = doc.data();
-            items.push({
-              id: doc.id,
-              contentId: data.contentId,
-              contentType: data.contentType,
-              title: data.title,
-              description: data.description,
-              imageUrl: data.imageUrl,
-              linkUrl: data.linkUrl,
-              linkLabel: data.linkLabel,
-              priority: data.priority,
-              isActive: data.isActive ?? true,
-              startDate: data.startDate?.toDate?.() || undefined,
-              endDate: data.endDate?.toDate?.() || undefined,
-              createdAt: data.createdAt?.toDate?.(),
-              updatedAt: data.updatedAt?.toDate?.(),
-            });
-          });
-          if (items.length > 0) {
-            setFeaturedItems(items);
-          }
-        }
+      // Both calls are admin-only and carry the ID token.
+      const [featuredData, optionsData] = await Promise.all([
+        apiFetch<{ items?: FeaturedItem[] }>("/api/admin/featured"),
+        apiFetch<{ options?: ContentOption[] }>("/api/admin/featured/options"),
+      ]);
+
+      if (featuredData.items && featuredData.items.length > 0) {
+        setFeaturedItems(featuredData.items);
       }
-
-      // Load content options for selection
-      const options: ContentOption[] = [];
-      
-      if (db) {
-        const [eventsSnap, announcementsSnap, sevasSnap, knowledgeSnap] = await Promise.all([
-          getDocs(collection(db, "events")),
-          getDocs(collection(db, "announcements")),
-          getDocs(collection(db, "sevas")),
-          getDocs(collection(db, "knowledge")),
-        ]);
-
-        eventsSnap.docs.forEach(doc => {
-          const data = doc.data();
-          options.push({
-            id: doc.id,
-            type: "event",
-            title: data.title || "Untitled Event",
-            imageUrl: data.imageUrl,
-            linkUrl: `/events/${doc.id}`,
-          });
-        });
-
-        announcementsSnap.docs.forEach(doc => {
-          const data = doc.data();
-          options.push({
-            id: doc.id,
-            type: "announcement",
-            title: data.title || "Untitled Announcement",
-            imageUrl: data.imageUrl,
-            linkUrl: `/announcements/${doc.id}`,
-          });
-        });
-
-        sevasSnap.docs.forEach(doc => {
-          const data = doc.data();
-          options.push({
-            id: doc.id,
-            type: "seva",
-            title: data.name || data.title || "Untitled Seva",
-            imageUrl: data.imageUrl,
-            linkUrl: `/sevas`,
-          });
-        });
-
-        knowledgeSnap.docs.forEach(doc => {
-          const data = doc.data();
-          options.push({
-            id: doc.id,
-            type: "knowledge",
-            title: data.title?.en || data.title || "Untitled Article",
-            imageUrl: data.image,
-            linkUrl: `/knowledge/article/${doc.id}`,
-          });
-        });
-      }
-
-      setContentOptions(options);
+      setContentOptions(optionsData.options ?? []);
     } catch (error) {
       console.error("Error loading featured content:", error);
       setFeaturedItems(defaultFeatured);
@@ -202,44 +111,39 @@ export default function FeaturedContentPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadFeaturedContent();
   }, [loadFeaturedContent]);
 
   const saveChanges = async () => {
-    if (!db) return;
-    
     setSaving(true);
     try {
-      // Save to Firestore - in production, you'd batch these operations
       for (const item of featuredItems) {
         if (item.id.startsWith("new-")) {
-          // New item - create it
-          await addDoc(collection(db, "featuredContent"), {
-            contentId: item.contentId,
-            contentType: item.contentType,
-            title: item.title,
-            description: item.description,
-            imageUrl: item.imageUrl,
-            linkUrl: item.linkUrl,
-            linkLabel: item.linkLabel,
-            priority: item.priority,
-            isActive: item.isActive,
-            startDate: item.startDate ? new Date(item.startDate) : null,
-            endDate: item.endDate ? new Date(item.endDate) : null,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+          await apiFetch("/api/admin/featured", {
+            method: "POST",
+            body: {
+              contentId: item.contentId,
+              contentType: item.contentType,
+              title: item.title,
+              description: item.description,
+              imageUrl: item.imageUrl,
+              linkUrl: item.linkUrl,
+              linkLabel: item.linkLabel,
+              priority: item.priority,
+              isActive: item.isActive,
+              startDate: item.startDate ? new Date(item.startDate).toISOString() : null,
+              endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
+            },
           });
         } else {
-          // Existing item - update it
-          await updateDoc(doc(db, "featuredContent", item.id), {
-            priority: item.priority,
-            isActive: item.isActive,
-            updatedAt: serverTimestamp(),
+          await apiFetch("/api/admin/featured", {
+            method: "PATCH",
+            body: { id: item.id, priority: item.priority, isActive: item.isActive },
           });
         }
       }
       setHasChanges(false);
+      await loadFeaturedContent();
     } catch (error) {
       console.error("Error saving featured content:", error);
     } finally {

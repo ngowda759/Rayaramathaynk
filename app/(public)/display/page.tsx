@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react";
-import { dailySpiritualService } from "@/services/daily-spiritual.service";
 import { settingsService } from "@/services/settings.service";
 import { galleryService } from "@/services/gallery.service";
 import type { GalleryMedia } from "@/types/gallery";
@@ -69,11 +68,13 @@ export default function DigitalSignagePage() {
     setCurrentDate(currentTime.toLocaleDateString("en-US", options));
   }, [currentTime]);
 
-  // Fetch dashboard data from Firestore
+  // Fetch dashboard data from the public Supabase-backed route.
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        const data = await dailySpiritualService.getDashboardData();
+        const response = await fetch("/api/dashboard/daily-spiritual", { cache: "no-store" });
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const data = await response.json();
         setDashboardData(data);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);

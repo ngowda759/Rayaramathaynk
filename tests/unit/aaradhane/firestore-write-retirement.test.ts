@@ -181,55 +181,21 @@ describe("Aaradhane writes to Supabase only", () => {
 });
 
 /**
- * The remaining Firestore writer on the Aaradhane *feature* (not the generated
- * `events` execution path).
+ * The Aaradhane *feature* writer is now retired.
  *
- * `services/aaradhane.service.ts` is the admin CRUD surface for the separate
- * `aaradhane` / `aaradhanes` collections. It cannot be moved to Supabase in this
- * PR: the destination table `aaradhanes` is deny-all under RLS
- * (`20261001000000_create_content_tables.sql:194-196`) and needs a policy, which
- * is RLS work and belongs to the separately reviewed reader/cutover phase.
- *
- * It is therefore *tracked*, not silently left: the list below is an explicit
- * allowlist that must shrink, never grow. A new Firestore-writing Aaradhane file
- * fails the suite, so the surface cannot widen unnoticed.
+ * `services/aaradhane.service.ts` was the last Firestore writer on the Aaradhane
+ * feature: the admin CRUD surface for the separate `aaradhane` / `aaradhanes`
+ * collections. It now reads and writes the Supabase `aaradhanes` table, so the
+ * allowlist that tracked it is empty. A new Firestore-writing Aaradhane file still
+ * fails the scan below, so the surface cannot quietly reopen.
  */
-describe("remaining Aaradhane Firestore writers are tracked, not forgotten", () => {
-  const TRACKED_FOLLOWUPS: Array<{
-    file: string;
-    destinationTable: string;
-    reason: string;
-  }> = [
-    {
-      file: "services/aaradhane.service.ts",
-      destinationTable: "aaradhanes",
-      reason:
-        "admin CRUD for the aaradhane/aaradhanes collections; the destination table " +
-        "`aaradhanes` is deny-all under RLS and the four admin components call the service " +
-        "directly with the anon key, so the move needs a SELECT policy AND server-route " +
-        "routing (PR-D4c reader/cutover phase)",
-    },
-  ];
-
-  it("every tracked file still writes Firestore, so the list cannot go stale silently", () => {
-    for (const { file } of TRACKED_FOLLOWUPS) {
-      const lines = codeLines(file);
-      const writes = lines.filter((line) =>
-        FIRESTORE_WRITE_CALL_PATTERNS.some((re) => re.test(line)),
-      );
-      // If this fails the file was migrated: remove it from TRACKED_FOLLOWUPS.
-      expect(`${file}:${writes.length > 0}`).toBe(`${file}:true`);
-    }
-  });
-
-  it("no Firestore writer on the Aaradhane feature exists outside the tracked list", () => {
-    // A repo-wide scan for Firestore write *calls* in files whose path mentions
-    // aaradhane. Anything found must be in TRACKED_FOLLOWUPS (or the retired
-    // execution path, which is asserted write-free above).
-    const trackedFiles = new Set(TRACKED_FOLLOWUPS.map((t) => t.file));
+describe("the Aaradhane feature has no Firestore writers", () => {
+  it("no Firestore writer exists anywhere on the Aaradhane feature", () => {
+    // Repo-wide scan for Firestore write *calls* in files whose path mentions
+    // aaradhane. The retired execution path is asserted write-free above, so
+    // anything found here is an untracked regression.
     const untracked: string[] = [];
     for (const rel of aaradhaneSourceFiles()) {
-      if (trackedFiles.has(rel)) continue;
       if (AARADHANE_EXECUTION_PATH.includes(rel)) continue;
       const writes = codeLines(rel).filter((line) =>
         FIRESTORE_WRITE_CALL_PATTERNS.some((re) => re.test(line)),
@@ -239,35 +205,43 @@ describe("remaining Aaradhane Firestore writers are tracked, not forgotten", () 
     expect(untracked).toEqual([]);
   });
 
-  it("is not proof the cutover is done: each destination is still deny-all, so the entry cannot be deleted yet", () => {
-    // An allowlist entry records a *known gap*, not a completed migration. If the
-    // destination table were already readable by the roles the app uses, retiring
-    // the writer would be a one-line swap and this list should shrink. Asserting
-    // the denial keeps that reasoning honest: the entry may only be removed in the
-    // same change that adds the policy and re-routes the callers.
-    const contentTables = read(
-      "supabase/migrations/20261001000000_create_content_tables.sql",
-    );
-    for (const { destinationTable } of TRACKED_FOLLOWUPS) {
-      const denyAll = new RegExp(
-        `CREATE\\s+POLICY\\s+"Deny all public access to ${destinationTable}"\\s+` +
-          `ON\\s+${destinationTable}\\s+FOR\\s+ALL\\s+TO\\s+public\\s+USING\\s*\\(\\s*false\\s*\\)`,
-        "i",
-      );
-      expect(contentTables).toMatch(denyAll);
-      // And no later migration has quietly opened it.
-      const migrations = readdirSync(path.join(ROOT, "supabase", "migrations")).filter((f) =>
-        f.endsWith(".sql"),
-      );
-      for (const file of migrations) {
-        const sql = read(path.join("supabase", "migrations", file));
-        const opens = new RegExp(
-          `CREATE\\s+POLICY\\s+"[^"]*"[\\s\\S]{0,120}?ON\\s+${destinationTable}\\b[\\s\\S]{0,200}?USING\\s*\\(\\s*(?!false)`,
-          "i",
-        );
-        expect(`${file}:${opens.test(sql)}`).toBe(`${file}:false`);
-      }
+  it("the Aaradhane feature reads and writes Supabase, not Firestore", () => {
+    // The feature is split so the service-role client can never reach a browser
+    // bundle: `aaradhane.server.ts` owns the Supabase admin client and the
+    // server-only guard, and `aaradhane.service.ts` is the browser-facing module
+    // that talks to the guarded `/api/**` routes.
+    const server = read("services/aaradhane.server.ts");
+    expect(server).toContain("@/lib/supabase/admin");
+    expect(server).toContain("server-only");
+
+    const client = read("services/aaradhane.service.ts");
+    expect(client).toContain("@/lib/api/fetch");
+    expect(client).not.toContain("@/lib/supabase/admin");
+
+    for (const source of [server, client]) {
+      // The only surviving "firestore" tokens are the nullable `firestore_id`
+      // column name; the Firestore *client* imports are gone.
+      expect(source).not.toContain("firebase");
+      expect(source).not.toMatch(/from\s+["']firebase\/firestore["']/);
+      expect(source).not.toContain("@/lib/firebase");
     }
+  });
+
+  it("the destination table is readable by the roles the public page uses", () => {
+    // The writer could only be retired once the destination table had a SELECT
+    // policy for the public reader; the deny-all policy alone would have left the
+    // public /aaradhane page blank. Assert the grant so a future migration cannot
+    // silently close it again.
+    const migrations = readdirSync(path.join(ROOT, "supabase", "migrations")).filter((f) =>
+      f.endsWith(".sql"),
+    );
+    const grants = migrations.filter((file) => {
+      const sql = read(path.join("supabase", "migrations", file));
+      return /CREATE\s+POLICY\s+"[^"]*"[\s\S]{0,200}?ON\s+aaradhanes\b[\s\S]{0,200}?FOR\s+SELECT/i.test(
+        sql,
+      );
+    });
+    expect(grants.length).toBeGreaterThan(0);
   });
 
   it("names the decision document that records retire-or-keep", () => {

@@ -1,466 +1,101 @@
-// Testimonials Service for managing testimonials data
-// Uses Firestore as the primary source - all data synced across devices
+import { apiFetch } from "@/lib/api/fetch";
 import { Testimonial } from "@/types/homepage";
 
-const TESTIMONIALS_COLLECTION = "testimonials";
+/**
+ * Devotee testimonials, stored in Supabase `testimonials`.
+ *
+ * The table is deny-all under RLS, so the browser never reads it directly: approved
+ * testimonials are served from `/api/testimonials/devotee`, public submission posts
+ * there, and the admin console uses the admin-guarded `/api/admin/testimonials`
+ * routes. The server uses the service role. There is no Firestore path and no
+ * built-in sample testimonials: devotee testimonials are not invented
+ * (docs/CONTENT-GUIDELINES.md — "Fabricated facts"). Until a real testimonial is
+ * approved, the public page shows its own empty state.
+ */
 
-// Lazy load Firebase to avoid SSR issues
-let db: any = null;
-let firebaseInitialized = false;
-
-async function getFirebaseDb() {
-  if (typeof window === "undefined") return null;
-  if (firebaseInitialized) return db;
-  
-  try {
-    const { db: firestoreDb } = await import("@/lib/firebase");
-    db = firestoreDb;
-    firebaseInitialized = true;
-    return db;
-  } catch (error) {
-    console.error("Failed to initialize Firebase:", error);
-    firebaseInitialized = true;
-    return null;
-  }
-}
-
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-// Default testimonials for when Firestore is empty (English only)
-export const DEFAULT_TESTIMONIALS: Testimonial[] = [
-  {
-    id: "default-1",
-    name: "Ramesh Rao",
-    location: "Bangalore",
-    quote: "The peace I feel at this Matha is indescribable. Every visit brings new spiritual strength and clarity.",
-    years: "25 years devotee",
-    image: "/images/testimonials/ramesh-rao.jpg"
-  },
-  {
-    id: "default-2",
-    name: "Lakshmi Devi",
-    location: "Mysore",
-    quote: "Sri Raghavendra Swamy's blessings have guided my family through the most challenging times. Forever grateful.",
-    years: "Family tradition",
-    image: "/images/testimonials/lakshmi-devi.jpg"
-  },
-  {
-    id: "default-3",
-    name: "Venkataramana",
-    location: "Chennai",
-    quote: "The daily poojas and the serene atmosphere create a divine experience. This is where my soul finds rest.",
-    years: "15 years devotee",
-    image: "/images/testimonials/venkataramana.jpg"
-  },
-  {
-    id: "default-4",
-    name: "Shobha Krishnan",
-    location: "Hyderabad",
-    quote: "Attending the Bramhotsavam was life-changing. The devotion and rituals are performed with such purity and dedication.",
-    years: "Regular visitor",
-    image: "/images/testimonials/shobha-krishnan.jpg"
-  },
-];
-
-// Get pending testimonials (submitted by public, awaiting approval)
-export async function getPendingTestimonials(): Promise<Testimonial[]> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    return [];
-  }
-
-  try {
-    const { query, collection, where, orderBy, getDocs } = await import("firebase/firestore");
-    const q = query(
-      collection(firebaseDb, TESTIMONIALS_COLLECTION),
-      where("submittedBy", "==", "public"),
-      where("approved", "==", false),
-      orderBy("createdAt", "desc")
-    );
-
-    const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map((doc: any) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name || "",
-        location: data.location || "",
-        quote: data.quote || "",
-        years: data.years || "",
-        image: data.image || undefined,
-        phone: data.phone || undefined,
-        approved: data.approved ?? false,
-        rejected: data.rejected ?? false,
-        rejectionReason: data.rejectionReason || undefined,
-        submittedBy: data.submittedBy || "public",
-        createdAt: data.createdAt,
-      } as Testimonial;
-    });
-  } catch (error) {
-    console.error("[Testimonials] Error fetching pending testimonials:", error);
-    return [];
-  }
-}
-
-// Reject testimonial
-export async function rejectTestimonial(id: string, reason?: string): Promise<void> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    throw new Error("Firebase is not available. Please try again later.");
-  }
-
-  try {
-    const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
-    
-    await updateDoc(doc(firebaseDb, TESTIMONIALS_COLLECTION, id), {
-      rejected: true,
-      approved: false,
-      rejectionReason: reason || "Your testimonial did not meet our guidelines.",
-      reviewedAt: serverTimestamp(),
-    });
-    console.log("[Testimonials] Rejected testimonial:", id);
-  } catch (error) {
-    console.error("[Testimonials] Error rejecting testimonial:", error);
-    throw new Error("Failed to reject testimonial. Please try again.");
-  }
-}
-
-// Get all approved testimonials (for public display)
 export async function getApprovedTestimonials(): Promise<Testimonial[]> {
-  const firebaseDb = await getFirebaseDb();
-  
-  // Return defaults if Firebase not available
-  if (!firebaseDb) {
-    console.warn("[Testimonials] Firebase not available, using default testimonials");
-    return DEFAULT_TESTIMONIALS;
-  }
-
-  try {
-    const { query, collection, where, orderBy, getDocs } = await import("firebase/firestore");
-    const q = query(
-      collection(firebaseDb, TESTIMONIALS_COLLECTION),
-      where("approved", "==", true),
-      orderBy("createdAt", "desc")
-    );
-
-    const querySnapshot = await getDocs(q);
-    const testimonials = querySnapshot.docs.map((doc: any) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name || "",
-        location: data.location || "",
-        quote: data.quote || "",
-        years: data.years || "",
-        image: data.image || undefined,
-        createdAt: data.createdAt,
-      } as Testimonial;
-    });
-
-    // Return Firestore data if available, otherwise defaults
-    return testimonials.length > 0 ? testimonials : DEFAULT_TESTIMONIALS;
-  } catch (error) {
-    console.error("[Testimonials] Error fetching testimonials:", error);
-    return DEFAULT_TESTIMONIALS;
-  }
+  return apiFetch<Testimonial[]>("/api/testimonials/devotee", { auth: false });
 }
 
-// Get all testimonials (for admin - includes unapproved)
+export async function getPendingTestimonials(): Promise<Testimonial[]> {
+  return apiFetch<Testimonial[]>("/api/admin/testimonials?pending=1");
+}
+
 export async function getAllTestimonials(): Promise<Testimonial[]> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    return DEFAULT_TESTIMONIALS;
-  }
-
-  try {
-    const { query, collection, orderBy, getDocs } = await import("firebase/firestore");
-    const q = query(
-      collection(firebaseDb, TESTIMONIALS_COLLECTION),
-      orderBy("createdAt", "desc")
-    );
-
-    const querySnapshot = await getDocs(q);
-    
-    // If no documents, return defaults
-    if (querySnapshot.empty) {
-      return DEFAULT_TESTIMONIALS;
-    }
-    
-    return querySnapshot.docs.map((doc: any) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name || "",
-        location: data.location || "",
-        quote: data.quote || "",
-        years: data.years || "",
-        image: data.image || undefined,
-        approved: data.approved ?? false,
-        createdAt: data.createdAt,
-      } as Testimonial;
-    });
-  } catch (error) {
-    console.error("[Testimonials] Error fetching all testimonials:", error);
-    return DEFAULT_TESTIMONIALS;
-  }
+  return apiFetch<Testimonial[]>("/api/admin/testimonials");
 }
 
-// Get single testimonial by ID
 export async function getTestimonial(id: string): Promise<Testimonial | null> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    return DEFAULT_TESTIMONIALS.find((t: Testimonial) => t.id === id) || null;
-  }
-
   try {
-    const { doc, getDoc } = await import("firebase/firestore");
-    const docSnap = await getDoc(doc(firebaseDb, TESTIMONIALS_COLLECTION, id));
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        name: data.name || "",
-        location: data.location || "",
-        quote: data.quote || "",
-        years: data.years || "",
-        image: data.image || undefined,
-        createdAt: data.createdAt,
-      } as Testimonial;
-    }
-    return null;
-  } catch (error) {
-    console.error("[Testimonials] Error fetching testimonial:", error);
+    return await apiFetch<Testimonial>(`/api/admin/testimonials/${encodeURIComponent(id)}`);
+  } catch {
     return null;
   }
 }
 
-// Create new testimonial
 export async function createTestimonial(
   testimonial: Omit<Testimonial, "id" | "createdAt">
 ): Promise<string> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    console.error("[Testimonials] Cannot create testimonial: Firebase not available");
-    throw new Error("Firebase is not available. Please try again later.");
-  }
-
-  try {
-    const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
-    
-    const testimonialData = {
-      name: testimonial.name,
-      location: testimonial.location,
-      quote: testimonial.quote,
-      years: testimonial.years || "",
-      image: testimonial.image || null,
-      phone: testimonial.phone || null,
-      approved: testimonial.approved ?? false, // Use passed value or default to false
-      rejected: testimonial.rejected ?? false,
-      submittedBy: testimonial.submittedBy || "admin", // Track who submitted
-      createdAt: serverTimestamp(),
-    };
-
-    console.log("[Testimonials] Saving testimonial data:", JSON.stringify({
-      ...testimonialData,
-      image: testimonialData.image ? "HAS_IMAGE_URL" : "NO_IMAGE"
-    }));
-
-    const docRef = await addDoc(collection(firebaseDb, TESTIMONIALS_COLLECTION), testimonialData);
-    console.log("[Testimonials] Created testimonial with ID:", docRef.id);
-    return docRef.id;
-  } catch (error) {
-    console.error("[Testimonials] Error creating testimonial:", error);
-    throw new Error("Failed to create testimonial. Please try again.");
-  }
+  const { id } = await apiFetch<{ id: string }>("/api/admin/testimonials", {
+    method: "POST",
+    body: testimonial,
+  });
+  return id;
 }
 
-// Submit testimonial from public form
-export async function submitTestimonial(
-  submission: {
-    name: string;
-    location: string;
-    quote: string;
-    phone?: string;
-    image?: string; // Base64 data URL or file path
-  }
-): Promise<string> {
+export async function submitTestimonial(submission: {
+  name: string;
+  location: string;
+  quote: string;
+  phone?: string;
+  image?: string;
+}): Promise<string> {
   let imageUrl: string | undefined = submission.image;
 
-  // If image is a base64 data URL, upload to Vercel Blob Storage
   if (submission.image && submission.image.startsWith("data:")) {
-    console.log("[Testimonials] Starting image upload for:", submission.name);
-    console.log("[Testimonials] Image size:", submission.image.length, "chars");
-    
     try {
       const { storageService } = await import("@/services/storage.service");
       const sanitizedName = storageService.sanitizeFilename(submission.name);
-      const cleanPhone = submission.phone ? submission.phone.replace(/[^0-9+]/g, '') : '';
-      const filename = cleanPhone 
+      const cleanPhone = submission.phone ? submission.phone.replace(/[^0-9+]/g, "") : "";
+      const filename = cleanPhone
         ? `${sanitizedName}_${cleanPhone}.jpg`
         : `${sanitizedName}_${Date.now()}.jpg`;
-      
-      console.log("[Testimonials] Uploading with filename:", filename);
-
-      // Upload to images/testimonials/ folder in Vercel Blob
       const result = await storageService.uploadBase64Image(submission.image, `images/testimonials/${filename}`);
       imageUrl = result.url;
-      
-      console.log("[Testimonials] Upload successful, URL:", imageUrl);
     } catch (error) {
       console.error("[Testimonials] Failed to upload image, saving without image:", error);
-      // Continue without image if upload fails
       imageUrl = undefined;
     }
   }
 
-  console.log("[Testimonials] Creating testimonial with image:", imageUrl ? "YES" : "NO", imageUrl);
-  
-  const testimonialId = await createTestimonial({
-    name: submission.name,
-    location: submission.location,
-    quote: submission.quote,
-    years: "Devotee",
-    image: imageUrl,
-    phone: submission.phone,
-    submittedBy: "public",
-    approved: false, // Requires admin approval before public display
-    rejected: false,
+  const { id } = await apiFetch<{ id: string }>("/api/testimonials/devotee", {
+    method: "POST",
+    body: { ...submission, image: imageUrl },
   });
-
-  // Create notification for admin
-  await createTestimonialNotification(testimonialId, submission.name, submission.location);
-
-  return testimonialId;
+  return id;
 }
 
-// Create notification for new testimonial submission
-async function createTestimonialNotification(
-  testimonialId: string,
-  name: string,
-  location: string
-): Promise<void> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    console.warn("[Testimonials] Cannot create notification: Firebase not available");
-    return;
-  }
-
-  try {
-    const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
-    
-    await addDoc(collection(firebaseDb, "notifications"), {
-      type: "testimonial_pending",
-      title: "New Testimonial Pending",
-      message: `New testimonial from ${name} (${location}) awaiting approval`,
-      relatedId: testimonialId,
-      relatedType: "testimonial",
-      read: false,
-      createdAt: serverTimestamp(),
-    });
-    
-    console.log("[Testimonials] Created notification for testimonial:", testimonialId);
-  } catch (error) {
-    console.error("[Testimonials] Failed to create notification:", error);
-    // Don't throw - notification failure shouldn't fail the submission
-  }
-}
-
-// Update testimonial
 export async function updateTestimonial(
   id: string,
   data: Partial<Omit<Testimonial, "id" | "createdAt">>
 ): Promise<void> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    console.error("[Testimonials] Cannot update testimonial: Firebase not available");
-    throw new Error("Firebase is not available. Please try again later.");
-  }
-
-  try {
-    const { doc, updateDoc } = await import("firebase/firestore");
-    
-    const updateData: Record<string, any> = {};
-    
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.location !== undefined) updateData.location = data.location;
-    if (data.quote !== undefined) updateData.quote = data.quote;
-    if (data.years !== undefined) updateData.years = data.years;
-    if (data.image !== undefined) updateData.image = data.image || null;
-    if (data.approved !== undefined) updateData.approved = data.approved;
-
-    await updateDoc(doc(firebaseDb, TESTIMONIALS_COLLECTION, id), updateData);
-    console.log("[Testimonials] Updated testimonial:", id);
-  } catch (error) {
-    console.error("[Testimonials] Error updating testimonial:", error);
-    throw new Error("Failed to update testimonial. Please try again.");
-  }
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, { method: "PUT", body: data });
 }
 
-// Approve testimonial (admin function)
 export async function approveTestimonial(id: string): Promise<void> {
-  await updateTestimonial(id, { approved: true });
-  
-  // Mark the notification as read when testimonial is approved
-  await markNotificationAsRead(id);
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { approved: true },
+  });
 }
 
-// Mark notification as read
-async function markNotificationAsRead(testimonialId: string): Promise<void> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) return;
-
-  try {
-    const { collection, query, where, getDocs, updateDoc, doc } = await import("firebase/firestore");
-    
-    const q = query(
-      collection(firebaseDb, "notifications"),
-      where("relatedId", "==", testimonialId),
-      where("relatedType", "==", "testimonial"),
-      where("read", "==", false)
-    );
-
-    const snapshot = await getDocs(q);
-    
-    for (const notificationDoc of snapshot.docs) {
-      await updateDoc(doc(firebaseDb, "notifications", notificationDoc.id), {
-        read: true,
-        readAt: new Date(),
-      });
-    }
-    
-    console.log("[Testimonials] Marked notification as read for testimonial:", testimonialId);
-  } catch (error) {
-    console.error("[Testimonials] Failed to mark notification as read:", error);
-  }
+export async function rejectTestimonial(id: string, reason?: string): Promise<void> {
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { rejected: true, rejectionReason: reason },
+  });
 }
 
-// Delete testimonial
 export async function deleteTestimonial(id: string): Promise<void> {
-  const firebaseDb = await getFirebaseDb();
-  
-  if (!firebaseDb) {
-    console.error("[Testimonials] Cannot delete testimonial: Firebase not available");
-    throw new Error("Firebase is not available. Please try again later.");
-  }
-
-  try {
-    const { doc, deleteDoc } = await import("firebase/firestore");
-    await deleteDoc(doc(firebaseDb, TESTIMONIALS_COLLECTION, id));
-    console.log("[Testimonials] Deleted testimonial:", id);
-  } catch (error) {
-    console.error("[Testimonials] Error deleting testimonial:", error);
-    throw new Error("Failed to delete testimonial. Please try again.");
-  }
+  await apiFetch(`/api/admin/testimonials/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

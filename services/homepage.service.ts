@@ -1,84 +1,29 @@
-import {
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
 import { HomepageConfig } from "@/types/homepage";
 
-const COLLECTION = "homepage";
-const DOCUMENT = "config";
-
+/**
+ * Public homepage configuration, stored in Supabase `settings_documents`
+ * (`document_key = 'homepage'`), the same lossless JSONB container the guru-parampara
+ * and other complex settings documents use.
+ *
+ * `settings_documents` is deny-all under RLS, so the browser never reads it directly:
+ * this module calls the public `/api/public/homepage` route, which reads with the
+ * service role. There is no Firestore path. `getDefaultConfig` returns the built-in
+ * defaults synchronously so the first paint is never blank.
+ *
+ * The admin form reads and writes through `useSettingsDocument("homepage", …, { admin: true })`,
+ * not through this module.
+ */
 class HomepageService {
   async getHomepage(): Promise<HomepageConfig> {
-      if (!db) throw new Error("Firebase not configured");
-    const ref = doc(db, COLLECTION, DOCUMENT);
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) {
+    try {
+      const response = await fetch("/api/public/homepage", { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      const data = (await response.json()) as Partial<HomepageConfig>;
+      return { ...this.getDefaultConfig(), ...data };
+    } catch (error) {
+      console.error("[homepage] Failed to load homepage settings:", error);
       return this.getDefaultConfig();
     }
-
-    return {
-      ...this.getDefaultConfig(),
-      ...(snap.data() as HomepageConfig),
-    };
-  }
-
-  async saveHomepage(data: HomepageConfig): Promise<void> {
-    if (!db) {
-      console.error("[HomepageService] Firebase db is null");
-      throw new Error("Firebase not configured");
-    }
-    const ref = doc(db, COLLECTION, DOCUMENT);
-
-    // Remove undefined values as Firestore doesn't accept them
-    const cleanData = this.removeUndefined(data);
-
-    console.log("[HomepageService] Saving to Firestore, collection:", COLLECTION, "doc:", DOCUMENT);
-    console.log("[HomepageService] Data being saved:", JSON.stringify(cleanData, null, 2));
-
-    try {
-      await setDoc(
-        ref,
-        {
-          ...cleanData,
-          updatedAt: serverTimestamp(),
-        },
-        {
-          merge: true,
-        }
-      );
-      console.log("[HomepageService] Save to Firestore complete");
-    } catch (error: any) {
-      console.error("[HomepageService] Firestore error:", error?.code, error?.message);
-      throw new Error(`Firestore error: ${error?.message || error?.code || 'Unknown'}`);
-    }
-  }
-
-  /**
-   * Recursively remove undefined values from an object
-   * Firestore doesn't accept undefined values
-   */
-  private removeUndefined(obj: any): any {
-    if (obj === undefined) return undefined;
-    if (obj === null) return null;
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.removeUndefined(item));
-    }
-    if (typeof obj === 'object') {
-      const result: any = {};
-      for (const key of Object.keys(obj)) {
-        const value = obj[key];
-        if (value !== undefined) {
-          result[key] = this.removeUndefined(value);
-        }
-      }
-      return result;
-    }
-    return obj;
   }
 
   getDefaultConfig(): HomepageConfig {
@@ -86,72 +31,33 @@ class HomepageService {
       heroTitle: "Welcome to Rayara Math",
       heroSubtitle: "Experience devotion and tradition",
       heroImage: "",
-
       announcement: "",
-
       announcement2: "",
-
       morningOpen: "06:00 AM",
       morningClose: "01:00 PM",
-
       eveningOpen: "01:00 PM",
       eveningClose: "08:30 PM",
-
       featuredFestival: "",
       festivalDate: "",
-
       donationTitle: "Support Rayara Math",
-      donationSubtitle:
-        "Your generous contribution helps preserve our traditions.",
-
+      donationSubtitle: "Your generous contribution helps preserve our traditions.",
       templeName: "Rayara Math",
       templeLocation: "",
       templeAddress: "",
       contactEmail: "",
       contactPhone: "",
-
       isTempleOpen: true,
-
       heroPrimaryButton: "Book Seva",
       heroSecondaryButton: "Donate",
-
       footerCopyright: "",
-
-      // Hero Quick Info Cards
       todaySeva: "Daily Pooja Morning",
       todaySevaTime: "09:30 AM",
       featuredFestivalDescription: "Coming Soon",
-
-      // Temple Timings Schedule
-      morningSchedule: [
-        "Suprabhata Seva",
-        "Alankara",
-        "Darshan",
-        "Theertha & Prasada",
-      ],
-      eveningSchedule: [
-        "Evening Pooja",
-        "Mangalarati",
-        "Darshan",
-        "Temple Closing",
-      ],
-
-      // Festival Schedule
+      morningSchedule: ["Suprabhata Seva", "Alankara", "Darshan", "Theertha & Prasada"],
+      eveningSchedule: ["Evening Pooja", "Mangalarati", "Darshan", "Temple Closing"],
       festivalScheduleNote:
         "Temple timings may be extended during festivals, Raghavendra Swamygala Aaradhane, Navaratri and other special occasions. Please check announcements before visiting.",
-
-      // Panchanga
-      panchanga: {
-        tithi: "",
-        nakshatra: "",
-        yoga: "",
-        karana: "",
-        rahuKalam: "",
-        gulikaKalam: "",
-        masa: "",
-      },
-
-      // Hero Stats Section
+      panchanga: { tithi: "", nakshatra: "", yoga: "", karana: "", rahuKalam: "", gulikaKalam: "", masa: "" },
       heroStats: {
         stat1Label: "Daily",
         stat1Value: "Pooja",
@@ -163,7 +69,7 @@ class HomepageService {
         stat3Value: "Blessings",
         stat3Description: "",
       },
-    };
+    } as HomepageConfig;
   }
 }
 

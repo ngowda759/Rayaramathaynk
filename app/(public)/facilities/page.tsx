@@ -2,12 +2,11 @@
 
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { ShieldCheck, Flame, Building2, Users, UtensilsCrossed, Volume2, Sparkles } from "lucide-react";
 
 interface Facility {
@@ -113,30 +112,10 @@ const iconMap: Record<string, React.ComponentType<{ size?: number; className?: s
 };
 
 export default function FacilitiesPage() {
-  const [data, setData] = useState<FacilitiesData>(defaultData);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-        const docRef = doc(db, "settings", "facilities");
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setData({ ...defaultData, ...docSnap.data() } as FacilitiesData);
-        }
-      } catch (error) {
-        console.error("Error loading facilities data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const { data, loading } = useSettingsDocument<FacilitiesData>(
+    "facilities",
+    defaultData
+  );
 
   if (loading) {
     return (

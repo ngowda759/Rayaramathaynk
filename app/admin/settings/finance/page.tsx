@@ -1,86 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import { Plus, Trash2, Save, RotateCcw, Eye, EyeOff, CreditCard, Smartphone, Building } from "lucide-react";
 import toast from "react-hot-toast";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { FinanceSettings, SpecialSeva, defaultFinanceSettings } from "@/types/finance";
 
 const SETTINGS_DOC = "financeSettings";
 const SETTINGS_COLLECTION = "settings";
 
 export default function FinanceSettingsPage() {
-  const [settings, setSettings] = useState<FinanceSettings>(defaultFinanceSettings);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAccountNumber, setShowAccountNumber] = useState(false);
-
-  useEffect(() => {
-    async function loadSettings() {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-      try {
-        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          // Ensure billing fields exist even if not in existing data
-          setSettings({
-            ...defaultFinanceSettings,
-            ...data,
-            billing: data.billingEnabled !== undefined || data.billing
-              ? {
-                  invoicePrefix: data.billing?.invoicePrefix || defaultFinanceSettings.billing.invoicePrefix,
-                  invoiceNumber: data.billing?.invoiceNumber || defaultFinanceSettings.billing.invoiceNumber,
-                  defaultDueDays: data.billing?.defaultDueDays || defaultFinanceSettings.billing.defaultDueDays,
-                  taxRate: data.billing?.taxRate ?? defaultFinanceSettings.billing.taxRate,
-                  currency: data.billing?.currency || defaultFinanceSettings.billing.currency,
-                  companyName: data.billing?.companyName || defaultFinanceSettings.billing.companyName,
-                  companyAddress: data.billing?.companyAddress || defaultFinanceSettings.billing.companyAddress,
-                  companyPhone: data.billing?.companyPhone || defaultFinanceSettings.billing.companyPhone,
-                  companyEmail: data.billing?.companyEmail || defaultFinanceSettings.billing.companyEmail,
-                  companyGstin: data.billing?.companyGstin || defaultFinanceSettings.billing.companyGstin,
-                  notes: data.billing?.notes || defaultFinanceSettings.billing.notes,
-                }
-              : defaultFinanceSettings.billing,
-            billingEnabled: data.billingEnabled ?? false,
-          });
-        }
-      } catch (error) {
-        console.error("Error loading settings:", error);
-        toast.error("Failed to load settings");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadSettings();
-  }, []);
+  const {
+    data: settings,
+    setData: setSettings,
+    loading,
+    save,
+  } = useSettingsDocument<FinanceSettings>(
+    "financeSettings",
+    defaultFinanceSettings,
+    { admin: true }
+  );
 
   async function saveSettings() {
-    if (!db) {
-      toast.error("Firebase not configured");
-      return;
-    }
-    setSaving(true);
     try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      console.log("Saving settings:", settings);
-      await setDoc(docRef, {
-        ...settings,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-      
+      await save(settings);
       toast.success("Finance settings saved successfully!");
     } catch (error: unknown) {
       console.error("Error saving settings:", error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       toast.error(`Failed to save settings: ${errorMessage}`);
-    } finally {
-      setSaving(false);
     }
   }
 

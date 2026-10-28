@@ -1,90 +1,50 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api/fetch";
 import { DailyPooja, PoojaStats } from "@/types/pooja";
 
-const COLLECTION_NAME = "dailyPoojas";
-
-function docToPooja(docSnap: any): DailyPooja {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    title: data.title || "",
-    description: data.description || "",
-    startTime: data.startTime || "",
-    duration: data.duration || "",
-    category: data.category || "Morning",
-    sevaAmount: data.sevaAmount ?? 0,
-    isActive: data.isActive ?? true,
-    displayOrder: data.displayOrder ?? 0,
-    days: data.days || ["All"],
-    notes: data.notes || "",
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || new Date().toISOString(),
-    createdBy: data.createdBy || "",
-  };
-}
-
+/**
+ * Daily pooja schedule, stored in Supabase `daily_poojas`.
+ *
+ * The browser never talks to Supabase directly: reads go through `/api/poojas` and
+ * writes through the admin-guarded `/api/admin/poojas` routes, which use the service
+ * role server-side. There is no Firestore path. A failure throws instead of returning
+ * an empty list.
+ */
 export const poojaService = {
   async getPoojas(): Promise<DailyPooja[]> {
-      if (!db) throw new Error("Firebase not configured");
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy("displayOrder", "asc")
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToPooja);
+    return apiFetch<DailyPooja[]>("/api/poojas", { auth: false });
   },
 
   async getPoojaById(id: string): Promise<DailyPooja | null> {
-      if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, COLLECTION_NAME, id);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return docToPooja(docSnap);
+    try {
+      return await apiFetch<DailyPooja>(`/api/poojas/${encodeURIComponent(id)}`, { auth: false });
+    } catch {
+      return null;
+    }
   },
 
   async createPooja(
     data: Omit<DailyPooja, "id" | "createdAt" | "createdBy">,
-    userEmail: string
+    _userEmail?: string
   ): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-      ...data,
-      createdBy: userEmail,
-      createdAt: serverTimestamp(),
+    const { id } = await apiFetch<{ id: string }>("/api/admin/poojas", {
+      method: "POST",
+      body: data,
     });
-    return docRef.id;
+    return id;
   },
 
   async updatePooja(
     id: string,
     data: Partial<Omit<DailyPooja, "id" | "createdAt" | "createdBy">>
   ): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await updateDoc(docRef, data);
+    await apiFetch(`/api/admin/poojas/${encodeURIComponent(id)}`, { method: "PUT", body: data });
   },
 
   async deletePooja(id: string): Promise<void> {
-      if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(docRef);
+    await apiFetch(`/api/admin/poojas/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 
   async getStats(): Promise<PoojaStats> {
-      if (!db) throw new Error("Firebase not configured");
     const poojas = await this.getPoojas();
     const byCategory: Record<string, number> = {};
     poojas.forEach((p) => {

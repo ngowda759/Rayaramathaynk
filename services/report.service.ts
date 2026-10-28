@@ -1,5 +1,5 @@
-import { donationService } from "@/services/donation.service";
-import { sevaBookingService } from "@/services/sevaBooking.service";
+import { donationService } from "@/services/donation.server";
+import { sevaBookingService } from "@/services/sevaBooking.server";
 
 import { ReportSummary } from "@/types/report";
 

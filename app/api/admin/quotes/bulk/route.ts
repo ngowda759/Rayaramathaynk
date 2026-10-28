@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { quoteService } from "@/services/quote.service";
+import { quoteService } from "@/services/quote.server";
 import { QuoteBulkData } from "@/types/quote";
 
 // POST /api/admin/quotes/bulk - Bulk import quotes

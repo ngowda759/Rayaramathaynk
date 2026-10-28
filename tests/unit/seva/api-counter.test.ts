@@ -85,19 +85,10 @@ jest.mock('@/lib/seva/server/identity', () => ({
   getIdentityAdapter: () => ({ getAccessProfile: (uid: string) => mockGetAccessProfile(uid) }),
 }));
 
-// ---- Firestore settings/financeSettings ------------------------------------------------------------------------------
+// ---- Supabase settings_documents / financeSettings -------------------------------------------------------------------
 const mockFinance: { doc: Row | undefined } = { doc: undefined };
-jest.mock('@/lib/admin-firebase', () => ({
-  getAdminFirestore: async () => ({
-    collection: (name: string) => ({
-      doc: (id: string) => ({
-        get: async () => {
-          const data = name === 'settings' && id === 'financeSettings' ? mockFinance.doc : undefined;
-          return { exists: data !== undefined, data: () => data };
-        },
-      }),
-    }),
-  }),
+jest.mock('@/services/settings-document.service', () => ({
+  getSettingsDocument: async (key: string) => (key === 'financeSettings' ? mockFinance.doc ?? null : null),
 }));
 
 import { GET as meGet } from '@/app/api/seva/me/route';

@@ -10,9 +10,8 @@ import {
   Layers, Search, Filter, RefreshCw,
   Star, PenTool, FolderOpen
 } from "lucide-react";
-import { db } from "@/lib/firebase";
-import { collection, getCountFromServer, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api/fetch";
 
 interface ContentStats {
   events: number;
@@ -68,134 +67,18 @@ export default function ContentDashboardPage() {
 
   useEffect(() => {
     async function fetchContentStats() {
-      if (!db) { setLoading(false); return; }
-      
       try {
-        const now = new Date();
-        
-        const [
-          eventsSnap,
-          upcomingSnap,
-          announcementsSnap,
-          activeAnnouncementsSnap,
-          gallerySnap,
-          sevasSnap,
-          poojasSnap,
-          knowledgeSnap,
-          testimonialsSnap,
-          pendingTestimonialsSnap,
-          volunteersSnap,
-        ] = await Promise.all([
-          getCountFromServer(collection(db, "events")),
-          getCountFromServer(query(collection(db, "events"), where("date", ">=", now.toISOString()))),
-          getCountFromServer(collection(db, "announcements")),
-          getCountFromServer(query(collection(db, "announcements"), where("active", "==", true))),
-          getCountFromServer(collection(db, "gallery")),
-          getCountFromServer(collection(db, "sevas")),
-          getCountFromServer(collection(db, "poojas")),
-          getCountFromServer(collection(db, "knowledge")),
-          getCountFromServer(collection(db, "testimonials")),
-          getCountFromServer(query(collection(db, "testimonials"), where("approved", "==", false))),
-          getCountFromServer(collection(db, "volunteer_requests")),
-        ]);
+        // The counted tables are deny-all under RLS, so the aggregate is computed
+        // server-side; the request carries the admin's ID token.
+        const data = await apiFetch<{
+          stats?: ContentStats;
+          recentItems?: RecentItem[];
+          drafts?: DraftItem[];
+        }>("/api/admin/content/stats");
 
-        setStats({
-          events: eventsSnap.data().count,
-          upcomingEvents: upcomingSnap.data().count,
-          announcements: announcementsSnap.data().count,
-          activeAnnouncements: activeAnnouncementsSnap.data().count,
-          gallery: gallerySnap.data().count,
-          sevas: sevasSnap.data().count,
-          poojas: poojasSnap.data().count,
-          knowledgeArticles: knowledgeSnap.data().count,
-          testimonials: testimonialsSnap.data().count,
-          pendingTestimonials: pendingTestimonialsSnap.data().count,
-          volunteers: volunteersSnap.data().count,
-          pendingVolunteers: 0, // Need to query for pending status
-        });
-
-        // Fetch recent items
-        const recentPromises = [
-          getDocs(query(collection(db, "events"), orderBy("updatedAt", "desc"), limit(3))),
-          getDocs(query(collection(db, "announcements"), orderBy("updatedAt", "desc"), limit(3))),
-          getDocs(query(collection(db, "knowledge"), orderBy("updatedAt", "desc"), limit(3))),
-        ];
-
-        const [recentEvents, recentAnnouncements, recentKnowledge] = await Promise.all(recentPromises);
-        
-        const items: RecentItem[] = [];
-        
-        recentEvents.docs.forEach(doc => {
-          const data = doc.data();
-          items.push({
-            id: doc.id,
-            title: data.title || "Untitled Event",
-            type: "Event",
-            status: data.active ? "Active" : "Draft",
-            updatedAt: data.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-            href: `/admin/events/${doc.id}/edit`,
-          });
-        });
-        
-        recentAnnouncements.docs.forEach(doc => {
-          const data = doc.data();
-          items.push({
-            id: doc.id,
-            title: data.title || "Untitled",
-            type: "Announcement",
-            status: data.active ? "Active" : "Draft",
-            updatedAt: data.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-            href: `/admin/announcements/${doc.id}/edit`,
-          });
-        });
-        
-        recentKnowledge.docs.forEach(doc => {
-          const data = doc.data();
-          items.push({
-            id: doc.id,
-            title: data.title?.en || "Untitled",
-            type: "Article",
-            status: data.status || "Draft",
-            updatedAt: data.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-            href: `/admin/knowledge/${doc.id}/edit`,
-          });
-        });
-
-        setRecentItems(items.slice(0, 6));
-
-        // Fetch draft content
-        const draftPromises = [
-          getDocs(query(collection(db, "events"), where("active", "==", false), limit(3))),
-          getDocs(query(collection(db, "announcements"), where("active", "==", false), limit(3))),
-        ];
-
-        const [draftEvents, draftAnnouncements] = await Promise.all(draftPromises);
-        
-        const draftItems: DraftItem[] = [];
-        
-        draftEvents.docs.forEach(doc => {
-          const data = doc.data();
-          draftItems.push({
-            id: doc.id,
-            title: data.title || "Untitled Event",
-            type: "Event",
-            updatedAt: data.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-            href: `/admin/events/${doc.id}/edit`,
-          });
-        });
-        
-        draftAnnouncements.docs.forEach(doc => {
-          const data = doc.data();
-          draftItems.push({
-            id: doc.id,
-            title: data.title || "Untitled Announcement",
-            type: "Announcement",
-            updatedAt: data.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-            href: `/admin/announcements/${doc.id}/edit`,
-          });
-        });
-
-        setDrafts(draftItems);
+        if (data.stats) setStats(data.stats);
+        setRecentItems(data.recentItems ?? []);
+        setDrafts(data.drafts ?? []);
       } catch (error) {
         console.error("Error fetching content stats:", error);
       } finally {

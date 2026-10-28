@@ -1,87 +1,39 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api/fetch";
 import { TempleUser, TempleUserCreate, TempleUserUpdate } from "@/types/user";
 
-const COLLECTION = "users";
-
+/**
+ * Temple users (admin/staff directory), stored in Supabase `users`.
+ *
+ * `users` is deny-all under RLS and carries the role and activation state used for
+ * authorization, so the browser never reads it directly: every call goes through the
+ * admin-guarded `/api/admin/users` routes, which use the service role server-side.
+ * There is no Firestore path. Note: this manages the directory row, not Firebase
+ * Authentication — the login provider is unchanged.
+ */
 class UserService {
   async getUsers(): Promise<TempleUser[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const snapshot = await getDocs(collection(db, COLLECTION));
-
-    return snapshot.docs.map((d) => {
-      const data = d.data();
-
-      const isActive = data.active ?? true;
-      return {
-        id: d.id,
-        name: data.name ?? "",
-        email: data.email ?? "",
-        phone: data.phone ?? "",
-        role: data.role ?? "Volunteer",
-        active: isActive,
-        isActive,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-      };
-    });
+    return apiFetch<TempleUser[]>("/api/admin/users");
   }
 
   async getUser(id: string): Promise<TempleUser | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snap = await getDoc(doc(db, COLLECTION, id));
-
-    if (!snap.exists()) return null;
-
-    const data = snap.data();
-
-    const isActive = data.active ?? true;
-    return {
-      id: snap.id,
-      name: data.name ?? "",
-      email: data.email ?? "",
-      phone: data.phone ?? "",
-      role: data.role ?? "Volunteer",
-      active: isActive,
-      isActive,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-    };
+    try {
+      return await apiFetch<TempleUser>(`/api/admin/users/${encodeURIComponent(id)}`);
+    } catch {
+      return null;
+    }
   }
 
-  async addUser(user: TempleUserCreate) {
-    if (!db) throw new Error("Firebase not configured");
-    return addDoc(collection(db, COLLECTION), {
-      ...user,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  async addUser(user: TempleUserCreate): Promise<string> {
+    const { id } = await apiFetch<{ id: string }>("/api/admin/users", { method: "POST", body: user });
+    return id;
   }
 
-  async updateUser(
-    id: string,
-    user: TempleUserUpdate
-  ) {
-    if (!db) throw new Error("Firebase not configured");
-    return updateDoc(doc(db, COLLECTION, id), {
-      ...user,
-      updatedAt: serverTimestamp(),
-    });
+  async updateUser(id: string, user: TempleUserUpdate): Promise<void> {
+    await apiFetch(`/api/admin/users/${encodeURIComponent(id)}`, { method: "PUT", body: user });
   }
 
-  async deleteUser(id: string) {
-    if (!db) throw new Error("Firebase not configured");
-    return deleteDoc(doc(db, COLLECTION, id));
+  async deleteUser(id: string): Promise<void> {
+    await apiFetch(`/api/admin/users/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 }
 

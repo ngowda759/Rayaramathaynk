@@ -6,6 +6,11 @@ import WebSocket from "ws";
  * Tests all 15 categories with 250+ test cases
  */
 
+// `server-only` throws outside a React Server Component context; the intent chain
+// reaches it through `services/ml.service` -> `services/analytics.service`
+// (`lib/supabase/admin`). Same stub the other unit tests use.
+jest.mock("server-only", () => ({}), { virtual: true });
+
 import {
   Intent,
   IntentCategory,

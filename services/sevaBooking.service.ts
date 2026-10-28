@@ -1,91 +1,56 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api/fetch";
 import { SevaBooking, SevaBookingRequest, SevaBookingStatus, PaymentStatus } from "@/types/seva-booking";
 
-const COLLECTION_NAME = "sevaBookings";
-
-function docToBooking(docSnap: any): SevaBooking {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    sevaId: data.sevaId || "",
-    sevaTitle: data.sevaTitle || "",
-    sevaAmount: data.sevaAmount ?? 0,
-    userId: data.userId || "",
-    userName: data.userName || "",
-    userEmail: data.userEmail || "",
-    userPhone: data.userPhone || "",
-    gotra: data.gotra || "",
-    nakshatra: data.nakshatra || "",
-    raashi: data.raashi || "",
-    preferredDate: data.preferredDate || "",
-    notes: data.notes || "",
-    status: data.status || "pending",
-    paymentReference: data.paymentReference || "",
-    paymentStatus: data.paymentStatus || "pending",
-    paymentDate: data.paymentDate || "",
-    paymentMethod: data.paymentMethod || "",
-    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || "",
-    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt || "",
-  };
-}
-
+/**
+ * Seva bookings, stored in Supabase `seva_bookings`.
+ *
+ * Bookings carry devotee contact details and the table is deny-all under RLS, so the
+ * browser never reads it directly. A devotee creates a booking through the public
+ * `/api/bookings` route; the admin console reads and edits through the admin-guarded
+ * routes. The server uses the service role. There is no Firestore path; a failure
+ * throws rather than returning an empty list.
+ */
 class SevaBookingService {
   async createBooking(data: SevaBookingRequest): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), { ...data, status: "pending", paymentReference: "", paymentStatus: "pending", paymentDate: "", paymentMethod: "", createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    return docRef.id;
+    const { id } = await apiFetch<{ id: string }>("/api/bookings", { method: "POST", body: data });
+    return id;
   }
 
   async getAllBookings(): Promise<SevaBooking[]> {
-    if (!db) return [];
-    try {
-      const q = query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docToBooking);
-    } catch (error) {
-      console.error("[BookingService] Error:", error);
-      return [];
-    }
+    return apiFetch<SevaBooking[]>("/api/admin/bookings");
   }
 
   async getBookingsByUser(userId: string): Promise<SevaBooking[]> {
-    if (!db) return [];
-    try {
-      const q = query(collection(db, COLLECTION_NAME), where("userId", "==", userId), orderBy("createdAt", "desc"));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docToBooking);
-    } catch (error) {
-      console.error("[BookingService] Error:", error);
-      return [];
-    }
+    return apiFetch<SevaBooking[]>(`/api/bookings?user=${encodeURIComponent(userId)}`);
   }
 
   async getBookingById(bookingId: string): Promise<SevaBooking | null> {
-    if (!db) return null;
     try {
-      const snapshot = await getDoc(doc(db, COLLECTION_NAME, bookingId));
-      if (!snapshot.exists()) return null;
-      return docToBooking(snapshot);
-    } catch (error) {
-      console.error("[BookingService] Error:", error);
+      return await apiFetch<SevaBooking>(`/api/bookings/${encodeURIComponent(bookingId)}`);
+    } catch {
       return null;
     }
   }
 
   async updateBookingStatus(bookingId: string, status: SevaBookingStatus): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    await updateDoc(doc(db, COLLECTION_NAME, bookingId), { status, updatedAt: serverTimestamp() });
+    await apiFetch(`/api/bookings/${encodeURIComponent(bookingId)}`, {
+      method: "PATCH",
+      body: { status },
+    });
   }
 
-  async updatePayment(bookingId: string, paymentData: { paymentReference: string; paymentStatus: PaymentStatus; paymentMethod: string; }): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    await updateDoc(doc(db, COLLECTION_NAME, bookingId), { paymentReference: paymentData.paymentReference, paymentStatus: paymentData.paymentStatus, paymentMethod: paymentData.paymentMethod, paymentDate: paymentData.paymentStatus === "completed" ? new Date().toISOString() : "", status: paymentData.paymentStatus === "completed" ? "confirmed" : "pending", updatedAt: serverTimestamp() });
+  async updatePayment(
+    bookingId: string,
+    paymentData: { paymentReference: string; paymentStatus: PaymentStatus; paymentMethod: string }
+  ): Promise<void> {
+    await apiFetch(`/api/bookings/${encodeURIComponent(bookingId)}`, {
+      method: "PATCH",
+      body: { payment: paymentData },
+    });
   }
 
   async deleteBooking(bookingId: string): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    await deleteDoc(doc(db, COLLECTION_NAME, bookingId));
+    await apiFetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { method: "DELETE" });
   }
 }
 

@@ -5,7 +5,6 @@
  * and generating Aaradhane events automatically.
  */
 
-import type { Timestamp } from "firebase/firestore";
 
 export type LunarMonth =
   | "Caitra" | "Vaiśākha" | "Jyeṣṭha" | "Āṣāḍha"
@@ -185,8 +184,8 @@ export interface FirestoreEventDocument {
   title: string;
   description: string;
   location: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
+  startDate: string;
+  endDate: string;
   featured: boolean;
   published: boolean;
   status: "Upcoming" | "Ongoing" | "Completed";

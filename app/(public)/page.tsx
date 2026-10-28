@@ -1,6 +1,6 @@
 import HomeClient from "@/components/home/HomeClient";
 import { getTempleGalleryImages } from "@/lib/gallery";
-import { dailySpiritualService } from "@/services/daily-spiritual.service";
+import { dailySpiritualService } from "@/services/daily-spiritual.server";
 
 // Revalidate every 60 seconds to get fresh announcements
 export const revalidate = 60;

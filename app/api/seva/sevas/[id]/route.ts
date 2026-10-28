@@ -1,7 +1,7 @@
 /**
  * GET /api/seva/sevas/[id] - the seva's rate history (sevas.read).
  * PUT /api/seva/sevas/[id] - edits a seva (sevas.edit); a rate change needs `reason` (SQL: change_reason_required).
- * After a save the public fields are mirrored to Firestore (C-39); a failed mirror answers 200 with mirror 'failed'.
+ * The save writes Supabase only; the answer keeps the `{ id, mirror: 'ok' }` shape for existing callers.
  */
 import type { NextRequest } from "next/server";
 import { SevaError } from "@/lib/seva/errors";

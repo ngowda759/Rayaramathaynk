@@ -2,21 +2,31 @@
 // Single article operations
 
 import { NextRequest, NextResponse } from "next/server";
+
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import {
-  getWorkflowArticleById,
-  updateWorkflowArticle,
-  performWorkflowAction,
+  getArticleCommitteeApproval,
+  getArticleComments,
   getArticleHistory,
   getArticleVersions,
-  getArticleComments,
-  getArticleCommitteeApproval,
+  getWorkflowArticleById,
+  performWorkflowAction,
+  updateWorkflowArticle,
 } from "@/services/knowledge-workflow.service";
-import { WorkflowActionType } from "@/types/knowledge-workflow";
+import type { WorkflowActionType } from "@/types/knowledge-workflow";
 
+/**
+ * One workflow article. The pipeline holds unreleased drafts and internal review
+ * notes, so every method is admin-only and the acting user is taken from the verified
+ * token, never from the request body.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -26,36 +36,20 @@ export async function GET(
     const includeApprovals = searchParams.get("includeApprovals") === "true";
 
     const article = await getWorkflowArticleById(id);
-
     if (!article) {
-      return NextResponse.json(
-        { error: "Article not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Article not found" }, { status: 404 });
     }
 
-    const response: any = { article };
-
-    if (includeHistory) {
-      response.history = await getArticleHistory(id);
-    }
-    if (includeVersions) {
-      response.versions = await getArticleVersions(id);
-    }
-    if (includeComments) {
-      response.comments = await getArticleComments(id);
-    }
-    if (includeApprovals) {
-      response.committeeApproval = await getArticleCommitteeApproval(id);
-    }
+    const response: Record<string, unknown> = { article };
+    if (includeHistory) response.history = await getArticleHistory(id);
+    if (includeVersions) response.versions = await getArticleVersions(id);
+    if (includeComments) response.comments = await getArticleComments(id);
+    if (includeApprovals) response.committeeApproval = await getArticleCommitteeApproval(id);
 
     return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching article:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch article" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch article" }, { status: 500 });
   }
 }
 
@@ -63,12 +57,15 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action, updatedBy, changeDescription, ...updateData } = body;
+    const { action, changeDescription, ...updateData } = body;
+    const updatedBy = auth.user.email;
 
-    // If this is a workflow action
     if (action) {
       const result = await performWorkflowAction(
         id,
@@ -79,20 +76,10 @@ export async function PATCH(
       return NextResponse.json({ action: result });
     }
 
-    // Otherwise, it's an update
-    await updateWorkflowArticle(
-      id,
-      updateData,
-      updatedBy,
-      changeDescription || "Content update"
-    );
-
+    await updateWorkflowArticle(id, updateData, updatedBy, changeDescription || "Content update");
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error updating article:", error);
-    return NextResponse.json(
-      { error: "Failed to update article" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update article" }, { status: 500 });
   }
 }

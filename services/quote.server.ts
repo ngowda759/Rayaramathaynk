@@ -1,0 +1,1050 @@
+import "server-only";
+import { rowIdFilter } from "@/lib/supabase/identifier";
+
+/**
+ * Quote Service - Intelligent Devotional Quote Engine
+ * Epic: Intelligent Devotional Quote Engine for Sri Raghavendra Swamy Temple
+ */
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  Quote,
+  QuoteCategory,
+  QuoteFilters,
+  QuoteSelectionContext,
+  QuoteResponse,
+  QuotePriority,
+  WEEKDAY_QUOTE_MAP,
+  FESTIVAL_QUOTE_MAP,
+  DEFAULT_QUOTES_DATA,
+  PanchangaRules,
+  FestivalName,
+  Weekday,
+} from "@/types/quote";
+import { eventService } from "./event.service";
+
+const TABLE = "quotes";
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// In-memory cache for today's quote
+let quoteCache: {
+  quote: Quote | null;
+  timestamp: number;
+  date: string;
+} | null = null;
+
+/**
+ * Fallback quotes when database is unavailable
+ * Used as last resort to ensure widget is always visible
+ */
+const FALLBACK_QUOTES: Quote[] = [
+  {
+    id: "fallback-guru-vandana",
+    slug: "guru-vandana-fallback",
+    title: "Guru Vandana - Thursday Prayer",
+    category: "guru_vandana",
+    priority: 1,
+    language: "kn",
+    content: {
+      kannada: "ಓಂ ಸಹ ನಾವವತು | ಸಹ ನೌ ಭುನಕ್ತು | ಸಹ ವೀರ್ಯಂ ಕರವಾವಹೈ |",
+      transliteration: "Oṁ saha nāvavatu | saha nau bhunaktu | saha vīryaṁ karavāvahai |",
+      translationEnglish: "May we all be united. May we all be nourished. May we all exert together with vigor.",
+    },
+    source: "Guru Vandana",
+    author: "Traditional",
+    tags: ["guru", "prayer", "thursday"],
+    active: true,
+    featured: true,
+    festivalOnly: false,
+    festivalNames: [],
+    weekdayOnly: null,
+    displayWeight: 1,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "fallback-raghavendra-stotra",
+    slug: "raghavendra-stotra-fallback",
+    title: "Sri Raghavendra Stotra - Daily Verse",
+    category: "raghavendra_stotra",
+    priority: 2,
+    language: "sa",
+    content: {
+      sanskrit: "ಶ್ರೀಪೂರ್ಣಬೋಧ-ಗುರು-ತೀರ್ಥ-ಪಯೋಽಬ್ಧಿ-ಪಾರಾ | ಕಾಮಾರಿ-ಮಾಽಕ್ಷ-ವಿಷಮಾಕ್ಷ-ಶಿರಃ ಸ್ಪೃಶಂತೀ ||",
+      transliteration: "Śrīpūrṇabodha-guru-tīrtha-payobdhi-pārā | KāMāri-māKṣa-viṣamāKṣa-śiraḥ sprśantī ||",
+      translationEnglish: "Salutations to the ocean of perfect knowledge, the guru and tirtha, who touches the heads of Kamala (Lakshmi), Mara (death), and evil-eyed ones.",
+    },
+    source: "Sri Raghavendra Stotra",
+    author: "Sri Appannacharya",
+    verseNumber: 1,
+    tags: ["stotra", "salutation", "guru"],
+    active: true,
+    featured: true,
+    festivalOnly: false,
+    festivalNames: [],
+    weekdayOnly: null,
+    displayWeight: 1,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "fallback-mangalashtakam",
+    slug: "mangalashtakam-fallback",
+    title: "Sri Raghavendra Mangalashtakam",
+    category: "mangalashtakam",
+    priority: 3,
+    language: "sa",
+    content: {
+      sanskrit: "ಶ್ರೀಮದ್ರಾಮಪಾದಾರವಿಂದಮಧುಪಃ ಶ್ರೀಮಧ್ವವಂಶಾಧಿಪಃ | ಸಚ್ಚಿಷ್ಯೋಡುಗಣೋಡುಪಃ ಶ್ರಿತಜಗದ್ಗೀರ್ವಾಣಸತ್ಪಾದಪಃ ||",
+      transliteration: "Śrīmadrāmapādāravindamadhupaḥ śrīmadhavavaṁśādhipaḥ | sacchiṣyodugaṇoḍupaḥ śritajagadrgīrvāṇasatpāḍapaḥ ||",
+      translationEnglish: "He is the bee at the lotus feet of Rama, the lord of Madhva lineage, the crest jewel of true disciples, the wish-fulfilling tree for those who take refuge.",
+    },
+    source: "Sri Raghavendra Mangalashtakam",
+    author: "Sri Vadirajatirtharu",
+    verseNumber: 1,
+    tags: ["mangalashtakam", "aradhana", "festival"],
+    active: true,
+    featured: true,
+    festivalOnly: true,
+    festivalNames: ["raghavendra_aradhana", "guru_purnima", "vyasa_pooja"],
+    weekdayOnly: null,
+    displayWeight: 2,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "fallback-devotional",
+    slug: "devotional-fallback",
+    title: "Service to Devotees",
+    category: "authentic_teachings",
+    priority: 4,
+    language: "kn",
+    content: {
+      kannada: "ಭಕ್ತರ ಸೇವೆಯೇ ಈಶ್ವರ ಸೇವೆ | ಭಕ್ತರ ಮೊಯ್ಯೇ ಈಶ್ವರ ಮೊಯ್ಯ |",
+      transliteration: "Bhaktara sēvayē īśvara sēvā | bhaktara moyyē īśvara moyya |",
+      translationEnglish: "Service to devotees is service to God. The dust of devotees' feet is the dust of God's feet.",
+    },
+    source: "Sri Raghavendra Swamy Teachings",
+    author: "Sri Raghavendra Swamy",
+    tags: ["service", "devotion", "bhakti"],
+    active: true,
+    featured: true,
+    festivalOnly: false,
+    festivalNames: [],
+    weekdayOnly: null,
+    displayWeight: 1,
+    stats: { viewCount: 0 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+/**
+ * Get fallback quote based on day of week
+ * This ensures the widget is always visible even when database is unavailable
+ */
+function getFallbackQuote(dayOfWeek: number): Quote {
+  // Thursday (4) - Guru Vandana
+  if (dayOfWeek === 4) {
+    return FALLBACK_QUOTES[0]; // guru_vandana
+  }
+  // Sunday, Tuesday, Friday (0, 2, 5) - Raghavendra Stotra
+  if (dayOfWeek === 0 || dayOfWeek === 2 || dayOfWeek === 5) {
+    return FALLBACK_QUOTES[1]; // raghavendra_stotra
+  }
+  // Wednesday (3) - authentic_teachings
+  if (dayOfWeek === 3) {
+    return FALLBACK_QUOTES[3]; // authentic_teachings
+  }
+  // Saturday (6) - madhwa_philosophy
+  if (dayOfWeek === 6) {
+    return FALLBACK_QUOTES[3]; // fallback to authentic_teachings if madhwa not available
+  }
+  // Default to authentic_teachings
+  return FALLBACK_QUOTES[3]; // devotional/authentic_teachings
+}
+
+/**
+ * Convert Firestore document to Quote
+ */
+function rowToQuote(row: any): Quote {
+  return {
+    id: row.firestore_id || row.id,
+    slug: row.slug || "",
+    title: row.title || "",
+    category: row.category || "devotional_sayings",
+    priority: row.priority || 5,
+    language: row.language || "en",
+    content: row.content || {},
+    source: row.source || "",
+    author: row.author,
+    verseNumber: row.verse_number,
+    tags: row.tags || [],
+    active: row.active ?? true,
+    featured: row.featured ?? false,
+    festivalOnly: row.festival_only ?? false,
+    festivalNames: row.festival_names || [],
+    weekdayOnly: row.weekday_only ?? null,
+    panchangaRules: row.panchanga_rules,
+    eventRules: row.event_rules,
+    displayFrom: row.display_from,
+    displayTo: row.display_to,
+    displayWeight: row.display_weight || 1,
+    rotationGroup: row.rotation_group,
+    stats: row.stats || { viewCount: 0 },
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+    createdBy: row.created_by,
+  };
+}
+
+/**
+ * Get date string in YYYY-MM-DD format (IST)
+ */
+function getDateString(date: Date = new Date()): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+/**
+ * Get current IST date at 7 AM cutoff
+ * Quotes change at 7 AM IST daily
+ */
+function getISTDateWithCutoff(): string {
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  
+  // If before 7 AM IST, use yesterday's date
+  const hours = istNow.getHours();
+  if (hours < 7) {
+    istNow.setDate(istNow.getDate() - 1);
+  }
+  
+  return getDateString(istNow);
+}
+
+/**
+ * Check if cache is valid for today (using 7 AM IST cutoff)
+ */
+function isCacheValid(): boolean {
+  if (!quoteCache) return false;
+  const today = getISTDateWithCutoff();
+  return quoteCache.date === today && Date.now() - quoteCache.timestamp < CACHE_DURATION;
+}
+
+class QuoteService {
+  /**
+   * Get all quotes with optional filters
+   */
+  async getQuotes(filters?: QuoteFilters): Promise<Quote[]> {
+    try {
+      console.log("[QuoteService] getQuotes called with filters:", JSON.stringify(filters));
+      
+      const supabase = createAdminClient();
+      let builder = supabase
+        .from(TABLE)
+        .select("*")
+        .eq("active", filters?.active ?? true);
+
+      if (filters?.category) builder = builder.eq("category", filters.category);
+      if (filters?.language) builder = builder.eq("language", filters.language);
+      if (filters?.featured !== undefined) builder = builder.eq("featured", filters.featured);
+      if (filters?.festivalOnly !== undefined) builder = builder.eq("festival_only", filters.festivalOnly);
+      if (filters?.weekdayOnly !== undefined) builder = builder.eq("weekday_only", filters.weekdayOnly);
+
+      const { data, error } = await builder;
+      if (error) throw new Error(error.message);
+
+      console.log("[QuoteService] Supabase returned", (data ?? []).length, "rows");
+
+      let quotes = (data ?? []).map(rowToQuote);
+
+      // Sort by priority in memory
+      quotes.sort((a, b) => (a.priority || 5) - (b.priority || 5));
+
+      // Apply text search if provided
+      if (filters?.search) {
+        const searchLower = filters.search.toLowerCase();
+        quotes = quotes.filter(
+          (q) =>
+            q.title.toLowerCase().includes(searchLower) ||
+            q.source.toLowerCase().includes(searchLower) ||
+            q.tags.some((t) => t.toLowerCase().includes(searchLower)) ||
+            q.content.kannada?.toLowerCase().includes(searchLower) ||
+            q.content.translationEnglish?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Apply tag filter
+      if (filters?.tags && filters.tags.length > 0) {
+        quotes = quotes.filter((q) =>
+          filters.tags!.some((tag) => q.tags.includes(tag))
+        );
+      }
+
+      console.log(`[QuoteService] getQuotes returned ${quotes.length} quotes`);
+      return quotes;
+    } catch (error) {
+      console.error("[QuoteService] Error fetching quotes:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get a single quote by ID
+   */
+  async getQuoteById(id: string): Promise<Quote | null> {
+    try {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select("*")
+        .or(rowIdFilter(id))
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? rowToQuote(data) : null;
+    } catch (error) {
+      console.error("[QuoteService] Error fetching quote:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get a quote by slug
+   */
+  async getQuoteBySlug(slug: string): Promise<Quote | null> {
+    try {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select("*")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? rowToQuote(data) : null;
+    } catch (error) {
+      console.error("[QuoteService] Error fetching quote by slug:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Create a new quote
+   */
+  async createQuote(quote: Omit<Quote, "id" | "createdAt" | "updatedAt">): Promise<string> {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert({
+        slug: quote.slug,
+        title: quote.title,
+        category: quote.category,
+        priority: quote.priority,
+        language: quote.language,
+        content: quote.content ?? {},
+        source: quote.source,
+        author: quote.author ?? null,
+        verse_number: quote.verseNumber ?? null,
+        tags: quote.tags ?? [],
+        active: quote.active ?? true,
+        featured: quote.featured ?? false,
+        festival_only: quote.festivalOnly ?? false,
+        festival_names: quote.festivalNames ?? [],
+        weekday_only: quote.weekdayOnly ?? null,
+        panchanga_rules: quote.panchangaRules ?? null,
+        event_rules: quote.eventRules ?? null,
+        display_from: quote.displayFrom ?? null,
+        display_to: quote.displayTo ?? null,
+        display_weight: quote.displayWeight ?? 1,
+        rotation_group: quote.rotationGroup ?? null,
+        stats: { viewCount: 0 },
+        created_by: quote.createdBy ?? null,
+      })
+      .select("firestore_id, id")
+      .single();
+    if (error) throw new Error(`Could not create quote: ${error.message}`);
+    return data.firestore_id || data.id;
+  }
+
+  /**
+   * Update an existing quote
+   */
+  async updateQuote(id: string, updates: Partial<Quote>): Promise<void> {
+    const supabase = createAdminClient();
+    const update: Record<string, unknown> = {};
+    if (updates.slug !== undefined) update.slug = updates.slug;
+    if (updates.title !== undefined) update.title = updates.title;
+    if (updates.category !== undefined) update.category = updates.category;
+    if (updates.priority !== undefined) update.priority = updates.priority;
+    if (updates.language !== undefined) update.language = updates.language;
+    if (updates.content !== undefined) update.content = updates.content;
+    if (updates.source !== undefined) update.source = updates.source;
+    if (updates.author !== undefined) update.author = updates.author;
+    if (updates.verseNumber !== undefined) update.verse_number = updates.verseNumber;
+    if (updates.tags !== undefined) update.tags = updates.tags;
+    if (updates.active !== undefined) update.active = updates.active;
+    if (updates.featured !== undefined) update.featured = updates.featured;
+    if (updates.festivalOnly !== undefined) update.festival_only = updates.festivalOnly;
+    if (updates.festivalNames !== undefined) update.festival_names = updates.festivalNames;
+    if (updates.weekdayOnly !== undefined) update.weekday_only = updates.weekdayOnly;
+    if (updates.panchangaRules !== undefined) update.panchanga_rules = updates.panchangaRules;
+    if (updates.eventRules !== undefined) update.event_rules = updates.eventRules;
+    if (updates.displayFrom !== undefined) update.display_from = updates.displayFrom;
+    if (updates.displayTo !== undefined) update.display_to = updates.displayTo;
+    if (updates.displayWeight !== undefined) update.display_weight = updates.displayWeight;
+    if (updates.rotationGroup !== undefined) update.rotation_group = updates.rotationGroup;
+    if (updates.stats !== undefined) update.stats = updates.stats;
+    update.updated_at = new Date().toISOString();
+    const { error } = await supabase.from(TABLE).update(update).or(rowIdFilter(id));
+    if (error) throw new Error(`Could not update quote: ${error.message}`);
+  }
+
+  /**
+   * Delete a quote
+   */
+  async deleteQuote(id: string): Promise<void> {
+    const supabase = createAdminClient();
+    const { error } = await supabase.from(TABLE).delete().or(rowIdFilter(id));
+    if (error) throw new Error(`Could not delete quote: ${error.message}`);
+  }
+
+  /**
+   * Build selection context from current date and events
+   */
+  async buildSelectionContext(date: Date = new Date()): Promise<QuoteSelectionContext> {
+    const dayOfWeek = date.getDay() as Weekday;
+    
+    // Get today's events from Firestore
+    let activeEvents: QuoteSelectionContext["activeEvents"] = [];
+    try {
+      const todayStr = getDateString(date);
+      const todayStart = new Date(todayStr);
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(todayStr);
+      todayEnd.setHours(23, 59, 59, 999);
+
+      const events = await eventService.getPublishedEvents();
+      activeEvents = events
+        .filter((event) => {
+          const startDate = new Date(event.startDate as any);
+          const endDate = new Date(event.endDate as any);
+          return startDate <= todayEnd && endDate >= todayStart;
+        })
+        .map((event) => ({
+          id: event.id!,
+          title: (typeof event.title === 'object' && event.title !== null) ? (event.title as {en?: string; kn?: string}).en || (event.title as {en?: string; kn?: string}).kn || "" : String(event.title || ""),
+          category: event.category || "",
+        }));
+    } catch (error) {
+      console.error("[QuoteService] Error fetching events:", error);
+    }
+
+    // Determine if it's a festival day
+    const isFestival = activeEvents.some(
+      (e) =>
+        e.title.toLowerCase().includes("aradhana") ||
+        e.title.toLowerCase().includes("festival") ||
+        e.title.toLowerCase().includes("utsava") ||
+        e.category === "festival"
+    );
+
+    // Extract festival name
+    let festivalName: string | undefined;
+    if (isFestival) {
+      const festivalEvent = activeEvents.find(
+        (e) =>
+          e.title.toLowerCase().includes("aradhana") ||
+          e.category === "festival"
+      );
+      festivalName = festivalEvent?.title;
+    }
+
+    return {
+      date,
+      dayOfWeek,
+      isFestival,
+      festivalName,
+      activeEvents,
+    };
+  }
+
+  /**
+   * Get quotes matching specific criteria
+   */
+  async getQuotesByCriteria(criteria: {
+    category?: QuoteCategory;
+    festivalNames?: FestivalName[];
+    weekdays?: Weekday[];
+    featured?: boolean;
+    active?: boolean;
+  }): Promise<Quote[]> {
+    const allQuotes = await this.getQuotes({ active: criteria.active ?? true });
+
+    return allQuotes.filter((quote) => {
+      if (criteria.category && quote.category !== criteria.category) return false;
+      if (criteria.featured !== undefined && quote.featured !== criteria.featured) return false;
+      if (criteria.festivalNames && criteria.festivalNames.length > 0) {
+        const hasMatch = criteria.festivalNames.some((f) => quote.festivalNames.includes(f));
+        if (!hasMatch) return false;
+      }
+      if (criteria.weekdays && criteria.weekdays.length > 0) {
+        if (quote.weekdayOnly === null || !criteria.weekdays.includes(quote.weekdayOnly)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Select the best quote based on context and priority rules
+   */
+  async selectQuote(context: QuoteSelectionContext): Promise<Quote | null> {
+    const today = getDateString(context.date);
+
+    // 1. Check for event-specific quotes (highest priority)
+    if (context.activeEvents && context.activeEvents.length > 0) {
+      const eventQuotes = await this.getQuotesByCriteria({
+        festivalNames: context.activeEvents
+          .map((e) => e.title.toLowerCase().includes("aradhana") ? "raghavendra_aradhana" : undefined)
+          .filter(Boolean) as FestivalName[],
+      });
+
+      if (eventQuotes.length > 0) {
+        const selected = this.deterministicSelect(eventQuotes, today);
+        if (selected) {
+          console.log("[QuoteService] Selected event-specific quote:", selected.id);
+          return selected;
+        }
+      }
+    }
+
+    // 2. Check for festival-specific quotes
+    if (context.isFestival && context.festivalName) {
+      const festivalKey = this.matchFestivalName(context.festivalName);
+      if (festivalKey) {
+        const festivalQuotes = await this.getQuotesByCriteria({
+          festivalNames: [festivalKey],
+          active: true,
+        });
+
+        if (festivalQuotes.length > 0) {
+          const selected = this.deterministicSelect(festivalQuotes, today);
+          if (selected) {
+            console.log("[QuoteService] Selected festival quote:", selected.id);
+            return selected;
+          }
+        }
+      }
+    }
+
+    // 3. Check for Guru Purnima quotes
+    if (context.festivalName?.toLowerCase().includes("guru purnima")) {
+      const guruQuotes = await this.getQuotesByCriteria({
+        category: "mangalashtakam",
+        active: true,
+      });
+
+      if (guruQuotes.length > 0) {
+        const selected = this.deterministicSelect(guruQuotes, today);
+        if (selected) {
+          console.log("[QuoteService] Selected Guru Purnima quote:", selected.id);
+          return selected;
+        }
+      }
+    }
+
+    // 4. Check for Thursday Guru Vandana
+    if (context.dayOfWeek === 4) { // Thursday
+      const guruVandanaQuotes = await this.getQuotesByCriteria({
+        category: "guru_vandana",
+        active: true,
+      });
+
+      if (guruVandanaQuotes.length > 0) {
+        const selected = this.deterministicSelect(guruVandanaQuotes, today);
+        if (selected) {
+          console.log("[QuoteService] Selected Guru Vandana quote:", selected.id);
+          return selected;
+        }
+      }
+    }
+
+    // 5. Check for weekday-specific quotes
+    const weekdayCategory = WEEKDAY_QUOTE_MAP[context.dayOfWeek];
+    if (weekdayCategory) {
+      const weekdayQuotes = await this.getQuotesByCriteria({
+        category: weekdayCategory,
+        active: true,
+      });
+
+      if (weekdayQuotes.length > 0) {
+        const selected = this.deterministicSelect(weekdayQuotes, today);
+        if (selected) {
+          console.log("[QuoteService] Selected weekday quote:", selected.id);
+          return selected;
+        }
+      }
+    }
+
+    // 6. Default to Sri Raghavendra Stotra
+    const stotraQuotes = await this.getQuotesByCriteria({
+      category: "raghavendra_stotra",
+      active: true,
+    });
+
+    if (stotraQuotes.length > 0) {
+      const selected = this.deterministicSelect(stotraQuotes, today);
+      if (selected) {
+        console.log("[QuoteService] Selected Stotra quote:", selected.id);
+        return selected;
+      }
+    }
+
+    // 7. Fall back to any active quote
+    let allActiveQuotes = await this.getQuotes({ active: true });
+    
+    // Auto-seed if no quotes exist in the database
+    if (allActiveQuotes.length === 0) {
+      console.log("[QuoteService] No quotes found, auto-seeding default quotes...");
+      const seeded = await this.seedDefaultQuotes();
+      if (seeded > 0) {
+        allActiveQuotes = await this.getQuotes({ active: true });
+        console.log(`[QuoteService] Auto-seeded ${seeded} quotes`);
+      }
+    }
+    
+    if (allActiveQuotes.length > 0) {
+      const selected = this.deterministicSelect(allActiveQuotes, today);
+      if (selected) {
+        console.log("[QuoteService] Selected fallback quote:", selected.id);
+        return selected;
+      }
+    }
+
+    // 8. Use hardcoded fallback quote if all else fails
+    // This ensures the widget is always visible even when database is unavailable
+    console.log("[QuoteService] Using hardcoded fallback quote");
+    return getFallbackQuote(context.dayOfWeek);
+  }
+
+  /**
+   * Match festival name to enum value
+   */
+  private matchFestivalName(name: string): FestivalName | null {
+    const nameLower = name.toLowerCase();
+    
+    if (nameLower.includes("aradhana")) return "raghavendra_aradhana";
+    if (nameLower.includes("guru purnima")) return "guru_purnima";
+    if (nameLower.includes("madhwa navami") || nameLower.includes("madwa navami")) return "madhwa_navami";
+    if (nameLower.includes("vyasa")) return "vyasa_pooja";
+    if (nameLower.includes("rama navami")) return "rama_navami";
+    if (nameLower.includes("krishna") && nameLower.includes("janmashtami")) return "krishna_janmashtami";
+    if (nameLower.includes("narasimha") || nameLower.includes("narasimba")) return "narasimha_jayanti";
+    if (nameLower.includes("hanuman")) return "hanuman_jayanti";
+    if (nameLower.includes("deepavali") || nameLower.includes("diwali")) return "deepavali";
+    if (nameLower.includes("vaikuntha")) return "vaikuntha_ekadashi";
+    if (nameLower.includes("brahmotsava") || nameLower.includes("utsava")) return "brahmotsava";
+    if (nameLower.includes("navaratri") || nameLower.includes("navratri")) return "navaratri";
+    if (nameLower.includes("mahashivaratri") || nameLower.includes("shivaratri")) return "mahashivaratri";
+    if (nameLower.includes("ratha saptami")) return "ratha_saptami";
+    if (nameLower.includes("makara sankramana") || nameLower.includes("sankranti")) return "makara_sankramana";
+    
+    return null;
+  }
+
+  /**
+   * Deterministic selection based on date (same date = same quote)
+   */
+  private deterministicSelect(quotes: Quote[], dateStr: string): Quote | null {
+    if (quotes.length === 0) return null;
+
+    // Parse date to get day of year for better rotation
+    const date = new Date(dateStr + "T00:00:00");
+    const startOfYear = new Date(date.getFullYear(), 0, 0);
+    const diff = date.getTime() - startOfYear.getTime();
+    const oneDay = 1000 * 60 * 60 * 24;
+    const dayOfYear = Math.floor(diff / oneDay);
+
+    // Use day of year to cycle through all quotes, not just featured
+    // This ensures true daily rotation within each category
+    const index = dayOfYear % quotes.length;
+    return quotes[index];
+  }
+
+  /**
+   * Get today's quote (with caching)
+   */
+  async getTodaysQuote(date: Date = new Date()): Promise<QuoteResponse> {
+    // Use 7 AM IST cutoff for quote change time
+    const today = getISTDateWithCutoff();
+
+    // Check cache
+    if (quoteCache && quoteCache.date === today) {
+      console.log("[QuoteService] Returning cached quote for:", today);
+      return {
+        quote: quoteCache.quote,
+        context: {
+          category: quoteCache.quote?.category || "devotional_sayings",
+          reason: this.getSelectionReason(quoteCache.quote?.category, date.getDay()),
+        },
+        metadata: {
+          cached: true,
+          timestamp: new Date().toISOString(),
+        },
+      };
+    }
+
+    // Build context and select quote
+    const context = await this.buildSelectionContext(date);
+    const quote = await this.selectQuote(context);
+
+    // Update cache
+    quoteCache = {
+      quote,
+      timestamp: Date.now(),
+      date: today,
+    };
+
+    // Increment view count if quote exists
+    if (quote) {
+      this.incrementViewCount(quote.id).catch((err) => {
+        console.error("[QuoteService] Error incrementing view count:", err);
+      });
+    }
+
+    return {
+      quote,
+      context: {
+        category: quote?.category || "devotional_sayings",
+        reason: this.getSelectionReason(quote?.category, date.getDay()),
+      },
+      metadata: {
+        cached: false,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Get human-readable selection reason
+   */
+  private getSelectionReason(category: QuoteCategory | undefined, dayOfWeek: number): string {
+    if (!category) return "Default fallback";
+
+    switch (category) {
+      case "raghavendra_stotra":
+        return "Sri Raghavendra Stotra - Daily verse";
+      case "mangalashtakam":
+        return "Festival verse - Special occasion";
+      case "guru_vandana":
+        return "Guru Vandana - Thursday worship";
+      case "authentic_teachings":
+        return "Authentic teachings from Sri Raghavendra";
+      case "madhwa_philosophy":
+        return "Madhwa Dvaita philosophy";
+      case "devotional_sayings":
+        return "Devotional reflection";
+      default:
+        return "Selected quote";
+    }
+  }
+
+  /**
+   * Increment view count for a quote
+   */
+  async incrementViewCount(id: string): Promise<void> {
+    try {
+      const quote = await this.getQuoteById(id);
+      if (quote) {
+        const supabase = createAdminClient();
+        const { error } = await supabase
+          .from(TABLE)
+          .update({
+            stats: {
+              ...(quote.stats || {}),
+              viewCount: (quote.stats?.viewCount || 0) + 1,
+              lastViewedAt: new Date().toISOString(),
+            },
+          })
+          .or(rowIdFilter(id));
+        if (error) throw new Error(error.message);
+      }
+    } catch (error) {
+      console.error("[QuoteService] Error incrementing view count:", error);
+    }
+  }
+
+  /**
+   * Get quotes by category
+   */
+  async getQuoteByCategory(category: QuoteCategory): Promise<Quote[]> {
+    return this.getQuotes({ category });
+  }
+
+  /**
+   * Get featured quotes
+   */
+  async getFeaturedQuotes(): Promise<Quote[]> {
+    return this.getQuotes({ featured: true });
+  }
+
+  /**
+   * Get quotes by festival
+   */
+  async getFestivalQuote(festivalName: FestivalName): Promise<Quote[]> {
+    return this.getQuotesByCriteria({
+      festivalNames: [festivalName],
+      active: true,
+    });
+  }
+
+  /**
+   * Get quotes for Panchanga rules
+   */
+  async getPanchangaQuote(panchangaRules: PanchangaRules): Promise<Quote[]> {
+    const allQuotes = await this.getQuotes({ active: true });
+
+    return allQuotes.filter((quote) => {
+      if (!quote.panchangaRules) return false;
+
+      const qr = quote.panchangaRules;
+
+      if (qr.tithis && qr.tithis.length > 0 && !panchangaRules.tithis?.some((t) => qr.tithis!.includes(t))) {
+        return false;
+      }
+
+      if (qr.nakshatras && qr.nakshatras.length > 0 && !panchangaRules.nakshatras?.some((n) => qr.nakshatras!.includes(n))) {
+        return false;
+      }
+
+      if (qr.weekdays && qr.weekdays.length > 0 && !panchangaRules.weekdays?.some((w) => qr.weekdays!.includes(w))) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  /**
+   * Get quotes for specific events
+   */
+  async getEventQuote(eventId: string): Promise<Quote[]> {
+    const allQuotes = await this.getQuotes({ active: true });
+
+    return allQuotes.filter((quote) => {
+      if (!quote.eventRules) return false;
+      return quote.eventRules.eventIds?.includes(eventId);
+    });
+  }
+
+  /**
+   * Get Thursday-specific quotes
+   */
+  async getThursdayQuote(): Promise<Quote[]> {
+    return this.getQuotesByCriteria({
+      category: "guru_vandana",
+      weekdays: [4],
+      active: true,
+    });
+  }
+
+  /**
+   * Get fallback quotes
+   */
+  async getFallbackQuote(): Promise<Quote[]> {
+    return this.getQuotes({ category: "devotional_sayings" });
+  }
+
+  /**
+   * Get random quote
+   */
+  async getRandomQuote(): Promise<Quote | null> {
+    const quotes = await this.getQuotes({ active: true });
+    if (quotes.length === 0) return null;
+    const index = Math.floor(Math.random() * quotes.length);
+    return quotes[index];
+  }
+
+  /**
+   * Get quote by specific date
+   */
+  async getQuoteByDate(dateStr: string): Promise<QuoteResponse> {
+    const date = new Date(dateStr);
+    return this.getTodaysQuote(date);
+  }
+
+  /**
+   * Get upcoming festival quotes
+   */
+  async getUpcomingFestivalQuotes(maxFestivals = 3): Promise<Array<{ festival: string; quotes: Quote[] }>> {
+    const festivals: FestivalName[] = [
+      "raghavendra_aradhana",
+      "guru_purnima",
+      "madhwa_navami",
+      "vyasa_pooja",
+    ];
+
+    const results: Array<{ festival: string; quotes: Quote[] }> = [];
+
+    for (const festival of festivals.slice(0, maxFestivals)) {
+      const quotes = await this.getFestivalQuote(festival);
+      if (quotes.length > 0) {
+        results.push({
+          festival,
+          quotes,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Search quotes
+   */
+  async searchQuotes(searchTerm: string): Promise<Quote[]> {
+    return this.getQuotes({ search: searchTerm });
+  }
+
+  /**
+   * Get rotation preview for upcoming days
+   */
+  async getRotationPreview(days = 7): Promise<Array<{ date: string; quote: Quote | null }>> {
+    const results: Array<{ date: string; quote: Quote | null }> = [];
+    const today = new Date();
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + i);
+      const context = await this.buildSelectionContext(date);
+      const quote = await this.selectQuote(context);
+      results.push({
+        date: getDateString(date),
+        quote,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Seed default quotes if collection is empty
+   */
+  async seedDefaultQuotes(): Promise<number> {
+    try {
+      // Check if quotes already exist
+      const existingQuotes = await this.getQuotes({ active: true });
+      if (existingQuotes.length > 0) {
+        console.log("[QuoteService] Quotes already exist, skipping seed");
+        return 0;
+      }
+
+      // Create default quotes
+      let created = 0;
+      for (const quoteData of DEFAULT_QUOTES_DATA) {
+        await this.createQuote({
+          ...quoteData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        } as any);
+        created++;
+      }
+
+      console.log(`[QuoteService] Seeded ${created} default quotes`);
+      return created;
+    } catch (error) {
+      console.error("[QuoteService] Error seeding quotes:", error);
+      return 0;
+    }
+  }
+
+  /**
+   * Bulk import quotes
+   */
+  async bulkImport(quotes: Omit<Quote, "id" | "createdAt" | "updatedAt">[]): Promise<{ imported: number; errors: string[] }> {
+    const errors: string[] = [];
+    let imported = 0;
+
+    for (let i = 0; i < quotes.length; i++) {
+      try {
+        const quote = quotes[i];
+        if (!quote.title || !quote.category || !quote.source) {
+          errors.push(`Quote at index ${i}: Missing required fields (title, category, source)`);
+          continue;
+        }
+
+        await this.createQuote({
+          ...quote,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        } as any);
+        imported++;
+      } catch (error: any) {
+        errors.push(`Quote at index ${i}: ${error.message}`);
+      }
+    }
+
+    return { imported, errors };
+  }
+
+  /**
+   * Get all unique tags
+   */
+  async getAllTags(): Promise<string[]> {
+    const quotes = await this.getQuotes();
+    const tagSet = new Set<string>();
+    quotes.forEach((q) => q.tags.forEach((t) => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }
+
+  /**
+   * Get quote statistics
+   */
+  async getQuoteStats(): Promise<{
+    total: number;
+    byCategory: Record<QuoteCategory, number>;
+    featured: number;
+    active: number;
+    topViewed: Quote[];
+  }> {
+    const quotes = await this.getQuotes();
+
+    const byCategory: Record<QuoteCategory, number> = {
+      raghavendra_stotra: 0,
+      mangalashtakam: 0,
+      guru_vandana: 0,
+      authentic_teachings: 0,
+      devotional_sayings: 0,
+      madhwa_philosophy: 0,
+    };
+
+    quotes.forEach((q) => {
+      byCategory[q.category]++;
+    });
+
+    const topViewed = [...quotes]
+      .sort((a, b) => (b.stats?.viewCount || 0) - (a.stats?.viewCount || 0))
+      .slice(0, 5);
+
+    return {
+      total: quotes.length,
+      byCategory,
+      featured: quotes.filter((q) => q.featured).length,
+      active: quotes.filter((q) => q.active).length,
+      topViewed,
+    };
+  }
+
+  /**
+   * Clear the quote cache
+   */
+  clearCache(): void {
+    quoteCache = null;
+    console.log("[QuoteService] Cache cleared");
+  }
+}
+
+export const quoteService = new QuoteService();

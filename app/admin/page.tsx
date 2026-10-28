@@ -10,8 +10,6 @@ import {
   TrendingDown, IndianRupee, Activity, Link2,
   PlusCircle, ChevronRight, ExternalLink, RefreshCw
 } from "lucide-react";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, getCountFromServer, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getAnalyticsSummary } from "@/services/pageviews.service";
 import { sevaLandingPath } from "@/components/admin/layout/navigation";
@@ -77,7 +75,7 @@ function SectionCard({ title, icon: Icon, iconColor, children }: {
 }
 
 export default function DashboardPage() {
-  const { profile, sevaRole } = useAuth();
+  const { profile, sevaRole, user } = useAuth();
   const router = useRouter();
   // Receptionists open on the counter and prasadam volunteers on the prasadam page; the site dashboard is not theirs.
   const landing = sevaLandingPath(sevaRole);
@@ -103,50 +101,47 @@ export default function DashboardPage() {
     }
 
     async function fetchPublicStats() {
-      if (!db || !isFirebaseConfigured) { 
-        setLoading(false); 
-        return; 
-      }
-      
       try {
-        const [usersSnap, volunteersSnap, membersSnap, donationsSnap, bookingsSnap, eventsSnap, aiConversationsSnap] = await Promise.all([
-          getCountFromServer(collection(db, "users")),
-          getCountFromServer(collection(db, "volunteers")),
-          getCountFromServer(collection(db, "members")),
-          getCountFromServer(collection(db, "donations")),
-          getCountFromServer(collection(db, "sevaBookings")),
-          getCountFromServer(collection(db, "events")),
-          getCountFromServer(collection(db, "chat_sessions")),
-        ]);
+        const token = await user?.getIdToken();
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const now = new Date();
-        const upcomingSnap = await getCountFromServer(query(collection(db, "events"), where("date", ">=", now.toISOString())));
+        // Counts and donation totals are served by the authenticated admin API
+        // (`public/stats` is the public mirror; the full dashboard summary here uses
+        // Supabase through the server with the service role).
+        const statsResponse = await fetch("/api/admin/dashboard-stats", { headers });
+        const stats = statsResponse.ok
+          ? await statsResponse.json()
+          : {
+              totalUsers: 0, activeVolunteers: 0, totalMembers: 0, totalDonations: 0,
+              totalSevaBookings: 0, totalEvents: 0, upcomingEvents: 0, totalDonors: 0,
+              totalAIConversations: 0, donationAmount: 0,
+            };
 
         // Fetch AI analytics from API
         const aiAnalytics = { avgResponseTime: "0s", successRate: "0%", languages: { english: 0, kannada: 0, mixed: 0 }, topIntents: [] as Array<{ intent: string; count: number }>, totalMessages: 0 };
-        
+
         try {
           const aiResponse = await fetch("/api/ai/analytics");
           if (aiResponse.ok) {
             const aiData = await aiResponse.json();
             const latency = aiData.dashboard?.latency;
             const intentDist = aiData.dashboard?.intentDistribution;
-            
+
             if (latency) {
               aiAnalytics.avgResponseTime = `${(latency.averageTotalLatency / 1000).toFixed(1)}s`;
               aiAnalytics.successRate = `${latency.successRate.toFixed(1)}%`;
             }
-            
+
             if (intentDist?.byLanguage) {
               const langMap: Record<string, number> = {};
               intentDist.byLanguage.forEach((l: { language: string; count: number }) => { langMap[l.language] = l.count; });
               aiAnalytics.languages = { english: langMap["en"] || 0, kannada: langMap["kn"] || 0, mixed: langMap["mixed"] || 0 };
             }
-            
+
             if (intentDist?.byIntent) {
               aiAnalytics.topIntents = intentDist.byIntent.slice(0, 5).map((i: { intent: string; count: number }) => ({ intent: i.intent.replace(/_/g, " "), count: i.count }));
             }
-            
+
             if (intentDist?.totalMessages) {
               aiAnalytics.totalMessages = intentDist.totalMessages;
             }
@@ -163,9 +158,9 @@ export default function DashboardPage() {
         let uniqueVisitors = 0;
         let deviceBreakdown = { mobile: 0, desktop: 0, tablet: 0 };
         let hasRealData = false;
-        
+
         try {
-          const webAnalytics = await getAnalyticsSummary(30);
+          const webAnalytics = await getAnalyticsSummary(30, token);
           if (webAnalytics.totalPageViews > 0) {
             topPages = webAnalytics.topPages;
             trafficSources = webAnalytics.trafficSources;
@@ -181,48 +176,35 @@ export default function DashboardPage() {
           console.warn("Web analytics fetch failed:", e);
         }
 
-        const donorsSnap = await getDocs(query(collection(db, "donations"), where("status", "==", "completed")));
-        const uniqueDonors = new Set<string>();
-        let totalDonationAmount = 0;
-        donorsSnap.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.email) uniqueDonors.add(data.email);
-          if (data.phone) uniqueDonors.add(data.phone);
-          totalDonationAmount += data.amount || 0;
-        });
-
-        const aiCount = aiConversationsSnap.data().count;
-
         setPublicStats({
-          totalUsers: usersSnap.data().count, 
-          activeVolunteers: volunteersSnap.data().count,
-          totalMembers: membersSnap.data().count, 
-          totalDonations: donationsSnap.data().count,
-          totalSevaBookings: bookingsSnap.data().count, 
-          totalEvents: eventsSnap.data().count,
-          upcomingEvents: upcomingSnap.data().count, 
-          totalDonors: uniqueDonors.size,
-          totalAIConversations: aiCount, 
+          totalUsers: stats.totalUsers,
+          activeVolunteers: stats.activeVolunteers,
+          totalMembers: stats.totalMembers,
+          totalDonations: stats.totalDonations,
+          totalSevaBookings: stats.totalSevaBookings,
+          totalEvents: stats.totalEvents,
+          upcomingEvents: stats.upcomingEvents,
+          totalDonors: stats.totalDonors,
+          totalAIConversations: stats.totalAIConversations,
           avgAIResponseTime: aiAnalytics.avgResponseTime,
-          aiSuccessRate: aiAnalytics.successRate, 
+          aiSuccessRate: aiAnalytics.successRate,
           aiLanguages: aiAnalytics.languages,
           topIntents: aiAnalytics.topIntents,
           pageViews: totalPageViews,
           uniqueVisitors: uniqueVisitors,
-          avgSessionDuration: avgSessionDuration, 
+          avgSessionDuration: avgSessionDuration,
           bounceRate: bounceRate,
           topPages: topPages.length > 0 ? topPages : [],
           trafficSources,
           deviceBreakdown,
           weeklyActiveUsers,
           newSignupsThisWeek: 0,
-          donationAmount: totalDonationAmount,
-          avgDonationAmount: uniqueDonors.size > 0 ? Math.round(totalDonationAmount / uniqueDonors.size) : 0,
+          donationAmount: stats.donationAmount,
+          avgDonationAmount: stats.totalDonors > 0 ? Math.round(stats.donationAmount / stats.totalDonors) : 0,
           hasRealData,
         });
       } catch (error) {
-        console.error("Firebase error:", error);
-        // Show empty state with message
+        console.error("Admin dashboard stats error:", error);
         setPublicStats({
           totalUsers: 0, activeVolunteers: 0, totalMembers: 0, totalDonations: 0,
           totalSevaBookings: 0, totalEvents: 0, upcomingEvents: 0, totalDonors: 0,
@@ -238,7 +220,7 @@ export default function DashboardPage() {
       finally { setLoading(false); }
     }
     fetchPublicStats();
-  }, [landing, router]);
+  }, [landing, router, user]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";

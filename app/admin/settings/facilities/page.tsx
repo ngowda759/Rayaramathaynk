@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import { ArrowLeft, Save, RotateCcw, Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -128,52 +127,20 @@ const defaultData: FacilitiesData = {
 };
 
 export default function FacilitiesSettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [data, setData] = useState<FacilitiesData>(defaultData);
+  const { data, setData, loading, saving, save } = useSettingsDocument<FacilitiesData>(
+    "facilities",
+    defaultData,
+    { admin: true }
+  );
 
-  useEffect(() => {
-    async function loadData() {
-      if (!db) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const docRef = doc(db, COLLECTION, DOCUMENT);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setData({ ...defaultData, ...docSnap.data() } as FacilitiesData);
-        }
-      } catch (error) {
-        console.error("Error loading data:", error);
-        toast.error("Failed to load settings");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
 
   async function saveData() {
-    if (!db) {
-      toast.error("Firebase not configured");
-      return;
-    }
-    setSaving(true);
     try {
-      const docRef = doc(db, COLLECTION, DOCUMENT);
-      await setDoc(docRef, {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-
+      await save(data);
       toast.success("Facilities saved successfully!");
     } catch (error) {
       console.error("Error saving data:", error);
       toast.error("Failed to save settings");
-    } finally {
-      setSaving(false);
     }
   }
 

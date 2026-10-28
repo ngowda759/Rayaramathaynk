@@ -1,126 +1,65 @@
-import { collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api/fetch";
 import { Member, MemberRequest, Volunteer, VolunteerRequest } from "@/types/volunteer";
 
-const MEMBERS_COLLECTION = "members";
-const VOLUNTEERS_COLLECTION = "volunteers";
+/**
+ * Members and volunteers, stored in Supabase `members` / `volunteers`.
+ *
+ * Both tables are deny-all under RLS, so the browser never reads them directly: every
+ * call goes through the admin-guarded `/api/admin/members` and `/api/admin/volunteers`
+ * routes, which use the service role server-side. There is no Firestore path.
+ */
 
-function docToMember(docSnap: any): Member {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    memberId: data.memberId || "",
-    name: data.name || "",
-    phone: data.phone || "",
-    sex: data.sex || "Male",
-    active: data.active ?? true,
-    address: data.address || "",
-    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt || new Date().toISOString(),
-  };
-}
-
-function docToVolunteer(docSnap: any): Volunteer {
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    volunteerId: data.volunteerId || "",
-    name: data.name || "",
-    phone: data.phone || "",
-    sex: data.sex || "Male",
-    active: data.active ?? true,
-    address: data.address || "",
-    createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt || new Date().toISOString(),
-  };
+function qs(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined) search.set(k, v);
+  const s = search.toString();
+  return s ? `?${s}` : "";
 }
 
 export const memberService = {
   async getAllMembers(): Promise<Member[]> {
-    if (!db) return [];
-    try {
-      const q = query(collection(db, MEMBERS_COLLECTION), orderBy("createdAt", "desc"));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docToMember);
-    } catch (error) {
-      console.error("[MemberService] Error:", error);
-      return [];
-    }
+    return apiFetch<Member[]>("/api/admin/members");
   },
-
   async getMemberById(id: string): Promise<Member | null> {
-    if (!db) return null;
     try {
-      const docRef = doc(db, MEMBERS_COLLECTION, id);
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) return null;
-      return docToMember(docSnap);
-    } catch (error) {
-      console.error("[MemberService] Error:", error);
+      return await apiFetch<Member>(`/api/admin/members/${encodeURIComponent(id)}`);
+    } catch {
       return null;
     }
   },
-
   async createMember(data: MemberRequest): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, MEMBERS_COLLECTION), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    return docRef.id;
+    const { id } = await apiFetch<{ id: string }>("/api/admin/members", { method: "POST", body: data });
+    return id;
   },
-
   async updateMember(id: string, data: Partial<MemberRequest>): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, MEMBERS_COLLECTION, id);
-    await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+    await apiFetch(`/api/admin/members/${encodeURIComponent(id)}`, { method: "PUT", body: data });
   },
-
   async deleteMember(id: string): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, MEMBERS_COLLECTION, id);
-    await deleteDoc(docRef);
+    await apiFetch(`/api/admin/members/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 };
 
 export const volunteerService = {
   async getAllVolunteers(): Promise<Volunteer[]> {
-    if (!db) return [];
-    try {
-      const q = query(collection(db, VOLUNTEERS_COLLECTION), orderBy("createdAt", "desc"));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(docToVolunteer);
-    } catch (error) {
-      console.error("[VolunteerService] Error:", error);
-      return [];
-    }
+    return apiFetch<Volunteer[]>("/api/admin/volunteers");
   },
-
   async getVolunteerById(id: string): Promise<Volunteer | null> {
-    if (!db) return null;
     try {
-      const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) return null;
-      return docToVolunteer(docSnap);
-    } catch (error) {
-      console.error("[VolunteerService] Error:", error);
+      return await apiFetch<Volunteer>(`/api/admin/volunteers/${encodeURIComponent(id)}`);
+    } catch {
       return null;
     }
   },
-
   async createVolunteer(data: VolunteerRequest): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, VOLUNTEERS_COLLECTION), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    return docRef.id;
+    const { id } = await apiFetch<{ id: string }>("/api/admin/volunteers", { method: "POST", body: data });
+    return id;
   },
-
   async updateVolunteer(id: string, data: Partial<VolunteerRequest>): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
-    await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+    await apiFetch(`/api/admin/volunteers/${encodeURIComponent(id)}`, { method: "PUT", body: data });
   },
-
   async deleteVolunteer(id: string): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, VOLUNTEERS_COLLECTION, id);
-    await deleteDoc(docRef);
+    await apiFetch(`/api/admin/volunteers/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 };
+
+void qs;

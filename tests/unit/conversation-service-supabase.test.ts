@@ -15,6 +15,7 @@ function makeBuilder(result: { data: unknown; error: unknown }) {
     "upsert",
     "delete",
     "eq",
+    "or",
     "order",
   ]) {
     builder[m] = jest.fn(chain);

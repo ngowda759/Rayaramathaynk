@@ -1,7 +1,7 @@
 /**
  * Device Settings Service
  * Centralized settings management for device features
- * Supports Firestore-based settings for admin configuration
+ * Settings come from Supabase `settings_documents` (document_key "device").
  */
 
 import type { DeviceSettings, TempleLocation, CalendarProvider, CameraDirection } from "@/types/device";
@@ -40,58 +40,36 @@ class DeviceSettingsService {
     if (this.initialized) return;
 
     try {
-      // Dynamic import to avoid SSR issues
-      const { doc, getDoc } = await import("firebase/firestore");
-      const { db } = await import("@/lib/firebase");
-
-      if (!db) {
-        console.warn("Firestore not initialized, using default settings");
-        this.initialized = true;
-        return;
+      // Settings are stored in Supabase `settings_documents` (document_key "device").
+      // The document is deny-all under RLS, so the browser reads it through the
+      // server-side public settings route. There is no Firestore path.
+      const response = await fetch("/api/public/settings/device");
+      if (response.ok) {
+        const { data } = (await response.json()) as { data: Partial<DeviceSettings> | null };
+        if (data) {
+          this.settings = { ...DEFAULT_DEVICE_SETTINGS, ...data };
+        }
       }
-
-      const settingsDoc = doc(db, "settings", "device");
-      const snapshot = await getDoc(settingsDoc);
-
-      if (snapshot.exists()) {
-        const data = snapshot.data() as Partial<DeviceSettings>;
-        this.settings = {
-          ...DEFAULT_DEVICE_SETTINGS,
-          ...data,
-        };
-      }
-
-      this.initialized = true;
-      this.notifyListeners();
     } catch (error) {
-      console.warn("Failed to load device settings from Firestore:", error);
+      console.warn("Failed to load device settings:", error);
       // Use defaults
-      this.initialized = true;
     }
+
+    this.initialized = true;
+    this.notifyListeners();
   }
 
   /**
    * Update settings (admin only)
    */
   async update(updates: Partial<DeviceSettings>): Promise<void> {
+    // Local singleton state only. Persisting device settings is an admin action that
+    // goes through the guarded settings document API, not this client-side singleton.
     this.settings = {
       ...this.settings,
       ...updates,
     };
     this.notifyListeners();
-
-    // Also persist to Firestore if available
-    try {
-      const { doc, updateDoc } = await import("firebase/firestore");
-      const { db } = await import("@/lib/firebase");
-
-      if (db) {
-        const settingsDoc = doc(db, "settings", "device");
-        await updateDoc(settingsDoc, updates);
-      }
-    } catch (error) {
-      console.warn("Failed to persist device settings:", error);
-    }
   }
 
   /**

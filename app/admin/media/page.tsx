@@ -22,19 +22,8 @@ import {
   Tag,
   ChevronRight
 } from "lucide-react";
-import { db, storage } from "@/lib/firebase";
-import { 
-  collection, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy,
-  deleteDoc,
-  doc,
-  serverTimestamp 
-} from "firebase/firestore";
-import { ref, listAll, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/hooks/useAuth";
+import { apiFetch } from "@/lib/api/fetch";
 
 interface MediaItem {
   id: string;
@@ -72,53 +61,54 @@ export default function MediaLibraryPage() {
   const loadMedia = useCallback(async () => {
     setLoading(true);
     try {
-      const galleryMedia: MediaItem[] = [];
-      const albumImages: MediaItem[] = [];
-      
-      // In a real implementation, this would fetch from a dedicated media collection
-      // For now, we'll use gallery data and default media
-      if (db) {
-        const gallerySnap = await getDocs(collection(db, "galleryMedia"));
-        
-        gallerySnap.docs.forEach(doc => {
-          const data = doc.data();
-          galleryMedia.push({
-            id: doc.id,
-            url: data.url || data.imageUrl || "",
-            type: data.type === "video" ? "video" : "image",
-            name: data.caption || data.title || "Untitled",
-            folder: data.albumId || "gallery",
-            createdAt: data.uploadedAt?.toDate(),
-            uploadedBy: data.uploadedBy,
-          });
-        });
+      // Gallery rows are deny-all under RLS, so they are read server-side with the
+      // admin's ID token. Local default assets remain as a fallback only.
+      const data = await apiFetch<{
+        media?: Array<{
+          id: string;
+          imagePath?: string;
+          videoUrl?: string;
+          type?: string;
+          title?: string;
+          category?: string;
+          albumId?: string;
+          uploadedAt?: string;
+          uploadedBy?: string;
+        }>;
+        albums?: Array<{ id: string; title?: string; coverImage?: string; createdAt?: string }>;
+      }>("/api/admin/gallery");
 
-        // Also load gallery albums
-        const albumsSnap = await getDocs(collection(db, "galleryAlbums"));
-        
-        albumsSnap.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.coverImage) {
-            albumImages.push({
-              id: doc.id,
-              url: data.coverImage,
-              type: "image",
-              name: data.title || "Album Cover",
-              folder: "albums",
-              createdAt: data.createdAt?.toDate(),
-            });
-          }
-        });
-      }
+      const galleryMedia: MediaItem[] = (data.media ?? []).map((m) => ({
+        id: m.id,
+        url: m.imagePath || m.videoUrl || "",
+        type: m.type === "video" ? "video" : "image",
+        name: m.title || "Untitled",
+        folder: m.albumId || m.category || "gallery",
+        createdAt: m.uploadedAt ? new Date(m.uploadedAt) : undefined,
+        uploadedBy: m.uploadedBy,
+      }));
+
+      const albumImages: MediaItem[] = (data.albums ?? [])
+        .filter((a) => a.coverImage)
+        .map((a) => ({
+          id: a.id,
+          url: a.coverImage as string,
+          type: "image" as const,
+          name: a.title || "Album Cover",
+          folder: "albums",
+          createdAt: a.createdAt ? new Date(a.createdAt) : undefined,
+        }));
 
       setMedia([...defaultMedia, ...galleryMedia, ...albumImages]);
 
-      // Extract unique folders
-      const allFolders = new Set(["all", ...defaultMedia.map(m => m.folder), ...galleryMedia.map(m => m.folder)]);
+      const allFolders = new Set([
+        "all",
+        ...defaultMedia.map((m) => m.folder),
+        ...galleryMedia.map((m) => m.folder),
+      ]);
       setFolders(Array.from(allFolders));
     } catch (error) {
       console.error("Error loading media:", error);
-      // Use default media on error
       setMedia(defaultMedia);
     } finally {
       setLoading(false);

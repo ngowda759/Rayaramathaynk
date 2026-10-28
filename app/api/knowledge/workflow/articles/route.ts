@@ -5,14 +5,14 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createWorkflowArticle,
   getWorkflowArticles,
-  getWorkflowArticleById,
-  updateWorkflowArticle,
-  performWorkflowAction,
 } from "@/services/knowledge-workflow.service";
 import { KnowledgeCategory, KnowledgeLanguage } from "@/lib/ai/knowledge/types";
 import { WorkflowStatus } from "@/types/knowledge-workflow";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
   try {
     const searchParams = request.nextUrl.searchParams;
     
@@ -44,11 +44,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
   try {
     const body = await request.json();
-    const { title, content, category, keywords, language, slug, createdBy } = body;
+    const { title, content, category, keywords, language, slug } = body;
 
-    if (!title || !content || !category || !createdBy) {
+    if (!title || !content || !category) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const articleId = await createWorkflowArticle(
       { title, content, category, keywords: keywords || [], language: language || "en", slug: slug || title.toLowerCase().replace(/\s+/g, "-") },
-      createdBy
+      auth.user.email
     );
 
     return NextResponse.json({ articleId }, { status: 201 });

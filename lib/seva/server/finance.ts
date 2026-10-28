@@ -1,18 +1,19 @@
 /**
- * The counter's UPI payee (DB §7.2 note under seva_settings): read from the site's existing finance settings in
- * Firestore (`settings/financeSettings`, the document behind hooks/useFinanceSettings.ts) and never defaulted. No UPI
- * id, or UPI switched off, means the counter offers cash only (17.4: no hard-coded VPA).
+ * The counter's UPI payee (DB §7.2 note under seva_settings): read from the site's finance settings in Supabase
+ * (`settings_documents` key `financeSettings`, the same document hooks/useFinanceSettings.ts reads through
+ * `/api/public/settings/financeSettings`) and never defaulted. No UPI id, or UPI switched off, means the counter
+ * offers cash only (17.4: no hard-coded VPA).
  *
- * Firestore stays the source, but every read is compared with the last payee recorded in Supabase
- * (`seva_note_counter_upi`), so a change made there is audited as `settings.upi_changed` and raised in Needs attention
- * (A3 security gate H-1). A read that cannot be recorded is not used.
+ * Every read is compared with the last payee recorded in Supabase (`seva_note_counter_upi`), so a change made there
+ * is audited as `settings.upi_changed` and raised in Needs attention (A3 security gate H-1). A read that cannot be
+ * recorded is not used.
  */
 
 import "server-only";
 import { SevaError } from "@/lib/seva/errors";
+import { getSettingsDocument } from "@/services/settings-document.service";
 import { callRpc } from "./rpc";
 
-const SETTINGS_COLLECTION = "settings";
 const FINANCE_DOC = "financeSettings";
 /** handle@psp: letters, digits, dots, hyphens and underscores, then the provider's handle. */
 const VPA = /^[A-Za-z0-9._-]{2,256}@[A-Za-z0-9.-]{2,64}$/;
@@ -39,16 +40,13 @@ function upiOf(data: Record<string, unknown> | undefined): CounterUpi | null {
 /**
  * The UPI id and payee name the counter shows on its payment QR, or null when UPI is switched off, the id is empty or
  * is not a UPI id. A missing `enabled` flag counts as on, as the finance settings page treats it. Throws
- * SevaError('internal') when Firestore cannot be read, and the SQL function's error when the payee cannot be recorded.
+ * SevaError('internal') when the settings document cannot be read, and the SQL function's error when the payee cannot
+ * be recorded.
  */
 export async function readCounterUpi(): Promise<CounterUpi | null> {
   let data: Record<string, unknown> | undefined;
   try {
-    // Firebase Admin loads on first use, as in identity-firebase.ts.
-    const { getAdminFirestore } = await import("@/lib/admin-firebase");
-    const db = await getAdminFirestore();
-    const snapshot = await db.collection(SETTINGS_COLLECTION).doc(FINANCE_DOC).get();
-    data = snapshot.exists ? (snapshot.data() as Record<string, unknown> | undefined) : undefined;
+    data = (await getSettingsDocument(FINANCE_DOC)) ?? undefined;
   } catch {
     throw new SevaError("internal");
   }

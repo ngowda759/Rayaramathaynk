@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { dailySpiritualService } from "@/services/daily-spiritual.service";
+import { dailySpiritualService } from "@/services/daily-spiritual.server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
