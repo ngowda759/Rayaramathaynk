@@ -2,6 +2,7 @@
 // Handles Draft → Review → Publish workflow, versioning, committee approval, and audit trail
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ilikeContainsFilter } from "@/lib/supabase/filters";
 import { resolveRowUuid, rowIdFilter } from "@/lib/supabase/identifier";
 import {
   WorkflowArticle,
@@ -748,9 +749,11 @@ export async function getWorkflowArticles(
   if (params.startDate) builder = builder.gte("updated_at", params.startDate.toISOString());
   if (params.endDate) builder = builder.lte("updated_at", params.endDate.toISOString());
   if (params.search) {
-    // The wildcards are escaped so a literal % in the query cannot widen the match.
-    const needle = params.search.replace(/[%_]/g, "\\$&");
-    builder = builder.or(`title.ilike.%${needle}%,content.ilike.%${needle}%`);
+    // The term is quoted and escaped for the PostgREST filter expression, so a typed
+    // `,` `.` `(` or `%` cannot break the expression or widen the match.
+    builder = builder.or(
+      [ilikeContainsFilter("title", params.search), ilikeContainsFilter("content", params.search)].join(",")
+    );
   }
 
   const { data, error } = await builder.order("updated_at", { ascending: false }).limit(100);
