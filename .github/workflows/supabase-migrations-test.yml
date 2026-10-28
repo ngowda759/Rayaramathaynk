@@ -1,0 +1,138 @@
+# Verifies pending Supabase migrations against a DEDICATED TEST project.
+#
+# This workflow is deliberately separate from `supabase-migrations.yml` (the production
+# deploy). It never applies anything: it runs `supabase migration list` and a
+# `supabase db push --dry-run` only. There is no `supabase db push`, no SQL write, no
+# seed command, and no production credential anywhere in this file.
+#
+# Safety properties (do not weaken):
+#   - workflow_dispatch only; it never runs on push or on a schedule;
+#   - no `environment: production` binding and no production secret is referenced:
+#     every credential is TEST_-prefixed, so a production secret cannot be reached
+#     even if the test secrets are unset;
+#   - `scripts/lib/guard-test-project.mjs` runs BEFORE `supabase link` and before any
+#     Supabase command, and refuses anything that is not an explicitly allow-listed
+#     test project — in particular it always refuses the approved production project;
+#   - when the test project ref, the allowlist or the test credentials are not
+#     configured, the job fails with an actionable message instead of falling back;
+#   - every `${{ ... }}` value is passed through `env:`, never interpolated into a
+#     `run:` block, so a value cannot execute as shell text.
+#
+# The project ref is supplied as a dispatch input; the allowlist and URL come from
+# repository variables; the credentials come from repository secrets. None of them is
+# interpolated into a shell script.
+name: Verify Supabase Migrations (Test Project)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: verify-test-supabase-migrations'
+        required: true
+        type: string
+      test_project_ref:
+        description: 'The dedicated TEST project ref to verify (must be allow-listed)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-migrations-test
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      TEST_SUPABASE_PROJECT_REF: ${{ inputs.test_project_ref }}
+      TEST_SUPABASE_PROJECT_REFS: ${{ vars.TEST_SUPABASE_PROJECT_REFS }}
+      TEST_SUPABASE_URL: ${{ vars.TEST_SUPABASE_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.TEST_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.TEST_SUPABASE_DB_PASSWORD }}
+
+    steps:
+      # `inputs.confirm` is untrusted input. It is passed through an environment
+      # variable and compared as a quoted shell variable, never interpolated into the
+      # script text, so a value like `$(...)` or `; ...` cannot execute.
+      - name: Check confirmation phrase
+        env:
+          CONFIRM_PHRASE: ${{ inputs.confirm }}
+        shell: bash
+        run: |
+          if [[ "$CONFIRM_PHRASE" != "verify-test-supabase-migrations" ]]; then
+            echo "ERROR: confirmation phrase did not match. Refusing to run."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Fail safely and actionably when the test project or its credentials are not
+      # configured. Never fall back to production, never infer a project from a URL.
+      - name: Require test-only configuration
+        shell: bash
+        run: |
+          missing=""
+          if [ -z "$TEST_SUPABASE_PROJECT_REF" ]; then
+            missing="$missing TEST_SUPABASE_PROJECT_REF(dispatch input test_project_ref)"
+          fi
+          if [ -z "$TEST_SUPABASE_PROJECT_REFS" ]; then
+            missing="$missing TEST_SUPABASE_PROJECT_REFS(repository variable)"
+          fi
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            missing="$missing TEST_SUPABASE_ACCESS_TOKEN(secret)"
+          fi
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            missing="$missing TEST_SUPABASE_DB_PASSWORD(secret)"
+          fi
+          if [ -n "$missing" ]; then
+            echo "ERROR: this workflow verifies a dedicated TEST Supabase project, and it is not configured."
+            echo "Missing:$missing"
+            echo ""
+            echo "To configure it (owner action, once):"
+            echo "  1. Create a dedicated Supabase TEST project (never the production project)."
+            echo "  2. Set repository variable TEST_SUPABASE_PROJECT_REFS to a comma-separated"
+            echo "     allowlist of test project refs (the production ref is refused if present)."
+            echo "  3. Set repository variable TEST_SUPABASE_URL to the test project's API URL."
+            echo "  4. Set repository secrets TEST_SUPABASE_ACCESS_TOKEN and TEST_SUPABASE_DB_PASSWORD"
+            echo "     from the TEST project only."
+            echo "  5. Dispatch this workflow with test_project_ref set to an allow-listed ref."
+            echo ""
+            echo "Nothing was linked, listed or pushed."
+            exit 1
+          fi
+          echo "Test-only configuration is present."
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails closed on a missing, malformed, non-allow-listed or production ref,
+      # and on a URL that does not resolve to the requested ref. Runs before the CLI
+      # is installed and before any Supabase command.
+      - name: Guard test project ref
+        run: node scripts/lib/guard-test-project.mjs
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: '1.200.0'
+
+      - name: Link Supabase test project
+        run: supabase link --project-ref "$TEST_SUPABASE_PROJECT_REF"
+
+      - name: Diagnostic migration list
+        run: supabase migration list
+
+      # Read-only: `db push --dry-run` reports what would apply and writes nothing.
+      - name: Run Supabase migration dry-run
+        run: supabase db push --dry-run

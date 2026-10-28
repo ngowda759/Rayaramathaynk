@@ -109,11 +109,12 @@ describe("database-writer inventory", () => {
       if (entry.guardStyle !== "step") continue;
       expect(`${entry.id}:${GUARD_COMMANDS.includes(entry.guard)}`).toBe(`${entry.id}:true`);
     }
-    // Three distinct shared guards, one per credential shape (project ref, API
-    // URL, raw database URL), plus the in-script identity check that reuses the
-    // same approved-project library. No guard is re-implemented per workflow.
+    // Four distinct shared guards, one per credential shape (project ref, API
+    // URL, raw database URL) plus the test-project allowlist guard, and the
+    // in-script identity check that reuses the same approved-project library.
+    // No guard is re-implemented per workflow.
     const stepGuards = ALL_INVENTORY.filter((w) => w.guardStyle === "step").map((w) => w.guard);
-    expect(new Set(stepGuards).size).toBe(3);
+    expect(new Set(stepGuards).size).toBe(4);
     expect(stepGuards.every((g) => GUARD_COMMANDS.includes(g))).toBe(true);
   });
 
