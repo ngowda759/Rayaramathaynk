@@ -703,3 +703,22 @@ Working log archived; see daily logs. Not this repository.
   imports remain in `lib/date.ts`, `types/{billing,profile,user}.ts`. Every Supabase repo uses
   `row.firestore_id || row.id` as a legacy public-id fallback — that is NOT a Firestore client.
 - Seed verified idempotent on isolated PGlite: run 1 = 69 rows, run 2 = +0.
+
+### Fresh-seed production guard (PR #363, 2026-10-28)
+
+- `scripts/seed-fresh-supabase.ts` `checkGuards()` originally matched only
+  `/prod|production|live/i` and let the **approved production ref** through — the shared
+  `scripts/lib/guard-approved-project.mjs` treats that ref as the one permitted target, so
+  the two guards disagreed. Fixed (commit `07e0b98`) to fail closed: refuse `--project-ref
+  === APPROVED_PROJECT_REF`, use the fail-closed `refFromSupabaseUrl` (not substring
+  `includes`) for the URL check, and refuse a `--local` `DATABASE_URL` that resolves to the
+  approved project **or is ambiguous** (Supavisor routes tenant from the username).
+- **ts-jest cannot import `.mjs`** (fails "Cannot use import statement outside a module"; a
+  jest `transform`/`moduleFileExtensions` tweak does not help). A `.ts` test can therefore
+  not import a script that imports `approved-project.mjs`. Pattern that works: `spawnSync`
+  the real CLI under `--dry-run` with a scrubbed env, and read `APPROVED_PROJECT_REF` from a
+  `node --input-type=module` child process. See `tests/unit/seed-fresh-supabase-guards.test.ts`.
+- A sibling `foo.d.mts` next to `foo.mjs` types it for TS (and cleared a pre-existing
+  implicit-any error: `tsconfig.scripts.json` 68 → 67).
+- **`origin`'s embedded token is expired** — `git push origin …` hangs on a password prompt;
+  push with `GIT_TERMINAL_PROMPT=0 git push "https://${GITHUB_TOKEN}@github.com/ngowda759/Rayaramathaynk.git" HEAD:<branch>`.
