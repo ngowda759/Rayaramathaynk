@@ -27,8 +27,10 @@
  *   --dry-run                   print the plan and write nothing.
  *
  * Guards (each refuses with a plain message and exit code 1): NODE_ENV=production,
- * VERCEL or CI refuse the run; a project-ref run must be confirmed; --local requires
- * DATABASE_URL. No key or secret is ever printed.
+ * VERCEL or CI refuse the run; the approved production project is always refused
+ * (matched through the shared `scripts/lib/approved-project.mjs` constant, so it cannot
+ * drift); a project-ref run must be confirmed; --local requires DATABASE_URL and refuses
+ * a DATABASE_URL that resolves to the approved project. No key or secret is ever printed.
  */
 
 import * as path from "path";
@@ -36,6 +38,7 @@ import { Client } from "pg";
 
 import { runSeedPlan, SeedError, type SeedPort, type SeedSummary } from "../lib/supabase/seed-data/runner";
 import { SEED_PLAN } from "../lib/supabase/seed-data/plan";
+import { analyzeDbUrlRef, APPROVED_PROJECT_REF, fingerprint, isApprovedRef, refFromSupabaseUrl } from "./lib/approved-project.mjs";
 
 interface Options {
   local: boolean;
@@ -71,16 +74,28 @@ export function checkGuards(options: Options, env: NodeJS.ProcessEnv): string | 
     if (!options.confirmed) {
       return "A --project-ref run needs --yes-this-is-a-test-project to confirm the target is a test project.";
     }
+    if (isApprovedRef(options.projectRef)) {
+      return `Refusing to seed: --project-ref is the approved production project (fingerprint ${fingerprint(APPROVED_PROJECT_REF)}). This command has no supported production seed path.`;
+    }
     const url = env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-    if (!url.includes(`${options.projectRef}.supabase.co`)) {
+    if (refFromSupabaseUrl(url) !== options.projectRef) {
       return "NEXT_PUBLIC_SUPABASE_URL does not match --project-ref. Refusing to write to an unexpected project.";
     }
     if (/prod|production|live/i.test(options.projectRef)) {
       return "Refusing to seed: the project ref looks like production.";
     }
   }
-  if (options.local && !env.DATABASE_URL) {
-    return "--local needs DATABASE_URL pointing at the local/test Postgres.";
+  if (options.local) {
+    if (!env.DATABASE_URL) {
+      return "--local needs DATABASE_URL pointing at the local/test Postgres.";
+    }
+    const { ref, userRef, hostRef, ambiguous } = analyzeDbUrlRef(env.DATABASE_URL);
+    // Fail closed. Supavisor routes the tenant from the username, so either
+    // location naming the approved project is enough to refuse, and an ambiguous
+    // string (two conflicting refs) cannot be proven safe.
+    if (ambiguous || isApprovedRef(ref) || isApprovedRef(userRef) || isApprovedRef(hostRef)) {
+      return `Refusing to seed: DATABASE_URL resolves to the approved production project (fingerprint ${fingerprint(APPROVED_PROJECT_REF)}). Use a local/test Postgres.`;
+    }
   }
   return null;
 }

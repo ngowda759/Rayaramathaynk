@@ -91,9 +91,14 @@ plain message when:
 - `NODE_ENV=production`, `VERCEL` or `CI` is set;
 - both `--local` and `--project-ref` are given, or neither is;
 - a `--project-ref` run is missing `--yes-this-is-a-test-project`;
-- `NEXT_PUBLIC_SUPABASE_URL` does not contain the `--project-ref`;
+- the `--project-ref` is the **approved production project** (`kvrkraqjuyxbraccxntk`,
+  matched through the shared `scripts/lib/approved-project.mjs` constant, so it cannot
+  drift from the value the migration workflow guards against);
+- `NEXT_PUBLIC_SUPABASE_URL` does not resolve to the `--project-ref`;
 - the project ref matches `prod`, `production` or `live`;
-- `--local` is given without `DATABASE_URL`.
+- `--local` is given without `DATABASE_URL`;
+- `DATABASE_URL` resolves to the approved production project, or is ambiguous about which
+  project it names.
 
 There is therefore **no supported production seed path**. Initializing production is a
 separate, reviewed change with its own approval, and is **not** performed by this
