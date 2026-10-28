@@ -1,81 +1,84 @@
 // API Route: /api/public/stats
-// Returns public statistics for the website
+// Returns public aggregate statistics for the website.
 
 import { NextResponse } from "next/server";
-import { getCountFromServer, collection, query, where, getDocs } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { createAdminClient } from "@/lib/supabase/admin";
 
+const EMPTY_STATS = {
+  totalUsers: 0,
+  activeVolunteers: 0,
+  totalMembers: 0,
+  totalDonations: 0,
+  totalSevaBookings: 0,
+  totalEvents: 0,
+  upcomingEvents: 0,
+  totalDonors: 0,
+};
+
+/**
+ * Public aggregate counts, read from Supabase with the service role.
+ *
+ * The counted tables are deny-all under RLS, so the counts are produced server-side;
+ * only aggregate numbers leave the server, never individual records. There is no
+ * Firestore path.
+ */
 export async function GET() {
-  if (!isFirebaseConfigured() || !db) {
-    return NextResponse.json({
-      stats: {
-        totalUsers: 0,
-        activeVolunteers: 0,
-        totalMembers: 0,
-        totalDonations: 0,
-        totalSevaBookings: 0,
-        totalEvents: 0,
-        upcomingEvents: 0,
-        totalDonors: 0,
-      }
-    });
-  }
-
   try {
+    const supabase = createAdminClient();
+
+    async function count(table: string): Promise<number> {
+      const { count: value, error } = await supabase
+        .from(table)
+        .select("*", { count: "exact", head: true });
+      if (error) throw new Error(`Could not count ${table}: ${error.message}`);
+      return value ?? 0;
+    }
+
+    const todayIso = new Date().toISOString().split("T")[0];
+
     const [
-      users,
-      volunteers,
-      members,
-      donations,
-      bookings,
-      events,
+      totalUsers,
+      activeVolunteers,
+      totalMembers,
+      totalDonations,
+      totalSevaBookings,
+      totalEvents,
+      upcomingResult,
+      donorsResult,
     ] = await Promise.all([
-      getCountFromServer(collection(db, "users")),
-      getCountFromServer(collection(db, "volunteers")),
-      getCountFromServer(collection(db, "members")),
-      getCountFromServer(collection(db, "donations")),
-      getCountFromServer(collection(db, "sevaBookings")),
-      getCountFromServer(collection(db, "events")),
+      count("users"),
+      count("volunteers"),
+      count("members"),
+      count("donations"),
+      count("seva_bookings"),
+      count("events"),
+      supabase.from("events").select("*", { count: "exact", head: true }).gte("start_date", todayIso),
+      supabase.from("donations").select("email, phone").eq("status", "received"),
     ]);
 
-    // Count upcoming events
-    const now = new Date();
-    const upcomingEventsQuery = query(
-      collection(db, "events"),
-      where("date", ">=", now.toISOString())
-    );
-    const upcomingEventsSnapshot = await getCountFromServer(upcomingEventsQuery);
+    if (upcomingResult.error) throw new Error(upcomingResult.error.message);
+    if (donorsResult.error) throw new Error(donorsResult.error.message);
 
-    // Count unique donors (by email or phone)
-    const donorsQuery = query(
-      collection(db, "donations"),
-      where("status", "==", "completed")
-    );
-    const donorsSnapshot = await getDocs(donorsQuery);
-    const uniqueDonors = new Set();
-    donorsSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.email) uniqueDonors.add(data.email);
-      if (data.phone) uniqueDonors.add(data.phone);
+    const uniqueDonors = new Set<string>();
+    (donorsResult.data ?? []).forEach((row: any) => {
+      if (row.email) uniqueDonors.add(row.email);
+      if (row.phone) uniqueDonors.add(row.phone);
     });
 
     return NextResponse.json({
       stats: {
-        totalUsers: users.data().count,
-        activeVolunteers: volunteers.data().count,
-        totalMembers: members.data().count,
-        totalDonations: donations.data().count,
-        totalSevaBookings: bookings.data().count,
-        totalEvents: events.data().count,
-        upcomingEvents: upcomingEventsSnapshot.data().count,
+        totalUsers,
+        activeVolunteers,
+        totalMembers,
+        totalDonations,
+        totalSevaBookings,
+        totalEvents,
+        upcomingEvents: upcomingResult.count ?? 0,
         totalDonors: uniqueDonors.size,
-      }
+      },
     });
   } catch (error) {
     console.error("Error fetching public stats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return NextResponse.json({ stats: EMPTY_STATS });
   }
 }

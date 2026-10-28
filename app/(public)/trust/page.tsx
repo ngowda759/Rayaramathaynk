@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import Image from "next/image";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
@@ -48,30 +47,10 @@ const defaultData: TrustCommitteeData = {
 };
 
 export default function TrustCommitteePage() {
-  const [data, setData] = useState<TrustCommitteeData>(defaultData);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-        const docRef = doc(db, "settings", "trustCommittee");
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setData({ ...defaultData, ...docSnap.data() } as TrustCommitteeData);
-        }
-      } catch (error) {
-        console.error("Error loading trust committee data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const { data, loading } = useSettingsDocument<TrustCommitteeData>(
+    "trustCommittee",
+    defaultData
+  );
 
   const activeMembers = data.members
     .filter((m) => m.isActive)

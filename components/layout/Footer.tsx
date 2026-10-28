@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import Image from "next/image";
 import { MapPin, Phone, Mail, Heart, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 interface FooterData {
   templeName: string;
@@ -57,29 +55,7 @@ const defaultData: FooterData = {
 };
 
 export default function Footer() {
-  const [footerData, setFooterData] = useState<FooterData>(defaultData);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadFooterData() {
-      if (!db) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const docRef = doc(db, "settings", "footer");
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setFooterData({ ...defaultData, ...docSnap.data() } as FooterData);
-        }
-      } catch (error) {
-        console.error("Error loading footer data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadFooterData();
-  }, []);
+  const { data: footerData } = useSettingsDocument<FooterData>("footer", defaultData);
 
   const currentYear = new Date().getFullYear();
   const copyrightYear = footerData.currentYear ? currentYear : "";

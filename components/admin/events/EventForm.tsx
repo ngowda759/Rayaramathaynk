@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Timestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 import { TempleEvent } from "@/types/event";
@@ -17,12 +16,12 @@ interface EventFormProps {
 }
 
 function toJsDate(
-  value: Timestamp | { seconds: number; nanoseconds?: number } | string | number | null | undefined
+  value: { toDate: () => Date } | { seconds: number; nanoseconds?: number } | string | number | null | undefined
 ): Date | null {
   if (!value) return null;
 
-  if (typeof (value as Timestamp)?.toDate === "function") {
-    return (value as Timestamp).toDate();
+  if (typeof (value as { toDate: () => Date })?.toDate === "function") {
+    return (value as { toDate: () => Date }).toDate();
   }
 
   if (typeof (value as { seconds: number }).seconds === "number") {
@@ -38,7 +37,7 @@ function toJsDate(
 }
 
 function toDateTimeInputs(
-  timestamp?: Timestamp | { seconds: number; nanoseconds?: number } | string | null
+  timestamp?: { toDate: () => Date } | { seconds: number; nanoseconds?: number } | string | null
 ) {
   const d = toJsDate(timestamp);
 
@@ -56,15 +55,13 @@ function toDateTimeInputs(
   return { date, time };
 }
 
-function toTimestamp(date: string, time: string): Timestamp | null {
+function toIsoString(date: string, time: string): string | null {
   if (!date) return null;
 
   const [hours, minutes] = time ? time.split(":").map(Number) : [0, 0];
   const [year, month, day] = date.split("-").map(Number);
 
-  const combined = new Date(year, month - 1, day, hours || 0, minutes || 0);
-
-  return Timestamp.fromDate(combined);
+  return new Date(year, month - 1, day, hours || 0, minutes || 0).toISOString();
 }
 
 export default function EventForm({
@@ -115,10 +112,10 @@ export default function EventForm({
     }
 
     if (form.startDate && form.endDate) {
-      const start = toTimestamp(form.startDate, form.startTime);
-      const end = toTimestamp(form.endDate, form.endTime);
+      const start = toIsoString(form.startDate, form.startTime);
+      const end = toIsoString(form.endDate, form.endTime);
 
-      if (start && end && end.toMillis() < start.toMillis()) {
+      if (start && end && new Date(end).getTime() < new Date(start).getTime()) {
         validationErrors.endDate = "End date must be on or after the start date.";
       }
     }
@@ -138,8 +135,8 @@ export default function EventForm({
     setLoading(true);
 
     try {
-      const startTimestamp = toTimestamp(form.startDate, form.startTime);
-      const endTimestamp = toTimestamp(form.endDate, form.endTime);
+      const startTimestamp = toIsoString(form.startDate, form.startTime);
+      const endTimestamp = toIsoString(form.endDate, form.endTime);
 
       if (!startTimestamp || !endTimestamp) {
         alert("Please provide valid start and end dates.");

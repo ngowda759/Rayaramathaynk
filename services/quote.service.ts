@@ -3,21 +3,8 @@
  * Epic: Intelligent Devotional Quote Engine for Sri Raghavendra Swamy Temple
  */
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  FirestoreError,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Quote,
   QuoteCategory,
@@ -33,9 +20,8 @@ import {
   Weekday,
 } from "@/types/quote";
 import { eventService } from "./event.service";
-import { Timestamp } from "firebase/firestore";
 
-const COLLECTION = "quotes";
+const TABLE = "quotes";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // In-memory cache for today's quote
@@ -182,34 +168,34 @@ function getFallbackQuote(dayOfWeek: number): Quote {
 /**
  * Convert Firestore document to Quote
  */
-function docToQuote(id: string, data: any): Quote {
+function rowToQuote(row: any): Quote {
   return {
-    id,
-    slug: data.slug || "",
-    title: data.title || "",
-    category: data.category || "devotional_sayings",
-    priority: data.priority || 5,
-    language: data.language || "en",
-    content: data.content || {},
-    source: data.source || "",
-    author: data.author,
-    verseNumber: data.verseNumber,
-    tags: data.tags || [],
-    active: data.active ?? true,
-    featured: data.featured ?? false,
-    festivalOnly: data.festivalOnly ?? false,
-    festivalNames: data.festivalNames || [],
-    weekdayOnly: data.weekdayOnly ?? null,
-    panchangaRules: data.panchangaRules,
-    eventRules: data.eventRules,
-    displayFrom: data.displayFrom,
-    displayTo: data.displayTo,
-    displayWeight: data.displayWeight || 1,
-    rotationGroup: data.rotationGroup,
-    stats: data.stats || { viewCount: 0 },
-    createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
-    createdBy: data.createdBy,
+    id: row.firestore_id || row.id,
+    slug: row.slug || "",
+    title: row.title || "",
+    category: row.category || "devotional_sayings",
+    priority: row.priority || 5,
+    language: row.language || "en",
+    content: row.content || {},
+    source: row.source || "",
+    author: row.author,
+    verseNumber: row.verse_number,
+    tags: row.tags || [],
+    active: row.active ?? true,
+    featured: row.featured ?? false,
+    festivalOnly: row.festival_only ?? false,
+    festivalNames: row.festival_names || [],
+    weekdayOnly: row.weekday_only ?? null,
+    panchangaRules: row.panchanga_rules,
+    eventRules: row.event_rules,
+    displayFrom: row.display_from,
+    displayTo: row.display_to,
+    displayWeight: row.display_weight || 1,
+    rotationGroup: row.rotation_group,
+    stats: row.stats || { viewCount: 0 },
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+    createdBy: row.created_by,
   };
 }
 
@@ -251,46 +237,27 @@ class QuoteService {
    * Get all quotes with optional filters
    */
   async getQuotes(filters?: QuoteFilters): Promise<Quote[]> {
-    if (!db) {
-      console.log("[QuoteService] Firebase not configured, returning empty array");
-      return [];
-    }
-
     try {
       console.log("[QuoteService] getQuotes called with filters:", JSON.stringify(filters));
       
-      // Build constraints - start simple, add filters one by one
-      const constraints: any[] = [where("active", "==", filters?.active ?? true)];
+      const supabase = createClient();
+      let builder = supabase
+        .from(TABLE)
+        .select("*")
+        .eq("active", filters?.active ?? true);
 
-      if (filters?.category) {
-        constraints.push(where("category", "==", filters.category));
-      }
+      if (filters?.category) builder = builder.eq("category", filters.category);
+      if (filters?.language) builder = builder.eq("language", filters.language);
+      if (filters?.featured !== undefined) builder = builder.eq("featured", filters.featured);
+      if (filters?.festivalOnly !== undefined) builder = builder.eq("festival_only", filters.festivalOnly);
+      if (filters?.weekdayOnly !== undefined) builder = builder.eq("weekday_only", filters.weekdayOnly);
 
-      if (filters?.language) {
-        constraints.push(where("language", "==", filters.language));
-      }
+      const { data, error } = await builder;
+      if (error) throw new Error(error.message);
 
-      if (filters?.featured !== undefined) {
-        constraints.push(where("featured", "==", filters.featured));
-      }
+      console.log("[QuoteService] Supabase returned", (data ?? []).length, "rows");
 
-      if (filters?.festivalOnly !== undefined) {
-        constraints.push(where("festivalOnly", "==", filters.festivalOnly));
-      }
-
-      if (filters?.weekdayOnly !== undefined) {
-        constraints.push(where("weekdayOnly", "==", filters.weekdayOnly));
-      }
-
-      console.log("[QuoteService] Query constraints count:", constraints.length);
-      
-      // Use simple query without orderBy - sort in memory
-      const q = query(collection(db, COLLECTION), ...constraints);
-      const snapshot = await getDocs(q);
-
-      console.log("[QuoteService] Firestore returned", snapshot.size, "documents");
-      
-      let quotes = snapshot.docs.map((d) => docToQuote(d.id, d.data()));
+      let quotes = (data ?? []).map(rowToQuote);
 
       // Sort by priority in memory
       quotes.sort((a, b) => (a.priority || 5) - (b.priority || 5));
@@ -327,12 +294,15 @@ class QuoteService {
    * Get a single quote by ID
    */
   async getQuoteById(id: string): Promise<Quote | null> {
-    if (!db) return null;
-
     try {
-      const snap = await getDoc(doc(db, COLLECTION, id));
-      if (!snap.exists()) return null;
-      return docToQuote(snap.id, snap.data());
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select("*")
+        .eq("firestore_id", id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? rowToQuote(data) : null;
     } catch (error) {
       console.error("[QuoteService] Error fetching quote:", error);
       return null;
@@ -343,14 +313,15 @@ class QuoteService {
    * Get a quote by slug
    */
   async getQuoteBySlug(slug: string): Promise<Quote | null> {
-    if (!db) return null;
-
     try {
-      const q = query(collection(db, COLLECTION), where("slug", "==", slug), limit(1));
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) return null;
-      const docSnap = snapshot.docs[0];
-      return docToQuote(docSnap.id, docSnap.data());
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select("*")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? rowToQuote(data) : null;
     } catch (error) {
       console.error("[QuoteService] Error fetching quote by slug:", error);
       return null;
@@ -361,39 +332,80 @@ class QuoteService {
    * Create a new quote
    */
   async createQuote(quote: Omit<Quote, "id" | "createdAt" | "updatedAt">): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-
-    const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, COLLECTION), {
-      ...quote,
-      stats: { viewCount: 0 },
-      createdAt: Timestamp.fromDate(new Date()),
-      updatedAt: Timestamp.fromDate(new Date()),
-    });
-
-    return docRef.id;
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert({
+        slug: quote.slug,
+        title: quote.title,
+        category: quote.category,
+        priority: quote.priority,
+        language: quote.language,
+        content: quote.content ?? {},
+        source: quote.source,
+        author: quote.author ?? null,
+        verse_number: quote.verseNumber ?? null,
+        tags: quote.tags ?? [],
+        active: quote.active ?? true,
+        featured: quote.featured ?? false,
+        festival_only: quote.festivalOnly ?? false,
+        festival_names: quote.festivalNames ?? [],
+        weekday_only: quote.weekdayOnly ?? null,
+        panchanga_rules: quote.panchangaRules ?? null,
+        event_rules: quote.eventRules ?? null,
+        display_from: quote.displayFrom ?? null,
+        display_to: quote.displayTo ?? null,
+        display_weight: quote.displayWeight ?? 1,
+        rotation_group: quote.rotationGroup ?? null,
+        stats: { viewCount: 0 },
+        created_by: quote.createdBy ?? null,
+      })
+      .select("firestore_id, id")
+      .single();
+    if (error) throw new Error(`Could not create quote: ${error.message}`);
+    return data.firestore_id || data.id;
   }
 
   /**
    * Update an existing quote
    */
   async updateQuote(id: string, updates: Partial<Quote>): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-
-    const { id: _, createdAt: __, ...cleanUpdates } = updates;
-    
-    await updateDoc(doc(db, COLLECTION, id), {
-      ...cleanUpdates,
-      updatedAt: Timestamp.fromDate(new Date()),
-    });
+    const supabase = createAdminClient();
+    const update: Record<string, unknown> = {};
+    if (updates.slug !== undefined) update.slug = updates.slug;
+    if (updates.title !== undefined) update.title = updates.title;
+    if (updates.category !== undefined) update.category = updates.category;
+    if (updates.priority !== undefined) update.priority = updates.priority;
+    if (updates.language !== undefined) update.language = updates.language;
+    if (updates.content !== undefined) update.content = updates.content;
+    if (updates.source !== undefined) update.source = updates.source;
+    if (updates.author !== undefined) update.author = updates.author;
+    if (updates.verseNumber !== undefined) update.verse_number = updates.verseNumber;
+    if (updates.tags !== undefined) update.tags = updates.tags;
+    if (updates.active !== undefined) update.active = updates.active;
+    if (updates.featured !== undefined) update.featured = updates.featured;
+    if (updates.festivalOnly !== undefined) update.festival_only = updates.festivalOnly;
+    if (updates.festivalNames !== undefined) update.festival_names = updates.festivalNames;
+    if (updates.weekdayOnly !== undefined) update.weekday_only = updates.weekdayOnly;
+    if (updates.panchangaRules !== undefined) update.panchanga_rules = updates.panchangaRules;
+    if (updates.eventRules !== undefined) update.event_rules = updates.eventRules;
+    if (updates.displayFrom !== undefined) update.display_from = updates.displayFrom;
+    if (updates.displayTo !== undefined) update.display_to = updates.displayTo;
+    if (updates.displayWeight !== undefined) update.display_weight = updates.displayWeight;
+    if (updates.rotationGroup !== undefined) update.rotation_group = updates.rotationGroup;
+    if (updates.stats !== undefined) update.stats = updates.stats;
+    update.updated_at = new Date().toISOString();
+    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    if (error) throw new Error(`Could not update quote: ${error.message}`);
   }
 
   /**
    * Delete a quote
    */
   async deleteQuote(id: string): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    await deleteDoc(doc(db, COLLECTION, id));
+    const supabase = createAdminClient();
+    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    if (error) throw new Error(`Could not delete quote: ${error.message}`);
   }
 
   /**
@@ -414,12 +426,8 @@ class QuoteService {
       const events = await eventService.getPublishedEvents();
       activeEvents = events
         .filter((event) => {
-          const startDate = event.startDate instanceof Timestamp 
-            ? event.startDate.toDate() 
-            : new Date(event.startDate as any);
-          const endDate = event.endDate instanceof Timestamp 
-            ? event.endDate.toDate() 
-            : new Date(event.endDate as any);
+          const startDate = new Date(event.startDate as any);
+          const endDate = new Date(event.endDate as any);
           return startDate <= todayEnd && endDate >= todayStart;
         })
         .map((event) => ({
@@ -746,15 +754,21 @@ class QuoteService {
    * Increment view count for a quote
    */
   async incrementViewCount(id: string): Promise<void> {
-    if (!db) return;
-
     try {
       const quote = await this.getQuoteById(id);
       if (quote) {
-        await updateDoc(doc(db, COLLECTION, id), {
-          "stats.viewCount": (quote.stats?.viewCount || 0) + 1,
-          "stats.lastViewedAt": new Date().toISOString(),
-        });
+        const supabase = createAdminClient();
+        const { error } = await supabase
+          .from(TABLE)
+          .update({
+            stats: {
+              ...(quote.stats || {}),
+              viewCount: (quote.stats?.viewCount || 0) + 1,
+              lastViewedAt: new Date().toISOString(),
+            },
+          })
+          .eq("firestore_id", id);
+        if (error) throw new Error(error.message);
       }
     } catch (error) {
       console.error("[QuoteService] Error incrementing view count:", error);
@@ -918,11 +932,6 @@ class QuoteService {
    * Seed default quotes if collection is empty
    */
   async seedDefaultQuotes(): Promise<number> {
-    if (!db) {
-      console.log("[QuoteService] Firebase not configured, cannot seed");
-      return 0;
-    }
-
     try {
       // Check if quotes already exist
       const existingQuotes = await this.getQuotes({ active: true });

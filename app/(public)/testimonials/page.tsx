@@ -7,13 +7,13 @@ import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import SacredDivider from "@/components/home/SacredDivider";
 import TestimonialSubmissionForm from "@/components/home/TestimonialSubmissionForm";
-import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
+import { getApprovedTestimonials } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import { Star, Quote, MapPin, PenLine, QrCode } from "lucide-react";
 import Link from "next/link";
 
 export default function TestimonialsPage() {
-  const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTestimonial, setSelectedTestimonial] = useState<Testimonial | null>(null);
   const [showForm, setShowForm] = useState(false);

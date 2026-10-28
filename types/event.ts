@@ -1,5 +1,3 @@
-import { Timestamp } from "firebase/firestore";
-
 export type EventStatus =
   | "Upcoming"
   | "Ongoing"
@@ -15,8 +13,9 @@ export interface TempleEvent {
   location: string;
 
   // Event Dates
-  startDate: Timestamp;
-  endDate: Timestamp;
+  // ISO-8601 strings as stored in Supabase `events` (timestamp with time zone).
+  startDate: string;
+  endDate: string;
 
   // Event Time
   startTime?: string;
@@ -35,6 +34,6 @@ export interface TempleEvent {
   // Legacy (will be removed later)
   status: EventStatus;
 
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt?: string;
+  updatedAt?: string;
 }

@@ -5,19 +5,15 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import { useFinanceSettings } from "@/hooks/useFinanceSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import { billingService } from "@/services/billing.service";
 import { BillItem, BillCreateInput } from "@/types/billing";
 import { defaultFinanceSettings, FinanceSettings } from "@/types/finance";
-
-const SETTINGS_DOC = "financeSettings";
-const SETTINGS_COLLECTION = "settings";
 
 export default function CreateBillPage() {
   const router = useRouter();
@@ -40,29 +36,16 @@ export default function CreateBillPage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [notes, setNotes] = useState("");
 
+  const { settings: financeSettings } = useFinanceSettings();
+
   useEffect(() => {
-    async function loadSettings() {
-      try {
-        if (!db) return;
-        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setSettings({ ...defaultFinanceSettings, ...data } as FinanceSettings);
-          
-          // Set default due date based on settings
-          if (data.billing?.defaultDueDays) {
-            const due = new Date();
-            due.setDate(due.getDate() + data.billing.defaultDueDays);
-            setDueDate(due.toISOString().split("T")[0]);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading settings:", error);
-      }
+    setSettings(financeSettings);
+    if (financeSettings.billing?.defaultDueDays) {
+      const due = new Date();
+      due.setDate(due.getDate() + financeSettings.billing.defaultDueDays);
+      setDueDate(due.toISOString().split("T")[0]);
     }
-    loadSettings();
-  }, []);
+  }, [financeSettings]);
 
   function addItem() {
     setItems([...items, { description: "", quantity: 1, rate: 0, amount: 0 }]);

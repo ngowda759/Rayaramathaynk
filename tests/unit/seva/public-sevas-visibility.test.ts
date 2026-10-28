@@ -2,9 +2,12 @@
  * @jest-environment node
  */
 /**
- * Public seva readers offer only sevas whose visibility is online or both (DB §17.1, C-38; plan Task A5-1). The server
- * action filters the Supabase query; when Supabase fails, the service's Firestore fallback reads the mirror (C-39),
- * where a counter-only seva is written as not active, so the fallback keeps only active sevas offered online.
+ * Public seva readers offer only sevas whose visibility is online or both (DB §17.1, C-38; plan Task A5-1).
+ *
+ * The public server action filters the Supabase query (`active = true` AND
+ * `visibility in (online, both)`) and there is no Firestore fallback: if Supabase
+ * fails the action throws, so an empty result can only mean "no sevas" and never a
+ * swallowed permission or connectivity failure.
  */
 import { getAllSevasAction } from "@/app/actions/sevas";
 import { sevaService } from "@/services/seva.service";
@@ -33,41 +36,17 @@ function builder() {
 }
 
 jest.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: (table: string) => {
-    calls.push(["from", table]);
-    return builder();
-  } }),
-}));
-
-interface FakeDoc {
-  id: string;
-  data: Record<string, unknown>;
-}
-
-let firestoreDocs: FakeDoc[] = [];
-
-jest.mock("@/lib/firebase", () => ({ db: {} }));
-
-jest.mock("firebase/firestore", () => ({
-  collection: (_db: unknown, name: string) => ({ name }),
-  doc: (_db: unknown, _name: string, id: string) => ({ id }),
-  getDocs: async () => ({
-    docs: firestoreDocs.map((d) => ({ id: d.id, data: () => d.data })),
+  createAdminClient: () => ({
+    from: (table: string) => {
+      calls.push(["from", table]);
+      return builder();
+    },
   }),
-  getDoc: async (ref: { id: string }) => {
-    const found = firestoreDocs.find((d) => d.id === ref.id);
-    return { id: ref.id, exists: () => Boolean(found), data: () => found?.data };
-  },
-  addDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  serverTimestamp: () => "now",
 }));
 
 beforeEach(() => {
   calls.length = 0;
   result = { data: [], error: null };
-  firestoreDocs = [];
   jest.spyOn(console, "error").mockImplementation(() => undefined);
 });
 
@@ -83,28 +62,19 @@ describe("public sevas follow visibility", () => {
     expect(calls).toContainEqual(["eq", "active", true]);
   });
 
-  it("the Firestore fallback lists only active sevas offered online", async () => {
+  it("surfaces a Supabase failure instead of returning a Firestore fallback", async () => {
     result = { data: null, error: new Error("supabase down") };
-    firestoreDocs = [
-      { id: "online", data: { name: "Online", active: true, visibility: "online" } },
-      { id: "both", data: { name: "Both", active: true, visibility: "both" } },
-      { id: "legacy", data: { name: "Legacy", active: true } },
-      { id: "counter", data: { name: "Counter only", active: true, visibility: "counter" } },
-      { id: "mirrored-counter", data: { name: "Mirrored counter only", active: false } },
-    ];
-    const sevas = await sevaService.getAllSevas();
-    expect(sevas.map((s) => s.id)).toEqual(["online", "both", "legacy"]);
+    await expect(sevaService.getAllSevas()).rejects.toThrow("supabase down");
   });
 
-  it("the Firestore fallback does not open a counter-only or inactive seva by id", async () => {
+  it("does not fall back to Firestore when a single seva read fails", async () => {
     result = { data: null, error: new Error("supabase down") };
-    firestoreDocs = [
-      { id: "counter", data: { name: "Counter only", active: true, visibility: "counter" } },
-      { id: "mirrored-counter", data: { name: "Mirrored counter only", active: false } },
-      { id: "both", data: { name: "Both", active: true, visibility: "both" } },
-    ];
-    await expect(sevaService.getSevaById("counter")).resolves.toBeNull();
-    await expect(sevaService.getSevaById("mirrored-counter")).resolves.toBeNull();
-    await expect(sevaService.getSevaById("both")).resolves.toMatchObject({ id: "both", name: "Both" });
+    await expect(sevaService.getSevaById("counter")).rejects.toThrow("supabase down");
+  });
+
+  it("returns null only for a genuinely missing row (PGRST116)", async () => {
+    const notFound = Object.assign(new Error("no rows"), { code: "PGRST116" });
+    result = { data: null, error: notFound };
+    await expect(sevaService.getSevaById("missing")).resolves.toBeNull();
   });
 });

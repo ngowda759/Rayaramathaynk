@@ -1,20 +1,5 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-  orderBy,
-  Timestamp,
-  DocumentSnapshot,
-  FieldValue,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   Bill,
   BillCreateInput,
@@ -25,37 +10,40 @@ import {
   PaymentStatus,
 } from "@/types/billing";
 
-const COLLECTION = "bills";
+const TABLE = "bills";
 
-function docToBill(docSnap: DocumentSnapshot): Bill {
-  const data = docSnap.data();
-  if (!data) {
-    throw new Error("Bill document data is undefined");
-  }
+/**
+ * Billing, stored in Supabase `bills`.
+ *
+ * Reads use the public client; writes use the service-role admin client (`bills` is
+ * deny-all under RLS and carries customer contact and payment data). There is no
+ * Firestore path.
+ */
+function rowToBill(row: any): Bill {
   return {
-    id: docSnap.id,
-    invoiceNumber: data.invoiceNumber || "",
-    billDate: data.billDate,
-    dueDate: data.dueDate,
-    customerName: data.customerName || "",
-    customerEmail: data.customerEmail,
-    customerPhone: data.customerPhone,
-    customerAddress: data.customerAddress,
-    customerGstin: data.customerGstin,
-    items: data.items || [],
-    subtotal: data.subtotal || 0,
-    taxAmount: data.taxAmount || 0,
-    discountAmount: data.discountAmount || 0,
-    totalAmount: data.totalAmount || 0,
-    amountPaid: data.amountPaid || 0,
-    balanceDue: data.balanceDue || 0,
-    status: data.status || "draft",
-    paymentStatus: data.paymentStatus || "pending",
-    payments: data.payments || [],
-    notes: data.notes,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
-    createdBy: data.createdBy || "",
+    id: row.firestore_id || row.id,
+    invoiceNumber: row.invoice_number || "",
+    billDate: row.bill_date,
+    dueDate: row.due_date,
+    customerName: row.customer_name || "",
+    customerEmail: row.customer_email ?? undefined,
+    customerPhone: row.customer_phone ?? undefined,
+    customerAddress: row.customer_address ?? undefined,
+    customerGstin: row.customer_gstin ?? undefined,
+    items: row.items || [],
+    subtotal: Number(row.subtotal ?? 0),
+    taxAmount: Number(row.tax_amount ?? 0),
+    discountAmount: Number(row.discount_amount ?? 0),
+    totalAmount: Number(row.total_amount ?? 0),
+    amountPaid: Number(row.amount_paid ?? 0),
+    balanceDue: Number(row.balance_due ?? 0),
+    status: row.status || "draft",
+    paymentStatus: row.payment_status || "pending",
+    payments: row.payments || [],
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdBy: row.created_by || "",
   };
 }
 
@@ -72,70 +60,78 @@ function calculateBillTotals(items: BillItem[], discountAmount: number): {
   let taxAmount = 0;
 
   items.forEach((item) => {
-    const itemTotal = item.quantity * item.rate;
-    subtotal += itemTotal;
+    subtotal += item.quantity * item.rate;
     if (item.taxRate && item.taxAmount) {
       taxAmount += item.taxAmount;
     }
   });
 
-  const totalAmount = subtotal + taxAmount - discountAmount;
+  return { subtotal, taxAmount, totalAmount: subtotal + taxAmount - discountAmount };
+}
 
-  return {
-    subtotal,
-    taxAmount,
-    totalAmount,
-  };
+function withComputedItems(items: Omit<BillItem, "id">[] | BillItem[]): BillItem[] {
+  return items.map((item) => ({
+    ...item,
+    id: (item as BillItem).id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    amount: item.quantity * item.rate,
+    taxAmount: item.taxRate ? (item.quantity * item.rate * item.taxRate) / 100 : 0,
+  }));
 }
 
 class BillingService {
   async getBills(): Promise<Bill[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBill);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Could not read bills: ${error.message}`);
+    return (data ?? []).map(rowToBill);
   }
 
   async getBill(id: string): Promise<Bill | null> {
-    if (!db) throw new Error("Firebase not configured");
-    const snap = await getDoc(doc(db, COLLECTION, id));
-    if (!snap.exists()) return null;
-    return docToBill(snap);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .eq("firestore_id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Could not read bill: ${error.message}`);
+    return data ? rowToBill(data) : null;
   }
 
   async getBillsByStatus(status: BillStatus): Promise<Bill[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(
-      collection(db, COLLECTION),
-      where("status", "==", status),
-      orderBy("createdAt", "desc")
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBill);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .eq("status", status)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Could not read bills: ${error.message}`);
+    return (data ?? []).map(rowToBill);
   }
 
   async getBillsByCustomer(customerName: string): Promise<Bill[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const q = query(
-      collection(db, COLLECTION),
-      where("customerName", "==", customerName),
-      orderBy("createdAt", "desc")
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBill);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .eq("customer_name", customerName)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Could not read bills: ${error.message}`);
+    return (data ?? []).map(rowToBill);
   }
 
   async getOverdueBills(): Promise<Bill[]> {
-    if (!db) throw new Error("Firebase not configured");
-    const now = new Date();
-    const q = query(
-      collection(db, COLLECTION),
-      where("status", "in", ["sent", "partial"]),
-      where("dueDate", "<", Timestamp.fromDate(now)),
-      orderBy("dueDate", "asc")
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToBill);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .in("status", ["sent", "partial"])
+      .lt("due_date", new Date().toISOString())
+      .order("due_date", { ascending: true });
+    if (error) throw new Error(`Could not read overdue bills: ${error.message}`);
+    return (data ?? []).map(rowToBill);
   }
 
   async createBill(
@@ -143,126 +139,111 @@ class BillingService {
     invoicePrefix: string = "INV",
     invoiceNumber: number = 1
   ): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-    const items: BillItem[] = input.items.map((item) => ({
-      ...item,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      amount: item.quantity * item.rate,
-      taxAmount: item.taxRate ? (item.quantity * item.rate * item.taxRate) / 100 : 0,
-    }));
+    const items = withComputedItems(input.items);
+    const { subtotal, taxAmount, totalAmount } = calculateBillTotals(items, input.discountAmount || 0);
 
-    const { subtotal, taxAmount, totalAmount } = calculateBillTotals(
-      items,
-      input.discountAmount || 0
-    );
-
-    const billData = {
-      invoiceNumber: generateInvoiceNumber(invoicePrefix, invoiceNumber),
-      billDate: input.billDate || Timestamp.now(),
-      dueDate: input.dueDate || Timestamp.now(),
-      customerName: input.customerName,
-      customerEmail: input.customerEmail || "",
-      customerPhone: input.customerPhone || "",
-      customerAddress: input.customerAddress || "",
-      customerGstin: input.customerGstin || "",
-      items,
-      subtotal,
-      taxAmount,
-      discountAmount: input.discountAmount || 0,
-      totalAmount,
-      amountPaid: 0,
-      balanceDue: totalAmount,
-      status: "draft" as BillStatus,
-      paymentStatus: "pending" as PaymentStatus,
-      payments: [],
-      notes: input.notes || "",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: "",
-    };
-
-    const docRef = await addDoc(collection(db, COLLECTION), billData);
-    return docRef.id;
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert({
+        invoice_number: generateInvoiceNumber(invoicePrefix, invoiceNumber),
+        bill_date: (input.billDate || new Date()).toISOString(),
+        due_date: (input.dueDate || new Date()).toISOString(),
+        customer_name: input.customerName,
+        customer_email: input.customerEmail || "",
+        customer_phone: input.customerPhone || "",
+        customer_address: input.customerAddress || "",
+        customer_gstin: input.customerGstin || "",
+        items,
+        subtotal,
+        tax_amount: taxAmount,
+        discount_amount: input.discountAmount || 0,
+        total_amount: totalAmount,
+        amount_paid: 0,
+        balance_due: totalAmount,
+        status: "draft",
+        payment_status: "pending",
+        payments: [],
+        notes: input.notes || "",
+        created_by: "",
+      })
+      .select("firestore_id, id")
+      .single();
+    if (error) throw new Error(`Could not create bill: ${error.message}`);
+    return data.firestore_id || data.id;
   }
 
   async updateBill(id: string, input: BillUpdateInput): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const updateData: Partial<Bill> & { updatedAt: FieldValue } = {
-      ...input,
-      updatedAt: serverTimestamp(),
-    };
+    const update: Record<string, unknown> = {};
+    if (input.customerName !== undefined) update.customer_name = input.customerName;
+    if (input.customerEmail !== undefined) update.customer_email = input.customerEmail;
+    if (input.customerPhone !== undefined) update.customer_phone = input.customerPhone;
+    if (input.customerAddress !== undefined) update.customer_address = input.customerAddress;
+    if (input.customerGstin !== undefined) update.customer_gstin = input.customerGstin;
+    if (input.billDate !== undefined) update.bill_date = input.billDate.toISOString();
+    if (input.dueDate !== undefined) update.due_date = input.dueDate.toISOString();
+    if (input.notes !== undefined) update.notes = input.notes;
+    if (input.status !== undefined) update.status = input.status;
+    if (input.paymentStatus !== undefined) update.payment_status = input.paymentStatus;
+    if (input.discountAmount !== undefined) update.discount_amount = input.discountAmount;
 
-    // Recalculate totals if items changed
     if (input.items) {
-      const items: BillItem[] = input.items.map((item) => ({
-        ...item,
-        id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        amount: item.quantity * item.rate,
-        taxAmount: item.taxRate ? (item.quantity * item.rate * item.taxRate) / 100 : 0,
-      }));
-
-      const { subtotal, taxAmount, totalAmount } = calculateBillTotals(
-        items,
-        input.discountAmount || 0
-      );
-
-      updateData.items = items;
-      updateData.subtotal = subtotal;
-      updateData.taxAmount = taxAmount;
-      updateData.totalAmount = totalAmount;
-      updateData.balanceDue = totalAmount - (updateData.amountPaid || 0);
+      const items = withComputedItems(input.items);
+      const { subtotal, taxAmount, totalAmount } = calculateBillTotals(items, input.discountAmount || 0);
+      update.items = items;
+      update.subtotal = subtotal;
+      update.tax_amount = taxAmount;
+      update.total_amount = totalAmount;
+      // `BillUpdateInput` carries no paid amount, so a recompute resets the balance
+      // to the new total — the same result the Firestore implementation produced.
+      update.balance_due = totalAmount;
     }
+    update.updated_at = new Date().toISOString();
 
-    await updateDoc(doc(db, COLLECTION, id), updateData as Record<string, unknown>);
+    const supabase = createAdminClient();
+    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    if (error) throw new Error(`Could not update bill: ${error.message}`);
   }
 
   async deleteBill(id: string): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    await deleteDoc(doc(db, COLLECTION, id));
+    const supabase = createAdminClient();
+    const { error } = await supabase.from(TABLE).delete().eq("firestore_id", id);
+    if (error) throw new Error(`Could not delete bill: ${error.message}`);
   }
 
   async updateBillStatus(id: string, status: BillStatus): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    await updateDoc(doc(db, COLLECTION, id), {
-      status,
-      updatedAt: serverTimestamp(),
-    });
+    const supabase = createAdminClient();
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("firestore_id", id);
+    if (error) throw new Error(`Could not update bill status: ${error.message}`);
   }
 
-  async addPayment(
-    billId: string,
-    payment: Omit<BillPayment, "id">
-  ): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
+  async addPayment(billId: string, payment: Omit<BillPayment, "id">): Promise<void> {
     const bill = await this.getBill(billId);
     if (!bill) throw new Error("Bill not found");
 
-    const newPayment: BillPayment = {
-      ...payment,
-      id: Date.now().toString(),
-    };
-
+    const newPayment: BillPayment = { ...payment, id: Date.now().toString() };
     const newAmountPaid = bill.amountPaid + payment.amount;
     const newBalanceDue = bill.totalAmount - newAmountPaid;
 
-    let paymentStatus: PaymentStatus = "partial";
-    if (newBalanceDue <= 0) {
-      paymentStatus = "paid";
-    }
+    const paymentStatus: PaymentStatus = newBalanceDue <= 0 ? "paid" : "partial";
+    const status: BillStatus = bill.status === "draft" ? "sent" : bill.status;
 
-    let status: BillStatus = bill.status;
-    if (status === "draft") {
-      status = "sent";
-    }
-
-    await updateDoc(doc(db, COLLECTION, billId), {
-      payments: [...bill.payments, newPayment],
-      amountPaid: newAmountPaid,
-      balanceDue: Math.max(0, newBalanceDue),
-      paymentStatus,
-      status,
-      updatedAt: serverTimestamp(),
-    });
+    const supabase = createAdminClient();
+    const { error } = await supabase
+      .from(TABLE)
+      .update({
+        payments: [...bill.payments, newPayment],
+        amount_paid: newAmountPaid,
+        balance_due: Math.max(0, newBalanceDue),
+        payment_status: paymentStatus,
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("firestore_id", billId);
+    if (error) throw new Error(`Could not add bill payment: ${error.message}`);
   }
 
   async recordPayment(
@@ -274,7 +255,7 @@ class BillingService {
   ): Promise<void> {
     await this.addPayment(billId, {
       amount,
-      date: Timestamp.now(),
+      date: new Date(),
       method,
       reference,
       notes,

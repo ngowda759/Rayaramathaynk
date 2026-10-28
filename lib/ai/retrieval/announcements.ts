@@ -1,8 +1,11 @@
 // Announcements Retrieval - Temple announcements
 // Single source of truth for announcement information
+//
+// Reads the Supabase `announcements` table. There is no Firestore path and no
+// fallback to one: if Supabase is unavailable the result is an empty list with the
+// retrieval marked as a failure, never stale Firestore content.
 
-import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy, DocumentData } from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
 import { TempleAnnouncement, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
 
@@ -11,70 +14,37 @@ let cachedAnnouncements: TempleAnnouncement[] = [];
 let lastFetchTime = 0;
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes (announcements change more frequently)
 
-/**
- * Convert Firebase doc to TempleAnnouncement
- */
-function docToAnnouncement(doc: DocumentData): TempleAnnouncement | null {
-  try {
-    const data = doc.data();
-    if (!data) return null;
-
-    let createdAt = new Date();
-    if (data.createdAt) {
-      if (data.createdAt instanceof Date) {
-        createdAt = data.createdAt;
-      } else if (typeof data.createdAt.toDate === "function") {
-        createdAt = data.createdAt.toDate();
-      } else if (typeof data.createdAt === "string") {
-        createdAt = new Date(data.createdAt);
-      } else if (typeof data.createdAt === "number") {
-        createdAt = new Date(data.createdAt);
-      }
-    }
-
-    return {
-      id: doc.id,
-      title: data.title || "",
-      message: data.message || "",
-      link: data.link || "",
-      isActive: data.isActive ?? true,
-      createdAt,
-    };
-  } catch {
-    return null;
-  }
+/** Convert a Supabase `announcements` row to `TempleAnnouncement`. */
+function rowToAnnouncement(row: any): TempleAnnouncement {
+  return {
+    id: row.firestore_id || row.id,
+    title: row.title || "",
+    message: row.message || "",
+    link: row.link || "",
+    isActive: row.is_active ?? true,
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  };
 }
 
 /**
- * Fetch active announcements from Firebase
+ * Fetch active announcements from Supabase.
+ *
+ * Throws on a database error so the caller can distinguish "no announcements" from
+ * "the database refused or failed". The error is never swallowed into a stale cache.
  */
-async function fetchFromFirebase(): Promise<TempleAnnouncement[]> {
-  if (!isFirebaseConfigured() || !db) {
-    return [];
+async function fetchFromSupabase(): Promise<TempleAnnouncement[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("announcements")
+    .select("*")
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+
+  if (error) {
+    throw new Error(`Could not read announcements from Supabase: ${error.message}`);
   }
 
-  try {
-    const q = query(
-      collection(db, "announcements"),
-      where("isActive", "==", true),
-      orderBy("createdAt", "desc")
-    );
-    
-    const snapshot = await getDocs(q);
-    const announcements: TempleAnnouncement[] = [];
-    
-    snapshot.docs.forEach((doc) => {
-      const announcement = docToAnnouncement(doc);
-      if (announcement) {
-        announcements.push(announcement);
-      }
-    });
-    
-    return announcements;
-  } catch (error) {
-    console.error("[Announcements Retrieval] Error fetching announcements:", error);
-    return cachedAnnouncements;
-  }
+  return (data ?? []).map(rowToAnnouncement);
 }
 
 /**
@@ -95,7 +65,7 @@ export async function getActiveAnnouncements(): Promise<RetrievedData<TempleAnno
   }
 
   try {
-    const announcements = await fetchFromFirebase();
+    const announcements = await fetchFromSupabase();
     cachedAnnouncements = announcements;
     lastFetchTime = now;
 
@@ -107,11 +77,12 @@ export async function getActiveAnnouncements(): Promise<RetrievedData<TempleAnno
       fromCache: false,
     };
   } catch (error) {
-    console.error("[Announcements Retrieval] Error:", error);
+    console.error("[Announcements Retrieval] Error reading announcements from Supabase:", error);
+    // No Firestore fallback: report the failure with an empty list.
     return {
-      data: cachedAnnouncements,
+      data: [],
       source: RetrievalType.FALLBACK,
-      confidence: 50,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
@@ -125,7 +96,7 @@ export async function getLatestAnnouncements(
   limit = 3
 ): Promise<RetrievedData<TempleAnnouncement[]>> {
   const result = await getActiveAnnouncements();
-  
+
   return {
     data: (result.data || []).slice(0, limit),
     source: result.source,
@@ -142,20 +113,20 @@ export function formatAnnouncementsForDisplay(announcements: TempleAnnouncement[
   if (!announcements || announcements.length === 0) {
     return "No current announcements.";
   }
-  
+
   let text = "📢 **Current Announcements:**\n\n";
-  
+
   announcements.forEach((announcement, index) => {
     text += `**${index + 1}. ${announcement.title}**\n`;
     text += `${announcement.message}\n`;
-    
+
     if (announcement.link) {
       text += `🔗 ${announcement.link}\n`;
     }
-    
+
     text += "\n";
   });
-  
+
   return text.trim();
 }
 

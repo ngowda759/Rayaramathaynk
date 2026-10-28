@@ -1,41 +1,56 @@
-import { getCountFromServer, collection } from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardStats } from "@/types/dashboard";
 
+/**
+ * Admin dashboard counts, read directly from Supabase with the service-role client
+ * (the source tables are deny-all under RLS). There is no Firestore path.
+ *
+ * The Firestore counters read collections (`gallery`, `timings`, `sevaBookings`) that
+ * no longer exist as Supabase tables; the corresponding Supabase tables are used
+ * instead. `totalTimings` is served by `daily_poojas`, the table that holds the temple
+ * pooja/timing schedule.
+ */
 class DashboardService {
   async getStats(): Promise<DashboardStats> {
-    if (!db) throw new Error("Firebase not configured");
-    
+    const supabase = createAdminClient();
+
+    async function count(table: string): Promise<number> {
+      const { count: value, error } = await supabase
+        .from(table)
+        .select("*", { count: "exact", head: true });
+      if (error) throw new Error(`Could not count ${table}: ${error.message}`);
+      return value ?? 0;
+    }
+
     const [
-      users,
-      events,
-      sevas,
-      gallery,
-      announcements,
-      timings,
-      donations,
-      bookings,
+      totalUsers,
+      totalEvents,
+      totalSevas,
+      totalGalleryImages,
+      totalAnnouncements,
+      totalTimings,
+      totalDonations,
+      totalSevaBookings,
     ] = await Promise.all([
-      getCountFromServer(collection(db, "users")),
-      getCountFromServer(collection(db, "events")),
-      getCountFromServer(collection(db, "sevas")),
-      getCountFromServer(collection(db, "gallery")),
-      getCountFromServer(collection(db, "announcements")),
-      getCountFromServer(collection(db, "timings")),
-      getCountFromServer(collection(db, "donations")),
-      getCountFromServer(collection(db, "sevaBookings")),
+      count("users"),
+      count("events"),
+      count("sevas"),
+      count("gallery_media"),
+      count("announcements"),
+      count("daily_poojas"),
+      count("donations"),
+      count("seva_receipts"),
     ]);
 
     return {
-      totalUsers: users.data().count,
-      totalEvents: events.data().count,
-      totalSevas: sevas.data().count,
-      totalGalleryImages: gallery.data().count,
-      totalAnnouncements: announcements.data().count,
-      totalTimings: timings.data().count,
-      totalDonations: donations.data().count,
-      totalSevaBookings: bookings.data().count,
+      totalUsers,
+      totalEvents,
+      totalSevas,
+      totalGalleryImages,
+      totalAnnouncements,
+      totalTimings,
+      totalDonations,
+      totalSevaBookings,
     };
   }
 }

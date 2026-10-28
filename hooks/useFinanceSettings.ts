@@ -1,62 +1,58 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useEffect, useState } from "react";
+
 import { FinanceSettings, defaultFinanceSettings } from "@/types/finance";
 
-const SETTINGS_DOC = "financeSettings";
-const SETTINGS_COLLECTION = "settings";
+/**
+ * Public finance settings (donation configuration).
+ *
+ * Reads `/api/public/settings/financeSettings`. `settings_documents` is deny-all under
+ * RLS, so the browser cannot read it directly and the server route serves the stored
+ * document with the service-role client. There is no Firestore listener: the defaults
+ * are shown until the stored document arrives, and a missing document keeps them.
+ */
+function normalize(data: Record<string, unknown>): FinanceSettings {
+  const billing = data.billing as Record<string, unknown> | undefined;
+  return {
+    ...defaultFinanceSettings,
+    ...data,
+    billing: {
+      ...defaultFinanceSettings.billing,
+      ...(billing || {}),
+    },
+    billingEnabled: (data.billingEnabled as boolean) ?? false,
+  } as FinanceSettings;
+}
 
 export function useFinanceSettings() {
   const [settings, setSettings] = useState<FinanceSettings>(defaultFinanceSettings);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadSettings() {
-      if (!db) {
-        setLoading(false);
-        return;
-      }
       try {
-        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          // Ensure billing fields exist even if not in existing data
-          setSettings({
-            ...defaultFinanceSettings,
-            ...data,
-            billing: data.billingEnabled !== undefined || data.billing
-              ? {
-                  invoicePrefix: data.billing?.invoicePrefix || defaultFinanceSettings.billing.invoicePrefix,
-                  invoiceNumber: data.billing?.invoiceNumber || defaultFinanceSettings.billing.invoiceNumber,
-                  defaultDueDays: data.billing?.defaultDueDays || defaultFinanceSettings.billing.defaultDueDays,
-                  taxRate: data.billing?.taxRate ?? defaultFinanceSettings.billing.taxRate,
-                  currency: data.billing?.currency || defaultFinanceSettings.billing.currency,
-                  companyName: data.billing?.companyName || defaultFinanceSettings.billing.companyName,
-                  companyAddress: data.billing?.companyAddress || defaultFinanceSettings.billing.companyAddress,
-                  companyPhone: data.billing?.companyPhone || defaultFinanceSettings.billing.companyPhone,
-                  companyEmail: data.billing?.companyEmail || defaultFinanceSettings.billing.companyEmail,
-                  companyGstin: data.billing?.companyGstin || defaultFinanceSettings.billing.companyGstin,
-                  notes: data.billing?.notes || defaultFinanceSettings.billing.notes,
-                }
-              : defaultFinanceSettings.billing,
-            billingEnabled: data.billingEnabled ?? false,
-          });
-        }
+        const response = await fetch("/api/public/settings/financeSettings");
+        if (!response.ok) throw new Error(`Failed to load finance settings (${response.status})`);
+        const { data } = (await response.json()) as { data: Record<string, unknown> | null };
+        if (!cancelled && data) setSettings(normalize(data));
       } catch (error) {
         console.error("Error loading finance settings:", error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
+
     loadSettings();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const activeSevas = settings.specialSevas
-    .filter(s => s.isActive)
+    .filter((s) => s.isActive)
     .sort((a, b) => a.order - b.order);
 
   return {

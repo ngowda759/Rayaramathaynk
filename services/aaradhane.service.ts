@@ -1,274 +1,129 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { createClient } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Aaradhane, AaradhaneStats } from "@/types/aaradhane";
 
-const COLLECTION_NAME = "aaradhane";
-const AARADHANES_COLLECTION = "aaradhanes"; // With 's' - alternative collection name
+const TABLE = "aaradhanes";
 
+/**
+ * Aaradhane records, stored in Supabase `aaradhanes`.
+ *
+ * Reads use the public client; writes use the service-role admin client (`aaradhanes`
+ * is deny-all under RLS). There is no Firestore path, and the old two-collection
+ * (`aaradhane`/`aaradhanes`) merge is gone — there is a single table.
+ */
 function isAaradhaneUpcoming(dates: string[]): boolean {
   if (!dates || dates.length === 0) return false;
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  
-  return dates.some(dateStr => {
+  return dates.some((dateStr) => {
     const eventDate = new Date(dateStr);
     eventDate.setHours(0, 0, 0, 0);
     return eventDate >= now;
   });
 }
 
-function isEventUpcoming(startDate: any): boolean {
-  if (!startDate) return false;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  
-  let eventDate: Date;
-  if (startDate.toDate && typeof startDate.toDate === "function") {
-    eventDate = startDate.toDate();
-  } else if (startDate.seconds) {
-    eventDate = new Date(startDate.seconds * 1000);
-  } else {
-    eventDate = new Date(startDate);
-  }
-  
-  eventDate.setHours(0, 0, 0, 0);
-  return eventDate >= now;
-}
-
-function docToAaradhane(docSnap: any): Aaradhane {
-  const data = docSnap.data();
-  const dates = data.dates || [];
-  
+function rowToAaradhane(row: any): Aaradhane {
+  const dates = row.dates || [];
   return {
-    id: docSnap.id,
-    title: data.title || "",
-    guruName: data.guruName || "",
-    dates: dates,
-    description: data.description || "",
-    significance: data.significance || "",
-    rituals: data.rituals || [],
-    offerings: data.offerings || [],
-    imageUrl: data.imageUrl || "",
-    sevaDetails: data.sevaDetails || [],
+    id: row.firestore_id || row.id,
+    title: row.title || "",
+    guruName: row.guru_name || "",
+    dates,
+    description: row.description || "",
+    significance: row.significance || "",
+    rituals: row.rituals || [],
+    offerings: row.offerings || [],
+    imageUrl: row.image_url || "",
+    sevaDetails: row.seva_details || [],
     isUpcoming: isAaradhaneUpcoming(dates),
-    displayOrder: data.displayOrder ?? 0,
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || new Date().toISOString(),
-    createdBy: data.createdBy || "",
+    displayOrder: row.display_order ?? 0,
+    createdAt: row.created_at || new Date().toISOString(),
+    createdBy: row.created_by || "",
   };
-}
-
-/**
- * Convert events collection document to Aaradhane format
- */
-function eventDocToAaradhane(docSnap: any): Aaradhane {
-  const data = docSnap.data();
-  
-  // Try multiple field name variations
-  const title = data.title || data.name || data.eventTitle || data.aaradhaneTitle || `Event ${docSnap.id}`;
-  const guruName = data.guru || data.guruName || data.guru || data.name || "";
-  
-  // Convert startDate/endDate to dates array (formatted as "DD Month YYYY")
-  const dates: string[] = [];
-  if (data.startDate) {
-    let startDate: Date;
-    if (data.startDate.toDate && typeof data.startDate.toDate === "function") {
-      startDate = data.startDate.toDate();
-    } else if (data.startDate.seconds) {
-      startDate = new Date(data.startDate.seconds * 1000);
-    } else {
-      startDate = new Date(data.startDate);
-    }
-    dates.push(formatDateDisplay(startDate));
-    
-    // Add end date if different
-    if (data.endDate) {
-      let endDate: Date;
-      if (data.endDate.toDate && typeof data.endDate.toDate === "function") {
-        endDate = data.endDate.toDate();
-      } else if (data.endDate.seconds) {
-        endDate = new Date(data.endDate.seconds * 1000);
-      } else {
-        endDate = new Date(data.endDate);
-      }
-      const endDateStr = formatDateDisplay(endDate);
-      if (endDateStr !== dates[0]) {
-        dates.push(endDateStr);
-      }
-    }
-  }
-  
-  // For auto-generated events, set default rituals and offerings
-  const rituals = data.rituals || [
-    "ಪಂಚಾಮೃತ ಅಭಿಷೇಕ ಪೂಜೆ",
-    "ಅಲಂಕಾರ ಬ್ರಾಹ್ಮಣ ಸೇವಾ ಮಹಾಮಂಗಳಾರತಿ"
-  ];
-  const offerings = data.offerings || [
-    "ತೀರ್ಥ ಪ್ರಸಾದ",
-    "ಬೆಳ್ಳಿ ಹೂವು",
-    "ಕರ್ಪೂರ",
-    "ಸಂತೆ"
-  ];
-  
-  return {
-    id: docSnap.id,
-    title: title,
-    guruName: guruName,
-    dates: dates,
-    description: data.description || "",
-    significance: data.significance || data.description || "",
-    rituals: rituals,
-    offerings: offerings,
-    imageUrl: data.imageUrl || "",
-    sevaDetails: data.sevaDetails || [],
-    isUpcoming: isEventUpcoming(data.startDate),
-    displayOrder: data.paramparaNumber || data.year ? (1000 - (data.year || 0)) : 0,
-    createdAt: data.createdAt?.toDate
-      ? data.createdAt.toDate().toISOString()
-      : data.createdAt || new Date().toISOString(),
-    createdBy: data.createdBy || "auto-generated",
-  };
-}
-
-/**
- * Format date as "DD Month YYYY" (e.g., "29 August 2026")
- */
-function formatDateDisplay(date: Date): string {
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export const aaradhaneService = {
   async getAaradhanes(): Promise<Aaradhane[]> {
-    if (!db) throw new Error("Firebase not configured");
-    
-    // Try "aaradhane" collection
-    let fromAaradhane: Aaradhane[] = [];
-    try {
-      const q = query(collection(db, COLLECTION_NAME), orderBy("displayOrder", "asc"));
-      const snapshot = await getDocs(q);
-      fromAaradhane = snapshot.docs.map(docToAaradhane);
-      console.log(`[Aaradhane] aaradhane collection: ${fromAaradhane.length}`);
-    } catch (error) {
-      console.warn("[Aaradhane] aaradhane collection error:", error);
-    }
-    
-    // Try "aaradhanes" collection (with 's')
-    let fromAaradhanes: Aaradhane[] = [];
-    try {
-      const q = query(collection(db, AARADHANES_COLLECTION), orderBy("displayOrder", "asc"));
-      const snapshot = await getDocs(q);
-      fromAaradhanes = snapshot.docs.map(docToAaradhane);
-      console.log(`[Aaradhane] aaradhanes collection: ${fromAaradhanes.length}`);
-    } catch (error) {
-      console.warn("[Aaradhane] aaradhanes collection error:", error);
-    }
-    
-    // Merge from aaradhane collections (NOT events)
-    const merged = [...fromAaradhane];
-    for (const a of fromAaradhanes) {
-      if (!merged.find(e => e.id === a.id)) merged.push(a);
-    }
-    
-    merged.sort((a, b) => a.displayOrder - b.displayOrder);
-    console.log(`[Aaradhane] Total: ${merged.length}`);
-    return merged;
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .order("display_order", { ascending: true });
+    if (error) throw new Error(`Could not read aaradhanes: ${error.message}`);
+    return (data ?? []).map(rowToAaradhane);
   },
 
   async getAaradhaneById(id: string): Promise<Aaradhane | null> {
-    if (!db) throw new Error("Firebase not configured");
-    
-    // Check aaradhane collection
-    try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docToAaradhane(docSnap);
-      }
-    } catch (error) {
-      console.warn("[Aaradhane] Error checking aaradhane collection:", error);
-    }
-    
-    // Check aaradhanes collection
-    try {
-      const docRef = doc(db, AARADHANES_COLLECTION, id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docToAaradhane(docSnap);
-      }
-    } catch (error) {
-      console.warn("[Aaradhane] Error checking aaradhanes collection:", error);
-    }
-    
-    return null;
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("*")
+      .eq("firestore_id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Could not read aaradhane: ${error.message}`);
+    return data ? rowToAaradhane(data) : null;
   },
 
   async createAaradhane(
     data: Omit<Aaradhane, "id" | "createdAt" | "createdBy">,
     userEmail: string
   ): Promise<string> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-      ...data,
-      createdBy: userEmail,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+    const supabase = createAdminClient();
+    const { data: row, error } = await supabase
+      .from(TABLE)
+      .insert({
+        title: data.title,
+        guru_name: data.guruName,
+        dates: data.dates,
+        description: data.description,
+        significance: data.significance,
+        rituals: data.rituals,
+        offerings: data.offerings,
+        image_url: data.imageUrl,
+        seva_details: data.sevaDetails,
+        is_upcoming: data.isUpcoming,
+        display_order: data.displayOrder,
+        created_by: userEmail,
+      })
+      .select("firestore_id, id")
+      .single();
+    if (error) throw new Error(`Could not create aaradhane: ${error.message}`);
+    return row.firestore_id || row.id;
   },
 
   async updateAaradhane(
     id: string,
     data: Partial<Omit<Aaradhane, "id" | "createdAt" | "createdBy">>
   ): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await updateDoc(docRef, data);
+    const update: Record<string, unknown> = {};
+    if (data.title !== undefined) update.title = data.title;
+    if (data.guruName !== undefined) update.guru_name = data.guruName;
+    if (data.dates !== undefined) update.dates = data.dates;
+    if (data.description !== undefined) update.description = data.description;
+    if (data.significance !== undefined) update.significance = data.significance;
+    if (data.rituals !== undefined) update.rituals = data.rituals;
+    if (data.offerings !== undefined) update.offerings = data.offerings;
+    if (data.imageUrl !== undefined) update.image_url = data.imageUrl;
+    if (data.sevaDetails !== undefined) update.seva_details = data.sevaDetails;
+    if (data.isUpcoming !== undefined) update.is_upcoming = data.isUpcoming;
+    if (data.displayOrder !== undefined) update.display_order = data.displayOrder;
+
+    const supabase = createAdminClient();
+    const { error } = await supabase.from(TABLE).update(update).eq("firestore_id", id);
+    if (error) throw new Error(`Could not update aaradhane: ${error.message}`);
   },
 
   async deleteAaradhane(id: string): Promise<void> {
-    if (!db) throw new Error("Firebase not configured");
-    
-    // Try aaradhane collection first
-    try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      await deleteDoc(docRef);
-      console.log(`[Aaradhane] Deleted from ${COLLECTION_NAME} collection: ${id}`);
-      return;
-    } catch (error: any) {
-      // If error is "not found", try next collection
-      if (error?.code !== "not-found") {
-        console.error(`[Aaradhane] Error deleting from ${COLLECTION_NAME}:`, error);
-      }
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .delete()
+      .eq("firestore_id", id)
+      .select("id");
+    if (error) throw new Error(`Could not delete aaradhane: ${error.message}`);
+    if (!data || data.length === 0) {
+      throw new Error(`Could not delete Aaradhane: ${id}. Record not found.`);
     }
-    
-    // Try aaradhanes collection (with 's')
-    try {
-      const docRef = doc(db, AARADHANES_COLLECTION, id);
-      await deleteDoc(docRef);
-      console.log(`[Aaradhane] Deleted from ${AARADHANES_COLLECTION} collection: ${id}`);
-      return;
-    } catch (error: any) {
-      if (error?.code !== "not-found") {
-        console.error(`[Aaradhane] Error deleting from ${AARADHANES_COLLECTION}:`, error);
-      }
-    }
-    
-    throw new Error(`Could not delete Aaradhane: ${id}. Document not found.`);
   },
 
   async getStats(): Promise<AaradhaneStats> {

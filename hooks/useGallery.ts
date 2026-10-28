@@ -1,76 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
 
-import { db } from "@/lib/firebase";
+import { galleryService } from "@/services/gallery.service";
 import { GalleryMedia } from "@/types/gallery";
 
-export function useGallery(
-  featuredOnly = false,
-  albumId?: string
-) {
+/**
+ * Gallery media for the public site.
+ *
+ * Reads Supabase `gallery_media` through `galleryService`. There is no Firestore
+ * `onSnapshot` listener: the media is loaded once when the filters change, and a failed
+ * read leaves the list empty rather than falling back to Firestore.
+ */
+export function useGallery(featuredOnly = false, albumId?: string) {
   const [media, setMedia] = useState<GalleryMedia[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!db) {
-      // Use setTimeout to avoid synchronous state update during effect
-      setTimeout(() => {
-         
-        setLoading(false);
-      }, 0);
-      return;
-    }
+    let cancelled = false;
+    setLoading(true);
 
-    let q;
-
-    if (albumId) {
-      q = query(
-        collection(db, "galleryMedia"),
-        where("albumId", "==", albumId),
-        orderBy("displayOrder", "asc")
-      );
-    } else {
-      q = query(
-        collection(db, "galleryMedia"),
-        orderBy("displayOrder", "asc")
-      );
-    }
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        let items = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<GalleryMedia, "id">),
-        }));
-
-        if (featuredOnly) {
-          items = items.filter((item) => item.isFeatured);
-        }
-
-        setMedia(items);
-        // Use setTimeout to avoid synchronous state update during effect
-        setTimeout(() => setLoading(false), 0);
-      },
-      (error) => {
-        console.error("Gallery listener:", error);
-        setTimeout(() => setLoading(false), 0);
+    async function load() {
+      try {
+        const items = albumId
+          ? await galleryService.getMediaByAlbum(albumId)
+          : await galleryService.getMedia();
+        if (cancelled) return;
+        setMedia(featuredOnly ? items.filter((item) => item.isFeatured) : items);
+      } catch (error) {
+        console.error("Gallery load:", error);
+        if (!cancelled) setMedia([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    );
+    }
 
-    return () => unsubscribe();
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [featuredOnly, albumId]);
 
-  return {
-    media,
-    loading,
-  };
+  return { media, loading };
 }

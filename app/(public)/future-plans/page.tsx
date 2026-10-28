@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
@@ -95,30 +94,10 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export default function FuturePlansPage() {
-  const [data, setData] = useState<FuturePlansData>(defaultFuturePlans);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-        const docRef = doc(db, "settings", "futurePlans");
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setData({ ...defaultFuturePlans, ...docSnap.data() } as FuturePlansData);
-        }
-      } catch (error) {
-        console.error("Error loading future plans:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const { data, loading } = useSettingsDocument<FuturePlansData>(
+    "futurePlans",
+    defaultFuturePlans
+  );
 
   const activePlans = data.plans.filter((p) => p.isActive).sort((a, b) => a.order - b.order);
 

@@ -3,14 +3,7 @@
  * Epic 1: Fetches and combines all daily spiritual data for the homepage dashboard
  */
 
-import { db } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-} from "firebase/firestore";
+import { createClient } from "@/lib/supabase/client";
 import {
   TempleStatus,
   DailyQuote,
@@ -69,7 +62,7 @@ function getCurrentTimeIST(): string {
 }
 
 /**
- * Convert Firestore Timestamp to Date
+ * Convert a date value (ISO string, epoch seconds, or Date) to a Date
  */
 function timestampToDate(timestamp: any): Date {
   if (!timestamp) return new Date();
@@ -219,7 +212,7 @@ class DailySpiritualService {
   }
 
   /**
-   * Get featured event from homepage config or Firestore events
+   * Get featured event from homepage config or the events table
    */
   async getFeaturedEvent(): Promise<FeaturedEvent | null> {
     // First try to get from homepage config
@@ -254,8 +247,8 @@ class DailySpiritualService {
       console.error("Error fetching featured event from homepage:", error);
     }
 
-    // Fallback to Firestore events
-    return this.getFeaturedEventFromFirestore();
+    // Fallback to the events table
+    return this.getFeaturedEventFromSupabase();
   }
 
   /**
@@ -276,11 +269,9 @@ class DailySpiritualService {
   }
 
   /**
-   * Get featured event from Firestore events collection
+   * Get featured event from the events table
    */
-  private async getFeaturedEventFromFirestore(): Promise<FeaturedEvent | null> {
-    if (!db) return null;
-
+  private async getFeaturedEventFromSupabase(): Promise<FeaturedEvent | null> {
     const today = new Date();
     const todayStart = new Date(today);
     todayStart.setHours(0, 0, 0, 0);
@@ -288,37 +279,35 @@ class DailySpiritualService {
     todayEnd.setHours(23, 59, 59, 999);
 
     try {
-      // First try to get featured events
-      const featuredQuery = query(
-        collection(db, "events"),
-        where("featured", "==", true),
-        where("published", "==", true)
-      );
-      const featuredSnap = await getDocs(featuredQuery);
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("published", true);
+      if (error) throw new Error(error.message);
 
-      for (const docSnap of featuredSnap.docs) {
-        const data = docSnap.data();
-        const startDate = timestampToDate(data.startDate);
-        const endDate = timestampToDate(data.endDate);
+      const rows = data ?? [];
 
+      // Prefer a featured event that has not ended.
+      for (const row of rows) {
+        if (!row.featured) continue;
+        const startDate = timestampToDate(row.start_date);
+        const endDate = timestampToDate(row.end_date);
         if (endDate >= todayStart) {
           const isToday = startDate <= todayEnd && endDate >= todayStart;
           const daysRemaining = isToday
             ? 0
-            : Math.ceil(
-                (startDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24)
-              );
-
+            : Math.ceil((startDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
           return {
-            id: docSnap.id,
-            title: data.title || "",
-            description: data.description || "",
+            id: row.firestore_id || row.id,
+            title: row.title || "",
+            description: row.description || "",
             startDate,
             endDate,
-            startTime: data.startTime,
-            endTime: data.endTime,
-            category: data.category || "event",
-            imageUrl: data.imageUrl,
+            startTime: row.start_time,
+            endTime: row.end_time,
+            category: row.category || "event",
+            imageUrl: row.image_url,
             isToday,
             isOngoing: isToday,
             daysRemaining: daysRemaining > 0 ? daysRemaining : undefined,
@@ -326,41 +315,29 @@ class DailySpiritualService {
         }
       }
 
-      // Fallback: check for events happening today
-      const eventsQuery = query(
-        collection(db, "events"),
-        where("published", "==", true)
-      );
-      const eventsSnap = await getDocs(eventsQuery);
-
+      // Otherwise the closest upcoming event.
       let closestEvent: FeaturedEvent | null = null;
       let closestDaysRemaining = Infinity;
-
-      for (const docSnap of eventsSnap.docs) {
-        const data = docSnap.data();
-        const startDate = timestampToDate(data.startDate);
-        const endDate = timestampToDate(data.endDate);
-
+      for (const row of rows) {
+        const startDate = timestampToDate(row.start_date);
+        const endDate = timestampToDate(row.end_date);
         if (endDate >= todayStart) {
           const isToday = startDate <= todayEnd && endDate >= todayStart;
           const daysRemaining = isToday
             ? 0
-            : Math.ceil(
-                (startDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24)
-              );
-
+            : Math.ceil((startDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
           if (daysRemaining < closestDaysRemaining) {
             closestDaysRemaining = daysRemaining;
             closestEvent = {
-              id: docSnap.id,
-              title: data.title || "",
-              description: data.description || "",
+              id: row.firestore_id || row.id,
+              title: row.title || "",
+              description: row.description || "",
               startDate,
               endDate,
-              startTime: data.startTime,
-              endTime: data.endTime,
-              category: data.category || "event",
-              imageUrl: data.imageUrl,
+              startTime: row.start_time,
+              endTime: row.end_time,
+              category: row.category || "event",
+              imageUrl: row.image_url,
               isToday,
               isOngoing: isToday,
               daysRemaining: daysRemaining > 0 ? daysRemaining : undefined,
@@ -368,10 +345,9 @@ class DailySpiritualService {
           }
         }
       }
-
       return closestEvent;
     } catch (error) {
-      console.error("Error fetching featured event from Firestore:", error);
+      console.error("Error fetching featured event from Supabase:", error);
       return null;
     }
   }
@@ -380,19 +356,22 @@ class DailySpiritualService {
    * Get active announcements
    */
   async getActiveAnnouncements(): Promise<Announcement[]> {
-    if (!db) return [];
-
     try {
-      const snapshot = await getDocs(
-        query(
-          collection(db, "announcements"),
-          where("isActive", "==", true),
-          orderBy("createdAt", "desc")
-        )
-      );
-      return snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("announcements")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((row: any) => ({
+        id: row.firestore_id || row.id,
+        title: row.title || "",
+        message: row.message || "",
+        link: row.link || "",
+        isActive: row.is_active ?? true,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
       })) as Announcement[];
     } catch (error) {
       console.error("Error fetching announcements:", error);

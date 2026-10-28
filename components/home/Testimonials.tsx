@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Quote, Star, MessageSquare } from "lucide-react";
-import { getApprovedTestimonials, DEFAULT_TESTIMONIALS } from "@/services/testimonial.service";
+import { getApprovedTestimonials } from "@/services/testimonial.service";
 import { Testimonial } from "@/types/homepage";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -15,7 +15,7 @@ export default function Testimonials() {
   const [direction, setDirection] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [testimonials, setTestimonials] = useState<Testimonial[]>(DEFAULT_TESTIMONIALS);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch testimonials from Firestore

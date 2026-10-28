@@ -1,20 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import { ArrowLeft, Save, RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { BillingSettings } from "@/types/finance";
-
-const SETTINGS_DOC = "financeSettings";
-const SETTINGS_COLLECTION = "settings";
+import { BillingSettings, FinanceSettings, defaultFinanceSettings } from "@/types/finance";
 
 const defaultBillingSettings: BillingSettings = {
   invoicePrefix: "INV",
@@ -31,64 +27,29 @@ const defaultBillingSettings: BillingSettings = {
 };
 
 export default function BillingSettingsPage() {
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const {
+    data: financeSettings,
+    loading,
+    save,
+  } = useSettingsDocument<FinanceSettings>("financeSettings", defaultFinanceSettings, {
+    admin: true,
+  });
   const [settings, setSettings] = useState<BillingSettings>(defaultBillingSettings);
 
   useEffect(() => {
-    async function loadSettings() {
-      try {
-        if (!db) {
-          setLoading(false);
-          return;
-        }
-        const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.billing) {
-            // Merge with defaults to ensure all fields exist
-            setSettings({
-              ...defaultBillingSettings,
-              ...data.billing,
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Error loading settings:", error);
-        toast.error("Failed to load settings");
-      } finally {
-        setLoading(false);
-      }
+    if (financeSettings.billing) {
+      setSettings({ ...defaultBillingSettings, ...financeSettings.billing });
     }
-    loadSettings();
-  }, []);
+  }, [financeSettings]);
 
   async function saveSettings() {
-    if (!db) {
-      toast.error("Firebase not configured");
-      return;
-    }
-    setSaving(true);
     try {
-      const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC);
-      await setDoc(
-        docRef,
-        {
-          billing: settings,
-          billingEnabled: true,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-
+      await save({ ...financeSettings, billing: settings, billingEnabled: true });
       toast.success("Billing settings saved successfully!");
     } catch (error) {
       console.error("Error saving settings:", error);
       toast.error("Failed to save settings. Please try again.");
-    } finally {
-      setSaving(false);
     }
   }
 
