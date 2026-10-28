@@ -1,14 +1,12 @@
 /**
  * The seva catalogue repository (DB §7.1, §13.1): the list, create and edit, counter-key order and rate history.
- * Writes go through the A2-3 SQL functions; reads use the service-role client. After every successful
- * `seva_upsert_seva` the public fields are mirrored to Firestore `sevas/{firestore_id}` for the readers that have not
- * moved to Supabase yet (C-39). A mirror failure never undoes the Supabase save: the caller gets `mirror: 'failed'`
- * and the log carries the seva id only.
+ * Writes go through the A2-3 SQL functions; reads use the service-role client. Supabase `sevas` is the single source
+ * of truth for the public catalogue; the former Firestore `sevas/{firestore_id}` mirror (C-39) has been retired, so a
+ * save writes only Supabase.
  */
 
 import "server-only";
 import { z } from "zod";
-import { getAdminFirestore } from "@/lib/admin-firebase";
 import { SevaError } from "@/lib/seva/errors";
 import { fromPaise, toPaise } from "@/lib/seva/money";
 import type { SevaUpsert } from "@/lib/seva/schemas";
@@ -108,51 +106,11 @@ function toUpsertPayload(seva: SevaUpsert, id: string | undefined): Record<strin
 }
 
 /**
- * The public fields other Firestore readers use (R3 2.1). A counter-only seva is not offered on the website, so it is
- * mirrored as not active there.
+ * Creates (no id) or updates one seva in Supabase. `reason` is required by SQL for a rate change.
+ *
+ * `mirror` is kept at "ok" for the existing answer shape (the response contract and the desk UI still read it); the
+ * Firestore mirror it used to describe has been retired, so there is no longer a partial-failure state to report.
  */
-function toMirrorDoc(row: Record<string, unknown>): Record<string, unknown> {
-  const amount = typeof row.amount === "string" ? Number(row.amount) : row.amount;
-  return {
-    name: str(row.name) ?? "",
-    description: str(row.description) ?? "",
-    amount: typeof amount === "number" && Number.isFinite(amount) ? amount : 0,
-    active: row.active === true && row.visibility !== "counter",
-    displayOrder: typeof row.display_order === "number" ? row.display_order : 0,
-    category: str(row.category) ?? "",
-    duration: typeof row.duration === "number" ? row.duration : 0,
-    imageUrl: str(row.image_url) ?? "",
-    updatedAt: str(row.updated_at) ?? new Date().toISOString(),
-  };
-}
-
-/**
- * Writes the seva's public fields to Firestore `sevas/{firestore_id}`. The Firestore id is set by seva_upsert_seva
- * (a new seva takes its own id), so this never writes the table. Answers false, after logging the seva id, when any
- * step fails - a saved seva without a Firestore id included.
- */
-async function mirrorToFirestore(id: string): Promise<boolean> {
-  try {
-    const read = await createAdminClient()
-      .from("sevas")
-      .select("id, firestore_id, name, description, amount, active, visibility, display_order, category, duration, image_url, updated_at")
-      .eq("id", id)
-      .maybeSingle();
-    if (read.error || !read.data) throw new Error("seva row not readable");
-    const row = read.data as Record<string, unknown>;
-    const firestoreId = str(row.firestore_id);
-    if (!firestoreId) throw new Error("seva has no firestore_id");
-
-    const firestore = await getAdminFirestore();
-    await firestore.collection("sevas").doc(firestoreId).set(toMirrorDoc(row), { merge: true });
-    return true;
-  } catch {
-    console.error("[seva] Firestore sevas mirror failed for seva", id);
-    return false;
-  }
-}
-
-/** Creates (no id) or updates one seva, then mirrors it to Firestore. `reason` is required by SQL for a rate change. */
 export async function saveSeva(seva: SevaUpsert, id: string | undefined, staffId: string): Promise<SaveSevaResult> {
   const reason = seva.reason && seva.reason.length > 0 ? seva.reason : null;
   const savedId = await callRpc<unknown>("seva_upsert_seva", {
@@ -161,8 +119,7 @@ export async function saveSeva(seva: SevaUpsert, id: string | undefined, staffId
     p_staff_id: staffId,
   });
   if (typeof savedId !== "string") throw new SevaError("internal");
-  const mirrored = await mirrorToFirestore(savedId);
-  return { id: savedId, mirror: mirrored ? "ok" : "failed" };
+  return { id: savedId, mirror: "ok" };
 }
 
 /** Renumbers the counter keys 1..n in the given order (sevas not listed follow). */

@@ -160,7 +160,7 @@ function SevaSettings(): JSX.Element {
 /**
  * Seva settings (DB §13.1, mockup `settings-devotee.html#sevas`): the seva catalogue from Supabase through
  * `/api/seva/sevas`. Temple admins and super admins edit; view-only temple admins see everything read-only. Every save
- * is audited by the office and mirrored to the website's Firestore `sevas` (C-39).
+ * is audited by the office and written to Supabase `sevas`, the website's source of truth.
  */
 export default function SevaSettingsPage(): JSX.Element {
   return (

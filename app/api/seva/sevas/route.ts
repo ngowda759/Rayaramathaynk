@@ -1,6 +1,6 @@
 /**
  * GET  /api/seva/sevas - the whole catalogue in counter-key order (receptionists, temple admins, super admins).
- * POST /api/seva/sevas - adds a seva (sevas.edit), then mirrors its public fields to Firestore (C-39).
+ * POST /api/seva/sevas - adds a seva (sevas.edit); Supabase `sevas` is the source of truth (no Firestore mirror).
  */
 import type { NextRequest } from "next/server";
 import { SevaError } from "@/lib/seva/errors";

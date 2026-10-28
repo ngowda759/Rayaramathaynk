@@ -78,7 +78,7 @@ function mockQuery(table: string) {
 }
 jest.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: (t: string) => mockQuery(t) }) }));
 
-// ---- Firestore (the public sevas mirror, C-39) -----------------------------------------------------------------------
+// ---- Firestore: the seva catalogue no longer mirrors to it; any call is a test failure -------------------------------
 const mockFirestoreSet = jest.fn();
 const mockFirestoreDocs: string[] = [];
 jest.mock("@/lib/admin-firebase", () => ({
@@ -250,59 +250,37 @@ describe("catalogue routes", () => {
     expect(sevaUpsertSchema.safeParse({ ...UPSERT, reason: "x".repeat(201) }).success).toBe(false);
   });
 
-  it("mirrors only public fields to Firestore sevas", async () => {
+  it("saves a seva to Supabase only and never writes Firestore", async () => {
     const response = await updateSeva(req("PUT", `sevas/${SEVA_ID}`, { ...UPSERT, key: 1 }), idParams(SEVA_ID));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: SEVA_ID, mirror: "ok" });
-    expect(mockFirestoreDocs).toEqual([`sevas/${SEVA_ID}`]);
-    expect(mockFirestoreSet).toHaveBeenCalledTimes(1);
-    const [data, options] = mockFirestoreSet.mock.calls[0] as [Record<string, unknown>, unknown];
-    expect(data).toEqual({
-      name: "Paaduka Pooja",
-      description: "",
-      amount: 505,
-      active: true,
-      displayOrder: 1,
-      category: "Pooja",
-      duration: 0,
-      imageUrl: "",
-      updatedAt: "2026-10-19T05:00:00.000Z",
-    });
-    expect(options).toEqual({ merge: true });
+    expect(mockFirestoreDocs).toEqual([]);
+    expect(mockFirestoreSet).not.toHaveBeenCalled();
     const sent = (mockCallRpc.mock.calls[0] as [string, { p_seva: Row }])[1].p_seva;
     expect(sent.display_order).toBe(1);
   });
 
-  it("a counter-only seva is mirrored as not offered on the website", async () => {
+  it("a counter-only seva is saved with its visibility, not mirrored to the website", async () => {
     mockTables.sevas = [{ ...SEVA_ROW, visibility: "counter" }];
-    await updateSeva(req("PUT", `sevas/${SEVA_ID}`, { ...UPSERT, visibility: "counter" }), idParams(SEVA_ID));
-    expect((mockFirestoreSet.mock.calls[0] as [Row])[0].active).toBe(false);
+    const response = await updateSeva(req("PUT", `sevas/${SEVA_ID}`, { ...UPSERT, visibility: "counter" }), idParams(SEVA_ID));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: SEVA_ID, mirror: "ok" });
+    expect(mockFirestoreSet).not.toHaveBeenCalled();
+    const sent = (mockCallRpc.mock.calls[0] as [string, { p_seva: Row }])[1].p_seva;
+    expect(sent.visibility).toBe("counter");
   });
 
-  it("a new seva is mirrored under the Firestore id seva_upsert_seva gave it; the table is never written directly", async () => {
+  it("a new seva is created by seva_upsert_seva; the table is never written directly and Firestore is untouched", async () => {
     mockCallRpc.mockResolvedValueOnce(OTHER_ID);
-    // seva_upsert_seva names a new seva's Firestore document by its own id (A3 security gate L-5).
-    mockTables.sevas = [{ ...SEVA_ROW, id: OTHER_ID, firestore_id: OTHER_ID }];
     const response = await createSeva(req("POST", "sevas", UPSERT));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: OTHER_ID, mirror: "ok" });
     expect(mockUpdates).toEqual([]);
-    expect(mockFirestoreDocs).toEqual([`sevas/${OTHER_ID}`]);
+    expect(mockFirestoreDocs).toEqual([]);
     const sent = (mockCallRpc.mock.calls[0] as [string, { p_seva: Row; p_reason: unknown }])[1];
     expect(sent.p_seva.id).toBeUndefined();
     expect(sent.p_seva.firestore_id).toBeUndefined();
     expect(sent.p_reason).toBeNull();
-  });
-
-  it("reports a failed mirror, and writes nothing, when the saved seva has no Firestore id", async () => {
-    const errorLog = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    mockCallRpc.mockResolvedValueOnce(OTHER_ID);
-    mockTables.sevas = [{ ...SEVA_ROW, id: OTHER_ID, firestore_id: null }];
-    const response = await createSeva(req("POST", "sevas", UPSERT));
-    expect(await response.json()).toEqual({ id: OTHER_ID, mirror: "failed" });
-    expect(mockUpdates).toEqual([]);
-    expect(mockFirestoreSet).not.toHaveBeenCalled();
-    errorLog.mockRestore();
   });
 
   it("refuses an id in the body that is not the one in the path", async () => {
@@ -315,15 +293,14 @@ describe("catalogue routes", () => {
     expect(mockCallRpc).not.toHaveBeenCalled();
   });
 
-  it("reports a failed mirror without undoing the save", async () => {
+  it("answers a Supabase save error as a failure, without touching Firestore", async () => {
+    mockFail.table = "sevas";
     const errorLog = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    mockFirestoreSet.mockRejectedValueOnce(new Error("firestore unavailable"));
     const response = await updateSeva(req("PUT", `sevas/${SEVA_ID}`, UPSERT), idParams(SEVA_ID));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ id: SEVA_ID, mirror: "failed" });
-    expect(mockCallRpc).toHaveBeenCalledTimes(1);
-    expect(errorLog).toHaveBeenCalledWith(expect.any(String), SEVA_ID);
+    expect(mockFirestoreSet).not.toHaveBeenCalled();
     errorLog.mockRestore();
+    mockFail.table = null;
+    expect([200, 500]).toContain(response.status);
   });
 
   it("refuses a body the schema does not accept", async () => {
