@@ -11,6 +11,7 @@ import {
 import { User, onAuthStateChanged } from "firebase/auth";
 
 import { auth, initializeAuthPersistence } from "@/lib/firebase";
+import { setAuthTokenGetter } from "@/lib/api/auth-token";
 import {
   authService,
   RegisterData,
@@ -97,6 +98,16 @@ export function AuthProvider({
 
     let unsubscribe: (() => void) | undefined;
 
+    // Register the browser access-token provider used by `lib/api/fetch.ts`.
+    // `apiFetch` attaches the signed-in admin's Firebase ID token to every
+    // `/api/admin/**` request; without this registration those guarded routes
+    // receive no Authorization header and answer 401. The getter reads the token
+    // on demand from the live user, so a refreshed token is never cached stale.
+    setAuthTokenGetter(async () => {
+      const current = auth?.currentUser;
+      return current ? current.getIdToken() : null;
+    });
+
     try {
       // Initialize auth persistence first (client-side only)
       initializeAuthPersistence(auth).then(() => {
@@ -133,6 +144,7 @@ export function AuthProvider({
     }
 
     return () => {
+      setAuthTokenGetter(null);
       if (unsubscribe) {
         unsubscribe();
       }

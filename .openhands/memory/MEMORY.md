@@ -686,10 +686,12 @@ Working log archived; see daily logs. Not this repository.
 
 - Branch `feat/fresh-supabase-initialization`, PR #363 (**draft, must stay unmerged**). Head `b0b7211`.
   CI all green incl. Vercel. Scope: application data Firestore→Supabase; **Firebase Auth unchanged**.
-- **The 6c982811 Vercel failure was the same root cause as the CI lint failure**, not an infra flake:
-  `next.config.ts` does NOT set `eslint.ignoreDuringBuilds`, so `next build` runs ESLint, and 4
-  `react-hooks/set-state-in-effect` **errors** failed the build
-  (`app/admin/billing/{create,page,settings}/page.tsx`, `hooks/useGallery.ts`). Now 0 lint errors.
+- **The 6c982811 Vercel failure was NOT the CI lint failure** (earlier note wrong). Next 16 `next build` does
+  NOT run ESLint at all (`next lint` removed; `version-16.md`: "next build no longer runs linting"). At 6c982811
+  the Vercel/Turbopack build failed with `'server-only' cannot be imported from a Client Component module` (~15
+  services statically imported lib/supabase/admin.ts from client-reachable modules) plus a Testimonials.tsx prerender
+  crash (0 approved testimonials, no empty-state guard). The separate CI `npm run lint` step failed on 4
+  `react-hooks/set-state-in-effect` errors. Both fixed by `4b96b3f` (client/server split). Head `739abe9`: Vercel green.
 - **Unit suite = 201 suites / 2619 tests; DB suite (`npm run test:db`) = 17 suites / 238 tests.**
   `npm run test:db` needs `node --experimental-vm-modules` (set in the npm script) — running
   `npx jest -c jest.db.config.ts <file>` directly fails on `import.meta`.
