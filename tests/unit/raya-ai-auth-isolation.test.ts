@@ -189,8 +189,6 @@ describe("no Firestore fallback in the approved Raya AI paths", () => {
     path.join("lib", "auth", "admin.ts"),
     // Firebase ID-token verification for public receipts and seva (non-AI).
     path.join("lib", "auth", "verify-id-token.ts"),
-    // chatTraining is classified EXCLUDE_SYSTEM and has no Supabase destination.
-    path.join("app", "admin", "ai", "training", "page.tsx"),
   ]);
 
   it("no in-scope AI module imports Firestore or Firebase Admin", () => {

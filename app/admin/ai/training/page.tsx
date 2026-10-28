@@ -13,16 +13,7 @@ import {
   AlertCircle,
   CheckCircle,
 } from "lucide-react";
-import { db } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { apiFetch } from "@/lib/api/fetch";
 
 interface ChatTrainingData {
   id: string;
@@ -116,23 +107,12 @@ export default function ChatTrainingPage() {
 
   async function loadTrainingData() {
     try {
-      if (!db) {
-        console.log("Firebase not configured");
-        setLoading(false);
-        return;
-      }
-
-      const snapshot = await getDocs(collection(db, "chatTraining"));
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as ChatTrainingData[];
-
-      // Sort by priority
+      const result = await apiFetch<{ items?: ChatTrainingData[] }>("/api/admin/chat-training");
+      const data = result.items ?? [];
       data.sort((a, b) => a.priority - b.priority);
       setTrainingData(data);
 
-      // Initialize with defaults if empty
+      // Seed the curated defaults only when the store is genuinely empty.
       if (data.length === 0) {
         await initializeDefaults();
       }
@@ -146,11 +126,7 @@ export default function ChatTrainingPage() {
   async function initializeDefaults() {
     try {
       for (const item of DEFAULT_RESPONSES) {
-        await addDoc(collection(db!, "chatTraining"), {
-          ...item,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        await apiFetch("/api/admin/chat-training", { method: "POST", body: item });
       }
       await loadTrainingData();
       showMessage("success", "Default responses initialized");
@@ -218,24 +194,15 @@ export default function ChatTrainingPage() {
     setSaving(true);
     try {
       if (isNew) {
-        await addDoc(collection(db!, "chatTraining"), {
-          keywords,
-          response: formResponse,
-          category: formCategory,
-          priority: formPriority,
-          active: formActive,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+        await apiFetch("/api/admin/chat-training", {
+          method: "POST",
+          body: { keywords, response: formResponse, category: formCategory, priority: formPriority, active: formActive },
         });
         showMessage("success", "Training data added successfully");
       } else if (editingItem?.id) {
-        await updateDoc(doc(db!, "chatTraining", editingItem.id), {
-          keywords,
-          response: formResponse,
-          category: formCategory,
-          priority: formPriority,
-          active: formActive,
-          updatedAt: serverTimestamp(),
+        await apiFetch("/api/admin/chat-training", {
+          method: "PATCH",
+          body: { id: editingItem.id, keywords, response: formResponse, category: formCategory, priority: formPriority, active: formActive },
         });
         showMessage("success", "Training data updated successfully");
       }
@@ -253,7 +220,7 @@ export default function ChatTrainingPage() {
     if (!confirm("Are you sure you want to delete this training data?")) return;
 
     try {
-      await deleteDoc(doc(db!, "chatTraining", id));
+      await apiFetch(`/api/admin/chat-training?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       showMessage("success", "Training data deleted");
       await loadTrainingData();
     } catch (error) {
@@ -264,9 +231,9 @@ export default function ChatTrainingPage() {
 
   async function toggleActive(item: ChatTrainingData) {
     try {
-      await updateDoc(doc(db!, "chatTraining", item.id), {
-        active: !item.active,
-        updatedAt: serverTimestamp(),
+      await apiFetch("/api/admin/chat-training", {
+        method: "PATCH",
+        body: { id: item.id, active: !item.active },
       });
       await loadTrainingData();
     } catch (error) {
@@ -355,19 +322,6 @@ export default function ChatTrainingPage() {
             <AlertCircle className="w-5 h-5" />
           )}
           {message.text}
-        </div>
-      )}
-
-      {/* No Firebase Warning */}
-      {!db && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-yellow-800">
-            <AlertCircle className="w-5 h-5" />
-            <span className="font-medium">Firebase not configured</span>
-          </div>
-          <p className="text-yellow-700 mt-1">
-            Please configure Firebase to manage chat training data.
-          </p>
         </div>
       )}
 
