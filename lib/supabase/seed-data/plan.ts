@@ -35,10 +35,33 @@ export interface SeedOperation {
   rows: Record<string, unknown>[];
   /** True when the table must exist but must never receive seeded rows. */
   insertOnly?: boolean;
+  /**
+   * How to treat a table that already holds rows.
+   *
+   * - `"empty"` — seed the starter rows only when the table is empty. This is the
+   *   default for content tables, whose rows are owner-curated: a database that
+   *   already has rows (for example a project that previously imported its own
+   *   content under different identifiers) is left exactly as it is, so a re-run can
+   *   never add a parallel starter copy next to the real rows.
+   * - `"always"` — upsert each row on its conflict key (`ON CONFLICT DO NOTHING`).
+   *   This is correct for `settings_documents`, where the conflict target
+   *   (`document_key`) is the true natural key: a missing document is added and an
+   *   existing one is never touched.
+   */
+  seedWhen?: "empty" | "always";
 }
 
-function op(table: string, records: SeedRecord[]): SeedOperation {
-  return { table, conflict: records[0]?.conflict ?? "id", rows: records.map((r) => r.row) };
+function op(
+  table: string,
+  records: SeedRecord[],
+  seedWhen: "empty" | "always" = "empty"
+): SeedOperation {
+  return {
+    table,
+    conflict: records[0]?.conflict ?? "id",
+    rows: records.map((r) => r.row),
+    seedWhen,
+  };
 }
 
 export const SEED_PLAN: SeedOperation[] = [
@@ -57,6 +80,7 @@ export const SEED_PLAN: SeedOperation[] = [
   {
     table: "settings_documents",
     conflict: "document_key",
+    seedWhen: "always",
     rows: SETTINGS_DOCUMENT_SEEDS.map((s) => ({
       document_key: s.documentKey,
       data: s.data,

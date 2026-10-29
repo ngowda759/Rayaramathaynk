@@ -39,8 +39,13 @@ The nine `settings_documents` keys are `aboutUs`, `ekadashiCalendar`, `facilitie
 
 ### Properties the plan guarantees
 
-- **Repeatable and conflict-safe.** Every write is
-  `INSERT ... ON CONFLICT (<key>) DO NOTHING`, so a second run inserts `+0` rows.
+- **Repeatable and conflict-safe.** A content table is seeded only when it is **empty**;
+  `settings_documents` inserts each row with `ON CONFLICT (document_key) DO NOTHING`.
+  Either way a second run inserts `+0` rows.
+- **Never duplicates owner content.** A table that already holds rows — including a
+  project that previously imported its own content under different identifiers — is left
+  exactly as it is. The starter rows are added only to genuinely empty tables, so a re-run
+  can never create a parallel copy next to real data.
 - **Administrator edits are preserved.** Because the plan never updates an existing row,
   an owner's edit to a seeded row survives every later run untouched.
 - **No legacy artifacts.** The plan imports no Firestore client and needs no Firebase
@@ -51,10 +56,11 @@ The nine `settings_documents` keys are `aboutUs`, `ekadashiCalendar`, `facilitie
   invented. No timings, prices, donation instructions, dates, committee names or
   testimonials are fabricated.
 
-`tests/db/fresh-seed.test.ts` proves all four properties against a throwaway in-process
-Postgres (PGlite): every required table exists after the migrations, the first run
-creates the starter rows, the second run inserts nothing, and an administrator's edit to
-a seeded row survives the next run.
+`tests/db/fresh-seed.test.ts` proves all of these against a throwaway in-process Postgres
+(PGlite): every required table exists after the migrations, the first run creates the
+starter rows, the second run inserts nothing, an administrator's edit to a seeded row
+survives the next run, and a table that already holds rows is skipped rather than
+duplicated.
 
 ## Local / test initialization (safe, the default)
 
@@ -82,6 +88,23 @@ npx tsx scripts/seed-fresh-supabase.ts \
 
 This reads `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the
 environment or `.env.local` / `.env`, exactly like `create-first-super-admin.ts`.
+
+## Populating a project that already holds content
+
+A project that already has real content — for example one that previously imported its own
+rows under different identifiers — is handled safely by the same plan:
+
+- every content table is seeded **only when empty**, so existing rows are never duplicated
+  and never overwritten;
+- `settings_documents` adds only the document keys that are missing and leaves the rest
+  byte-for-byte;
+- tables the owner has never populated (the usual case for `announcements`,
+  `gallery_media`, `temple_areas`, `donation_campaigns`, `members`, `volunteers`) are
+  filled with the starter rows.
+
+`tests/db/fresh-seed.test.ts` covers this case directly: it pre-populates a table with an
+owner-curated row and asserts the run skips it, leaves the row intact, still seeds the
+empty tables, and that a second run inserts nothing.
 
 ## Production initialization is not supported by this command
 

@@ -145,6 +145,12 @@ export function pgPort(client: Client): SeedPort {
       );
       return result.rows[0]?.exists === true;
     },
+    async tableHasRows(table) {
+      const result = await client.query<{ has_rows: boolean }>(
+        `select exists (select 1 from ${quoteIdent(table)} limit 1) as has_rows`,
+      );
+      return result.rows[0]?.has_rows === true;
+    },
   };
 }
 
@@ -189,7 +195,10 @@ async function main(): Promise<void> {
 
   if (options.dryRun) {
     for (const op of SEED_PLAN) {
-      console.log(`  ${op.table.padEnd(20)} ${op.insertOnly ? "(no rows; table only)" : `${op.rows.length} rows on ${op.conflict}`}`);
+      const mode = op.insertOnly
+        ? "(no rows; table only)"
+        : `${op.rows.length} rows on ${op.conflict}${(op.seedWhen ?? "empty") === "empty" ? " (only if the table is empty)" : ""}`;
+      console.log(`  ${op.table.padEnd(20)} ${mode}`);
     }
     console.log("Dry run complete. Nothing was written.");
     return;
@@ -203,6 +212,9 @@ async function main(): Promise<void> {
     console.log("\n=== SUMMARY ===");
     for (const [table, count] of Object.entries(summary.inserted)) {
       console.log(`  ${table.padEnd(20)} +${count}`);
+    }
+    if (summary.alreadyPopulated.length > 0) {
+      console.log(`  (already populated, left untouched): ${summary.alreadyPopulated.join(", ")}`);
     }
     if (summary.skipped.length > 0) {
       console.log(`  (no rows seeded, table ensured): ${summary.skipped.join(", ")}`);

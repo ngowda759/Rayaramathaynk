@@ -78,6 +78,12 @@ function pglitePort(db: PGlite): SeedPort {
       );
       return result.rows[0]?.exists === true;
     },
+    async tableHasRows(table) {
+      const result = await db.query<{ has_rows: boolean }>(
+        `select exists (select 1 from ${quoteIdent(table)} limit 1) as has_rows`
+      );
+      return result.rows[0]?.has_rows === true;
+    },
   };
 }
 
@@ -189,5 +195,71 @@ describe('fresh Supabase initialization seed', () => {
     expect(serialized).toContain('PLACEHOLDER - ');
     // No Firebase artifact leaked into the seeded documents.
     expect(serialized).not.toContain('firestore');
+  });
+});
+
+/**
+ * A project that already holds its own content — for example one that previously
+ * imported its own rows under different identifiers — must never receive a parallel
+ * starter copy. The `empty` seed mode is what guarantees that.
+ */
+describe('fresh Supabase initialization on an already-populated database', () => {
+  let db: PGlite;
+  let port: SeedPort;
+
+  beforeAll(async () => {
+    db = await migratedDb();
+    port = pglitePort(db);
+    // A pre-existing, owner-curated daily_poojas row that does not use a `seed-` key.
+    await db.query(
+      `insert into daily_poojas (firestore_id, title, description, start_time, duration, category, seva_amount, days, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      ['legacy-arati', 'Arati', 'Arati', '07:00', '30 mins', 'Daily', 20, ['All'], 'system']
+    );
+  }, 60_000);
+
+  afterAll(async () => {
+    await db?.close();
+  });
+
+  it('does not seed a table that already holds rows, and leaves those rows intact', async () => {
+    const summary = await runSeedPlan(port);
+
+    // The populated table is reported as skipped, not seeded.
+    expect(summary.alreadyPopulated).toContain('daily_poojas');
+    expect(summary.inserted.daily_poojas).toBeUndefined();
+
+    // No starter copy was added next to the owner's row.
+    const poojas = await db.query<{ n: number }>('select count(*)::int as n from daily_poojas');
+    expect(poojas.rows[0].n).toBe(1);
+
+    // Empty tables were still seeded.
+    const announcements = await db.query<{ n: number }>(
+      'select count(*)::int as n from announcements'
+    );
+    expect(announcements.rows[0].n).toBeGreaterThan(0);
+
+    // A second run is a no-op for the populated table and adds nothing anywhere.
+    const second = await runSeedPlan(port);
+    expect(second.totalInserted).toBe(0);
+  });
+
+  it('adds only missing settings documents and never rewrites an existing one', async () => {
+    // The owner has already edited one settings document.
+    const ownerData = { heading: 'Owner-edited heading', items: [] };
+    await db.query('update settings_documents set data = $1 where document_key = $2', [
+      JSON.stringify(ownerData),
+      'aboutUs',
+    ]);
+
+    const summary = await runSeedPlan(port);
+    // settings_documents always runs, but conflicts on document_key: nothing inserted.
+    expect(summary.inserted.settings_documents ?? 0).toBe(0);
+
+    const row = await db.query<{ data: { heading: string } }>(
+      'select data from settings_documents where document_key = $1',
+      ['aboutUs']
+    );
+    expect(row.rows[0].data.heading).toBe('Owner-edited heading');
   });
 });
