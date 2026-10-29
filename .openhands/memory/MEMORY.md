@@ -735,3 +735,20 @@ Working log archived; see daily logs. Not this repository.
   implicit-any error: `tsconfig.scripts.json` 68 → 67).
 - **`origin`'s embedded token is expired** — `git push origin …` hangs on a password prompt;
   push with `GIT_TERMINAL_PROMPT=0 git push "https://${GITHUB_TOKEN}@github.com/ngowda759/Rayaramathaynk.git" HEAD:<branch>`.
+
+### Fresh-seed population safety (PR #365, 2026-10-28)
+
+- `lib/supabase/seed-data/plan.ts` seeded every table `ON CONFLICT (firestore_id) DO NOTHING`,
+  which **duplicates a populated project**: prod migrated rows carry REAL Firestore ids, not the
+  plan's `seed-*` keys, so the conflict never fires. Now `SeedOperation.seedWhen` is `"empty"`
+  (default; skip any non-empty content table) or `"always"` (`settings_documents` only).
+  `SeedPort.tableHasRows` + `SeedSummary.alreadyPopulated` added. Prod row counts (read-only,
+  project `kvrkraqjuyxbraccxntk`): `daily_poojas` 26, `quotes` 6, `gallery_albums` 4,
+  `site_settings` 2, `social_links` 1, `settings_documents` 7, `testimonials` 2 — all must be
+  left untouched. Prod is the Firestore-migrated dataset; the fresh seed has never been applied.
+- **Vercel failures live in the commit *status* API, not always in `check-runs`.** A lint error
+  (`react-hooks/set-state-in-effect`) fails `next build` → Vercel `failure`. Query
+  `commits/{sha}/status` to see the `Vercel` context.
+- `./scripts/test-boundary.sh` leaves a stale `.next/types/validator.ts` that breaks
+  `tsc --noEmit` (TS2307 on a deleted test page) — `rm -rf .next` before typecheck.
+- `origin`'s embedded token is dead; push via `git remote set-url origin https://${GITHUB_TOKEN}@…`.
