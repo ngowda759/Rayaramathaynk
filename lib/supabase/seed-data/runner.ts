@@ -12,6 +12,10 @@
  *  - `seedWhen: "empty"` (every content table) seeds its starter rows only when the
  *    table holds no rows. A table that already has rows is skipped entirely, so the
  *    starter content can never be added as a parallel copy next to real rows.
+ *  - `dependsOn` (a child table) runs only when the parent table it references was
+ *    seeded earlier in the same run. A skipped parent skips the child too, so a
+ *    child row can never reference a seed-only parent identifier that was never
+ *    inserted.
  *
  * Either way a second run inserts nothing new and an owner's edit is never
  * overwritten. A table the owner has never populated is (re)created if missing.
@@ -35,6 +39,8 @@ export interface SeedSummary {
   skipped: string[];
   /** Tables left untouched because they already held owner-curated rows. */
   alreadyPopulated: string[];
+  /** Tables left untouched because a table they depend on was not seeded this run. */
+  dependencySkipped: string[];
   /** Tables from the plan that are missing from the database. */
   missingTables: string[];
   totalInserted: number;
@@ -68,11 +74,22 @@ export async function runSeedPlan(port: SeedPort, plan: SeedOperation[] = SEED_P
   const inserted: Record<string, number> = {};
   const skipped: string[] = [];
   const alreadyPopulated: string[] = [];
+  const dependencySkipped: string[] = [];
+  // Tables seeded (or determined seedable) earlier in this run. A `dependsOn` parent
+  // that is absent here was skipped, so the child must be skipped too.
+  const seeded = new Set<string>();
   let totalInserted = 0;
 
   for (const operation of plan) {
     if (operation.insertOnly || operation.rows.length === 0) {
       skipped.push(operation.table);
+      continue;
+    }
+    if (operation.dependsOn && !seeded.has(operation.dependsOn)) {
+      // The parent this table references was not seeded this run (it was skipped
+      // because it already holds rows). Seeding the child would leave rows pointing
+      // at a seed-only parent identifier that was never inserted.
+      dependencySkipped.push(operation.table);
       continue;
     }
     if ((operation.seedWhen ?? "empty") === "empty" && (await port.tableHasRows(operation.table))) {
@@ -83,8 +100,9 @@ export async function runSeedPlan(port: SeedPort, plan: SeedOperation[] = SEED_P
     }
     const count = await port.upsert(operation.table, operation.rows, operation.conflict);
     inserted[operation.table] = count;
+    seeded.add(operation.table);
     totalInserted += count;
   }
 
-  return { inserted, skipped, alreadyPopulated, missingTables, totalInserted };
+  return { inserted, skipped, alreadyPopulated, dependencySkipped, missingTables, totalInserted };
 }

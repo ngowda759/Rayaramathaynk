@@ -46,6 +46,11 @@ The nine `settings_documents` keys are `aboutUs`, `ekadashiCalendar`, `facilitie
   project that previously imported its own content under different identifiers — is left
   exactly as it is. The starter rows are added only to genuinely empty tables, so a re-run
   can never create a parallel copy next to real data.
+- **Dependent rows never orphan.** `gallery_media` rows carry `album_id =
+  'seed-gallery-album-temple'`, an identifier only this plan inserts. The media operation
+  declares `dependsOn: "gallery_albums"` and runs only when the album seed ran in the same
+  pass, so when a project already owns albums the media is left untouched rather than
+  inserted as orphans pointing at an album that does not exist.
 - **Administrator edits are preserved.** Because the plan never updates an existing row,
   an owner's edit to a seeded row survives every later run untouched.
 - **No legacy artifacts.** The plan imports no Firestore client and needs no Firebase
@@ -100,11 +105,16 @@ rows under different identifiers — is handled safely by the same plan:
   byte-for-byte;
 - tables the owner has never populated (the usual case for `announcements`,
   `gallery_media`, `temple_areas`, `donation_campaigns`, `members`, `volunteers`) are
-  filled with the starter rows.
+  filled with the starter rows;
+- a dependent table (`gallery_media`) is filled only when its parent (`gallery_albums`)
+  was seeded in the same run, so an existing album set never gains orphaned media.
 
 `tests/db/fresh-seed.test.ts` covers this case directly: it pre-populates a table with an
 owner-curated row and asserts the run skips it, leaves the row intact, still seeds the
-empty tables, and that a second run inserts nothing.
+empty tables, and that a second run inserts nothing. A dedicated gallery-dependency suite
+proves both the empty-parent (album + media seeded, zero orphans) and populated-parent
+(media skipped, owner media preserved) cases, and that a parent existence-check failure
+aborts the run safely.
 
 ## Production initialization is not supported by this command
 

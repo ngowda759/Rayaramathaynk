@@ -263,3 +263,121 @@ describe('fresh Supabase initialization on an already-populated database', () =>
     expect(row.rows[0].data.heading).toBe('Owner-edited heading');
   });
 });
+
+/**
+ * `gallery_media.album_id` carries the seed-only album identifier
+ * (`seed-gallery-album-temple`), and there is no enforced foreign key. These tests
+ * prove the runner's `dependsOn` guard keeps the child table from being seeded when
+ * its parent album seed was skipped.
+ */
+describe('fresh Supabase initialization: gallery dependency', () => {
+  const countMedia = (db: PGlite) =>
+    db.query<{ n: number }>('select count(*)::int as n from gallery_media');
+  const orphans = (db: PGlite) =>
+    db.query<{ n: number }>(
+      `select count(*)::int as n from gallery_media
+        where not exists (
+          select 1 from gallery_albums a
+          where a.firestore_id = gallery_media.album_id or a.id::text = gallery_media.album_id
+        )`
+    );
+
+  async function emptyDb(): Promise<{ db: PGlite; port: SeedPort }> {
+    const db = await migratedDb();
+    return { db, port: pglitePort(db) };
+  }
+
+  it('seeds album and media together when both are empty, with no orphaned media', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      const summary = await runSeedPlan(port);
+      expect(summary.inserted.gallery_albums).toBeGreaterThan(0);
+      expect(summary.inserted.gallery_media).toBeGreaterThan(0);
+
+      // Every seeded media row resolves to a real album (structural, not an FK error).
+      expect((await orphans(db)).rows[0].n).toBe(0);
+
+      // A second run inserts nothing.
+      const second = await runSeedPlan(port);
+      expect(second.totalInserted).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+
+  it('does not seed gallery_media when the album seed is skipped (no orphaned media)', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      // The project already owns an album with a real identifier, so the seed album
+      // (`seed-gallery-album-temple`) is never inserted.
+      await db.query(
+        `insert into gallery_albums (firestore_id, title, slug, description, cover_image, active, display_order)
+         values ($1, $2, $3, $4, $5, $6, $7)`,
+        ['real-album-owner', 'Owner Album', 'owner-album', 'owner album', '/images/temple/Ananda.jpg', true, 1]
+      );
+
+      const summary = await runSeedPlan(port);
+
+      // The parent is reported as populated, and the dependent child is skipped by
+      // dependency rather than seeded.
+      expect(summary.alreadyPopulated).toContain('gallery_albums');
+      expect(summary.dependencySkipped).toContain('gallery_media');
+      expect(summary.inserted.gallery_media).toBeUndefined();
+
+      // No media row references the seed-only album identifier, and none was added.
+      expect((await orphans(db)).rows[0].n).toBe(0);
+      expect((await countMedia(db)).rows[0].n).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+
+  it('preserves an owner gallery_media set untouched when albums already exist', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      const album = await db.query<{ id: string }>(
+        `insert into gallery_albums (firestore_id, title, slug, description, cover_image, active, display_order)
+         values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+        ['real-album-owner', 'Owner Album', 'owner-album', 'owner album', '/images/temple/Ananda.jpg', true, 1]
+      );
+      await db.query(
+        `insert into gallery_media (firestore_id, album_id, title, description, category, type, image_path, alt_text, uploaded_by, is_featured, display_order, tags)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        ['owner-media-1', album.rows[0].id, 'Owner photo', 'owner photo', 'Owner Category', 'photo', '/images/temple/Seva.jpg', 'owner photo', 'owner', true, 1, ['owner']]
+      );
+
+      const summary = await runSeedPlan(port);
+
+      expect(summary.dependencySkipped).toContain('gallery_media');
+      expect((await countMedia(db)).rows[0].n).toBe(1);
+      const owned = await db.query<{ title: string }>(
+        'select title from gallery_media where firestore_id = $1',
+        ['owner-media-1']
+      );
+      expect(owned.rows[0].title).toBe('Owner photo');
+      expect((await orphans(db)).rows[0].n).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+
+  it('aborts the whole run when the parent existence check fails (fail-safe)', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      const failing: SeedPort = {
+        ...port,
+        async tableHasRows(table) {
+          if (table === 'gallery_albums') throw new Error('connection reset');
+          return port.tableHasRows(table);
+        },
+      };
+
+      await expect(runSeedPlan(failing)).rejects.toThrow('connection reset');
+
+      // Fail-safe: the run aborts at the parent, so the dependent child is never seeded.
+      expect((await countMedia(db)).rows[0].n).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+});

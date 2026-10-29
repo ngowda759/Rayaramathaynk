@@ -197,7 +197,7 @@ async function main(): Promise<void> {
     for (const op of SEED_PLAN) {
       const mode = op.insertOnly
         ? "(no rows; table only)"
-        : `${op.rows.length} rows on ${op.conflict}${(op.seedWhen ?? "empty") === "empty" ? " (only if the table is empty)" : ""}`;
+        : `${op.rows.length} rows on ${op.conflict}${(op.seedWhen ?? "empty") === "empty" ? " (only if the table is empty)" : ""}${op.dependsOn ? ` (only if ${op.dependsOn} is seeded this run)` : ""}`;
       console.log(`  ${op.table.padEnd(20)} ${mode}`);
     }
     console.log("Dry run complete. Nothing was written.");
@@ -215,6 +215,9 @@ async function main(): Promise<void> {
     }
     if (summary.alreadyPopulated.length > 0) {
       console.log(`  (already populated, left untouched): ${summary.alreadyPopulated.join(", ")}`);
+    }
+    if (summary.dependencySkipped.length > 0) {
+      console.log(`  (dependency not seeded, left untouched): ${summary.dependencySkipped.join(", ")}`);
     }
     if (summary.skipped.length > 0) {
       console.log(`  (no rows seeded, table ensured): ${summary.skipped.join(", ")}`);

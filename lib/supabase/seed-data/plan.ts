@@ -49,18 +49,32 @@ export interface SeedOperation {
    *   existing one is never touched.
    */
   seedWhen?: "empty" | "always";
+  /**
+   * Table whose seed rows this operation's rows reference. The operation runs only
+   * when that table was seeded earlier in the same run. If the parent was skipped
+   * (its own `seedWhen` mode found it already populated), the child is skipped too,
+   * so its rows can never reference seed-only parent identifiers that were never
+   * inserted. The plan lists the parent before the child.
+   */
+  dependsOn?: string;
+}
+
+interface SeedOperationOptions {
+  seedWhen?: "empty" | "always";
+  dependsOn?: string;
 }
 
 function op(
   table: string,
   records: SeedRecord[],
-  seedWhen: "empty" | "always" = "empty"
+  options: SeedOperationOptions = {}
 ): SeedOperation {
   return {
     table,
     conflict: records[0]?.conflict ?? "id",
     rows: records.map((r) => r.row),
-    seedWhen,
+    seedWhen: options.seedWhen ?? "empty",
+    dependsOn: options.dependsOn,
   };
 }
 
@@ -71,7 +85,10 @@ export const SEED_PLAN: SeedOperation[] = [
   op("daily_poojas", DAILY_POOJA_SEEDS),
   op("donation_campaigns", DONATION_CAMPAIGN_SEEDS),
   op("gallery_albums", GALLERY_ALBUM_SEEDS),
-  op("gallery_media", GALLERY_MEDIA_SEEDS),
+  // Media rows carry `album_id = 'seed-gallery-album-temple'`, an identifier only this
+  // plan inserts. If the album seed is skipped (the project already has albums), seeding
+  // the media would leave orphan rows pointing at an album that does not exist.
+  op("gallery_media", GALLERY_MEDIA_SEEDS, { dependsOn: "gallery_albums" }),
   op("temple_areas", TEMPLE_AREA_SEEDS),
   op("testimonials", TESTIMONIAL_SEEDS),
   op("members", MEMBER_SEEDS),
