@@ -235,6 +235,12 @@ These are open items that must be resolved by the owner **before** production is
 initialized. None of them is fixed by a seed run, and none requires deleting or
 rewriting production data from this repository.
 
+> Related documents:
+> - `docs/PRODUCTION_SUPABASE_READINESS.md` — the read-only production readiness review
+>   (verified vs unverified, and why privileged read-only access is currently blocked).
+> - `docs/SUPABASE_DATA_ONLY_INITIALIZATION_PLAN.md` — the table-by-table seed plan with
+>   the observed production counts, RLS visibility limitations and rollback identifiers.
+
 ### 1. `site_settings` duplicate rows (deterministic read; deletion is an owner action)
 
 **Confirmed against production (read-only, 2026-10-28).** The migrated production

@@ -73,7 +73,18 @@ export class DatabaseExportService {
   private async readSiteSettings(
     supabase: SupabaseClient
   ): Promise<Record<string, unknown> | undefined> {
-    const { data, error } = await supabase.from('site_settings').select('*').limit(1).maybeSingle();
+    // Two rows can share an `updated_at` value, so ordering by it alone left
+    // `.maybeSingle()` non-deterministic (it could report the stray
+    // `firestore_id = 'trustCommittee'` document instead of the temple identity).
+    // `id` is the unique primary key, so it is the stable tiebreaker — the same
+    // rule `services/settings.service.ts` uses. Neither row is modified.
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle();
     if (error) {
       console.warn(`[DatabaseExportService] Could not read site_settings: ${error.message}`);
       return undefined;
