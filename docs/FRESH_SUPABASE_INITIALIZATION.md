@@ -228,3 +228,102 @@ npm run verify:supabase-migrations:static   # static only, no credentials
 
 The static verifier exits `2` by design when it skips live verification ("static passed,
 live skipped"); `2` is not a CI failure signal.
+
+## Outstanding pre-merge safeguards
+
+These are open items that must be resolved by the owner **before** production is
+initialized. None of them is fixed by a seed run, and none requires deleting or
+rewriting production data from this repository.
+
+### 1. `site_settings` duplicate rows (deterministic read; deletion is an owner action)
+
+The migrated production `site_settings` table holds **two rows** that share one
+`updated_at` value. The public reader selected a single row with
+`order(updated_at desc).limit(1).single()`, which is non-deterministic when the
+`updated_at` values tie.
+
+This repository no longer guesses. `services/settings.service.ts` adds `id` ascending as a
+stable tiebreaker, so the read is deterministic without touching either row
+(`tests/unit/settings-service-read.test.ts` pins the ordering). **No row is deleted or
+rewritten here** — choosing which row is canonical is the owner's decision.
+
+Inspect (read-only; run against production with the owner's credentials):
+
+```sql
+-- Which rows exist, and do they tie on updated_at?
+select id, firestore_id, temple_name, contact_email, created_at, updated_at
+from site_settings
+order by updated_at desc, id asc;
+
+-- Candidate "duplicate" pair: same updated_at.
+select updated_at, count(*)
+from site_settings
+group by updated_at
+having count(*) > 1;
+```
+
+One of the two rows is expected to carry a `firestore_id` such as `trustCommittee`, which is
+a *settings document* (migrated losslessly into `settings_documents`), not site identity.
+The owner confirms which row is authoritative, then removes the other through the admin
+console or an approved, separately reviewed SQL step. Until then the deterministic read
+returns the newest row, tie-broken by `id`.
+
+### 2. Final production initialization plan and exact records
+
+Production initialization is **not** performed by any workflow or pull request in this
+repository (see "Production initialization is not supported by this command"). When the
+owner approves it, the exact starter set is the plan's `seedWhen: "empty"` content, 69 rows
+across the content tables (the same list the dry run prints):
+
+| Table | Rows | Conflict key |
+|-------|------|--------------|
+| `site_settings` | 1 | `firestore_id` |
+| `social_links` | 1 | `firestore_id` |
+| `announcements` | 1 | `firestore_id` |
+| `daily_poojas` | 13 | `firestore_id` |
+| `donation_campaigns` | 1 | `firestore_id` |
+| `gallery_albums` | 1 | `firestore_id` |
+| `gallery_media` | 7 | `firestore_id` (only when `gallery_albums` is seeded) |
+| `temple_areas` | 2 | `id` |
+| `quotes` | 33 | `slug` |
+| `settings_documents` | 9 | `document_key` |
+
+Each table is seeded **only when empty**; `settings_documents` inserts only the missing
+document keys. `testimonials`, `members` and `volunteers` carry **no** seed rows (owner
+facts only). Preview the exact rows at any time without writing:
+
+```bash
+DATABASE_URL=<test-db-url> npm run seed:fresh:dry-run
+```
+
+### 3. Production connectivity is not verified from this environment
+
+The sandbox cannot reach the approved production project `kvrkraqjuyxbraccxntk`:
+
+- `SUPABASE_DB_URL` / `SUPABASE_DB_URL_TX` authenticate as a user belonging to a
+  **different** project, and `SUPABASE_PROJECT_REF` is not the approved ref;
+- a direct connect to the approved ref via the Supavisor pooler returns
+  `FATAL: (ENOTFOUND) tenant/user postgres.kvrkraqjuyxbraccxntk not found` (the supplied
+  password does not belong to that tenant).
+
+Consequently **no production read or write was performed, and none is claimed.** Correct
+credentials are an owner action. Verify them safely, read-only, before any initialization:
+
+```bash
+# Runs SELECTs and capability probes only; never writes, never prints a secret.
+npm run diagnose:supabase-connectivity
+```
+
+### 4. `isUserAdmin()` still reads Firestore (follow-up, separate from this PR)
+
+`lib/auth/admin.ts` `isUserAdmin(uid)` resolves admin status from the Firestore `users`
+collection, and `app/actions/settings.ts` gates settings writes with it. Firebase
+**Authentication** (token verification, login, sessions) stays unchanged; this is a
+separate question of *where the role is read from*.
+
+- The settings **API routes** (`/api/admin/settings/[key]`) already use
+  `requireAdminUser` (`lib/auth/admin-auth.ts`), which reads the role from Supabase
+  `public.users` — the pattern to converge on.
+- Converging `isUserAdmin` onto Supabase `public.users` (mirroring `requireAdminUser`) is a
+  dedicated, separately reviewed change. It is **out of scope** for the fresh-seed work and
+  must not be folded into this PR, because it changes authorization semantics.
