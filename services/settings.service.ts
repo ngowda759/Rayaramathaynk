@@ -39,10 +39,16 @@ class SettingsService {
   async getSettings(): Promise<SiteSettings | null> {
     // Reads are public, so client works fine
     const supabase = createClient();
+    // Two rows can share an `updated_at` value, which made `.single()` pick an
+    // arbitrary one. `id` is a unique primary key, so ordering by it as a stable
+    // tiebreaker makes the chosen row deterministic. This does not delete or
+    // rewrite the duplicate; removing it is an owner action (see
+    // docs/FRESH_SUPABASE_INITIALIZATION.md, "site_settings duplicate rows").
     const { data, error } = await supabase
       .from("site_settings")
       .select("*")
       .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
       .limit(1)
       .single();
 

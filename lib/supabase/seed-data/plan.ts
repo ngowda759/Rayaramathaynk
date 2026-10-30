@@ -35,10 +35,47 @@ export interface SeedOperation {
   rows: Record<string, unknown>[];
   /** True when the table must exist but must never receive seeded rows. */
   insertOnly?: boolean;
+  /**
+   * How to treat a table that already holds rows.
+   *
+   * - `"empty"` — seed the starter rows only when the table is empty. This is the
+   *   default for content tables, whose rows are owner-curated: a database that
+   *   already has rows (for example a project that previously imported its own
+   *   content under different identifiers) is left exactly as it is, so a re-run can
+   *   never add a parallel starter copy next to the real rows.
+   * - `"always"` — upsert each row on its conflict key (`ON CONFLICT DO NOTHING`).
+   *   This is correct for `settings_documents`, where the conflict target
+   *   (`document_key`) is the true natural key: a missing document is added and an
+   *   existing one is never touched.
+   */
+  seedWhen?: "empty" | "always";
+  /**
+   * Table whose seed rows this operation's rows reference. The operation runs only
+   * when that table was seeded earlier in the same run. If the parent was skipped
+   * (its own `seedWhen` mode found it already populated), the child is skipped too,
+   * so its rows can never reference seed-only parent identifiers that were never
+   * inserted. The plan lists the parent before the child.
+   */
+  dependsOn?: string;
 }
 
-function op(table: string, records: SeedRecord[]): SeedOperation {
-  return { table, conflict: records[0]?.conflict ?? "id", rows: records.map((r) => r.row) };
+interface SeedOperationOptions {
+  seedWhen?: "empty" | "always";
+  dependsOn?: string;
+}
+
+function op(
+  table: string,
+  records: SeedRecord[],
+  options: SeedOperationOptions = {}
+): SeedOperation {
+  return {
+    table,
+    conflict: records[0]?.conflict ?? "id",
+    rows: records.map((r) => r.row),
+    seedWhen: options.seedWhen ?? "empty",
+    dependsOn: options.dependsOn,
+  };
 }
 
 export const SEED_PLAN: SeedOperation[] = [
@@ -48,7 +85,10 @@ export const SEED_PLAN: SeedOperation[] = [
   op("daily_poojas", DAILY_POOJA_SEEDS),
   op("donation_campaigns", DONATION_CAMPAIGN_SEEDS),
   op("gallery_albums", GALLERY_ALBUM_SEEDS),
-  op("gallery_media", GALLERY_MEDIA_SEEDS),
+  // Media rows carry `album_id = 'seed-gallery-album-temple'`, an identifier only this
+  // plan inserts. If the album seed is skipped (the project already has albums), seeding
+  // the media would leave orphan rows pointing at an album that does not exist.
+  op("gallery_media", GALLERY_MEDIA_SEEDS, { dependsOn: "gallery_albums" }),
   op("temple_areas", TEMPLE_AREA_SEEDS),
   op("testimonials", TESTIMONIAL_SEEDS),
   op("members", MEMBER_SEEDS),
@@ -57,6 +97,7 @@ export const SEED_PLAN: SeedOperation[] = [
   {
     table: "settings_documents",
     conflict: "document_key",
+    seedWhen: "always",
     rows: SETTINGS_DOCUMENT_SEEDS.map((s) => ({
       document_key: s.documentKey,
       data: s.data,

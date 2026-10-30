@@ -39,8 +39,18 @@ The nine `settings_documents` keys are `aboutUs`, `ekadashiCalendar`, `facilitie
 
 ### Properties the plan guarantees
 
-- **Repeatable and conflict-safe.** Every write is
-  `INSERT ... ON CONFLICT (<key>) DO NOTHING`, so a second run inserts `+0` rows.
+- **Repeatable and conflict-safe.** A content table is seeded only when it is **empty**;
+  `settings_documents` inserts each row with `ON CONFLICT (document_key) DO NOTHING`.
+  Either way a second run inserts `+0` rows.
+- **Never duplicates owner content.** A table that already holds rows — including a
+  project that previously imported its own content under different identifiers — is left
+  exactly as it is. The starter rows are added only to genuinely empty tables, so a re-run
+  can never create a parallel copy next to real data.
+- **Dependent rows never orphan.** `gallery_media` rows carry `album_id =
+  'seed-gallery-album-temple'`, an identifier only this plan inserts. The media operation
+  declares `dependsOn: "gallery_albums"` and runs only when the album seed ran in the same
+  pass, so when a project already owns albums the media is left untouched rather than
+  inserted as orphans pointing at an album that does not exist.
 - **Administrator edits are preserved.** Because the plan never updates an existing row,
   an owner's edit to a seeded row survives every later run untouched.
 - **No legacy artifacts.** The plan imports no Firestore client and needs no Firebase
@@ -51,10 +61,11 @@ The nine `settings_documents` keys are `aboutUs`, `ekadashiCalendar`, `facilitie
   invented. No timings, prices, donation instructions, dates, committee names or
   testimonials are fabricated.
 
-`tests/db/fresh-seed.test.ts` proves all four properties against a throwaway in-process
-Postgres (PGlite): every required table exists after the migrations, the first run
-creates the starter rows, the second run inserts nothing, and an administrator's edit to
-a seeded row survives the next run.
+`tests/db/fresh-seed.test.ts` proves all of these against a throwaway in-process Postgres
+(PGlite): every required table exists after the migrations, the first run creates the
+starter rows, the second run inserts nothing, an administrator's edit to a seeded row
+survives the next run, and a table that already holds rows is skipped rather than
+duplicated.
 
 ## Local / test initialization (safe, the default)
 
@@ -82,6 +93,28 @@ npx tsx scripts/seed-fresh-supabase.ts \
 
 This reads `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the
 environment or `.env.local` / `.env`, exactly like `create-first-super-admin.ts`.
+
+## Populating a project that already holds content
+
+A project that already has real content — for example one that previously imported its own
+rows under different identifiers — is handled safely by the same plan:
+
+- every content table is seeded **only when empty**, so existing rows are never duplicated
+  and never overwritten;
+- `settings_documents` adds only the document keys that are missing and leaves the rest
+  byte-for-byte;
+- tables the owner has never populated (the usual case for `announcements`,
+  `gallery_media`, `temple_areas`, `donation_campaigns`, `members`, `volunteers`) are
+  filled with the starter rows;
+- a dependent table (`gallery_media`) is filled only when its parent (`gallery_albums`)
+  was seeded in the same run, so an existing album set never gains orphaned media.
+
+`tests/db/fresh-seed.test.ts` covers this case directly: it pre-populates a table with an
+owner-curated row and asserts the run skips it, leaves the row intact, still seeds the
+empty tables, and that a second run inserts nothing. A dedicated gallery-dependency suite
+proves both the empty-parent (album + media seeded, zero orphans) and populated-parent
+(media skipped, owner media preserved) cases, and that a parent existence-check failure
+aborts the run safely.
 
 ## Production initialization is not supported by this command
 
@@ -195,3 +228,133 @@ npm run verify:supabase-migrations:static   # static only, no credentials
 
 The static verifier exits `2` by design when it skips live verification ("static passed,
 live skipped"); `2` is not a CI failure signal.
+
+## Outstanding pre-merge safeguards
+
+These are open items that must be resolved by the owner **before** production is
+initialized. None of them is fixed by a seed run, and none requires deleting or
+rewriting production data from this repository.
+
+> Related documents:
+> - `docs/PRODUCTION_SUPABASE_READINESS.md` — the read-only production readiness review
+>   (verified vs unverified, and why privileged read-only access is currently blocked).
+> - `docs/SUPABASE_DATA_ONLY_INITIALIZATION_PLAN.md` — the table-by-table seed plan with
+>   the observed production counts, RLS visibility limitations and rollback identifiers.
+
+### 1. `site_settings` duplicate rows (deterministic read; deletion is an owner action)
+
+**Confirmed against production (read-only, 2026-10-28).** The migrated production
+`site_settings` table holds **two rows that share one `updated_at` value**, and the public
+reader selected a single row with `order(updated_at desc).limit(1).single()` — which is
+non-deterministic on a tie. The two rows differ only in identity: one carries the real
+temple name/contact, the other carries `firestore_id = 'trustCommittee'` — a *settings
+document* (migrated losslessly into `settings_documents`), not site identity.
+
+This repository no longer guesses. `services/settings.service.ts` adds `id` ascending as a
+stable tiebreaker, so the read is deterministic without touching either row
+(`tests/unit/settings-service-read.test.ts` pins the ordering). **No row is deleted or
+rewritten here** — choosing which row is canonical is the owner's decision.
+
+Inspect (read-only; run against production with the owner's credentials):
+
+```sql
+-- Which rows exist, and do they tie on updated_at?
+select id, firestore_id, temple_name, contact_email, created_at, updated_at
+from site_settings
+order by updated_at desc, id asc;
+
+-- Candidate "duplicate" pair: same updated_at.
+select updated_at, count(*)
+from site_settings
+group by updated_at
+having count(*) > 1;
+```
+
+Equivalent read-only REST check (publishable key only):
+
+```bash
+curl -s "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/site_settings?select=id,firestore_id,updated_at&order=updated_at.desc,id.asc" \
+  -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+```
+
+The owner confirms which row is authoritative, then removes the `trustCommittee` row through
+the admin console or an approved, separately reviewed SQL step. Until then the deterministic
+read returns the newest row, tie-broken by `id`.
+
+### 2. Final production initialization plan and exact records
+
+Production initialization is **not** performed by any workflow or pull request in this
+repository (see "Production initialization is not supported by this command"). When the
+owner approves it, the exact starter set is the plan's `seedWhen: "empty"` content, 69 rows
+across the content tables (the same list the dry run prints):
+
+| Table | Rows | Conflict key |
+|-------|------|--------------|
+| `site_settings` | 1 | `firestore_id` |
+| `social_links` | 1 | `firestore_id` |
+| `announcements` | 1 | `firestore_id` |
+| `daily_poojas` | 13 | `firestore_id` |
+| `donation_campaigns` | 1 | `firestore_id` |
+| `gallery_albums` | 1 | `firestore_id` |
+| `gallery_media` | 7 | `firestore_id` (only when `gallery_albums` is seeded) |
+| `temple_areas` | 2 | `id` |
+| `quotes` | 33 | `slug` |
+| `settings_documents` | 9 | `document_key` |
+
+Each table is seeded **only when empty**; `settings_documents` inserts only the missing
+document keys. `testimonials`, `members` and `volunteers` carry **no** seed rows (owner
+facts only). Preview the exact rows at any time without writing:
+
+```bash
+DATABASE_URL=<test-db-url> npm run seed:fresh:dry-run
+```
+
+### 3. Production connectivity (verified read-only, 2026-10-28)
+
+The approved project `kvrkraqjuyxbraccxntk` **is** reachable **read-only** with the public
+credentials (`NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). Verified
+with `SELECT`-only REST calls: the project responded, and RLS gated every table.
+
+What this environment **cannot** do is connect to production over raw PostgreSQL: the
+`SUPABASE_DB_URL` / `SUPABASE_DB_URL_TX` values authenticate as a user belonging to a
+**different** project, `SUPABASE_PROJECT_REF` is not the approved ref, and a direct connect
+to the approved ref via the Supavisor pooler returns
+`FATAL: (ENOTFOUND) tenant/user postgres.kvrkraqjuyxbraccxntk not found` (the supplied
+password does not belong to that tenant).
+
+Consequently, as of this revision **no production write of any kind was performed**, and no
+`SUPABASE_DB_PASSWORD` for the approved project is available here. A production
+initialization needs that password (or an approved service-role path) supplied by the owner.
+Verify connectivity safely, read-only, before any initialization:
+
+```bash
+# Runs SELECTs and capability probes only; never writes, never prints a secret.
+npm run diagnose:supabase-connectivity
+```
+
+Observed production row counts (read-only, 2026-10-28):
+
+| Table | Rows | Note |
+|-------|------|------|
+| `site_settings` | 2 | the duplicate pair (§1) |
+| `social_links` | 1 | migrated |
+| `events` | 74 | owned by the app / aaradhane writer |
+| all other content tables | 0 | `announcements`, `daily_poojas`, `quotes`, `gallery_albums`, `gallery_media`, `temple_areas`, `donation_campaigns`, `settings_documents`, `testimonials`, `members`, `volunteers` |
+
+So production is a **near-empty fresh target**: the only populated content tables are the
+`site_settings` pair, `social_links`, and `events`. The seed plan's empty-only rule therefore
+seeds every table except those three (and `settings_documents` inserts its missing keys).
+
+### 4. `isUserAdmin()` still reads Firestore (follow-up, separate from this PR)
+
+`lib/auth/admin.ts` `isUserAdmin(uid)` resolves admin status from the Firestore `users`
+collection, and `app/actions/settings.ts` gates settings writes with it. Firebase
+**Authentication** (token verification, login, sessions) stays unchanged; this is a
+separate question of *where the role is read from*.
+
+- The settings **API routes** (`/api/admin/settings/[key]`) already use
+  `requireAdminUser` (`lib/auth/admin-auth.ts`), which reads the role from Supabase
+  `public.users` — the pattern to converge on.
+- Converging `isUserAdmin` onto Supabase `public.users` (mirroring `requireAdminUser`) is a
+  dedicated, separately reviewed change. It is **out of scope** for the fresh-seed work and
+  must not be folded into this PR, because it changes authorization semantics.

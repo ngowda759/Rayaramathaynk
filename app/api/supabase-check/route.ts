@@ -5,7 +5,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET() {
   const envStatus = {
     hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    hasAnonKey: !!(
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    ),
     hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
   }
 

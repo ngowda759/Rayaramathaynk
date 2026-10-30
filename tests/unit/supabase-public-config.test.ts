@@ -11,6 +11,7 @@ import {
   getSupabaseConfigStatus,
   validateSupabasePublicConfig,
   supabaseConfigMessage,
+  resolveSupabasePublicKey,
   SUPABASE_PLACEHOLDER_URL,
   SUPABASE_PLACEHOLDER_KEY,
 } from "@/lib/supabase/config";
@@ -66,6 +67,32 @@ describe("validateSupabasePublicConfig", () => {
   it("never returns the key value, only the variable name", () => {
     const status = validateSupabasePublicConfig(REAL);
     expect(JSON.stringify(status)).not.toContain(REAL.anonKey);
+  });
+});
+
+describe("publishable-key fallback (Supabase renamed the anon key)", () => {
+  it("accepts NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY when the anon key is absent", () => {
+    const status = validateSupabasePublicConfig({
+      url: REAL.url,
+      publishableKey: "sb_publishable_example",
+    });
+    expect(status.isConfigured).toBe(true);
+    expect(status.missing).toEqual([]);
+  });
+
+  it("prefers the legacy anon key when both are set", () => {
+    expect(
+      resolveSupabasePublicKey({ anonKey: "anon-key", publishableKey: "sb_publishable_x" })
+    ).toBe("anon-key");
+    expect(resolveSupabasePublicKey({ publishableKey: "sb_publishable_x" })).toBe(
+      "sb_publishable_x"
+    );
+  });
+
+  it("still reports not configured when neither key is present", () => {
+    const status = validateSupabasePublicConfig({ url: REAL.url });
+    expect(status.isConfigured).toBe(false);
+    expect(status.missing).toContain("NEXT_PUBLIC_SUPABASE_ANON_KEY");
   });
 });
 

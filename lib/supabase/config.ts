@@ -16,11 +16,24 @@
 export const SUPABASE_PUBLIC_ENV_KEYS = {
   url: "NEXT_PUBLIC_SUPABASE_URL",
   anonKey: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  publishableKey: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
 } as const;
 
 /** The values `lib/supabase/client.ts` substitutes when the variables are absent. */
 export const SUPABASE_PLACEHOLDER_URL = "https://placeholder.supabase.co";
 export const SUPABASE_PLACEHOLDER_KEY = "placeholder";
+
+/**
+ * Resolve the browser-safe Supabase API key from either supported variable name.
+ * Supabase renamed the "anon" key to "publishable" key (`sb_publishable_...`);
+ * both are the same public, RLS-restricted credential, so accept either and
+ * prefer the legacy name when both are set.
+ */
+export function resolveSupabasePublicKey(env: SupabasePublicEnv): string {
+  const anon = (env.anonKey ?? "").trim();
+  if (anon) return anon;
+  return (env.publishableKey ?? "").trim();
+}
 
 export interface SupabaseConfigStatus {
   /** True only when a real URL and key are present and the URL is a valid http(s) origin. */
@@ -36,6 +49,7 @@ export interface SupabaseConfigStatus {
 export interface SupabasePublicEnv {
   url?: string | null;
   anonKey?: string | null;
+  publishableKey?: string | null;
 }
 
 function isPlaceholderUrl(url: string): boolean {
@@ -45,7 +59,7 @@ function isPlaceholderUrl(url: string): boolean {
 /** Pure validation, so the rules can be unit-tested without touching the environment. */
 export function validateSupabasePublicConfig(env: SupabasePublicEnv): SupabaseConfigStatus {
   const url = (env.url ?? "").trim();
-  const anonKey = (env.anonKey ?? "").trim();
+  const anonKey = resolveSupabasePublicKey(env);
   const missing: string[] = [];
   let origin: string | null = null;
   let usingPlaceholder = false;
@@ -91,6 +105,7 @@ export function getSupabaseConfigStatus(): SupabaseConfigStatus {
   return validateSupabasePublicConfig({
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    publishableKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   });
 }
 

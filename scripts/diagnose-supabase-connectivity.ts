@@ -33,7 +33,11 @@ import {
 
 const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
 const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
+const anonKey = (
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  ""
+).trim();
 const dbUrl = (process.env.SUPABASE_DB_URL || "").trim();
 const projectRef = (process.env.SUPABASE_PROJECT_REF || "").trim();
 
@@ -111,7 +115,7 @@ function checkProjectIdentity(): void {
 async function main(): Promise<number> {
   head("Environment presence (no values)");
   info(`NEXT_PUBLIC_SUPABASE_URL: ${url ? "present" : "MISSING"}`);
-  info(`NEXT_PUBLIC_SUPABASE_ANON_KEY: ${anonKey ? `present (len ${anonKey.length})` : "absent"}`);
+  info(`NEXT_PUBLIC_SUPABASE_ANON_KEY / _PUBLISHABLE_KEY: ${anonKey ? `present (len ${anonKey.length})` : "absent"}`);
   info(`SUPABASE_SERVICE_ROLE_KEY: ${serviceKey ? `present (len ${serviceKey.length})` : "MISSING"}`);
   info(`SUPABASE_DB_URL: ${dbUrl ? "present" : "absent (migration path untested)"}`);
   info(`SUPABASE_PROJECT_REF: ${projectRef ? "present" : "absent"}`);

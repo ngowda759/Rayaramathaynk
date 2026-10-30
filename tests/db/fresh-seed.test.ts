@@ -78,6 +78,12 @@ function pglitePort(db: PGlite): SeedPort {
       );
       return result.rows[0]?.exists === true;
     },
+    async tableHasRows(table) {
+      const result = await db.query<{ has_rows: boolean }>(
+        `select exists (select 1 from ${quoteIdent(table)} limit 1) as has_rows`
+      );
+      return result.rows[0]?.has_rows === true;
+    },
   };
 }
 
@@ -190,4 +196,188 @@ describe('fresh Supabase initialization seed', () => {
     // No Firebase artifact leaked into the seeded documents.
     expect(serialized).not.toContain('firestore');
   });
+});
+
+/**
+ * A project that already holds its own content — for example one that previously
+ * imported its own rows under different identifiers — must never receive a parallel
+ * starter copy. The `empty` seed mode is what guarantees that.
+ */
+describe('fresh Supabase initialization on an already-populated database', () => {
+  let db: PGlite;
+  let port: SeedPort;
+
+  beforeAll(async () => {
+    db = await migratedDb();
+    port = pglitePort(db);
+    // A pre-existing, owner-curated daily_poojas row that does not use a `seed-` key.
+    await db.query(
+      `insert into daily_poojas (firestore_id, title, description, start_time, duration, category, seva_amount, days, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      ['legacy-arati', 'Arati', 'Arati', '07:00', '30 mins', 'Daily', 20, ['All'], 'system']
+    );
+  }, 60_000);
+
+  afterAll(async () => {
+    await db?.close();
+  });
+
+  it('does not seed a table that already holds rows, and leaves those rows intact', async () => {
+    const summary = await runSeedPlan(port);
+
+    // The populated table is reported as skipped, not seeded.
+    expect(summary.alreadyPopulated).toContain('daily_poojas');
+    expect(summary.inserted.daily_poojas).toBeUndefined();
+
+    // No starter copy was added next to the owner's row.
+    const poojas = await db.query<{ n: number }>('select count(*)::int as n from daily_poojas');
+    expect(poojas.rows[0].n).toBe(1);
+
+    // Empty tables were still seeded.
+    const announcements = await db.query<{ n: number }>(
+      'select count(*)::int as n from announcements'
+    );
+    expect(announcements.rows[0].n).toBeGreaterThan(0);
+
+    // A second run is a no-op for the populated table and adds nothing anywhere.
+    const second = await runSeedPlan(port);
+    expect(second.totalInserted).toBe(0);
+  });
+
+  it('adds only missing settings documents and never rewrites an existing one', async () => {
+    // The owner has already edited one settings document.
+    const ownerData = { heading: 'Owner-edited heading', items: [] };
+    await db.query('update settings_documents set data = $1 where document_key = $2', [
+      JSON.stringify(ownerData),
+      'aboutUs',
+    ]);
+
+    const summary = await runSeedPlan(port);
+    // settings_documents always runs, but conflicts on document_key: nothing inserted.
+    expect(summary.inserted.settings_documents ?? 0).toBe(0);
+
+    const row = await db.query<{ data: { heading: string } }>(
+      'select data from settings_documents where document_key = $1',
+      ['aboutUs']
+    );
+    expect(row.rows[0].data.heading).toBe('Owner-edited heading');
+  });
+});
+
+/**
+ * `gallery_media.album_id` carries the seed-only album identifier
+ * (`seed-gallery-album-temple`), and there is no enforced foreign key. These tests
+ * prove the runner's `dependsOn` guard keeps the child table from being seeded when
+ * its parent album seed was skipped.
+ */
+describe('fresh Supabase initialization: gallery dependency', () => {
+  const countMedia = (db: PGlite) =>
+    db.query<{ n: number }>('select count(*)::int as n from gallery_media');
+  const orphans = (db: PGlite) =>
+    db.query<{ n: number }>(
+      `select count(*)::int as n from gallery_media
+        where not exists (
+          select 1 from gallery_albums a
+          where a.firestore_id = gallery_media.album_id or a.id::text = gallery_media.album_id
+        )`
+    );
+
+  async function emptyDb(): Promise<{ db: PGlite; port: SeedPort }> {
+    const db = await migratedDb();
+    return { db, port: pglitePort(db) };
+  }
+
+  it('seeds album and media together when both are empty, with no orphaned media', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      const summary = await runSeedPlan(port);
+      expect(summary.inserted.gallery_albums).toBeGreaterThan(0);
+      expect(summary.inserted.gallery_media).toBeGreaterThan(0);
+
+      // Every seeded media row resolves to a real album (structural, not an FK error).
+      expect((await orphans(db)).rows[0].n).toBe(0);
+
+      // A second run inserts nothing.
+      const second = await runSeedPlan(port);
+      expect(second.totalInserted).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+
+  it('does not seed gallery_media when the album seed is skipped (no orphaned media)', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      // The project already owns an album with a real identifier, so the seed album
+      // (`seed-gallery-album-temple`) is never inserted.
+      await db.query(
+        `insert into gallery_albums (firestore_id, title, slug, description, cover_image, active, display_order)
+         values ($1, $2, $3, $4, $5, $6, $7)`,
+        ['real-album-owner', 'Owner Album', 'owner-album', 'owner album', '/images/temple/Ananda.jpg', true, 1]
+      );
+
+      const summary = await runSeedPlan(port);
+
+      // The parent is reported as populated, and the dependent child is skipped by
+      // dependency rather than seeded.
+      expect(summary.alreadyPopulated).toContain('gallery_albums');
+      expect(summary.dependencySkipped).toContain('gallery_media');
+      expect(summary.inserted.gallery_media).toBeUndefined();
+
+      // No media row references the seed-only album identifier, and none was added.
+      expect((await orphans(db)).rows[0].n).toBe(0);
+      expect((await countMedia(db)).rows[0].n).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+
+  it('preserves an owner gallery_media set untouched when albums already exist', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      const album = await db.query<{ id: string }>(
+        `insert into gallery_albums (firestore_id, title, slug, description, cover_image, active, display_order)
+         values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+        ['real-album-owner', 'Owner Album', 'owner-album', 'owner album', '/images/temple/Ananda.jpg', true, 1]
+      );
+      await db.query(
+        `insert into gallery_media (firestore_id, album_id, title, description, category, type, image_path, alt_text, uploaded_by, is_featured, display_order, tags)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        ['owner-media-1', album.rows[0].id, 'Owner photo', 'owner photo', 'Owner Category', 'photo', '/images/temple/Seva.jpg', 'owner photo', 'owner', true, 1, ['owner']]
+      );
+
+      const summary = await runSeedPlan(port);
+
+      expect(summary.dependencySkipped).toContain('gallery_media');
+      expect((await countMedia(db)).rows[0].n).toBe(1);
+      const owned = await db.query<{ title: string }>(
+        'select title from gallery_media where firestore_id = $1',
+        ['owner-media-1']
+      );
+      expect(owned.rows[0].title).toBe('Owner photo');
+      expect((await orphans(db)).rows[0].n).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
+
+  it('aborts the whole run when the parent existence check fails (fail-safe)', async () => {
+    const { db, port } = await emptyDb();
+    try {
+      const failing: SeedPort = {
+        ...port,
+        async tableHasRows(table) {
+          if (table === 'gallery_albums') throw new Error('connection reset');
+          return port.tableHasRows(table);
+        },
+      };
+
+      await expect(runSeedPlan(failing)).rejects.toThrow('connection reset');
+
+      // Fail-safe: the run aborts at the parent, so the dependent child is never seeded.
+      expect((await countMedia(db)).rows[0].n).toBe(0);
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
 });

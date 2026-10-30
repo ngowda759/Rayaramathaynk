@@ -735,3 +735,47 @@ Working log archived; see daily logs. Not this repository.
   implicit-any error: `tsconfig.scripts.json` 68 → 67).
 - **`origin`'s embedded token is expired** — `git push origin …` hangs on a password prompt;
   push with `GIT_TERMINAL_PROMPT=0 git push "https://${GITHUB_TOKEN}@github.com/ngowda759/Rayaramathaynk.git" HEAD:<branch>`.
+
+### Fresh-seed population safety (PR #365, 2026-10-28)
+
+- `lib/supabase/seed-data/plan.ts` seeded every table `ON CONFLICT (firestore_id) DO NOTHING`,
+  which **duplicates a populated project**: prod migrated rows carry REAL Firestore ids, not the
+  plan's `seed-*` keys, so the conflict never fires. Now `SeedOperation.seedWhen` is `"empty"`
+  (default; skip any non-empty content table) or `"always"` (`settings_documents` only).
+  `SeedPort.tableHasRows` + `SeedSummary.alreadyPopulated` added. Prod row counts (read-only,
+  project `kvrkraqjuyxbraccxntk`): `daily_poojas` 26, `quotes` 6, `gallery_albums` 4,
+  `site_settings` 2, `social_links` 1, `settings_documents` 7, `testimonials` 2 — all must be
+  left untouched. Prod is the Firestore-migrated dataset; the fresh seed has never been applied.
+- **Vercel failures live in the commit *status* API, not always in `check-runs`.** A lint error
+  (`react-hooks/set-state-in-effect`) fails `next build` → Vercel `failure`. Query
+  `commits/{sha}/status` to see the `Vercel` context.
+- `./scripts/test-boundary.sh` leaves a stale `.next/types/validator.ts` that breaks
+  `tsc --noEmit` (TS2307 on a deleted test page) — `rm -rf .next` before typecheck.
+- `origin`'s embedded token is dead; push via `git remote set-url origin https://${GITHUB_TOKEN}@…`.
+
+### Supabase production read-only verification (2026-10-28, PR #365)
+
+- **Privileged read-only access to the temple prod DB is impossible from this sandbox.**
+  `SUPABASE_DB_URL`/`_TX` point at a *different* project (a "Tournament" schema); the
+  approved ref `kvrkraqjuyxbraccxntk` rejects every Supavisor pooler host
+  (`FATAL (ENOTFOUND) tenant/user … not found`); `db.<ref>.supabase.co` does not resolve
+  here (Supabase direct is IPv6); `SUPABASE_SERVICE_ROLE_KEY` is absent. ⇒ For any
+  deny-all/RLS table the count is **UNKNOWN, never 0**. Only public-credential PostgREST
+  reads work. `psycopg2` is not preinstalled and there is no `psql`; `pip install
+  psycopg2-binary` works.
+- **RLS gotcha for read-only probing:** a deny-all table answers PostgREST with `200` +
+  `[]`, *not* 401, so a 0 there proves nothing. 401 = no table-level SELECT grant.
+  Publicly readable (repo `SELECT` policy) in this app: `events`, `aaradhanes`,
+  `site_settings`, `social_links`, `announcements`, `temple_areas`, `featured_content`,
+  `ai_knowledge`. Use `Range: 0-0` + `Prefer: count=exact` and read `content-range`.
+- **Prod policy state can drift from the repo.** Migration `20261105…` says the events
+  public-read policy is "prepared, NOT applied", yet prod reads 74 published events. Do not
+  treat repo comments as an oracle for applied policy state.
+- **`site_settings` has TWO readers, both must tie-break on `id`.** `services/
+  settings.service.ts` and `services/proof-report/database-export.service.ts` (the latter
+  is the dev proof report). Prod holds 2 rows tying on `updated_at`; the identity row has
+  `firestore_id='qF0uWKDRK4bcy5pLdTGL'`, the stray has `firestore_id='trustCommittee'`.
+  The stray is **inert** — Trust Committee content is served from `settings_documents`
+  (`document_key='trustCommittee'`), not `site_settings`.
+- Deliverables: `docs/PRODUCTION_SUPABASE_READINESS.md`,
+  `docs/SUPABASE_DATA_ONLY_INITIALIZATION_PLAN.md`.
