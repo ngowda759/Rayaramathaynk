@@ -744,7 +744,7 @@ Working log archived; see daily logs. Not this repository.
   (default; skip any non-empty content table) or `"always"` (`settings_documents` only).
   `SeedPort.tableHasRows` + `SeedSummary.alreadyPopulated` added. Prod row counts (read-only,
   project `kvrkraqjuyxbraccxntk`): `daily_poojas` 26, `quotes` 6, `gallery_albums` 4,
-  `site_settings` 2, `social_links` 1, `settings_documents` 7, `testimonials` 2 — all must be
+  `site_settings` 2, `social_links` 1, `settings_documents` 7 rows (=5 of the 9 seed keys), `testimonials` 2 — all must be
   left untouched. Prod is the Firestore-migrated dataset; the fresh seed has never been applied.
 - **Vercel failures live in the commit *status* API, not always in `check-runs`.** A lint error
   (`react-hooks/set-state-in-effect`) fails `next build` → Vercel `failure`. Query
@@ -779,3 +779,42 @@ Working log archived; see daily logs. Not this repository.
   (`document_key='trustCommittee'`), not `site_settings`.
 - Deliverables: `docs/PRODUCTION_SUPABASE_READINESS.md`,
   `docs/SUPABASE_DATA_ONLY_INITIALIZATION_PLAN.md`.
+
+### Production Supabase readiness audit (2026-10-30)
+
+- Deliverables: `docs/audits/{PRODUCTION_SUPABASE_READINESS,PRODUCTION_TABLE_INVENTORY,FIRESTORE_DEPENDENCY_AUDIT,PROPOSED_FRESH_DATA_SEED_PLAN}.md`.
+  Supersedes `docs/PRODUCTION_SUPABASE_READINESS.md` (2026-10-28), which wrongly said prod
+  row-count verification was "blocked".
+- **`proxy.ts` is live middleware** (Next 16 renamed `middleware`→`proxy`) and writes Firestore
+  `page_views` on **every public GET** (`proxy.ts:83`) — the only request-path Firestore write;
+  duplicate of the Supabase beacon. HIGH.
+- **The seed refuses production**: `scripts/seed-fresh-supabase.ts` `checkGuards` blocks
+  `NODE_ENV=production|VERCEL|CI`, `--project-ref` = approved ref, and `--local` with a
+  `DATABASE_URL` resolving to it. "Seed prod" needs a separately reviewed write path.
+- **True counts without a service key**: the site's own public endpoints bypass RLS —
+  `/api/public/stats` (74 events / 1 user / 0 donations,seva,members,volunteers),
+  `/api/gallery/{albums,media}` (4/7), `/api/quotes/stats` (6 of 33 seeded),
+  `/api/testimonials/devotee` (2), `/api/knowledge` (19), `/api/public/settings/[key]`.
+  Anon key (from the deployed bundle) + deny-all table = `200`/`*/0`, indistinguishable from
+  empty — never read that as 0.
+- **Missing prod data**: `announcements`/`temple_areas`/`daily_poojas`/`featured_content`/
+  `sevas`/`donation_campaigns` all 0; `settings_documents` **5 of 9 seed keys present**
+  (present: aboutUs/facilities/futurePlans/poojaSchedule/footer; missing: `trustCommittee`,
+  `festivalCalendar`, `ekadashiCalendar`, `homepage`). 7 rows total = those 5 + 2 keys outside
+  the seed. `homepage` is un-probeable via `/api/public/settings/[key]` (not in
+  `SETTINGS_DOCUMENT_KEYS`); infer it from `homepage.server.ts` returning defaults.
+- **Still Firestore-backed at runtime**: `services/auth.service.ts` (`users` mirror),
+  `lib/auth/admin.ts:64` `isUserAdmin` (**admin authz reads Firestore**),
+  `lib/seva/server/identity-firebase.ts:92`. Dead: `lib/firebase-admin-rest.ts`, `lib/auth.ts`
+  `registerUser`/`loginUser`. Hardcoded Firebase client config in `lib/firebase.ts:58-64`.
+- **Two quote defects fixed on PR #366 (`bf2dd75`)** — worth knowing before touching quotes:
+  (a) `QuoteService.getTodaysQuote` **wrote on read** (auto-seed 33 inserts + `incrementViewCount`
+  UPDATE), reachable from the public homepage render and `GET /api/quotes/today`, so a page view
+  or prerender mutated `quotes`. Removed from the read path.
+  (b) `seed`, `bulk`, `cache`, `[id]` under `app/api/admin/quotes/**` had **no auth** — `proxy.ts`
+  does NOT gate `/api/admin/*`, every handler must self-verify with `verifyAdminUser`. Fixed.
+  `services/quote.server.ts` and `services/quote.service.ts` are near-duplicate copies: edit both.
+- `aaradhane.yml` cron is **read-only** (both steps pass `--dry-run` unconditionally).
+- Schema: 67 public tables; 84 policies / 66 tables; RLS on 67; content tables have **no FK**
+  (only seva/POS + knowledge-workflow do).
+- Tests @ `b1401ae`: unit 207/2668, db 17/244, `tsc` clean, eslint 0 errors.

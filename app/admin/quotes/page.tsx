@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { apiFetch } from "@/lib/api/fetch";
 import { 
   Quote, 
   QuoteCategory, 
@@ -78,9 +79,7 @@ export default function QuotesPage() {
   const loadQuotes = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/quotes");
-      if (!response.ok) throw new Error("Failed to fetch");
-      const data = await response.json();
+      const data = await apiFetch<{ quotes?: Quote[] }>("/api/admin/quotes");
       setQuotes(data.quotes || []);
     } catch (error) {
       console.error("Failed to load quotes:", error);
@@ -160,11 +159,7 @@ export default function QuotesPage() {
     if (!confirm(`Delete "${quote.title}"?`)) return;
     
     try {
-      const response = await fetch(`/api/admin/quotes/${quote.id}`, {
-        method: "DELETE",
-      });
-      
-      if (!response.ok) throw new Error("Failed to delete");
+      await apiFetch(`/api/admin/quotes/${quote.id}`, { method: "DELETE" });
       
       toast.success("Quote deleted successfully.");
       loadQuotes();
@@ -179,13 +174,10 @@ export default function QuotesPage() {
     if (!confirm(`Delete ${ids.length} quotes?`)) return;
     
     try {
-      const response = await fetch("/api/admin/quotes", {
+      await apiFetch("/api/admin/quotes", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
+        body: { ids },
       });
-      
-      if (!response.ok) throw new Error("Failed to delete");
       
       toast.success(`Deleted ${ids.length} quotes.`);
       loadQuotes();
@@ -198,13 +190,10 @@ export default function QuotesPage() {
 
   const handleBulkActivate = async (ids: string[], active: boolean) => {
     try {
-      const response = await fetch("/api/admin/quotes", {
+      await apiFetch("/api/admin/quotes", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, updates: { active } }),
+        body: { ids, updates: { active } },
       });
-      
-      if (!response.ok) throw new Error("Failed to update");
       
       toast.success(`Updated ${ids.length} quotes.`);
       loadQuotes();
@@ -217,10 +206,7 @@ export default function QuotesPage() {
 
   const handleExport = async () => {
     try {
-      const response = await fetch("/api/admin/quotes/bulk?activeOnly=false");
-      if (!response.ok) throw new Error("Failed to export");
-      
-      const data = await response.json();
+      const data = await apiFetch<unknown>("/api/admin/quotes/bulk?activeOnly=false");
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -250,15 +236,10 @@ export default function QuotesPage() {
         throw new Error("Import data must be an array of quotes.");
       }
       
-      const response = await fetch("/api/admin/quotes/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quotes: quotesToImport }),
-      });
-      
-      if (!response.ok) throw new Error("Failed to import");
-      
-      const result = await response.json();
+      const result = await apiFetch<{ imported: number; errors: string[] }>(
+        "/api/admin/quotes/bulk",
+        { method: "POST", body: { quotes: quotesToImport } }
+      );
       setImportResult(result);
       
       if (result.imported > 0) {
@@ -279,13 +260,9 @@ export default function QuotesPage() {
     if (!confirm("Seed default quotes? This will only add quotes if the collection is empty.")) return;
     
     try {
-      const response = await fetch("/api/admin/quotes/seed", {
+      const result = await apiFetch<{ message: string }>("/api/admin/quotes/seed", {
         method: "POST",
       });
-      
-      if (!response.ok) throw new Error("Failed to seed");
-      
-      const result = await response.json();
       toast.success(result.message);
       loadQuotes();
       loadStats();
@@ -297,11 +274,7 @@ export default function QuotesPage() {
 
   const handleClearCache = async () => {
     try {
-      const response = await fetch("/api/admin/quotes/cache", {
-        method: "POST",
-      });
-      
-      if (!response.ok) throw new Error("Failed to clear cache");
+      await apiFetch("/api/admin/quotes/cache", { method: "POST" });
       
       toast.success("Cache cleared successfully.");
     } catch (error) {
