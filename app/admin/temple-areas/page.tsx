@@ -84,7 +84,7 @@ export default function TempleAreasPage() {
       }
     } catch (err) {
       console.error("Failed to delete area:", err);
-      toast.error("Failed to delete area");
+      toast.error(err instanceof Error ? err.message : "Failed to delete area");
     } finally {
       setSaving(false);
     }
@@ -112,7 +112,7 @@ export default function TempleAreasPage() {
       }
     } catch (err) {
       console.error("Failed to save area:", err);
-      toast.error("Failed to save area");
+      toast.error(err instanceof Error ? err.message : "Failed to save area");
     } finally {
       setSaving(false);
     }

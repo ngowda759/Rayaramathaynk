@@ -120,6 +120,7 @@ jest.mock("@/services/temple-areas.service", () => ({
   templeAreasService: {
     getAreas: (...a: unknown[]) => mockGetAreas(...a),
     getPublicAreas: jest.fn().mockResolvedValue([]),
+    getPublicArea: jest.fn().mockResolvedValue({ id: "1", name: "Main Hall" }),
     getArea: (...a: unknown[]) => mockGetArea(...a),
     addArea: (...a: unknown[]) => mockAddArea(...a),
     updateArea: (...a: unknown[]) => mockUpdateArea(...a),
@@ -224,6 +225,38 @@ describe("F-A13: temple-areas admin routes", () => {
   it("the public temple-areas read is not guarded", async () => {
     const { GET } = await import("@/app/api/temple-areas/route");
     const res = await GET();
+    expect(res.status).toBe(200);
+    expect(mockRequireAdminUser).not.toHaveBeenCalled();
+  });
+
+  // The write handlers on the "public" paths reach the same service methods as
+  // the admin routes, so they are guarded too; only the GETs are open.
+  it("the public temple-areas POST is guarded", async () => {
+    mockRequireAdminUser.mockResolvedValue({ ok: false, response: unauthorized() });
+    const { POST } = await import("@/app/api/temple-areas/route");
+    const res = await POST(
+      req("/api/temple-areas", { method: "POST", body: JSON.stringify({ name: "X", category: "hall" }) })
+    );
+    expect(res.status).toBe(401);
+    expect(mockAddArea).not.toHaveBeenCalled();
+  });
+
+  it("the public temple-areas [id] PUT/DELETE are guarded while its GET stays open", async () => {
+    mockRequireAdminUser.mockResolvedValue({ ok: false, response: unauthorized() });
+    const mod = await import("@/app/api/temple-areas/[id]/route");
+
+    expect(
+      (await mod.PUT(req("/api/temple-areas/1", { method: "PUT", body: "{}" }), params("1"))).status
+    ).toBe(401);
+    expect(
+      (await mod.DELETE(req("/api/temple-areas/1", { method: "DELETE" }), params("1"))).status
+    ).toBe(401);
+    expect(mockUpdateArea).not.toHaveBeenCalled();
+    expect(mockDeleteArea).not.toHaveBeenCalled();
+
+    // The read stays public: no guard is consulted for GET.
+    mockRequireAdminUser.mockClear();
+    const res = await mod.GET(req("/api/temple-areas/1"), params("1"));
     expect(res.status).toBe(200);
     expect(mockRequireAdminUser).not.toHaveBeenCalled();
   });
