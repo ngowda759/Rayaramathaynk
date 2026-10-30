@@ -71,6 +71,7 @@ export default defineConfig({
       // Supabase: an unreachable local address and inert keys; seva calls are answered by fixtures/fake-api.ts.
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54399",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-placeholder-anon-key",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "e2e-placeholder-publishable-key",
       SUPABASE_SERVICE_ROLE_KEY: "e2e-placeholder-service-role-key",
       SUPABASE_DB_URL: "",
       PRISMA_DATABASE_URL: "",
