@@ -237,10 +237,12 @@ rewriting production data from this repository.
 
 ### 1. `site_settings` duplicate rows (deterministic read; deletion is an owner action)
 
-The migrated production `site_settings` table holds **two rows** that share one
-`updated_at` value. The public reader selected a single row with
-`order(updated_at desc).limit(1).single()`, which is non-deterministic when the
-`updated_at` values tie.
+**Confirmed against production (read-only, 2026-10-28).** The migrated production
+`site_settings` table holds **two rows that share one `updated_at` value**, and the public
+reader selected a single row with `order(updated_at desc).limit(1).single()` — which is
+non-deterministic on a tie. The two rows differ only in identity: one carries the real
+temple name/contact, the other carries `firestore_id = 'trustCommittee'` — a *settings
+document* (migrated losslessly into `settings_documents`), not site identity.
 
 This repository no longer guesses. `services/settings.service.ts` adds `id` ascending as a
 stable tiebreaker, so the read is deterministic without touching either row
@@ -262,11 +264,16 @@ group by updated_at
 having count(*) > 1;
 ```
 
-One of the two rows is expected to carry a `firestore_id` such as `trustCommittee`, which is
-a *settings document* (migrated losslessly into `settings_documents`), not site identity.
-The owner confirms which row is authoritative, then removes the other through the admin
-console or an approved, separately reviewed SQL step. Until then the deterministic read
-returns the newest row, tie-broken by `id`.
+Equivalent read-only REST check (publishable key only):
+
+```bash
+curl -s "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/site_settings?select=id,firestore_id,updated_at&order=updated_at.desc,id.asc" \
+  -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+```
+
+The owner confirms which row is authoritative, then removes the `trustCommittee` row through
+the admin console or an approved, separately reviewed SQL step. Until then the deterministic
+read returns the newest row, tie-broken by `id`.
 
 ### 2. Final production initialization plan and exact records
 
@@ -296,23 +303,41 @@ facts only). Preview the exact rows at any time without writing:
 DATABASE_URL=<test-db-url> npm run seed:fresh:dry-run
 ```
 
-### 3. Production connectivity is not verified from this environment
+### 3. Production connectivity (verified read-only, 2026-10-28)
 
-The sandbox cannot reach the approved production project `kvrkraqjuyxbraccxntk`:
+The approved project `kvrkraqjuyxbraccxntk` **is** reachable **read-only** with the public
+credentials (`NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). Verified
+with `SELECT`-only REST calls: the project responded, and RLS gated every table.
 
-- `SUPABASE_DB_URL` / `SUPABASE_DB_URL_TX` authenticate as a user belonging to a
-  **different** project, and `SUPABASE_PROJECT_REF` is not the approved ref;
-- a direct connect to the approved ref via the Supavisor pooler returns
-  `FATAL: (ENOTFOUND) tenant/user postgres.kvrkraqjuyxbraccxntk not found` (the supplied
-  password does not belong to that tenant).
+What this environment **cannot** do is connect to production over raw PostgreSQL: the
+`SUPABASE_DB_URL` / `SUPABASE_DB_URL_TX` values authenticate as a user belonging to a
+**different** project, `SUPABASE_PROJECT_REF` is not the approved ref, and a direct connect
+to the approved ref via the Supavisor pooler returns
+`FATAL: (ENOTFOUND) tenant/user postgres.kvrkraqjuyxbraccxntk not found` (the supplied
+password does not belong to that tenant).
 
-Consequently **no production read or write was performed, and none is claimed.** Correct
-credentials are an owner action. Verify them safely, read-only, before any initialization:
+Consequently, as of this revision **no production write of any kind was performed**, and no
+`SUPABASE_DB_PASSWORD` for the approved project is available here. A production
+initialization needs that password (or an approved service-role path) supplied by the owner.
+Verify connectivity safely, read-only, before any initialization:
 
 ```bash
 # Runs SELECTs and capability probes only; never writes, never prints a secret.
 npm run diagnose:supabase-connectivity
 ```
+
+Observed production row counts (read-only, 2026-10-28):
+
+| Table | Rows | Note |
+|-------|------|------|
+| `site_settings` | 2 | the duplicate pair (§1) |
+| `social_links` | 1 | migrated |
+| `events` | 74 | owned by the app / aaradhane writer |
+| all other content tables | 0 | `announcements`, `daily_poojas`, `quotes`, `gallery_albums`, `gallery_media`, `temple_areas`, `donation_campaigns`, `settings_documents`, `testimonials`, `members`, `volunteers` |
+
+So production is a **near-empty fresh target**: the only populated content tables are the
+`site_settings` pair, `social_links`, and `events`. The seed plan's empty-only rule therefore
+seeds every table except those three (and `settings_documents` inserts its missing keys).
 
 ### 4. `isUserAdmin()` still reads Firestore (follow-up, separate from this PR)
 
