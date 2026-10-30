@@ -42,9 +42,9 @@ or production actions and are untouched.
    `ekadashiCalendar`, `homepage`) out of nine. See §6.
 4. **The production schema is not fully reproducible from the repository** — production has
    advanced past the migration comments (see §7 and the table inventory §4e).
-5. **A read path used to write to the database, and four admin quote endpoints had no auth**
-   (F-A11/F-A12). Both are **fixed on this branch**; they are listed because the fix changes
-   code, not production, and should be reviewed with the reports.
+5. **A read path used to write to the database, and several admin endpoints had no auth**
+   (F-A11/F-A12). The quote fixes are **on this branch**; the same auth gap still covers
+   `temple-areas`, `analytics` and `content` and is left open (F-A13).
 
 All automated checks pass: unit **207/207 suites, 2668/2668 tests**; DB integration
 **17/17 suites, 244/244 tests**; `tsc --noEmit` clean; ESLint **0 errors** (714 pre-existing
@@ -247,6 +247,33 @@ helper (`lib/api/fetch.ts`), which attaches the caller's Firebase ID token, so t
 working. Regression test: `tests/unit/admin-quotes-route-auth.test.ts`.
 **Affected**: the five route files, `app/admin/quotes/page.tsx`.
 
+### F-A13 — Other `/api/admin/**` routes are unguarded too — **High (open)**
+The same `proxy.ts` gap that produced F-A12 leaves a second cluster unauthenticated. A scan of
+all 35 `app/api/admin/**/route.ts` files for any of `verifyAdminUser`, `requireRayaAdminUser`,
+`requireStaffAdmin`, `verifyIdToken` or `getUser(` found **six without a guard**:
+
+| Route | Reaches | Severity |
+|---|---|---|
+| `GET/POST /api/admin/temple-areas` | `templeAreasService` → `temple_areas` **read + create** | **High** |
+| `GET/PUT/DELETE /api/admin/temple-areas/[id]` | `temple_areas` **read + update + delete** | **High** |
+| `GET /api/admin/analytics` | `getAnalyticsSummary()` — chat/intent metrics | **High** |
+| `POST /api/admin/analytics` | `logIntentFeedback()` — inserts a feedback row | Medium |
+| `GET/POST /api/admin/content` | `services/content.service.ts` | Low |
+| `app/api/admin/users/{create-admin,set-role}` | *not actually unguarded* — they call `requireStaffAdmin` (a different symbol), so the scan flagged them by name only | — |
+
+So the real gap is **`temple-areas` (both files), `analytics` (both methods)** and `content`.
+`app/admin/temple-areas/page.tsx` calls the temple-areas routes with raw `fetch`, the same
+reason the quote routes were unguarded.
+
+**Why it matters**: `temple_areas` is read by the public site (`/api/temple-areas`), so an
+unauthenticated `POST`/`DELETE` here lets anyone add or remove a public map entry.
+**Action**: add `verifyAdminUser` to these handlers and move the calling pages onto `apiFetch`,
+exactly as F-A12 does. Not fixed in this PR to keep the change reviewable — it is a distinct
+surface from the quote endpoints and deserves its own reviewed change.
+**Affected**: `app/api/admin/temple-areas/route.ts`, `app/api/admin/temple-areas/[id]/route.ts`,
+`app/api/admin/analytics/route.ts`, `app/api/admin/content/route.ts`,
+`app/admin/temple-areas/page.tsx`.
+
 ---
 
 ## 6. Genuinely empty vs RLS-hidden
@@ -429,6 +456,7 @@ data therefore requires a separately reviewed write path
 |---|---|---|
 | P0 | Remove the Firestore write from `proxy.ts` (F-A1) | Code |
 | P0 | Obtain owner approval and fill the missing data through a reviewed write path — the seed command **refuses production** (`PROPOSED_FRESH_DATA_SEED_PLAN.md` §4) | Production write |
+| P0 | Guard the remaining unauthenticated admin routes — `temple-areas` (read/write/delete), `analytics` (both methods), `content` (F-A13) | Code |
 | P1 | Migrate `isUserAdmin` to Supabase (F-A2) | Code |
 | P1 | Decide the `users` Firestore mirror (F-A3) | Code |
 | P1 | Seed the `quotes` library (F-A7) | Production write |
