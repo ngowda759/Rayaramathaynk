@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Quote, QuoteCategory, QuoteLanguage, QUOTE_CATEGORIES, FestivalName, Weekday } from "@/types/quote";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import { apiFetch } from "@/lib/api/fetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -207,19 +208,13 @@ export default function NewQuotePage() {
     try {
       setSaving(true);
 
-      const response = await fetch("/api/admin/quotes", {
+      await apiFetch("/api/admin/quotes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           ...formData,
           slug: formData.slug || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create quote");
-      }
 
       toast.success("Quote created successfully!");
       router.push("/admin/quotes");

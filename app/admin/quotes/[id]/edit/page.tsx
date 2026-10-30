@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Quote, QuoteCategory, QuoteLanguage, QUOTE_CATEGORIES, FestivalName, Weekday } from "@/types/quote";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import { apiFetch } from "@/lib/api/fetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,14 +97,7 @@ export default function EditQuotePage() {
     const loadQuote = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/admin/quotes/${id}`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Quote not found");
-          }
-          throw new Error("Failed to fetch quote");
-        }
-        const data = await response.json();
+        const data = await apiFetch<{ quote: Quote }>(`/api/admin/quotes/${id}`);
         setQuote(data.quote);
         setFormData({
           slug: data.quote.slug || "",
@@ -235,16 +229,10 @@ export default function EditQuotePage() {
     try {
       setSaving(true);
 
-      const response = await fetch(`/api/admin/quotes/${id}`, {
+      await apiFetch(`/api/admin/quotes/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: formData,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to update quote");
-      }
 
       toast.success("Quote updated successfully!");
       router.push("/admin/quotes");
@@ -262,13 +250,9 @@ export default function EditQuotePage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/quotes/${id}`, {
+      await apiFetch(`/api/admin/quotes/${id}`, {
         method: "DELETE",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete quote");
-      }
 
       toast.success("Quote deleted successfully!");
       router.push("/admin/quotes");

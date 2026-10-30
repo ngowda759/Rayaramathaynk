@@ -5,10 +5,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 
 // GET /api/admin/quotes - List all quotes with optional filters
 export async function GET(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
@@ -43,13 +46,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/quotes - Create a new quote
 export async function POST(request: NextRequest) {
-  try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-    const userEmail = admin.email;
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+  const userEmail = auth.user.email;
 
+  try {
     const body = await request.json();
 
     // Validate required fields
@@ -77,6 +78,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/admin/quotes - Bulk update quotes
 export async function PATCH(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { ids, updates } = body;
@@ -114,6 +118,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/admin/quotes - Bulk delete quotes
 export async function DELETE(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { ids } = body;

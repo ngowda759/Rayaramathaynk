@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
+import { apiFetch } from "@/lib/api/fetch";
 import { TempleArea, TempleAreaCategory, CATEGORY_LABELS, CATEGORY_COLORS } from "@/types/temple-explorer";
 import toast from "react-hot-toast";
 import { 
@@ -42,8 +43,9 @@ export default function TempleAreasPage() {
   const loadAreas = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/temple-areas");
-      const result = await response.json();
+      const result = await apiFetch<{ success: boolean; areas: TempleArea[]; error?: string }>(
+        "/api/admin/temple-areas"
+      );
       if (result.success) {
         setAreas(result.areas);
         setError(null);
@@ -68,11 +70,11 @@ export default function TempleAreasPage() {
     
     setSaving(true);
     try {
-      const response = await fetch(`/api/admin/temple-areas/${deleteDialog.area.id}`, {
-        method: "DELETE",
-      });
-      const result = await response.json();
-      
+      const result = await apiFetch<{ success: boolean; error?: string }>(
+        `/api/admin/temple-areas/${deleteDialog.area.id}`,
+        { method: "DELETE" }
+      );
+
       if (result.success) {
         toast.success("Temple area deleted successfully");
         setDeleteDialog({ open: false, area: null });
@@ -82,7 +84,7 @@ export default function TempleAreasPage() {
       }
     } catch (err) {
       console.error("Failed to delete area:", err);
-      toast.error("Failed to delete area");
+      toast.error(err instanceof Error ? err.message : "Failed to delete area");
     } finally {
       setSaving(false);
     }
@@ -96,12 +98,10 @@ export default function TempleAreasPage() {
         : "/api/admin/temple-areas";
       const method = editDialog.area ? "PUT" : "POST";
       
-      const response = await fetch(url, {
+      const result = await apiFetch<{ success: boolean; error?: string }>(url, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(area),
+        body: area,
       });
-      const result = await response.json();
       
       if (result.success) {
         toast.success(editDialog.area ? "Temple area updated successfully" : "Temple area created successfully");
@@ -112,7 +112,7 @@ export default function TempleAreasPage() {
       }
     } catch (err) {
       console.error("Failed to save area:", err);
-      toast.error("Failed to save area");
+      toast.error(err instanceof Error ? err.message : "Failed to save area");
     } finally {
       setSaving(false);
     }

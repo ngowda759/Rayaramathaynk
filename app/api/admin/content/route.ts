@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import { 
   autoTagArticle, 
   getContentFreshness, 
@@ -26,6 +27,9 @@ import {
  * - language: 'en' | 'kn' | 'mixed'
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
   const intent = searchParams.get('intent') || undefined;
@@ -96,6 +100,9 @@ export async function GET(request: NextRequest) {
  * Auto-tag content or check freshness
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { action } = body;
