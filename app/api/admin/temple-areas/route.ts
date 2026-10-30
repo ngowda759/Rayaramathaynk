@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import { templeAreasService } from "@/services/temple-areas.service";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const areas = await templeAreasService.getAreas();
     return NextResponse.json({ success: true, areas });
@@ -12,6 +16,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
 
