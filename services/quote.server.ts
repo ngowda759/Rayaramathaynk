@@ -603,18 +603,13 @@ class QuoteService {
       }
     }
 
-    // 7. Fall back to any active quote
-    let allActiveQuotes = await this.getQuotes({ active: true });
-    
-    // Auto-seed if no quotes exist in the database
-    if (allActiveQuotes.length === 0) {
-      console.log("[QuoteService] No quotes found, auto-seeding default quotes...");
-      const seeded = await this.seedDefaultQuotes();
-      if (seeded > 0) {
-        allActiveQuotes = await this.getQuotes({ active: true });
-        console.log(`[QuoteService] Auto-seeded ${seeded} quotes`);
-      }
-    }
+    // 7. Fall back to any active quote.
+    //
+    // This is a read path: it must never write. An empty table is a content gap,
+    // not a trigger - the lookup falls through to the hardcoded fallback below.
+    // Populating the table is an explicit operation (`POST /api/admin/quotes/seed`,
+    // or `npm run seed:fresh`).
+    const allActiveQuotes = await this.getQuotes({ active: true });
     
     if (allActiveQuotes.length > 0) {
       const selected = this.deterministicSelect(allActiveQuotes, today);
@@ -708,12 +703,9 @@ class QuoteService {
       date: today,
     };
 
-    // Increment view count if quote exists
-    if (quote) {
-      this.incrementViewCount(quote.id).catch((err) => {
-        console.error("[QuoteService] Error incrementing view count:", err);
-      });
-    }
+    // View counting is not performed here. This method is a read path reached from
+    // page renders and route handlers, so it must not write. Call
+    // `incrementViewCount(id)` from an explicit tracking operation instead.
 
     return {
       quote,

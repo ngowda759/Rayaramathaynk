@@ -30,6 +30,24 @@ production.**
 deliberate, separately-reviewed mechanism (see §4). This is a **safety feature**, not a defect —
 it prevents an accidental production overwrite.
 
+### 1.1 A second, unintended seeding path has been removed
+
+Separately from `scripts/seed-fresh-supabase.ts`, the quote service used to seed itself. When
+`QuoteService.getTodaysQuote` found no active quote it called `seedDefaultQuotes()`, inserting
+the 33 `DEFAULT_QUOTES_DATA` rows, and it fired a `viewCount` UPDATE on every non-cached read
+(`services/quote.server.ts`). Because `getTodaysQuote` is reached from the public homepage
+render, **a page view or a build-time prerender could write to `quotes`**. That is a seeding
+path with no explicit operation and no guard.
+
+It has been removed in this PR. The only way to seed quotes is now the explicit, admin-guarded
+`POST /api/admin/quotes/seed` (or the `quotes` section of the fresh seed). This makes the
+"populate `quotes`" step below a genuinely controlled operation, as intended.
+
+That operation is also safe to repeat: `seedDefaultQuotes` returns early when any active quote
+exists, and `createQuote` inserts on the unique `slug`, so a re-run cannot duplicate a quote
+(it fails on the constraint instead). The removal therefore does not change repeatability — it
+removes a write that had no guard at all.
+
 ---
 
 ## 2. What the seed would insert (dry-run, verified locally)
@@ -63,7 +81,7 @@ Dry run complete. Nothing was written.
 | `announcements` empty | 1 row | site banner appears |
 | `temple_areas` empty | 2 rows | `/api/temple-areas` returns data |
 | `donation_campaigns` empty | 1 row | donation CTA gains a campaign |
-| `settings_documents` 3 keys missing | 9 keys (adds `trustCommittee`, `festivalCalendar`, `ekadashiCalendar`) | `/trust` and calendars gain content |
+| `settings_documents` 4 of 9 keys missing | 9 keys (adds `trustCommittee`, `festivalCalendar`, `ekadashiCalendar`, `homepage`) | `/trust`, both calendars and the homepage gain content |
 | `quotes` thin (6) | 33 rows — **skipped**, table is not empty | no change (see §3.2) |
 | `sevas` empty | **not in plan** | `/seva` stays empty (owner-owned) |
 | `featured_content` empty | **not in plan** | homepage carousel stays empty |

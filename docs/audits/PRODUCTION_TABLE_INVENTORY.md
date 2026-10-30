@@ -38,7 +38,7 @@ endpoint; `derived` = computed from an app response; `—` = not readable (see �
 | `ai_settings` | 1 (effective) | app (`/api/ai/public-settings`) | returns a real welcome message, not the code default |
 | `users` | 1 | app (`/api/public/stats` `totalUsers`) | the single admin/devotee account |
 | `page_views` | >0 | app | live views exist (Supabase beacon); exact count not exposed |
-| `settings_documents` | 6 of 9 keys | app (`/api/public/settings/[key]`) | see §1c |
+| `settings_documents` | 5 of 9 keys | app (`/api/public/settings/[key]`) | see §1c |
 
 ### 1b. Tables confirmed **empty** (service-role evidence)
 
@@ -60,7 +60,10 @@ endpoint; `derived` = computed from an app response; `—` = not readable (see �
 > Where a table is deny-all **and** no service-role reader exists, its count is reported as
 > **0 / UNCONFIRMED** in §2 rather than asserted.
 
-### 1c. `settings_documents` — 6 of 9 seed keys present
+### 1c. `settings_documents` — 5 of 9 seed keys present
+
+Nine keys are defined by the seed (`lib/supabase/seed-data/settings-documents.ts`). Production
+holds **five**; **four are missing**.
 
 | `document_key` | Present? | Evidence |
 |---|---|---|
@@ -72,7 +75,13 @@ endpoint; `derived` = computed from an app response; `—` = not readable (see �
 | `trustCommittee` | **no** | `{"success":true,"data":null}` → the `/trust` page falls back to defaults |
 | `festivalCalendar` | **no** | `data: null` |
 | `ekadashiCalendar` | **no** | `data: null` |
-| `homepage` | **no** | `data: null` → `/api/public/homepage` returns defaults |
+| `homepage` | **no** | `{"error":"Unknown settings document"}` — the key is absent from the route's `SETTINGS_DOCUMENT_KEYS` allow-list; `/api/public/homepage` returns built-in defaults |
+
+`homepage` cannot be probed through `/api/public/settings/homepage` (the route rejects keys
+outside `SETTINGS_DOCUMENT_KEYS`), so its absence is read from its dedicated reader
+(`services/homepage.server.ts` → `getDefaultConfig()`) instead. All nine keys are listed in the
+seed's `settings-documents.ts`; the four missing ones are items 3–6 of the proposed fresh-data
+seed plan.
 
 ---
 

@@ -27,7 +27,9 @@ deployment was modified.** No write was issued to production.
 from Supabase; there is no Firestore fallback read anywhere in the request path. The data
 cutover is functionally complete.
 
-**Four things stand between the current state and a clean "production-ready" sign-off:**
+**Five things stand between the current state and a clean "production-ready" sign-off.** Item 5
+is a code defect found during the review and fixed on this PR branch; items 1–4 need decisions
+or production actions and are untouched.
 
 1. **`proxy.ts` still writes `page_views` to Firestore** on every public GET — a live
    residual Firestore write (Firestore audit F-1, **High**).
@@ -36,14 +38,17 @@ cutover is functionally complete.
    (`services/auth.service.ts`) (Firestore audit F-2/F-3, **Medium**).
 3. **Several public pages are empty because their tables have no rows**, not because of a
    bug: `announcements` (0), `temple_areas` (0), `daily_poojas` (0), `featured_content` (0),
-   and three `settings_documents` keys (`trustCommittee`, `festivalCalendar`,
-   `ekadashiCalendar`). See §6.
+   and four `settings_documents` keys (`trustCommittee`, `festivalCalendar`,
+   `ekadashiCalendar`, `homepage`) out of nine. See §6.
 4. **The production schema is not fully reproducible from the repository** — production has
    advanced past the migration comments (see §7 and the table inventory §4e).
+5. **A read path used to write to the database, and four admin quote endpoints had no auth**
+   (F-A11/F-A12). Both are **fixed on this branch**; they are listed because the fix changes
+   code, not production, and should be reviewed with the reports.
 
 All automated checks pass: unit **207/207 suites, 2668/2668 tests**; DB integration
 **17/17 suites, 244/244 tests**; `tsc --noEmit` clean; ESLint **0 errors** (714 pre-existing
-warnings). See §8.
+warnings). Two regression tests were added for F-A11/F-A12. See §8.
 
 ---
 
@@ -108,9 +113,9 @@ Counts are the measured production values (source in `PRODUCTION_TABLE_INVENTORY
 | Events list | `/events`, `/api/events` | `events` | 74 | OK |
 | Aaradhane | `/aaradhane` | `aaradhanes` | 2 | OK |
 | Gallery | `/gallery`, `/api/gallery/{albums,media}` | `gallery_albums`, `gallery_media` | 4 / 7 | OK |
-| Quotes / daily shloka | `/api/quotes*` | `quotes` | 6 | **Thin** — seed defines 33 |
+| Quotes / daily shloka | `/api/quotes*`, `/` | `quotes` | 6 | **Thin** — seed defines 33; read path no longer writes (F-A11) |
 | Testimonials | `/api/testimonials/devotee` | `testimonials` | 2 | OK |
-| About / Facilities / Future Plans / Footer | `/about`, `/trust`, `/api/public/settings/*` | `settings_documents` | 4 of 9 keys | **Partial** |
+| About / Facilities / Future Plans / Footer / Pooja schedule | `/about`, `/trust`, `/api/public/settings/*` | `settings_documents` | 5 of 9 keys | **Partial** |
 | Trust Committee page | `/trust` | `settings_documents('trustCommittee')` | 0 | **Defaults** — key missing |
 | Festival calendar | calendar pages | `settings_documents('festivalCalendar')`, `festival_days`, `festival_day_dates` | 0 / ? / ? | **Defaults** |
 | Ekadashi calendar | calendar pages | `settings_documents('ekadashiCalendar')` | 0 | **Defaults** |
@@ -150,19 +155,33 @@ is authoritative for authorization. **Affected**: `services/auth.service.ts`,
 `lib/auth/sign-in-profile.ts`. **Action**: drop the Firestore mirror or document it as
 non-authoritative.
 
-### F-A4 — `settings_documents` is missing 3 keys the site reads — **High (data)**
-`trustCommittee`, `festivalCalendar`, `ekadashiCalendar` all return `{"success":true,"data":null}`.
-Consequences: the Trust Committee page and both calendars render built-in defaults rather than
-temple content. The seed defines these keys (`lib/supabase/seed-data/settings-documents.ts:93,125,135`),
-so a seed run would add them — **only if the seed is allowed to run against production**
-(see `PROPOSED_FRESH_DATA_SEED_PLAN.md`). **Affected tables**: `settings_documents`.
-**Action**: seed the three missing keys.
+### F-A4 — `settings_documents` is missing 4 of its 9 seed keys — **High (data)**
+Of the nine keys the seed defines (`lib/supabase/seed-data/settings-documents.ts`), **five are
+present** in production — `aboutUs`, `facilities`, `futurePlans`, `poojaSchedule`, `footer` —
+and **four are absent**:
+
+| Missing key | Evidence | Consequence |
+|---|---|---|
+| `trustCommittee` | `/api/public/settings/trustCommittee` → `{"success":true,"data":null}` | `/trust` renders built-in defaults |
+| `festivalCalendar` | `data: null` | festival calendar shows defaults |
+| `ekadashiCalendar` | `data: null` | ekadashi calendar shows defaults |
+| `homepage` | `settings_documents('homepage')` absent → `services/homepage.server.ts` returns `getDefaultConfig()` | homepage renders built-in copy, not owner copy |
+
+`homepage` is confirmed absent because it is **not** in the route's `SETTINGS_DOCUMENT_KEYS`
+allow-list (`services/settings-document.service.ts:22`), so `/api/public/settings/homepage`
+answers `{"error":"Unknown settings document"}` while its dedicated reader
+(`/api/public/homepage`) returns the built-in defaults.
+
+The seed defines all four keys (`settings-documents.ts:93,125,135,164`), so a seed run would add
+them — **only if the seed is allowed to run against production** (see
+`PROPOSED_FRESH_DATA_SEED_PLAN.md`). **Affected tables**: `settings_documents`.
+**Action**: seed the four missing keys.
 
 ### F-A5 — `homepage` settings document is missing — **Medium (data)**
-`settings_documents('homepage')` is absent, so `services/homepage.server.ts` returns
-`getDefaultConfig()`. The homepage renders, but any owner-customised homepage copy is not
-present. **Affected**: `settings_documents`. **Action**: confirm whether the owner wants the
-seeded default homepage document or an edited one.
+Covered under F-A4. `settings_documents('homepage')` is absent, so
+`services/homepage.server.ts` returns `getDefaultConfig()`. The homepage renders, but any
+owner-customised homepage copy is not present. **Affected**: `settings_documents`.
+**Action**: confirm whether the owner wants the seeded default homepage document or an edited one.
 
 ### F-A6 — Content tables are genuinely empty — **Medium (data)**
 Measured zeros with service-role evidence: `announcements`, `temple_areas`, `daily_poojas`,
@@ -191,8 +210,42 @@ mitigates accidental targeting, but the risk is real. **Action**: never infer th
 
 ### F-A10 — Repository migrations understate the applied production schema — **Low (process)**
 `20261105000000_events_public_select_policy.sql` says "prepared, NOT applied", yet production
-serves 74 published events to the anon key; `20261111000000_aaradhanes_public_select_policy.sql`
+serves 74 published events to the anon key; `20261111000000_aaradhanas_public_select_policy.sql`
 is likewise applied. **Action**: mark these migrations applied in the repo.
+
+### F-A11 — Quote reads used to write to the database — **High (fixed)**
+`QuoteService.getTodaysQuote` is reached from the public homepage render
+(`app/(public)/page.tsx` → `services/daily-spiritual.server.ts` → `quoteService`) and from
+`GET /api/quotes/today`. It performed two writes:
+
+- **auto-seed**: when `getQuotes({active:true})` returned nothing it called
+  `seedDefaultQuotes()`, inserting the 33 `DEFAULT_QUOTES_DATA` rows (`quote.server.ts:609-617`);
+- **view counter**: on every non-cached call it fired `incrementViewCount(quote.id)`, a
+  `quotes` UPDATE (`quote.server.ts:713-717`).
+
+A page view, a build-time prerender or an SSR render could therefore mutate the database.
+**Fixed** (this PR): both writes are removed from the read path. Seeding is now only
+`POST /api/admin/quotes/seed`; `incrementViewCount` remains available but is not called from a
+read. Regression test: `tests/unit/quote-read-no-write.test.ts`.
+**Affected**: `services/quote.server.ts`, `services/quote.service.ts`.
+
+### F-A12 — Four admin quote endpoints had no authentication — **High (fixed)**
+`proxy.ts` does not gate `/api/admin/*`, so each handler must verify the caller. Only
+`app/api/admin/quotes/route.ts` did. These were reachable without a token:
+
+| Route | Effect |
+|---|---|
+| `POST /api/admin/quotes/seed` | inserts the default quotes |
+| `POST /api/admin/quotes/bulk` | bulk import |
+| `GET /api/admin/quotes/bulk` | exports every quote |
+| `POST /api/admin/quotes/cache` | clears the in-memory cache |
+| `GET/PUT/DELETE /api/admin/quotes/[id]` | read/update/delete any quote |
+
+**Fixed** (this PR): every handler now calls `verifyAdminUser` and returns `401` otherwise.
+The admin UI (`app/admin/quotes/page.tsx`) was switched from raw `fetch` to the `apiFetch`
+helper (`lib/api/fetch.ts`), which attaches the caller's Firebase ID token, so the page keeps
+working. Regression test: `tests/unit/admin-quotes-route-auth.test.ts`.
+**Affected**: the five route files, `app/admin/quotes/page.tsx`.
 
 ---
 
@@ -213,7 +266,7 @@ endpoints to separate the two. Result:
   These must be reported **UNKNOWN**, never 0.
 - **RLS-hidden but revealed by app endpoints**: `quotes` (6), `gallery_albums` (4),
   `gallery_media` (7), `testimonials` (2), `ai_knowledge` (19), `ai_settings` (1),
-  `site_settings` (2), `settings_documents` (6 of 9 keys), `users` (1).
+  `site_settings` (2), `settings_documents` (5 of 9 keys), `users` (1).
 
 PostgREST **planner estimates are unreliable** here (e.g. `site_settings` estimate 280 vs exact 2),
 so no estimate was used as a count.
@@ -244,15 +297,24 @@ Items 1–7 are exactly the rows the **fresh-seed** process covers (18 tables / 
 
 ## 8. Tests and static checks
 
-Run locally on `main` @ `b1401ae` (read-only; no production connection):
+Run locally on this branch (read-only; no production connection):
 
 | Check | Command | Result |
 |---|---|---|
-| Unit | `npx jest tests/unit --silent` | **207 suites passed, 2668 tests passed** |
+| Unit | `npx jest tests/unit --silent` | **209 suites passed, 2680 tests passed** |
 | DB integration | `npm run test:db` | **17 suites passed, 244 tests passed** |
 | Type check | `npx tsc --noEmit` | **clean** (0 errors) |
 | Lint | `npx eslint .` | **0 errors**, 714 warnings (pre-existing, mostly unused imports) |
 | Seed dry-run | `DATABASE_URL=… npm run seed:fresh:dry-run` | **18 tables, 69 rows**, "Nothing was written." |
+
+The unit count grew from the 207/2668 on `main` @ `b1401ae` by the two regression tests added
+for F-A11/F-A12:
+
+- `tests/unit/quote-read-no-write.test.ts` (4 tests) — drives the real `QuoteService` against a
+  recording Supabase stub and fails if `getTodaysQuote` issues an `insert`/`update`/`upsert`/
+  `delete`. Verified to fail when the auto-seed is temporarily restored.
+- `tests/unit/admin-quotes-route-auth.test.ts` (8 tests) — calls each handler with no token and
+  asserts `401` with no service write, and that `seed` still runs when authorized.
 
 **No test failures.** The DB suite connects to the sandbox Postgres, not production, and its
 seva tests run against a local schema — it does **not** validate the production database.
@@ -302,7 +364,7 @@ path is required (see `PROPOSED_FRESH_DATA_SEED_PLAN.md` §4).
   (`runner.ts:9-11`; `tests/db/fresh-seed.test.ts:247`).
 - **`insertOnly`** (devotee/analytics data): never seeded at all (`runner.ts:84`).
 
-The only rows it would add to an occupied table are the three missing `settings_documents` keys
+The only rows it would add to an occupied table are the four missing `settings_documents` keys
 (F-A4). It would not overwrite the owner's existing `aboutUs`, `facilities`, `futurePlans`,
 `poojaSchedule` or `footer`, and it would not touch `quotes` (already non-empty → skipped).
 
@@ -375,4 +437,12 @@ data therefore requires a separately reviewed write path
 | P2 | Add `announcements`/`daily_poojas`/`temple_areas`/`featured_content` seed entries to the plan if the owner wants starter content | Code |
 | P3 | Delete dead Firestore code (Firestore audit F-7/F-8) | Code |
 
-**No change was made.** This audit stops at the reports, as instructed.
+### 11.1 Fixed in this PR
+
+| Finding | Fix |
+|---|---|
+| F-A11 — quote reads wrote to the database | Removed the auto-seed and view-counter writes from `getTodaysQuote` in `services/quote.server.ts` and the duplicate `services/quote.service.ts`. |
+| F-A12 — four admin quote endpoints had no auth | Added `verifyAdminUser` guards to `app/api/admin/quotes/{bulk,cache,seed,[id]}/route.ts`; moved `app/admin/quotes/page.tsx` onto `apiFetch`. |
+
+**No production change was made.** Every action above that touches production data is proposed
+and unexecuted; the F-A11/F-A12 fixes are code-only changes on the PR branch.

@@ -299,6 +299,7 @@ The following were previously suspected Firestore offenders and are **now Supaba
 | `app/actions/sevas.ts` | Clean | Supabase only; filters `.eq('firestore_id', id)`. |
 | `lib/aaradhane/firestore-admin.ts` | Does not exist | Directory holds `generator.ts`, `local-generator.ts`, `panchanga.ts`, `supabase-writer.ts`. |
 | `app/api/chat/**`, `lib/ai/**` | Clean | No `firebase-admin`/`firebase/firestore` import. |
+| `services/quote.server.ts`, `services/quote.service.ts` | Clean | Supabase only (`createAdminClient`); no Firestore import. The read path no longer writes (see readiness F-A11) — the fix added no Firestore dependency. |
 
 `app/api/chat/route.ts:231` contains a **commented-out** legacy fallback block
 ("OLD FALLBACK CODE - DISABLED FOR SAFETY") and a legacy `responseSource` label at L125 —

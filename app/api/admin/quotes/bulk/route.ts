@@ -5,11 +5,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.server";
+import { verifyAdminUser } from "@/lib/auth/admin-auth";
 import { QuoteBulkData } from "@/types/quote";
 
 // POST /api/admin/quotes/bulk - Bulk import quotes
 export async function POST(request: NextRequest) {
   try {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
     const { quotes, mode } = body;
 
@@ -61,6 +66,10 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/quotes/bulk - Export quotes
 export async function GET(request: NextRequest) {
   try {
+    const admin = await verifyAdminUser(request);
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const activeOnly = searchParams.get("activeOnly") !== "false";
