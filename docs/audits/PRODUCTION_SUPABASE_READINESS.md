@@ -267,9 +267,10 @@ reason the quote routes were unguarded.
 
 **Why it matters**: `temple_areas` is read by the public site (`/api/temple-areas`), so an
 unauthenticated `POST`/`DELETE` here lets anyone add or remove a public map entry.
-**Action**: add `verifyAdminUser` to these handlers and move the calling pages onto `apiFetch`,
-exactly as F-A12 does. Not fixed in this PR to keep the change reviewable — it is a distinct
-surface from the quote endpoints and deserves its own reviewed change.
+**Action — separate follow-up PR (out of scope for PR #366)**: add `verifyAdminUser` to these
+handlers and move the calling pages onto `apiFetch`, exactly as F-A12 does. It is deliberately
+**not** fixed here — it is a distinct surface from the quote endpoints and deserves its own
+reviewed change. Tracked as **P0** in §11.
 **Affected**: `app/api/admin/temple-areas/route.ts`, `app/api/admin/temple-areas/[id]/route.ts`,
 `app/api/admin/analytics/route.ts`, `app/api/admin/content/route.ts`,
 `app/admin/temple-areas/page.tsx`.
