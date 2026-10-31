@@ -42,6 +42,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const admin = await requireAdminUser(request);
 
   if (admin.ok) {
+    if (!allowPublicWrite(request, { scope: "bookings:admin-update", identity: admin.user.uid, limit: 60, windowMs: 60_000 })) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
     const parsed = await parseJsonBody(request, bookingAdminUpdateSchema);
     if (!parsed.ok) return parsed.response;
     try {
