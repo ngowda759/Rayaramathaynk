@@ -116,7 +116,7 @@ Thank you for your generous contribution.`;
         <div ref={receiptRef} className="p-6 overflow-y-auto flex-1">
           <div className="text-center mb-6">
             <h3 className="text-lg font-bold text-orange-800 border-b-2 border-orange-300 pb-2 inline-block">
-              ಸೇವಾ ರಸೀದಿ / SEVA RECEIPT
+              ಸೇವಾ ಬುಕಿಂಗ್ ಸ್ವೀಕೃತಿ / SEVA BOOKING ACKNOWLEDGEMENT
             </h3>
           </div>
 
@@ -205,7 +205,11 @@ Thank you for your generous contribution.`;
 
           {/* Footer Note */}
           <div className="mt-6 text-center text-xs text-stone-500 border-t border-stone-200 pt-4">
-            <p>ಧನ್ಯವಾದಗಳು / Thank you for your generous contribution</p>
+            <p className="font-medium text-amber-700">
+              This is a booking acknowledgement, not a payment receipt. Your payment reference is
+              pending verification by the temple.
+            </p>
+            <p className="mt-2">ಧನ್ಯವಾದಗಳು / Thank you for your generous contribution</p>
             <p className="mt-1">ದಯವಿಟ್ಟು ರಸೀದಿಯನ್ನು ಉಳಿಸಿಕೊಳ್ಳಿರಿ / Please retain this receipt</p>
           </div>
         </div>

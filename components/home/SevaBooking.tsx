@@ -187,11 +187,7 @@ export default function SevaBooking() {
     setSavingPayment(true);
 
     try {
-      await sevaBookingService.updatePayment(bookingId, {
-        paymentReference: paymentReference.trim(),
-        paymentStatus: "completed",
-        paymentMethod: "UPI",
-      });
+      await sevaBookingService.recordPaymentClaim(bookingId, paymentReference.trim(), "UPI");
 
       // Set receipt data before closing payment dialog
       setReceiptData({
@@ -210,6 +206,7 @@ export default function SevaBooking() {
       // Show receipt instead of closing
       setShowPaymentDialog(false);
       setShowReceipt(true);
+      toast.success("Payment reference submitted. The temple will verify it.");
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Could not save payment reference.");
@@ -237,7 +234,7 @@ export default function SevaBooking() {
     setPaymentReference("");
     setCountdown(5);
     setBookingId("");
-    toast.success("Booking completed! Thank you for your contribution.");
+    toast.success("Booking submitted. Payment will be confirmed after verification.");
   }
 
   return (

@@ -21,7 +21,7 @@ const queryResult: { data: unknown; error: { message: string; code?: string } | 
 function makeBuilder() {
   const builder: Record<string, jest.Mock> = {};
   const chain = () => builder;
-  for (const m of ["select", "eq", "order", "limit", "in", "insert", "update", "delete", "upsert"]) {
+  for (const m of ["select", "eq", "or", "order", "limit", "in", "insert", "update", "delete", "upsert"]) {
     builder[m] = jest.fn(chain);
   }
   builder.maybeSingle = jest.fn(() => Promise.resolve(queryResult));

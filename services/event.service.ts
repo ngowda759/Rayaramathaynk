@@ -1,5 +1,6 @@
 import { TempleEvent } from "@/types/event";
 import { createClient } from "@/lib/supabase/client";
+import { rowIdFilter } from "@/lib/supabase/identifier";
 
 const supabase = createClient();
 
@@ -74,7 +75,7 @@ class EventService {
     const { data, error } = await supabase
       .from('events')
       .select('*')
-      .eq('firestore_id', id)
+      .or(rowIdFilter(id))
       .maybeSingle();
     if (error) {
       throw new EventReadError(
@@ -86,6 +87,15 @@ class EventService {
     // `maybeSingle` returns null (not an error) for zero rows, so a missing event is
     // a legitimate null; a failure is not.
     return data ? mapSupabaseEventToTempleEvent(data) : null;
+  }
+
+  /**
+   * A published event by public id, or null. The public event detail route uses this so
+   * an unpublished draft is never returned to an anonymous caller.
+   */
+  async getPublishedEvent(id: string): Promise<TempleEvent | null> {
+    const event = await this.getEvent(id);
+    return event && event.published !== false ? event : null;
   }
 
   async addEvent(event: TempleEvent) {
@@ -132,7 +142,7 @@ class EventService {
     if (event.status !== undefined) updateData.status = event.status;
     if (event.createdAt !== undefined) updateData.created_at = event.createdAt;
 
-    const { data, error } = await supabase.from('events').update(updateData).eq('firestore_id', id).select('*').single();
+    const { data, error } = await supabase.from('events').update(updateData).or(rowIdFilter(id)).select('*').maybeSingle();
     if (error) {
       console.error("[EventService] Error updating event:", error);
       throw error;
@@ -141,7 +151,7 @@ class EventService {
   }
 
   async deleteEvent(id: string) {
-    const { error } = await supabase.from('events').delete().eq('firestore_id', id);
+    const { error } = await supabase.from('events').delete().or(rowIdFilter(id));
     if (error) {
       console.error("[EventService] Error deleting event:", error);
       throw error;
