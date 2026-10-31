@@ -169,9 +169,9 @@ the sniffed type, so a forged `Content-Type` cannot mislabel it.
 ### 4.10 Remaining rate-limit and validation gaps (remediation)
 
 The `DELETE` handlers for profile bookmarks, favorites and image are now rate-limited, as
-are the admin `PATCH`/`DELETE` handlers for donations and `DELETE` for bookings, and the
-`PATCH` body for `/api/donations/[id]` is validated with a new `donationAdminUpdateSchema`.
-The static census now fails if any non-read handler in scope lacks `allowPublicWrite`.
+are the admin `PATCH`/`DELETE` handlers for donations and bookings, and the `PATCH` body for
+`/api/donations/[id]` is validated with a new `donationAdminUpdateSchema`. The static census
+now fails if any non-read handler in scope lacks `allowPublicWrite`.
 
 ---
 
