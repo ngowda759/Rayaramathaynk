@@ -17,11 +17,12 @@ import {
  * does not exist yet, so the caller keeps its built-in defaults. There is no Firestore
  * path.
  *
- * Two documents hold internal data the public site never renders, so they are
- * narrowed to an allow-listed projection before serialization (F-A15.2):
- * `financeSettings` drops the billing block (invoice counter, GSTIN, company
- * contact) and `device` drops the notification/calendar/share/QR defaults, keeping
- * only the temple location. See `lib/settings/public-projections.ts`.
+ * Two documents are handled specially (F-A15.2): `financeSettings` is served
+ * through an allow-listed projection that drops the billing block and inactive
+ * special sevas (see `lib/settings/public-projections.ts`), and `device` is not
+ * served at all — nothing in the public site reads a stored `device` document (the
+ * map uses the built-in `DEFAULT_DEVICE_SETTINGS` location), so a request for it
+ * returns 404.
  */
 
 const PUBLIC_KEYS = new Set([
@@ -36,7 +37,6 @@ const PUBLIC_KEYS = new Set([
   "socialLinks",
   "shlokas",
   "financeSettings",
-  "device",
 ]);
 
 export async function GET(

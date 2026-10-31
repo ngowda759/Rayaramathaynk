@@ -40,7 +40,6 @@ jest.mock("@/lib/auth/admin-auth", () => ({
 import { GET as publicGet } from "@/app/api/public/settings/[key]/route";
 import { GET as adminGet } from "@/app/api/admin/settings/[key]/route";
 import {
-  projectPublicDeviceSettings,
   projectPublicFinanceSettings,
   projectPublicSettingsDocument,
 } from "@/lib/settings/public-projections";
@@ -79,7 +78,10 @@ const SENSITIVE_FINANCE_DOC = {
   internalNote: "should never be public",
 };
 
-/** A stored device document containing every internal field the projection must drop. */
+/**
+ * A stored device document. The public endpoint no longer serves `device` at all, so
+ * this fixture only exercises the 404 regression: it must never be returned.
+ */
 const SENSITIVE_DEVICE_DOC = {
   templeLocation: {
     latitude: 13.0967,
@@ -129,7 +131,8 @@ describe("projectPublicFinanceSettings", () => {
       ifscCode: "SBIN0001234",
       branch: "Yelahanka",
     });
-    expect(projected.specialSevas).toHaveLength(2);
+    expect(projected.specialSevas).toHaveLength(1);
+    expect(projected.specialSevas[0].title).toBe("Annadanam");
 
     // Excluded.
     const serialized = JSON.stringify(projected);
@@ -166,9 +169,31 @@ describe("projectPublicFinanceSettings", () => {
     expect(projected.specialSevas).toEqual([]);
   });
 
+  it("drops inactive special sevas and keeps only the published ones", () => {
+    const projected = projectPublicFinanceSettings({
+      specialSevas: [
+        { id: "1", title: "Annadanam", isActive: true, order: 1 },
+        { id: "2", title: "Unpublished", isActive: false, order: 2 },
+        { id: "3", title: "Also published", isActive: true, order: 3 },
+      ],
+    })!;
+    expect(projected.specialSevas.map((s) => s.title)).toEqual(["Annadanam", "Also published"]);
+  });
+
+  it("treats a missing or non-boolean isActive as unpublished", () => {
+    const projected = projectPublicFinanceSettings({
+      specialSevas: [
+        { id: "1", title: "No flag" },
+        { id: "2", title: "String flag", isActive: "true" },
+        { id: "3", title: "Real flag", isActive: true },
+      ],
+    })!;
+    expect(projected.specialSevas.map((s) => s.id)).toEqual(["3"]);
+  });
+
   it("coerces non-string special-seva fields and drops non-object entries", () => {
     const projected = projectPublicFinanceSettings({
-      specialSevas: [null, { id: 7, title: 9, amount: "x", isActive: "y" }],
+      specialSevas: [null, { id: 7, title: 9, amount: "x", isActive: true }],
     })!;
     expect(projected.specialSevas).toHaveLength(1);
     expect(projected.specialSevas[0]).toEqual({
@@ -177,35 +202,9 @@ describe("projectPublicFinanceSettings", () => {
       description: "",
       amount: 0,
       icon: "",
-      isActive: false,
+      isActive: true,
       order: 0,
     });
-  });
-});
-
-describe("projectPublicDeviceSettings", () => {
-  it("keeps only the temple location", () => {
-    const projected = projectPublicDeviceSettings(SENSITIVE_DEVICE_DOC)!;
-    expect(Object.keys(projected)).toEqual(["templeLocation"]);
-    expect(projected.templeLocation).toEqual({
-      latitude: 13.0967,
-      longitude: 77.5846,
-      name: "Sri Raghavendra Swamy Matha",
-      address: "Yelahanka, Bengaluru",
-      phone: "+91 80 2332 3456",
-    });
-    const serialized = JSON.stringify(projected);
-    expect(serialized).not.toContain("notificationDefaults");
-    expect(serialized).not.toContain("calendarDefaults");
-    expect(serialized).not.toContain("shareTemplates");
-    expect(serialized).not.toContain("qrScannerDefaults");
-    expect(serialized).not.toContain("defaultNavigationApp");
-    expect(serialized).not.toContain("waze");
-  });
-
-  it("omits templeLocation entirely when the document has none", () => {
-    expect(projectPublicDeviceSettings({ notificationDefaults: { dailyPanchangaTime: "06:00" } })).toEqual({});
-    expect(projectPublicDeviceSettings(null)).toBeNull();
   });
 });
 
@@ -234,25 +233,24 @@ describe("GET /api/public/settings/[key]", () => {
     const data = financeResponseBody(await response.json());
     expect(data.upi.id).toBe("temple@upi");
     expect(data.bankTransfer.accountNumber).toBe("1234567890123");
-    expect(data.specialSevas).toHaveLength(2);
+    // The stored document has one active and one inactive special seva.
+    expect(data.specialSevas).toHaveLength(1);
+    expect(data.specialSevas[0].title).toBe("Annadanam");
 
     const raw = JSON.stringify(data);
     expect(raw).not.toContain("billing");
     expect(raw).not.toContain("Gstin");
     expect(raw).not.toContain("29AAAAA0000A1Z5");
     expect(raw).not.toContain("invoiceNumber");
+    expect(raw).not.toContain("Hidden");
   });
 
-  it("returns the projected device document with only the temple location", async () => {
+  it("returns 404 for the device document (no public consumer)", async () => {
     storedDocument = SENSITIVE_DEVICE_DOC;
     const response = await publicGet(...publicRequest("device"));
-    expect(response.status).toBe(200);
-
-    const data = financeResponseBody(await response.json());
-    expect(Object.keys(data)).toEqual(["templeLocation"]);
-    const raw = JSON.stringify(data);
-    expect(raw).not.toContain("shareTemplates");
-    expect(raw).not.toContain("notificationDefaults");
+    expect(response.status).toBe(404);
+    // The read never happens: the key is rejected before the service is called.
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it("returns data: null when the document does not exist yet", async () => {
@@ -297,10 +295,12 @@ describe("public donation compatibility", () => {
     const data = financeResponseBody(await response.json());
 
     // Mirrors hooks/useFinanceSettings.ts: enabled, upi.enabled, bankTransfer.enabled,
-    // upi, bankTransfer, and the active specialSevas sorted by order.
+    // upi, bankTransfer, and the active specialSevas sorted by order. The API already
+    // filters inactive sevas, so the hook's own filter is a no-op on this payload.
     expect(typeof data.enabled).toBe("boolean");
     expect(data.upi.enabled).toBe(true);
     expect(data.bankTransfer.enabled).toBe(true);
+    expect(data.specialSevas.every((s: any) => s.isActive)).toBe(true);
     const activeSevas = data.specialSevas
       .filter((s: any) => s.isActive)
       .sort((a: any, b: any) => a.order - b.order);
@@ -342,6 +342,9 @@ describe("GET /api/admin/settings/[key] (unchanged)", () => {
     expect(body.data.billing.companyGstin).toBe("29AAAAA0000A1Z5");
     expect(body.data.billing.invoiceNumber).toBe(4242);
     expect(body.data.billingEnabled).toBe(true);
+    // The inactive-seva filter and projection are public-only: admins still edit
+    // unpublished sevas, so both entries must come back here.
+    expect(body.data.specialSevas).toHaveLength(2);
   });
 
   it("rejects an unauthorized caller before any read", async () => {
