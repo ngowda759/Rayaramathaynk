@@ -97,7 +97,7 @@ the API layer.** (Grant denial vs RLS deny-all is a catalog fact not read.)
 | Area | F-A15.1 reproduced | F-A16 live | Status |
 |---|---:|---|---|
 | Public tables | 67 | 67 reachable via PostgREST (**API**) | Consistent (API); catalog Unavailable |
-| RLS enabled | 67 | not read from catalog; API shows per-table row filtering | Unavailable (catalog) |
+| RLS enabled | 67 | not read from catalog; API shows per-table access and row-return behaviour; it does not establish whether zero rows result from RLS filtering or empty tables | Unavailable (catalog) |
 | FORCE RLS | 0 | — | Unavailable (catalog) |
 | Public policies | 81 | — | Unavailable (catalog) |
 | Table privilege records | 1,088 | not read from catalog; API denies `anon` on 21 tables | Unavailable (catalog) |

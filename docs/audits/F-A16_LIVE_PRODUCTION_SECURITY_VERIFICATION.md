@@ -28,10 +28,10 @@ The audit proceeded in two layers, because only one of them is reachable from th
   any case. **Catalog SQL therefore remains impossible from here.** All catalog categories
   (privilege records, policy counts, functions, FORCE RLS, default ACLs, migration ledger,
   extensions) are **Unavailable**.
-* **API / RLS-effective layer: reached and verified read-only.** The owner-supplied publishable key
+* **Effective API access layer: reached and verified read-only.** The owner-supplied publishable key
   authenticates against the production PostgREST API, so the audit **validated the production
-  identity live** and measured the **effective (RLS-applied) anon view** of every table with
-  GET-only requests. This is real production evidence, just one layer above the raw catalog.
+  identity live** and measured the **effective anon view** of every table with GET-only requests.
+  This is real production evidence, just one layer above the raw catalog.
 
 **What the live API layer established (production, read-only, GET-only):**
 
@@ -63,7 +63,7 @@ came from another**:
 | Layer | What it covers | How obtained | Status here |
 |---|---|---|---|
 | **Catalog** | table/RLS flags, policy definitions & counts, privilege matrix, functions & EXECUTE, FORCE RLS, default ACLs, migration ledger, extensions | PostgreSQL catalog reads (`pg_class`, `pg_policies`, `pg_proc`, `pg_default_acl`, `information_schema`, `supabase_migrations`) | **Not obtained** — no DB session |
-| **API** | what the `anon` role can actually read (RLS applied), HTTP status, row counts, endpoint responses | GET-only PostgREST/HTTP against production | **Obtained, read-only** |
+| **API** | what the `anon` role can actually read under whatever security is in force, HTTP status, row counts, endpoint responses | GET-only PostgREST/HTTP against production | **Obtained, read-only** |
 | **Source** | repository migrations, merged application code | static review | Reproduced |
 
 Rules applied throughout:
@@ -128,7 +128,7 @@ Validation performed (read-only):
 | Anon table reads return live production rows | **Yes** (e.g. `events` = 74 rows) |
 | Direct DB host reachable from sandbox | **No** — resolves IPv6-only (`2406:da1a:…`); sandbox has no IPv6 egress; no DB password provided |
 
-**Conclusion:** production identity is **validated**; the API/RLS-effective layer is reachable and
+**Conclusion:** production identity is **validated**; the effective API access layer is reachable and
 was audited read-only. The **catalog SQL layer is not reachable** from this environment.
 
 ### 2.3 Production host liveness (non-secret, informational)
@@ -229,7 +229,7 @@ the migration ledger, and installed extensions. Those require the catalog (§4).
 | Area | F-A15.1 reproduced | F-A16 live | Status |
 |---|---:|---|---|
 | Public tables | 67 | 67 reachable via PostgREST (none 404) — **API observation** | **Consistent (API layer)**; catalog count Unavailable |
-| RLS enabled | 67 | not read from catalog; API shows per-table row filtering | **Unavailable (catalog)**; API behaviour consistent |
+| RLS enabled | 67 | not read from catalog; API shows per-table access and row-return behaviour; it does not establish whether zero rows result from RLS filtering or empty tables | **Unavailable (catalog)**; API behaviour consistent |
 | FORCE RLS | 0 | — | Unavailable (catalog) |
 | Public policies | 81 | — | Unavailable (catalog) |
 | Table privilege records | 1,088 | not read from catalog; API denies `anon` on 21 tables | **Unavailable (catalog)**; F-A15.1-3 contradicted *in effect* for `anon` |
@@ -413,3 +413,4 @@ as non-reversible SHA-256 prefixes. No sensitive row contents were retrieved.
 | 1 | 2026-10-31 | Initial F-A16. Catalog portion aborted (non-approved sandbox credential). PR #370 deployment confirmed; website checks passed; admin unavailable. |
 | 2 | 2026-10-31 | Owner supplied the production identity (URL, publishable key, direct DB host). Identity **validated** live; added the **effective anon-visibility census** of all 67 tables via GET-only PostgREST probes (§4A). Catalog categories remain Unavailable (IPv6-only host, no DB password). No production change made. |
 | 3 | 2026-10-31 | **Evidence-layer correction.** Added §1.1 (Catalog / API / Source layer separation) and re-scoped every statement so API-observed behaviour is never presented as a catalog fact. Reverted the rev-2 over-claims: F-A15.1-3, -5 and -8 are now **Unverified (catalog)** with the API observation stated separately as *consistent with*; only F-A15.1-6 (deployed endpoint behaviour) remains **Confirmed in production**. §4A, §5, §6 and §8 updated accordingly. No finding severity changed; no production change made. |
+| 4 | 2026-10-31 | **Wording: no implied RLS verification.** Renamed "RLS-effective layer" to "effective API access layer", and replaced "API shows per-table row filtering" with wording that states the API shows access and row-return behaviour only and **does not establish whether zero rows result from RLS filtering or empty tables**. Removed the "(RLS applied)" gloss from the layer table. No content change beyond wording; no production change made. |
