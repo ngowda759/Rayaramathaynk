@@ -34,6 +34,10 @@ export async function DELETE(request: NextRequest) {
   const caller = await verifyBearerIdToken(request);
   if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  if (!allowPublicWrite(request, { scope: "profile:favorites:delete", identity: caller.uid, limit: 60, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const parsed = await parseJsonBody(request, itemIdSchema);
   if (!parsed.ok) return parsed.response;
 

@@ -51,6 +51,11 @@ profile writes) continue to work.
 | F-A14-8 | `event.service` update used `.single()`, which throws on a zero-row update instead of returning "not found" | **Low** | Fixed |
 | F-A14-9 | `GET /api/bookings?user=<uid>` — the query string was ignored (the uid is taken from the token, which is correct), but the parameter was misleading | **Low** | Documented |
 | F-A14-10 | `/api/profile/image` upload accepted any content type and size (the browser's 5 MB check was the only control) | **Low** | Fixed |
+| F-A14-11 | A devotee's self-service payment reference was recorded as **completed** (`paymentStatus: "completed"`), confirming the booking without any verification | **High** | Fixed (remediation) |
+| F-A14-12 | `POST /api/bookings` stored the caller-supplied `sevaTitle`/`sevaAmount`, so a devotee could book any seva at a self-chosen price | **High** | Fixed (remediation) |
+| F-A14-13 | `/api/profile/image` validated only the declared `Content-Type`, which any file can spoof | **Medium** | Fixed (remediation) |
+| F-A14-14 | Profile `DELETE` handlers (bookmarks, favorites, image) had no rate limit | **Low** | Fixed (remediation) |
+| F-A14-15 | `/api/donations/[id]` PATCH validated nothing (raw JSON straight to `updateDonation`) | **Low** | Fixed (remediation) |
 
 No confirmed IDOR remains. No confirmed privilege escalation remains. Mass assignment is
 prevented by schema key-stripping plus server-forced fields (below).
@@ -70,6 +75,13 @@ prevented by schema key-stripping plus server-forced fields (below).
   collection, payment) server-side.
 
 These behaviours are unchanged and are now pinned by tests so they cannot regress.
+
+> **Correction (remediation).** The claim above that booking payment was already safe was
+> wrong: the *booking* service did force `payment_status: "pending"` on create, but the
+> self-service `PATCH` route passed `paymentStatus: "completed"` straight through to
+> `updatePayment`, so a devotee could confirm their own booking (F-A14-11, §4.7). Similarly,
+> `POST /api/bookings` stored the client's `sevaTitle`/`sevaAmount` rather than the seva's
+> own (F-A14-12, §4.8).
 
 ---
 
@@ -125,6 +137,42 @@ rely on — and is documented as defence-in-depth, not an authorization control.
 `POST /api/profile/image` now rejects anything that is not a JPEG/PNG/WebP/GIF under 5 MB,
 enforced server-side.
 
+### 4.7 Booking payment verification (remediation)
+
+A devotee's self-service `PATCH /api/bookings/[id]` no longer marks the payment
+`completed`. The reference is recorded by `sevaBookingService.recordPaymentClaim()` as
+`payment_status: "pending"` with the booking left `pending`, and the response says
+`paymentStatus: "pending"`. Only the trusted `updatePayment()` path — an administrator, or
+a future verified gateway callback — may set `completed` (and so confirm the booking).
+`recordPaymentClaim()` additionally refuses to run against a booking that is already
+`confirmed`/`completed`, so a late claim cannot un-confirm a verified payment. The booking
+form, the client service and the receipt were updated to say the reference is *pending
+verification*, and the printed document is now a "Seva Booking Acknowledgement" with an
+explicit "not a payment receipt" note.
+
+### 4.8 Seva price integrity (remediation)
+
+`POST /api/bookings` no longer stores the caller's `sevaTitle`/`sevaAmount`. The service
+resolves the named seva from `sevas` (`resolveBookableSeva`) and stores the temple's own
+name and price. The seva must exist, be `active`, and be offered online (`visibility` in
+`online`/`both`); anything else is a `400` (`SevaBookingError`), distinct from a storage
+failure (`500`). Custom-amount (Karnike) sevas are counter-only by a database constraint,
+so the online-visibility check rejects them.
+
+### 4.9 Image signature validation (remediation)
+
+New `lib/validation/image-signature.ts` sniffs the file's magic bytes. The upload route
+rejects a file whose bytes are not a JPEG/PNG/WebP/GIF, and rejects a file whose declared
+type contradicts its bytes (e.g. a PNG claiming to be a JPEG). The stored object is given
+the sniffed type, so a forged `Content-Type` cannot mislabel it.
+
+### 4.10 Remaining rate-limit and validation gaps (remediation)
+
+The `DELETE` handlers for profile bookmarks, favorites and image are now rate-limited, as
+are the admin `PATCH`/`DELETE` handlers for donations and `DELETE` for bookings, and the
+`PATCH` body for `/api/donations/[id]` is validated with a new `donationAdminUpdateSchema`.
+The static census now fails if any non-read handler in scope lacks `allowPublicWrite`.
+
 ---
 
 ## 5. Regression tests
@@ -144,6 +192,15 @@ The suite stubs the auth guards and services, so it exercises the route wiring d
 without Firebase/Supabase. A leak in the rate limiter's cleanup timer was also fixed
 (`unref()`), so the suite exits cleanly.
 
+`tests/unit/public-api-security-remediation.test.ts` — the PR #368 review regression
+suite. It exercises the **real service code paths** against a stubbed Supabase builder
+(no mocking of the logic under test): payment claims stored as pending and unable to
+un-confirm a booking; the trusted path as the only one that completes a payment; the
+server-resolved seva price ignoring a forged amount; rejection of unknown/inactive/
+counter-only sevas; image magic-byte acceptance and rejection (including a spoofed type and
+a script renamed `.png`); the upload route rejecting a spoofed file; and rate limiting on
+the newly-covered `DELETE` handlers.
+
 ---
 
 ## 6. Verification
@@ -152,12 +209,13 @@ without Firebase/Supabase. A leak in the rate limiter's cleanup timer was also f
 |---|---|---|
 | Types | `npm run typecheck` | clean |
 | Lint | `npm run lint` | 0 errors (pre-existing warnings only) |
-| Unit tests | `npx jest tests/unit` | 211 suites / 2737 tests pass |
+| Unit tests | `npx jest tests/unit` | 212 suites / 2758 tests pass |
 | Build | `npm run build` | success; all 14 in-scope routes compiled |
-| New suite | `npx jest tests/unit/public-api-security.test.ts` | 40/40 pass |
+| New suites | `npx jest tests/unit/public-api-security.test.ts tests/unit/public-api-security-remediation.test.ts` | 40 + 21 pass |
 
-Baseline before this change: 210 suites / 2697 tests. The delta is the new
-`public-api-security` suite plus the corrected `event-service-supabase-reads` stub.
+Baseline before the audit: 210 suites / 2697 tests. The delta is the new
+`public-api-security` suite (40) plus the `public-api-security-remediation` suite (21) and the
+corrected `event-service-supabase-reads` stub.
 
 ---
 
@@ -166,7 +224,9 @@ Baseline before this change: 210 suites / 2697 tests. The delta is the new
 - **Public reads**: unchanged for published events and approved testimonials.
 - **Public submissions**: donation, booking, testimonial and profile forms still work; their
   payloads already match the new schemas. Where a form omitted an optional field, the schema
-  supplies a default.
+  supplies a default. A booking now stores the seva's own price and title (the form already
+  sends those, so the stored value is the same); a devotee's payment reference is stored as
+  *pending verification* rather than completed.
 - **Admin console**: unaffected — it never called the newly guarded routes.
 - **Breaking change for external callers**: any script that used `POST /api/events`,
   `PATCH/DELETE /api/events/[id]` or `/api/donations/[id]` without an admin token will now
@@ -177,6 +237,11 @@ Baseline before this change: 210 suites / 2697 tests. The delta is the new
 
 ## 8. Remaining limitations
 
+- **Payment verification is manual.** A devotee's payment reference is now recorded as
+  *pending* and an administrator confirms it (the admin console's booking status control).
+  There is no live payment-gateway callback wired up, so `updatePayment()` — the only path
+  that can mark a payment `completed` — is currently reachable only from the trusted admin
+  path. When a gateway is added it should call the same method after verifying the signature.
 - Rate limiting is per server instance (in-memory), not a distributed quota. A multi-instance
   deployment should back it with Redis/Upstash.
 - `campaignId` on donations is free text in the schema while the column is `uuid`; the form

@@ -49,6 +49,18 @@ class SevaBookingService {
     });
   }
 
+  /**
+   * Records the devotee's own payment reference for a booking. The reference is a
+   * claim the temple verifies: it does not mark the booking paid. `paymentStatus`
+   * is omitted because the server decides it (always `pending` on this path).
+   */
+  async recordPaymentClaim(bookingId: string, paymentReference: string, paymentMethod = "UPI"): Promise<void> {
+    await apiFetch(`/api/bookings/${encodeURIComponent(bookingId)}`, {
+      method: "PATCH",
+      body: { payment: { paymentReference, paymentMethod } },
+    });
+  }
+
   async deleteBooking(bookingId: string): Promise<void> {
     await apiFetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { method: "DELETE" });
   }

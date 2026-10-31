@@ -10,13 +10,14 @@ import { sevaBookingService } from "@/services/sevaBooking.server";
 /**
  * GET    /api/bookings/[id] - read a booking (its owner, or an admin).
  * PATCH  /api/bookings/[id] - an admin may change status/payment; a devotee may
- *                             only record their own payment reference.
+ *                             only declare a payment reference for their own booking.
  * DELETE /api/bookings/[id] - delete a booking (admin only).
  *
  * Ownership is checked against the verified token's uid, never a value from the
  * request, so one devotee cannot read, pay for or delete another's booking. A
- * devotee's self-service PATCH cannot set an arbitrary status - only the payment
- * sub-object is accepted, and the service derives the resulting status from it.
+ * devotee's self-service PATCH cannot set a status or mark a payment completed:
+ * the reference is recorded as *pending verification*, and only an administrator
+ * (or a verified gateway callback) can confirm the payment.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -70,12 +71,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (booking.userId !== caller.uid) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    await sevaBookingService.updatePayment(id, {
+    await sevaBookingService.recordPaymentClaim(id, {
       paymentReference: parsed.data.payment.paymentReference,
-      paymentStatus: "completed",
       paymentMethod: parsed.data.payment.paymentMethod,
     });
-    return NextResponse.json({ message: "Payment recorded" });
+    return NextResponse.json({
+      message: "Payment reference recorded for verification",
+      paymentStatus: "pending",
+    });
   } catch (error) {
     console.error("[bookings/:id] self-service payment failed:", error);
     return NextResponse.json({ error: "Failed to record payment" }, { status: 500 });
@@ -85,6 +88,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdminUser(request);
   if (!auth.ok) return auth.response;
+
+  if (!allowPublicWrite(request, { scope: "bookings:delete", identity: auth.user.uid, limit: 60, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { id } = await params;
   try {
     await sevaBookingService.deleteBooking(id);

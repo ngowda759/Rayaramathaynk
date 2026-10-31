@@ -167,6 +167,33 @@ export const donationCreateSchema = z.object({
 
 export type DonationCreateInput = z.infer<typeof donationCreateSchema>;
 
+/**
+ * An administrator's update to a donation (`/api/donations/[id]` PATCH).
+ *
+ * Allow-lists the fields the admin console edits, including the privileged
+ * receipt/collection columns a public submission may not set. `status` is
+ * narrowed to the known statuses and `amount` to a positive, bounded number, so
+ * an admin request cannot store a malformed value.
+ */
+export const donationAdminUpdateSchema = z
+  .object({
+    donorName: text(1, 150, "Donor name").optional(),
+    email: optionalEmail,
+    phone: optionalPhone,
+    address: z.string().trim().max(500, "Address is too long").optional(),
+    amount: moneyAmount.optional(),
+    purpose: z.string().trim().max(200, "Purpose is too long").optional(),
+    campaignId: z.string().trim().max(100, "Campaign id is too long").optional(),
+    message: z.string().trim().max(2000, "Message is too long").optional(),
+    paymentMode: paymentModeSchema.optional(),
+    status: z.enum(["pending", "received", "failed"]).optional(),
+    receiptNumber: z.string().trim().max(100, "Receipt number is too long").optional(),
+    adminRemarks: z.string().trim().max(2000, "Remarks are too long").optional(),
+    collectedBy: z.string().trim().max(150, "Collector is too long").optional(),
+    collectedAt: dateString("Collected at").optional().or(z.literal("")),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: "No supported fields were provided" });
+
 // ---------------------------------------------------------------------------
 // Seva bookings
 // ---------------------------------------------------------------------------
@@ -192,7 +219,13 @@ export const bookingCreateSchema = z.object({
 
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>;
 
-/** The devotee's own payment declaration for their booking (self-service). */
+/**
+ * The devotee's own payment declaration for their booking (self-service).
+ *
+ * `paymentReference` is a *claim*: the route records it for the temple to verify
+ * and never treats it as proof of payment, so there is deliberately no
+ * `paymentStatus` here. A devotee cannot mark their own payment completed.
+ */
 export const bookingPaymentSchema = z.object({
   paymentReference: idString(120, "Payment reference"),
   paymentMethod: z.string().trim().max(60, "Payment method is too long").optional().default("UPI"),

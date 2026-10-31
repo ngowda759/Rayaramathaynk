@@ -73,14 +73,17 @@ const mockGetBookingsByUser = jest.fn();
 const mockGetBookingById = jest.fn();
 const mockUpdateBookingStatus = jest.fn();
 const mockUpdatePayment = jest.fn();
+const mockRecordPaymentClaim = jest.fn();
 const mockDeleteBooking = jest.fn();
 jest.mock("@/services/sevaBooking.server", () => ({
+  SevaBookingError: class SevaBookingError extends Error {},
   sevaBookingService: {
     createBooking: (...a: unknown[]) => mockCreateBooking(...a),
     getBookingsByUser: (...a: unknown[]) => mockGetBookingsByUser(...a),
     getBookingById: (...a: unknown[]) => mockGetBookingById(...a),
     updateBookingStatus: (...a: unknown[]) => mockUpdateBookingStatus(...a),
     updatePayment: (...a: unknown[]) => mockUpdatePayment(...a),
+    recordPaymentClaim: (...a: unknown[]) => mockRecordPaymentClaim(...a),
     deleteBooking: (...a: unknown[]) => mockDeleteBooking(...a),
   },
 }));
@@ -226,8 +229,9 @@ describe("F-A14: public API static census", () => {
     }
   });
 
-  it("every handler is guarded or a documented public read, and every public write is validated + rate-limited", () => {
+  it("every handler is guarded or a documented public read, and every write is validated + rate-limited", () => {
     const violations: string[] = [];
+    const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
     for (const file of IN_SCOPE_FILES) {
       const bodies = methodBodies(fs.readFileSync(path.join(process.cwd(), file), "utf8"));
@@ -238,6 +242,10 @@ describe("F-A14: public API static census", () => {
 
         if (!guarded && !publicWrite && !PUBLIC_READ_EXCEPTIONS.has(key)) {
           violations.push(`${key}: no auth guard and not a documented public read`);
+        }
+        // Every mutating handler (public or admin) must be rate-limited.
+        if (!READ_METHODS.has(method) && !publicWrite) {
+          violations.push(`${key}: write is not rate-limited`);
         }
         if (publicWrite && BODY_METHODS.has(method)) {
           const validated = body.includes("parseJsonBody") || body.includes("formData");
@@ -450,7 +458,7 @@ describe("F-A14: /api/bookings", () => {
     expect((await mod.GET(request("/api/bookings/b1"), params("b1"))).status).toBe(200);
   });
 
-  it("[id] PATCH lets the owner record a payment but not an arbitrary status", async () => {
+  it("[id] PATCH lets the owner declare a payment reference, but only as pending verification", async () => {
     const mod = await import("@/app/api/bookings/[id]/route");
     mockRequireAdminUser.mockResolvedValue(adminDenied(403));
     mockVerifyBearerIdToken.mockResolvedValue({ uid: "owner", email: null });
@@ -464,15 +472,17 @@ describe("F-A14: /api/bookings", () => {
     expect(statusRes.status).toBe(400);
     expect(mockUpdateBookingStatus).not.toHaveBeenCalled();
 
+    // A payment reference is recorded as a *claim*: never completed by the devotee.
     const payRes = await mod.PATCH(
       request("/api/bookings/b1", { method: "PATCH", body: { payment: { paymentReference: "UPI-123" } } }),
       params("b1")
     );
     expect(payRes.status).toBe(200);
-    expect(mockUpdatePayment).toHaveBeenCalledWith(
-      "b1",
-      expect.objectContaining({ paymentReference: "UPI-123", paymentStatus: "completed" })
-    );
+    expect(mockRecordPaymentClaim).toHaveBeenCalledWith("b1", {
+      paymentReference: "UPI-123",
+      paymentMethod: "UPI",
+    });
+    expect(mockUpdatePayment).not.toHaveBeenCalled();
   });
 
   it("[id] PATCH forbids a non-owner from recording a payment", async () => {

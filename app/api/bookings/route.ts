@@ -4,7 +4,7 @@ import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 import { allowPublicWrite } from "@/lib/api/public-rate-limit";
 import { bookingCreateSchema } from "@/lib/validation/public-submissions";
 import { parseJsonBody } from "@/lib/validation/http";
-import { sevaBookingService } from "@/services/sevaBooking.server";
+import { sevaBookingService, SevaBookingError } from "@/services/sevaBooking.server";
 
 /**
  * POST /api/bookings - public devotee booking submission.
@@ -15,6 +15,9 @@ import { sevaBookingService } from "@/services/sevaBooking.server";
  * another devotee's account. Anonymous submissions are recorded under the reserved
  * "anonymous" key (the booking form asks a devotee to sign in, but the route does
  * not require it).
+ *
+ * The seva's title and price are resolved server-side from `sevas`; the client's
+ * `sevaTitle`/`sevaAmount` are advisory and cannot change what is stored.
  */
 export async function POST(request: NextRequest) {
   if (!allowPublicWrite(request, { scope: "bookings:create", limit: 20, windowMs: 60_000 })) {
@@ -37,6 +40,7 @@ export async function POST(request: NextRequest) {
   try {
     const id = await sevaBookingService.createBooking({
       sevaId: data.sevaId,
+      // Advisory only: the service stores the seva's own title and price.
       sevaTitle: data.sevaTitle,
       sevaAmount: data.sevaAmount,
       userId: caller?.uid ?? "anonymous",
@@ -51,6 +55,9 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ id, message: "Booking created successfully" }, { status: 201 });
   } catch (error) {
+    if (error instanceof SevaBookingError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("[bookings] create failed:", error);
     return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
   }
