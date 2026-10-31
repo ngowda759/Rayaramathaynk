@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
-import { useFinanceSettings } from "@/hooks/useFinanceSettings";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -36,7 +36,13 @@ export default function CreateBillPage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [notes, setNotes] = useState("");
 
-  const { settings: financeSettings } = useFinanceSettings();
+  // The billing block (invoice prefix/number, default due days) is excluded from the
+  // public projection, so read the full finance document through the admin endpoint.
+  const { data: financeSettings } = useSettingsDocument<FinanceSettings>(
+    "financeSettings",
+    defaultFinanceSettings,
+    { admin: true }
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize the form defaults from the loaded finance settings document.

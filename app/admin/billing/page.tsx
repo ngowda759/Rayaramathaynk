@@ -7,14 +7,20 @@ import Link from "next/link";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import SearchBox from "@/components/admin/common/SearchBox";
 import { Button } from "@/components/ui/button";
-import { useFinanceSettings } from "@/hooks/useFinanceSettings";
+import { useSettingsDocument } from "@/hooks/useSettingsDocument";
+import { defaultFinanceSettings, FinanceSettings } from "@/types/finance";
 import { billingService } from "@/services/billing.service";
 import { Bill, BillStatus } from "@/types/billing";
 import AdminAuthGuard from "@/components/admin/layout/AdminAuthGuard";
 
 function BillingPageContent() {
   const router = useRouter();
-  const { settings: financeSettings, loading: settingsLoading } = useFinanceSettings();
+  // Read the full finance document through the admin-guarded endpoint: the public
+  // projection (F-A15.2) deliberately omits the billing block this page needs.
+  const { data: financeSettings, loading: settingsLoading } =
+    useSettingsDocument<FinanceSettings>("financeSettings", defaultFinanceSettings, {
+      admin: true,
+    });
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

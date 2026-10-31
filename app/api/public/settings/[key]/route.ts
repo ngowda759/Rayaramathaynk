@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { projectPublicSettingsDocument } from "@/lib/settings/public-projections";
 import {
   getSettingsDocument,
   isSettingsDocumentKey,
@@ -15,6 +16,13 @@ import {
  * with the service-role client on the server. It returns `data: null` when the row
  * does not exist yet, so the caller keeps its built-in defaults. There is no Firestore
  * path.
+ *
+ * Two documents are handled specially (F-A15.2): `financeSettings` is served
+ * through an allow-listed projection that drops the billing block and inactive
+ * special sevas (see `lib/settings/public-projections.ts`), and `device` is not
+ * served at all — nothing in the public site reads a stored `device` document (the
+ * map uses the built-in `DEFAULT_DEVICE_SETTINGS` location), so a request for it
+ * returns 404.
  */
 
 const PUBLIC_KEYS = new Set([
@@ -29,7 +37,6 @@ const PUBLIC_KEYS = new Set([
   "socialLinks",
   "shlokas",
   "financeSettings",
-  "device",
 ]);
 
 export async function GET(
@@ -44,7 +51,10 @@ export async function GET(
 
   try {
     const data = await getSettingsDocument(key);
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      data: projectPublicSettingsDocument(key, data),
+    });
   } catch (error) {
     console.error(`[API] Error reading ${key} settings:`, error);
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });

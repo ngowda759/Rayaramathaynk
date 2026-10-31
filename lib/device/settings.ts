@@ -4,7 +4,7 @@
  * Settings come from Supabase `settings_documents` (document_key "device").
  */
 
-import type { DeviceSettings, TempleLocation, CalendarProvider, CameraDirection } from "@/types/device";
+import type { DeviceSettings, TempleLocation } from "@/types/device";
 import { DEFAULT_DEVICE_SETTINGS } from "@/types/device";
 
 type SettingsListener = (settings: DeviceSettings) => void;
@@ -33,28 +33,15 @@ class DeviceSettingsService {
   }
 
   /**
-   * Initialize settings from Firestore (admin)
-   * Called by admin app on load
+   * Initialize the service.
+   *
+   * Device settings are local defaults only: nothing in the application consumes a
+   * stored `device` document. The service used to fetch `/api/public/settings/device`,
+   * but `initialize()` was never called, so that request was dead code. The public
+   * `device` projection now exposes only the temple location anyway. No Firestore path.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-
-    try {
-      // Settings are stored in Supabase `settings_documents` (document_key "device").
-      // The document is deny-all under RLS, so the browser reads it through the
-      // server-side public settings route. There is no Firestore path.
-      const response = await fetch("/api/public/settings/device");
-      if (response.ok) {
-        const { data } = (await response.json()) as { data: Partial<DeviceSettings> | null };
-        if (data) {
-          this.settings = { ...DEFAULT_DEVICE_SETTINGS, ...data };
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to load device settings:", error);
-      // Use defaults
-    }
-
     this.initialized = true;
     this.notifyListeners();
   }
