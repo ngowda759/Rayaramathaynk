@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { allowPublicWrite } from "@/lib/api/public-rate-limit";
+import { chatTestimonialSchema } from "@/lib/validation/public-submissions";
+import { parseJsonBody } from "@/lib/validation/http";
 import { getApprovedTestimonials, submitTestimonial } from "@/services/chat.server";
 
+/**
+ * GET  /api/testimonials - approved AI-chat testimonials (public read).
+ * POST /api/testimonials - public submission for review.
+ *
+ * `approved` is never taken from the body: `submitTestimonial` always inserts with
+ * `approved: false`, so a caller cannot publish their own testimonial. The body is
+ * validated (bounded name/experience, rating 1-5) before the service runs.
+ */
 export async function POST(request: NextRequest) {
+  if (!allowPublicWrite(request, { scope: "testimonials:create", limit: 10, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const parsed = await parseJsonBody(request, chatTestimonialSchema);
+  if (!parsed.ok) return parsed.response;
+
   try {
-    const body = await request.json();
-    const { sessionId, name, city, experience, rating, permissionToPublish } = body;
-
-    if (!name || !experience || rating === undefined) {
-      return NextResponse.json(
-        { error: "Name, experience, and rating are required" },
-        { status: 400 }
-      );
-    }
-    if (typeof rating !== "number" || rating < 1 || rating > 5) {
-      return NextResponse.json(
-        { error: "Rating must be a number between 1 and 5" },
-        { status: 400 }
-      );
-    }
-
-    const testimonialId = await submitTestimonial({
-      sessionId: sessionId || "",
-      name: String(name).trim(),
-      city: city?.trim() || "",
-      experience: String(experience).trim(),
-      rating,
-      permissionToPublish: permissionToPublish || false,
-    });
-
+    const testimonialId = await submitTestimonial(parsed.data);
     return NextResponse.json({
       success: true,
       id: testimonialId,

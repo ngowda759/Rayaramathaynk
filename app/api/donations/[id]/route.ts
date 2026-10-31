@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import { donationService } from "@/services/donation.server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+/**
+ * Donation reads and edits are administrative: `donations` is deny-all under RLS and
+ * carries donor contact and payment details. The admin console uses the guarded
+ * `/api/admin/donations` routes; these aliases are kept for compatibility but are
+ * guarded with the same `requireAdminUser` check.
+ *
+ * Before this guard existed, anyone could read a donation by id (exposing donor
+ * contact details), overwrite it, or delete it.
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+  const { id } = await params;
   try {
-    const { id } = await params;
     const donation = await donationService.getDonationById(id);
-    if (!donation) {
-      return NextResponse.json({ error: "Donation not found" }, { status: 404 });
-    }
+    if (!donation) return NextResponse.json({ error: "Donation not found" }, { status: 404 });
     return NextResponse.json(donation);
   } catch (error) {
     console.error("[API] Error fetching donation:", error);
@@ -18,14 +26,12 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+  const { id } = await params;
   try {
-    const { id } = await params;
-    const body = await request.json();
-    
+    const body = (await request.json()) as Record<string, unknown>;
     await donationService.updateDonation(id, body);
     return NextResponse.json({ message: "Donation updated successfully" });
   } catch (error) {
@@ -34,12 +40,11 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+  const { id } = await params;
   try {
-    const { id } = await params;
     await donationService.deleteDonation(id);
     return NextResponse.json({ message: "Donation deleted successfully" });
   } catch (error) {

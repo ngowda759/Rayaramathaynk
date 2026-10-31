@@ -24,9 +24,13 @@ function cleanupOldEntries() {
   }
 }
 
-// Start cleanup interval
+// Start cleanup interval. `unref` (when available) keeps this timer from holding the
+// process open, so importing the limiter cannot delay a script or test run from exiting.
 if (typeof setInterval !== "undefined") {
-  setInterval(cleanupOldEntries, CLEANUP_INTERVAL);
+  const cleanupTimer = setInterval(cleanupOldEntries, CLEANUP_INTERVAL);
+  if (typeof cleanupTimer === "object" && cleanupTimer && "unref" in cleanupTimer) {
+    (cleanupTimer as { unref: () => void }).unref();
+  }
 }
 
 export interface RateLimitConfig {

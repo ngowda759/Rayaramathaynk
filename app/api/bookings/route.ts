@@ -1,31 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
+import { allowPublicWrite } from "@/lib/api/public-rate-limit";
+import { bookingCreateSchema } from "@/lib/validation/public-submissions";
+import { parseJsonBody } from "@/lib/validation/http";
 import { sevaBookingService } from "@/services/sevaBooking.server";
-import type { SevaBookingRequest } from "@/types/seva-booking";
 
 /**
  * POST /api/bookings - public devotee booking submission.
- * GET  /api/bookings?user=<uid> - the signed-in devotee's own bookings.
+ * GET  /api/bookings - the signed-in devotee's own bookings.
+ *
+ * The booking owner is always derived from the verified ID token when one is sent;
+ * a caller-supplied `userId` is never trusted, so nobody can file a booking under
+ * another devotee's account. Anonymous submissions are recorded under the reserved
+ * "anonymous" key (the booking form asks a devotee to sign in, but the route does
+ * not require it).
  */
 export async function POST(request: NextRequest) {
+  if (!allowPublicWrite(request, { scope: "bookings:create", limit: 20, windowMs: 60_000 })) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const parsed = await parseJsonBody(request, bookingCreateSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const preferredDate = new Date(parsed.data.preferredDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (preferredDate < today) {
+    return NextResponse.json({ error: "Cannot book for past dates" }, { status: 400 });
+  }
+
+  const caller = await verifyBearerIdToken(request);
+  const data = parsed.data;
+
   try {
-    const body = (await request.json()) as SevaBookingRequest;
-    if (!body?.sevaId) {
-      return NextResponse.json({ error: "Seva ID is required" }, { status: 400 });
-    }
-    if (!body.preferredDate) {
-      return NextResponse.json({ error: "Preferred date is required" }, { status: 400 });
-    }
-
-    const selectedDate = new Date(body.preferredDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (selectedDate < today) {
-      return NextResponse.json({ error: "Cannot book for past dates" }, { status: 400 });
-    }
-
-    const id = await sevaBookingService.createBooking(body);
+    const id = await sevaBookingService.createBooking({
+      sevaId: data.sevaId,
+      sevaTitle: data.sevaTitle,
+      sevaAmount: data.sevaAmount,
+      userId: caller?.uid ?? "anonymous",
+      userName: data.userName,
+      userEmail: data.userEmail || caller?.email || "",
+      userPhone: data.userPhone,
+      gotra: data.gotra,
+      nakshatra: data.nakshatra,
+      raashi: data.raashi,
+      preferredDate: data.preferredDate,
+      notes: data.notes,
+    });
     return NextResponse.json({ id, message: "Booking created successfully" }, { status: 201 });
   } catch (error) {
     console.error("[bookings] create failed:", error);

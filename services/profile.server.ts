@@ -26,6 +26,27 @@ import { Locale } from "@/lib/i18n";
 
 const TABLE = "profiles";
 
+/**
+ * The fields a client may set when creating/saving a profile.
+ *
+ * Deliberately narrower than `Partial<DevoteeProfile>`: `preferences` is the
+ * per-field update shape (a partial of the full object) and `bookmarks` omits the
+ * server-generated `id`/`createdAt`, so a caller cannot claim either.
+ */
+export interface ProfileSaveInput {
+  name?: string;
+  email?: string;
+  phone?: string;
+  profileImage?: string;
+  bio?: string;
+  gotra?: string;
+  nakshatra?: string;
+  preferences?: PreferencesUpdateData;
+  favorites?: string[];
+  recentlyViewed?: string[];
+  bookmarks?: Omit<Bookmark, "id" | "createdAt">[];
+}
+
 /** Convert a Supabase `profiles` row to `DevoteeProfile`. */
 function rowToProfile(row: any): DevoteeProfile {
   return {
@@ -75,7 +96,7 @@ class ProfileService {
 
   async saveProfile(
     uid: string,
-    data: Partial<DevoteeProfile>,
+    data: ProfileSaveInput,
     email?: string
   ): Promise<DevoteeProfile> {
     const existing = await this.getProfile(uid);
