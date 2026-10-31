@@ -8,6 +8,10 @@
 This summary contains **no secrets and no financial values**. Project refs are shown only as
 non-reversible SHA-256 prefixes for equality checks. No row contents are recorded.
 
+**Evidence layers (kept separate throughout):** *catalog* facts (privileges, policies, functions,
+FORCE RLS, default ACLs, ledger, extensions) were **not read** — no DB session; *API* observations
+describe only the `anon` role's effective access; *source* means repository migrations/merged code.
+
 ---
 
 ## 1. Headline
@@ -45,27 +49,29 @@ non-reversible SHA-256 prefixes for equality checks. No row contents are recorde
 
 ---
 
-## 3. Live anon-visibility census (all 67 repository tables)
+## 3. Live anon-visibility census (all 67 repository tables) — **API layer**
 
 Method: GET-only `?select=*&limit=0` + `Prefer: count=exact`; only status + `Content-Range` read.
+These are **API observations of the `anon` role's effective access**, not catalog facts.
 
-| Class | Meaning | Count |
+| Class | API-observed meaning | Count |
 |---|---|---:|
-| `401 permission denied` | `anon` has no table privilege | **21** |
-| `200/206 … /0` | anon SELECT, RLS returns no rows (or empty) | **42** |
-| `200/206 … /N` | anon reads N rows | **4** |
+| `401 permission denied` | the API denies `anon` on this table | **21** |
+| `200/206 … /0` | request succeeds, **0 rows returned** (RLS default-deny, or empty) | **42** |
+| `200/206 … /N` | `anon` **reads N rows** | **4** |
 | Total probed | | **67** |
 
 **Anon can read rows (4):** `events` = 74, `aaradhanes` = 2, `site_settings` = 2, `social_links` = 1.
 
-**Anon denied entirely (21):** `audit_log`, `cash_denominations`, `counter_devices`, `counters`,
+**API denies `anon` (21):** `audit_log`, `cash_denominations`, `counter_devices`, `counters`,
 `day_close_counts`, `day_closes`, `devotee_profiles`, `festival_day_dates`, `festival_days`,
 `group_counters`, `ops_backup_runs`, `receipt_number_gaps`, `receipt_series`, `receipt_series_years`,
 `seva_list_items`, `seva_orders`, `seva_rate_history`, `seva_receipt_lines`, `seva_receipts`,
 `seva_settings`, `staff`.
 
-**Sensitive tables NOT readable by anon (0 rows):** `users`, `profiles`, `donations`,
-`seva_bookings`, `settings_documents`, `bills`, `members`. **No anon-visible PII/financial rows.**
+**Sensitive tables returning 0 rows to `anon`:** `users`, `profiles`, `donations`,
+`seva_bookings`, `settings_documents`, `bills`, `members`. **No anon-visible PII/financial rows at
+the API layer.** (Grant denial vs RLS deny-all is a catalog fact not read.)
 
 **Storage:** `GET /storage/v1/bucket` → `[]` (0 buckets) — **inconclusive** for the private bucket.
 
@@ -90,23 +96,24 @@ Method: GET-only `?select=*&limit=0` + `Prefer: count=exact`; only status + `Con
 
 | Area | F-A15.1 reproduced | F-A16 live | Status |
 |---|---:|---|---|
-| Public tables | 67 | 67 reachable via PostgREST | Consistent (API); catalog Unavailable |
-| RLS enabled | 67 | RLS active in effect | Consistent in effect; flag Unavailable |
-| FORCE RLS | 0 | — | Unavailable |
-| Public policies | 81 | — | Unavailable |
-| Table privilege records | 1,088 | 21 tables have **no anon grant** | **Different from F-A15.1** |
-| Public functions | 87 | — | Unavailable |
-| SECURITY DEFINER functions | 1 | — | Unavailable |
-| Default ACL entries | 6 | — | Unavailable |
+| Public tables | 67 | 67 reachable via PostgREST (**API**) | Consistent (API); catalog Unavailable |
+| RLS enabled | 67 | not read from catalog; API shows per-table row filtering | Unavailable (catalog) |
+| FORCE RLS | 0 | — | Unavailable (catalog) |
+| Public policies | 81 | — | Unavailable (catalog) |
+| Table privilege records | 1,088 | not read from catalog; API denies `anon` on 21 tables | Unavailable (catalog) |
+| Public functions | 87 | — | Unavailable (catalog) |
+| SECURITY DEFINER functions | 1 | — | Unavailable (catalog) |
+| Default ACL entries | 6 | — | Unavailable (catalog) |
 | Storage buckets | 1 | anon list = 0 (inconclusive) | Unavailable |
-| Storage policies | 0 | — | Unavailable |
-| Applied migrations | 15 (Oct 2026) | — | Unavailable; drift partly confirmed |
+| Storage policies | 0 | — | Unavailable (catalog) |
+| Applied migrations | 15 (Oct 2026) | — (ledger unread) | Unavailable (catalog) |
 
-**Key difference:** F-A15.1-3's "anon holds full grants on every table" is **contradicted** — 21/67
-tables return `401` to anon. Repository privilege-hardening migrations are applied in production.
+**Key difference (API-observed):** F-A15.1-3's *effective* claim that "anon holds full grants on
+every table" is contradicted for `anon` — the API denies `anon` on 21/67 tables. The underlying grant
+matrix is a **catalog fact not read**.
 
-**Drift confirmed:** `events`/`aaradhanes` public-select policies (repo: "prepared, NOT applied") are
-**applied in production** (F-A15.1-8).
+**Drift (API-consistent):** `events`/`aaradhanes` are anon-readable, consistent with the repo's
+"prepared, NOT applied" policies being applied — the policy catalogue and ledger were **not read**.
 
 ---
 
@@ -114,14 +121,17 @@ tables return `401` to anon. Repository privilege-hardening migrations are appli
 
 | ID | F-A15.1 severity | F-A16 evidence status | Severity change |
 |---|---|---|---|
-| F-A15.1-1 | LOW | Unverified | None |
-| F-A15.1-2 | LOW | Unverified | None |
-| F-A15.1-3 | MEDIUM | **Different from F-A15.1** (21/67 tables have no anon grant) | None proposed |
-| F-A15.1-4 | LOW | Unverified | None |
-| F-A15.1-5 | LOW | **Confirmed in production** (anon denied outright) | None |
-| F-A15.1-6 | MEDIUM | **Confirmed in production** (endpoint narrowed) | None proposed |
-| F-A15.1-7 | LOW | Unverified (anon cannot enumerate buckets) | None |
-| F-A15.1-8 | LOW | **Confirmed in production** (drift: policies applied) | None |
+| F-A15.1-1 | LOW | Unverified (catalog not read) | None |
+| F-A15.1-2 | LOW | Unverified (catalog not read) | None |
+| F-A15.1-3 | MEDIUM | Unverified (catalog); API-observed behaviour contradicts it *in effect* for `anon` | None proposed |
+| F-A15.1-4 | LOW | Unverified (catalog not read) | None |
+| F-A15.1-5 | LOW | Unverified (catalog); API-observed: `anon` denied on this table | None |
+| F-A15.1-6 | MEDIUM | **Confirmed in production** (deployed endpoint behaviour) | None proposed |
+| F-A15.1-7 | LOW | Unverified (catalog not read; anon cannot enumerate buckets) | None |
+| F-A15.1-8 | LOW | Unverified (catalog); API-observed behaviour *consistent with* the drift | None |
+
+> Evidence layers are kept separate: **catalog** facts were not read; **API** observations describe
+> only the `anon` role's effective access. "Consistent with" is not "confirmed as".
 
 ---
 
