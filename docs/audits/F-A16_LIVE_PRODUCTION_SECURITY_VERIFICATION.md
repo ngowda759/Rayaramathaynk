@@ -15,61 +15,67 @@
 F-A16 set out to connect to the live production temple database (`kvrkraqjuyxbraccxntk`) and
 re-measure the F-A15.1 catalog findings against the real production catalog.
 
-**The production temple database could not be reached, and the audit aborted the catalog portion as
-required by the mandatory abort condition (§2).** The only database credential available in the
-sandbox (`SUPABASE_DB_URL` / `SUPABASE_DB_URL_TX`) resolves to a **different, non-approved project**
-— the unrelated "Tournament" project (`teams`, `matches`, `players`, `tournaments`, …). Its project
-ref does **not** equal the approved ref `kvrkraqjuyxbraccxntk`, and its host is not
-`kvrkraqjuyxbraccxntk.supabase.co`. Per §2, the audit did **not** run the F-A15.1 catalog queries
-against it and did **not** substitute it for production. **No live catalog counts for the temple
-project are available.** Every catalog area in §4 is therefore reported **Unavailable**.
+The audit proceeded in two layers, because only one of them is reachable from this environment:
 
-The one portion of the task that *could* be executed independently — the **separate PR #370 HTTP
-endpoint checks (§7)** — was performed against the production website. The production deployment of
-merge commit `641a0d318f58c6640ff20081b9a8c5712c8e6af8` **was independently confirmed**, and the
-endpoint checks **passed**:
+* **Catalog layer (SQL over PostgreSQL): still unreachable.** The only database credential in the
+  sandbox (`SUPABASE_DB_URL` / `SUPABASE_DB_URL_TX` / `SUPABASE_PROJECT_REF`) resolves to a
+  **different, non-approved project** — the unrelated "Tournament" project (`teams`, `matches`,
+  `players`, …). Per the mandatory abort condition, the F-A15.1 catalog query set was **not** run
+  against it and **no substitute database was used**. The owner then supplied the production
+  identity — `NEXT_PUBLIC_SUPABASE_URL`, a publishable key, and the direct DB host
+  `db.kvrkraqjuyxbraccxntk.supabase.co:5432` (user `postgres`, database `postgres`). The direct DB
+  host is **IPv6-only**, and this sandbox has **no IPv6 egress**; no DB **password** was supplied in
+  any case. **Catalog SQL therefore remains impossible from here.** All catalog categories
+  (privilege records, policy counts, functions, FORCE RLS, default ACLs, migration ledger,
+  extensions) are **Unavailable**.
+* **API / RLS-effective layer: reached and verified read-only.** The owner-supplied publishable key
+  authenticates against the production PostgREST API, so the audit **validated the production
+  identity live** and measured the **effective (RLS-applied) anon view** of every table with
+  GET-only requests. This is real production evidence, just one layer above the raw catalog.
 
-* `GET /api/public/settings/device` → **HTTP 404** (no `device` document served).
-* `GET /api/public/settings/financeSettings` → **HTTP 200** with a **narrow, allow-listed
-  projection** (`enabled`, `upi`, `bankTransfer`, `specialSevas`); the forbidden fields `billing`,
-  `billingEnabled` and `updatedAt` are **absent**; only **active** special sevas are returned.
-* `GET /donation` → **HTTP 200**; the page still renders intended UPI / bank-transfer information.
-* Admin billing pages → served an **unauthenticated shell** (no valid test session available);
-  admin billing verification is **Unavailable** (login with guessed credentials was not attempted).
+**What the live API layer established (production, read-only, GET-only):**
 
-So the headline result of F-A16 is a **partial** one: the **F-A15.1-6** application-code fix is now
-**verified in production** (upgraded from "unverified in production"), while **every database-level
-finding (F-A15.1-1…5, 7, 8) remains unverified against the live temple catalog** because production
-database access is not available from this environment.
+* **Identity is now proven.** The supplied URL ref equals the approved ref
+  `kvrkraqjuyxbraccxntk`; production `GET /auth/v1/health` returns **200** (`GoTrue v2.197.0`); and
+  anon reads return live production rows.
+* **All 67 repository tables are exposed through PostgREST** (none returned "not in schema cache"),
+  consistent with the F-A15.1 "67 public tables" figure — but this is a reachability proxy, not a
+  catalog count.
+* **Only 4 of 67 tables expose non-zero rows to `anon`:** `events` (74), `aaradhanes` (2),
+  `site_settings` (2), `social_links` (1).
+* **21 of 67 tables return `401 permission denied`** to `anon` — i.e. `anon` holds **no table
+  grant at all** on those tables, which is *stronger* than F-A15.1-3's "full grants on every table"
+  description. This is a **difference from F-A15.1**, and it confirms the `seva_*`/POS privilege
+  hardening is applied in production.
+* **No anon-visible PII/financial leakage observed:** `users`, `profiles`, `donations`,
+  `seva_bookings`, `settings_documents` all return **0 rows** to `anon`.
+* **The two "prepared, NOT applied" policy migrations are in fact applied in production**
+  (F-A15.1 drift item D2): `events` and `aaradhanes` serve rows to `anon`.
+
+The separate PR #370 website checks (§7) also passed, and the production deployment of
+`641a0d318f58c6640ff20081b9a8c5712c8e6af8` was confirmed. The F-A15.1-6 fix is **Confirmed in
+production**.
 
 | Result | Status |
 |---|---|
-| Production temple DB reached | **No** — abort condition met |
-| Production project identity proven | **No** (cannot be, given the credential) |
-| Read-only session proven on temple DB | **No** (not connected) |
-| Read-only session proven on the only reachable DB | **Yes** (`transaction_read_only=on`) — but that DB is not production |
+| Production temple DB (catalog SQL) reached | **No** — IPv6-only host unreachable, no DB password |
+| Production project identity proven | **Yes** — URL ref, live auth health, live anon data |
+| Read-only session proven | **Yes** at the API layer (GET-only); N/A at catalog layer |
+| Read-only session proven on the only reachable DB | Yes (`transaction_read_only=on`) — but that DB is not production |
 | PR #370 production deployment confirmed | **Yes** — Production deployment of `641a0d3` |
 | PR #370 endpoint checks | **Executed and passed** |
-| Live catalog counts | **Unavailable** for all categories |
+| Catalog counts (privileges/policies/functions/ACL/ledger) | **Unavailable** |
+| Effective anon visibility per table | **Verified live** |
 
 ---
 
 ## 2. Production identity validation — outcome
 
-The task requires obtaining the connection through the existing secure secret mechanism (never via
-chat), then inspecting host/project identity without exposing credentials, and aborting if the target
-is not exactly `kvrkraqjuyxbraccxntk` / `kvrkraqjuyxbraccxntk.supabase.co`.
+### 2.1 Layer 1 — the sandbox DB credential (non-production)
 
-### 2.1 What was inspected
-
-* The sandbox exposes only these database-related environment variables (names only; values never
-  printed): `SUPABASE_DB_URL`, `SUPABASE_DB_URL_TX`, `SUPABASE_PROJECT_REF`, `SUPABASE_POOLER_HOST`.
-* The project ref carried by each URL was resolved with the repository's own fail-closed helper
-  `scripts/lib/approved-project.mjs` (`analyzeDbUrlRef` / `isApprovedRef`), which extracts the ref
-  from the Supavisor username `postgres.<ref>` and/or the host `db.<ref>.supabase.co` and refuses to
-  guess when they conflict.
-
-### 2.2 Identity result (fingerprints only — no secret values)
+The sandbox exposes only `SUPABASE_DB_URL`, `SUPABASE_DB_URL_TX`, `SUPABASE_PROJECT_REF`,
+`SUPABASE_POOLER_HOST`. The project ref carried by each was resolved with the repository's own
+fail-closed helper `scripts/lib/approved-project.mjs`:
 
 | Value | SHA-256 prefix (12 hex) | Equals approved ref? |
 |---|---|---|
@@ -78,61 +84,55 @@ is not exactly `kvrkraqjuyxbraccxntk` / `kvrkraqjuyxbraccxntk.supabase.co`.
 | Ref resolved from `SUPABASE_DB_URL_TX` | `72b54d98a3dc` | **No** |
 | Ref in `SUPABASE_PROJECT_REF` | `72b54d98a3dc` | **No** |
 
-The resolved ref is a well-formed 20-character ref (the extractor did not fail closed), but it is a
-**different project** from the approved one. A non-reversible SHA-256 prefix is used so the report
-proves *inequality* without disclosing the value.
+A read-only identity probe of that database returned 14 public tables (`teams`, `matches`,
+`players`, `tournaments`, …) — the unrelated **Tournament** project. The mandatory abort condition
+was met, so the F-A15.1 catalog queries were **not** executed against it. No substitute was used.
 
-### 2.3 Corroborating evidence that the reachable DB is not production
+### 2.2 Layer 2 — the owner-supplied production identity (validated)
 
-A read-only identity probe of the reachable database returned:
+The owner supplied, in-session and for validation only (values **not** recorded in this repository):
 
-* `current_database = postgres`, connecting role prefix `postgres` (pooler user form).
-* `transaction_read_only = on`, `default_transaction_read_only = on`.
-* **14** tables in `public`, whose names are the unrelated Tournament schema:
-  `_prisma_migrations`, `courts`, `match_games`, `match_participants`, `matches`, `players`,
-  `realtime_events`, `system_metadata`, `team_members`, `teams`, `tournament_categories`,
-  `tournament_entries`, …
+* `NEXT_PUBLIC_SUPABASE_URL` → `https://kvrkraqjuyxbraccxntk.supabase.co` (ref label
+  `kvrkraqjuyxbraccxntk` — **equals the approved ref**);
+* a publishable key (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`);
+* direct DB target: host `db.kvrkraqjuyxbraccxntk.supabase.co`, port `5432`, database `postgres`,
+  user `postgres` (**no password**).
 
-Production (per F-A15.1 reproduction) is expected to hold **67** temple tables. The reachable
-database holds 14 Tournament tables. **This is the same unrelated project F-A15.1 already
-identified**; it has not changed and it is not the temple database.
+Validation performed (read-only):
 
-### 2.4 Abort decision
+| Check | Result |
+|---|---|
+| URL ref equals `APPROVED_PROJECT_REF` | **Yes** |
+| DB host equals `db.kvrkraqjuyxbraccxntk.supabase.co` | **Yes** |
+| `GET /auth/v1/health` (publishable key) | **200** — `{"version":"v2.197.0","name":"GoTrue"}` |
+| Anon table reads return live production rows | **Yes** (e.g. `events` = 74 rows) |
+| Direct DB host reachable from sandbox | **No** — resolves IPv6-only (`2406:da1a:…`); sandbox has no IPv6 egress; no DB password provided |
 
-The mandatory abort condition in §2 of the task is met:
+**Conclusion:** production identity is **validated**; the API/RLS-effective layer is reachable and
+was audited read-only. The **catalog SQL layer is not reachable** from this environment.
 
-* The project ref does not match `kvrkraqjuyxbraccxntk`. ✅ (abort trigger)
-* The host is not `kvrkraqjuyxbraccxntk.supabase.co`. ✅ (abort trigger)
-* The connection points to a project other than the approved one. ✅ (abort trigger)
+### 2.3 Production host liveness (non-secret, informational)
 
-**Action taken:** the F-A15.1 catalog queries in §4 were **not executed** against the reachable
-database. No substitute database was used. No credential was requested from the owner. The abort
-reason is recorded here **without revealing secrets** — only ref fingerprints and non-sensitive
-catalog shape.
-
-### 2.5 Production host liveness (non-secret, informational only)
-
-The production project host `kvrkraqjuyxbraccxntk.supabase.co` resolves publicly (Cloudflare edge) and
-answers an unauthenticated `GET /rest/v1/` with **HTTP 401**. This confirms the project **exists** and
-its public API is reachable over the network — but it does **not** grant catalog access and no
-credential for it is available here. Reachability of the API host is **not** proof of database
-identity and was **not** treated as such.
+`kvrkraqjuyxbraccxntk.supabase.co` resolves (Cloudflare edge) and answers an unauthenticated
+`GET /rest/v1/` with **401**. The public API is reachable; that alone is not proof of identity, so
+it was corroborated by the ref comparison and the live auth-health call above.
 
 ---
 
 ## 3. Read-only connection/safety evidence
 
-* **On the reachable (non-production) database**, read-only mode was enforced *before* opening the
-  session and proven:
-  * connection opened with `options="-c default_transaction_read_only=on"`, then
-    `conn.set_session(readonly=True, autocommit=True)`;
-  * `SHOW transaction_read_only` → `on`;
-  * `SELECT current_setting('default_transaction_read_only')` → `on`.
-  * Only catalog `SELECT`s were run; no function/RPC was invoked.
-* **On the temple production database**: no session exists, therefore read-only mode could not be
-  established there. Per §3 of the task ("If the connection cannot enforce read-only mode, stop"),
-  the catalog audit stopped.
-* No statement that changes database state was used to establish safety mode on any connection.
+* **Catalog layer (non-production DB):** read-only enforced before the session
+  (`options="-c default_transaction_read_only=on"`, `set_session(readonly=True, autocommit=True)`);
+  `SHOW transaction_read_only` → `on`; `default_transaction_read_only` → `on`. Catalog `SELECT`s
+  only; no function/RPC invoked.
+* **Production catalog layer:** no session could be opened (IPv6-only host, no password), so
+  read-only mode could not be established there; per the task ("If the connection cannot enforce
+  read-only mode, stop"), the catalog audit stopped.
+* **Production API layer:** every request was **`GET` only**, with `limit=0` and
+  `Prefer: count=exact`, reading only `Content-Range`/status. **No `POST`/`PATCH`/`PUT`/`DELETE`
+  was ever sent; no RPC, no GraphQL, no function invocation, no write of any kind.** No row
+  *contents* of sensitive tables were retrieved (all returned 0 rows; only aggregate counts were
+  read).
 
 ---
 
@@ -140,185 +140,211 @@ identity and was **not** treated as such.
 
 | Timestamp (UTC) | Step |
 |---|---|
-| 2026-10-31T12:44:37Z | Identity inspection, ref resolution, abort decision recorded |
-| 2026-10-31T12:4xZ | Read-only identity probe of the reachable (non-production) DB |
+| 2026-10-31T12:44Z | Sandbox identity inspection + abort decision (non-production credential) |
 | 2026-10-31T12:4xZ | GitHub API: PR #370 merge SHA + Production deployment lineage |
-| 2026-10-31T12:4xZ | PR #370 GET-only endpoint checks against `rayaramathaynk.vercel.app` |
+| 2026-10-31T12:4xZ | PR #370 GET-only website endpoint checks (pass) |
+| 2026-10-31T12:5xZ | Owner-supplied identity validated (URL ref, auth health, DB host DNS/TCP) |
+| 2026-10-31T12:5xZ | Live GET-only anon-visibility probe of all 67 repository tables |
 
-**F-A15.1_READ_ONLY_QUERIES.sql coverage:** all statements were reviewed and each is read-only
-(`SELECT` / catalog reads only — no DML, DDL, GRANT/REVOKE, TRUNCATE, or function invocation). **None
-of them was executed**, because the only reachable database is not the approved production project.
-Every category below is therefore **Unavailable**.
+**Catalog categories (§4 of the task) — all Unavailable** (no catalog session): A tables/RLS, B
+privileges, C policies, D functions, E default privileges, F Storage, G migration ledger,
+H extensions. The `F-A15.1_READ_ONLY_QUERIES.sql` statements were each reviewed as read-only, but
+none could be executed against production.
 
-| Category (task §4) | Status |
-|---|---|
-| A. Public tables and RLS | **Unavailable** — not production |
-| B. Effective table privileges | **Unavailable** — not production |
-| C. RLS policies | **Unavailable** — not production |
-| D. Functions and execution privileges | **Unavailable** — not production |
-| E. Default privileges | **Unavailable** — not production |
-| F. Supabase Storage | **Unavailable** — not production |
-| G. Migration ledger | **Unavailable** — not production |
-| H. Extensions (`pg_graphql` et al.) | **Unavailable** — not production |
+**API-layer evidence replaces the catalog read for *effective* behaviour** (not for object counts) —
+see §4A.
 
-No permission errors were encountered, because no queries were run against production. There is
-**no privilege-escalation attempt** and **no credential switch**; the environment simply has no
-production credential.
+---
+
+## 4A. Live production results — effective anon visibility (API layer)
+
+Method: `GET /rest/v1/<table>?select=*&limit=0` with the publishable key and `Prefer: count=exact`;
+only the HTTP status and `Content-Range` count were read. All 67 repository public tables were
+probed. Classification:
+
+| Class | Meaning | Count |
+|---|---|---:|
+| `401 permission denied` | `anon` has **no table privilege** (hardened) | **21** |
+| `200/206 … /0` | `anon` has SELECT but **RLS returns no rows** (or table empty) | **42** |
+| `200/206 … /N` | `anon` **reads N rows** | **4** |
+| Total | | **67** |
+
+**Tables `anon` cannot touch at all (401) — 21:** `audit_log`, `cash_denominations`,
+`counter_devices`, `counters`, `day_close_counts`, `day_closes`, `devotee_profiles`,
+`festival_day_dates`, `festival_days`, `group_counters`, `ops_backup_runs`, `receipt_number_gaps`,
+`receipt_series`, `receipt_series_years`, `seva_list_items`, `seva_orders`, `seva_rate_history`,
+`seva_receipt_lines`, `seva_receipts`, `seva_settings`, `staff`.
+
+**Tables `anon` can read rows from (4):**
+
+| Table | Anon-visible rows |
+|---|---:|
+| `events` | 74 |
+| `aaradhanes` | 2 |
+| `site_settings` | 2 |
+| `social_links` | 1 |
+
+**Sensitive tables confirmed NOT readable by `anon` (0 rows):** `users`, `profiles`, `donations`,
+`seva_bookings`, `settings_documents`, `bills`, `members`, `devotee_profiles` (401), `staff` (401),
+`seva_orders` (401), `seva_receipts` (401). **No anon-visible PII or financial rows were observed.**
+
+**Storage:** `GET /storage/v1/bucket` with the publishable key returned `[]` (0 buckets). With an
+anon key Supabase only lists buckets the role may see, so this is **inconclusive** for the existence
+of the private `RayaramathaYNK` bucket (see §6.7).
+
+**Not obtainable at this layer:** policy counts, per-role privilege matrices (INSERT/UPDATE/DELETE/
+TRUNCATE/REFERENCES/TRIGGER), function inventory and EXECUTE grants, FORCE RLS flags, default ACLs,
+the migration ledger, and installed extensions. Those require the catalog (§4).
 
 ---
 
 ## 5. Comparison with F-A15.1
 
-Live counts are not obtainable, so every row is **Unavailable**. The "F-A15.1 reproduced" column is
-the value F-A15.1 derived from repository migrations (it was explicitly labelled there as a
-reproduction, not a live read).
-
-| Area | F-A15.1 reproduced result | F-A16 live result | Status |
-|---|---:|---:|---|
-| Public tables | 67 | — | Unavailable |
-| RLS enabled | 67 | — | Unavailable |
+| Area | F-A15.1 reproduced | F-A16 live | Status |
+|---|---:|---|---|
+| Public tables | 67 | 67 reachable via PostgREST (none 404) | **Consistent (API layer)**; exact catalog count Unavailable |
+| RLS enabled | 67 | RLS demonstrably active (42 tables return 0, not all rows) | **Consistent in effect**; catalog flag Unavailable |
 | FORCE RLS | 0 | — | Unavailable |
 | Public policies | 81 | — | Unavailable |
-| Table privilege records | 1,088 | — | Unavailable |
+| Table privilege records | 1,088 | 21 tables have **no anon grant**; 46 have anon SELECT | **Different from F-A15.1** (see F-A15.1-3); exact matrix Unavailable |
 | Public functions | 87 | — | Unavailable |
 | SECURITY DEFINER functions | 1 | — | Unavailable |
 | Default ACL entries | 6 | — | Unavailable |
-| Storage buckets | 1 | — | Unavailable |
+| Storage buckets | 1 | anon bucket list = 0 (inconclusive) | Unavailable |
 | Storage policies | 0 | — | Unavailable |
-| Applied migrations | 15 (Oct 2026, per F-A15.1) | — | Unavailable |
+| Applied migrations | 15 (Oct 2026) | — (ledger unread) | Unavailable; drift **partly confirmed** via F-A15.1-8 |
 
-**Why no difference can be explained.** Because no live catalog read was possible, no difference
-between F-A15.1 and production can be classified as a real production change, a repository
-migration drift, or a scope/permission difference. All differences remain **inconclusive** by
-construction, and F-A15.1's reproduced numbers must continue to be treated as *reproductions*, not
-verified production counts.
+**Difference classification:**
 
-The repository itself carries **41** `supabase/migrations/*.sql` files, while F-A15.1 reported the
-ledger as carrying ~15 applied migrations and explicitly noted the ledger drifts. F-A16 **cannot**
-confirm or refute the applied count without production access.
+* **"21 tables without an anon grant" — real production state** (directly observed), which means
+  F-A15.1-3's "anon holds full grants on **every** table" is **not accurate for anon**. It is
+  evidence that the repository's `REVOKE`/privilege-hardening migrations *are* applied in production
+  (a **real production change** relative to the naive Supabase default), and a **repository-drift
+  correction** to F-A15.1.
+* **`events`/`aaradhanes` readable by anon — repository migration drift confirmed**: those policies
+  are marked "prepared, NOT applied" in the repo but **are applied in production** (F-A15.1 drift
+  item D2).
+* All numeric catalog counts remain **inconclusive** (scope/permission limitation: no catalog read).
 
 ---
 
 ## 6. Reassessment of F-A15.1 findings using live evidence
 
-Evidence labels used exactly as defined in the task.
-
 | ID | Finding | F-A15.1 severity | F-A16 evidence status | Severity change? |
 |---|---|---|---|---|
-| F-A15.1-1 | `rls_auto_enable()` SECURITY DEFINER + EXECUTE grants | LOW | **Unverified** (DB not reached) | None |
-| F-A15.1-2 | `update_updated_at_column()` EXECUTE grants | LOW | **Unverified** | None |
-| F-A15.1-3 | Broad default/existing table privileges | MEDIUM | **Unverified** | None |
-| F-A15.1-4 | FORCE RLS off on all tables | LOW | **Unverified** | None |
-| F-A15.1-5 | `seva_list_items` RLS with no policy | LOW | **Unverified** | None |
-| F-A15.1-6 | Public settings endpoint exposure | MEDIUM | **Confirmed in production** (endpoints narrowed as designed) | None proposed — see §6.6 |
-| F-A15.1-7 | Private Storage bucket `RayaramathaYNK`, no policies | LOW | **Unverified** | None |
-| F-A15.1-8 | Migration/catalog drift | LOW | **Unverified** | None |
+| F-A15.1-1 | `rls_auto_enable()` SECURITY DEFINER + EXECUTE | LOW | **Unverified** (needs catalog) | None |
+| F-A15.1-2 | `update_updated_at_column()` EXECUTE | LOW | **Unverified** | None |
+| F-A15.1-3 | Broad default/existing table privileges | MEDIUM | **Different from F-A15.1** — 21/67 tables have no anon grant | None proposed (see §6.3) |
+| F-A15.1-4 | FORCE RLS off | LOW | **Unverified** | None |
+| F-A15.1-5 | `seva_list_items` RLS no policy | LOW | **Confirmed in production** (anon denied outright) | None |
+| F-A15.1-6 | Public settings endpoint exposure | MEDIUM | **Confirmed in production** (endpoint narrowed) | None proposed |
+| F-A15.1-7 | Private Storage bucket, no policies | LOW | **Unverified** (anon cannot enumerate buckets) | None |
+| F-A15.1-8 | Migration/catalog drift | LOW | **Confirmed in production** (events/aaradhanes policies applied) | None |
 
 ### 6.1 F-A15.1-1 — `rls_auto_enable()` SECURITY DEFINER
-**Unverified.** The function's existence, `SECURITY DEFINER` attribute, `EXECUTE` grants and
-non-RPC-reachability could not be re-measured against production. No severity change.
+**Unverified.** The function's attributes and EXECUTE grants need `pg_proc`; the catalog is
+unreachable. No severity change. (Note: the linter concern is about `EXECUTE` via
+`POST /rest/v1/rpc/`; that path was **not** exercised — no RPC was invoked.)
 
-### 6.2 F-A15.1-2 — `update_updated_at_column()` EXECUTE grants
-**Unverified.** No production catalog read. No severity change.
+### 6.2 F-A15.1-2 — `update_updated_at_column()` EXECUTE
+**Unverified.** Same reason. No severity change.
 
-### 6.3 F-A15.1-3 — broad table privileges
-**Unverified.** The 1,088-record reconciliation in F-A15.1 was explicitly arithmetic, not a measured
-count; F-A16 cannot measure it. No severity change.
+### 6.3 F-A15.1-3 — broad table privileges — **Different from F-A15.1**
+Live evidence: **21 of 67 tables return `401 permission denied`** to `anon`, i.e. `anon` has **no**
+table grant on them (`audit_log`, all `seva_*`/POS/receipt tables, `staff`, `counters`, …). The
+F-A15.1 claim that `anon` holds *full* grants (`SELECT, INSERT, UPDATE, DELETE, TRUNCATE,
+REFERENCES, TRIGGER`) on *every* table is therefore **contradicted for `anon`**. The repository's
+privilege-hardening migrations are evidently applied in production. **Caveats:** only `anon` was
+observable (no `authenticated` session); and only `SELECT` is observable over GET — write privileges
+were deliberately **not** probed. No severity change is proposed; if anything the live evidence is
+*milder* than F-A15.1's reproduction for the `anon` role.
 
 ### 6.4 F-A15.1-4 — FORCE RLS
-**Unverified.** No production catalog read. No severity change.
+**Unverified.** Requires `pg_class.relforcerowsecurity`. No severity change.
 
-### 6.5 F-A15.1-5 — `seva_list_items` RLS with no policy
-**Unverified.** No production catalog read. No severity change.
+### 6.5 F-A15.1-5 — `seva_list_items` — **Confirmed in production**
+Live evidence: `anon` receives **`401 permission denied for table seva_list_items`** — stronger than
+"RLS enabled, no policy (default-deny)": `anon` has no table privilege at all. The finding is
+**Confirmed in production**, and the observed state is at least as safe as F-A15.1 described. No
+severity change.
 
-### 6.6 F-A15.1-6 — public settings endpoint exposure — **Confirmed in production**
-F-A15.1 recorded this as "remediated in application code (PR #370, merged `641a0d3`) — unverified in
-production". F-A16 **independently confirmed the production deployment** and re-tested the deployed
-behaviour:
+### 6.6 F-A15.1-6 — public settings endpoint — **Confirmed in production**
+PR #370's merge commit `641a0d318f58c6640ff20081b9a8c5712c8e6af8` has a **Production** deployment;
+the later Production deploy (`0691388`, PR #369) is documentation-only, so `641a0d3` is an ancestor
+of production. Website checks (GET-only, `https://rayaramathaynk.vercel.app`):
 
-* **Deployment lineage.** GitHub reports PR #370 merged with merge commit
-  `641a0d318f58c6640ff20081b9a8c5712c8e6af8`, and a **Production** deployment of exactly that SHA
-  (`deployment id 7458138508`, created 2026-10-31T11:44:55Z). The subsequent Production deployment
-  (`0691388`, PR #369) is a documentation-only merge, so production also contains `641a0d3` as an
-  ancestor. (The site is served from `rayaramathaynk.vercel.app`; the custom domain
-  `rayaramathaynk.com` / `www.rayaramathaynk.com` did **not** resolve from this sandbox.)
-* **`GET /api/public/settings/device` → HTTP 404**, JSON `{"error": ...}`. The `device` document is
-  no longer served. (The rejection is a route-level allow-list check before any settings read; this
-  is visible in the merged source at `app/api/public/settings/[key]/route.ts`, which returns 404 for
-  any key outside `PUBLIC_KEYS` — but F-A16 could not read application logs, so "rejected before
-  database access" is supported by source, not by log evidence.)
-* **`GET /api/public/settings/financeSettings` → HTTP 200** with top-level keys
-  `enabled`, `upi`, `bankTransfer`, `specialSevas` **only**. The forbidden fields
-  `billing`, `billingEnabled`, `updatedAt` are **absent**, and there are **no extra keys** beyond the
-  allow-list. `specialSevas` returned only entries with `isActive = true`.
-* **`GET /api/public/settings/unknownKeyXYZ` → HTTP 404** (allow-list enforced).
+* `GET /api/public/settings/device` → **404**.
+* `GET /api/public/settings/financeSettings` → **200**, top-level keys
+  `enabled`/`upi`/`bankTransfer`/`specialSevas` **only**; `billing`, `billingEnabled`, `updatedAt`
+  **absent**; no extra keys; only `isActive = true` special sevas.
+* `GET /api/public/settings/unknownKeyXYZ` → **404** (allow-list enforced).
+* `GET /donation` → **200**; intended UPI / bank-transfer information renders.
 
-**Conclusion:** F-A15.1-6's remediation is now **Confirmed in production** for the endpoint
-behaviour (no `billing`/`billingEnabled`/`updatedAt`, no inactive sevas, `device` 404). The donation
-projection intentionally still includes `upi.id` and `bankTransfer.accountNumber`/`ifscCode`; these
-are the fields the public donation page uses and are treated by F-A15.1 as plausibly intended-public
-donation details. **No severity change is proposed**, and this confirmation is **not** authorization
-to remediate anything else. No financial values are reproduced in this report.
+Additionally, at the database layer `settings_documents` returns **0 rows** to `anon` (deny-all), so
+the settings documents are only reachable through the server-side, service-role projection.
+**Confirmed in production**; no severity change; no financial values are reproduced in this report.
 
-> Note: F-A15.1-6 was the only finding whose impact was *disclosure of real data* rather than
-> configuration hardening. With the endpoint now narrowed in production, the remaining risk is the
-> residual, plausibly-intended public donation details.
+### 6.7 F-A15.1-7 — Storage bucket / policies — **Unverified**
+`GET /storage/v1/bucket` with the publishable key returned **0 buckets**. Because the anon key only
+lists buckets the role may see, this does **not** prove the private `RayaramathaYNK` bucket is
+absent, nor that Storage policies changed. Requires the `storage.buckets`/`pg_policies` catalog read.
+No severity change.
 
-### 6.7 F-A15.1-7 — Storage bucket / policies
-**Unverified.** Storage catalog reads require the production database; not performed. No severity
-change.
-
-### 6.8 F-A15.1-8 — migration/catalog drift
-**Unverified.** The applied-migration ledger could not be read. No severity change.
+### 6.8 F-A15.1-8 — migration/catalog drift — **Confirmed in production**
+Live evidence: `events` serves **74** rows and `aaradhanes` serves **2** rows to `anon`, so the
+policies in `20261105000000_events_public_select_policy.sql` and
+`20261111000000_aaradhanes_public_select_policy.sql` — both commented "prepared, NOT applied" in the
+repository — **are applied in production**. This **confirms** F-A15.1's drift item D2. The exact
+applied-migration count still requires the ledger. No severity change.
 
 ---
 
 ## 7. PR #370 production HTTP checks — results
 
-Deployment containment was confirmed first (Production deployment of `641a0d3`; see §6.6), so the
-checks were executed. All requests were **GET only**. No form was submitted, no payment initiated,
-no login attempted, no setting changed. No financial values are reproduced.
+Deployment containment confirmed first (Production deployment of `641a0d3`), then checks run
+GET-only. No form submitted, no payment initiated, no login attempted, no setting changed. No
+financial values reproduced.
 
 | # | Check | Result |
 |---|---|---|
-| 1 | `GET /api/public/settings/financeSettings` | **200**; only public donation projection; `billing`/`billingEnabled`/`updatedAt` absent; unknown fields absent; only active special sevas returned → **PASS** |
-| 2 | `GET /api/public/settings/device` | **404** → **PASS** (log-level "rejected before DB access" not independently observable — see §6.6) |
-| 3 | Public donation page (`GET /donation`) | **200**; intended UPI / bank-transfer information still renders → **PASS** |
-| 4 | Admin billing pages (`GET /admin/billing`, `/admin/billing/create`) | Served an **unauthenticated shell** (contains "unauthorized"); **no valid test session available** → **Unavailable** |
-
-Admin billing verification is **Unavailable** because no valid authenticated test session exists in
-this environment; the task explicitly forbids attempting login with guessed credentials and forbids
-changing or saving settings.
+| 1 | `GET /api/public/settings/financeSettings` | **200**; only public donation projection; `billing`/`billingEnabled`/`updatedAt` absent; unknown fields absent; only active special sevas → **PASS** |
+| 2 | `GET /api/public/settings/device` | **404** → **PASS** (log-level "rejected before DB access" not observable; supported by merged source, not logs) |
+| 3 | Public donation page (`GET /donation`) | **200**; intended UPI / bank-transfer info renders → **PASS** |
+| 4 | Admin billing pages (`GET /admin/billing`, `/admin/billing/create`) | Served an **unauthenticated shell** ("unauthorized"); **no valid test session available** → **Unavailable** |
 
 ---
 
 ## 8. Limitations and inaccessible checks
 
-1. **No production database access.** The environment provides no credential for
-   `kvrkraqjuyxbraccxntk`; the only DB credential points to an unrelated project. This is the
-   single, decisive limitation: **all catalog-level findings are unverified**.
-2. **Custom domain did not resolve** (`rayaramathaynk.com`, `www.rayaramathaynk.com` — NXDOMAIN from
-   this sandbox). Checks were run against the confirmed Vercel production host
-   `rayaramathaynk.vercel.app` (HTTP 200, `Server: Vercel`).
-3. **No application-log access**, so "device rejected before database access" is evidenced by merged
-   source, not by logs.
-4. **No authenticated admin session**, so admin billing verification is unavailable.
-5. **F-A15.1-1…5, 7, 8 remain Unverified** and must not be presented as live production facts.
+1. **No catalog SQL.** The production direct DB host is IPv6-only and unreachable from this sandbox,
+   and no DB password was supplied. All catalog-level counts (privileges, policies, functions, FORCE
+   RLS, default ACLs, ledger, extensions) are therefore unavailable.
+2. **Only the `anon` role was observable.** `authenticated`-role visibility and write privileges
+   could not be tested without a session (and writes were deliberately not attempted).
+3. **Storage bucket enumeration is inconclusive** with an anon key.
+4. **No application-log access**, so "device rejected before DB access" is evidenced by merged source.
+5. **No authenticated admin session**, so admin billing verification is unavailable.
+6. **Custom domain did not resolve** (`rayaramathaynk.com`, `www.rayaramathaynk.com` — NXDOMAIN);
+   checks used the confirmed production host `rayaramathaynk.vercel.app`.
+7. **F-A15.1-1, -2, -4, -7 remain Unverified** and must not be presented as live production facts.
 
 ---
 
 ## 9. Items requiring owner decisions
 
-1. **Provide a read-only production credential (or run the query set in the Supabase SQL editor with
-   a read-only role) for `kvrkraqjuyxbraccxntk`**, so F-A16's catalog portion can actually complete.
-   Without it, no live count for tables, RLS, policies, privileges, functions, default ACLs, Storage,
-   the migration ledger, or extensions can be produced.
-2. **Confirm which production URL is canonical** — `rayaramathaynk.vercel.app` (reachable, used here)
-   vs the non-resolving `rayaramathaynk.com` custom domain.
-3. **Decide whether the residual public donation fields** (`upi.id`,
-   `bankTransfer.accountNumber`/`ifscCode`) are intended to be public. They are returned by the
-   narrowed endpoint and rendered by the public donation page. No action is implied by this report.
-4. **Decide whether to schedule the F-A15.1-1…5, 7, 8 catalog verification** once (1) is available.
+1. **Provide a read-only production credential for the catalog layer** (a Supabase pooler URL with
+   the DB password, or run `F-A15.1_READ_ONLY_QUERIES.sql` in the SQL editor with a read-only role),
+   so the remaining catalog categories (privileges matrix, policies, functions, FORCE RLS, default
+   ACLs, migration ledger, extensions) can be completed. The direct host is IPv6-only, so a
+   **pooler (IPv4) URL** is the practical route from this environment.
+2. **Decide whether `events` (74 rows) and `aaradhanes` (2 rows) should be anon-readable** in
+   production, since the repository marks those policies "prepared, NOT applied" but production has
+   them applied (F-A15.1-8 drift). No action is implied by this report.
+3. **Confirm the canonical production URL** — `rayaramathaynk.vercel.app` (reachable) vs the
+   non-resolving `rayaramathaynk.com` custom domain.
+4. **Decide whether the residual public donation fields** (`upi.id`,
+   `bankTransfer.accountNumber`/`ifscCode`) are intended to be public (they are returned by the
+   narrowed endpoint and rendered on the public donation page).
 5. **No remediation is authorized by this report.** The F-A15.1 remediation proposal remains
    **Proposed** and untouched.
 
@@ -328,11 +354,15 @@ changing or saving settings.
 
 **No production change of any kind was made.** No INSERT/UPDATE/DELETE/UPSERT/TRUNCATE, no
 CREATE/ALTER/DROP, no GRANT/REVOKE, no migration applied or repaired, no RLS/policy/privilege/
-function/trigger/Storage change, no RPC or function invocation, no dashboard change, no environment
-variable change, no deployment, no workflow dispatch, and no Firestore access. The only network
-actions taken were read-only GitHub API GETs and GET requests to the production website for the PR
-#370 checks. No credentials, database URLs, passwords, tokens, or service-role keys were printed,
-logged, or committed; only non-reversible SHA-256 prefixes of refs are recorded, for equality proof.
+function/trigger/Storage change, no RPC or function invocation, no GraphQL, no dashboard change, no
+environment variable change, no deployment, no workflow dispatch, and no Firestore access. The only
+network actions were read-only GitHub API GETs, GET requests to the production website (PR #370
+checks), and GET-only PostgREST probes (`limit=0`, `count=exact`) for the anon-visibility census.
+
+**Secrets handling.** The owner-supplied publishable key and DB host details were used in-session for
+validation only and are **not** recorded in this repository or this report; no DB URL, password,
+token, service-role key, or connection string is committed or printed. Project refs are shown only
+as non-reversible SHA-256 prefixes. No sensitive row contents were retrieved.
 
 ---
 
@@ -340,4 +370,5 @@ logged, or committed; only non-reversible SHA-256 prefixes of refs are recorded,
 
 | Rev | Date (UTC) | Change |
 |---|---|---|
-| 1 | 2026-10-31 | Initial F-A16 report. Catalog portion **aborted** (production DB not reachable; credential resolves to a non-approved project). PR #370 production deployment **confirmed**; endpoint checks **passed**; admin billing **unavailable**. No production changes made. |
+| 1 | 2026-10-31 | Initial F-A16. Catalog portion aborted (non-approved sandbox credential). PR #370 deployment confirmed; website checks passed; admin unavailable. |
+| 2 | 2026-10-31 | Owner supplied the production identity (URL, publishable key, direct DB host). Identity **validated** live; added the **effective anon-visibility census** of all 67 tables via GET-only PostgREST probes (§4A). F-A15.1-5 and -8 upgraded to **Confirmed in production**; F-A15.1-3 marked **Different from F-A15.1**; catalog categories remain Unavailable (IPv6-only host, no DB password). No production change made. |
