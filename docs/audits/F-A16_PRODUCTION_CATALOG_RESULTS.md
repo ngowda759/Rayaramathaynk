@@ -46,15 +46,23 @@ above; if it cannot be established the run aborts before any catalog query.
 
 | Item | Value |
 |---|---|
-| Executed | **No** |
-| Execution timestamp (UTC) | — |
+| Executed | **Attempted once — blocked before any database connection** |
+| First dispatch (UTC) | 2026-11-01T07:32:01Z (run `41285154311`, event `workflow_dispatch`) |
+| Result | **failure** at the age-recipient step; steps "Guard approved project ref", "Derive and verify target connection" and "Run read-only catalog audit" were **skipped** |
+| Reason | No age recipient secret is configured (`F_A16_AUDIT_AGE_RECIPIENT` and `SEVA_BACKUP_AGE_RECIPIENT` both empty), so the run failed closed before deriving or probing the production connection |
 | Statements total | 37 (parsed and allowlist-checked offline; see §5) |
-| Statements succeeded | — |
-| Statements failed | — |
+| Statements succeeded | — (none executed) |
+| Statements failed | — (none executed) |
 | Query errors | — |
+| Evidence produced | None. The encrypt step reported "No catalog output to encrypt (the audit aborted before producing evidence)"; no artifact was uploaded |
 | Incomplete-audit handling | The runner exits **3** when any catalog statement fails, preserves the partial rows, and marks the output `AUDIT INCOMPLETE`; the workflow then fails the job after the encrypted partial output has been uploaded, so a partial run is never reported as complete |
 | Output location | Encrypted artifact `f-a16-catalog-audit-<run_id>` (age), 30-day retention, on first successful run |
 | Output confidentiality | Catalog rows are written only to the runner temp dir, never printed to the log or the job summary; the artifact is age-encrypted before upload because the repository is public |
+
+The first dispatch therefore produced **no production evidence**. It did, however,
+demonstrate the fail-closed ordering: with no recipient, the workflow stops before
+touching the database, exactly as intended. A real run requires the owner to set an
+age recipient secret (see §11).
 
 ## 4. Results by catalog category
 
@@ -141,12 +149,13 @@ covered by an automated test in `tests/unit/f-a16-audit-hardening.test.ts`.
 
 ## 10. Recommended next investigation steps
 
-1. Owner dispatches the workflow with the acknowledgement input, in a session with
-   the required-reviewer environment gate configured.
-2. Retrieve the encrypted artifact and decrypt it with the holder's age private key.
-3. Fill §3–§7 of this document from the decrypted output, labelling each result
+1. Owner sets an age **public** key as the `F_A16_AUDIT_AGE_RECIPIENT` repository
+   secret (and adds required reviewers to the `f-a16-catalog-audit` environment).
+2. Owner re-dispatches the workflow with the acknowledgement input.
+3. Retrieve the encrypted artifact and decrypt it with the holder's age private key.
+4. Fill §3–§7 of this document from the decrypted output, labelling each result
    *Confirmed in production* / *Different from F-A15.1* / *Unverified*.
-4. Reconcile each F-A15.1 finding against the live catalog and record any
+5. Reconcile each F-A15.1 finding against the live catalog and record any
    difference with its cause (real change / migration drift / scope difference /
    inconclusive).
 
@@ -155,5 +164,11 @@ covered by an automated test in `tests/unit/f-a16-audit-hardening.test.ts`.
 No INSERT, UPDATE, DELETE, UPSERT, TRUNCATE, CREATE, ALTER, DROP, GRANT, REVOKE,
 migration, migration repair, RLS/policy/privilege/function/trigger/Storage change,
 RPC call, dashboard change, environment-variable change, or deployment was
-performed. The workflow is read-only and manually triggered, and it was **not**
-dispatched as part of preparing it.
+performed by the tooling in this repository.
+
+The hardened workflow was dispatched **once** (run `41285154311`, 2026-11-01) as a
+deliberate, owner-requested verification of the fail-closed ordering. It failed at
+the age-recipient step with no age recipient configured, so it never derived a
+connection string, never opened a database session and never executed a catalog
+statement. No database change of any kind occurred; no evidence artifact was
+produced.
