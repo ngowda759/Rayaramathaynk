@@ -38,9 +38,40 @@ above; if it cannot be established the run aborts before any catalog query.
 | Item | Value |
 |---|---|
 | Role used | Derived from the pooler connection string (`postgres.<ref>`, the project owner role) |
-| Read-only enforcement | `BEGIN READ ONLY` transaction + `default_transaction_read_only=on` startup parameter + SELECT/WITH/SHOW allowlist in the runner |
+| Read-only enforcement | `SET default_transaction_read_only = on` sent as ordinary SQL immediately after connect, then verified; `BEGIN READ ONLY` transaction around every statement; SELECT/WITH/SHOW allowlist in the runner |
 | Session proof | The runner reads `show transaction_read_only` and `show default_transaction_read_only`; if either is not `on` it aborts before running any audit statement |
 | **Result** | **Not yet verified live.** The proof is emitted by the runner on the first run; the session-safety block is written to the encrypted output. |
+
+### 2.1 Why the enforcement mechanism changed (2026-11-01)
+
+The first production dispatch (`41295571478`, job `124815601004`) aborted with:
+
+```
+ABORT: session is not read-only
+(transaction_read_only=off, default_transaction_read_only=off)
+```
+
+Root cause: the connection relied on the client startup parameter
+`options=-c default_transaction_read_only=on`. The **Supabase pooler (Supavisor) does
+not forward the startup `options` packet** to Postgres (supabase/supavisor issue #206),
+so the session arrived writable and the fail-closed check correctly aborted the run
+before any catalog query.
+
+Verification (local Postgres 15, real `pg` driver — no production access):
+
+| Connection configuration | `transaction_read_only` | `default_transaction_read_only` |
+|---|---|---|
+| No `options` | off | off |
+| `options: "-c default_transaction_read_only=on"` (direct) | **on** | **on** |
+| `SET default_transaction_read_only = on` as ordinary SQL | **on** | **on** |
+| `BEGIN READ ONLY` transaction | **on** | off |
+
+The fix sends `SET default_transaction_read_only = on` as **ordinary SQL**, which the
+pooler does forward, and then re-runs the read-only proof. A write attempted inside
+`BEGIN READ ONLY` was rejected by the server (`cannot execute CREATE TABLE in a
+read-only transaction`), confirming the transaction-level guarantee is enforced by the
+backend and cannot leak across a pooled connection. The runner still aborts before any
+catalog statement if either read-only check fails.
 
 ## 3. Audit execution summary
 
