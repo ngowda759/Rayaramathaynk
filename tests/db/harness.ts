@@ -52,6 +52,40 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authen
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 `;
 
+/**
+ * The platform's RLS auto-enable trigger, reproduced from the Supabase docs.
+ *
+ * Supabase installs this before any project migration runs, so a test that replays
+ * `supabase/migrations` against a bare Postgres must install it too or it is not
+ * modelling production. The F-A16-03 assertion migration *requires* an enabled
+ * enabler and refuses to install without one, which is exactly the behaviour these
+ * tests want to exercise rather than bypass.
+ */
+export const PLATFORM_RLS_ENABLER_SQL = `
+CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+RETURNS event_trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$
+DECLARE cmd record;
+BEGIN
+  FOR cmd IN SELECT * FROM pg_event_trigger_ddl_commands()
+    WHERE command_tag IN ('CREATE TABLE','CREATE TABLE AS','SELECT INTO')
+      AND object_type IN ('table','partitioned table') LOOP
+    IF cmd.schema_name = 'public' THEN
+      BEGIN
+        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);
+      EXCEPTION WHEN OTHERS THEN
+        RAISE LOG 'rls_auto_enable: failed on %', cmd.object_identity;
+        RAISE;
+      END;
+    END IF;
+  END LOOP;
+END; $$;
+
+DROP EVENT TRIGGER IF EXISTS ensure_rls;
+CREATE EVENT TRIGGER ensure_rls ON ddl_command_end
+  WHEN TAG IN ('CREATE TABLE','CREATE TABLE AS','SELECT INTO')
+  EXECUTE FUNCTION public.rls_auto_enable();
+`;
+
 /** Seva migration file names (not paths), sorted by name. */
 export function sevaMigrationFiles(): string[] {
   return fs
@@ -80,6 +114,7 @@ export async function freshDb(): Promise<PGlite> {
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
   `);
   await db.exec(SUPABASE_ROLES_SQL);
+  await db.exec(PLATFORM_RLS_ENABLER_SQL);
   for (const file of BASE_FILES) {
     await applyMigrationFile(db, file);
   }

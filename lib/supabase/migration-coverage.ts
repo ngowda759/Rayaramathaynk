@@ -10,6 +10,15 @@ const CREATE_TABLE_REGEX =
   /CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(?:(?:"?public"?)\s*\.\s*)?"?([A-Za-z_][A-Za-z0-9_]*)"?/gi;
 
 /**
+ * `CREATE TABLE` is also the opening of `CREATE TABLE ... AS SELECT`, and the tag
+ * string `'CREATE TABLE AS'` appears verbatim inside event-trigger definitions. In
+ * both, the token after `CREATE TABLE` is the keyword `AS`, not a table name. Such
+ * matches are not declarations and must not be reported as tables (they would show
+ * up as a table with no RLS, for instance).
+ */
+const NON_TABLE_KEYWORDS = new Set(["as", "select", "with", "on", "from", "using", "tablespace"]);
+
+/**
  * Extract the set of table names declared via `CREATE TABLE` across the given
  * migration file contents. Names are lower-cased, de-duplicated and sorted so
  * the output is stable regardless of migration ordering.
@@ -22,7 +31,9 @@ export function extractDeclaredTables(sqlContents: string[]): string[] {
     let match: RegExpExecArray | null;
     CREATE_TABLE_REGEX.lastIndex = 0;
     while ((match = CREATE_TABLE_REGEX.exec(withoutComments)) !== null) {
-      tables.add(match[1].toLowerCase());
+      const name = match[1].toLowerCase();
+      if (NON_TABLE_KEYWORDS.has(name)) continue;
+      tables.add(name);
     }
   }
 
@@ -90,6 +101,7 @@ export function extractDeclaredColumns(sqlContents: string[]): ExpectedColumn[] 
     let tableMatch: RegExpExecArray | null;
     while ((tableMatch = tableRegex.exec(withoutComments)) !== null) {
       const table = tableMatch[1].toLowerCase();
+      if (NON_TABLE_KEYWORDS.has(table)) continue;
       const body = tableMatch[2];
 
       const lines = body.split(/,(?![^()]*\))/);
