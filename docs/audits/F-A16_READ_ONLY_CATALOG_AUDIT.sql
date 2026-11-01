@@ -401,10 +401,12 @@ ORDER  BY c.relname;
 -- §11. (Optional) sequence / identity grants — completeness only
 -- ---------------------------------------------------------------------------
 -- Proves: privileges on public sequences (relevant to INSERT-into-serial paths).
-SELECT sequence_name, grantee, privilege_type
+-- `information_schema.role_usage_grants` has no `sequence_name` column; the
+-- sequence name is exposed as `object_name` (object_type = 'SEQUENCE').
+SELECT object_name, grantee, privilege_type
 FROM   information_schema.role_usage_grants
 WHERE  object_schema = 'public' AND object_type = 'SEQUENCE'
-ORDER  BY sequence_name, grantee;
+ORDER  BY object_name, grantee;
 
 -- ============================================================================
 -- END OF FILE — SELECT/SHOW only. No statement here modifies database state.

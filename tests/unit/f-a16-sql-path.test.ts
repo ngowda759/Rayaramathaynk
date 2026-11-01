@@ -71,4 +71,21 @@ describe("F-A16 audit SQL path", () => {
     expect(statements).toHaveLength(37);
     expect(statements.every((s) => /^(SELECT|SHOW|WITH)\b/i.test(s))).toBe(true);
   });
+
+  it("the sequence-grants statement selects object_name, not the non-existent sequence_name", () => {
+    // `information_schema.role_usage_grants` has no `sequence_name` column; the
+    // sequence name is exposed as `object_name`. A production run failed on
+    // `column "sequence_name" does not exist` before this was corrected.
+    const p = sqlPathFromWorkflow() as string;
+    const sql = readFileSync(path.join(ROOT, p), "utf8")
+      .split("\n")
+      .map((l) => l.replace(/--.*$/, ""))
+      .join("\n");
+    const usageGrantStatements = sql
+      .split(";")
+      .filter((s) => s.includes("role_usage_grants"));
+    expect(usageGrantStatements).toHaveLength(1);
+    expect(usageGrantStatements[0]).toContain("object_name");
+    expect(usageGrantStatements[0]).not.toMatch(/(?<![A-Za-z0-9_.])sequence_name(?![A-Za-z0-9_])/);
+  });
 });
