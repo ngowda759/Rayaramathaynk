@@ -207,7 +207,7 @@ jobs:
         run: |
           set +e
           node scripts/lib/run-catalog-audit.mjs \
-            docs/audits/F_A16_READ_ONLY_CATALOG_AUDIT.sql \
+            docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql \
             "$RUNNER_TEMP/f-a16-audit.log"
           CODE=$?
           set -e
