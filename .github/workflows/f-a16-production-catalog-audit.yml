@@ -1,0 +1,248 @@
+name: F-A16 Production Catalog Audit (read-only)
+
+# Manually-triggered, READ-ONLY PostgreSQL catalog audit of the approved
+# production Supabase project (kvrkraqjuyxbraccxntk).
+#
+# What it does
+# ------------
+# Executes docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql (37 SELECT/SHOW
+# statements, no mutation) and produces an ENCRYPTED evidence artifact.
+#
+# Why this shape
+# --------------
+# * The direct host db.<ref>.supabase.co is IPv6-only and GitHub-hosted runners
+#   have no IPv6 egress, so the connection is derived over Supavisor's session
+#   pooler (IPv4), exactly as .github/workflows/prisma-baseline-drift-gate.yml
+#   already does. The password comes from the existing SUPABASE_DB_PASSWORD
+#   secret; no new secret is introduced.
+# * The repository is PUBLIC, so Actions logs, job summaries and artifacts are
+#   world-readable. Catalog output (policy text, function definitions, ACLs) is
+#   therefore never printed to the log or the job summary; it is written only to
+#   the runner's ephemeral temp dir and uploaded ONLY after age encryption.
+# * Read-only is enforced three times: an explicit `BEGIN READ ONLY` transaction,
+#   `default_transaction_read_only=on` as a session startup parameter, and a
+#   SELECT/WITH/SHOW allowlist in the runner that aborts before sending anything
+#   else. The session's read-only state is verified and the run aborts if it is
+#   not "on".
+#
+# Triggers: workflow_dispatch ONLY. No schedule, no push, no pull_request.
+#
+# Owner setup (one-time, before the first run):
+#   1. Ensure the repository secret SUPABASE_DB_PASSWORD is the production DB
+#      password for kvrkraqjuyxbraccxntk (already required by other workflows).
+#   2. Provide an age PUBLIC key so results can be encrypted. Either
+#      F_A16_AUDIT_AGE_RECIPIENT (preferred, dedicated) or the existing
+#      SEVA_BACKUP_AGE_RECIPIENT. The workflow fails closed if neither is set.
+#   3. (Recommended) Add required reviewers to the `f-a16-catalog-audit`
+#      environment so a run needs manual approval before it touches production.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type RUN-READ-ONLY-AUDIT to confirm a read-only production catalog audit.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f-a16-catalog-audit
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  audit:
+    name: Read-only catalog audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Approval gate: configure required reviewers on this environment. A bare
+    # `environment:` binding is a deployment control, not an approval gate, until
+    # the owner configures required reviewers on the GitHub environment.
+    environment: f-a16-catalog-audit
+    env:
+      PGSSLMODE: require
+      PGCONNECT_TIMEOUT: '30'
+    steps:
+      # The input is passed through env, never interpolated into the shell: a
+      # `${{ inputs.confirm }}` inside a run: block is substituted into the script
+      # text before the shell parses it, so a value such as `$(...)` would execute.
+      - name: Confirm the operator typed the acknowledgement
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "RUN-READ-ONLY-AUDIT" ]; then
+            echo "::error::Confirmation input did not match. Refusing to run."
+            exit 1
+          fi
+          echo "Confirmation accepted: read-only catalog audit."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails closed on a missing, malformed or mismatched project ref, before
+      # any credential or connection is used. Reuses the repository guard.
+      - name: Guard approved project ref
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/lib/guard-approved-project.mjs
+
+      # Derives an IPv4 session-pooler connection string for the approved project
+      # and verifies it before use. Prints only the region and a masked summary.
+      - name: Derive and verify target connection
+        id: derive
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            echo "::error::SUPABASE_PROJECT_REF secret is not available."; exit 1
+          fi
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "::error::SUPABASE_DB_PASSWORD secret is not available."; exit 1
+          fi
+
+          guard_url() {
+            GUARD_DB_URL_VAR=PRISMA_DATABASE_URL_CANDIDATE \
+            PRISMA_DATABASE_URL_CANDIDATE="$1" \
+              node scripts/lib/guard-approved-db-url.mjs
+          }
+
+          REGION=""
+          REGION_FROM_API=$(curl -fsS --max-time 30 \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(j.region||"")}catch{process.stdout.write("")}})' || true)
+          if [ -n "$REGION_FROM_API" ]; then
+            REGION="$REGION_FROM_API"
+            echo "Project region (Management API): ${REGION}"
+            HOSTS=("aws-0-${REGION}.pooler.supabase.com" "aws-1-${REGION}.pooler.supabase.com")
+          else
+            echo "Management API unavailable (region unknown); scanning known Supavisor hosts."
+            HOSTS=()
+            for R in ap-south-1 ap-northeast-1 ap-northeast-2 ap-southeast-1 ap-southeast-2 \
+                     us-east-1 us-east-2 us-west-1 us-west-2 eu-west-1 eu-west-2 eu-central-1 \
+                     ca-central-1 sa-east-1 ap-east-1; do
+              HOSTS+=("aws-0-${R}.pooler.supabase.com" "aws-1-${R}.pooler.supabase.com")
+            done
+          fi
+
+          PW="$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$SUPABASE_DB_PASSWORD")"
+          URL=""
+          for HOST in "${HOSTS[@]}"; do
+            CAND="postgresql://postgres.${SUPABASE_PROJECT_REF}:${PW}@${HOST}:5432/postgres?sslmode=require"
+            echo "::add-mask::$CAND"
+            # Verified before the probe, so no connection is attempted to an
+            # unapproved project even transiently.
+            if ! guard_url "$CAND"; then
+              echo "::error::Refusing: the derived connection string does not resolve to the approved production project."
+              exit 1
+            fi
+            if node scripts/lib/probe-pg-url.mjs "$CAND"; then
+              echo "Reachable via ${HOST}:5432 (session pooler)."
+              URL="$CAND"
+              break
+            fi
+          done
+          if [ -z "$URL" ]; then
+            echo "::error::Could not reach the target database through any known pooler host."
+            exit 1
+          fi
+          echo "::add-mask::$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Derived target: postgres://postgres.<ref>@<host>:5432/postgres (masked)"
+
+      # Runs the audit inside an explicit READ ONLY transaction. The runner writes
+      # catalog output to the runner temp dir; stdout carries only the aggregate
+      # summary, so no catalog rows reach the public workflow log.
+      - name: Run read-only catalog audit
+        id: audit
+        env:
+          F_A16_DB_URL: ${{ steps.derive.outputs.url }}
+        run: |
+          set -eu
+          node scripts/lib/run-catalog-audit.mjs \
+            docs/audits/F_A16_READ_ONLY_CATALOG_AUDIT.sql \
+            "$RUNNER_TEMP/f-a16-audit.log"
+          echo "Catalog output written to the runner temp dir (not printed to the log)."
+
+      - name: Check the age recipient
+        id: age_secret
+        env:
+          F_A16_AUDIT_AGE_RECIPIENT: ${{ secrets.F_A16_AUDIT_AGE_RECIPIENT }}
+          SEVA_BACKUP_AGE_RECIPIENT: ${{ secrets.SEVA_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -eu
+          RECIPIENT="${F_A16_AUDIT_AGE_RECIPIENT:-${SEVA_BACKUP_AGE_RECIPIENT:-}}"
+          if [ -z "$RECIPIENT" ]; then
+            echo "::error::No age recipient secret is set (F_A16_AUDIT_AGE_RECIPIENT or SEVA_BACKUP_AGE_RECIPIENT)."
+            echo "::error::Refusing to upload catalog output unencrypted to a public repository."
+            exit 1
+          fi
+          case "$RECIPIENT" in
+            *age1*) : ;;
+            *) echo "::error::The configured age recipient does not look like an age public key (age1...)."; exit 1 ;;
+          esac
+          echo "recipient_present=true" >> "$GITHUB_OUTPUT"
+
+      - name: Encrypt the audit output
+        id: encrypt
+        env:
+          F_A16_AUDIT_AGE_RECIPIENT: ${{ secrets.F_A16_AUDIT_AGE_RECIPIENT }}
+          SEVA_BACKUP_AGE_RECIPIENT: ${{ secrets.SEVA_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -eu
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends age ca-certificates
+          RECIPIENT="${F_A16_AUDIT_AGE_RECIPIENT:-${SEVA_BACKUP_AGE_RECIPIENT:-}}"
+          STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          OUT="$RUNNER_TEMP/f-a16-catalog-audit-${STAMP}.age"
+          # Encrypt straight from the log; the encrypted file is the only artifact.
+          age -r "$RECIPIENT" -o "$OUT" "$RUNNER_TEMP/f-a16-audit.log"
+          sha256sum "$OUT" | awk '{print $1}' > "$OUT.sha256"
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+          echo "sha256_file=$OUT.sha256" >> "$GITHUB_OUTPUT"
+          echo "Encrypted catalog audit output produced (age)."
+
+      - name: Upload the encrypted audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: f-a16-catalog-audit-${{ github.run_id }}
+          path: |
+            ${{ steps.encrypt.outputs.file }}
+            ${{ steps.encrypt.outputs.sha256_file }}
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
+
+      # Non-sensitive aggregate only. No catalog rows, no policy text, no
+      # function definitions, no credentials, no refs.
+      - name: Write a non-sensitive job summary
+        if: always()
+        run: |
+          {
+            echo "### F-A16 read-only catalog audit"
+            echo ""
+            echo "Run: ${{ github.run_id }} (dispatch). Encrypted artifact: \`f-a16-catalog-audit-${{ github.run_id }}\`."
+            echo ""
+            echo "Catalog output is encrypted; it is not present in this summary or the log."
+            echo ""
+            echo "Statement totals are in the \"Run read-only catalog audit\" step log."
+          } >> "$GITHUB_STEP_SUMMARY"
