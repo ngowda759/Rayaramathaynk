@@ -616,6 +616,30 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     guardStyle: "step",
     concurrencyGroup: "supabase-migrations-test",
   },
+  {
+    // F-A16 production catalog audit. Read-only: it executes a fixed SELECT/SHOW
+    // catalog file inside an explicit `BEGIN READ ONLY` transaction with
+    // `default_transaction_read_only=on` and a SELECT/WITH/SHOW allowlist in the
+    // runner. It opens a Postgres session over the IPv4 session pooler (the direct
+    // host is IPv6-only), so it verifies the destination before the first
+    // connection, exactly like the Prisma drift gate. Output is encrypted before
+    // upload because the repository is public.
+    id: "f-a16-production-catalog-audit",
+    file: "f-a16-production-catalog-audit.yml",
+    kind: "connect",
+    commands: [
+      "node scripts/lib/probe-pg-url.mjs",
+      "node scripts/lib/run-catalog-audit.mjs",
+    ],
+    rawCli: false,
+    guard: "node scripts/lib/guard-approved-db-url.mjs",
+    guardVar: "PRISMA_DATABASE_URL_CANDIDATE",
+    destructive: false,
+    trigger: "manual",
+    environment: "f-a16-catalog-audit",
+    guardStyle: "step",
+    concurrencyGroup: "f-a16-catalog-audit",
+  },
 ];
 
 export function readWorkflow(file: string): string {
