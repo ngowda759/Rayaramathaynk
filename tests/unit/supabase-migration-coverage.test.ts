@@ -46,6 +46,17 @@ describe("extractDeclaredTables", () => {
   it("declares a seva_bookings table in the migrations directory", () => {
     expect(extractDeclaredTables(readMigrations())).toContain("seva_bookings");
   });
+
+  it("does not treat `CREATE TABLE AS` or an event-trigger tag list as a table", () => {
+    // `CREATE TABLE ... AS SELECT` and the literal tag string 'CREATE TABLE AS'
+    // (used by the F-A16 RLS event trigger) both put the keyword `AS` where a table
+    // name would be. Neither is a declaration.
+    const sql = [
+      "CREATE TABLE real_one AS SELECT 1;",
+      "CREATE EVENT TRIGGER t ON ddl_command_end WHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS') EXECUTE FUNCTION f();",
+    ];
+    expect(extractDeclaredTables(sql)).toEqual(["real_one"]);
+  });
 });
 
 describe("diffTableCoverage", () => {
