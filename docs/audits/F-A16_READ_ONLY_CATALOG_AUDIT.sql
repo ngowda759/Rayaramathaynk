@@ -104,6 +104,20 @@ FROM   pg_class c
 JOIN   pg_namespace n ON n.oid = c.relnamespace
 WHERE  n.nspname = 'public' AND c.relkind IN ('r', 'p');
 
+-- Cross-check via the pg_tables convenience view. NOTE: pg_tables covers ordinary
+-- and foreign tables but NOT partitioned parents, so its count can be lower than
+-- the pg_class count above (pg_class relkind 'r' only). Record both; a mismatch is
+-- expected when partitioned tables exist, not an error.
+-- Proves: the same table set from a second, independent view.
+SELECT tablename, tableowner, rowsecurity AS rls_enabled, tablespace, hasindexes
+FROM   pg_tables
+WHERE  schemaname = 'public'
+ORDER  BY tablename;
+
+SELECT count(*) AS public_tables_pg_tables_view
+FROM   pg_tables
+WHERE  schemaname = 'public';
+
 
 -- ---------------------------------------------------------------------------
 -- §2. Effective table privileges (the grant matrix)  → F-A15.1-3, F-A16 §5
@@ -143,6 +157,20 @@ FROM   pg_roles r
 WHERE  r.rolname IN ('anon', 'authenticated', 'service_role', 'postgres',
                      'supabase_admin', 'dashboard_user')
 ORDER  BY r.rolname;
+
+-- Cross-check via information_schema.table_privileges. Unlike role_table_grants
+-- (one row per grantee-with-grants), table_privileges also emits rows for the
+-- current role's own privileges and is the view the task names explicitly.
+-- Proves: the same grant matrix from a second, independent view; useful to
+-- reconcile the record count when a role is a member of another role.
+SELECT table_name, grantor, grantee, privilege_type, is_grantable, with_hierarchy
+FROM   information_schema.table_privileges
+WHERE  table_schema = 'public'
+ORDER  BY table_name, grantee, privilege_type;
+
+SELECT count(*) AS public_table_privileges_records
+FROM   information_schema.table_privileges
+WHERE  table_schema = 'public';
 
 
 -- ---------------------------------------------------------------------------

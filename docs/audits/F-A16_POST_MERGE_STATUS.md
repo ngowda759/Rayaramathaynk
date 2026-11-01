@@ -116,8 +116,8 @@ verified, and the audit must not be declared complete.
 
 To finish the catalog audit, the following must be read on the production project:
 
-1. `pg_class` / `pg_namespace` — tables, RLS, FORCE RLS, owners.
-2. `information_schema.role_table_grants` — the full privilege matrix.
+1. `pg_class` / `pg_namespace` and `pg_tables` — tables, RLS, FORCE RLS, owners.
+2. `information_schema.role_table_grants` and `information_schema.table_privileges` — the full privilege matrix.
 3. `pg_policies` — policy text, counts, permissive/restrictive split.
 4. `pg_proc` + `has_function_privilege` — function inventory, SECURITY DEFINER, EXECUTE grants.
 5. `pg_default_acl` — default privileges.
@@ -210,7 +210,7 @@ printed, requested, or committed. Project refs are shown only as non-reversible 
 
 | Question | Answer |
 |---|---|
-| Is the SQL audit ready for owner execution? | **Yes** — `docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql` is complete, SELECT-only (33 statements, validated), and covers all outstanding catalog items. |
+| Is the SQL audit ready for owner execution? | **Yes** — `docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql` is complete, SELECT-only (37 statements, validated), and covers all outstanding catalog items. |
 | Is the production catalog audit complete? | **No** — 0% of the catalog items are verified; 100% blocked on production read access. |
 | What is verified? | The **API/deployment** layer only (F-A16): identity validated live, anon-visibility census, PR #370 endpoint behaviour. |
 | What remains unverified? | All catalog items in §3 — RLS flags, policies, grants, EXECUTE, FORCE RLS, default ACLs, ledger, Storage, extensions. |
