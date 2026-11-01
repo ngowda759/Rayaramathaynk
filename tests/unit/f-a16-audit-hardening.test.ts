@@ -83,7 +83,11 @@ function runHarness<T = unknown>(body: string, env: Record<string, string> = {})
 const FAKE_CLIENT = `
 function fakeClient(opts) {
   opts = opts || {};
-  const state = { n: 0, queries: [] };
+  const state = { n: 0, queries: [], setSent: false };
+  // honorSet:false models a pooled session that arrives writable and drops the SET.
+  const initial = opts.honorSet === false ? "off" : "on";
+  let ro = opts.ro ?? initial;
+  let defRo = opts.defRo ?? initial;
   return {
     state,
     async connect() {},
@@ -91,8 +95,16 @@ function fakeClient(opts) {
     async query(sql, params) {
       const s = String(sql);
       state.queries.push(s);
-      if (s === "show transaction_read_only") return { rows: [{ transaction_read_only: opts.ro || "on" }] };
-      if (s === "show default_transaction_read_only") return { rows: [{ default_transaction_read_only: opts.defRo || "on" }] };
+      // The read-only SET is the mechanism under test. By default the fake models a
+      // server that forwards ordinary SQL and honours it (honorSet). Pass
+      // honorSet:false to model a session that stays writable after the SET.
+      if (s === "SET default_transaction_read_only = on") {
+        state.setSent = true;
+        if (opts.honorSet !== false) { ro = "on"; defRo = "on"; }
+        return { rows: [] };
+      }
+      if (s === "show transaction_read_only") return { rows: [{ transaction_read_only: ro }] };
+      if (s === "show default_transaction_read_only") return { rows: [{ default_transaction_read_only: defRo }] };
       if (s.startsWith("select current_setting")) {
         const name = params && params[0];
         return { rows: [{ value: (opts.settings || {})[name] ?? null }] };
@@ -311,6 +323,90 @@ describe("F-A16 runner safety seams", () => {
       console.log("__RESULT__" + JSON.stringify({ ok }));
     `);
     expect(result?.ok).toBe(false);
+  });
+
+  it("enforceReadOnly sends the SET, then returns the read-only proof", () => {
+    const { result } = runHarness<{ ok: boolean; setFirst: boolean; txn: string; def: string }>(`
+      ${FAKE_CLIENT}
+      const m = await import(${JSON.stringify(RUNNER)});
+      const client = fakeClient({});
+      const proof = await m.enforceReadOnly((t) => client.query(t));
+      console.log("__RESULT__" + JSON.stringify({
+        ok: true,
+        setFirst: client.state.queries[0] === "SET default_transaction_read_only = on",
+        txn: proof.txnReadOnly,
+        def: proof.defReadOnly,
+      }));
+    `);
+    expect(result).toEqual({ ok: true, setFirst: true, txn: "on", def: "on" });
+  });
+
+  it("enforceReadOnly throws when the session stays writable after the SET (pooler dropped it)", () => {
+    // This is the exact production failure mode: the SET is not honoured, so the
+    // session is still writable and enforcement must fail closed.
+    const { result } = runHarness<{ threw: boolean; message: string; setSent: boolean }>(`
+      ${FAKE_CLIENT}
+      const m = await import(${JSON.stringify(RUNNER)});
+      const client = fakeClient({ honorSet: false });
+      let threw = false, message = "";
+      try { await m.enforceReadOnly((t) => client.query(t)); }
+      catch (e) { threw = true; message = String(e.message); }
+      console.log("__RESULT__" + JSON.stringify({ threw, message, setSent: client.state.setSent }));
+    `);
+    expect(result?.threw).toBe(true);
+    expect(result?.setSent).toBe(true);
+    expect(result?.message).toMatch(/not read-only/);
+  });
+
+  it("runAudit aborts before any catalog query when read-only cannot be established", () => {
+    const { result } = runHarness<{ threw: boolean; catalogRan: boolean; began: boolean }>(`
+      ${FAKE_CLIENT}
+      const m = await import(${JSON.stringify(RUNNER)});
+      const client = fakeClient({ honorSet: false });
+      let threw = false;
+      try {
+        await m.runAudit({
+          client,
+          outFile: "/dev/null",
+          checked: [{ i: 1, sql: "select 1" }],
+          managementApi: { ok: true, ref: APPROVED, region: "ap-south-1" },
+          hostRegion: "ap-south-1",
+        });
+      } catch { threw = true; }
+      console.log("__RESULT__" + JSON.stringify({
+        threw,
+        catalogRan: client.state.queries.some((q) => q === "select 1"),
+        began: client.state.queries.includes("BEGIN READ ONLY"),
+      }));
+    `);
+    expect(result).toEqual({ threw: true, catalogRan: false, began: false });
+  });
+
+  it("runAudit issues the SET before BEGIN READ ONLY, and runs the catalog inside the read-only transaction", () => {
+    const { result } = runHarness<{ setBeforeBegin: boolean; catalogInsideTxn: boolean; exitCode: number }>(`
+      ${FAKE_CLIENT}
+      const m = await import(${JSON.stringify(RUNNER)});
+      const client = fakeClient({});
+      const outFile = "/tmp/f-a16-order-" + process.pid + ".log";
+      const r = await m.runAudit({
+        client,
+        outFile,
+        checked: [{ i: 1, sql: "select 1" }],
+        managementApi: { ok: true, ref: APPROVED, region: "ap-south-1" },
+        hostRegion: "ap-south-1",
+      });
+      rmSync(outFile, { force: true });
+      const q = client.state.queries;
+      const setIdx = q.indexOf("SET default_transaction_read_only = on");
+      const beginIdx = q.indexOf("BEGIN READ ONLY");
+      const catIdx = q.indexOf("select 1");
+      console.log("__RESULT__" + JSON.stringify({
+        setBeforeBegin: setIdx > -1 && beginIdx > -1 && setIdx < beginIdx,
+        catalogInsideTxn: beginIdx > -1 && catIdx > beginIdx && catIdx < q.indexOf("ROLLBACK"),
+        exitCode: r.exitCode,
+      }));
+    `);
+    expect(result).toEqual({ setBeforeBegin: true, catalogInsideTxn: true, exitCode: 0 });
   });
 
   it("aborts when identity cannot be established, before any catalog query", () => {

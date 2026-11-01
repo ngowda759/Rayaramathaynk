@@ -11,10 +11,19 @@
 //      the pooler host actually connected to must match, and the session must carry
 //      the Supabase-managed roles. If identity cannot be established, the run
 //      aborts before any catalog query.
-//   3. The session is forced read-only: `default_transaction_read_only=on` is sent
-//      as a startup parameter, and every statement runs inside an explicit
-//      `BEGIN READ ONLY; ... ROLLBACK;` transaction. The read-only state is read
-//      back and the run aborts if it is not `on`.
+//   3. The session is forced read-only two ways and then proven:
+//      (a) `SET default_transaction_read_only = on` is sent as ordinary SQL right
+//          after connect. This is the pooler-reliable mechanism: Supavisor (the
+//          Supabase pooler) does NOT forward the startup `options` packet, so the
+//          `-c default_transaction_read_only=on` client option never reaches the
+//          server through the session pooler and the session comes up writable.
+//          Ordinary SQL *is* forwarded, so the SET takes effect.
+//      (b) every statement runs inside an explicit `BEGIN READ ONLY; ... ROLLBACK;`
+//          transaction, which the backend enforces per transaction and which
+//          cannot leak across a pooled connection.
+//      The read-only state is then read back; the run aborts unless BOTH
+//      `transaction_read_only` and `default_transaction_read_only` read `on`, so a
+//      dropped SET fails closed rather than silently running writable.
 //   4. Every statement is checked against a read-only allowlist before it is sent.
 //      Anything that is not SELECT/WITH/SHOW aborts the run before it executes.
 //   5. A per-statement timeout and a connection timeout bound the run.
@@ -155,6 +164,24 @@ export async function assertReadOnlySession(query) {
 }
 
 /**
+ * Force the session read-only through ordinary SQL, then prove it.
+ *
+ * The Supabase pooler (Supavisor) drops the startup `options` packet, so the
+ * `-c default_transaction_read_only=on` client option cannot be relied on: the
+ * session arrives writable. An ordinary `SET` IS forwarded, so we send it here and
+ * then verify the result with `assertReadOnlySession`. A session that is still
+ * writable — the SET silently dropped, or a server that refuses it — throws before
+ * any catalog statement is sent, so the audit fails closed instead of running
+ * writable.
+ *
+ * `query` is injected so the sequence can be tested without a database.
+ */
+export async function enforceReadOnly(query) {
+  await query("SET default_transaction_read_only = on");
+  return assertReadOnlySession(query);
+}
+
+/**
  * Run every audited statement, recording failures without aborting the loop.
  * `query` is injected (a real `pg` client in production; a fake in tests), so the
  * loop, the redaction and the completeness decision are the real code paths.
@@ -207,6 +234,9 @@ const client = IS_CLI
       statement_timeout: 20000,
       query_timeout: 25000,
       application_name: "f-a16-catalog-audit",
+      // `options` is kept as belt-and-braces: it works on a direct connection but
+      // is NOT forwarded by the Supabase session pooler, so it is not relied on.
+      // The effective enforcement is the explicit `SET` in `enforceReadOnly`.
       options: "-c default_transaction_read_only=on",
     })
   : null;
@@ -231,7 +261,7 @@ function makeEmit(outFile) {
 export async function runAudit({ client, outFile, checked, managementApi, hostRegion }) {
   await client.connect();
 
-  const { txnReadOnly, defReadOnly } = await assertReadOnlySession((t) => client.query(t));
+  const { txnReadOnly, defReadOnly } = await enforceReadOnly((t) => client.query(t));
 
   console.log("### SESSION SAFETY ###");
   console.log(`  transaction_read_only         = ${txnReadOnly}`);
