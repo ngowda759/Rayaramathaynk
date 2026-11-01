@@ -25,7 +25,7 @@ confirm; *Unverified* = the audit explicitly recorded it as unread.
 | Finding | Severity | Confirmed? | Remediation in this PR | Applied? |
 |---|---|---|---|---|
 | F-A16-01 — broad existing table grants to `anon`/`authenticated` | **High** | Assumption (from F-A15.1 + platform defaults) | Proposed grant audit + explicit least-privilege migration is **deferred**; documented here with the exact query and the manual-validation list | No |
-| F-A16-02 — broad default ACLs for future objects | **High** | Confirmed (platform defaults; repo has none) | `20261115000000_f_a16_least_privilege_defaults.sql` | No |
+| F-A16-02 — broad default ACLs for future objects | **High** | Confirmed (platform defaults; repo has none) | `20261115000000_f_a16_least_privilege_defaults.sql` — enumerates **every** object-creating role and fails closed if one cannot be covered; `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` for the split-out owner step | No |
 | F-A16-03 — RLS auto-enable fail-open | **Medium** | Confirmed (function body in F-A15.1) | `20261115000100_f_a16_fail_closed_rls_assertion.sql` | No |
 | F-A16-04 — `seva_list_items` RLS, zero policies | **Info / by design** | Confirmed (migration + app code) | Documented as intentional; guard tests added | N/A |
 | F-A16-05 — private Storage bucket, zero policies | **Info / by design** | Confirmed (app uses Vercel Blob) | Documented; guard tests added | N/A |
@@ -107,11 +107,38 @@ reproduction is now a permanent test (`tests/db/f-a16-least-privilege.test.ts`).
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated` | no public role can advance a sequence |
 | `ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` | removes the implicit `PUBLIC` `EXECUTE` on future functions |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated` | removes the platform's explicit grant to those roles |
-| guarded `DO` block repeating the above `FOR ROLE supabase_admin` | covers the other object-owning role when the current role may act for it; otherwise a `NOTICE` |
+| `DO` block enumerating owners from `pg_default_acl` and repeating the above `FOR ROLE <owner>` | covers **every** object-creating role whose ACL still names a public-facing grantee — not just `supabase_admin` |
+| `DO` block raising if an owner cannot be covered | the migration **fails closed** and rolls back; F-A16-02 is never described as complete while a role was skipped |
+| `DO` block verifying the post-condition via `aclexplode` | a silent no-op revoke cannot pass; the implicit `PUBLIC` `EXECUTE` is verified separately |
 
 A `DO` block first **raises** if `anon`, `authenticated` or `service_role` is absent, so
 the migration fails loudly rather than silently leaving the defaults broad on a
 non-Supabase database.
+
+#### 2.4.1 Why the migration enumerates roles instead of naming them
+
+Default privileges belong to the role that will *create* the object, not to the schema.
+`ALTER DEFAULT PRIVILEGES FOR ROLE x` may only be issued by a member of `x` (or by a
+superuser) — verified on PGlite: a member may act for a role it is a member of, and is
+refused for any other. A migration that only named `postgres` and `supabase_admin` would
+therefore be wrong twice over: it would miss a third owner if one existed, and it would
+have no way to tell a reviewer whether a role had actually been covered.
+
+So section 4 of the migration discovers the owner set from `pg_default_acl`, applies the
+same five revokes for each owner it may act for, and **raises** if any owner is left. The
+raise rolls the whole migration back (`ALTER DEFAULT PRIVILEGES` is transactional —
+verified on PGlite), so the database is never left half-tightened. The exception hint
+names the split-out owner-run step:
+
+* `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` — the same tightening, run as
+  the role that owns the defaults (or as a superuser). It re-checks
+  `pg_has_role(current_user, target, 'MEMBER')` and raises if the operator still cannot
+  act, so it cannot silently do nothing either.
+
+The precondition for applying the migration is therefore: **run it as a role that is a
+member of every object-creating role in `public`, or accept that it will stop and hand
+you the owner-run step.** Section 9 item 7 is the read-only catalog query that answers
+this ahead of time.
 
 ### 2.5 Explicitly preserved backend privileges
 
@@ -145,8 +172,12 @@ migration is safe to apply without an application-dependency audit:
 * The **exact** current `pg_default_acl` rows for `postgres` and `supabase_admin`
   (the audit could not read the catalog; this plan reproduces the *documented platform*
   defaults).
-* Whether any *additional* role owns objects in `public` (the `DO` block covers
-  `supabase_admin`; a live `pg_default_acl` read is the confirmation).
+* Whether any *additional* role owns objects in `public`. The migration no longer
+  assumes an answer — it reads `pg_default_acl` and fails closed if it cannot cover what
+  it finds — but the *list* still needs a live read to plan the owner-run step (§9 item 7).
+* Whether the applying role is a member of every such owner. If it is not, the migration
+  will stop at the first owner it cannot cover and the operator must run the owner-run
+  step. This is a deliberate fail-closed outcome, not a defect.
 
 ---
 
@@ -199,7 +230,15 @@ to run `ALTER TABLE … ENABLE ROW LEVEL SECURITY` aborts the creating transacti
 * It adds a second, repo-owned event trigger `f_a16_assert_public_rls` on the **same**
   `ddl_command_end` tags. Postgres fires same-event triggers in name order, so
   `ensure_rls` (e…) runs before `f_a16_assert_public_rls` (f…): the assertion always
-  observes the enabler's effect.
+  observes the enabler's effect. (Proven, not assumed: two triggers created in the
+  reverse of their name order still fired in name order on PGlite.)
+* **Precondition.** The assertion blocks *any* `public` table that reaches
+  `ddl_command_end` with RLS off, so it is incompatible with the repository's own
+  `CREATE TABLE …; ALTER TABLE … ENABLE ROW LEVEL SECURITY;` pattern *unless* an enabled
+  enabler runs first. The migration therefore verifies that an enabled
+  `ddl_command_end` trigger calling `rls_auto_enable()` exists and **raises** if it does
+  not, before creating anything. Installing the guard without an enabler would turn every
+  future table creation into a hard failure — worse than failing the migration.
 * The assertion reads `pg_class.relrowsecurity` **by `cmd.objid`** for each newly
   created `public` table and `RAISE EXCEPTION` (SQLSTATE `insufficient_privilege`) if it
   is false. A failure therefore **prevents the unsafe table creation from succeeding**.
@@ -208,9 +247,12 @@ Measured (PGlite):
 
 | Scenario | Result |
 |---|---|
-| enabler present, creates a `public` table | RLS on, creation succeeds |
-| enabler **absent**, creates a `public` table | creation **rejected**, no table left behind |
+| enabler present **and enabled**, assertion installed | installed; repo pattern (`CREATE TABLE`, then explicit `ENABLE RLS`) succeeds |
+| enabler **absent** | assertion **refuses to install** (precondition) |
+| enabler present but **disabled** | assertion **refuses to install** (precondition) |
+| enabler disabled **after** install, creates a `public` table | creation **rejected**, no table left behind |
 | `CREATE TABLE … AS` then `DISABLE ROW LEVEL SECURITY` | creation **rejected** |
+| `CREATE TABLE IF NOT EXISTS` on an existing table | allowed — the event does not fire when the statement is skipped, so re-running a migration is not a spurious failure |
 | creates a table in a non-`public` schema | allowed, RLS untouched (assertion scoped to `public`) |
 
 ### 3.4 Secure `search_path` preserved
@@ -220,14 +262,77 @@ references (`pg_event_trigger_ddl_commands`, `pg_class`, `format`) is in `pg_cat
 It needs no elevated right, and it does not change `rls_auto_enable`'s own
 `SET search_path = pg_catalog`.
 
+The assertion body contains **no** `RAISE LOG`/`WARNING`/`NOTICE` and no
+`EXCEPTION WHEN` handler: it can only raise. A `NOTICE` in the assertion body would make
+it fail open, so a structural test forbids one there. (The *precondition* block, which
+runs once at install time, does emit a `NOTICE` on the success path — that is not a
+failure path.)
+
 ### 3.5 Compatibility
 
-* Supabase PostgreSQL 15+/18: `ddl_command_end` event triggers, `pg_event_trigger_ddl_commands()`
-  and `pg_class.relrowsecurity` are all long-standing. Verified on PGlite 0.5.10 /
-  PostgreSQL 18.6.
+**What was verified where.** Every behavioural claim in §3.3 was measured on PGlite
+0.5.10 / PostgreSQL 18.6, an in-process Postgres. That is a faithful test of *Postgres
+semantics* — event-trigger firing order, `ddl_command_end` behaviour for
+`CREATE TABLE IF NOT EXISTS`, `pg_event_trigger_ddl_commands()` fields,
+`pg_class.relrowsecurity`, and the transactionality of `ALTER DEFAULT PRIVILEGES`. It is
+**not** a test of the Supabase platform layer, and it must not be reported as one.
+
+| Assumption | Status | How it can be confirmed (read-only) |
+|---|---|---|
+| Event triggers fire in name order for the same event | **Verified** (PGlite; two triggers created in reverse name order still fired by name) | not needed — PostgreSQL behaviour |
+| The enabler trigger is named `ensure_rls` | **Assumption** (Supabase docs + F-A15.1) | `SELECT evtname, evtenabled, evtfoid::regprocedure FROM pg_event_trigger` |
+| `ensure_rls` is enabled | **Unverified** — the audit could not read it (F-A15.1 §12 item 5) | same query, read `evtenabled` |
+| `ensure_rls`'s function is owned by `postgres` and is `SECURITY DEFINER` | **Assumption** (F-A15.1 §4.1) | `SELECT proowner::regrole, prosecdef FROM pg_proc WHERE proname='rls_auto_enable'` |
+| The `f_a16_assert_public_rls` name sorts after `ensure_rls` | **Verified by construction** (`e` < `f`) | `SELECT evtname FROM pg_event_trigger ORDER BY evtname` |
+| The applying role may create an event trigger | **Assumption** — only `postgres` (via `supautils`) may manage event triggers on Supabase | the migration's own `CREATE EVENT TRIGGER` fails loudly if not |
+| Supabase PostgreSQL supports `ddl_command_end` event triggers | **Confirmed** — this is how the platform's own `ensure_rls` works | not needed |
+
+The precondition block is written so that the two load-bearing assumptions (`ensure_rls`
+exists, and is enabled) are **checked at apply time** rather than trusted. If either is
+false the migration stops with an actionable message instead of installing a guard that
+would block every future table creation.
+
 * Existing migrations: the assertion is forward-only. It does not scan or alter
   existing tables, so it cannot conflict with any applied migration. It is idempotent
   (`DROP EVENT TRIGGER IF EXISTS` then `CREATE`; `CREATE OR REPLACE FUNCTION`).
+
+### 3.6 The read-only checks this finding needs in production
+
+Run these in the Supabase SQL editor. They are read-only and change nothing; they
+confirm the precondition and the owner set against the real catalog. They are given
+inline rather than appended to `docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql` so that
+artifact — and the guard that pins its statement count and its SELECT-only property —
+stays exactly as the completed audit produced it.
+
+```sql
+-- Does the enabler exist, what is it called, and is it enabled?
+SELECT e.evtname, e.evtenabled, e.evtfoid::regprocedure AS function_called,
+       pg_get_userbyid(e.evtowner) AS owner
+  FROM pg_event_trigger e
+ WHERE e.evtevent = 'ddl_command_end'
+ ORDER BY e.evtname;
+
+-- Is the enabler's function SECURITY DEFINER with a pinned search_path?
+SELECT p.proname, p.prosecdef, p.proconfig, pg_get_userbyid(p.proowner) AS owner
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.proname = 'rls_auto_enable';
+
+-- What are the exact default ACLs, and who owns them? (the owner list for F-A16-02)
+SELECT pg_get_userbyid(d.defaclrole) AS owner_role, n.nspname AS schema,
+       d.defaclobjtype AS object_type, d.defaclacl::text AS default_acl
+  FROM pg_default_acl d
+  LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+ ORDER BY 1, 2, 3;
+
+-- Which roles can create objects in public (the full owner set, not just the two assumed)?
+SELECT r.rolname
+  FROM pg_roles r
+ WHERE has_schema_privilege(r.oid, 'public', 'CREATE') OR r.rolsuper
+ ORDER BY 1;
+```
+
+The result of the third and fourth queries is what decides whether the migration applies
+in one pass or stops and requires the owner-run step.
 
 ---
 
@@ -391,6 +496,11 @@ reversible by restoring the previous state explicitly.
 
 ### 7.1 F-A16-02 — restore the platform defaults
 
+If the migration covered more than the applying role, the rollback must be repeated
+`FOR ROLE <owner>` for each owner it touched. The owner-run step
+(`docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` §3) carries the `FOR ROLE`
+form of the rollback for `supabase_admin`.
+
 ```sql
 -- Restore the documented Supabase platform defaults for objects created by postgres.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO anon, authenticated, service_role;
@@ -440,6 +550,7 @@ force, which is the safe combination.
 | new function in `public` | `authenticated` | EXECUTE (explicit + implicit PUBLIC) | **none** |
 | new function in `public` | `service_role` | EXECUTE | EXECUTE (unchanged, reviewed exception) |
 | **existing** object of any kind | any role | unchanged | **unchanged** |
+| new object owned by **any other** object-creating role (e.g. `supabase_admin`) | `anon`/`authenticated` | broad defaults | **none** — or the migration **stops** and the owner-run step is required |
 
 ### 8.2 RLS auto-enable — F-A16-03
 
@@ -449,6 +560,8 @@ force, which is the safe combination.
 | new `public` table, enabler absent/disabled | created with RLS **off** | creation **rejected** |
 | new `public` table, enabler throws (e.g. not owner) | creation aborted (re-raise) | creation aborted (unchanged) |
 | new table in a non-`public` schema | allowed, RLS off | allowed, RLS off (unchanged) |
+| **applying the assertion** with no enabled enabler | n/a | migration **refused** (precondition) — no guard installed |
+| `CREATE TABLE IF NOT EXISTS` on an existing table | no-op | no-op (event does not fire) |
 
 ### 8.3 Existing table grants — F-A16-01 (proposed, not executed)
 
@@ -474,8 +587,9 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | 4 | Sequences used by `INSERT` (`serial`/identity) | `service_role` needs `USAGE` on the sequence | confirm `service_role` sequence `USAGE` is retained |
 | 5 | `anon` `401 permission denied` on 21 tables | confirms the API refuses those tables for `anon` | re-run the audit census |
 | 6 | `pg_default_acl` rows for `postgres` **and** `supabase_admin` | the migration assumes the documented defaults | read `pg_default_acl` live and compare |
-| 7 | Whether any role beyond `postgres`/`supabase_admin` owns objects in `public` | the `DO` block covers only `supabase_admin` | `SELECT DISTINCT pg_get_userbyid(relowner) FROM pg_class WHERE relnamespace='public'::regnamespace` |
-| 8 | The event trigger `ensure_rls` is enabled | F-A16-03 assumes it runs before the assertion | `SELECT evtname, evtenabled FROM pg_event_trigger` |
+| 7 | **Every** object-creating role in `public`, and whether the applying role is a member of each | the migration enumerates owners and **fails closed** on any it cannot cover; the owner-run step is the remedy | `SELECT DISTINCT pg_get_userbyid(defaclrole) FROM pg_default_acl WHERE defaclnamespace='public'::regnamespace`; then `SELECT pg_has_role(current_user, '<owner>', 'MEMBER')` per owner |
+| 8 | The event trigger `ensure_rls` exists, is named that, and is **enabled** | F-A16-03's precondition checks this at apply time and refuses if not | `SELECT evtname, evtenabled, evtfoid::regprocedure FROM pg_event_trigger WHERE evtevent='ddl_command_end'` |
+| 11 | Whether the applying role may create an event trigger at all | only `postgres` (via `supautils`) manages event triggers on Supabase | attempt is the test — the migration fails loudly; confirm by running it in a transaction and rolling back |
 | 9 | Raya AI retrieval browser paths | they use the browser client for public reads only | confirm no retrieval module reads a non-public table with the browser client |
 | 10 | Vercel Blob credentials and bucket | the whole media path depends on it, not Supabase Storage | confirm `BLOB_READ_WRITE_TOKEN` and gallery rendering |
 
@@ -493,6 +607,11 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | The exact current grant matrix on the 67 tables | **Unverified** — the audit could not read the catalog |
 | The exact `pg_default_acl` rows for `postgres`/`supabase_admin` | **Assumption** — documented platform defaults, not a live read |
 | That all 67 tables currently have RLS enabled | **Assumption** from F-A15.1; the F-A16 catalog read was not executed |
+| Event triggers fire in name order for the same event | **Verified** on PGlite with triggers created in reverse name order |
+| `ALTER DEFAULT PRIVILEGES` is transactional, so a raised post-condition rolls the migration back | **Verified** on PGlite (revoke inside a txn, raise, rollback → defaults unchanged) |
+| A member of a role may issue `ALTER DEFAULT PRIVILEGES FOR ROLE` for it; a non-member is refused | **Verified** on PGlite |
+| PGlite results transfer to Supabase production | **NOT verified** — PGlite proves PostgreSQL semantics only; the platform layer needs the §3.6 read-only queries |
+| The set of object-creating roles in production | **Unverified** — the migration enumerates it at apply time and fails closed, but the *list* needs §9 item 7 |
 
 ---
 
@@ -507,6 +626,7 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | `tests/unit/f-a16-seva-list-items-and-storage.test.ts` | F-A16-04 / F-A16-05 guards |
 | `tests/unit/f-a16-migration-ledger-reconciliation.test.ts` | F-A16-06 guard |
 | `tests/db/f-a16-least-privilege.test.ts` | behavioural PGlite tests for both migrations |
+| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | F-A16-02 split-out owner-run step for roles the migration could not act for |
 | `docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md` | F-A16-06 reconciliation report |
 | `docs/audits/F-A16_REMEDIATION_PLAN.md` | this document |
 

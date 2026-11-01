@@ -1,8 +1,9 @@
 -- Migration: F-A16-02 — least-privilege default privileges in `public`
 --
 -- Status: PROPOSED. NOT APPLIED. Applying it is an owner action, gated on review.
--- See docs/audits/F-A16_REMEDIATION_PLAN.md (finding F-A16-02) and
--- docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md.
+-- See docs/audits/F-A16_REMEDIATION_PLAN.md (finding F-A16-02),
+-- docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql (the split-out owner step)
+-- and docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md.
 --
 -- What this changes
 -- -----------------
@@ -18,8 +19,8 @@
 -- The broad defaults are NOT set by any migration in this repository. A repo-wide
 -- search for `ALTER DEFAULT PRIVILEGES` finds only `tests/db/harness.ts`, which
 -- recreates the platform's defaults so the seva migrations' REVOKEs are meaningful.
--- The live ACLs come from the Supabase platform, which runs, for the object-owning
--- roles (`postgres`, `supabase_admin`):
+-- The live ACLs come from the Supabase platform, which runs, for each object-owning
+-- role, the equivalent of:
 --
 --     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO anon, authenticated, service_role;
 --     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
@@ -29,8 +30,8 @@
 -- TRIGGER for `anon` and `authenticated`, and every new function arrives executable
 -- by them.
 --
--- Two mechanics matter, and both were verified against Postgres 18 (PGlite) before
--- this file was written:
+-- Three mechanics matter. All three were verified against Postgres 18 (PGlite)
+-- before this file was written; see the remediation plan §2.3.
 --
 --   1. Tables and sequences: a per-schema REVOKE *does* subtract from the platform's
 --      per-schema GRANT. Revoking `ALL ON TABLES`/`ALL ON SEQUENCES` from
@@ -42,6 +43,14 @@
 --      no-op. The global form (no `IN SCHEMA`) is required. Because `anon` and
 --      `authenticated` inherit through `PUBLIC`, removing the per-schema grant alone
 --      also leaves them executable; both statements are needed.
+--
+--   3. Ownership: default privileges belong to the role that will *create* the
+--      object, not to the schema. Every object-creating role therefore carries its
+--      own default ACL, and `ALTER DEFAULT PRIVILEGES FOR ROLE x` may only be issued
+--      by a role that is a member of `x` (or by a superuser). This file covers the
+--      applying role directly and then *enumerates* the remaining owners from
+--      `pg_default_acl` rather than assuming which they are — and fails closed if it
+--      finds one it cannot cover.
 --
 -- What is deliberately kept
 -- -------------------------
@@ -57,7 +66,7 @@
 -- most of them rely on this default rather than an explicit GRANT. Revoking it would
 -- require adding an explicit `GRANT EXECUTE` to every future function, which is a
 -- larger change than this finding supports. Recorded as a reviewed exception in the
--- remediation plan §4.3, not an oversight.
+-- remediation plan §2.5, not an oversight.
 --
 -- Idempotent: every statement is a REVOKE, and revoking a privilege that is not held
 -- is a no-op. Safe to re-run.
@@ -112,33 +121,122 @@ ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated;
 
 -- ---------------------------------------------------------------------------------
--- 4. Best effort for `supabase_admin` — the other object-owning role.
+-- 4. Every other object-creating role — enumerate, cover, or fail closed.
 -- ---------------------------------------------------------------------------------
--- Objects created by `supabase_admin` carry its own default ACL. This block applies
--- the same revokes when the current role may act for it; otherwise it records a
--- NOTICE and leaves it to the owner, rather than failing the whole migration or
--- pretending the default was changed. `postgres` on Supabase is a member of
--- `supabase_admin`, so in practice this succeeds.
+-- Sections 1–3 only affect objects created by the *applying* role. Default
+-- privileges are per-owner: `supabase_admin` (and any other role that creates
+-- objects in `public`) carries its own default ACL that sections 1–3 do not touch.
+--
+-- Rather than assume which roles those are, this block reads `pg_default_acl` for
+-- `public` and takes every owner whose ACL still names a public-facing grantee. For
+-- each, it applies the same five revokes if the applying role may act for it
+-- (`pg_has_role(..., 'MEMBER')`, which is the exact precondition Postgres enforces
+-- for `ALTER DEFAULT PRIVILEGES FOR ROLE`), and otherwise records it.
+--
+-- If any owner could not be covered, the block raises. The whole migration then rolls
+-- back, so the database is never left in a half-tightened state — and the remediation
+-- cannot be described as complete while a role was skipped. The remedy is the
+-- split-out owner-run step: docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql
 DO $$
 DECLARE
-  target constant text := 'supabase_admin';
+  target  text;
+  skipped text[] := ARRAY[]::text[];
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = target) THEN
-    RAISE NOTICE 'F-A16-02: role % does not exist; its default privileges are not applicable', target;
-    RETURN;
+  FOR target IN
+    SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole)
+      FROM pg_catalog.pg_default_acl d
+     WHERE d.defaclnamespace = 'public'::regnamespace
+       AND d.defaclacl::text ~ '(^|[,{])(anon|authenticated|service_role)='
+     ORDER BY 1
+  LOOP
+    -- Already handled by sections 1–3.
+    CONTINUE WHEN target = current_user;
+
+    IF NOT pg_catalog.pg_has_role(current_user, target, 'MEMBER') THEN
+      skipped := skipped || target;
+      CONTINUE;
+    END IF;
+
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated', target);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role', target);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated', target);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC', target);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated', target);
+  END LOOP;
+
+  IF array_length(skipped, 1) > 0 THEN
+    RAISE EXCEPTION 'F-A16-02: cannot tighten default privileges for object-creating role(s): %',
+      array_to_string(skipped, ', ')
+      USING HINT = 'Default privileges belong to the creating role and may only be changed by a member of it. Run docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql as that role (or as a superuser), then re-run this migration. F-A16-02 is NOT fully remediated until it succeeds.';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------------
+-- 5. Post-condition — verify, do not assume.
+-- ---------------------------------------------------------------------------------
+-- Sections 1–4 are revokes, and revoking an unheld privilege is a no-op, so a typo or
+-- a role that silently did nothing would otherwise pass unnoticed. This reads back
+-- the default ACLs and refuses to commit while any public-facing grant remains.
+-- `ALTER DEFAULT PRIVILEGES` is transactional (verified on PGlite), so a raise here
+-- rolls the whole migration back.
+DO $$
+DECLARE
+  offenders text;
+BEGIN
+  SELECT string_agg(DISTINCT format('%s %s -> %s (%s)',
+                                    pg_catalog.pg_get_userbyid(d.defaclrole),
+                                    d.defaclobjtype,
+                                    CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                                         ELSE pg_catalog.pg_get_userbyid(a.grantee) END,
+                                    a.privilege_type), '; ')
+    INTO offenders
+    FROM pg_catalog.pg_default_acl d,
+         pg_catalog.aclexplode(d.defaclacl) a
+   WHERE d.defaclnamespace = 'public'::regnamespace
+     AND (
+          -- tables and sequences: nothing at all for the public-facing roles
+          (d.defaclobjtype IN ('r', 'S')
+            AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+          -- tables: service_role keeps DML, loses the two rights RLS cannot cover
+       OR (d.defaclobjtype = 'r'
+            AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+            AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+          -- functions: no public-facing role, and no implicit PUBLIC
+       OR (d.defaclobjtype = 'f'
+            AND (a.grantee = 0
+                 OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+     );
+
+  IF offenders IS NOT NULL THEN
+    RAISE EXCEPTION 'F-A16-02: default privileges in public are still broader than intended: %', offenders
+      USING HINT = 'The migration rolled back. Investigate before re-running; do not weaken this check.';
   END IF;
 
-  IF NOT pg_catalog.pg_has_role(current_user, target, 'MEMBER') THEN
-    RAISE NOTICE 'F-A16-02: current role % cannot act for %; run section 4 manually as %',
-      current_user, target, target;
-    RETURN;
-  END IF;
+  -- The implicit PUBLIC EXECUTE cannot be read from the ACL, so verify it is gone by
+  -- requiring an explicit owner-only global entry for every role this migration
+  -- covered. Without the global revoke no entry exists, which is precisely the state
+  -- that leaves PUBLIC able to execute future functions.
+  SELECT string_agg(r.rolname, ', ')
+    INTO offenders
+    FROM pg_catalog.pg_roles r
+   WHERE (r.rolname = current_user
+          OR (pg_catalog.pg_has_role(current_user, r.rolname, 'MEMBER')
+              AND EXISTS (SELECT 1
+                            FROM pg_catalog.pg_default_acl d
+                           WHERE d.defaclrole = r.oid
+                             AND d.defaclnamespace = 'public'::regnamespace)))
+     AND NOT EXISTS (SELECT 1
+                       FROM pg_catalog.pg_default_acl d,
+                            pg_catalog.aclexplode(d.defaclacl) a
+                      WHERE d.defaclrole = r.oid
+                        AND d.defaclnamespace = 0
+                        AND d.defaclobjtype = 'f'
+                        AND a.grantee <> 0);
 
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated', target);
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role', target);
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated', target);
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC', target);
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated', target);
+  IF offenders IS NOT NULL THEN
+    RAISE EXCEPTION 'F-A16-02: PUBLIC still has EXECUTE on future functions owned by: %', offenders
+      USING HINT = 'The global form of the function revoke did not take effect for these roles.';
+  END IF;
 END $$;
 
 -- ---------------------------------------------------------------------------------

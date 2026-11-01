@@ -12,15 +12,19 @@
  *     depends on (DML and sequence USAGE);
  *   - the function revoke uses the *global* form (a per-schema form is a no-op for
  *     the implicit PUBLIC EXECUTE);
- *   - it never touches `rls_auto_enable`, `ensure_rls`, or a table/sequence ACL.
+ *   - it never touches `rls_auto_enable`, `ensure_rls`, or a table/sequence ACL;
+ *   - it ENUMERATES object-creating roles rather than assuming which they are, and
+ *     FAILS CLOSED if it finds one it cannot act for — so the remediation can never
+ *     be described as complete while a role was skipped.
  *
- * The behavioural counterpart lives in `tests/db/f-a16-default-privileges.test.ts`.
+ * The behavioural counterpart lives in `tests/db/f-a16-least-privilege.test.ts`.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const FILE = "supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql";
+const OWNER_RUN_FILE = "docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql";
 
 const raw = readFileSync(path.join(ROOT, FILE), "utf8");
 /** SQL with `--` line comments removed, so assertions test statements not prose. */
@@ -126,5 +130,70 @@ describe("F-A16-02 least-privilege default privileges", () => {
 
   it("is not marked as applied anywhere", () => {
     expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+  });
+
+  describe("object-creating role coverage (fail-closed)", () => {
+    it("enumerates owners from pg_default_acl instead of hard-coding a role list", () => {
+      // The review's requirement: do not assume only `postgres` and `supabase_admin`
+      // create objects. The set must be discovered from the catalog.
+      expect(sql).toMatch(/FROM\s+pg_catalog\.pg_default_acl/i);
+      expect(sql).toMatch(/d\.defaclnamespace\s*=\s*'public'::regnamespace/i);
+    });
+
+    it("uses pg_has_role(..., 'MEMBER') as the precondition for acting FOR ROLE", () => {
+      // This is the exact precondition Postgres enforces for ALTER DEFAULT
+      // PRIVILEGES FOR ROLE, so the check cannot disagree with the server.
+      expect(sql).toMatch(/pg_catalog\.pg_has_role\(current_user,\s*target,\s*'MEMBER'\)/i);
+    });
+
+    it("raises — and does not merely warn — when a role cannot be covered", () => {
+      expect(sql).toMatch(
+        /RAISE EXCEPTION 'F-A16-02: cannot tighten default privileges for object-creating role\(s\): %'/i
+      );
+      // A NOTICE would let the migration "succeed" while a role was skipped.
+      expect(sql).not.toMatch(/RAISE NOTICE 'F-A16-02: current role/i);
+    });
+
+    it("points the operator at the split-out owner-run step in the exception hint", () => {
+      expect(sql).toMatch(/F-A16_OWNER_RUN_supabase_admin_defaults\.sql/);
+    });
+
+    it("asserts a post-condition so a silent no-op revoke cannot pass", () => {
+      // The post-condition must look at aclexplode of the default ACL, not just trust
+      // that the REVOKEs worked.
+      expect(sql).toMatch(/aclexplode\(d\.defaclacl\)/i);
+      expect(sql).toMatch(
+        /RAISE EXCEPTION 'F-A16-02: default privileges in public are still broader than intended/i
+      );
+      // And it must independently verify the implicit PUBLIC EXECUTE is gone, which
+      // cannot be read from the per-schema ACL.
+      expect(sql).toMatch(
+        /RAISE EXCEPTION 'F-A16-02: PUBLIC still has EXECUTE on future functions owned by: %'/i
+      );
+    });
+  });
+
+  describe("split-out owner-run step", () => {
+    const ownerRun = readFileSync(path.join(ROOT, OWNER_RUN_FILE), "utf8");
+
+    it("exists and is marked PROPOSED / NOT APPLIED", () => {
+      expect(ownerRun).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+    });
+
+    it("refuses to run as a role that may not change the target's defaults", () => {
+      expect(ownerRun).toMatch(/pg_catalog\.pg_has_role\(current_user, target, 'MEMBER'\)/);
+      expect(ownerRun).toMatch(/RAISE EXCEPTION 'F-A16-02: current role % may not change default privileges/i);
+    });
+
+    it("touches only default privileges, never an existing object", () => {
+      expect(ownerRun).not.toMatch(/\bALTER\s+TABLE\b/i);
+      expect(ownerRun).not.toMatch(/\bCREATE\s+(TABLE|POLICY|INDEX)\b/i);
+      expect(ownerRun).not.toMatch(/\bDROP\s+(TABLE|FUNCTION|POLICY|TRIGGER)\b/i);
+    });
+
+    it("verifies the same post-condition as the migration", () => {
+      expect(ownerRun).toMatch(/aclexplode\(d\.defaclacl\)/i);
+      expect(ownerRun).toMatch(/d\.defaclnamespace = 'public'::regnamespace/i);
+    });
   });
 });

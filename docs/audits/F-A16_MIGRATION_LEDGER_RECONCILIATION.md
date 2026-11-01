@@ -149,6 +149,21 @@ repair`) is a ledger-only action and must be done deliberately, never as part of
 4. **Do not** mark any migration applied, and **do not** run `supabase migration repair`
    as part of this remediation.
 
+### 5.1 The two proposed F-A16 migrations, for ledger purposes
+
+This reconciliation covers the *existing* 43 files at base `3048196`. The F-A16
+remediation adds two more, which are **proposed and not applied**:
+
+| Proposed file | Version | Applied? | Note |
+|---|---|---|---|
+| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | 20261115000000 | **No** | future-dated relative to the 2026-10-31 snapshot, consistent with the other pending files in §2.2 |
+| `supabase/migrations/20261115000100_f_a16_fail_closed_rls_assertion.sql` | 20261115000100 | **No** | same |
+
+Their versions sort after every existing canonical file, so they do not introduce an
+out-of-order entry: `supabase db push` refuses a file older than the remote maximum, and
+these are newer than all of them. The ledger reconciliation itself remains read-only —
+these rows exist only in the working tree until a human applies them.
+
 ---
 
 ## 6. Reconciliation table
@@ -172,5 +187,10 @@ cannot drift silently.
 
 No row of `supabase_migrations.schema_migrations` was read, written, repaired or marked.
 No migration was applied, dispatched, or pushed. No production database was connected.
+
+The two F-A16 migrations named in §5.1 are **proposed only**: they exist in the working
+tree, carry a `Status: PROPOSED. NOT APPLIED.` header, and have not been run against any
+database (they are exercised only against an in-process PGlite instance in
+`tests/db/f-a16-least-privilege.test.ts`).
 
 **NOT APPLIED TO PRODUCTION.**

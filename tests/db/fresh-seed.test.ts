@@ -21,6 +21,7 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp';
 
 import { runSeedPlan, SEED_PLAN, type SeedPort } from '../../lib/supabase/seed-data';
+import { PLATFORM_RLS_ENABLER_SQL } from './harness';
 
 const MIGRATIONS_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -94,6 +95,10 @@ async function migratedDb(): Promise<PGlite> {
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
   `);
   await db.exec(SUPABASE_ROLES_SQL);
+  // Production installs the platform's RLS enabler before any project migration runs.
+  // The F-A16-03 assertion migration requires it and refuses to install without it, so
+  // the replay must model that or it is not replaying production.
+  await db.exec(PLATFORM_RLS_ENABLER_SQL);
   const files = fs
     .readdirSync(MIGRATIONS_DIR)
     .filter((name) => name.endsWith('.sql'))
