@@ -202,14 +202,23 @@ a default exists. The scope is deliberate:
 | Global default | Section 0b | Why |
 |---|---|---|
 | tables / sequences → `PUBLIC` or `anon`/`authenticated` | **refuses** | not removable by a schema-scoped revoke; needs the global form |
+| tables → `TRIGGER` or `REFERENCES` for `service_role` | **refuses** | these are exactly the two section 1 revokes per schema, and a global grant survives that revoke — measured: after `IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role`, a new public table still reported both as true |
+| tables → ordinary DML for `service_role` | **allowed** | `service_role` keeps DML on future tables by design |
 | functions → `PUBLIC` | **allowed** | section 3 removes it globally on purpose — the only way to drop the implicit `PUBLIC` EXECUTE |
 | functions → a named `anon`/`authenticated` | **refuses** | survives section 3's per-schema revoke; not removed by this migration |
+
+The `service_role` row is worth stating plainly because it is the one case where the
+privilege holder is *not* a public-facing role. The reasoning is not "service_role is
+untrusted" — it is that section 1 already decided these two privileges should not arrive by
+default, and a global grant would silently defeat that decision for every future table. DML
+is deliberately excluded, so a global DML default is not refused.
 
 The fix for what 0b refuses is **not** applied here. The global form changes defaults for
 every schema in the database, including platform-managed schemas this migration must not
 touch — a broader action than F-A16-02 supports. It is an owner-reviewed step:
-`docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` §4, with the blast radius and the
-pre-flight checks spelled out. The plan's §9 item 7b is the read-only query.
+`docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` §4 (with §4b as its verification),
+with the blast radius and the pre-flight checks spelled out. The plan's §9 item 7b is the
+read-only query.
 
 #### 2.4.3 Scope and limitations of the discovery
 
@@ -752,7 +761,7 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | 5 | `anon` `401 permission denied` on 21 tables | confirms the API refuses those tables for `anon` | re-run the audit census |
 | 6 | `pg_default_acl` rows for `postgres` **and** `supabase_admin` | the migration assumes the documented defaults | read `pg_default_acl` live and compare |
 | 7 | **Every** candidate creator in `public` — default-ACL owners **and** roles with effective `CREATE` — and whether the applying role is a member of each | the migration enumerates both sources and **fails closed** on any it cannot cover; the owner-run step is the remedy | source (a): `SELECT DISTINCT pg_get_userbyid(defaclrole) FROM pg_default_acl WHERE defaclnamespace='public'::regnamespace`; source (b): `SELECT rolname FROM pg_roles r WHERE has_schema_privilege(r.oid,'public','CREATE')`; then `SELECT pg_has_role(current_user, '<creator>', 'MEMBER')` per creator |
-| 7b | Any **global** (`defaclnamespace = 0`) table or sequence default ACL naming `PUBLIC`, `anon` or `authenticated`, and any global **function** default naming `anon`/`authenticated` | section 0b **fails closed** on these; a schema-scoped REVOKE cannot subtract them, and the global remedy is an owner action | `SELECT pg_get_userbyid(d.defaclrole), CASE d.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' WHEN 'f' THEN 'FUNCTIONS' END, CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, a.privilege_type FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE d.defaclnamespace = 0` |
+| 7b | Any **global** (`defaclnamespace = 0`) table or sequence default ACL naming `PUBLIC`, `anon` or `authenticated`; any global **table** default of `TRIGGER`/`REFERENCES` for `service_role`; any global **function** default naming `anon`/`authenticated` | section 0b **fails closed** on these; a schema-scoped REVOKE cannot subtract them, and the global remedy is an owner action | `SELECT pg_get_userbyid(d.defaclrole), CASE d.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' WHEN 'f' THEN 'FUNCTIONS' END, CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, a.privilege_type FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE d.defaclnamespace = 0` |
 | 7c | The `pg_database_owner` pseudo-role is present (PG 15+) | the migration skips it explicitly; if a target is PG 14 the name may be absent, which the skip tolerates | `SELECT rolname FROM pg_roles WHERE rolname = 'pg_database_owner'` |
 | 7d | Whether `anon`, `authenticated` or `service_role` can **effectively create** in `public` | section 0c **fails closed** if any can; removing CREATE is a schema-ACL change (F-A16-01 scope, deferred) | `SELECT rolname FROM pg_roles r WHERE rolname IN ('anon','authenticated','service_role') AND has_schema_privilege(r.oid,'public','CREATE')` |
 | 7e | Whether `CREATE` on `public` was granted to `PUBLIC` | it makes every role an effective creator and section 0c will refuse | `SELECT nspacl::text FROM pg_namespace WHERE nspname='public'` — look for `=C/` |
@@ -789,6 +798,8 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | The global `REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` leaves a readable owner-only `ns=0` row per covered role | **Verified** on PGlite (this is what the post-condition asserts) |
 | PGlite results transfer to Supabase production | **NOT verified** — PGlite proves PostgreSQL semantics only; the platform layer needs the §3.6 read-only queries |
 | The complete set of candidate creators in production (default-ACL owners **and** effective CREATE holders) | **Unverified** — the migration enumerates both at apply time and fails closed, but the *list* needs §9 item 7 |
+| A global `TRIGGER`/`REFERENCES` default for `service_role` survives the schema-scoped revoke | **Verified** on PGlite (a new public table still reported both as true) |
+| The global `REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role` removes both and leaves DML intact | **Verified** on PGlite |
 | Whether any global table/sequence/function default exists in production | **Unverified** — section 0b checks it at apply time; the live read in §9 item 7b confirms it |
 | Whether `anon`/`authenticated`/`service_role` can create in `public` in production | **Unverified** — section 0c checks it at apply time; the live read in §9 items 7d/7e confirms it |
 

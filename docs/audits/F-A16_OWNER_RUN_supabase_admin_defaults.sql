@@ -185,6 +185,12 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 --         script. A per-schema GRANT can be re-added for a schema that genuinely needs it.
 --      3. run it in a transaction, verify, then commit — or roll back if unsure.
 --
+--    service_role is NOT a public-facing role, and the main migration deliberately keeps its
+--    DML defaults. But it revokes TRIGGER and REFERENCES from service_role per schema
+--    (RLS cannot cover those two), and a GLOBAL grant of either survives that revoke —
+--    measured: after the per-schema revoke a new public table still reported both as
+--    true. Step 4 therefore removes them globally too. DML is left alone.
+--
 --    Note the asymmetry with functions. The function default is revoked globally in the
 --    main migration on purpose (it is the ONLY way to remove the implicit PUBLIC EXECUTE,
 --    which is not readable from any ACL). For tables and sequences there is no implicit
@@ -206,6 +212,9 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON TABLES    FROM PUBLIC', target);
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM anon, authenticated', target);
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM PUBLIC', target);
+--   -- service_role keeps DML, but these two survive the schema-scoped revoke in the main
+--   -- migration and must be removed globally as well.
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role', target);
 --
 --   RAISE NOTICE 'F-A16-02: global table/sequence defaults tightened for %', target;
 -- END $$;
@@ -213,3 +222,18 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 -- Rollback of step 4 (restores the global defaults; again affects every schema):
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON TABLES    TO anon, authenticated, service_role', target);
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON SEQUENCES TO anon, authenticated, service_role', target);
+
+-- 4b. Verify step 4 took effect for the two service_role privileges. Expect no rows.
+--     A global TRIGGER/REFERENCES entry here means a future public table can still be
+--     altered to attach a trigger, or referenced by a foreign key, by service_role —
+--     which is exactly what section 1's schema-scoped revoke was meant to prevent.
+SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
+       a.privilege_type
+  FROM pg_catalog.pg_default_acl d,
+       pg_catalog.aclexplode(d.defaclacl) a
+ WHERE d.defaclnamespace = 0
+   AND d.defaclobjtype = 'r'
+   AND a.grantee <> d.defaclrole
+   AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+   AND a.privilege_type IN ('TRIGGER', 'REFERENCES')
+ ORDER BY 1, 2;

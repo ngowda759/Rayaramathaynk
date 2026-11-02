@@ -604,6 +604,123 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(await publicFacingDefaults(db)).toEqual([]);
     });
   });
+
+  /**
+   * Global table defaults for `service_role`. Section 1 revokes TRIGGER and REFERENCES
+   * from service_role with an `IN SCHEMA public` statement — but a GLOBAL grant of either
+   * survives that schema-scoped revoke and still lands on future public tables. The
+   * migration must refuse rather than report a success that is not real.
+   */
+  describe("global service_role TRIGGER/REFERENCES defaults (fail closed)", () => {
+    it("a global TRIGGER grant to service_role survives the schema-scoped revoke", async () => {
+      // Measure the bypass first, so the refusal below is anchored in a real behaviour.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRIGGER ON TABLES TO service_role;`);
+      await db.exec(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;`
+      );
+      await db.exec(`CREATE TABLE public.sr_trg (id int);`);
+
+      const r = await db.query<{ trg: boolean }>(
+        `SELECT has_table_privilege('service_role', 'public.sr_trg', 'TRIGGER') AS trg`
+      );
+      expect(r.rows[0]!.trg).toBe(true);
+    });
+
+    it("a global REFERENCES grant to service_role survives the schema-scoped revoke", async () => {
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT REFERENCES ON TABLES TO service_role;`);
+      await db.exec(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;`
+      );
+      await db.exec(`CREATE TABLE public.sr_ref (id int);`);
+
+      const r = await db.query<{ refs: boolean }>(
+        `SELECT has_table_privilege('service_role', 'public.sr_ref', 'REFERENCES') AS refs`
+      );
+      expect(r.rows[0]!.refs).toBe(true);
+    });
+
+    it("refuses to run while a global TRIGGER default grants service_role", async () => {
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRIGGER ON TABLES TO service_role;`);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: global default privileges confer future objects on public-facing roles:/
+      );
+    });
+
+    it("refuses to run while a global REFERENCES default grants service_role", async () => {
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT REFERENCES ON TABLES TO service_role;`);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: global default privileges confer future objects on public-facing roles:/
+      );
+    });
+
+    it("still applies when a global DML default grants service_role (not refused)", async () => {
+      // service_role keeps DML on future tables by design. Only TRIGGER and REFERENCES are
+      // the exception, so a global SELECT/INSERT/UPDATE/DELETE default must NOT be refused.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO service_role;`);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).resolves.toBeUndefined();
+      expect(await publicFacingDefaults(db)).toEqual([]);
+    });
+
+    it("the owner-run global remediation removes both privileges and keeps DML", async () => {
+      // Reproduces owner-run step 4 + 4b: after the explicit global revoke, no global
+      // TRIGGER/REFERENCES entry remains for service_role, and a new table still carries
+      // the DML defaults the application depends on.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRIGGER, REFERENCES ON TABLES TO service_role;`);
+
+      // Owner-run step 4 (global form — the operator's explicit, reviewed action).
+      await db.exec(
+        `ALTER DEFAULT PRIVILEGES REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;`
+      );
+
+      // Owner-run step 4b: no residue.
+      const residue = await db.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+           FROM pg_catalog.pg_default_acl d, pg_catalog.aclexplode(d.defaclacl) a
+          WHERE d.defaclnamespace = 0 AND d.defaclobjtype = 'r'
+            AND a.grantee <> d.defaclrole
+            AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+            AND a.privilege_type IN ('TRIGGER', 'REFERENCES')`
+      );
+      expect(residue.rows[0]!.n).toBe(0);
+
+      // And the migration now proceeds, leaving nothing behind.
+      await expect(apply(db, DEFAULTS_MIGRATION)).resolves.toBeUndefined();
+      expect(await publicFacingDefaults(db)).toEqual([]);
+
+      // Ordinary service_role DML on a future table is intact.
+      await db.exec(`CREATE TABLE public.sr_dml (id int);`);
+      const dml = await db.query<{ s: boolean; i: boolean; u: boolean; d: boolean; trg: boolean; refs: boolean }>(
+        `SELECT has_table_privilege('service_role','public.sr_dml','SELECT')     AS s,
+                has_table_privilege('service_role','public.sr_dml','INSERT')     AS i,
+                has_table_privilege('service_role','public.sr_dml','UPDATE')     AS u,
+                has_table_privilege('service_role','public.sr_dml','DELETE')     AS d,
+                has_table_privilege('service_role','public.sr_dml','TRIGGER')    AS trg,
+                has_table_privilege('service_role','public.sr_dml','REFERENCES') AS refs`
+      );
+      expect(dml.rows[0]).toMatchObject({ s: true, i: true, u: true, d: true, trg: false, refs: false });
+    });
+  });
 });
 
 describe("F-A16-03 fail-closed RLS assertion (behavioural)", () => {

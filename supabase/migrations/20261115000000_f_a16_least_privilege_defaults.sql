@@ -99,10 +99,15 @@
 --     CANNOT subtract a global grant, so
 --     `ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC` leaves every new
 --     `public` table readable by `anon` even after sections 1–2 succeed. Section 0b
---     therefore refuses to run while such a default exists. It is NOT remediated in this
---     file, because removing it requires the global form — which changes defaults for
---     every schema in the database, including platform-managed ones this migration must
---     not touch. That is an owner-reviewed action; see the owner-run step §4.
+--     therefore refuses to run while such a default exists. The same applies to a global
+--     `TRIGGER` or `REFERENCES` grant on tables to `service_role`: those are exactly the
+--     two privileges section 1 revokes per schema, and a global grant of either survives
+--     that revoke (measured: a new public table still reports
+--     `has_table_privilege('service_role', …, 'TRIGGER')` as true afterwards). Section 0b
+--     refuses on those too. It is NOT remediated in this file, because removing a global
+--     default requires the global form — which changes defaults for every schema in the
+--     database, including platform-managed ones this migration must not touch. That is an
+--     owner-reviewed action; see the owner-run step §4 and its verification §4b.
 --
 --   * The catalog cannot enumerate roles that do not exist yet. A role created after
 --     this migration runs carries no default ACL of its own, so it reverts to the
@@ -164,11 +169,22 @@ END $$;
 --
 -- Scope of this check:
 --   * tables and sequences — any global grant to `PUBLIC` or to `anon`/`authenticated`;
+--   * tables — a global grant of `TRIGGER` or `REFERENCES` to `service_role`. Those two
+--     are exactly the privileges section 1 revokes from `service_role` per schema, and a
+--     global grant survives that schema-scoped revoke (measured: after
+--     `IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role`, a new
+--     public table still reports `has_table_privilege('service_role', …, 'TRIGGER')` and
+--     `… 'REFERENCES'` as true). `service_role` keeps DML, so only these two are checked —
+--     refusing on a global DML grant to `service_role` would be wrong;
 --   * functions — a global grant DIRECTLY to `anon`/`authenticated`. The global grant to
 --     `PUBLIC` is deliberately excluded here, because section 3 DOES remediate it (that
 --     is the documented, necessary global function revoke) — so it must not trip this
---     precondition. A direct global grant to a named public-facing role, by contrast,
---     survives section 3's per-schema revoke and is not something this migration removes.
+--     precondition.
+--
+-- The owner's own entry (`a.grantee = d.defaclrole`) is excluded: it is inherent to every
+-- default ACL and cannot be revoked (measured: `REVOKE … FROM anon` leaves
+-- `{anon=X/anon}`), so treating it as a leak would false-positive on a creator named like
+-- a public-facing role.
 --
 -- The fix for what this block catches is deliberately NOT attempted here. Removing a
 -- global default means issuing the global form (no `IN SCHEMA`), which changes defaults
@@ -191,6 +207,7 @@ BEGIN
     FROM pg_catalog.pg_default_acl d,
          pg_catalog.aclexplode(d.defaclacl) a
    WHERE d.defaclnamespace = 0
+     AND a.grantee <> d.defaclrole
      AND (
           -- tables and sequences: PUBLIC or a named public-facing role
           (d.defaclobjtype IN ('r', 'S')
@@ -199,6 +216,11 @@ BEGIN
           -- functions: a DIRECT grant to a named public-facing role (not PUBLIC)
        OR (d.defaclobjtype = 'f'
             AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+          -- tables: the two privileges section 1 revokes from service_role per schema.
+          -- A global grant of either survives that schema-scoped revoke.
+       OR (d.defaclobjtype = 'r'
+            AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+            AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
          );
 
   IF global_leaks IS NOT NULL THEN
@@ -439,6 +461,12 @@ BEGIN
             AND d.defaclobjtype IN ('r', 'S')
             AND (a.grantee = 0
                  OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+          -- GLOBAL table default ACLs: TRIGGER/REFERENCES for service_role survive the
+          -- schema-scoped revoke in section 1, so verify none is left behind.
+       OR (d.defaclnamespace = 0
+            AND d.defaclobjtype = 'r'
+            AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+            AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
          );
 
   IF offenders IS NOT NULL THEN

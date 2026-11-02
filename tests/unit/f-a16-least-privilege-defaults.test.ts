@@ -255,6 +255,22 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).toMatch(/d\.defaclobjtype IN \('r', 'S'\)/);
     });
 
+    it("0b also fails closed on a global TRIGGER/REFERENCES default for service_role", () => {
+      // Section 1 revokes these two from service_role with an IN SCHEMA statement, but a
+      // GLOBAL grant survives that revoke and still lands on future public tables. The
+      // precondition must refuse on it — and must NOT refuse on ordinary service_role DML.
+      const check = sql.slice(sql.indexOf("global_leaks"), sql.indexOf("global default privileges confer future objects"));
+      expect(check).toMatch(/d\.defaclobjtype = 'r'/);
+      expect(check).toMatch(/pg_get_userbyid\(a\.grantee\) = 'service_role'/);
+      expect(check).toMatch(/a\.privilege_type IN \('TRIGGER', 'REFERENCES'\)/);
+    });
+
+    it("0b excludes the owner's own entry", () => {
+      // The owner self-entry is inherent and non-revocable, so it must not be read as a leak.
+      const check = sql.slice(sql.indexOf("global_leaks"), sql.indexOf("global default privileges confer future objects"));
+      expect(check).toMatch(/a\.grantee <> d\.defaclrole/);
+    });
+
     it("excludes the global PUBLIC function default from the 0b precondition", () => {
       // Section 3 remediates the global PUBLIC function default (the only way to remove
       // the implicit PUBLIC EXECUTE), so 0b must not reject it. Only a DIRECT global
@@ -280,6 +296,13 @@ describe("F-A16-02 least-privilege default privileges", () => {
       // false-positive on a creator named like a public-facing role, so the check must
       // require the grant to be to someone other than the owner.
       expect(postConditionBlock()).toMatch(/a\.grantee <> d\.defaclrole/);
+    });
+
+    it("post-condition also rejects a global TRIGGER/REFERENCES default for service_role", () => {
+      const post = postConditionBlock();
+      expect(post).toMatch(/d\.defaclobjtype = 'r'/);
+      expect(post).toMatch(/pg_get_userbyid\(a\.grantee\) = 'service_role'/);
+      expect(post).toMatch(/a\.privilege_type IN \('TRIGGER', 'REFERENCES'\)/);
     });
 
     it("detects PUBLIC via grantee = 0, not via pg_get_userbyid", () => {
@@ -315,6 +338,17 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(ownerRun).not.toMatch(/aclexplode\(n\.nspacl\)/i);
       expect(ownerRun).toMatch(/has_schema_privilege\(r\.oid, 'public', 'CREATE'\)/i);
       expect(ownerRun).toMatch(/candidate <> 'pg_database_owner'/i);
+    });
+
+    it("owner-run remediates the global service_role TRIGGER/REFERENCES defaults", () => {
+      // The global form must be present, documented as affecting every schema, and paired
+      // with a verification query (4b) that excludes the owner self-entry.
+      expect(ownerRun).toMatch(
+        /REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role/
+      );
+      expect(ownerRun).toMatch(/EVERY schema/i);
+      expect(ownerRun).toMatch(/4b\./);
+      expect(ownerRun).toMatch(/a\.grantee <> d\.defaclrole/);
     });
 
     it("documents the owner-reviewed global table/sequence remediation", () => {
