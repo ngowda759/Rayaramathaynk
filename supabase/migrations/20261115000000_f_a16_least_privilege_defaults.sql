@@ -77,20 +77,32 @@
 --
 --   * Section 4 enumerates candidate creator roles from two catalog sources, not one:
 --     (a) every role with a `pg_default_acl` row in `public`, with NO grantee filter,
---     and (b) every role with `CREATE` on schema `public`. Source (b) matters because
---     a role can create objects in `public` while holding no `pg_default_acl` row at
---     all, and such a role's new FUNCTIONS still carry the implicit `PUBLIC` EXECUTE
+--     and (b) every role that EFFECTIVELY holds `CREATE` on `public`, read with
+--     `has_schema_privilege(r.oid, 'public', 'CREATE')`. Source (b) matters because a
+--     role can create objects in `public` while holding no `pg_default_acl` row at all,
+--     and such a role's new FUNCTIONS still carry the implicit `PUBLIC` EXECUTE
 --     (measured on PGlite: `has_function_privilege('anon', …)` is true for a function
---     created by a role with no default ACL row). Filtering by grantee — as an earlier
---     revision did — misses both that case and the case of a role whose public default
---     ACL names only some unrelated grantee. Both are reproduced in
---     tests/db/f-a16-least-privilege.test.ts.
+--     created by a role with no default ACL row). Reading it with `has_schema_privilege`
+--     rather than joining `aclexplode(nspacl)` is also deliberate: the join sees only a
+--     *direct* grantee, so it misses a role that inherits CREATE through membership and
+--     it drops a `CREATE` granted to `PUBLIC` (grantee OID 0, which matches no
+--     `pg_roles` row). Both misses were reproduced on PGlite. See §4's block comment.
 --
 --     Note the asymmetry, so this is not over-read: a creator with no default ACL row
 --     produces owner-only TABLES (the hardwired default; measured `relacl IS NULL`), so
 --     for source (b) the function revoke is the one that changes anything. The table and
 --     sequence revokes are still issued for those roles — they are no-ops when the
 --     privilege is not held, and they keep the covered set uniform.
+--
+--   * A GLOBAL default privilege (no `IN SCHEMA`) is out of scope for remediation here
+--     and is handled fail-closed instead. Measured on PGlite: a schema-scoped REVOKE
+--     CANNOT subtract a global grant, so
+--     `ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC` leaves every new
+--     `public` table readable by `anon` even after sections 1–2 succeed. Section 0b
+--     therefore refuses to run while such a default exists. It is NOT remediated in this
+--     file, because removing it requires the global form — which changes defaults for
+--     every schema in the database, including platform-managed ones this migration must
+--     not touch. That is an owner-reviewed action; see the owner-run step §4.
 --
 --   * The catalog cannot enumerate roles that do not exist yet. A role created after
 --     this migration runs carries no default ACL of its own, so it reverts to the
@@ -106,9 +118,10 @@
 --
 --   * The post-condition (section 5) verifies the scope the migration actually
 --     established: for every role it covered, no public-facing grantee and no implicit
---     PUBLIC EXECUTE remains. It does NOT and cannot assert that every future creator
---     has been enumerated — no catalog query can, for the reasons above. Read it as
---     "the roles this file could see are covered", not "all creators are covered".
+--     PUBLIC EXECUTE remains, and no global table/sequence default still leaks. It does
+--     NOT and cannot assert that every future creator has been enumerated — no catalog
+--     query can, for the reasons above. Read it as "the roles this file could see are
+--     covered", not "all creators are covered".
 --
 --   * "Covered" is per-role and the run is all-or-nothing: if any candidate creator
 --     cannot be acted for (`pg_has_role(..., 'MEMBER')` is false), the file raises and
@@ -129,6 +142,98 @@ BEGIN
   IF missing IS NOT NULL THEN
     RAISE EXCEPTION 'F-A16-02: required Supabase roles are missing: %', missing
       USING HINT = 'This migration is written for a Supabase project. Do not run it against a database without these roles.';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------------
+-- 0b. Precondition — refuse to proceed while a GLOBAL default grants future tables,
+--     sequences, or a direct function grant to a public-facing role.
+-- ---------------------------------------------------------------------------------
+-- A global default privilege (`ALTER DEFAULT PRIVILEGES … ` with no `IN SCHEMA`) applies
+-- to objects created in EVERY schema, and — measured on Postgres 18 (PGlite) — a
+-- schema-scoped REVOKE CANNOT subtract it:
+--
+--     ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;      -- global
+--     ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;
+--     CREATE TABLE public.t (id int);
+--     -- has_table_privilege('anon', 'public.t', 'SELECT')  =>  true   (still!)
+--
+-- So sections 1–2 below, which are schema-scoped, would report success while every new
+-- `public` table remained readable by `anon` through the global entry. This block makes
+-- that state impossible to overlook: it raises, and the whole migration rolls back.
+--
+-- Scope of this check:
+--   * tables and sequences — any global grant to `PUBLIC` or to `anon`/`authenticated`;
+--   * functions — a global grant DIRECTLY to `anon`/`authenticated`. The global grant to
+--     `PUBLIC` is deliberately excluded here, because section 3 DOES remediate it (that
+--     is the documented, necessary global function revoke) — so it must not trip this
+--     precondition. A direct global grant to a named public-facing role, by contrast,
+--     survives section 3's per-schema revoke and is not something this migration removes.
+--
+-- The fix for what this block catches is deliberately NOT attempted here. Removing a
+-- global default means issuing the global form (no `IN SCHEMA`), which changes defaults
+-- for EVERY schema in the database — including platform-managed schemas this migration
+-- must not touch. That is a broader action than F-A16-02 supports and is left to an
+-- owner-reviewed step: docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql §4.
+DO $$
+DECLARE
+  global_leaks text;
+BEGIN
+  SELECT string_agg(DISTINCT format('%s %s -> %s (%s)',
+                                    pg_catalog.pg_get_userbyid(d.defaclrole),
+                                    CASE d.defaclobjtype WHEN 'r' THEN 'TABLES'
+                                                         WHEN 'S' THEN 'SEQUENCES'
+                                                         WHEN 'f' THEN 'FUNCTIONS' END,
+                                    CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                                         ELSE pg_catalog.pg_get_userbyid(a.grantee) END,
+                                    a.privilege_type), '; ')
+    INTO global_leaks
+    FROM pg_catalog.pg_default_acl d,
+         pg_catalog.aclexplode(d.defaclacl) a
+   WHERE d.defaclnamespace = 0
+     AND (
+          -- tables and sequences: PUBLIC or a named public-facing role
+          (d.defaclobjtype IN ('r', 'S')
+            AND (a.grantee = 0
+                 OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+          -- functions: a DIRECT grant to a named public-facing role (not PUBLIC)
+       OR (d.defaclobjtype = 'f'
+            AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+         );
+
+  IF global_leaks IS NOT NULL THEN
+    RAISE EXCEPTION 'F-A16-02: global default privileges confer future objects on public-facing roles: %', global_leaks
+      USING HINT = 'A schema-scoped REVOKE cannot subtract a GLOBAL default. Remediate with the global form (no IN SCHEMA), which affects every schema in the database — an owner-reviewed action. See docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql section 4. F-A16-02 is NOT remediated until this succeeds.';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------------
+-- 0c. Precondition — refuse to proceed if a public-facing role can itself create in
+--     `public`.
+-- ---------------------------------------------------------------------------------
+-- A public-facing role holding CREATE on `public` is a misconfiguration this migration
+-- cannot fix: removing it means changing the *schema ACL* (a `REVOKE CREATE ON SCHEMA`),
+-- which is existing-object grant territory (F-A16-01) and is deliberately deferred. It
+-- also makes the remediation ambiguous — such a role can create objects whose defaults
+-- it also owns, so "public-facing role" and "creator" stop being disjoint sets.
+--
+-- The check uses `has_schema_privilege`, so it catches a direct grant, a grant inherited
+-- through membership, and a grant to PUBLIC (measured: `GRANT CREATE ON SCHEMA public TO
+-- PUBLIC` makes every role report CREATE). Failing closed here is deliberate — this is a
+-- state that needs a human decision, not a silent pass.
+DO $$
+DECLARE
+  rogue text;
+BEGIN
+  SELECT string_agg(r.rolname, ', ')
+    INTO rogue
+    FROM pg_catalog.pg_roles r
+   WHERE r.rolname IN ('anon', 'authenticated', 'service_role')
+     AND pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE');
+
+  IF rogue IS NOT NULL THEN
+    RAISE EXCEPTION 'F-A16-02: public-facing role(s) hold CREATE on schema public: %', rogue
+      USING HINT = 'A public-facing role must not be able to create objects in public. Removing CREATE is a schema-ACL change (F-A16-01 scope, deferred) and needs owner review. Investigate whether CREATE was granted to these roles directly, via a role they are members of, or via PUBLIC. F-A16-02 is NOT remediated until this succeeds.';
   END IF;
 END $$;
 
@@ -178,20 +283,33 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 --       default ACL names only some other grantee, and it silently reports "covered"
 --       for a role it never examined.
 --
---   (b) every role with `CREATE` on schema `public`, read from the schema ACL. This
---       catches a creator that has no `pg_default_acl` row at all — its new functions
---       still carry the implicit `PUBLIC` EXECUTE, so it must be covered even though
---       there is no row to discover it from.
+--   (b) every role that EFFECTIVELY holds `CREATE` on schema `public`. This is read with
+--       `has_schema_privilege(r.oid, 'public', 'CREATE')`, not by joining the schema ACL
+--       directly, for two measured reasons:
 --
--- Source (a) alone was the earlier revision's approach and is insufficient; both
--- cases are reproduced in tests/db/f-a16-least-privilege.test.ts.
+--         * a direct `aclexplode(nspacl)` join only sees the role that was *granted*
+--           CREATE. A role that inherits it through membership is invisible to it —
+--           measured: `child_c`, a member of `parent_c`, was absent from `nspacl` yet
+--           could `CREATE TABLE`. `has_schema_privilege` reports it, because it
+--           accounts for membership;
+--         * `CREATE` granted to `PUBLIC` has `grantee = 0` and matches no row in
+--           `pg_roles`, so a direct join silently drops it. `has_schema_privilege`
+--           reflects it for every role.
+--
+--       Either way the hazard is the same: such a role can create a function, and that
+--       function carries the implicit `PUBLIC` EXECUTE.
+--
+-- Source (a) alone was the earlier revision's approach and is insufficient; the
+-- grantee-filtered variant was worse still. All three cases — a non-public grantee, a
+-- role with no default-ACL row, and a role with only inherited or PUBLIC-derived CREATE
+-- — are reproduced in tests/db/f-a16-least-privilege.test.ts.
 --
 -- Two entries are skipped deliberately:
 --   * the applying role — already handled by sections 1–3;
 --   * `pg_database_owner`, a pseudo-role that always owns the `public` schema in PG 15+
---     and appears in `nspacl` as a CREATE holder. It creates nothing itself; the
---     `public` schema's owner is the database owner. It is reported, not silently
---     dropped, so a reviewer can see it was considered.
+--     and always holds CREATE on it. It creates nothing itself; the `public` schema's
+--     owner is the database owner. It is named in the code and in a test rather than
+--     silently filtered.
 --
 -- If any candidate cannot be covered (`pg_has_role(..., 'MEMBER')` is false — the exact
 -- precondition Postgres enforces for `ALTER DEFAULT PRIVILEGES FOR ROLE`), the block
@@ -212,21 +330,20 @@ BEGIN
           FROM pg_catalog.pg_default_acl d
          WHERE d.defaclnamespace = 'public'::regnamespace
         UNION
-        -- (b) any role that may create in public, whether or not it has a row above.
+        -- (b) any role that EFFECTIVELY holds CREATE on public — direct, inherited
+        --     through membership, or derived from a PUBLIC grant. `has_schema_privilege`
+        --     is the catalog function that accounts for all three; a direct nspacl join
+        --     accounts for only the first.
         SELECT r.rolname AS candidate
-          FROM pg_catalog.pg_namespace n,
-               pg_catalog.aclexplode(n.nspacl) a,
-               pg_catalog.pg_roles r
-         WHERE n.nspname = 'public'
-           AND a.privilege_type = 'CREATE'
-           AND r.oid = a.grantee
+          FROM pg_catalog.pg_roles r
+         WHERE pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE')
       ) AS candidates
      ORDER BY 1
   LOOP
     -- Already handled by sections 1–3.
     CONTINUE WHEN target = current_user;
 
-    -- A pseudo-role that owns the schema but creates nothing; reported below.
+    -- A pseudo-role that owns the schema but creates nothing.
     CONTINUE WHEN target = 'pg_database_owner';
 
     IF NOT pg_catalog.pg_has_role(current_user, target, 'MEMBER') THEN
@@ -258,16 +375,32 @@ END $$;
 -- rolls the whole migration back.
 --
 -- The scope is deliberately stated: this verifies the roles the migration could see and
--- covered — the UNION of default-ACL owners and CREATE holders, minus `pg_database_owner`.
--- It does NOT assert that every possible future creator has been enumerated, because no
--- catalog query can (see "Scope and limitations" in the header). It fails if a covered
--- role's revoke did not take effect, which is the property that matters.
+-- covered — the UNION of default-ACL owners and roles that effectively hold CREATE,
+-- minus `pg_database_owner` — and it verifies that no GLOBAL default still leaks a table
+-- or sequence to a public-facing role. It does NOT assert that every possible future
+-- creator has been enumerated, because no catalog query can (see "Scope and limitations"
+-- in the header). It fails if a covered role's revoke did not take effect, which is the
+-- property that matters.
+--
+-- Note on `PUBLIC`: `pg_get_userbyid(0)` returns the string `'unknown (OID=0)'`, NOT
+-- NULL, so `pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')` never matches a
+-- PUBLIC entry. Every check below therefore tests `a.grantee = 0` explicitly. Getting
+-- this wrong is exactly how a PUBLIC grant hides from a post-condition.
+--
+-- Note on the owner's own entry: `ALTER DEFAULT PRIVILEGES` always keeps an implicit
+-- `owner=<privs>/owner` entry in the ACL, and it CANNOT be revoked (measured on PGlite:
+-- `REVOKE … FROM anon` leaves `{anon=X/anon}`). So a check of the form "the owner's name
+-- appears as a grantee" would false-positive on a creator that happens to be named like
+-- a public-facing role. Every clause below therefore requires `a.grantee <> d.defaclrole`,
+-- i.e. the grant is to someone *other* than the owner. This matters because section 0c
+-- guarantees a public-facing role is never a creator, so excluding the self-entry loses
+-- no real coverage while removing a class of false positives.
 DO $$
 DECLARE
   offenders text;
 BEGIN
   -- (a) No public-facing grantee may remain in the `public` default ACLs, and no global
-  --     default ACL may name a public-facing role for functions.
+  --     default ACL may name a public-facing role for functions, tables or sequences.
   SELECT string_agg(DISTINCT format('%s %s -> %s (%s)',
                                     pg_catalog.pg_get_userbyid(d.defaclrole),
                                     d.defaclobjtype,
@@ -277,11 +410,14 @@ BEGIN
     INTO offenders
     FROM pg_catalog.pg_default_acl d,
          pg_catalog.aclexplode(d.defaclacl) a
-   WHERE (
-          -- tables and sequences in public: nothing at all for the public-facing roles
+   WHERE a.grantee <> d.defaclrole   -- the owner's own entry is inherent, not a leak
+     AND (
+          -- tables and sequences in public: nothing at all for the public-facing roles,
+          -- including via PUBLIC (grantee = 0)
           (d.defaclnamespace = 'public'::regnamespace
             AND d.defaclobjtype IN ('r', 'S')
-            AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+            AND (a.grantee = 0
+                 OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
           -- tables in public: service_role keeps DML, loses the two rights RLS cannot cover
        OR (d.defaclnamespace = 'public'::regnamespace
             AND d.defaclobjtype = 'r'
@@ -292,10 +428,17 @@ BEGIN
             AND d.defaclobjtype = 'f'
             AND (a.grantee = 0
                  OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
-          -- global function default ACLs: no direct grant to a public-facing role
+          -- GLOBAL function default ACLs: no direct grant to a public-facing role or PUBLIC
        OR (d.defaclnamespace = 0
             AND d.defaclobjtype = 'f'
-            AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+            AND (a.grantee = 0
+                 OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+          -- GLOBAL table/sequence default ACLs: a schema-scoped REVOKE cannot subtract
+          -- these, so a residue here means section 0b's precondition was bypassed.
+       OR (d.defaclnamespace = 0
+            AND d.defaclobjtype IN ('r', 'S')
+            AND (a.grantee = 0
+                 OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
          );
 
   IF offenders IS NOT NULL THEN
@@ -308,9 +451,10 @@ BEGIN
   --     migration covered. Without the global revoke no such entry exists, which is
   --     precisely the state that leaves PUBLIC able to execute future functions.
   --
-  --     The candidate set is recomputed exactly as section 4 does, so this cannot drift
-  --     from what was covered. Any candidate that section 4 could not cover would have
-  --     raised there, so every candidate reaching this point was covered.
+  --     The candidate set is recomputed exactly as section 4 does — including effective
+  --     (inherited or PUBLIC-derived) CREATE — so this cannot drift from what was covered.
+  --     Any candidate that section 4 could not cover would have raised there, so every
+  --     candidate reaching this point was covered.
   SELECT string_agg(DISTINCT c.rolname, ', ')
     INTO offenders
     FROM (
@@ -319,12 +463,8 @@ BEGIN
        WHERE d.defaclnamespace = 'public'::regnamespace
       UNION
       SELECT r.rolname
-        FROM pg_catalog.pg_namespace n,
-             pg_catalog.aclexplode(n.nspacl) a,
-             pg_catalog.pg_roles r
-       WHERE n.nspname = 'public'
-         AND a.privilege_type = 'CREATE'
-         AND r.oid = a.grantee
+        FROM pg_catalog.pg_roles r
+       WHERE pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE')
     ) AS c
    WHERE c.rolname <> 'pg_database_owner'
      AND NOT EXISTS (SELECT 1

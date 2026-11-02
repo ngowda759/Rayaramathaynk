@@ -286,8 +286,11 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(before.length).toBeGreaterThan(0);
 
       await db.exec(`SET ROLE applier;`);
+      // The message names every creator the applier cannot act for. `supabase_admin` is
+      // the one this test set up; `postgres` also appears because a superuser reports
+      // CREATE via `has_schema_privilege` and the applier is not a superuser.
       await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
-        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): supabase_admin/
+        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): .*supabase_admin/
       );
       await db.exec(`RESET ROLE;`);
 
@@ -443,6 +446,159 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
           WHERE n.nspname = 'public' AND a.privilege_type = 'CREATE' AND r.oid = a.grantee`
       );
       expect(owners.rows.map((r) => r.rolname)).toContain("pg_database_owner");
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).resolves.toBeUndefined();
+      expect(await publicFacingDefaults(db)).toEqual([]);
+    });
+  });
+
+  /**
+   * Effective CREATE privilege — the review asked discovery to account for privileges
+   * that a direct `aclexplode(nspacl)` join cannot see: inheritance through membership,
+   * and a grant to PUBLIC. Both are measured below.
+   */
+  describe("effective CREATE discovery (inheritance and PUBLIC)", () => {
+    it("covers a creator that inherits CREATE through role membership", async () => {
+      // `child_c` is a member of `parent_c`, which holds CREATE. `child_c` appears in no
+      // `nspacl` entry, so a direct join misses it — but it can create, and a function it
+      // creates carries the implicit PUBLIC EXECUTE.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`
+        CREATE ROLE parent_c NOLOGIN;
+        CREATE ROLE child_c NOLOGIN;
+        GRANT USAGE, CREATE ON SCHEMA public TO parent_c;
+        GRANT parent_c TO child_c;
+      `);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+
+      // Pre-condition: a direct nspacl join does NOT list child_c.
+      const direct = await db.query<{ rolname: string }>(
+        `SELECT r.rolname
+           FROM pg_catalog.pg_namespace n,
+                pg_catalog.aclexplode(n.nspacl) a,
+                pg_catalog.pg_roles r
+          WHERE n.nspname = 'public' AND a.privilege_type = 'CREATE' AND r.oid = a.grantee`
+      );
+      expect(direct.rows.map((r) => r.rolname)).not.toContain("child_c");
+
+      // But it is an effective creator, so `has_schema_privilege` sees it.
+      const effective = await db.query<{ c: boolean }>(
+        `SELECT pg_catalog.has_schema_privilege('child_c', 'public', 'CREATE') AS c`
+      );
+      expect(effective.rows[0]!.c).toBe(true);
+
+      await apply(db, DEFAULTS_MIGRATION);
+
+      // Covered: the global PUBLIC EXECUTE revoke was issued for it too.
+      const global = await db.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+           FROM pg_catalog.pg_default_acl d,
+                pg_catalog.aclexplode(d.defaclacl) a,
+                pg_catalog.pg_roles r
+          WHERE r.rolname = 'child_c' AND d.defaclrole = r.oid
+            AND d.defaclnamespace = 0 AND d.defaclobjtype = 'f' AND a.grantee <> 0`
+      );
+      expect(global.rows[0]!.n).toBeGreaterThan(0);
+
+      await db.exec(
+        `SET ROLE child_c; CREATE FUNCTION public.child_fn() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
+      );
+      const r = await db.query<{ p: boolean }>(
+        `SELECT has_function_privilege('anon', 'public.child_fn()', 'EXECUTE') AS p`
+      );
+      expect(r.rows[0]!.p).toBe(false);
+    });
+
+    it("fails closed when CREATE is granted to PUBLIC", async () => {
+      // `GRANT CREATE ON SCHEMA public TO PUBLIC` has grantee OID 0, which matches no
+      // `pg_roles` row, so a direct join drops it entirely — yet it makes every role
+      // (including anon/authenticated) an effective creator. That is a misconfiguration
+      // this migration cannot fix (removing it is a schema-ACL change, F-A16-01 scope),
+      // so it must fail closed rather than pass silently.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`GRANT CREATE ON SCHEMA public TO PUBLIC;`);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+
+      // Measured: the public-facing roles now report CREATE.
+      const eff = await db.query<{ rolname: string; c: boolean }>(
+        `SELECT r.rolname, pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE') AS c
+           FROM pg_catalog.pg_roles r
+          WHERE r.rolname IN ('anon', 'authenticated', 'service_role') ORDER BY 1`
+      );
+      expect(eff.rows.every((r) => r.c)).toBe(true);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: public-facing role\(s\) hold CREATE on schema public:/
+      );
+    });
+
+    it("fails closed when a public-facing role is granted CREATE directly", async () => {
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`GRANT CREATE ON SCHEMA public TO authenticated;`);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: public-facing role\(s\) hold CREATE on schema public: authenticated/
+      );
+    });
+  });
+
+  /**
+   * Global default ACLs. A schema-scoped REVOKE cannot subtract a globally-granted
+   * default, so for tables and sequences the migration must refuse to run rather than
+   * report a success that is not real.
+   */
+  describe("global table and sequence default ACLs (fail closed)", () => {
+    it("global GRANT SELECT ON TABLES TO PUBLIC is not subtracted by a schema REVOKE", async () => {
+      // This is the measurement that motivates the precondition: prove the bypass exists
+      // before asserting the migration refuses it.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;`);
+      await db.exec(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;`
+      );
+      await db.exec(`CREATE TABLE public.bypass_tbl (id int);`);
+
+      const r = await db.query<{ p: boolean }>(
+        `SELECT has_table_privilege('anon', 'public.bypass_tbl', 'SELECT') AS p`
+      );
+      expect(r.rows[0]!.p).toBe(true);
+    });
+
+    it("refuses to run while a global table default grants a public-facing role", async () => {
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT ALL ON TABLES TO anon;`);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: global default privileges confer future objects on public-facing roles:/
+      );
+    });
+
+    it("refuses to run while a global sequence default grants a public-facing role", async () => {
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT USAGE ON SEQUENCES TO authenticated;`);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: global default privileges confer future objects on public-facing roles:/
+      );
+    });
+
+    it("still applies when only a global PUBLIC function default exists (handled, not refused)", async () => {
+      // The global PUBLIC function default is the one global form the migration DOES
+      // remediate, because it is the only way to remove the implicit PUBLIC EXECUTE. It
+      // must therefore not trip the section 0b precondition.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO PUBLIC;`);
 
       await expect(apply(db, DEFAULTS_MIGRATION)).resolves.toBeUndefined();
       expect(await publicFacingDefaults(db)).toEqual([]);

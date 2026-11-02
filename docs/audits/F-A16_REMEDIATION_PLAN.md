@@ -146,16 +146,70 @@ So section 4 discovers candidates from the **union of two catalog sources**:
 | Source | Query | Catches |
 |---|---|---|
 | (a) default-ACL owners | every `pg_default_acl` row for `public`, **no grantee filter** | any role that has expressed a public default ACL |
-| (b) schema `CREATE` holders | `aclexplode(public.nspacl)` where `privilege_type = 'CREATE'` | a creator with no default ACL row of its own |
+| (b) effective CREATE holders | `has_schema_privilege(r.oid, 'public', 'CREATE')` | any role that can actually create, however it obtained the right |
 
-`pg_database_owner` appears in source (b) on every PG 15+ database (it owns `public`) but
-creates nothing itself, so it is skipped explicitly — otherwise the migration would fail
-everywhere. It is named in the code and in a test rather than silently filtered.
+Source (b) uses `has_schema_privilege` rather than joining `aclexplode(public.nspacl)`,
+and the difference is not cosmetic. A direct join sees only the role that was **granted**
+CREATE, so it misses two measured cases:
+
+* **Inheritance through membership.** `child_c`, a member of `parent_c` (which holds
+  CREATE), appears in no `nspacl` entry — a direct join omits it — yet it could
+  `CREATE TABLE` in `public`. `has_schema_privilege` reports it because it resolves
+  membership. A function `child_c` creates still carries the implicit `PUBLIC` `EXECUTE`.
+* **A grant to `PUBLIC`.** `GRANT CREATE ON SCHEMA public TO PUBLIC` records
+  `grantee = 0`, which matches no `pg_roles` row, so a direct join drops it silently.
+  Measured: it makes 21 roles report CREATE, `anon` and `authenticated` among them.
+  `has_schema_privilege` reflects it for every role.
+
+`pg_database_owner` holds CREATE on `public` on every PG 15+ database (it owns the schema)
+but creates nothing itself, so it is skipped explicitly — otherwise the migration would
+fail everywhere. It is named in the code and in a test rather than silently filtered.
 
 Note the asymmetry, so this is not over-read: a creator with **no** default ACL row
 produces **owner-only tables** (the hardwired default — measured `relacl IS NULL`), so for
 source (b) the **function** revoke is the one that changes anything. The table and sequence
 revokes are still issued for those roles; they are no-ops when the privilege is not held.
+
+#### 2.4.2a A public-facing role must not be a creator (section 0c)
+
+If `anon`, `authenticated` or `service_role` can itself create in `public`, the remediation
+is no longer well-defined: "public-facing role" and "creator" stop being disjoint sets, and
+such a role owns the defaults for objects it creates. Removing the right is a **schema-ACL**
+change (`REVOKE CREATE ON SCHEMA`), which is existing-object grant territory (F-A16-01) and
+is deliberately deferred.
+
+So section 0c checks `has_schema_privilege` for those three roles and **fails closed** if
+any holds CREATE — directly, through a role they are members of, or via `PUBLIC`. This is a
+state that needs a human decision, not a silent pass. The plan's §9 item 7d is the
+read-only query that answers it ahead of time.
+
+#### 2.4.3a Global default privileges — why they are fail-closed, not remediated
+
+`ALTER DEFAULT PRIVILEGES` without `IN SCHEMA` is **global**: it applies to objects created
+in every schema, and a schema-scoped `REVOKE` **cannot subtract it**. Measured on PGlite:
+
+```sql
+ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;                                  -- global
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;   -- per-schema
+CREATE TABLE public.t (id int);
+-- has_table_privilege('anon', 'public.t', 'SELECT')  =>  true   (the schema revoke did nothing)
+```
+
+Left unchecked, sections 1–2 would report success while every new `public` table stayed
+readable by `anon` through the global entry. Section 0b therefore **fails closed** while such
+a default exists. The scope is deliberate:
+
+| Global default | Section 0b | Why |
+|---|---|---|
+| tables / sequences → `PUBLIC` or `anon`/`authenticated` | **refuses** | not removable by a schema-scoped revoke; needs the global form |
+| functions → `PUBLIC` | **allowed** | section 3 removes it globally on purpose — the only way to drop the implicit `PUBLIC` EXECUTE |
+| functions → a named `anon`/`authenticated` | **refuses** | survives section 3's per-schema revoke; not removed by this migration |
+
+The fix for what 0b refuses is **not** applied here. The global form changes defaults for
+every schema in the database, including platform-managed schemas this migration must not
+touch — a broader action than F-A16-02 supports. It is an owner-reviewed step:
+`docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` §4, with the blast radius and the
+pre-flight checks spelled out. The plan's §9 item 7b is the read-only query.
 
 #### 2.4.3 Scope and limitations of the discovery
 
@@ -405,28 +459,36 @@ SELECT pg_get_userbyid(d.defaclrole) AS owner_role, n.nspname AS schema,
 
 -- Global (defaclnamespace = 0) default ACLs — assessed separately, because the implicit
 -- PUBLIC EXECUTE on future functions is a global default and a per-schema read cannot see
--- it. A row here naming anon/authenticated is a direct grant worth reviewing.
+-- it. For tables/sequences a row here is the one a schema-scoped REVOKE CANNOT subtract.
 SELECT pg_get_userbyid(d.defaclrole) AS owner_role,
+       CASE d.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' WHEN 'f' THEN 'FUNCTIONS' END AS object_type,
        CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END AS grantee,
        a.privilege_type
   FROM pg_default_acl d, aclexplode(d.defaclacl) a
  WHERE d.defaclnamespace = 0
- ORDER BY 1, 2, 3;
+ ORDER BY 1, 2, 3, 4;
 
--- The complete candidate-creator set: default-ACL owners UNION schema CREATE holders.
--- The second half catches a creator with no default-ACL row of its own — which still
--- confers the implicit PUBLIC EXECUTE on functions it creates.
+-- The complete candidate-creator set: default-ACL owners UNION roles with EFFECTIVE
+-- CREATE. The second half uses has_schema_privilege, which resolves inheritance through
+-- membership and a CREATE granted to PUBLIC — neither is visible to a direct nspacl join.
 SELECT candidate, why,
        pg_has_role(current_user, candidate, 'MEMBER') AS applier_may_act_for_it
   FROM (
     SELECT pg_get_userbyid(d.defaclrole) AS candidate, 'has a public default ACL' AS why
       FROM pg_default_acl d WHERE d.defaclnamespace = 'public'::regnamespace
     UNION
-    SELECT r.rolname, 'may CREATE in public'
-      FROM pg_namespace n, aclexplode(n.nspacl) a, pg_roles r
-     WHERE n.nspname = 'public' AND a.privilege_type = 'CREATE' AND r.oid = a.grantee
+    SELECT r.rolname, 'effectively holds CREATE in public'
+      FROM pg_roles r
+     WHERE has_schema_privilege(r.oid, 'public', 'CREATE')
   ) c
  WHERE candidate <> 'pg_database_owner'
+ ORDER BY 1;
+
+-- Do any public-facing roles effectively hold CREATE on public? Section 0c fails closed
+-- on a non-empty result.
+SELECT r.rolname, has_schema_privilege(r.oid, 'public', 'CREATE') AS can_create
+  FROM pg_roles r
+ WHERE r.rolname IN ('anon', 'authenticated', 'service_role')
  ORDER BY 1;
 ```
 
@@ -689,9 +751,11 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | 4 | Sequences used by `INSERT` (`serial`/identity) | `service_role` needs `USAGE` on the sequence | confirm `service_role` sequence `USAGE` is retained |
 | 5 | `anon` `401 permission denied` on 21 tables | confirms the API refuses those tables for `anon` | re-run the audit census |
 | 6 | `pg_default_acl` rows for `postgres` **and** `supabase_admin` | the migration assumes the documented defaults | read `pg_default_acl` live and compare |
-| 7 | **Every** candidate creator in `public` — default-ACL owners **and** `CREATE` holders — and whether the applying role is a member of each | the migration enumerates both sources and **fails closed** on any it cannot cover; the owner-run step is the remedy | source (a): `SELECT DISTINCT pg_get_userbyid(defaclrole) FROM pg_default_acl WHERE defaclnamespace='public'::regnamespace`; source (b): `SELECT r.rolname FROM pg_namespace n, aclexplode(n.nspacl) a, pg_roles r WHERE n.nspname='public' AND a.privilege_type='CREATE' AND r.oid=a.grantee`; then `SELECT pg_has_role(current_user, '<creator>', 'MEMBER')` per creator |
-| 7b | Any **global** (`defaclnamespace = 0`) function default ACL granting `EXECUTE` to `anon`/`authenticated` | the post-condition checks for this shape; a live read confirms whether it exists today | `SELECT pg_get_userbyid(d.defaclrole), a.grantee, a.privilege_type FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE d.defaclnamespace = 0 AND d.defaclobjtype = 'f'` |
+| 7 | **Every** candidate creator in `public` — default-ACL owners **and** roles with effective `CREATE` — and whether the applying role is a member of each | the migration enumerates both sources and **fails closed** on any it cannot cover; the owner-run step is the remedy | source (a): `SELECT DISTINCT pg_get_userbyid(defaclrole) FROM pg_default_acl WHERE defaclnamespace='public'::regnamespace`; source (b): `SELECT rolname FROM pg_roles r WHERE has_schema_privilege(r.oid,'public','CREATE')`; then `SELECT pg_has_role(current_user, '<creator>', 'MEMBER')` per creator |
+| 7b | Any **global** (`defaclnamespace = 0`) table or sequence default ACL naming `PUBLIC`, `anon` or `authenticated`, and any global **function** default naming `anon`/`authenticated` | section 0b **fails closed** on these; a schema-scoped REVOKE cannot subtract them, and the global remedy is an owner action | `SELECT pg_get_userbyid(d.defaclrole), CASE d.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' WHEN 'f' THEN 'FUNCTIONS' END, CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END, a.privilege_type FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE d.defaclnamespace = 0` |
 | 7c | The `pg_database_owner` pseudo-role is present (PG 15+) | the migration skips it explicitly; if a target is PG 14 the name may be absent, which the skip tolerates | `SELECT rolname FROM pg_roles WHERE rolname = 'pg_database_owner'` |
+| 7d | Whether `anon`, `authenticated` or `service_role` can **effectively create** in `public` | section 0c **fails closed** if any can; removing CREATE is a schema-ACL change (F-A16-01 scope, deferred) | `SELECT rolname FROM pg_roles r WHERE rolname IN ('anon','authenticated','service_role') AND has_schema_privilege(r.oid,'public','CREATE')` |
+| 7e | Whether `CREATE` on `public` was granted to `PUBLIC` | it makes every role an effective creator and section 0c will refuse | `SELECT nspacl::text FROM pg_namespace WHERE nspname='public'` — look for `=C/` |
 | 8 | The event trigger `ensure_rls` exists, is named that, and is **enabled** | F-A16-03's precondition checks this at apply time and refuses if not | `SELECT evtname, evtenabled, evtfoid::regprocedure FROM pg_event_trigger WHERE evtevent='ddl_command_end'` |
 | 11 | Whether the applying role may create an event trigger at all | only `postgres` (via `supautils`) manages event triggers on Supabase | attempt is the test — the migration fails loudly; confirm by running it in a transaction and rolling back |
 | 9 | Raya AI retrieval browser paths | they use the browser client for public reads only | confirm no retrieval module reads a non-public table with the browser client |
@@ -717,10 +781,16 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | A role with `CREATE` on `public` but no `pg_default_acl` row still confers the implicit `PUBLIC` `EXECUTE` on functions it creates | **Verified** on PGlite (`has_function_privilege('anon', …)` is true) |
 | A role with no default ACL row produces owner-only tables (hardwired default) | **Verified** on PGlite (`relacl IS NULL`) |
 | A grantee-filtered `pg_default_acl` search misses a role whose public default ACL names only another grantee | **Verified** on PGlite (the filtered query omits it; the migration covers it) |
+| A direct `aclexplode(nspacl)` join misses a role that inherits CREATE through membership | **Verified** on PGlite (`child_c` absent from the join, present via `has_schema_privilege`, could `CREATE TABLE`) |
+| A direct `aclexplode(nspacl)` join drops `CREATE` granted to `PUBLIC` (grantee OID 0) | **Verified** on PGlite (21 roles report CREATE after `GRANT CREATE … TO PUBLIC`) |
+| A schema-scoped `REVOKE` cannot subtract a global default privilege | **Verified** on PGlite (`anon` still had SELECT on a new table after the schema revoke) |
+| `pg_get_userbyid(0)` returns `'unknown (OID=0)'`, not NULL | **Verified** on PGlite (so an `IN ('anon',…)` test never matches PUBLIC) |
+| `ALTER DEFAULT PRIVILEGES` always keeps a non-revocable `owner=<privs>/owner` entry | **Verified** on PGlite (`REVOKE … FROM anon` left `{anon=X/anon}`) |
 | The global `REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` leaves a readable owner-only `ns=0` row per covered role | **Verified** on PGlite (this is what the post-condition asserts) |
 | PGlite results transfer to Supabase production | **NOT verified** — PGlite proves PostgreSQL semantics only; the platform layer needs the §3.6 read-only queries |
-| The complete set of candidate creators in production (default-ACL owners **and** `CREATE` holders) | **Unverified** — the migration enumerates both at apply time and fails closed, but the *list* needs §9 item 7 |
-| Whether a global (`ns=0`) function default ACL grants `EXECUTE` to `anon`/`authenticated` today | **Unverified** — the post-condition checks the shape; the live read in §9 item 7b confirms it |
+| The complete set of candidate creators in production (default-ACL owners **and** effective CREATE holders) | **Unverified** — the migration enumerates both at apply time and fails closed, but the *list* needs §9 item 7 |
+| Whether any global table/sequence/function default exists in production | **Unverified** — section 0b checks it at apply time; the live read in §9 item 7b confirms it |
+| Whether `anon`/`authenticated`/`service_role` can create in `public` in production | **Unverified** — section 0c checks it at apply time; the live read in §9 items 7d/7e confirms it |
 
 ---
 

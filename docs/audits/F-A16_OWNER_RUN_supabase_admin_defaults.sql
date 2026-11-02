@@ -38,26 +38,28 @@
 --    Two sources, because one is not an inventory:
 --      (a) every `pg_default_acl` row for `public` — NOT filtered by grantee, so a role
 --          whose row names only some other grantee is still seen;
---      (b) every role with `CREATE` on `public` — a creator with no default-ACL row at
---          all still confers the implicit PUBLIC EXECUTE on functions it creates.
+--      (b) every role that EFFECTIVELY holds CREATE on `public` — via
+--          `has_schema_privilege`, which accounts for inheritance through membership and
+--          for a CREATE granted to PUBLIC. A direct `aclexplode(nspacl)` join would miss
+--          both. Such a role can create a function, which carries the implicit PUBLIC
+--          EXECUTE, so it must be covered.
 -- -------------------------------------------------------------------------------------
-SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole) AS candidate_creator,
-       'has a public default ACL' AS why,
-       pg_catalog.pg_has_role(current_user, pg_catalog.pg_get_userbyid(d.defaclrole), 'MEMBER')
+SELECT DISTINCT candidate AS candidate_creator,
+       why,
+       pg_catalog.pg_has_role(current_user, candidate, 'MEMBER')
          AS can_act_from_current_session
-  FROM pg_catalog.pg_default_acl d
- WHERE d.defaclnamespace = 'public'::regnamespace
-UNION
-SELECT r.rolname AS candidate_creator,
-       'may CREATE in public' AS why,
-       pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') AS can_act_from_current_session
-  FROM pg_catalog.pg_namespace n,
-       pg_catalog.aclexplode(n.nspacl) a,
-       pg_catalog.pg_roles r
- WHERE n.nspname = 'public'
-   AND a.privilege_type = 'CREATE'
-   AND r.oid = a.grantee
-   AND r.rolname <> 'pg_database_owner'   -- pseudo-role; owns the schema, creates nothing
+  FROM (
+    SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS candidate,
+           'has a public default ACL' AS why
+      FROM pg_catalog.pg_default_acl d
+     WHERE d.defaclnamespace = 'public'::regnamespace
+    UNION
+    SELECT r.rolname AS candidate,
+           'effectively holds CREATE in public' AS why
+      FROM pg_catalog.pg_roles r
+     WHERE pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE')
+  ) c
+ WHERE candidate <> 'pg_database_owner'   -- pseudo-role; owns the schema, creates nothing
  ORDER BY 1;
 
 -- -------------------------------------------------------------------------------------
@@ -118,8 +120,10 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
  ORDER BY 1, 2, 3, 4;
 
 -- 2b. Global (defaclnamespace = 0) function default ACLs that name a public-facing
---     role. Expect no rows. The implicit PUBLIC EXECUTE is not readable here, so it is
---     proven by the presence of an owner-only global row per covered creator instead.
+--     role or PUBLIC. Expect no rows. The implicit PUBLIC EXECUTE is not readable here,
+--     so it is proven by the presence of an owner-only global row per covered creator
+--     instead. Note `grantee = 0` must be tested explicitly: `pg_get_userbyid(0)`
+--     returns 'unknown (OID=0)', not NULL, so an IN-list never matches PUBLIC.
 SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
        CASE WHEN a.grantee = 0 THEN 'PUBLIC'
             ELSE pg_catalog.pg_get_userbyid(a.grantee) END AS grantee,
@@ -128,8 +132,26 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
        pg_catalog.aclexplode(d.defaclacl) a
  WHERE d.defaclnamespace = 0
    AND d.defaclobjtype = 'f'
-   AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')
+   AND (a.grantee = 0
+        OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
  ORDER BY 1, 2, 3;
+
+-- 2c. Global (defaclnamespace = 0) TABLE and SEQUENCE default ACLs that name a
+--     public-facing role or PUBLIC. Expect no rows. These are the ones a schema-scoped
+--     REVOKE cannot subtract (measured on PGlite), so a residue here is the reason the
+--     main migration stopped at its section 0b precondition.
+SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
+       CASE d.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' END AS object_type,
+       CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+            ELSE pg_catalog.pg_get_userbyid(a.grantee) END AS grantee,
+       a.privilege_type
+  FROM pg_catalog.pg_default_acl d,
+       pg_catalog.aclexplode(d.defaclacl) a
+ WHERE d.defaclnamespace = 0
+   AND d.defaclobjtype IN ('r', 'S')
+   AND (a.grantee = 0
+        OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+ ORDER BY 1, 2, 3, 4;
 
 -- -------------------------------------------------------------------------------------
 -- 3. Rollback — restore the platform defaults for this role.
@@ -143,3 +165,51 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role', target);
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role', target);
 -- END $$;
+
+-- =====================================================================================
+-- 4. GLOBAL table/sequence defaults — OWNER-REVIEWED, affects EVERY schema.
+--
+--    Run this ONLY if the main migration stopped at its section 0b precondition, which
+--    means a GLOBAL default still grants future tables or sequences to a public-facing
+--    role. A schema-scoped REVOKE cannot subtract such a grant, so it must be removed
+--    with the global form (no `IN SCHEMA`).
+--
+--    ⚠️  READ THIS BEFORE RUNNING. The global form changes default privileges for objects
+--    created in EVERY schema of the database, not only `public`. That is a broader blast
+--    radius than F-A16-02 and it is why the main migration refuses to do it
+--    automatically. Before running:
+--
+--      1. run the step 2c query above to see exactly which global entries exist;
+--      2. confirm none of them is relied on by a platform-managed schema. If any is,
+--         STOP — this is not the right remedy and needs a design discussion, not a
+--         script. A per-schema GRANT can be re-added for a schema that genuinely needs it.
+--      3. run it in a transaction, verify, then commit — or roll back if unsure.
+--
+--    Note the asymmetry with functions. The function default is revoked globally in the
+--    main migration on purpose (it is the ONLY way to remove the implicit PUBLIC EXECUTE,
+--    which is not readable from any ACL). For tables and sequences there is no implicit
+--    PUBLIC grant — a PUBLIC entry exists only if someone created one — so this step is
+--    narrower in motivation and is left to explicit owner review.
+-- =====================================================================================
+-- DO $$
+-- DECLARE
+--   -- Set to the creator whose global defaults are leaking (see step 2c).
+--   target constant text := 'supabase_admin';
+-- BEGIN
+--   IF NOT pg_catalog.pg_has_role(current_user, target, 'MEMBER') THEN
+--     RAISE EXCEPTION 'F-A16-02: current role % may not change default privileges for %', current_user, target
+--       USING HINT = 'Run as that role, or as a superuser.';
+--   END IF;
+--
+--   -- GLOBAL form: no `IN SCHEMA`. Affects every schema in the database.
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON TABLES    FROM anon, authenticated', target);
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON TABLES    FROM PUBLIC', target);
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM anon, authenticated', target);
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM PUBLIC', target);
+--
+--   RAISE NOTICE 'F-A16-02: global table/sequence defaults tightened for %', target;
+-- END $$;
+--
+-- Rollback of step 4 (restores the global defaults; again affects every schema):
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON TABLES    TO anon, authenticated, service_role', target);
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON SEQUENCES TO anon, authenticated, service_role', target);
