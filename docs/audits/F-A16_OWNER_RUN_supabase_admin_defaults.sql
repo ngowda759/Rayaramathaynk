@@ -14,8 +14,11 @@
 -- `postgres` happens to be a member of `supabase_admin`.
 --
 -- `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` covers the
--- applying role and then enumerates the remaining owners from `pg_default_acl`. If it
--- finds an owner it cannot act for, it raises and rolls back, and its hint points here.
+-- applying role and then enumerates the remaining candidate creators from TWO catalog
+-- sources — every `pg_default_acl` row for `public` (no grantee filter), plus every role
+-- with `CREATE` on `public` (which catches a creator that has no default-ACL row of its
+-- own but still confers the implicit PUBLIC EXECUTE on functions it creates). If it
+-- finds a creator it cannot act for, it raises and rolls back, and its hint points here.
 -- That is deliberate: F-A16-02 must not be described as remediated while a role was
 -- skipped.
 --
@@ -29,15 +32,32 @@
 -- =====================================================================================
 
 -- -------------------------------------------------------------------------------------
--- 0. Identify the owners that still hold broad defaults for public-facing roles.
+-- 0. Identify the creators that still hold broad defaults for public-facing roles.
 --    Run this first. If it returns nothing, nothing here is needed.
+--
+--    Two sources, because one is not an inventory:
+--      (a) every `pg_default_acl` row for `public` — NOT filtered by grantee, so a role
+--          whose row names only some other grantee is still seen;
+--      (b) every role with `CREATE` on `public` — a creator with no default-ACL row at
+--          all still confers the implicit PUBLIC EXECUTE on functions it creates.
 -- -------------------------------------------------------------------------------------
-SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
+SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole) AS candidate_creator,
+       'has a public default ACL' AS why,
        pg_catalog.pg_has_role(current_user, pg_catalog.pg_get_userbyid(d.defaclrole), 'MEMBER')
          AS can_act_from_current_session
   FROM pg_catalog.pg_default_acl d
  WHERE d.defaclnamespace = 'public'::regnamespace
-   AND d.defaclacl::text ~ '(^|[,{])(anon|authenticated|service_role)='
+UNION
+SELECT r.rolname AS candidate_creator,
+       'may CREATE in public' AS why,
+       pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') AS can_act_from_current_session
+  FROM pg_catalog.pg_namespace n,
+       pg_catalog.aclexplode(n.nspacl) a,
+       pg_catalog.pg_roles r
+ WHERE n.nspname = 'public'
+   AND a.privilege_type = 'CREATE'
+   AND r.oid = a.grantee
+   AND r.rolname <> 'pg_database_owner'   -- pseudo-role; owns the schema, creates nothing
  ORDER BY 1;
 
 -- -------------------------------------------------------------------------------------
@@ -96,6 +116,20 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
                OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
    )
  ORDER BY 1, 2, 3, 4;
+
+-- 2b. Global (defaclnamespace = 0) function default ACLs that name a public-facing
+--     role. Expect no rows. The implicit PUBLIC EXECUTE is not readable here, so it is
+--     proven by the presence of an owner-only global row per covered creator instead.
+SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
+       CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+            ELSE pg_catalog.pg_get_userbyid(a.grantee) END AS grantee,
+       a.privilege_type
+  FROM pg_catalog.pg_default_acl d,
+       pg_catalog.aclexplode(d.defaclacl) a
+ WHERE d.defaclnamespace = 0
+   AND d.defaclobjtype = 'f'
+   AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')
+ ORDER BY 1, 2, 3;
 
 -- -------------------------------------------------------------------------------------
 -- 3. Rollback — restore the platform defaults for this role.

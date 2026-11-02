@@ -107,9 +107,9 @@ reproduction is now a permanent test (`tests/db/f-a16-least-privilege.test.ts`).
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated` | no public role can advance a sequence |
 | `ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` | removes the implicit `PUBLIC` `EXECUTE` on future functions |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated` | removes the platform's explicit grant to those roles |
-| `DO` block enumerating owners from `pg_default_acl` and repeating the above `FOR ROLE <owner>` | covers **every** object-creating role whose ACL still names a public-facing grantee — not just `supabase_admin` |
-| `DO` block raising if an owner cannot be covered | the migration **fails closed** and rolls back; F-A16-02 is never described as complete while a role was skipped |
-| `DO` block verifying the post-condition via `aclexplode` | a silent no-op revoke cannot pass; the implicit `PUBLIC` `EXECUTE` is verified separately |
+| `DO` block enumerating candidate creators from **two** catalog sources — every `pg_default_acl` owner for `public` (no grantee filter) **and** every role with `CREATE` on `public` — and repeating the above `FOR ROLE <creator>` | covers creators that a grantee-filtered search cannot see: one whose public default ACL names only some other grantee, and one with no `pg_default_acl` row at all |
+| `DO` block raising if a candidate creator cannot be covered | the migration **fails closed** and rolls back; F-A16-02 is never described as complete while a role was skipped |
+| `DO` block verifying the post-condition via `aclexplode`, over the same candidate set, including global (`ns=0`) function rows | a silent no-op revoke cannot pass; the implicit `PUBLIC` `EXECUTE` is verified separately |
 
 A `DO` block first **raises** if `anon`, `authenticated` or `service_role` is absent, so
 the migration fails loudly rather than silently leaving the defaults broad on a
@@ -124,11 +124,67 @@ refused for any other. A migration that only named `postgres` and `supabase_admi
 therefore be wrong twice over: it would miss a third owner if one existed, and it would
 have no way to tell a reviewer whether a role had actually been covered.
 
-So section 4 of the migration discovers the owner set from `pg_default_acl`, applies the
-same five revokes for each owner it may act for, and **raises** if any owner is left. The
-raise rolls the whole migration back (`ALTER DEFAULT PRIVILEGES` is transactional —
-verified on PGlite), so the database is never left half-tightened. The exception hint
-names the split-out owner-run step:
+#### 2.4.2 Why discovery is not filtered by grantee (and why `pg_default_acl` alone is not enough)
+
+An earlier revision of section 4 discovered owners with
+`pg_default_acl … WHERE defaclacl::text ~ '(^|[,{])(anon|authenticated|service_role)='`.
+That is a **targeted search for rows naming those grantees**, not an inventory, and it is
+wrong in two ways. Both were reproduced on PGlite and are pinned by tests:
+
+1. **It misses a creator whose public default ACL names only some other grantee.** A role
+   with `ALTER DEFAULT PRIVILEGES FOR ROLE temple_creator IN SCHEMA public GRANT SELECT ON
+   TABLES TO reporting_role` has a `pg_default_acl` row for `public`, but the row does not
+   name `anon`/`authenticated`/`service_role`, so the filter skips the role entirely — and
+   its future functions keep the implicit `PUBLIC` `EXECUTE` (`anon` can execute them).
+2. **It cannot see a creator with no `pg_default_acl` row at all.** A role with `CREATE`
+   on `public` but no default ACL of its own has no row to filter. Its future functions
+   still carry the implicit `PUBLIC` `EXECUTE` — measured: `has_function_privilege('anon',
+   …)` is `true` for a function created by such a role.
+
+So section 4 discovers candidates from the **union of two catalog sources**:
+
+| Source | Query | Catches |
+|---|---|---|
+| (a) default-ACL owners | every `pg_default_acl` row for `public`, **no grantee filter** | any role that has expressed a public default ACL |
+| (b) schema `CREATE` holders | `aclexplode(public.nspacl)` where `privilege_type = 'CREATE'` | a creator with no default ACL row of its own |
+
+`pg_database_owner` appears in source (b) on every PG 15+ database (it owns `public`) but
+creates nothing itself, so it is skipped explicitly — otherwise the migration would fail
+everywhere. It is named in the code and in a test rather than silently filtered.
+
+Note the asymmetry, so this is not over-read: a creator with **no** default ACL row
+produces **owner-only tables** (the hardwired default — measured `relacl IS NULL`), so for
+source (b) the **function** revoke is the one that changes anything. The table and sequence
+revokes are still issued for those roles; they are no-ops when the privilege is not held.
+
+#### 2.4.3 Scope and limitations of the discovery
+
+Stated explicitly, because the migration must not imply more than it does:
+
+* **The catalog cannot enumerate roles that do not exist yet.** A role created after this
+  migration runs carries no default ACL, so it reverts to the hardwired defaults: tables
+  owner-only (safe), functions with the implicit `PUBLIC` `EXECUTE` (not safe for a role
+  that will create functions). If the platform later attaches a broad per-role default ACL
+  to any role, that ACL is equally invisible to this run.
+* **The post-condition verifies the scope the migration established** — the candidate set
+  recomputed from the same two sources, minus `pg_database_owner`. It asserts that every
+  covered role's revoke took effect. It does **not** assert that every possible future
+  creator was enumerated, because no catalog query can. Read it as "the roles this file
+  could see are covered", not "all creators are covered".
+* **Explicit catalog entries do not establish any future session's effective privileges.**
+  `pg_default_acl` records what a *creating role* will stamp on new objects. What a
+  *grantee* can then do also depends on inherited role memberships, `PUBLIC`, and
+  `BYPASSRLS`, none of which a default-ACL inventory describes. This migration narrows the
+  defaults; it is not a proof about any session's effective access.
+
+The residual risk from the first bullet is recorded in §2.6 and covered by the operational
+control named there.
+
+So section 4 of the migration discovers the owner set from `pg_default_acl` **and** the
+schema `CREATE` ACL, applies the same five revokes for each creator it may act for, and
+**raises** if any is left. The raise rolls the whole migration back
+(`ALTER DEFAULT PRIVILEGES` is transactional — verified on PGlite), so the database is
+never left half-tightened. The exception hint names the split-out owner-run step:
 
 * `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` — the same tightening, run as
   the role that owns the defaults (or as a superuser). It re-checks
@@ -167,17 +223,39 @@ migration is safe to apply without an application-dependency audit:
   because revoking one can break a live read or write. This plan deliberately does not
   propose any such revoke without that audit (§4).
 
+**Residual risk this migration cannot close.** A role created *after* the migration runs
+carries no default ACL of its own, so it reverts to the hardwired defaults: tables
+owner-only (safe), functions with the implicit `PUBLIC` `EXECUTE` (not safe for a role that
+will create functions). The same applies if the platform later attaches a broad per-role
+default ACL to any role. Neither is a grant this migration can revoke — both are
+provisioning events that happen after it. The control is operational:
+
+* creating a role, or changing a platform default ACL, is a deliberate, reviewed act in
+  this project, not something the application does at runtime;
+* the tables that must never be client-reachable (`seva_*`) are additionally protected by
+  RLS plus their own explicit `REVOKE`s, so they do not depend on the default ACL alone;
+* §9 item 7 is the read-only query that re-checks the creator set, so a future reviewer can
+  confirm nothing new appeared without acting for it.
+
 ### 2.7 What this finding cannot prove without a live read
 
 * The **exact** current `pg_default_acl` rows for `postgres` and `supabase_admin`
   (the audit could not read the catalog; this plan reproduces the *documented platform*
   defaults).
-* Whether any *additional* role owns objects in `public`. The migration no longer
-  assumes an answer — it reads `pg_default_acl` and fails closed if it cannot cover what
-  it finds — but the *list* still needs a live read to plan the owner-run step (§9 item 7).
-* Whether the applying role is a member of every such owner. If it is not, the migration
-  will stop at the first owner it cannot cover and the operator must run the owner-run
-  step. This is a deliberate fail-closed outcome, not a defect.
+* The **complete** set of candidate creators in `public` — default-ACL owners **and**
+  `CREATE` holders. The migration no longer assumes an answer — it reads both catalogs and
+  fails closed if it cannot cover what it finds — but the *list* still needs a live read to
+  plan the owner-run step (§9 item 7).
+* Whether any **global** (`ns=0`) function default ACL grants `EXECUTE` directly to
+  `anon`/`authenticated`. The migration's post-condition checks for this shape, but the
+  live read is what confirms whether it exists today.
+* Whether the applying role is a member of every candidate creator. If it is not, the
+  migration will stop at the first creator it cannot cover and the operator must run the
+  owner-run step. This is a deliberate fail-closed outcome, not a defect.
+* **What any future session can actually do.** Default ACLs describe what a creating role
+  stamps on new objects; effective privileges also depend on inherited memberships,
+  `PUBLIC` and `BYPASSRLS`. Nothing here is a substitute for a live effective-privilege
+  read.
 
 ---
 
@@ -317,22 +395,46 @@ SELECT p.proname, p.prosecdef, p.proconfig, pg_get_userbyid(p.proowner) AS owner
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
  WHERE n.nspname = 'public' AND p.proname = 'rls_auto_enable';
 
--- What are the exact default ACLs, and who owns them? (the owner list for F-A16-02)
+-- What are the exact default ACLs, and who owns them? The owner list for F-A16-02,
+-- with NO grantee filter — an inventory, not a search for anon/authenticated.
 SELECT pg_get_userbyid(d.defaclrole) AS owner_role, n.nspname AS schema,
        d.defaclobjtype AS object_type, d.defaclacl::text AS default_acl
   FROM pg_default_acl d
   LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
  ORDER BY 1, 2, 3;
 
--- Which roles can create objects in public (the full owner set, not just the two assumed)?
-SELECT r.rolname
-  FROM pg_roles r
- WHERE has_schema_privilege(r.oid, 'public', 'CREATE') OR r.rolsuper
+-- Global (defaclnamespace = 0) default ACLs — assessed separately, because the implicit
+-- PUBLIC EXECUTE on future functions is a global default and a per-schema read cannot see
+-- it. A row here naming anon/authenticated is a direct grant worth reviewing.
+SELECT pg_get_userbyid(d.defaclrole) AS owner_role,
+       CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END AS grantee,
+       a.privilege_type
+  FROM pg_default_acl d, aclexplode(d.defaclacl) a
+ WHERE d.defaclnamespace = 0
+ ORDER BY 1, 2, 3;
+
+-- The complete candidate-creator set: default-ACL owners UNION schema CREATE holders.
+-- The second half catches a creator with no default-ACL row of its own — which still
+-- confers the implicit PUBLIC EXECUTE on functions it creates.
+SELECT candidate, why,
+       pg_has_role(current_user, candidate, 'MEMBER') AS applier_may_act_for_it
+  FROM (
+    SELECT pg_get_userbyid(d.defaclrole) AS candidate, 'has a public default ACL' AS why
+      FROM pg_default_acl d WHERE d.defaclnamespace = 'public'::regnamespace
+    UNION
+    SELECT r.rolname, 'may CREATE in public'
+      FROM pg_namespace n, aclexplode(n.nspacl) a, pg_roles r
+     WHERE n.nspname = 'public' AND a.privilege_type = 'CREATE' AND r.oid = a.grantee
+  ) c
+ WHERE candidate <> 'pg_database_owner'
  ORDER BY 1;
 ```
 
-The result of the third and fourth queries is what decides whether the migration applies
-in one pass or stops and requires the owner-run step.
+The result of the third, fourth and fifth queries is what decides whether the migration
+applies in one pass or stops and requires the owner-run step. Note what these queries do
+**not** establish: they cannot list creators that do not exist yet, and a default-ACL row
+does not describe any session's *effective* privileges (those also depend on inherited
+memberships, `PUBLIC` and `BYPASSRLS`). See §2.4.3.
 
 ---
 
@@ -587,7 +689,9 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | 4 | Sequences used by `INSERT` (`serial`/identity) | `service_role` needs `USAGE` on the sequence | confirm `service_role` sequence `USAGE` is retained |
 | 5 | `anon` `401 permission denied` on 21 tables | confirms the API refuses those tables for `anon` | re-run the audit census |
 | 6 | `pg_default_acl` rows for `postgres` **and** `supabase_admin` | the migration assumes the documented defaults | read `pg_default_acl` live and compare |
-| 7 | **Every** object-creating role in `public`, and whether the applying role is a member of each | the migration enumerates owners and **fails closed** on any it cannot cover; the owner-run step is the remedy | `SELECT DISTINCT pg_get_userbyid(defaclrole) FROM pg_default_acl WHERE defaclnamespace='public'::regnamespace`; then `SELECT pg_has_role(current_user, '<owner>', 'MEMBER')` per owner |
+| 7 | **Every** candidate creator in `public` — default-ACL owners **and** `CREATE` holders — and whether the applying role is a member of each | the migration enumerates both sources and **fails closed** on any it cannot cover; the owner-run step is the remedy | source (a): `SELECT DISTINCT pg_get_userbyid(defaclrole) FROM pg_default_acl WHERE defaclnamespace='public'::regnamespace`; source (b): `SELECT r.rolname FROM pg_namespace n, aclexplode(n.nspacl) a, pg_roles r WHERE n.nspname='public' AND a.privilege_type='CREATE' AND r.oid=a.grantee`; then `SELECT pg_has_role(current_user, '<creator>', 'MEMBER')` per creator |
+| 7b | Any **global** (`defaclnamespace = 0`) function default ACL granting `EXECUTE` to `anon`/`authenticated` | the post-condition checks for this shape; a live read confirms whether it exists today | `SELECT pg_get_userbyid(d.defaclrole), a.grantee, a.privilege_type FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE d.defaclnamespace = 0 AND d.defaclobjtype = 'f'` |
+| 7c | The `pg_database_owner` pseudo-role is present (PG 15+) | the migration skips it explicitly; if a target is PG 14 the name may be absent, which the skip tolerates | `SELECT rolname FROM pg_roles WHERE rolname = 'pg_database_owner'` |
 | 8 | The event trigger `ensure_rls` exists, is named that, and is **enabled** | F-A16-03's precondition checks this at apply time and refuses if not | `SELECT evtname, evtenabled, evtfoid::regprocedure FROM pg_event_trigger WHERE evtevent='ddl_command_end'` |
 | 11 | Whether the applying role may create an event trigger at all | only `postgres` (via `supautils`) manages event triggers on Supabase | attempt is the test — the migration fails loudly; confirm by running it in a transaction and rolling back |
 | 9 | Raya AI retrieval browser paths | they use the browser client for public reads only | confirm no retrieval module reads a non-public table with the browser client |
@@ -610,8 +714,13 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | Event triggers fire in name order for the same event | **Verified** on PGlite with triggers created in reverse name order |
 | `ALTER DEFAULT PRIVILEGES` is transactional, so a raised post-condition rolls the migration back | **Verified** on PGlite (revoke inside a txn, raise, rollback → defaults unchanged) |
 | A member of a role may issue `ALTER DEFAULT PRIVILEGES FOR ROLE` for it; a non-member is refused | **Verified** on PGlite |
+| A role with `CREATE` on `public` but no `pg_default_acl` row still confers the implicit `PUBLIC` `EXECUTE` on functions it creates | **Verified** on PGlite (`has_function_privilege('anon', …)` is true) |
+| A role with no default ACL row produces owner-only tables (hardwired default) | **Verified** on PGlite (`relacl IS NULL`) |
+| A grantee-filtered `pg_default_acl` search misses a role whose public default ACL names only another grantee | **Verified** on PGlite (the filtered query omits it; the migration covers it) |
+| The global `REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` leaves a readable owner-only `ns=0` row per covered role | **Verified** on PGlite (this is what the post-condition asserts) |
 | PGlite results transfer to Supabase production | **NOT verified** — PGlite proves PostgreSQL semantics only; the platform layer needs the §3.6 read-only queries |
-| The set of object-creating roles in production | **Unverified** — the migration enumerates it at apply time and fails closed, but the *list* needs §9 item 7 |
+| The complete set of candidate creators in production (default-ACL owners **and** `CREATE` holders) | **Unverified** — the migration enumerates both at apply time and fails closed, but the *list* needs §9 item 7 |
+| Whether a global (`ns=0`) function default ACL grants `EXECUTE` to `anon`/`authenticated` today | **Unverified** — the post-condition checks the shape; the live read in §9 item 7b confirms it |
 
 ---
 

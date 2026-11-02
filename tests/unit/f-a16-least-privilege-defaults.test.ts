@@ -140,6 +140,41 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).toMatch(/d\.defaclnamespace\s*=\s*'public'::regnamespace/i);
     });
 
+    it("does NOT filter discovery by grantee (a filtered search is not an inventory)", () => {
+      // An earlier revision filtered pg_default_acl rows with a text pattern for
+      // anon/authenticated/service_role. That is a targeted search: it misses a role
+      // whose public default ACL names only some other grantee, and it silently
+      // reports "covered" for a role it never examined. The discovery must not
+      // reintroduce such a filter.
+      expect(sql).not.toMatch(/defaclacl::text\s*~/i);
+      expect(sql).not.toMatch(/\(anon\|authenticated\|service_role\)=/i);
+    });
+
+    it("also enumerates creators from the schema's CREATE ACL", () => {
+      // A role can create in `public` while holding no `pg_default_acl` row at all, so
+      // the default-ACL catalog alone cannot enumerate creators. The schema ACL is the
+      // second source, and it is what catches that case.
+      expect(sql).toMatch(/FROM\s+pg_catalog\.pg_namespace\s+n/i);
+      expect(sql).toMatch(/aclexplode\(n\.nspacl\)/i);
+      expect(sql).toMatch(/a\.privilege_type\s*=\s*'CREATE'/i);
+      expect(sql).toMatch(/n\.nspname\s*=\s*'public'/i);
+    });
+
+    it("unions both discovery sources rather than picking one", () => {
+      // Both sources must contribute. UNION (not UNION ALL) also de-duplicates a role
+      // that appears in both, which keeps the loop from acting on it twice.
+      const union = sql.match(/\bUNION\b/gi) ?? [];
+      expect(union.length).toBeGreaterThanOrEqual(1);
+      expect(sql).not.toMatch(/\bUNION ALL\b/i);
+    });
+
+    it("skips the pg_database_owner pseudo-role explicitly", () => {
+      // It always holds CREATE on `public` in PG 15+ but creates nothing itself, so
+      // treating it as an uncoverable creator would fail the migration everywhere.
+      expect(sql).toMatch(/CONTINUE WHEN target = 'pg_database_owner'/i);
+      expect(sql).toMatch(/c\.rolname <> 'pg_database_owner'/i);
+    });
+
     it("uses pg_has_role(..., 'MEMBER') as the precondition for acting FOR ROLE", () => {
       // This is the exact precondition Postgres enforces for ALTER DEFAULT
       // PRIVILEGES FOR ROLE, so the check cannot disagree with the server.
@@ -171,6 +206,34 @@ describe("F-A16-02 least-privilege default privileges", () => {
         /RAISE EXCEPTION 'F-A16-02: PUBLIC still has EXECUTE on future functions owned by: %'/i
       );
     });
+
+    it("post-condition recomputes the same candidate set as the discovery", () => {
+      // If the post-condition used a narrower set than section 4, a covered-but-unverified
+      // role could slip through. Both must read the same two sources. `sql` has comments
+      // stripped, so anchor on the post-condition's own statement, not a section heading.
+      const anchor = sql.indexOf("default privileges in public are still broader than intended");
+      expect(anchor).toBeGreaterThan(-1);
+      const post = sql.slice(anchor);
+      expect(post).toMatch(/FROM\s+pg_catalog\.pg_default_acl/i);
+      expect(post).toMatch(/aclexplode\(n\.nspacl\)/i);
+      expect(post).toMatch(/a\.privilege_type\s*=\s*'CREATE'/i);
+    });
+
+    it("post-condition also covers global (ns=0) function default ACLs", () => {
+      // The review asked for global default ACL entries to be assessed separately. The
+      // post-condition must check ns=0 for direct grants to the public-facing roles, not
+      // only the per-schema rows.
+      const anchor = sql.indexOf("default privileges in public are still broader than intended");
+      const post = sql.slice(anchor);
+      expect(post).toMatch(/d\.defaclnamespace\s*=\s*0/i);
+    });
+
+    it("documents its scope and limits in the file itself", () => {
+      // The migration must not imply it enumerated every possible future creator.
+      expect(raw).toMatch(/Scope and limitations/i);
+      expect(raw).toMatch(/cannot enumerate roles that do not exist yet/i);
+      expect(raw).toMatch(/not "all creators are covered"/i);
+    });
   });
 
   describe("split-out owner-run step", () => {
@@ -185,15 +248,25 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(ownerRun).toMatch(/RAISE EXCEPTION 'F-A16-02: current role % may not change default privileges/i);
     });
 
+    it("discovers candidates from both sources, not a grantee-filtered search", () => {
+      // It must not re-introduce the filter the migration dropped, and it must consult
+      // the schema CREATE ACL as well as the default-ACL catalog.
+      expect(ownerRun).not.toMatch(/defaclacl::text\s*~/i);
+      expect(ownerRun).toMatch(/aclexplode\(n\.nspacl\)/i);
+      expect(ownerRun).toMatch(/a\.privilege_type = 'CREATE'/i);
+      expect(ownerRun).toMatch(/r\.rolname <> 'pg_database_owner'/i);
+    });
+
     it("touches only default privileges, never an existing object", () => {
       expect(ownerRun).not.toMatch(/\bALTER\s+TABLE\b/i);
       expect(ownerRun).not.toMatch(/\bCREATE\s+(TABLE|POLICY|INDEX)\b/i);
       expect(ownerRun).not.toMatch(/\bDROP\s+(TABLE|FUNCTION|POLICY|TRIGGER)\b/i);
     });
 
-    it("verifies the same post-condition as the migration", () => {
+    it("verifies the same post-condition as the migration, including global rows", () => {
       expect(ownerRun).toMatch(/aclexplode\(d\.defaclacl\)/i);
       expect(ownerRun).toMatch(/d\.defaclnamespace = 'public'::regnamespace/i);
+      expect(ownerRun).toMatch(/d\.defaclnamespace = 0/i);
     });
   });
 });

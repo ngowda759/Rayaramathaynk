@@ -296,6 +296,158 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(await publicFacingDefaults(db)).toEqual(before);
     });
   });
+
+  /**
+   * Discovery must be a complete inventory, not a targeted search for rows that name
+   * `anon`/`authenticated`/`service_role`. The two cases below are exactly what a
+   * grantee-filtered discovery misses, and both leave a creator whose future functions
+   * are executable by the public-facing roles.
+   */
+  describe("discovery is an inventory, not a grantee-filtered search", () => {
+    /** Global (ns=0) function default ACL rows naming a grantee other than PUBLIC. */
+    async function globalFunctionOwnerRows(db: PGlite, owner: string): Promise<number> {
+      const r = await db.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+           FROM pg_catalog.pg_default_acl d,
+                pg_catalog.aclexplode(d.defaclacl) a,
+                pg_catalog.pg_roles r
+          WHERE r.rolname = $1
+            AND d.defaclrole = r.oid
+            AND d.defaclnamespace = 0
+            AND d.defaclobjtype = 'f'
+            AND a.grantee <> 0`,
+        [owner]
+      );
+      return r.rows[0]!.n;
+    }
+
+    it("covers a creator whose public default ACL names only a non-public grantee", async () => {
+      // `temple_creator` has a `pg_default_acl` row for `public`, but it names
+      // `reporting_role` — not anon/authenticated/service_role. A grantee-filtered
+      // discovery would not see this role at all, so its future functions would keep
+      // the implicit PUBLIC EXECUTE.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`
+        CREATE ROLE reporting_role NOLOGIN;
+        CREATE ROLE temple_creator NOLOGIN;
+        GRANT USAGE ON SCHEMA public TO reporting_role, temple_creator;
+        GRANT CREATE ON SCHEMA public TO temple_creator;
+      `);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(
+        `ALTER DEFAULT PRIVILEGES FOR ROLE temple_creator IN SCHEMA public GRANT SELECT ON TABLES TO reporting_role;`
+      );
+
+      // Pre-condition: the old filter really would have missed it.
+      const filtered = await db.query<{ owner: string }>(
+        `SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole) AS owner
+           FROM pg_catalog.pg_default_acl d
+          WHERE d.defaclnamespace = 'public'::regnamespace
+            AND d.defaclacl::text ~ '(^|[,{])(anon|authenticated|service_role)='`
+      );
+      expect(filtered.rows.map((r) => r.owner)).not.toContain("temple_creator");
+
+      await apply(db, DEFAULTS_MIGRATION);
+
+      // The migration saw it anyway, and its global PUBLIC EXECUTE is revoked.
+      expect(await globalFunctionOwnerRows(db, "temple_creator")).toBeGreaterThan(0);
+
+      // Proven end to end: a function created by temple_creator is not anon-executable.
+      await db.exec(
+        `SET ROLE temple_creator; CREATE FUNCTION public.tc_fn() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
+      );
+      const r = await db.query<{ p: boolean }>(
+        `SELECT has_function_privilege('anon', 'public.tc_fn()', 'EXECUTE') AS p`
+      );
+      expect(r.rows[0]!.p).toBe(false);
+    });
+
+    it("covers a creator with CREATE on public that has no pg_default_acl row at all", async () => {
+      // `ghost_creator` can create in `public` but holds no `pg_default_acl` row, so no
+      // query against that catalog can discover it. Only the schema's CREATE ACL can.
+      // Its new functions still carry the implicit PUBLIC EXECUTE.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`
+        CREATE ROLE ghost_creator NOLOGIN;
+        GRANT USAGE, CREATE ON SCHEMA public TO ghost_creator;
+      `);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+
+      // Pre-condition: it is genuinely absent from the default-ACL catalog.
+      const rows = await db.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+           FROM pg_catalog.pg_default_acl d
+          WHERE pg_catalog.pg_get_userbyid(d.defaclrole) = 'ghost_creator'`
+      );
+      expect(rows.rows[0]!.n).toBe(0);
+
+      // And without the migration its function IS anon-executable (the hazard).
+      await db.exec(
+        `SET ROLE ghost_creator; CREATE FUNCTION public.gc_before() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
+      );
+      const before = await db.query<{ p: boolean }>(
+        `SELECT has_function_privilege('anon', 'public.gc_before()', 'EXECUTE') AS p`
+      );
+      expect(before.rows[0]!.p).toBe(true);
+
+      await apply(db, DEFAULTS_MIGRATION);
+
+      // The migration discovered it from the schema ACL and revoked its PUBLIC EXECUTE.
+      expect(await globalFunctionOwnerRows(db, "ghost_creator")).toBeGreaterThan(0);
+
+      await db.exec(
+        `SET ROLE ghost_creator; CREATE FUNCTION public.gc_after() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
+      );
+      const after = await db.query<{ p: boolean }>(
+        `SELECT has_function_privilege('anon', 'public.gc_after()', 'EXECUTE') AS p`
+      );
+      expect(after.rows[0]!.p).toBe(false);
+    });
+
+    it("fails closed on a CREATE holder it cannot act for, even with no default ACL row", async () => {
+      // The same discovery that *covers* ghost_creator must also *stop* on a creator the
+      // applier may not act for — otherwise widening the inventory would have traded one
+      // silent gap for another.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(`
+        CREATE ROLE hidden_creator NOLOGIN;
+        GRANT USAGE, CREATE ON SCHEMA public TO hidden_creator;
+        CREATE ROLE applier NOLOGIN;
+        GRANT USAGE, CREATE ON SCHEMA public TO applier;
+      `);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+
+      await db.exec(`SET ROLE applier;`);
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): hidden_creator/
+      );
+      await db.exec(`RESET ROLE;`);
+    });
+
+    it("skips pg_database_owner rather than failing on the pseudo-role", async () => {
+      // `pg_database_owner` always holds CREATE on `public` in PG 15+. It creates nothing
+      // itself, so treating it as an uncoverable creator would make the migration fail on
+      // every database. It must be skipped, and the run must still succeed.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+
+      const owners = await db.query<{ rolname: string }>(
+        `SELECT r.rolname
+           FROM pg_catalog.pg_namespace n,
+                pg_catalog.aclexplode(n.nspacl) a,
+                pg_catalog.pg_roles r
+          WHERE n.nspname = 'public' AND a.privilege_type = 'CREATE' AND r.oid = a.grantee`
+      );
+      expect(owners.rows.map((r) => r.rolname)).toContain("pg_database_owner");
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).resolves.toBeUndefined();
+      expect(await publicFacingDefaults(db)).toEqual([]);
+    });
+  });
 });
 
 describe("F-A16-03 fail-closed RLS assertion (behavioural)", () => {
