@@ -587,28 +587,38 @@ grant.
 
 ## 6. Files changed in this review
 
+Pushed as commit `4c93296b83c6ae7fae55b685cf1a39e2775ef880` on PR #381 and
+`193b0d3484468629dc02279afee8c99a552b0ccc` on PR #380.
+
 | File | Change |
 |---|---|
 | `docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT_EXT.sql` | **Fixed** reversed `pg_auth_members` aliases (§E2) + orientation comment; **corrected** the baseline `has_function_privilege` claim in the header |
 | `docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT_EXT.md` | **Corrected** the `has_function_privilege()` baseline-coverage row |
 | `tests/db/f-a16-audit-extension-exec.test.ts` | **Fixed** the E2 assertion orientation; **added** a behavioural test pinning `roleid`=granted / `member`=member |
 | `docs/audits/F-A16_PREFLIGHT_AND_CATALOG_INDEPENDENT_REVIEW_2026-11-03.md` | **New** — this report |
+| `docs/audits/F-A16_PRODUCTION_PREFLIGHT_2026-11-02.md` (PR #380) | **Corrected** three wording inaccuracies: the "refs appear only as fingerprints" claim, the `path.slice(1)` guard attribution, and the overstatement about what the existing artifact can close |
 
-No change was made to PR #380's report (its findings are sound; the three wording
-corrections above are recommendations, not defects that change any conclusion).
+No change was made to PR #380's substantive findings; the three corrections are
+wording only and change no conclusion.
 
 ## 7. Test and CI results (this review)
 
 | Check | Result |
 |---|---|
-| `npx jest tests/unit/f-a16 --silent` | 7 suites, **126 passed**, 1 skipped |
-| `node --experimental-vm-modules node_modules/jest/bin/jest.js -c jest.db.config.ts --runInBand tests/db/f-a16-audit-extension-exec.test.ts` | 1 suite, **8 passed** |
+| `npx jest --silent` (full unit suite) | **221 suites, 3215 passed, 1 skipped** |
+| `npx jest tests/unit/f-a16 --silent` | 7 suites, 126 passed, 1 skipped |
+| `npm run test:db` | **19 suites, 286 passed** |
+| `node --experimental-vm-modules … tests/db/f-a16-audit-extension-exec.test.ts` | 1 suite, 8 passed |
+| `npx tsc --noEmit` | clean |
+| `npx eslint .` | **0 errors**, 714 pre-existing warnings |
+| `npm run build` | success |
 | Baseline statement count | **37**, all `SELECT`/`SHOW`/`WITH` |
 | Extension statement count | **21**, all `SELECT`, all pass `classify()` |
 | Baseline blob unchanged | `e38d01ea162368409e16da533908a28b1fd0ddce` on both `main` and `pr-381` |
+| CI, PR #380 `193b0d34` | Lint/typecheck/test/build, CodeQL, Analyze ×3, Vercel — **success**; Supabase Preview skipped |
+| CI, PR #381 `4c93296b` | Lint/typecheck/test/build, CodeQL, Analyze ×3, Validate AI loop config, Vercel — **success**; Supabase Preview skipped |
 
-Full unit suite, typecheck, lint and build were run separately; see the completion
-report in the PR conversation for the final numbers against the pushed commit.
+Both PRs remain **open** and in **draft**, `mergeable_state: clean`. Neither was merged.
 
 ## 8. Production safety confirmation
 
