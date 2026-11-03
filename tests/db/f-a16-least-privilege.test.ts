@@ -34,6 +34,8 @@ const MIGRATIONS_DIR = path.resolve(
 
 const DEFAULTS_MIGRATION = "20261115000000_f_a16_least_privilege_defaults.sql";
 const ASSERTION_MIGRATION = "20261115000100_f_a16_fail_closed_rls_assertion.sql";
+const GUARD_MIGRATION = "20261114990000_f_a16_public_function_execute_guard.sql";
+const EXISTING_PRIVS_MIGRATION = "20261115000200_f_a16_existing_table_privileges.sql";
 
 const SUPABASE_ROLES = `
 DO $$
@@ -122,15 +124,19 @@ async function publicFacingDefaults(
        FROM pg_catalog.pg_default_acl d,
             pg_catalog.aclexplode(d.defaclacl) a
       WHERE d.defaclnamespace = 'public'::regnamespace
+        AND a.grantee <> d.defaclrole
         AND (
              (d.defaclobjtype IN ('r', 'S')
-               AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+               AND (a.grantee = 0
+                    OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
           OR (d.defaclobjtype = 'r'
                AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
                AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+             -- Functions: only a DIRECT grant to a named role. The implicit PUBLIC
+             -- EXECUTE (grantee = 0) is NOT removable per schema; it is closed forward
+             -- by the function-EXECUTE guard migration, so it is not a "leak" here.
           OR (d.defaclobjtype = 'f'
-               AND (a.grantee = 0
-                    OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+               AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
         )
       ORDER BY 1, 2, 3, 4`
   );
@@ -197,10 +203,15 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
   });
 
   it("after the migration, a new function is not executable by anon/authenticated but is by service_role", async () => {
+    // The platform grants ALL ON FUNCTIONS to all three roles. The migration removes the
+    // explicit grant to anon/authenticated per schema; the implicit PUBLIC EXECUTE it
+    // leaves behind is closed by the forward guard migration, so the guard is applied
+    // here to assert the end state an operator sees after both migrations.
     db = await newDb();
     await db.exec(SUPABASE_ROLES);
     await db.exec(PLATFORM_DEFAULTS_SELF);
     await apply(db, DEFAULTS_MIGRATION);
+    await apply(db, GUARD_MIGRATION);
     await db.exec(`CREATE FUNCTION public.new_fn() RETURNS int LANGUAGE sql AS 'select 1';`);
 
     const r = await db.query<{ anon: boolean; auth: boolean; svc: boolean }>(
@@ -306,29 +317,19 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
    * grantee-filtered discovery misses, and both leave a creator whose future functions
    * are executable by the public-facing roles.
    */
+  /**
+   * Discovery must be a complete inventory, not a targeted search for rows that name
+   * `anon`/`authenticated`/`service_role`. A grantee-filtered discovery misses a role
+   * whose public default ACL names only some other grantee, and silently reports it as
+   * covered.
+   */
   describe("discovery is an inventory, not a grantee-filtered search", () => {
-    /** Global (ns=0) function default ACL rows naming a grantee other than PUBLIC. */
-    async function globalFunctionOwnerRows(db: PGlite, owner: string): Promise<number> {
-      const r = await db.query<{ n: number }>(
-        `SELECT count(*)::int AS n
-           FROM pg_catalog.pg_default_acl d,
-                pg_catalog.aclexplode(d.defaclacl) a,
-                pg_catalog.pg_roles r
-          WHERE r.rolname = $1
-            AND d.defaclrole = r.oid
-            AND d.defaclnamespace = 0
-            AND d.defaclobjtype = 'f'
-            AND a.grantee <> 0`,
-        [owner]
-      );
-      return r.rows[0]!.n;
-    }
-
-    it("covers a creator whose public default ACL names only a non-public grantee", async () => {
-      // `temple_creator` has a `pg_default_acl` row for `public`, but it names
+    it("enumerates a creator whose public default ACL names only a non-public grantee", async () => {
+      // `temple_creator` owns a `pg_default_acl` row for `public`, but it names
       // `reporting_role` — not anon/authenticated/service_role. A grantee-filtered
-      // discovery would not see this role at all, so its future functions would keep
-      // the implicit PUBLIC EXECUTE.
+      // discovery would not see this role at all, and would silently succeed. The
+      // unfiltered inventory puts it in the candidate set, so an applier that cannot
+      // act for it must fail closed rather than skip it.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(`
@@ -342,7 +343,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
         `ALTER DEFAULT PRIVILEGES FOR ROLE temple_creator IN SCHEMA public GRANT SELECT ON TABLES TO reporting_role;`
       );
 
-      // Pre-condition: the old filter really would have missed it.
+      // Pre-condition: the old grantee filter really would have missed it.
       const filtered = await db.query<{ owner: string }>(
         `SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole) AS owner
            FROM pg_catalog.pg_default_acl d
@@ -351,25 +352,24 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
       expect(filtered.rows.map((r) => r.owner)).not.toContain("temple_creator");
 
-      await apply(db, DEFAULTS_MIGRATION);
-
-      // The migration saw it anyway, and its global PUBLIC EXECUTE is revoked.
-      expect(await globalFunctionOwnerRows(db, "temple_creator")).toBeGreaterThan(0);
-
-      // Proven end to end: a function created by temple_creator is not anon-executable.
-      await db.exec(
-        `SET ROLE temple_creator; CREATE FUNCTION public.tc_fn() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
+      // As an applier that is not a member of temple_creator, the migration must name it
+      // and fail closed — proof it was enumerated rather than silently skipped.
+      await db.exec(`CREATE ROLE applier NOLOGIN; GRANT USAGE, CREATE ON SCHEMA public TO applier;`);
+      await db.exec(`SET ROLE applier;`);
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): .*temple_creator/
       );
-      const r = await db.query<{ p: boolean }>(
-        `SELECT has_function_privilege('anon', 'public.tc_fn()', 'EXECUTE') AS p`
-      );
-      expect(r.rows[0]!.p).toBe(false);
+      await db.exec(`RESET ROLE;`);
     });
 
-    it("covers a creator with CREATE on public that has no pg_default_acl row at all", async () => {
-      // `ghost_creator` can create in `public` but holds no `pg_default_acl` row, so no
-      // query against that catalog can discover it. Only the schema's CREATE ACL can.
-      // Its new functions still carry the implicit PUBLIC EXECUTE.
+    it("does NOT enumerate a CREATE holder with no default ACL row (documented limitation)", async () => {
+      // `ghost_creator` can create in `public` but owns no `pg_default_acl` row, so no
+      // query against that catalog can discover it. This migration does NOT claim to
+      // cover it — a deliberate, documented limitation (migration header; plan §2.6).
+      // The properties that matter are proven here:
+      //   1. it is absent from the candidate set, so the migration still runs;
+      //   2. its new TABLES are owner-only anyway (the hardwired default);
+      //   3. its new FUNCTIONS' implicit PUBLIC EXECUTE is closed by the forward guard.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(`
@@ -378,7 +378,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       `);
       await db.exec(PLATFORM_DEFAULTS_SELF);
 
-      // Pre-condition: it is genuinely absent from the default-ACL catalog.
+      // Pre-condition: genuinely absent from the default-ACL catalog.
       const rows = await db.query<{ n: number }>(
         `SELECT count(*)::int AS n
            FROM pg_catalog.pg_default_acl d
@@ -386,7 +386,14 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
       expect(rows.rows[0]!.n).toBe(0);
 
-      // And without the migration its function IS anon-executable (the hazard).
+      await apply(db, DEFAULTS_MIGRATION);
+
+      // (2) A table ghost_creator creates is owner-only (no anon privilege).
+      await db.exec(`SET ROLE ghost_creator; CREATE TABLE public.gc_tbl (id int); RESET ROLE;`);
+      expect(await tablePrivs(db, "anon", "gc_tbl")).toEqual([]);
+
+      // (3) A function it creates IS anon-executable through the implicit PUBLIC
+      // EXECUTE before the guard is installed...
       await db.exec(
         `SET ROLE ghost_creator; CREATE FUNCTION public.gc_before() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
       );
@@ -395,11 +402,9 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
       expect(before.rows[0]!.p).toBe(true);
 
-      await apply(db, DEFAULTS_MIGRATION);
-
-      // The migration discovered it from the schema ACL and revoked its PUBLIC EXECUTE.
-      expect(await globalFunctionOwnerRows(db, "ghost_creator")).toBeGreaterThan(0);
-
+      // ...and the forward guard closes it for any creator, including one this
+      // migration cannot enumerate.
+      await apply(db, GUARD_MIGRATION);
       await db.exec(
         `SET ROLE ghost_creator; CREATE FUNCTION public.gc_after() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
       );
@@ -409,31 +414,11 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(after.rows[0]!.p).toBe(false);
     });
 
-    it("fails closed on a CREATE holder it cannot act for, even with no default ACL row", async () => {
-      // The same discovery that *covers* ghost_creator must also *stop* on a creator the
-      // applier may not act for — otherwise widening the inventory would have traded one
-      // silent gap for another.
-      db = await newDb();
-      await db.exec(SUPABASE_ROLES);
-      await db.exec(`
-        CREATE ROLE hidden_creator NOLOGIN;
-        GRANT USAGE, CREATE ON SCHEMA public TO hidden_creator;
-        CREATE ROLE applier NOLOGIN;
-        GRANT USAGE, CREATE ON SCHEMA public TO applier;
-      `);
-      await db.exec(PLATFORM_DEFAULTS_SELF);
-
-      await db.exec(`SET ROLE applier;`);
-      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
-        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): hidden_creator/
-      );
-      await db.exec(`RESET ROLE;`);
-    });
-
     it("skips pg_database_owner rather than failing on the pseudo-role", async () => {
-      // `pg_database_owner` always holds CREATE on `public` in PG 15+. It creates nothing
-      // itself, so treating it as an uncoverable creator would make the migration fail on
-      // every database. It must be skipped, and the run must still succeed.
+      // `pg_database_owner` always holds CREATE on `public` in PG 15+, and in some setups
+      // also owns a default ACL there. It creates nothing itself, so treating it as an
+      // uncoverable creator would make the migration fail on every database. It must be
+      // skipped, and the run must still succeed.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(PLATFORM_DEFAULTS_SELF);
@@ -453,75 +438,20 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
   });
 
   /**
-   * Effective CREATE privilege — the review asked discovery to account for privileges
-   * that a direct `aclexplode(nspacl)` join cannot see: inheritance through membership,
-   * and a grant to PUBLIC. Both are measured below.
+   * A public-facing role must never hold CREATE on `public`: it is a misconfiguration the
+   * migration cannot fix (removing it is a schema-ACL change, F-A16-01 scope), and it
+   * makes "public-facing role" and "creator" overlap. Section 0c fails closed on it.
    */
-  describe("effective CREATE discovery (inheritance and PUBLIC)", () => {
-    it("covers a creator that inherits CREATE through role membership", async () => {
-      // `child_c` is a member of `parent_c`, which holds CREATE. `child_c` appears in no
-      // `nspacl` entry, so a direct join misses it — but it can create, and a function it
-      // creates carries the implicit PUBLIC EXECUTE.
-      db = await newDb();
-      await db.exec(SUPABASE_ROLES);
-      await db.exec(`
-        CREATE ROLE parent_c NOLOGIN;
-        CREATE ROLE child_c NOLOGIN;
-        GRANT USAGE, CREATE ON SCHEMA public TO parent_c;
-        GRANT parent_c TO child_c;
-      `);
-      await db.exec(PLATFORM_DEFAULTS_SELF);
-
-      // Pre-condition: a direct nspacl join does NOT list child_c.
-      const direct = await db.query<{ rolname: string }>(
-        `SELECT r.rolname
-           FROM pg_catalog.pg_namespace n,
-                pg_catalog.aclexplode(n.nspacl) a,
-                pg_catalog.pg_roles r
-          WHERE n.nspname = 'public' AND a.privilege_type = 'CREATE' AND r.oid = a.grantee`
-      );
-      expect(direct.rows.map((r) => r.rolname)).not.toContain("child_c");
-
-      // But it is an effective creator, so `has_schema_privilege` sees it.
-      const effective = await db.query<{ c: boolean }>(
-        `SELECT pg_catalog.has_schema_privilege('child_c', 'public', 'CREATE') AS c`
-      );
-      expect(effective.rows[0]!.c).toBe(true);
-
-      await apply(db, DEFAULTS_MIGRATION);
-
-      // Covered: the global PUBLIC EXECUTE revoke was issued for it too.
-      const global = await db.query<{ n: number }>(
-        `SELECT count(*)::int AS n
-           FROM pg_catalog.pg_default_acl d,
-                pg_catalog.aclexplode(d.defaclacl) a,
-                pg_catalog.pg_roles r
-          WHERE r.rolname = 'child_c' AND d.defaclrole = r.oid
-            AND d.defaclnamespace = 0 AND d.defaclobjtype = 'f' AND a.grantee <> 0`
-      );
-      expect(global.rows[0]!.n).toBeGreaterThan(0);
-
-      await db.exec(
-        `SET ROLE child_c; CREATE FUNCTION public.child_fn() RETURNS int LANGUAGE sql AS 'SELECT 1'; RESET ROLE;`
-      );
-      const r = await db.query<{ p: boolean }>(
-        `SELECT has_function_privilege('anon', 'public.child_fn()', 'EXECUTE') AS p`
-      );
-      expect(r.rows[0]!.p).toBe(false);
-    });
-
+  describe("public-facing role holding CREATE on public (fail closed)", () => {
     it("fails closed when CREATE is granted to PUBLIC", async () => {
       // `GRANT CREATE ON SCHEMA public TO PUBLIC` has grantee OID 0, which matches no
       // `pg_roles` row, so a direct join drops it entirely — yet it makes every role
-      // (including anon/authenticated) an effective creator. That is a misconfiguration
-      // this migration cannot fix (removing it is a schema-ACL change, F-A16-01 scope),
-      // so it must fail closed rather than pass silently.
+      // (including anon/authenticated) an effective creator.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(`GRANT CREATE ON SCHEMA public TO PUBLIC;`);
       await db.exec(PLATFORM_DEFAULTS_SELF);
 
-      // Measured: the public-facing roles now report CREATE.
       const eff = await db.query<{ rolname: string; c: boolean }>(
         `SELECT r.rolname, pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE') AS c
            FROM pg_catalog.pg_roles r
@@ -591,10 +521,11 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
     });
 
-    it("still applies when only a global PUBLIC function default exists (handled, not refused)", async () => {
-      // The global PUBLIC function default is the one global form the migration DOES
-      // remediate, because it is the only way to remove the implicit PUBLIC EXECUTE. It
-      // must therefore not trip the section 0b precondition.
+    it("still applies when only a global PUBLIC function default exists (handled forward, not refused)", async () => {
+      // A global PUBLIC function default is deliberately NOT refused by section 0b and is
+      // NOT remediated by this migration (removing it needs a global statement, which
+      // would change every schema). It is closed forward by the guard migration. So the
+      // migration must apply cleanly and leave the global PUBLIC entry alone.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(PLATFORM_DEFAULTS_SELF);

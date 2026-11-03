@@ -10,8 +10,9 @@
  *     the ACL of an existing object;
  *   - it does not revoke from `service_role` the rights the server-side application
  *     depends on (DML and sequence USAGE);
- *   - the function revoke uses the *global* form (a per-schema form is a no-op for
- *     the implicit PUBLIC EXECUTE);
+ *   - it issues NO global (`ALTER DEFAULT PRIVILEGES` without `IN SCHEMA`) statement:
+ *     every statement is scoped to `public`, and the implicit PUBLIC EXECUTE on future
+ *     functions is closed forward by the guard migration instead;
  *   - it never touches `rls_auto_enable`, `ensure_rls`, or a table/sequence ACL;
  *   - it ENUMERATES object-creating roles rather than assuming which they are, and
  *     FAILS CLOSED if it finds one it cannot act for — so the remediation can never
@@ -87,22 +88,52 @@ describe("F-A16-02 least-privilege default privileges", () => {
     );
   });
 
-  it("removes the implicit PUBLIC EXECUTE with the global (not per-schema) form", () => {
-    // The per-schema form cannot remove the implicit PUBLIC grant; only the global
-    // form can. Assert the global statement is present and that no per-schema
-    // REVOKE ... FROM PUBLIC exists (which would be dead code).
-    expect(sql).toMatch(/ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC/i);
-    expect(sql).not.toMatch(
-      /ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC/i
+  it("scopes every ALTER DEFAULT PRIVILEGES to the public schema (no global statement)", () => {
+    // The F-A16-02 correction: a global (`ALTER DEFAULT PRIVILEGES` with no `IN SCHEMA`)
+    // statement changes the defaults for EVERY schema, including Supabase-managed
+    // storage/graphql/graphql_public. The audit found 0 global entries, so the migration
+    // must not create one. Every default-privilege statement must carry `IN SCHEMA public`.
+    const stmts = sql.match(/ALTER DEFAULT PRIVILEGES[^;]*;/gi) ?? [];
+    expect(stmts.length).toBeGreaterThan(0);
+    for (const s of stmts) {
+      // Both the direct form and the `FOR ROLE x IN SCHEMA public` form are acceptable;
+      // a bare global form (no IN SCHEMA) is not.
+      expect(s).toMatch(/ALTER DEFAULT PRIVILEGES(\s+FOR ROLE \S+)?\s+IN SCHEMA public /i);
+    }
+    // And no bare global revoke of the function default.
+    expect(sql).not.toMatch(/ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC/i);
+  });
+
+  it("removes the platform's per-schema function grant to anon/authenticated", () => {
+    // The implicit PUBLIC EXECUTE is closed forward by the guard migration, not here;
+    // what this file does remove is the platform's explicit per-schema GRANT ALL.
+    expect(sql).toMatch(
+      /ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated/i
     );
+  });
+
+  it("asserts it did not change any non-public schema's default ACLs", () => {
+    // Positive scope assertion: the migration must fail if a default ACL for a schema
+    // other than `public` names a public-facing grantee.
+    expect(sql).toMatch(
+      /RAISE EXCEPTION 'F-A16-02: public-facing roles hold default privileges in non-public schemas/i
+    );
+    expect(sql).toMatch(/n\.nspname <> 'public'/i);
+  });
+
+  it("records (but does not fail on) the implicit PUBLIC EXECUTE residual", () => {
+    // The residual is closed forward by the function-EXECUTE guard; this migration
+    // records it with a NOTICE rather than pretending it is gone or hard-depending on it.
+    expect(sql).toMatch(/the forward function-EXECUTE guard is NOT installed/i);
+    expect(sql).toMatch(/f_a16_public_function_execute_guard\.sql/);
   });
 
   it("keeps service_role's function EXECUTE (documented, reviewed exception)", () => {
     // service_role must NOT appear in the function-EXECUTE revokes: the seva RPC
-    // surface depends on the default. The two function revokes name PUBLIC and
+    // surface depends on the default. The remaining function revoke names
     // anon/authenticated only.
     const fnRevokes = sql.match(/ALTER DEFAULT PRIVILEGES[^;]*REVOKE[^;]*ON FUNCTIONS[^;]*;/gi) ?? [];
-    expect(fnRevokes.length).toBeGreaterThanOrEqual(2);
+    expect(fnRevokes.length).toBeGreaterThanOrEqual(1);
     for (const stmt of fnRevokes) {
       expect(stmt).not.toMatch(/service_role/i);
     }
@@ -164,20 +195,26 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).not.toMatch(/\(anon\|authenticated\|service_role\)=/i);
     });
 
-    it("enumerates creators by EFFECTIVE CREATE privilege, not a direct ACL join", () => {
-      // A role can create in `public` while holding no `pg_default_acl` row at all, so
-      // the default-ACL catalog alone cannot enumerate creators. The second source must
-      // use `has_schema_privilege`, which accounts for inheritance through membership
-      // and for a CREATE granted to PUBLIC. A direct `aclexplode(nspacl)` join sees only
-      // the directly-granted role, and drops a PUBLIC grant (grantee OID 0, no pg_roles
-      // row) entirely.
-      expect(sql).toMatch(/has_schema_privilege\(r\.oid,\s*'public',\s*'CREATE'\)/i);
+    it("does not use a direct nspacl join for creator discovery", () => {
+      // Regression guard: a direct `aclexplode(nspacl)` join silently misses inherited and
+      // PUBLIC-derived CREATE, so it must never be used for creator discovery. (The
+      // migration enumerates default-ACL owners; effective-CREATE holders are handled by
+      // the forward guard and the owner-run step — see the next test.)
+      expect(sql).not.toMatch(/aclexplode\(n\.nspacl\)/i);
     });
 
-    it("does not use a direct nspacl join for creator discovery", () => {
-      // Regression guard: the join was the earlier (insufficient) form. It must not come
-      // back — it silently misses inherited and PUBLIC-derived CREATE.
-      expect(sql).not.toMatch(/aclexplode\(n\.nspacl\)/i);
+    it("documents that CREATE holders with no default ACL row are out of scope", () => {
+      // The migration deliberately does not enumerate effective-CREATE holders: it would
+      // widen the fail-closed set without closing the function residual (a per-schema
+      // REVOKE … FROM PUBLIC cannot remove the implicit PUBLIC EXECUTE). The limitation
+      // must be stated, and the compensating controls named.
+      expect(raw).toMatch(/owning NO `pg_default_acl` row is NOT/i);
+      expect(raw).toMatch(/closed forward by/i);
+      // The creator-discovery loop must read the default-ACL catalog only. (The
+      // effective-CREATE probe still appears once, in the public-facing-role check below.)
+      const discovery = sql.slice(sql.indexOf("FOR target IN"), sql.indexOf("LOOP"));
+      expect(discovery).toMatch(/FROM pg_catalog\.pg_default_acl/i);
+      expect(discovery).not.toMatch(/has_schema_privilege/i);
     });
 
     it("fails closed when a public-facing role can itself create in public", () => {
@@ -189,19 +226,10 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).toMatch(/has_schema_privilege\(r\.oid,\s*'public',\s*'CREATE'\)/i);
     });
 
-    it("unions both discovery sources rather than picking one", () => {
-      // Both sources must contribute. UNION (not UNION ALL) also de-duplicates a role
-      // that appears in both, which keeps the loop from acting on it twice.
-      const union = sql.match(/\bUNION\b/gi) ?? [];
-      expect(union.length).toBeGreaterThanOrEqual(1);
-      expect(sql).not.toMatch(/\bUNION ALL\b/i);
-    });
-
     it("skips the pg_database_owner pseudo-role explicitly", () => {
       // It always holds CREATE on `public` in PG 15+ but creates nothing itself, so
       // treating it as an uncoverable creator would fail the migration everywhere.
       expect(sql).toMatch(/CONTINUE WHEN target = 'pg_database_owner'/i);
-      expect(sql).toMatch(/c\.rolname <> 'pg_database_owner'/i);
     });
 
     it("uses pg_has_role(..., 'MEMBER') as the precondition for acting FOR ROLE", () => {
@@ -224,24 +252,22 @@ describe("F-A16-02 least-privilege default privileges", () => {
 
     it("asserts a post-condition so a silent no-op revoke cannot pass", () => {
       // The post-condition must look at aclexplode of the default ACL, not just trust
-      // that the REVOKEs worked.
+      // that the REVOKEs worked. The implicit PUBLIC EXECUTE is NOT asserted here: the
+      // corrected migration does not remove it (that needs a global statement) and
+      // records the residual instead; the guard migration closes it forward.
       expect(sql).toMatch(/aclexplode\(d\.defaclacl\)/i);
       expect(sql).toMatch(
         /RAISE EXCEPTION 'F-A16-02: default privileges in public are still broader than intended/i
       );
-      // And it must independently verify the implicit PUBLIC EXECUTE is gone, which
-      // cannot be read from the per-schema ACL.
-      expect(sql).toMatch(
-        /RAISE EXCEPTION 'F-A16-02: PUBLIC still has EXECUTE on future functions owned by: %'/i
-      );
     });
 
-    it("post-condition recomputes the same candidate set as the discovery", () => {
-      // If the post-condition used a narrower set than section 4, a covered-but-unverified
-      // role could slip through. Both must read the same two sources.
+    it("post-condition checks the same default-ACL sources as the discovery", () => {
+      // The post-condition must read the default-ACL catalog (per-schema and global) so a
+      // covered-but-unverified role cannot slip through.
       const post = postConditionBlock();
       expect(post).toMatch(/FROM\s+pg_catalog\.pg_default_acl/i);
-      expect(post).toMatch(/has_schema_privilege\(r\.oid, 'public', 'CREATE'\)/i);
+      expect(post).toMatch(/d\.defaclnamespace\s*=\s*'public'::regnamespace/i);
+      expect(post).toMatch(/d\.defaclnamespace\s*=\s*0/i);
     });
 
     it("fails closed on global table/sequence defaults before doing anything", () => {
@@ -272,15 +298,26 @@ describe("F-A16-02 least-privilege default privileges", () => {
     });
 
     it("excludes the global PUBLIC function default from the 0b precondition", () => {
-      // Section 3 remediates the global PUBLIC function default (the only way to remove
-      // the implicit PUBLIC EXECUTE), so 0b must not reject it. Only a DIRECT global
-      // function grant to a named public-facing role is refused.
+      // The corrected migration does NOT remove the global PUBLIC function default (that
+      // would need a global statement, which it deliberately does not issue). The residual
+      // is closed forward by the guard migration, so 0b must not reject it. Only a DIRECT
+      // global function grant to a named public-facing role is refused.
       const anchor = sql.indexOf("global default privileges confer future objects");
       expect(anchor).toBeGreaterThan(-1);
       // The function arm of the 0b check must not include `a.grantee = 0`.
       const check = sql.slice(sql.indexOf("global_leaks"), anchor);
       const funcArm = check.slice(check.indexOf("d.defaclobjtype = 'f'"));
       expect(funcArm).not.toMatch(/a\.grantee = 0/);
+    });
+
+    it("closes the implicit PUBLIC EXECUTE residual forward, not with a global statement", () => {
+      // The corrected design: the migration issues no global statement; the residual is
+      // handled by the guard migration, and section 3b records it as a NOTICE rather than
+      // pretending it is gone.
+      expect(sql).toMatch(/f_a16_public_fn_guard/);
+      expect(sql).toMatch(/RAISE NOTICE 'F-A16-02: default privileges tightened in public/);
+      // No global function revoke anywhere.
+      expect(sql).not.toMatch(/ALTER DEFAULT PRIVILEGES\s+REVOKE\s+EXECUTE/i);
     });
 
     it("post-condition also covers global (ns=0) function default ACLs", () => {
