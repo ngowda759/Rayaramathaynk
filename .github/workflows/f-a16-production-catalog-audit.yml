@@ -43,6 +43,11 @@ on:
         description: 'Type RUN-READ-ONLY-AUDIT to confirm a read-only production catalog audit.'
         required: true
         type: string
+      include_extension:
+        description: 'Also run the additive read-only extension (effective privileges, membership, default ACLs, grant types).'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -204,10 +209,21 @@ jobs:
           F_A16_DB_URL: ${{ steps.derive.outputs.url }}
           F_A16_HOST_REGION: ${{ steps.derive.outputs.region }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          INCLUDE_EXTENSION: ${{ inputs.include_extension }}
         run: |
           set +e
+          # The extension is additive and optional. The baseline file is always
+          # the first input; the extension is appended only when requested, so a
+          # run that omits it is byte-for-byte the run it was before this input
+          # existed. The runner treats every argument except the last as an input
+          # file and the last as the output.
+          EXTRA_SQL_FILES=()
+          if [ "${INCLUDE_EXTENSION}" = "true" ]; then
+            EXTRA_SQL_FILES+=(docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT_EXT.sql)
+          fi
           node scripts/lib/run-catalog-audit.mjs \
             docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql \
+            "${EXTRA_SQL_FILES[@]}" \
             "$RUNNER_TEMP/f-a16-audit.log"
           CODE=$?
           set -e

@@ -45,11 +45,16 @@ import { Client } from "pg";
 import { APPROVED_PROJECT_REF, analyzeDbUrlRef, fingerprint } from "./approved-project.mjs";
 import { assertProductionIdentity, fetchProjectDetails } from "./verify-production-identity.mjs";
 
-const SQL_FILE = process.argv[2];
-const OUT_FILE = process.argv[3];
+// Inputs are every positional argument except the last, which is the output file.
+// This keeps the original single-input invocation (`<sql-file> <out-file>`) working
+// while allowing an additive query set to be appended, e.g.
+//   run-catalog-audit.mjs baseline.sql extension.sql out.log
+const ARGS = process.argv.slice(2);
+const OUT_FILE = ARGS[ARGS.length - 1];
+const SQL_FILES = ARGS.slice(0, -1);
 const IS_CLI = Boolean(process.argv[1] && process.argv[1].endsWith("run-catalog-audit.mjs"));
-if (IS_CLI && (!SQL_FILE || !OUT_FILE)) {
-  console.error("usage: run-catalog-audit.mjs <sql-file> <out-file>");
+if (IS_CLI && (SQL_FILES.length === 0 || !OUT_FILE)) {
+  console.error("usage: run-catalog-audit.mjs <sql-file> [<sql-file> ...] <out-file>");
   process.exit(2);
 }
 
@@ -112,8 +117,12 @@ if (IS_CLI) {
   }
 }
 
-// --- Parse the audit file into statements ----------------------------------
-const rawSql = IS_CLI && SQL_FILE ? readFileSync(SQL_FILE, "utf8") : "";
+// --- Parse the audit file(s) into statements -------------------------------
+// Each input file is parsed independently and its statements concatenated, so an
+// additive extension cannot alter how the baseline is parsed or counted.
+const rawSql = IS_CLI
+  ? SQL_FILES.map((f) => readFileSync(f, "utf8")).join("\n")
+  : "";
 const withoutLineComments = rawSql
   .split("\n")
   .map((line) => line.replace(/--.*$/, ""))
