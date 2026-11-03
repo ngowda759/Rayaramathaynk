@@ -6,9 +6,11 @@
 **Mode:** Read-only. **No production change was made.** No DDL, DML, grant, revoke,
 RLS, function, Storage, env or workflow change was issued against production.
 
-> Evidence for human review, **not** authorization to remediate. Project refs appear
-> only as SHA-256 prefixes. No credential, connection string, row content or catalog
-> object definition appears in this document.
+> Evidence for human review, **not** authorization to remediate. The approved project
+> ref is named once, because it is already public in other committed documents and in
+> `scripts/lib/approved-project.mjs`; every credential is identified only by a SHA-256
+> fingerprint prefix. No credential, connection string, row content or catalog object
+> definition appears in this document.
 
 ---
 
@@ -121,9 +123,10 @@ unaffected. An earlier revision of this document used `68 schema tables` loosely
 §4; it has been corrected there to `68 non-RPC OpenAPI entries (67 tables + the
 specification root)`.
 
-This is the same class of error the audit infrastructure already guards against in
-`scripts/lib/run-catalog-audit.mjs` (a `path.slice(1)` that yields `""`), which is why
-the distinction is recorded here rather than silently reconciled.
+This is the same class of error the repository's table-coverage check already guards
+against in `scripts/verify-supabase-migrations.ts` (it filters the specification root
+`"/"` out of the OpenAPI `paths` before deriving table names), which is why the
+distinction is recorded here rather than silently reconciled.
 
 | Class | Meaning | Count |
 |---|---|---|
@@ -351,8 +354,15 @@ Concretely, in order:
    effective `SELECT` (`has_table_privilege`), and grant *types* (TRUNCATE / TRIGGER /
    REFERENCES, which row visibility cannot reveal). The SQL is already drafted in the
    plan's §9 items 7 / 7d / 7e.
-3. **Decrypt the existing audit artifact** — run `41299082937` already completed 37/37
-   statements on 2026-11-01. It may answer checks 3, 4 and 5 without a new run.
+3. **Consider the existing audit artifact, but do not rely on it to close the gap** —
+   run `41299082937` already completed 37/37 baseline statements on 2026-11-01
+   (artifact `f-a16-catalog-audit-41299082937`, unexpired to 2026-12-01, encrypted with
+   age). It contains the **baseline only**: it reads `pg_default_acl` as raw ACL text
+   (§5), so it can *partially* inform checks 3, 4 and 5, but it has no
+   `has_schema_privilege` (checks 1/2) and no grantee-expanded ACL (the extension's
+   §E4). It **cannot** answer checks 1, 2 or 8. Decrypting it needs the authorized age
+   private key, which is not available in the audit environment; the fresh run below
+   is required regardless.
 4. **Then** decide whether the owner-run §4 global revoke is needed and whether the
    migration will apply.
 
