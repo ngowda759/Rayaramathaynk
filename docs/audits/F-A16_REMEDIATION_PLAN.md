@@ -145,7 +145,7 @@ carries `IN SCHEMA public`; the file issues **no** global statement:
 |---|---|
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated` | new tables grant `anon`/`authenticated` nothing |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC` | no per-schema `PUBLIC` table default can survive (no-op today) |
-| `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role` | backend keeps DML; loses the two DDL rights RLS cannot compensate for |
+| `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role` | backend keeps DML; loses the three rights RLS cannot compensate for (same set F-A16-01 revokes on existing tables) |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated` | no public role can advance a sequence |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC` | as above, for a `PUBLIC` default (no-op today) |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated` | removes the platform's explicit grant to those roles |
@@ -199,26 +199,69 @@ any holds CREATE — directly, through a role they are members of, or via `PUBLI
 state that needs a human decision, not a silent pass. The plan's §9 item 7d is the
 read-only query that answers it ahead of time.
 
-#### 2.4.2b Why a role with CREATE but no default ACL row is *not* enumerated here
+#### 2.4.2b The creator inventory: default-ACL owners *and* effective-CREATE holders
 
-A role that can create in `public` while owning no `pg_default_acl` row is a real case: its
-new functions still carry the implicit `PUBLIC` EXECUTE. An earlier revision tried to
-enumerate such roles with `has_schema_privilege(r.oid, 'public', 'CREATE')`. That was
-**removed**, deliberately:
+The creator inventory is the **union of two classes**, and the migration now enumerates and
+reports both (F-A16-02 correction, 2026-11-03):
 
-* it *widened the fail-closed set* — a role the applier cannot act for (e.g. a
-  `ghost_creator` it is not a member of) would abort the migration, without any benefit;
-* it did **not** close the residual — a per-schema `REVOKE … FROM PUBLIC` cannot remove
-  the implicit `PUBLIC` EXECUTE (mechanic 2 above), so the revoke was a no-op for exactly
-  the role it was trying to cover.
+* **Class (A) — default-ACL owners.** A role with a `pg_default_acl` row for `public`. Its
+  new objects carry those defaults. These are the roles the migration **revokes** for, and
+  the ones it **fails closed** on when it cannot act for them.
+* **Class (B) — effective-CREATE holders.** A role for which
+  `has_schema_privilege(role, 'public', 'CREATE')` is true but that owns no default ACL for
+  `public`. Its new objects fall back to the hardwired Postgres defaults. For tables and
+  sequences those grant nothing to anyone but the owner (measured `relacl IS NULL`), so
+  there is no default privilege to change. Its new **functions** carry the implicit
+  `PUBLIC` EXECUTE, which a per-schema `REVOKE … FROM PUBLIC` cannot remove.
 
-What actually protects that case is the forward guard (which fires for **any** creator,
-including one this migration cannot enumerate — proven in
-`tests/db/f-a16-least-privilege.test.ts`, "does NOT enumerate a CREATE holder with no
-default ACL row"). Its new tables are owner-only by the hardwired default (measured
-`relacl IS NULL`). Effective-CREATE enumeration is deferred to the owner-run step, where a
-superuser can act for any role. This is a documented limitation, not an oversight — see
-§2.4.3.
+Class (B) is **inventoried and reported** — the migration emits a `RAISE NOTICE` naming the
+roles — but it is deliberately **not revoked** (nothing to revoke) and **not failed closed
+on**. An earlier revision enumerated only class (A) and left class (B) invisible to the
+operator, which is an incomplete inventory: the operator could not see the full creator set.
+A still-earlier revision tried to make class (B) *fail closed*, which widened the
+fail-closed set without closing the residual (a role the applier cannot act for would abort
+the migration, and the per-schema revoke it attempted was a no-op for the function case).
+
+What actually closes class (B)'s function residual is the forward guard, which fires for
+**any** creator, including one this migration cannot act for — proven in
+`tests/db/f-a16-least-privilege.test.ts`, "inventories a CREATE holder with no default ACL
+row, without failing closed on it". Its new tables are owner-only by the hardwired default
+(measured `relacl IS NULL`). The owner-run step remains the place where a superuser can act
+for any role. See §2.4.3 and §2.6.
+
+#### 2.4.2c The forward guard: `ON ROUTINE`, and the Supabase event-trigger caveat
+
+The forward function-EXECUTE guard (`20261114990000_…`) revokes with
+
+```sql
+REVOKE EXECUTE ON ROUTINE <identity> FROM PUBLIC, anon, authenticated
+```
+
+**`ON ROUTINE`, not `ON FUNCTION` (F-A16-02b correction, 2026-11-03).** `ON FUNCTION`
+rejects a procedure with `is not a function`; because the guard's `EXECUTE` raises, that
+error aborted the *creating* statement, so the previous revision made `CREATE PROCEDURE` in
+`public` impossible. Reproduced on PostgreSQL 17.11 and 18.6:
+
+```
+CREATE PROCEDURE public.p1() LANGUAGE sql AS $$ SELECT 1; $$;
+ERROR:  public.p1() is not a function
+CONTEXT:  SQL statement "REVOKE EXECUTE ON FUNCTION public.p1() FROM PUBLIC, anon, authenticated"
+          PL/pgSQL function public.f_a16_public_fn_guard() line 17 at EXECUTE
+```
+
+`ON ROUTINE` covers both functions and procedures (`prokind` `f` and `p`), and
+`cmd.object_identity` already carries the signature it needs. Verified on both versions.
+
+**Supabase compatibility — not provable from the repo's test suite.** `CREATE EVENT
+TRIGGER` is superuser-only in stock PostgreSQL (measured: a non-superuser gets `permission
+denied to create event trigger`). Supabase's `postgres` role is **not** a superuser; it can
+create event triggers only because the platform `supautils` extension intercepts the
+statement and elevates briefly. The repo's tests run as a superuser and cannot load
+`supautils`, so they prove the SQL but **not** this platform path. Whether `postgres` on
+the target project may create event triggers is **unverified** and must be confirmed in
+preflight (`docs/audits/F-A16_EXECUTION_CHECKLISTS.md` §11). The guard does not gate on
+`rolsuper`; a `CREATE EVENT TRIGGER` failure aborts the migration (fail closed), so it
+cannot silently half-apply.
 
 #### 2.4.3a Global default privileges — why they are fail-closed, not remediated
 
@@ -239,14 +282,14 @@ a default exists. The scope is deliberate:
 | Global default | Section 0b | Why |
 |---|---|---|
 | tables / sequences → `PUBLIC` or `anon`/`authenticated` | **refuses** | not removable by a schema-scoped revoke; needs the global form |
-| tables → `TRIGGER` or `REFERENCES` for `service_role` | **refuses** | these are exactly the two section 1 revokes per schema, and a global grant survives that revoke — measured: after `IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role`, a new public table still reported both as true |
+| tables → `TRUNCATE`, `TRIGGER` or `REFERENCES` for `service_role` | **refuses** | these are exactly the three section 1 revokes per schema, and a global grant survives that revoke — measured: after `IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role`, a new public table still reported them as true |
 | tables → ordinary DML for `service_role` | **allowed** | `service_role` keeps DML on future tables by design |
 | functions → `PUBLIC` | **allowed** | the corrected migration no longer removes it; it is closed forward by the guard, so refusing here would block a state the guard handles |
 | functions → a named `anon`/`authenticated` | **refuses** | survives the per-schema revoke; not removed by this migration |
 
 The `service_role` row is worth stating plainly because it is the one case where the
 privilege holder is *not* a public-facing role. The reasoning is not "service_role is
-untrusted" — it is that section 1 already decided these two privileges should not arrive by
+untrusted" — it is that section 1 already decided these three privileges should not arrive by
 default, and a global grant would silently defeat that decision for every future table. DML
 is deliberately excluded, so a global DML default is not refused.
 
@@ -266,14 +309,15 @@ Stated explicitly, because the migration must not imply more than it does:
   owner-only (safe), functions with the implicit `PUBLIC` `EXECUTE` (closed forward by the
   guard). If the platform later attaches a broad per-role default ACL to any role, that ACL
   is equally invisible to this run.
-* **A creator with `CREATE` but no `pg_default_acl` row is not enumerated.** Its tables are
-  owner-only; its functions are covered by the forward guard. Effective-CREATE enumeration
-  is deferred to the owner-run step (§2.4.2b).
+* **Every creator is inventoried.** The union of (A) default-ACL owners and (B)
+  effective-CREATE holders is enumerated; class (A) is revoked and failed closed on, class
+  (B) is reported. What no catalog query can do is enumerate a role that **does not exist
+  yet** (see the first bullet) — that is a provisioning event, not an inventory gap.
 * **The post-condition verifies the scope the migration established** — every role that
   owns a `public` default ACL, plus the global table/sequence checks. It asserts that every
-  covered role's revoke took effect. It does **not** assert that every possible future
-  creator was enumerated, because no catalog query can. Read it as "the roles this file
-  could see are covered", not "all creators are covered".
+  covered role's revoke took effect. It does **not** assert that a future creator will not
+  appear, because no catalog query can. Read it as "the roles this file could see are
+  covered", not "all future creators are covered".
 * **Explicit catalog entries do not establish any future session's effective privileges.**
   `pg_default_acl` records what a *creating role* will stamp on new objects. What a
   *grantee* can then do also depends on inherited role memberships, `PUBLIC`, and
@@ -344,6 +388,14 @@ it. The controls are:
   RLS plus their own explicit `REVOKE`s, so they do not depend on the default ACL alone;
 * §9 item 7 is the read-only query that re-checks the owner set, so a future reviewer can
   confirm nothing new appeared without acting for it.
+
+**Creator inventory coverage (corrected 2026-11-03).** Section 2 now enumerates both
+classes of creator: (A) default-ACL owners, which it revokes for and fails closed on, and
+(B) effective-CREATE holders with no default ACL, which it reports via `RAISE NOTICE`
+(§2.4.2b). Class (B) needs no revoke — its tables/sequences are owner-only by the hardwired
+default — and its function residual is the guard's job. The one thing the catalog still
+cannot enumerate is a role that **does not exist yet**; that is a provisioning event, and
+the controls above (deliberate reviewed act; forward guard) cover it.
 
 ### 2.7 What this finding cannot prove without a live read
 
@@ -441,6 +493,21 @@ Measured (PGlite):
 | `CREATE TABLE IF NOT EXISTS` on an existing table | allowed — the event does not fire when the statement is skipped, so re-running a migration is not a spurious failure |
 | creates a table in a non-`public` schema | allowed, RLS untouched (assertion scoped to `public`) |
 
+**Reviewed gap — a partition created by `CREATE TABLE … PARTITION OF` (2026-11-03).**
+Measured on PostgreSQL 17: `CREATE TABLE public.p PARTITION OF public.par …` emits
+`command_tag = 'CREATE TABLE'` and `object_type = 'table'` for the new partition, and a
+partition is **not** born with its parent's RLS (`relrowsecurity = false`, and
+`ALTER TABLE … ENABLE ROW LEVEL SECURITY` on the partition is required and permitted). So
+if a partitioned table is created in `public` while the enabler is disabled, the assertion
+would fire on the parent and reject the whole statement — which is the desired fail-closed
+outcome for the parent. The residual is narrower: a partition added to an *already-existing*
+partitioned table. The assertion's post-condition (read `relrowsecurity` on each
+`public` object that reached `ddl_command_end`) does not distinguish a partition from an
+ordinary table, so it will also reject that partition — again fail-closed. No application
+table in this repository is partitioned (a repository search finds no `PARTITION BY`), so
+the gap is theoretical; it is recorded so a future reviewer is not surprised. The
+assertion's `relkind IN ('r','p')` read and its scope filter are unchanged.
+
 ### 3.4 Secure `search_path` preserved
 
 The assertion is `SECURITY INVOKER` with `SET search_path = pg_catalog`; every object it
@@ -470,7 +537,7 @@ semantics* — event-trigger firing order, `ddl_command_end` behaviour for
 | `ensure_rls` is enabled | **Unverified** — the audit could not read it (F-A15.1 §12 item 5) | same query, read `evtenabled` |
 | `ensure_rls`'s function is owned by `postgres` and is `SECURITY DEFINER` | **Assumption** (F-A15.1 §4.1) | `SELECT proowner::regrole, prosecdef FROM pg_proc WHERE proname='rls_auto_enable'` |
 | The `f_a16_assert_public_rls` name sorts after `ensure_rls` | **Verified by construction** (`e` < `f`) | `SELECT evtname FROM pg_event_trigger ORDER BY evtname` |
-| The applying role may create an event trigger | **Assumption** — only `postgres` (via `supautils`) may manage event triggers on Supabase | the migration's own `CREATE EVENT TRIGGER` fails loudly if not |
+| The applying role may create an event trigger | **Unverified for the target project** — `CREATE EVENT TRIGGER` is superuser-only in stock PostgreSQL; Supabase's `postgres` relies on `supautils`. The repo's tests run as superuser and cannot load `supautils`, so they do not prove this path | preflight `F-A16_EXECUTION_CHECKLISTS.md` §11 (reads `rolsuper`, `supautils`, and whether any event trigger exists) |
 | Supabase PostgreSQL supports `ddl_command_end` event triggers | **Confirmed** — this is how the platform's own `ensure_rls` works | not needed |
 
 The precondition block is written so that the two load-bearing assumptions (`ensure_rls`
@@ -605,18 +672,28 @@ separate, owner-gated phase (§4.4) with a full matrix, not by this migration.
 | Step | Statement shape | Effect |
 |---|---|---|
 | 1 | `REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.<t> FROM anon, authenticated`, for every `public` table | no public-facing role holds any of the three |
-| 2 | `REVOKE TRIGGER, REFERENCES ON TABLE public.<t> FROM service_role` for every table, and additionally `REVOKE TRUNCATE … FROM service_role` on tables **without** a `BEFORE TRUNCATE` guard | backend keeps DML; loses the two DDL rights; keeps `TRUNCATE` only where a guard trigger must remain reachable |
+| 2 | `REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.<t> FROM service_role`, for every `public` table | backend keeps DML and sequence `USAGE`; loses all three of `TRUNCATE`/`REFERENCES`/`TRIGGER` — **no exception** |
 | 3 | re-issue `REVOKE TRIGGER, REFERENCES` on the seven seva tables (catalog-guarded) | idempotent; keeps the pre-existing hardening visible in one place |
-| 4 | post-condition: fail if any public-facing role still holds any of the three, or if one of the four public-read tables lost its `SELECT` policy | the migration rolls back rather than reporting a false success |
+| 4 | post-condition: fail if any public-facing role or `PUBLIC` still holds any of the three, or if one of the four public-read tables lost its `SELECT` policy **or** its `anon`/`authenticated` `SELECT` grant | the migration rolls back rather than reporting a false success |
 
 Everything is **catalog-driven** (`pg_class` filtered to `nspname = 'public'`,
-`relkind IN ('r','p')`), so the table set cannot drift from the schema. The
-`service_role`-keeps-`TRUNCATE` exclusion is read from `pg_trigger` (a `BEFORE TRUNCATE`
-trigger), so a new guard is honoured without editing the file.
+`relkind IN ('r','p')`), so the table set cannot drift from the schema.
+
+**Correction (2026-11-03) — the `service_role` `TRUNCATE` exception was removed.** An
+earlier revision kept `TRUNCATE` on `service_role` for the tables carrying a `BEFORE
+TRUNCATE` guard, and read the exception from `pg_trigger` (`tgtype & 32`). That premise was
+wrong: a `BEFORE TRUNCATE` trigger fires for the **table owner** and for a **superuser** as
+well as for a non-owner holding `TRUNCATE` (measured on PostgreSQL 17.11 and 18.6). The
+guard is therefore reachable for every role that can truncate, and keeping `TRUNCATE` on
+`service_role` protected nothing. The exception list is now **empty**; the migration no
+longer reads `pg_trigger`. See `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md` §2.1 for the
+measurements.
 
 The nine tables with a `BEFORE TRUNCATE` guard at the audit base are `audit_log`, `staff`,
 `seva_rate_history`, `seva_orders`, `seva_receipts`, `seva_receipt_lines`, `day_closes`,
-`receipt_number_gaps`, `receipt_series_years`.
+`receipt_number_gaps`, `receipt_series_years`. Each is still protected after step 2: the
+guard fires for any role permitted to truncate, and no public-facing role holds `TRUNCATE`
+on any of them afterwards.
 
 ### 4.4 What is deliberately *not* in this migration
 
@@ -650,6 +727,7 @@ well. The audit's *API census* shows only four tables actually returning rows to
 which is consistent with those tables being empty of matching rows or unreachable from the
 client. This does not affect F-A16-01 (which never revokes `SELECT`), but it must be
 resolved before the deferred DML phase, and it is recorded as an open question in the PR.
+The table-by-table review is in `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md` §4A.
 
 ### 4.6 Preserve admin and backend functionality
 
@@ -662,20 +740,21 @@ resolved before the deferred DML phase, and it is recorded as an open question i
   client only for public reads (`lib/ai/retrieval/*.ts`, `getSupabase()`); the browser
   path only ever reads the four public tables — unaffected.
 * `service_role` keeps `SELECT/INSERT/UPDATE/DELETE` on every table and `USAGE` on every
-  sequence; only the two DDL rights (`TRIGGER`, `REFERENCES`) and the unguarded `TRUNCATE`
-  are removed.
+  sequence; only the three RLS-invisible privileges (`TRUNCATE`, `REFERENCES`, `TRIGGER`)
+  are removed — on `anon`, `authenticated` **and** `service_role`.
 
 ### 4.7 Regression tests for F-A16-01
 
 * `tests/db/f-a16-existing-privileges.test.ts` — behavioural (PGlite): the three privileges
   are revoked from `anon`/`authenticated`; the four public-read tables keep `SELECT` and
-  their policy; `service_role` keeps DML; `service_role` keeps `TRUNCATE` on a guarded
-  table and loses it elsewhere; a non-`public` table is untouched; the migration is
-  idempotent; a missing public-read policy makes it fail closed and roll back.
+  their policy; `service_role` keeps DML; `service_role` loses `TRUNCATE` even on a guarded
+  table, and the guard still fires for the owner; a non-`public` table is untouched; the
+  migration is idempotent; a missing public-read policy makes it fail closed and roll back.
 * `tests/unit/f-a16-existing-privileges.test.ts` — structural: only the three privileges
   are ever revoked; never from `PUBLIC`; only the three public-facing roles; every table
   revoke is `public.`-qualified; no `auth.`/`storage.`/`graphql` reference; catalog-driven;
-  the guard exclusion is read from `pg_trigger`.
+  no `pg_trigger`/`tgtype` exception remains; the post-condition asserts `PUBLIC` holds none
+  of the three and that the four public-read tables keep their `SELECT` grant.
 
 ---
 
@@ -864,9 +943,9 @@ function is anon-executable through the implicit `PUBLIC` EXECUTE even after F-A
 |---|---|---|---|
 | all 67 public tables | `anon`/`authenticated` | TRUNCATE, REFERENCES, TRIGGER (among others) | **revoked** (this migration) |
 | all 67 public tables | `anon`/`authenticated` | SELECT, INSERT, UPDATE, DELETE | **unchanged** (deferred phase) |
-| 4 public-read tables (`events`, `aaradhanes`, `site_settings`, `social_links`) | `anon`/`authenticated` | SELECT + RLS SELECT policy | **SELECT + policy preserved** (verified) |
-| 9 guarded tables (audit_log, staff, seva_*) | `service_role` | TRUNCATE + TRIGGER + REFERENCES | TRUNCATE kept (guard reachable); TRIGGER, REFERENCES **revoked** |
-| other 58 tables | `service_role` | TRUNCATE, REFERENCES, TRIGGER | **all three revoked** |
+| 4 public-read tables (`events`, `aaradhanes`, `site_settings`, `social_links`) | `anon`/`authenticated` | SELECT + RLS SELECT policy | **SELECT grant + policy preserved** (verified) |
+| 9 guarded tables (audit_log, staff, seva_*) | `service_role` | TRUNCATE + TRIGGER + REFERENCES | **all three revoked** — the guard fires for the owner/superuser too, so no exception is needed |
+| all 67 tables | `service_role` | TRUNCATE, REFERENCES, TRIGGER | **all three revoked** |
 | all 67 tables | `service_role` | SELECT, INSERT, UPDATE, DELETE | **unchanged** |
 
 The DML rows are specified table-by-table in
@@ -997,26 +1076,35 @@ The 2026-11-03 audit found `PUBLIC` EXECUTE on exactly two functions:
 * **Residual risk if left:** a client could call it directly. The function body only sets
   `NEW.updated_at = now()` and returns `NEW`; called outside a trigger it raises (no `NEW`
   record) rather than doing anything. The exposure is therefore informational.
-* **Recommendation:** revoking `PUBLIC` EXECUTE is **safe** and is the least-privilege
-  position, but it is **not included in this change** because the function is created by a
-  migration outside F-A16 and a revoke on it belongs with the function's own owner review.
-  The safe statement, if the owner wants it, is:
+* **Correction (2026-11-03) — `REVOKE … FROM PUBLIC` alone is not enough.** The function is
+  a *new* `public` function, so the platform default ACL also granted `EXECUTE` **directly**
+  to `anon` and `authenticated`. `REVOKE EXECUTE ON FUNCTION … FROM PUBLIC` removes only the
+  implicit PUBLIC entry and **leaves the direct `anon`/`authenticated` grants in place** —
+  measured on PostgreSQL 17: after `REVOKE … FROM PUBLIC`, `has_function_privilege('anon',
+  …, 'EXECUTE')` is still `true`; only after `REVOKE … FROM PUBLIC, anon, authenticated` does
+  it become `false`. So the safe statement must name all three grantees:
 
   ```sql
-  REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM PUBLIC, anon, authenticated;
   ```
 
-  This does not affect the triggers that call it, and does not affect `service_role` or the
-  table owner. It must be applied *after* confirming no client code calls the function
-  directly (a repo search finds none).
+  (This is the same set the forward guard uses, so the guard and the one-off revoke agree.)
+  Verified: the trigger still fires after the revoke (the trigger machinery does not consult
+  the session role's EXECUTE), and `service_role` keeps EXECUTE.
+* **Recommendation:** the corrected revoke is **safe** and is the least-privilege position,
+  but it is **not included in this change** because the function is created by a migration
+  outside F-A16 and a revoke on it belongs with the function's own owner review. It must be
+  applied *after* confirming no client code calls the function directly (a repo search finds
+  none).
 
 ### 12.3 Why this is not a blind revoke
 
 Both functions are invoked by the trigger machinery, which runs as the object owner and
-does not consult the session role's `EXECUTE` privilege. That is why `PUBLIC` EXECUTE can be
-revoked without breaking them. It is *not* done automatically here because both are
-pre-existing, non-F-A16 objects and a revoke on them is an owner-reviewed change. The
-forward guard (§2.4) is what prevents the same pattern arising on **new** functions.
+does not consult the session role's `EXECUTE` privilege. That is why EXECUTE can be revoked
+without breaking them. It is *not* done automatically here because both are pre-existing,
+non-F-A16 objects and a revoke on them is an owner-reviewed change. The forward guard (§2.4)
+is what prevents the same pattern arising on **new** functions — and it uses `ON ROUTINE`
+(not `ON FUNCTION`) so a new **procedure** is covered too (see §2.4.2c).
 
 ---
 

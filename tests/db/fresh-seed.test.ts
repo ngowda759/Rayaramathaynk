@@ -21,7 +21,7 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp';
 
 import { runSeedPlan, SEED_PLAN, type SeedPort } from '../../lib/supabase/seed-data';
-import { PLATFORM_RLS_ENABLER_SQL } from './harness';
+import { PLATFORM_RLS_ENABLER_SQL, SUPABASE_ROLES_SQL } from './harness';
 
 const MIGRATIONS_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -30,22 +30,6 @@ const MIGRATIONS_DIR = path.resolve(
   'supabase',
   'migrations'
 );
-
-const SUPABASE_ROLES_SQL = `
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    CREATE ROLE anon NOLOGIN NOINHERIT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    CREATE ROLE authenticated NOLOGIN NOINHERIT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
-  END IF;
-END $$;
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-`;
 
 function quoteIdent(identifier: string): string {
   if (!/^[a-z_][a-z0-9_]*$/.test(identifier)) throw new Error(`Unsafe identifier: ${identifier}`);

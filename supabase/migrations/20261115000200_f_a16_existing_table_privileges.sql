@@ -8,12 +8,10 @@
 -- WHAT THIS CHANGES
 -- -----------------
 -- It revokes exactly three privileges — `TRUNCATE`, `REFERENCES`, `TRIGGER` — from the
--- public-facing roles on the *existing* `public` tables:
+-- public-facing roles on the *existing* `public` tables, from **every** role including
+-- `service_role`:
 --
---   * `anon` and `authenticated`: revoked on every `public` table.
---   * `service_role`: revoked on every `public` table EXCEPT the ones that carry a
---     `BEFORE TRUNCATE` guard trigger, where `service_role` keeps `TRUNCATE` so the guard
---     remains reachable (see "Why service_role keeps TRUNCATE on nine tables").
+--   * `anon`, `authenticated` and `service_role`: all three revoked on every `public` table.
 --
 -- Those three privileges are the part of the platform's broad grant that **RLS cannot
 -- compensate for**:
@@ -27,7 +25,35 @@
 -- The repository already recognised this for the seva tables:
 -- `20261029235900_seva_privilege_hardening.sql` revokes `TRIGGER, REFERENCES` from
 -- `service_role, anon, authenticated` on seven guarded tables with the same rationale.
--- This migration applies the same principle to every remaining table.
+-- This migration applies the same principle to every remaining table, and to `TRUNCATE`.
+--
+-- WHY service_role LOSES TRUNCATE TOO (F-A16-01 correction, 2026-11-03)
+-- ---------------------------------------------------------------------
+-- An earlier revision of this migration kept `TRUNCATE` for `service_role` on tables
+-- carrying a `BEFORE TRUNCATE` guard, on the theory that the guard "only fires for a role
+-- that holds TRUNCATE", so revoking it would make the guard unreachable. That theory is
+-- **wrong**, and the exception is removed. Measured on PostgreSQL 17.11 and 18.6:
+--
+--   * a `BEFORE TRUNCATE` trigger fires for the **table owner** (non-superuser):
+--       CREATE ROLE owner2; SET ROLE owner2; CREATE TABLE t; CREATE TRIGGER ... BEFORE TRUNCATE;
+--       TRUNCATE t;  --  ERROR: blocked TRUNCATE on t
+--   * it also fires for a **superuser**, including a superuser truncating a table it does
+--     not own;
+--   * it fires for a non-owner that holds `TRUNCATE` as well.
+--
+-- So the guard is reachable for *every* role that can truncate, and keeping `TRUNCATE` on
+-- `service_role` protected nothing: the guard already fires for the owner. Revoking
+-- `TRUNCATE` from `service_role` everywhere therefore removes a real (if unused) privilege
+-- without weakening any guard. The app never truncates (a repository search finds no
+-- `TRUNCATE` statement in any function body, script or application path — only in the
+-- `seva_forbid_change()` guards that *raise* on it), and the two append-only tables that
+-- once carried an explicit `REVOKE DELETE, TRUNCATE … FROM service_role`
+-- (`receipt_number_gaps`, `receipt_series_years`, `20261102000000_seva_final_fixes.sql`)
+-- are consistent with this outcome, not exceptions to it.
+--
+-- The reviewed exception list is therefore **empty**. There is no `pg_trigger` read in the
+-- revoke path; the previous `tgtype & 32` exclusion is gone. See
+-- `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md` §2.1 for the per-table trigger review.
 --
 -- WHAT THIS DELIBERATELY DOES NOT CHANGE
 -- --------------------------------------
@@ -46,22 +72,8 @@
 --   * **Supabase Auth is untouched.** This migration only ever names tables found in
 --     schema `public` (the catalog sweep filters `n.nspname = 'public'`), and it never
 --     references `auth.*`, `storage.*`, `graphql*` or any other schema.
---   * **No policy is created, altered or dropped.** Section 4 verifies the four public-read
+--   * **No policy is created, altered or dropped.** Section 3 verifies the four public-read
 --     policies still exist rather than assuming it.
---
--- WHY service_role KEEPS TRUNCATE ON NINE TABLES
--- ----------------------------------------------
--- A `BEFORE TRUNCATE` trigger fires only for a role that holds `TRUNCATE`; the table owner
--- and superusers bypass it. The repository attaches `BEFORE TRUNCATE` guard triggers (which
--- raise, or emit audit rows) on nine tables. Revoking `TRUNCATE` from `service_role` on
--- those would not break anything today (the app never truncates), but it would silently
--- disable the guard for the only non-owner role that could ever trip it. So `service_role`
--- keeps `TRUNCATE` there and the guard stays reachable. `TRIGGER` and `REFERENCES` are
--- still revoked from `service_role` on every table, including those nine.
---
--- The nine guarded tables are read from the catalog at apply time (`pg_trigger`), not
--- hard-coded, so a new `BEFORE TRUNCATE` guard is honoured automatically. The exclusion is
--- also listed in `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md` for review.
 --
 -- IDEMPOTENT: every statement is a `REVOKE`, and revoking an unheld privilege is a no-op.
 -- Re-running is safe. Nothing here drops a table, changes a policy, or touches a row.
@@ -131,45 +143,35 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------------
--- 2. service_role — revoke TRIGGER / REFERENCES everywhere; TRUNCATE except on
---    tables that carry a BEFORE TRUNCATE guard.
+-- 2. service_role — revoke TRUNCATE / REFERENCES / TRIGGER on every table.
 -- ---------------------------------------------------------------------------------
--- The exclusion is read from `pg_trigger` (the `tgtype` bit 0x20 is TRUNCATE, and
--- `tgtype & 2 = 2` means BEFORE), so a future guard trigger is honoured without editing
--- this file. The guard trigger only fires for a role that holds TRUNCATE; keeping it on
--- service_role is what keeps the guard reachable for a non-owner role.
+-- No exception list. An earlier revision kept `TRUNCATE` on the tables carrying a
+-- `BEFORE TRUNCATE` guard so the guard stayed "reachable"; that was based on a wrong
+-- premise (see the header). Measured on PostgreSQL 17.11 and 18.6: a `BEFORE TRUNCATE`
+-- trigger fires for the table owner and for a superuser as well as for a non-owner that
+-- holds `TRUNCATE`, so revoking `TRUNCATE` cannot make any guard unreachable. `TRIGGER`
+-- and `REFERENCES` are likewise revoked everywhere, matching the pre-existing seva
+-- hardening (`20261029235900_seva_privilege_hardening.sql`).
+--
+-- Catalog-driven so the set cannot drift from the schema. `relkind IN ('r','p')` covers
+-- ordinary and partitioned tables. service_role keeps `SELECT`/`INSERT`/`UPDATE`/`DELETE`
+-- and sequence `USAGE`; only these three are removed.
 DO $$
 DECLARE
   rec record;
 BEGIN
   FOR rec IN
-    SELECT c.relname,
-           EXISTS (
-             SELECT 1
-               FROM pg_catalog.pg_trigger t
-              WHERE t.tgrelid = c.oid
-                AND NOT t.tgisinternal
-                AND (t.tgtype & 2) = 2      -- BEFORE
-                AND (t.tgtype & 32) = 32    -- TRUNCATE
-           ) AS has_truncate_guard
+    SELECT c.relname
       FROM pg_catalog.pg_class c
       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = 'public'
        AND c.relkind IN ('r', 'p')
      ORDER BY c.relname
   LOOP
-    IF rec.has_truncate_guard THEN
-      -- Keep TRUNCATE so the BEFORE TRUNCATE guard remains reachable for service_role.
-      EXECUTE format(
-        'REVOKE REFERENCES, TRIGGER ON TABLE public.%I FROM service_role',
-        rec.relname
-      );
-    ELSE
-      EXECUTE format(
-        'REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.%I FROM service_role',
-        rec.relname
-      );
-    END IF;
+    EXECUTE format(
+      'REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.%I FROM service_role',
+      rec.relname
+    );
   END LOOP;
 END $$;
 
@@ -210,22 +212,27 @@ END $$;
 -- 4. Post-condition — verify, do not assume.
 -- ---------------------------------------------------------------------------------
 -- A `REVOKE` on an unheld privilege is a no-op, so a typo or a role that silently did
--- nothing would otherwise pass. This reads the effective privileges back and refuses to
--- commit while a public-facing role still holds any of the three, or while a table that
--- should still grant a privilege no longer does. The migration is transactional, so a
--- raise rolls everything back.
+-- nothing would otherwise pass. This reads the *effective* privileges back
+-- (`has_table_privilege` accounts for inheritance and for a `PUBLIC` grant) and refuses to
+-- commit while a public-facing role still holds any of the three. The migration is
+-- transactional, so a raise rolls everything back.
 --
 -- It also asserts that this migration did not disturb public `SELECT`: the four
--- public-read tables must still carry their RLS `SELECT` policy. This migration never
--- touches policies or `SELECT`, so a failure here means something else changed underneath
--- it — exactly the kind of drift a post-condition exists to catch.
+-- public-read tables must still carry their `SELECT` grant *and* their RLS `SELECT` policy.
+-- This migration never touches grants other than the three, or any policy, so a failure
+-- here means something else changed underneath it — exactly the drift a post-condition
+-- exists to catch.
 DO $$
 DECLARE
   offenders text;
+  public_grants text;
   missing_policy text;
+  missing_grant text;
 BEGIN
-  -- (a) no public-facing role may hold TRUNCATE/REFERENCES/TRIGGER on any public table,
-  --     except service_role's TRUNCATE on a table that carries a BEFORE TRUNCATE guard.
+  -- (a) no public-facing role may hold TRUNCATE/REFERENCES/TRIGGER on any public table.
+  --     Effective check: this also fails if the privilege reaches a role through a
+  --     membership or through a grant to PUBLIC. No exception — service_role loses all
+  --     three too (see the header).
   SELECT string_agg(DISTINCT format('%s.%s (%s)', c.relname, r.rolname, p.priv), '; ')
     INTO offenders
     FROM pg_catalog.pg_class c
@@ -234,22 +241,28 @@ BEGIN
     CROSS JOIN (VALUES ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
    WHERE n.nspname = 'public'
      AND c.relkind IN ('r', 'p')
-     AND pg_catalog.has_table_privilege(r.rolname, c.oid, p.priv)
-     AND NOT (
-       r.rolname = 'service_role'
-       AND p.priv = 'TRUNCATE'
-       AND EXISTS (
-         SELECT 1 FROM pg_catalog.pg_trigger t
-          WHERE t.tgrelid = c.oid
-            AND NOT t.tgisinternal
-            AND (t.tgtype & 2) = 2
-            AND (t.tgtype & 32) = 32
-       )
-     );
+     AND pg_catalog.has_table_privilege(r.rolname, c.oid, p.priv);
 
   IF offenders IS NOT NULL THEN
     RAISE EXCEPTION 'F-A16-01: public-facing roles still hold TRUNCATE/REFERENCES/TRIGGER: %', offenders
       USING HINT = 'The migration rolled back. Investigate before re-running; do not weaken this check.';
+  END IF;
+
+  -- (a2) `PUBLIC` itself must not hold any of the three on a public table. The audit found
+  --      no such grant, so a row here is a pre-existing condition the operator must resolve
+  --      (this migration deliberately never revokes from PUBLIC — see the header).
+  SELECT string_agg(DISTINCT format('%s (%s)', c.relname, p.priv), '; ')
+    INTO public_grants
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    CROSS JOIN (VALUES ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+   WHERE n.nspname = 'public'
+     AND c.relkind IN ('r', 'p')
+     AND pg_catalog.has_table_privilege('public', c.oid, p.priv);
+
+  IF public_grants IS NOT NULL THEN
+    RAISE EXCEPTION 'F-A16-01: PUBLIC holds TRUNCATE/REFERENCES/TRIGGER on public table(s): %', public_grants
+      USING HINT = 'These were not created by this migration and are not revoked by it. Investigate the source before proceeding.';
   END IF;
 
   -- (b) the four public-read tables must still have their RLS SELECT policy. This is the
@@ -272,6 +285,28 @@ BEGIN
   IF missing_policy IS NOT NULL THEN
     RAISE EXCEPTION 'F-A16-01: public-read table(s) lost their SELECT policy: %', missing_policy
       USING HINT = 'This migration does not touch policies. A missing policy means the public-read surface changed underneath it — investigate before proceeding.';
+  END IF;
+
+  -- (c) the four public-read tables must still grant SELECT to anon and authenticated.
+  SELECT string_agg(format('%s.%s', t, r), ', ')
+    INTO missing_grant
+    FROM unnest(ARRAY['events', 'aaradhanes', 'site_settings', 'social_links']) AS t
+    CROSS JOIN (VALUES ('anon'), ('authenticated')) AS g(r)
+   WHERE EXISTS (
+           SELECT 1 FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relname = t AND c.relkind IN ('r', 'p')
+         )
+     AND NOT EXISTS (
+           SELECT 1 FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relname = t
+             AND pg_catalog.has_table_privilege(g.r, c.oid, 'SELECT')
+         );
+
+  IF missing_grant IS NOT NULL THEN
+    RAISE EXCEPTION 'F-A16-01: public-read table(s) lost their anon/authenticated SELECT grant: %', missing_grant
+      USING HINT = 'This migration never revokes SELECT. A missing grant means the ACL changed underneath it — investigate before proceeding.';
   END IF;
 END $$;
 

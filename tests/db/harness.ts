@@ -33,7 +33,14 @@ const SEVA_FILE = /^\d{14}_seva_[a-z0-9_]+\.sql$/;
 
 const DB_ROLES: readonly DbRole[] = ['anon', 'authenticated', 'service_role'];
 
-const SUPABASE_ROLES_SQL = `
+/**
+ * The roles and default privileges Supabase installs before any project migration.
+ * Exported so a full-migration replay (`fresh-seed`) models production the same way
+ * this harness does — without the default privileges the four public-read tables never
+ * receive their `anon`/`authenticated` SELECT grant, and the F-A16-01 post-condition
+ * (which asserts that grant survives) would fail on a replay that is not faithful.
+ */
+export const SUPABASE_ROLES_SQL = `
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN

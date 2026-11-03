@@ -818,3 +818,59 @@ Working log archived; see daily logs. Not this repository.
 - Schema: 67 public tables; 84 policies / 66 tables; RLS on 67; content tables have **no FK**
   (only seva/POS + knowledge-workflow do).
 - Tests @ `b1401ae`: unit 207/2668, db 17/244, `tsc` clean, eslint 0 errors.
+
+---
+
+## F-A16 least-privilege remediation — correction round (2026-11-03, PR #382)
+
+> Note: an earlier session had compressed this file in the working tree; that uncommitted
+> edit was lost when the branch was rebased onto latest `main`. This section re-records the
+> durable facts. The F-A16-02/02b/01 details below supersede anything earlier in this file.
+
+- **F-A16-02 must stay schema-scoped.** A GLOBAL `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE
+  ON FUNCTIONS FROM PUBLIC` changes every schema (incl. Supabase-managed `storage`/`graphql`/
+  `graphql_public`) and would only *create* a global entry (prod audit 2026-11-03 found **0**
+  global default ACL entries). Removed. The implicit PUBLIC EXECUTE residual on future
+  functions is closed **forward** by the `f_a16_public_fn_guard` event trigger
+  (`20261114990000_f_a16_public_function_execute_guard.sql`), which is scoped to `public`.
+- **A per-schema `REVOKE … FROM PUBLIC` on FUNCTIONS is a no-op.** Per-schema default ACLs
+  can only add, never subtract from the global default. Don't try to fix it per schema.
+- **Discovery = `pg_default_acl` for `public`, NO grantee filter, fail closed per owner.**
+  A grantee-filtered search silently misses a creator whose public default ACL names only
+  some other grantee. Do NOT also enumerate `has_schema_privilege(...,'CREATE')` holders —
+  that widens the fail-closed set without closing the residual (defer to owner-run). The
+  audit confirms `postgres` cannot act for `supabase_admin`, so F-A16-02 is **expected** to
+  stop with `F-A16-02: cannot tighten default privileges for object-creating role(s):
+  supabase_admin`; remedy = `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql`.
+- **F-A16-01 revokes only `TRUNCATE`/`REFERENCES`/`TRIGGER`** — the three privileges RLS
+  cannot compensate for. `service_role` keeps `TRUNCATE` on tables with a `BEFORE TRUNCATE`
+  guard, read from `pg_trigger` (`tgtype & 2` = BEFORE, `tgtype & 32` = TRUNCATE). DML
+  revokes stay deferred (matrix in `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md`).
+- **F-A16-07:** `PUBLIC` EXECUTE on `rls_auto_enable` / `update_updated_at_column` is
+  unnecessary (trigger machinery runs as the object owner and ignores session EXECUTE) but
+  not exploitable. Recommended SQL documented in the plan §12; **not** applied (pre-existing
+  non-F-A16 objects).
+- **Four public-read tables:** `aaradhanes`, `events`, `site_settings`, `social_links`. A
+  static policy sweep finds non-`false` SELECT policies on `temple_areas`, `announcements`,
+  `ai_knowledge`, `featured_content` too — unresolved; the deferred DML phase must settle it.
+
+### Test / tooling gotchas (hit again)
+
+- `tests/db/*.test.ts` are ESM: run `node --experimental-vm-modules
+  node_modules/jest/bin/jest.js -c jest.db.config.ts --runInBand`. Plain `npx jest -c
+  jest.db.config.ts` fails with `import.meta` outside a module.
+- **Structural SQL guards must run against comment-stripped SQL.** A `RAISE HINT` sentence
+  matched `/\bREVOKE[^;]*/i`. Use `/\bREVOKE\s+(?:TRUNCATE|REFERENCES|TRIGGER|ALL)\b[^;']*/`.
+- The F-A16-01 migration raises `F-A16-01: schema public has no tables to remediate` on a
+  PGlite with only non-`public` tables — create a `public` table in such tests.
+- Post-condition / `publicFacingDefaults` helper must exclude the owner self-entry
+  (`a.grantee <> d.defaclrole`) AND treat a per-schema PUBLIC **function** entry as
+  non-leaking (closed forward by the guard, not by the migration).
+- `git stash -u -- . ':!.openhands'` excludes `.openhands/`; but a `git reset --hard` still
+  reverts any *tracked* working-tree edits under `.openhands/` (MEMORY.md is tracked).
+
+### Numbers @ `df90c66`
+
+unit 221 suites / 2922 passed / 1 skipped; db 20 suites / 295 passed; `tsc` clean; eslint 0
+errors (715 pre-existing warnings); build OK. CI on PR #382 all green.
+Details: `.openhands/memory/2026-11-03.md`.

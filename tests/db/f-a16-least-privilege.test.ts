@@ -131,7 +131,7 @@ async function publicFacingDefaults(
                     OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
           OR (d.defaclobjtype = 'r'
                AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-               AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+               AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
              -- Functions: only a DIRECT grant to a named role. The implicit PUBLIC
              -- EXECUTE (grantee = 0) is NOT removable per schema; it is closed forward
              -- by the function-EXECUTE guard migration, so it is not a "leak" here.
@@ -174,7 +174,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
     expect(await tablePrivs(db, "authenticated", "after_mig")).toEqual([]);
   });
 
-  it("after the migration, service_role keeps DML but loses TRIGGER and REFERENCES", async () => {
+  it("after the migration, service_role keeps DML but loses TRUNCATE, TRIGGER and REFERENCES", async () => {
     db = await newDb();
     await db.exec(SUPABASE_ROLES);
     await db.exec(PLATFORM_DEFAULTS_SELF);
@@ -183,6 +183,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
 
     const svc = await tablePrivs(db, "service_role", "backend_table");
     expect(svc).toEqual(expect.arrayContaining(["SELECT", "INSERT", "UPDATE", "DELETE"]));
+    expect(svc).not.toContain("TRUNCATE");
     expect(svc).not.toContain("TRIGGER");
     expect(svc).not.toContain("REFERENCES");
   });
@@ -362,14 +363,16 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       await db.exec(`RESET ROLE;`);
     });
 
-    it("does NOT enumerate a CREATE holder with no default ACL row (documented limitation)", async () => {
-      // `ghost_creator` can create in `public` but owns no `pg_default_acl` row, so no
-      // query against that catalog can discover it. This migration does NOT claim to
-      // cover it — a deliberate, documented limitation (migration header; plan §2.6).
-      // The properties that matter are proven here:
-      //   1. it is absent from the candidate set, so the migration still runs;
-      //   2. its new TABLES are owner-only anyway (the hardwired default);
-      //   3. its new FUNCTIONS' implicit PUBLIC EXECUTE is closed by the forward guard.
+    it("inventories a CREATE holder with no default ACL row, without failing closed on it", async () => {
+      // `ghost_creator` can create in `public` but owns no `pg_default_acl` row. The
+      // corrected section 2 enumerates it as class (B) — the union of default-ACL owners
+      // and effective-CREATE holders — so the operator can see the full creator set. It is
+      // deliberately NOT failed closed on (there is no default privilege to change), so the
+      // migration still resolves. The properties that matter are proven here:
+      //   1. it IS in the candidate set (the earlier revision left it invisible);
+      //   2. the migration still runs (class B is not a fail-closed class);
+      //   3. its new TABLES are owner-only anyway (the hardwired default);
+      //   4. its new FUNCTIONS' implicit PUBLIC EXECUTE is closed by the forward guard.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(`
@@ -378,7 +381,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       `);
       await db.exec(PLATFORM_DEFAULTS_SELF);
 
-      // Pre-condition: genuinely absent from the default-ACL catalog.
+      // Pre-condition: genuinely absent from the default-ACL catalog...
       const rows = await db.query<{ n: number }>(
         `SELECT count(*)::int AS n
            FROM pg_catalog.pg_default_acl d
@@ -386,9 +389,28 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
       expect(rows.rows[0]!.n).toBe(0);
 
+      // ...but present in the corrected union inventory (class B: CREATE, no default ACL).
+      const inv = await db.query<{ candidate: string; has_default_acl: boolean }>(
+        `SELECT candidate, bool_or(has_default_acl) AS has_default_acl
+           FROM (
+             SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS candidate, true AS has_default_acl
+               FROM pg_catalog.pg_default_acl d
+              WHERE d.defaclnamespace = 'public'::regnamespace
+             UNION ALL
+             SELECT r.rolname AS candidate, false AS has_default_acl
+               FROM pg_catalog.pg_roles r
+              WHERE pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE')
+           ) c
+          GROUP BY candidate`
+      );
+      const ghost = inv.rows.find((r) => r.candidate === "ghost_creator");
+      expect(ghost).toBeDefined();
+      expect(ghost!.has_default_acl).toBe(false);
+
+      // (2) It is not a fail-closed class, so the migration resolves.
       await apply(db, DEFAULTS_MIGRATION);
 
-      // (2) A table ghost_creator creates is owner-only (no anon privilege).
+      // (3) A table ghost_creator creates is owner-only (no anon privilege).
       await db.exec(`SET ROLE ghost_creator; CREATE TABLE public.gc_tbl (id int); RESET ROLE;`);
       expect(await tablePrivs(db, "anon", "gc_tbl")).toEqual([]);
 
@@ -550,7 +572,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       await db.exec(PLATFORM_DEFAULTS_SELF);
       await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRIGGER ON TABLES TO service_role;`);
       await db.exec(
-        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;`
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role;`
       );
       await db.exec(`CREATE TABLE public.sr_trg (id int);`);
 
@@ -566,7 +588,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       await db.exec(PLATFORM_DEFAULTS_SELF);
       await db.exec(`ALTER DEFAULT PRIVILEGES GRANT REFERENCES ON TABLES TO service_role;`);
       await db.exec(
-        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;`
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role;`
       );
       await db.exec(`CREATE TABLE public.sr_ref (id int);`);
 
@@ -598,9 +620,22 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
     });
 
+    it("refuses to run while a global TRUNCATE default grants service_role", async () => {
+      // TRUNCATE joined the revoked set (F-A16-01 parity): a global TRUNCATE default
+      // survives the schema-scoped revoke, so section 0b must refuse on it too.
+      db = await newDb();
+      await db.exec(SUPABASE_ROLES);
+      await db.exec(PLATFORM_DEFAULTS_SELF);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRUNCATE ON TABLES TO service_role;`);
+
+      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
+        /F-A16-02: global default privileges confer future objects on public-facing roles:/
+      );
+    });
+
     it("still applies when a global DML default grants service_role (not refused)", async () => {
-      // service_role keeps DML on future tables by design. Only TRIGGER and REFERENCES are
-      // the exception, so a global SELECT/INSERT/UPDATE/DELETE default must NOT be refused.
+      // service_role keeps DML on future tables by design. Only TRUNCATE/TRIGGER/REFERENCES
+      // are the exception, so a global SELECT/INSERT/UPDATE/DELETE default must NOT be refused.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(PLATFORM_DEFAULTS_SELF);
@@ -610,18 +645,18 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(await publicFacingDefaults(db)).toEqual([]);
     });
 
-    it("the owner-run global remediation removes both privileges and keeps DML", async () => {
+    it("the owner-run global remediation removes the three privileges and keeps DML", async () => {
       // Reproduces owner-run step 4 + 4b: after the explicit global revoke, no global
-      // TRIGGER/REFERENCES entry remains for service_role, and a new table still carries
-      // the DML defaults the application depends on.
+      // TRUNCATE/TRIGGER/REFERENCES entry remains for service_role, and a new table still
+      // carries the DML defaults the application depends on.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(PLATFORM_DEFAULTS_SELF);
-      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRIGGER, REFERENCES ON TABLES TO service_role;`);
+      await db.exec(`ALTER DEFAULT PRIVILEGES GRANT TRUNCATE, REFERENCES, TRIGGER ON TABLES TO service_role;`);
 
       // Owner-run step 4 (global form — the operator's explicit, reviewed action).
       await db.exec(
-        `ALTER DEFAULT PRIVILEGES REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;`
+        `ALTER DEFAULT PRIVILEGES REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role;`
       );
 
       // Owner-run step 4b: no residue.
@@ -631,7 +666,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
           WHERE d.defaclnamespace = 0 AND d.defaclobjtype = 'r'
             AND a.grantee <> d.defaclrole
             AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-            AND a.privilege_type IN ('TRIGGER', 'REFERENCES')`
+            AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES')`
       );
       expect(residue.rows[0]!.n).toBe(0);
 

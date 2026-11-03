@@ -107,10 +107,14 @@
 -- -------------------------
 -- `service_role` keeps SELECT/INSERT/UPDATE/DELETE and sequence USAGE, because the
 -- server-side application writes through it (`createAdminClient()`) and reads
--- sequences on insert. Its TRIGGER and REFERENCES defaults are revoked: the same
--- reasoning as `20261029235900_seva_privilege_hardening.sql`, which already revokes
--- those two on the guarded seva tables (a role holding TRIGGER can attach a trigger
--- that rewrites NEW after a guard has checked it).
+-- sequences on insert. Its TRUNCATE, TRIGGER and REFERENCES defaults are revoked: the
+-- same reasoning as `20261029235900_seva_privilege_hardening.sql` (a role holding
+-- TRIGGER can attach a trigger that rewrites NEW after a guard has checked it) and the
+-- same set F-A16-01 revokes on existing tables, so a new table and an existing table end
+-- in the same state. TRUNCATE is included because it is not row-filtered by RLS and the
+-- application never truncates; the earlier "keep TRUNCATE on guarded tables" exception
+-- was removed (see F-A16-01: a BEFORE TRUNCATE guard fires for the owner too, so the
+-- grant protected nothing).
 --
 -- `service_role` keeps EXECUTE on new functions on purpose. The seva RPC surface
 -- (`lib/seva/server/rpc.ts` → `createAdminClient().rpc(...)`) is ~90 functions, and
@@ -126,27 +130,18 @@
 -- -----------------------------------------------------------------
 -- Stated plainly, because it is easy to over-read:
 --
---   * Section 2 enumerates candidate creator roles from `pg_default_acl` rows for
---     `public`, with NO grantee filter. A filter for `anon`/`authenticated`/
---     `service_role` (as an earlier revision used) is a targeted search, not an
---     inventory: it misses a role whose public default ACL names only some other
---     grantee, and it silently reports "covered" for a role it never examined. That
---     miss is reproduced in tests/db/f-a16-least-privilege.test.ts.
---
---   * A role that can create in `public` while owning NO `pg_default_acl` row is NOT
---     enumerated by section 2. This is a deliberate, documented limitation, not an
---     oversight. Such a role's new TABLES are owner-only (the hardwired default;
---     measured `relacl IS NULL`), so the table and sequence surface is already safe;
---     its new FUNCTIONS do carry the implicit `PUBLIC` EXECUTE, and that specific
---     residual is closed forward by
---     `20261114990000_f_a16_public_function_execute_guard.sql`. An earlier revision
---     tried to enumerate such roles by reading `has_schema_privilege(…, 'public',
---     'CREATE')`; that widened the *fail-closed* set (a role the applier cannot act
---     for would abort the migration) without closing the function residual, because
---     per-schema `REVOKE … FROM PUBLIC` cannot remove the implicit PUBLIC EXECUTE.
---     Enumerating effective-CREATE holders is therefore deferred to the owner-run
---     step, where a superuser can act for any role, and to the forward guard. See the
---     remediation plan §2.6.
+--   * Section 2 enumerates the COMPLETE creator inventory: the union of (A) every role
+--     that owns a `pg_default_acl` row for `public` — with NO grantee filter, because a
+--     filter for `anon`/`authenticated`/`service_role` is a targeted search that misses a
+--     role whose public default ACL names only some other grantee — and (B) every role
+--     that effectively holds CREATE on `public` but owns no default ACL. Class (A) is
+--     revoked and failed closed on. Class (B) is inventoried and reported but not revoked
+--     and not failed closed on: it has no default privilege to change, its new
+--     tables/sequences are owner-only by the hardwired default, and its new functions'
+--     implicit `PUBLIC` EXECUTE is closed forward by the guard migration. An earlier
+--     revision enumerated only class (A) and described class (B) as a limitation; that
+--     left a creator invisible to the operator. The union closes that gap. The
+--     grantee-filtered miss is reproduced in tests/db/f-a16-least-privilege.test.ts.
 --
 --   * A GLOBAL default privilege (no `IN SCHEMA`) is out of scope for remediation here
 --     and is handled fail-closed instead. Measured on PGlite: a schema-scoped REVOKE
@@ -154,9 +149,9 @@
 --     `ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC` leaves every new
 --     `public` table readable by `anon` even after sections 1–2 succeed. Section 0b
 --     therefore refuses to run while such a default exists. The same applies to a global
---     `TRIGGER` or `REFERENCES` grant on tables to `service_role`: those are exactly the
---     two privileges section 1 revokes per schema, and a global grant of either survives
---     that revoke (measured: a new public table still reports
+--     `TRUNCATE`, `TRIGGER` or `REFERENCES` grant on tables to `service_role`: those are
+--     exactly the three privileges section 1 revokes per schema, and a global grant of any
+--     survives that revoke (measured: a new public table still reports
 --     `has_table_privilege('service_role', …, 'TRIGGER')` as true afterwards). Section 0b
 --     refuses on those too. It is NOT remediated in this file, because removing a global
 --     default requires the global form — which changes defaults for every schema in the
@@ -228,13 +223,13 @@ END $$;
 --
 -- Scope of this check:
 --   * tables and sequences — any global grant to `PUBLIC` or to `anon`/`authenticated`;
---   * tables — a global grant of `TRIGGER` or `REFERENCES` to `service_role`. Those two
---     are exactly the privileges section 1 revokes from `service_role` per schema, and a
---     global grant survives that schema-scoped revoke (measured: after
---     `IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role`, a new
---     public table still reports `has_table_privilege('service_role', …, 'TRIGGER')` and
---     `… 'REFERENCES'` as true). `service_role` keeps DML, so only these two are checked —
---     refusing on a global DML grant to `service_role` would be wrong;
+--   * tables — a global grant of `TRUNCATE`, `TRIGGER` or `REFERENCES` to `service_role`.
+--     Those are exactly the privileges section 1 revokes from `service_role` per schema,
+--     and a global grant survives that schema-scoped revoke (measured: after
+--     `IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role`,
+--     a new public table still reports `has_table_privilege('service_role', …, 'TRIGGER')`
+--     and `… 'REFERENCES'` as true). `service_role` keeps DML, so only these three are
+--     checked — refusing on a global DML grant to `service_role` would be wrong;
 --   * functions — a global grant DIRECTLY to `anon`/`authenticated`. The global grant to
 --     `PUBLIC` is deliberately excluded here: this migration no longer issues a global
 --     statement, and a global `PUBLIC` function default is instead closed *forward* by
@@ -276,11 +271,11 @@ BEGIN
           -- functions: a DIRECT grant to a named public-facing role (not PUBLIC)
        OR (d.defaclobjtype = 'f'
             AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
-          -- tables: the two privileges section 1 revokes from service_role per schema.
-          -- A global grant of either survives that schema-scoped revoke.
+          -- tables: the three privileges section 1 revokes from service_role per schema.
+          -- A global grant of any survives that schema-scoped revoke.
        OR (d.defaclobjtype = 'r'
             AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-            AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+            AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
          );
 
   IF global_leaks IS NOT NULL THEN
@@ -336,8 +331,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC;
 
 -- TRUNCATE and REFERENCES are not row-filtered by RLS and TRIGGER is a DDL right, so
 -- they are the part of the broad grant that RLS could never compensate for. service_role
--- does not need them (see the header).
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role;
+-- does not need them (see the header). This set matches F-A16-01 exactly: existing tables
+-- lose the same three from the same three roles, so a future table and an existing table
+-- end in the same state. (An earlier revision kept TRUNCATE here; that made a *new* table
+-- broader than an *existing* one and is corrected.)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role;
 
 -- No public-facing role needs to advance a sequence.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated;
@@ -353,19 +351,48 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated;
 
 -- ---------------------------------------------------------------------------------
--- 2. Every other role that owns a `public` default ACL — cover, or fail closed.
+-- 2. Creator inventory — every role that owns a `public` default ACL, and every role
+--    that can create objects in `public`. Cover what must be covered; fail closed on
+--    what cannot be.
 -- ---------------------------------------------------------------------------------
 -- Section 1 only affects objects created by the *applying* role. Default privileges
--- are per-owner: `supabase_admin` (and any other role that owns a `public` default ACL)
--- carries its own, which section 1 does not touch. The audit confirmed `postgres` and
--- `supabase_admin` both own default privileges in `public`, and that `postgres` cannot
--- manage `supabase_admin`'s through current membership — so this section is expected to
--- stop and hand the operator the owner-run step.
+-- are per-owner, so this section must cover every *other* role that can create an object
+-- in `public`. The 2026-11-03 audit confirmed `postgres` and `supabase_admin` both own
+-- default privileges in `public`, and that `postgres` cannot manage `supabase_admin`'s
+-- through current membership — so this section is expected to stop and hand the operator
+-- the owner-run step.
 --
--- Discovery is `pg_default_acl` rows for `public`, with NO grantee filter: a filter for
--- `anon`/`authenticated`/`service_role` is a targeted search that misses a role whose
--- public default ACL names only some other grantee (reproduced in
--- tests/db/f-a16-least-privilege.test.ts).
+-- THE INVENTORY IS THE UNION OF TWO CLASSES (F-A16-02 correction, 2026-11-03)
+-- -------------------------------------------------------------------------
+-- An earlier revision enumerated only `pg_default_acl` rows, and separately documented
+-- the second class as an out-of-scope limitation. That is an incomplete inventory: a role
+-- can create objects in `public` while owning no default ACL of its own, and the operator
+-- could not see it. This block now enumerates BOTH, and reports the class of each, so the
+-- inventory is complete and the difference is explicit rather than buried:
+--
+--   (A) DEFAULT-ACL OWNERS — a role with a `pg_default_acl` row for `public`. It has had
+--       `ALTER DEFAULT PRIVILEGES` issued for it, so its new objects carry those defaults.
+--       These are the roles that must be REVOKED (the six statements in the loop), and the
+--       ones this migration must fail closed on when it cannot act for them.
+--
+--   (B) EFFECTIVE-CREATE HOLDERS — a role for which `has_schema_privilege(role, 'public',
+--       'CREATE')` is true but that owns NO `pg_default_acl` row for `public`. Its new
+--       objects fall back to the hardwired Postgres defaults. For TABLES and SEQUENCES
+--       those defaults grant nothing to anyone but the owner (measured: `relacl IS NULL`),
+--       so there is nothing to revoke and this role needs no default-privilege action. Its
+--       new FUNCTIONS do carry the implicit `PUBLIC` EXECUTE, which a per-schema REVOKE
+--       cannot remove; that residual is closed forward by
+--       `20261114990000_f_a16_public_function_execute_guard.sql`.
+--
+-- So class (B) is INVENTORIED and REPORTED (a `RAISE NOTICE`, so the operator sees the
+-- full creator set), but it is deliberately NOT revoked and NOT failed closed on: there is
+-- no default privilege to change, and aborting on it would widen the fail-closed set
+-- without closing any residual (the trap an earlier revision fell into). Class (A) is both
+-- revoked and failed closed on.
+--
+-- `has_schema_privilege` is used for class (B), not a raw `aclexplode(nspacl)` join: it
+-- accounts for CREATE inherited through role membership and for a CREATE granted to
+-- PUBLIC, both of which a direct ACL join misses.
 --
 -- Two entries are skipped deliberately:
 --   * the applying role — already handled by section 1;
@@ -374,48 +401,62 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 --     owner is the database owner. It is named in the code and in a test rather than
 --     silently filtered.
 --
--- A role that can create in `public` while owning no `pg_default_acl` row is NOT
--- enumerated here — a deliberate, documented limitation. Its new tables are owner-only
--- by the hardwired default; its new functions' implicit `PUBLIC` EXECUTE is closed by the
--- forward guard migration. Enumerating effective-CREATE holders is deferred to the
--- owner-run step (where a superuser can act for any role). See the header and the
--- remediation plan §2.6.
---
--- If any candidate cannot be covered (`pg_has_role(..., 'MEMBER')` is false — the exact
--- precondition Postgres enforces for `ALTER DEFAULT PRIVILEGES FOR ROLE`), the block
+-- If any CLASS-(A) candidate cannot be covered (`pg_has_role(..., 'MEMBER')` is false — the
+-- exact precondition Postgres enforces for `ALTER DEFAULT PRIVILEGES FOR ROLE`), the block
 -- raises. The whole migration then rolls back, so the database is never left in a
 -- half-tightened state — and the remediation cannot be described as complete while a
 -- role was skipped. The remedy is the split-out owner-run step:
 -- docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql
 DO $$
 DECLARE
-  target  text;
-  skipped text[] := ARRAY[]::text[];
+  skipped     text[] := ARRAY[]::text[];
+  create_only text[] := ARRAY[]::text[];
+  inv         record;
 BEGIN
-  FOR target IN
-    SELECT DISTINCT pg_catalog.pg_get_userbyid(d.defaclrole) AS candidate
-      FROM pg_catalog.pg_default_acl d
-     WHERE d.defaclnamespace = 'public'::regnamespace
-     ORDER BY 1
+  -- The complete creator inventory: class (A) union class (B), each labelled.
+  FOR inv IN
+    SELECT candidate, bool_or(has_default_acl) AS has_default_acl
+      FROM (
+        SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS candidate, true AS has_default_acl
+          FROM pg_catalog.pg_default_acl d
+         WHERE d.defaclnamespace = 'public'::regnamespace
+        UNION ALL
+        SELECT r.rolname AS candidate, false AS has_default_acl
+          FROM pg_catalog.pg_roles r
+         WHERE pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE')
+      ) c
+     GROUP BY candidate
+     ORDER BY candidate
   LOOP
     -- Already handled by section 1.
-    CONTINUE WHEN target = current_user;
+    CONTINUE WHEN inv.candidate = current_user;
 
     -- A pseudo-role that owns the schema but creates nothing.
-    CONTINUE WHEN target = 'pg_database_owner';
+    CONTINUE WHEN inv.candidate = 'pg_database_owner';
 
-    IF NOT pg_catalog.pg_has_role(current_user, target, 'MEMBER') THEN
-      skipped := skipped || target;
+    IF NOT inv.has_default_acl THEN
+      -- Class (B): inventoried and reported, not revoked (nothing to revoke).
+      create_only := create_only || inv.candidate;
       CONTINUE;
     END IF;
 
-    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated', target);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC', target);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role', target);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated', target);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC', target);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated', target);
+    IF NOT pg_catalog.pg_has_role(current_user, inv.candidate, 'MEMBER') THEN
+      skipped := skipped || inv.candidate;
+      CONTINUE;
+    END IF;
+
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated', inv.candidate);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC', inv.candidate);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role', inv.candidate);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated', inv.candidate);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC', inv.candidate);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated', inv.candidate);
   END LOOP;
+
+  IF array_length(create_only, 1) > 0 THEN
+    RAISE NOTICE 'F-A16-02: creator(s) with CREATE on public but no default ACL (hardwired defaults; tables/sequences owner-only, functions closed by the forward guard): %',
+      array_to_string(create_only, ', ');
+  END IF;
 
   IF array_length(skipped, 1) > 0 THEN
     RAISE EXCEPTION 'F-A16-02: cannot tighten default privileges for object-creating role(s): %',
@@ -481,11 +522,12 @@ BEGIN
             AND d.defaclobjtype IN ('r', 'S')
             AND (a.grantee = 0
                  OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
-          -- tables in public: service_role keeps DML, loses the two rights RLS cannot cover
+          -- tables in public: service_role keeps DML, loses the three rights RLS cannot
+          -- cover (TRUNCATE, REFERENCES, TRIGGER). The set matches F-A16-01's revoke.
        OR (d.defaclnamespace = 'public'::regnamespace
             AND d.defaclobjtype = 'r'
             AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-            AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+            AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
           -- functions in public: no DIRECT grant to a public-facing role. A per-schema
           -- PUBLIC entry (grantee = 0) is allowed here — it cannot be removed per schema
           -- and is closed forward by the function-EXECUTE guard migration.
@@ -502,12 +544,12 @@ BEGIN
             AND d.defaclobjtype IN ('r', 'S')
             AND (a.grantee = 0
                  OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
-          -- GLOBAL table default ACLs: TRIGGER/REFERENCES for service_role survive the
-          -- schema-scoped revoke in section 1, so verify none is left behind.
+          -- GLOBAL table default ACLs: TRUNCATE/TRIGGER/REFERENCES for service_role survive
+          -- the schema-scoped revoke in section 1, so verify none is left behind.
        OR (d.defaclnamespace = 0
             AND d.defaclobjtype = 'r'
             AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-            AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+            AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
          );
 
   IF offenders IS NOT NULL THEN

@@ -27,15 +27,57 @@
 -- Supabase platform object. It does NOT change any default privilege. It is scoped to
 -- `public` only.
 --
--- HOW IT WORKS (measured on Postgres / PGlite)
--- --------------------------------------------
+-- HOW IT WORKS (measured on PostgreSQL 17 and 18 / PGlite)
+-- --------------------------------------------------------
 -- The guard function is `SECURITY DEFINER`, so it runs with its owner's rights and can
 -- revoke on a function created by a different role when its owner can manage that
 -- function (true when the owner is a superuser, or is the same role, or is a member).
--- Measured: a `SECURITY DEFINER` guard owned by role `G` revokes EXECUTE on a function
+-- Measured: a `SECURITY DEFINER` guard owned by role `G` revokes EXECUTE on a routine
 -- created by `G` (which is the normal case — migrations run as `postgres`, which owns the
--- guard); a function created by a role `G` cannot manage raises `must be owner of
+-- guard); a routine created by a role `G` cannot manage raises `must be owner of
 -- function`, which aborts the creating transaction — the deliberate fail-closed outcome.
+--
+-- `ON ROUTINE`, not `ON FUNCTION` (F-A16-02b correction, 2026-11-03)
+-- -----------------------------------------------------------------
+-- The revoke is written `REVOKE EXECUTE ON ROUTINE <identity>`. `ON FUNCTION` rejects a
+-- procedure with `is not a function`, and because the guard's `EXECUTE` raises, that
+-- error aborted the *creating* statement — so the previous revision of this file made
+-- `CREATE PROCEDURE` in `public` impossible while the guard was installed. Reproduced on
+-- PostgreSQL 17.11 and 18.6:
+--
+--     CREATE PROCEDURE public.p1() LANGUAGE sql AS $$ SELECT 1; $$;
+--     ERROR:  public.p1() is not a function
+--     CONTEXT:  SQL statement "REVOKE EXECUTE ON FUNCTION public.p1() FROM PUBLIC, anon, authenticated"
+--               PL/pgSQL function public.f_a16_public_fn_guard() line 17 at EXECUTE
+--
+-- `ON ROUTINE` accepts both functions and procedures (`prokind` `f` and `p`), and
+-- `cmd.object_identity` already carries the full signature the syntax needs
+-- (`public.p1()`, `public.f(int,text)`), so no `pg_get_function_identity_arguments` call
+-- is required. Verified on both versions: after `ON ROUTINE` the procedure is created,
+-- `anon`/`authenticated` cannot execute it and `service_role` can.
+--
+-- SUPABASE COMPATIBILITY (why this is not claimed from PGlite alone)
+-- -----------------------------------------------------------------
+-- `CREATE EVENT TRIGGER` is a superuser-only operation in stock PostgreSQL — measured on
+-- PostgreSQL 17.11 and 18.6: a non-superuser role gets
+-- `permission denied to create event trigger`. Supabase's `postgres` role is **not** a
+-- superuser (`rolsuper = false`); it can create event triggers only because the
+-- Supabase-managed `supautils` extension intercepts the statement, elevates briefly to a
+-- superuser, and then makes the event trigger owned by its "privileged role"
+-- (supabase/supautils; supabase.com/docs/guides/database/postgres/event-triggers states
+-- "With our Supautils extension … the postgres user has the ability to create and manage
+-- event triggers"). This repository's test suite cannot load `supautils`, so:
+--
+--   * PGlite/PostgreSQL runs here prove the *SQL* is correct (scoping, `ON ROUTINE`,
+--     fail-closed, `service_role` preservation, rollback), but they run as a superuser
+--     and therefore do **not** prove the Supabase privilege path;
+--   * whether `postgres` on the production project may create event triggers is
+--     **unverified** and must be confirmed in preflight (`docs/audits/
+--     F-A16_EXECUTION_CHECKLISTS.md` §Preflight). It is not assumed here.
+--   * because we cannot detect the Supautils grant from the catalog, this migration does
+--     NOT gate on `rolsuper`. The `CREATE EVENT TRIGGER` statement failing is the
+--     fail-closed signal: the transaction aborts, no guard is installed, and the operator
+--     gets a clear error rather than a silent no-op.
 --
 -- Ordering: this file sorts *before* `20261115000000_f_a16_least_privilege_defaults.sql`
 -- (14990000 < 15000000), so F-A16-02's section 3b can verify the guard is installed, and
@@ -90,9 +132,13 @@ BEGIN
     -- Revoke the implicit PUBLIC EXECUTE and the platform's per-schema grant from the
     -- public-facing roles. service_role keeps EXECUTE by design (the seva RPC surface
     -- depends on it — see F-A16-02 §2.5). If the guard owner cannot manage the new
-    -- function this RAISES, which aborts the creating transaction: fail closed.
+    -- routine this RAISES, which aborts the creating transaction: fail closed.
+    --
+    -- `ON ROUTINE`, not `ON FUNCTION`: a procedure is not a function, and `ON FUNCTION`
+    -- would raise `is not a function` and abort the CREATE PROCEDURE. `ON ROUTINE`
+    -- covers both `prokind` `f` and `p`. See the header.
     EXECUTE format(
-      'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated',
+      'REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC, anon, authenticated',
       cmd.object_identity
     );
   END LOOP;

@@ -152,7 +152,7 @@ describe("F-A16-01 existing table privileges (behavioural)", () => {
     }
   });
 
-  it("keeps service_role DML but removes its TRIGGER and REFERENCES", async () => {
+  it("keeps service_role DML but removes its TRUNCATE, TRIGGER and REFERENCES", async () => {
     db = await newDb();
     await db.exec(SUPABASE_ROLES);
     await db.exec(PLATFORM_DEFAULTS_SELF);
@@ -162,13 +162,16 @@ describe("F-A16-01 existing table privileges (behavioural)", () => {
 
     const privs = await tablePrivs(db, "service_role", "backend_tbl");
     expect(privs).toEqual(expect.arrayContaining(["SELECT", "INSERT", "UPDATE", "DELETE"]));
+    expect(privs).not.toContain("TRUNCATE");
     expect(privs).not.toContain("TRIGGER");
     expect(privs).not.toContain("REFERENCES");
   });
 
-  it("keeps service_role TRUNCATE on a table that carries a BEFORE TRUNCATE guard", async () => {
-    // The guard only fires for a role that holds TRUNCATE; keeping it on service_role is
-    // what keeps the guard reachable for a non-owner role.
+  it("revokes TRUNCATE from service_role even on a table with a BEFORE TRUNCATE guard", async () => {
+    // F-A16-01 correction (2026-11-03): the guard does NOT depend on service_role holding
+    // TRUNCATE — a BEFORE TRUNCATE trigger fires for the table owner and for superusers
+    // too (measured on PostgreSQL 17/18). So there is no exception: service_role loses all
+    // three here as everywhere else.
     db = await newDb();
     await db.exec(SUPABASE_ROLES);
     await db.exec(PLATFORM_DEFAULTS_SELF);
@@ -176,13 +179,26 @@ describe("F-A16-01 existing table privileges (behavioural)", () => {
 
     await apply(db, EXISTING_PRIVS_MIGRATION);
 
-    expect(await tablePrivs(db, "service_role", "guarded_tbl")).toContain("TRUNCATE");
-    // But TRIGGER/REFERENCES are still revoked from service_role there.
     const privs = await tablePrivs(db, "service_role", "guarded_tbl");
+    expect(privs).not.toContain("TRUNCATE");
     expect(privs).not.toContain("TRIGGER");
     expect(privs).not.toContain("REFERENCES");
-    // And anon loses TRUNCATE even on the guarded table.
+    // And anon loses TRUNCATE too.
     expect(await tablePrivs(db, "anon", "guarded_tbl")).not.toContain("TRUNCATE");
+  });
+
+  it("leaves the BEFORE TRUNCATE guard effective for the owner (why the exception was removed)", async () => {
+    // The premise behind the removed exception: the guard must remain effective even
+    // without a TRUNCATE grant. Here the table owner truncates and the guard still fires.
+    db = await newDb();
+    await db.exec(SUPABASE_ROLES);
+    await db.exec(PLATFORM_DEFAULTS_SELF);
+    await db.exec(GUARDED_TABLE);
+    await db.exec(`INSERT INTO guarded_tbl VALUES (1);`);
+
+    await apply(db, EXISTING_PRIVS_MIGRATION);
+
+    await expect(db.exec(`TRUNCATE guarded_tbl;`)).rejects.toThrow(/no truncate/);
   });
 
   it("revokes TRUNCATE from service_role on a table without a guard", async () => {
@@ -269,6 +285,25 @@ describe("F-A16-02b forward function-EXECUTE guard (behavioural)", () => {
       `SELECT has_function_privilege('anon', 'public.brand_new()', 'EXECUTE')          AS anon,
               has_function_privilege('authenticated', 'public.brand_new()', 'EXECUTE') AS auth,
               has_function_privilege('service_role', 'public.brand_new()', 'EXECUTE')  AS svc`
+    );
+    expect(r.rows[0]).toEqual({ anon: false, auth: false, svc: true });
+  });
+
+  it("revokes EXECUTE on a new public PROCEDURE too (ON ROUTINE, not ON FUNCTION)", async () => {
+    // F-A16-02b correction (2026-11-03): `ON FUNCTION` rejects a procedure with
+    // `is not a function`, which aborted the creating statement. The guard must use
+    // `ON ROUTINE` so CREATE PROCEDURE succeeds and is still locked down.
+    db = await newDb();
+    await db.exec(SUPABASE_ROLES);
+    await db.exec(PLATFORM_DEFAULTS_SELF);
+    await apply(db, GUARD_MIGRATION);
+
+    await db.exec(`CREATE PROCEDURE public.brand_new_proc() LANGUAGE sql AS $$ SELECT 1; $$;`);
+
+    const r = await db.query<{ anon: boolean; auth: boolean; svc: boolean }>(
+      `SELECT has_function_privilege('anon', 'public.brand_new_proc()', 'EXECUTE')          AS anon,
+              has_function_privilege('authenticated', 'public.brand_new_proc()', 'EXECUTE') AS auth,
+              has_function_privilege('service_role', 'public.brand_new_proc()', 'EXECUTE')  AS svc`
     );
     expect(r.rows[0]).toEqual({ anon: false, auth: false, svc: true });
   });

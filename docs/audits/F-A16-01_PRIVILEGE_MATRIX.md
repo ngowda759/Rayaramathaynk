@@ -31,12 +31,11 @@ Phase B is specified in §5 below. It is deliberately **not executed**.
 
 ## 2. Phase A matrix — current vs intended, per role
 
-Legend: **R** = revoke, **K** = keep, **K (guarded)** = keep only where a
-`BEFORE TRUNCATE` trigger exists.
+Legend: **R** = revoke, **K** = keep.
 
 | Privilege | `anon` | `authenticated` | `service_role` | `PUBLIC` |
 |---|---|---|---|---|
-| `TRUNCATE` on any `public` table | **R** | **R** | **R**, except **K (guarded)** on the 9 guarded tables | not granted (audit found none) |
+| `TRUNCATE` on any `public` table | **R** | **R** | **R** | not granted (audit found none) |
 | `REFERENCES` on any `public` table | **R** | **R** | **R** | not granted |
 | `TRIGGER` on any `public` table | **R** | **R** | **R** | not granted |
 | `SELECT` / `INSERT` / `UPDATE` / `DELETE` | **K** (Phase B) | **K** (Phase B) | **K** | **K** (not touched) |
@@ -47,24 +46,44 @@ Legend: **R** = revoke, **K** = keep, **K (guarded)** = keep only where a
 (`20261114990000_f_a16_public_function_execute_guard.sql`) handles **new** functions.
 Existing functions are §12 of the remediation plan.
 
-### 2.1 Why `service_role` keeps `TRUNCATE` on the nine guarded tables
+### 2.1 Why `service_role` loses `TRUNCATE` too — the exception is removed
 
-Nine tables carry a `BEFORE TRUNCATE` trigger that raises (the audit base list):
+An earlier revision of this change kept `TRUNCATE` for `service_role` on the tables
+carrying a `BEFORE TRUNCATE` guard, on the stated premise that "the guard only fires for a
+role that holds `TRUNCATE`; keeping it on `service_role` is what keeps the guard reachable
+for a non-owner role". **That premise is false.** Measured on PostgreSQL 17.11 and 18.6:
+
+| Who truncates | Holds `TRUNCATE`? | Guard fires? | Result |
+|---|---|---|---|
+| Table owner (non-superuser) | yes (owner) | **yes** | blocked |
+| Superuser (owner or not) | yes (superuser) | **yes** | blocked |
+| Non-owner granted `TRUNCATE` | yes | **yes** | blocked |
+| Non-owner without `TRUNCATE` | no | n/a | `permission denied` |
+
+A `BEFORE TRUNCATE` trigger is a *statement* trigger on the table; Postgres fires it for
+every role that is permitted to truncate, including the owner and a superuser. So the guard
+is reachable for every role that could ever trip it, and keeping `TRUNCATE` on
+`service_role` protected nothing. The reviewed exception list is therefore **empty**:
+`service_role` loses `TRUNCATE`, `REFERENCES` and `TRIGGER` on every `public` table, exactly
+as `anon` and `authenticated` do.
+
+This is consistent with the pre-existing hardening:
+`20261029235900_seva_privilege_hardening.sql` already revokes `TRIGGER, REFERENCES` from
+`service_role, anon, authenticated` on seven guarded tables, and
+`20261102000000_seva_final_fixes.sql` already revokes `DELETE, TRUNCATE` from `service_role`
+on `receipt_number_gaps` and `receipt_series_years`.
+
+The migration no longer reads `pg_trigger` at all; there is no per-table exception to keep
+in sync. The application never truncates (a repository search finds no `TRUNCATE` statement
+in any function body, script or application path), so this removes an unused privilege.
+
+### 2.2 The nine `BEFORE TRUNCATE` guard tables (reviewed, no exception)
+
+For the review record, the tables carrying a `BEFORE TRUNCATE` guard are:
 `audit_log`, `staff`, `seva_rate_history`, `seva_orders`, `seva_receipts`,
-`seva_receipt_lines`, `day_closes`, `receipt_number_gaps`, `receipt_series_years`.
-
-The guard only fires for a role that **holds** `TRUNCATE`; the table owner's own
-`TRUNCATE` is not intercepted. Keeping `TRUNCATE` on `service_role` for these nine is what
-keeps the guard reachable for a non-owner role. On the other 58 tables `service_role` has
-no such guard to protect, so `TRUNCATE` is revoked there.
-
-The migration reads this from `pg_trigger` (`tgtype & 2` = BEFORE, `tgtype & 32` =
-TRUNCATE), so a table that gains a guard later is honoured without editing the migration.
-
-### 2.2 Why `anon`/`authenticated` lose `TRUNCATE` even on the guarded tables
-
-The guard is a second line of defence, not a substitute for the grant. An `anon` role has
-no reason to hold `TRUNCATE` on any table, guarded or not, so it is revoked everywhere.
+`seva_receipt_lines`, `day_closes`, `receipt_number_gaps`, `receipt_series_years`. Each is
+still protected after Phase A: the guard fires for any role permitted to truncate (§2.1),
+and none of the three public-facing roles holds `TRUNCATE` on any of them afterwards.
 
 ---
 
@@ -78,8 +97,9 @@ no reason to hold `TRUNCATE` on any table, guarded or not, so it is revoked ever
 | `social_links` | keep | keep | `20261010000000_create_settings.sql` |
 
 The migration never touches `SELECT` or any policy. Its post-condition fails (and rolls
-back) if one of these four no longer has a non-`false` `SELECT` policy, so the public-read
-surface cannot be broken silently.
+back) if one of these four no longer has a non-`false` `SELECT` policy, **or** if it no
+longer grants `SELECT` to `anon`/`authenticated`, so the public-read surface cannot be
+broken silently.
 
 ---
 
@@ -89,9 +109,32 @@ surface cannot be broken silently.
 |---|---|
 | Supabase **Auth** tables (`auth.*`) | Out of scope; never named. A structural test asserts the file contains no `auth.` reference. |
 | `storage`, `graphql`, `graphql_public` | Platform-managed; the sweep filters `n.nspname = 'public'`. |
-| `seva_list_items` | Already `REVOKE ALL` + RLS-enabled + zero policies by design (F-A16-04). The Phase A revoke is a no-op on it; the pre-existing hardening is re-issued to keep it visible in one place. |
+| `seva_list_items` | Already `REVOKE ALL` + RLS-enabled + zero policies by design (F-A16-04). The Phase A revoke is a no-op on it (it holds no `TRUNCATE`/`REFERENCES`/`TRIGGER` to revoke). |
 | Non-`public` schemas generally | A behavioural test proves a table in another schema keeps all privileges. |
-| Existing `PUBLIC` grants | The audit found none; a blanket `REVOKE … FROM PUBLIC` could strip owner-intended access. A structural test pins that the migration never revokes from `PUBLIC`. |
+| Existing `PUBLIC` grants | The audit found none; a blanket `REVOKE … FROM PUBLIC` could strip owner-intended access. A structural test pins that the migration never revokes from `PUBLIC`; the post-condition instead *asserts* `PUBLIC` holds none of the three. |
+
+---
+
+## 4A. The public-read surface beyond the four audited tables (reviewed, NOT revoked)
+
+The 2026-11-03 audit's API census reports exactly four tables returning rows to `anon`
+(`events`, `aaradhanes`, `site_settings`, `social_links`). A static sweep of
+`supabase/migrations/*.sql` finds non-`false` `SELECT` policies on more tables. This
+section records the review, because Phase B must not revoke a `SELECT` on a table whose
+public read is real but empty today.
+
+| Table | Non-`false` `SELECT` policy in repo? | Browser-client read path? | Class |
+|---|---|---|---|
+| `temple_areas` | yes (`20240915_create_temple_areas.sql`) | served via `app/api/temple-areas/route.ts` → `services/temple-areas.supabase.service.ts` (`createAdminClient()` on the server path, `createClient()` on the browser path) | **server-mediated public read**; `anon` SELECT may be needed if the browser client path is used |
+| `announcements` | yes (`is_active` predicate) | `lib/ai/retrieval/announcements.ts` uses the **browser** client; admin reads use `createAdminClient()` | **browser public read** |
+| `ai_knowledge` | yes (`approved` predicate) | `lib/ai/retrieval/*` and admin routes | **browser public read (approved rows)** |
+| `featured_content` | yes (`active` predicate) | admin/dashboard surfaces | **uncertain** — no confirmed anon path |
+
+Consequence: **Phase A is unaffected** (it never revokes `SELECT`), but **Phase B must not
+revoke `SELECT` from `anon` on any of these** without first confirming the browser path.
+The audit's API census is a row-count observation, not a policy inventory; "0 rows to
+`anon`" is consistent with an empty table behind a live public-read policy. Phase B is
+therefore gated on the owner-side verification in §5.3, not on the four-table census alone.
 
 ---
 
@@ -116,9 +159,9 @@ This is the plan for a later, separately-reviewed change. It is **not** in the m
 
 A static sweep of `supabase/migrations/*.sql` finds non-`false` `SELECT` policies on more
 than the four audited tables — at least `temple_areas`, `announcements`, `ai_knowledge`
-(approved rows) and `featured_content` (active rows). The audit's API census shows only
-four tables returning rows to `anon`, which is consistent with the others being empty of
-matching rows or unreachable from the client.
+(approved rows) and `featured_content` (active rows), listed in §4A. The audit's API census
+shows only four tables returning rows to `anon`, which is consistent with the others being
+empty of matching rows or unreachable from the client.
 
 This does not affect Phase A (which never revokes `SELECT`), but Phase B **must** resolve
 it before revoking any DML: a table with a live public-read policy that is simply empty
@@ -129,15 +172,16 @@ today would be broken by a `SELECT` revoke the moment it gains a row.
 See `docs/audits/F-A16_EXECUTION_CHECKLISTS.md` §Preflight and the audit SQL §4. In
 particular: confirm every browser-client read path in `lib/ai/retrieval/*.ts`,
 `services/quote.service.ts`, `services/announcement.service.ts` and
-`services/daily-spiritual.service.ts` reads only a table Phase B keeps `SELECT` on.
+`services/daily-spiritual.service.ts` reads only a table Phase B keeps `SELECT` on. The
+§4A table is the starting list, not the final classification.
 
 ---
 
 ## 6. Expected impact
 
 * **Phase A (this change):** every `anon`/`authenticated`/`service_role` grant of
-  `TRUNCATE`/`REFERENCES`/`TRIGGER` on a `public` table is removed, except `service_role`'s
-  `TRUNCATE` on the nine guarded tables. No read or write path changes. No policy changes.
-  No DML changes. Idempotent.
+  `TRUNCATE`/`REFERENCES`/`TRIGGER` on a `public` table is removed. There is **no
+  exception** — `service_role` loses all three too (§2.1). No read or write path changes.
+  No policy changes. No DML changes. Idempotent.
 * **Phase B (deferred):** would remove DML from `anon`/`authenticated` on backend-only
   tables. Not executed; not in this change.

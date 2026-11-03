@@ -18,7 +18,7 @@ remediation that is clearly marked. No statement in this file was executed by th
 
 | Artifact | Applied by | Why |
 |---|---|---|
-| `20261114990000_f_a16_public_function_execute_guard.sql` | `supabase db push` (automated) | Pure forward guard; changes no existing object. |
+| `20261114990000_f_a16_public_function_execute_guard.sql` | `supabase db push` (automated) | Pure forward guard; changes no existing object. **Requires the ability to `CREATE EVENT TRIGGER`** — see preflight step 11. |
 | `20261115000000_f_a16_least_privilege_defaults.sql` | `supabase db push` (automated), **but it fails closed** if it cannot act for every `public` default-ACL owner | Default privileges are per-owner; the platform `postgres` cannot act for `supabase_admin`. |
 | `20261115000100_f_a16_fail_closed_rls_assertion.sql` | `supabase db push` (automated) | Additive assertion; refuses to install without an enabled enabler. |
 | `20261115000200_f_a16_existing_table_privileges.sql` | `supabase db push` (automated) | Catalog-driven revoke of three privileges; no DML, no policy. |
@@ -27,6 +27,14 @@ remediation that is clearly marked. No statement in this file was executed by th
 
 The automated migrations are idempotent. The owner-run file is also idempotent and
 re-checks its own precondition, so it cannot silently do nothing.
+
+> **Note on `CREATE EVENT TRIGGER`.** Two of the automated migrations install event
+> triggers (`f_a16_public_fn_guard`, `f_a16_assert_public_rls`). `CREATE EVENT TRIGGER` is
+> a superuser-only operation in stock PostgreSQL; on Supabase the `postgres` role is not a
+> superuser and relies on the platform's `supautils` extension to create and manage event
+> triggers. This is **unverified for the target project** — confirm it in preflight step 11
+> before relying on these two migrations. If `postgres` cannot create event triggers, the
+> migration aborts (fail closed) and the two event-trigger artifacts need an owner-run path.
 
 ---
 
@@ -75,7 +83,7 @@ run `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` as the owner (or a
 first, then re-run the migration. The 2026-11-03 audit says `supabase_admin` is such an
 owner.
 
-### 4. Roles that effectively hold `CREATE` on `public`
+### 4. Roles that effectively hold `CREATE` on `public` — the creator inventory
 
 ```sql
 SELECT r.rolname, has_schema_privilege(r.oid, 'public', 'CREATE') AS can_create
@@ -84,10 +92,13 @@ SELECT r.rolname, has_schema_privilege(r.oid, 'public', 'CREATE') AS can_create
  ORDER BY 1;
 ```
 
-These are **not** enumerated by the migration (their tables are owner-only and their
-functions are covered by the forward guard). Read this so the owner-run step can decide
-whether to cover them too. If `anon`, `authenticated` or `service_role` appear, the
-migration will **refuse** (section 0c) — that is a misconfiguration to fix first.
+This is the second half of the F-A16-02 creator inventory (class B — creators that own no
+default ACL of their own; see the migration header §2). The migration now enumerates this
+class too and emits a `RAISE NOTICE` naming them, but it does not revoke for them (there is
+no default privilege to change) and does not fail closed on them. Read this list so the
+owner-run step can decide whether any of them needs attention. If `anon`, `authenticated`
+or `service_role` appear, the migration will **refuse** (section 0c) — that is a
+misconfiguration to fix first.
 
 ### 5. Global (`ns = 0`) default ACLs
 
@@ -102,9 +113,9 @@ SELECT pg_get_userbyid(d.defaclrole) AS owner_role,
 ```
 
 Expected: **empty** (the 2026-11-03 audit found 0). If a row names `PUBLIC`/`anon`/
-`authenticated` on tables or sequences, or `TRIGGER`/`REFERENCES` for `service_role` on
-tables, the migration **will refuse** — see the owner-run file §4 for the (owner-reviewed)
-global remedy.
+`authenticated` on tables or sequences, or `TRUNCATE`/`TRIGGER`/`REFERENCES` for
+`service_role` on tables, the migration **will refuse** — see the owner-run file §4 for the
+(owner-reviewed) global remedy.
 
 ### 6. The live per-table privilege matrix
 
@@ -131,8 +142,11 @@ SELECT c.relname
 ```
 
 Expected: `audit_log`, `day_closes`, `receipt_number_gaps`, `receipt_series_years`,
-`seva_orders`, `seva_rate_history`, `seva_receipt_lines`, `seva_receipts`, `staff`. These
-are the tables where `service_role` keeps `TRUNCATE`.
+`seva_orders`, `seva_rate_history`, `seva_receipt_lines`, `seva_receipts`, `staff`. Each of
+these keeps its guard after F-A16-01: a `BEFORE TRUNCATE` trigger fires for the table owner
+and for a superuser as well as for a non-owner holding `TRUNCATE` (measured on PostgreSQL
+17/18), so the guard does not depend on any role keeping `TRUNCATE`. F-A16-01 therefore
+revokes `TRUNCATE` from **every** role here — there is no exception (matrix §2.1).
 
 ### 8. The four public-read policies
 
@@ -164,6 +178,29 @@ Expected: `ensure_rls` present and enabled. F-A16-03 refuses to install otherwis
 Before applying, confirm the project ref and that this is the intended production project.
 The `supabase-migrations.yml` workflow has a project-ref guard; if applying via
 `supabase db push`, verify `supabase/.temp/project-ref` or the linked project.
+
+### 11. Can the applying role create event triggers?
+
+```sql
+SELECT current_user AS applying_role,
+       (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) AS is_superuser,
+       EXISTS (SELECT 1 FROM pg_event_trigger) AS has_event_triggers,
+       (SELECT count(*) FROM pg_extension WHERE extname = 'supautils') AS supautils_installed;
+```
+
+`CREATE EVENT TRIGGER` is superuser-only in stock PostgreSQL. Supabase's `postgres` role is
+not a superuser; it can create event triggers only through the platform `supautils`
+extension. This check tells the operator whether the two event-trigger artifacts
+(`f_a16_public_fn_guard`, `f_a16_assert_public_rls`) can install:
+
+* `is_superuser = true`, or `supautils_installed = 1`, or `has_event_triggers = true` — the
+  platform path is present; the event-trigger migrations should install.
+* all false/0 — the platform path is **not** confirmed. Do **not** assume; either confirm
+  with the platform or plan an owner-run path. A `CREATE EVENT TRIGGER` failure aborts the
+  migration (fail closed), so it cannot silently half-apply.
+
+The repository's test suite runs as a superuser and cannot load `supautils`, so it proves
+the SQL but **not** this platform path. Treat this step as mandatory.
 
 ---
 
@@ -212,7 +249,7 @@ SELECT pg_get_userbyid(d.defaclrole) AS owner_role,
           AND (a.grantee = 0 OR pg_get_userbyid(a.grantee) IN ('anon','authenticated')))
      OR (d.defaclobjtype = 'r'
           AND pg_get_userbyid(a.grantee) = 'service_role'
-          AND a.privilege_type IN ('TRIGGER','REFERENCES'))
+          AND a.privilege_type IN ('TRUNCATE','TRIGGER','REFERENCES'))
      OR (d.defaclobjtype = 'f'
           AND pg_get_userbyid(a.grantee) IN ('anon','authenticated'))
    );
@@ -249,8 +286,9 @@ Expected: `anon = false`, `svc = true`.
 ### B. F-A16-01 — existing table privileges
 
 ```sql
--- No public-facing role may hold TRUNCATE/REFERENCES/TRIGGER, except service_role's
--- TRUNCATE on a BEFORE TRUNCATE-guarded table.
+-- No public-facing role may hold TRUNCATE/REFERENCES/TRIGGER. No exception: service_role
+-- loses all three too (the earlier "keep TRUNCATE on guarded tables" exception was removed
+-- because a BEFORE TRUNCATE trigger fires for the owner and superusers anyway).
 SELECT c.relname, r.rolname, p.priv
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -259,13 +297,20 @@ SELECT c.relname, r.rolname, p.priv
  WHERE n.nspname = 'public'
    AND c.relkind IN ('r','p')
    AND has_table_privilege(r.rolname, c.oid, p.priv)
-   AND NOT (
-        r.rolname = 'service_role' AND p.priv = 'TRUNCATE'
-        AND EXISTS (SELECT 1 FROM pg_trigger t
-                     WHERE t.tgrelid = c.oid AND NOT t.tgisinternal
-                       AND (t.tgtype & 2) = 2 AND (t.tgtype & 32) = 32)
-   )
  ORDER BY 1, 2, 3;
+```
+
+Expected: **empty**.
+
+```sql
+-- PUBLIC must not hold any of the three either.
+SELECT c.relname, p.priv
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  CROSS JOIN (VALUES ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+ WHERE n.nspname = 'public' AND c.relkind IN ('r','p')
+   AND has_table_privilege('public', c.oid, p.priv)
+ ORDER BY 1, 2;
 ```
 
 Expected: **empty**.
@@ -347,10 +392,16 @@ DROP FUNCTION IF EXISTS public.f_a16_assert_public_rls();
 ### F-A16-01 — restore the three privileges
 
 ```sql
+-- Restores the pre-migration over-grant exactly (this is the point of a rollback): all
+-- three privileges to all three roles. There is no exception to reproduce — the migration
+-- had no exception either.
 GRANT TRUNCATE, REFERENCES, TRIGGER ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
--- Then re-run the pre-existing seva hardening so the guarded tables stay tight:
+-- Then re-run the pre-existing seva hardening so the guarded tables return to their
+-- pre-F-A16 state (TRIGGER/REFERENCES revoked on seven tables; DELETE/TRUNCATE revoked from
+-- service_role on receipt_number_gaps, receipt_series_years):
 REVOKE TRIGGER, REFERENCES ON TABLE audit_log, staff, seva_rate_history, seva_orders,
   seva_receipts, seva_receipt_lines, day_closes FROM service_role, anon, authenticated;
+REVOKE DELETE, TRUNCATE ON TABLE receipt_number_gaps, receipt_series_years FROM service_role;
 ```
 
 ### Rollback verification

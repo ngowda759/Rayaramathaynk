@@ -94,12 +94,34 @@ describe("F-A16-01 existing table privileges (structural)", () => {
     expect(sql).toMatch(/relkind IN \('r', 'p'\)/i);
   });
 
-  it("reads the TRUNCATE-guard exclusion from pg_trigger, not a hard-coded list", () => {
-    // The `service_role keeps TRUNCATE where a BEFORE TRUNCATE guard exists` rule must
-    // follow the schema, so a new guard is honoured without editing the file.
-    expect(sql).toMatch(/FROM\s+pg_catalog\.pg_trigger/i);
-    expect(sql).toMatch(/\(t\.tgtype & 2\) = 2/i);
-    expect(sql).toMatch(/\(t\.tgtype & 32\) = 32/i);
+  it("has no TRUNCATE exception: service_role loses all three on every table", () => {
+    // F-A16-01 correction (2026-11-03): an earlier revision kept `TRUNCATE` for
+    // service_role on tables carrying a BEFORE TRUNCATE guard, on the false premise that
+    // the guard only fires for a role holding TRUNCATE. Measured on PostgreSQL 17 and 18,
+    // the guard fires for the table owner and for superusers too, so the exception was
+    // removed. The revoke path must not read pg_trigger, and every service_role revoke
+    // must name all three privileges.
+    expect(sql).not.toMatch(/pg_catalog\.pg_trigger/i);
+    expect(sql).not.toMatch(/tgtype/i);
+    expect(sql).not.toMatch(/has_truncate_guard/i);
+    // The service_role sweep must revoke all three (the section-3 seva re-assert block
+    // deliberately re-issues only TRIGGER/REFERENCES, matching the pre-existing hardening;
+    // section 2 already removed TRUNCATE on those tables).
+    expect(sql).toMatch(
+      /REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public\.%I FROM service_role/i
+    );
+  });
+
+  it("asserts PUBLIC holds none of the three (effective check, no PUBLIC revoke)", () => {
+    expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-01: PUBLIC holds TRUNCATE\/REFERENCES\/TRIGGER/i);
+    expect(sql).toMatch(/has_table_privilege\('public', c\.oid, p\.priv\)/i);
+  });
+
+  it("asserts the four public-read tables keep their anon/authenticated SELECT grant", () => {
+    expect(sql).toMatch(
+      /RAISE EXCEPTION 'F-A16-01: public-read table\(s\) lost their anon\/authenticated SELECT grant/i
+    );
+    expect(sql).toMatch(/has_table_privilege\(g\.r, c\.oid, 'SELECT'\)/i);
   });
 
   it("preserves public SELECT by asserting the four public-read policies", () => {
@@ -135,7 +157,10 @@ describe("F-A16-02b forward function-EXECUTE guard (structural)", () => {
 
   it("scopes the revoke to the public schema and keeps service_role executable", () => {
     expect(sql).toMatch(/cmd\.schema_name <> 'public'/i);
-    expect(sql).toMatch(/REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated/i);
+    // ON ROUTINE, not ON FUNCTION: a procedure is not a function, and ON FUNCTION would
+    // abort CREATE PROCEDURE with `is not a function` (F-A16-02b correction, 2026-11-03).
+    expect(sql).toMatch(/REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC, anon, authenticated/i);
+    expect(sql).not.toMatch(/REVOKE EXECUTE ON FUNCTION %s/i);
     // service_role must not appear in the revoke list.
     expect(sql).not.toMatch(/FROM PUBLIC, anon, authenticated, service_role/i);
   });

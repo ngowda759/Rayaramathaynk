@@ -58,7 +58,15 @@ describe("F-A16-02 least-privilege default privileges", () => {
     expect(sql).not.toMatch(/\bALTER\s+TABLE\b/i);
     expect(sql).not.toMatch(/\bDROP\s+(TABLE|FUNCTION|POLICY|TRIGGER)\b/i);
     expect(sql).not.toMatch(/\bCREATE\s+(TABLE|POLICY|INDEX)\b/i);
-    expect(sql).not.toMatch(/\bTRUNCATE\b/i);
+    // No TRUNCATE *command* (a data-destroying statement). Strip `--` comments and single
+    // quoted literals first, then require every remaining TRUNCATE token to sit inside a
+    // REVOKE (the privilege list). The post-condition's `privilege_type IN ('TRUNCATE', …)`
+    // is a literal and disappears here, so only the REVOKE can match.
+    const code = sql.replace(/--[^\n]*/g, "").replace(/'[^']*'/g, "''");
+    const truncateTokens = (code.match(/\bTRUNCATE\b/gi) ?? []).length;
+    const truncateInRevoke = (code.match(/REVOKE[^;]*\bTRUNCATE\b/gi) ?? []).length;
+    expect(truncateTokens).toBeGreaterThan(0);
+    expect(truncateTokens).toBe(truncateInRevoke);
     expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i);
     expect(sql).not.toMatch(/\bINSERT\s+INTO\b/i);
   });
@@ -78,7 +86,7 @@ describe("F-A16-02 least-privilege default privileges", () => {
     // RLS cannot compensate for these three, so they are removed from the backend
     // role as well. This mirrors 20261029235900_seva_privilege_hardening.sql.
     expect(sql).toMatch(
-      /ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role/i
+      /ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role/i
     );
   });
 
@@ -139,13 +147,13 @@ describe("F-A16-02 least-privilege default privileges", () => {
     }
   });
 
-  it("keeps service_role's table DML defaults (only TRIGGER/REFERENCES are revoked)", () => {
+  it("keeps service_role's table DML defaults (only TRUNCATE/TRIGGER/REFERENCES are revoked)", () => {
     // The top-level statement that names service_role on TABLES.
     const direct = sql.match(
       /ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ([^;]*?) ON TABLES FROM ([^;]*service_role[^;]*);/i
     );
     expect(direct).not.toBeNull();
-    expect(direct![1]).toMatch(/TRIGGER, REFERENCES/i);
+    expect(direct![1]).toMatch(/TRUNCATE, REFERENCES, TRIGGER/i);
     expect(direct![2]).toMatch(/service_role/i);
     // It must not revoke SELECT/INSERT/UPDATE/DELETE/ALL from service_role.
     expect(direct![1]).not.toMatch(/\bALL\b/i);
@@ -203,18 +211,18 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).not.toMatch(/aclexplode\(n\.nspacl\)/i);
     });
 
-    it("documents that CREATE holders with no default ACL row are out of scope", () => {
-      // The migration deliberately does not enumerate effective-CREATE holders: it would
-      // widen the fail-closed set without closing the function residual (a per-schema
-      // REVOKE … FROM PUBLIC cannot remove the implicit PUBLIC EXECUTE). The limitation
-      // must be stated, and the compensating controls named.
-      expect(raw).toMatch(/owning NO `pg_default_acl` row is NOT/i);
-      expect(raw).toMatch(/closed forward by/i);
-      // The creator-discovery loop must read the default-ACL catalog only. (The
-      // effective-CREATE probe still appears once, in the public-facing-role check below.)
-      const discovery = sql.slice(sql.indexOf("FOR target IN"), sql.indexOf("LOOP"));
+    it("inventories effective-CREATE holders as well as default-ACL owners", () => {
+      // F-A16-02 correction (2026-11-03): the creator inventory is the union of
+      // (A) default-ACL owners (revoked, fail-closed) and (B) effective-CREATE holders
+      // (inventoried/reported, not revoked). The earlier revision enumerated only (A)
+      // and left (B) invisible to the operator. The discovery loop must now read both
+      // sources, and must use `has_schema_privilege` for (B) so inherited and
+      // PUBLIC-derived CREATE are seen.
+      const discovery = sql.slice(sql.indexOf("FOR inv IN"), sql.indexOf("LOOP"));
       expect(discovery).toMatch(/FROM pg_catalog\.pg_default_acl/i);
-      expect(discovery).not.toMatch(/has_schema_privilege/i);
+      expect(discovery).toMatch(/has_schema_privilege\(r\.oid,\s*'public',\s*'CREATE'\)/i);
+      // A default-ACL owner must never be downgraded to class (B) by the union.
+      expect(discovery).toMatch(/bool_or\(has_default_acl\)/i);
     });
 
     it("fails closed when a public-facing role can itself create in public", () => {
@@ -229,13 +237,13 @@ describe("F-A16-02 least-privilege default privileges", () => {
     it("skips the pg_database_owner pseudo-role explicitly", () => {
       // It always holds CREATE on `public` in PG 15+ but creates nothing itself, so
       // treating it as an uncoverable creator would fail the migration everywhere.
-      expect(sql).toMatch(/CONTINUE WHEN target = 'pg_database_owner'/i);
+      expect(sql).toMatch(/CONTINUE WHEN inv\.candidate = 'pg_database_owner'/i);
     });
 
     it("uses pg_has_role(..., 'MEMBER') as the precondition for acting FOR ROLE", () => {
       // This is the exact precondition Postgres enforces for ALTER DEFAULT
       // PRIVILEGES FOR ROLE, so the check cannot disagree with the server.
-      expect(sql).toMatch(/pg_catalog\.pg_has_role\(current_user,\s*target,\s*'MEMBER'\)/i);
+      expect(sql).toMatch(/pg_catalog\.pg_has_role\(current_user,\s*inv\.candidate,\s*'MEMBER'\)/i);
     });
 
     it("raises — and does not merely warn — when a role cannot be covered", () => {
@@ -281,14 +289,14 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).toMatch(/d\.defaclobjtype IN \('r', 'S'\)/);
     });
 
-    it("0b also fails closed on a global TRIGGER/REFERENCES default for service_role", () => {
-      // Section 1 revokes these two from service_role with an IN SCHEMA statement, but a
+    it("0b also fails closed on a global TRUNCATE/TRIGGER/REFERENCES default for service_role", () => {
+      // Section 1 revokes these three from service_role with an IN SCHEMA statement, but a
       // GLOBAL grant survives that revoke and still lands on future public tables. The
       // precondition must refuse on it — and must NOT refuse on ordinary service_role DML.
       const check = sql.slice(sql.indexOf("global_leaks"), sql.indexOf("global default privileges confer future objects"));
       expect(check).toMatch(/d\.defaclobjtype = 'r'/);
       expect(check).toMatch(/pg_get_userbyid\(a\.grantee\) = 'service_role'/);
-      expect(check).toMatch(/a\.privilege_type IN \('TRIGGER', 'REFERENCES'\)/);
+      expect(check).toMatch(/a\.privilege_type IN \('TRUNCATE', 'TRIGGER', 'REFERENCES'\)/);
     });
 
     it("0b excludes the owner's own entry", () => {
@@ -335,11 +343,11 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(postConditionBlock()).toMatch(/a\.grantee <> d\.defaclrole/);
     });
 
-    it("post-condition also rejects a global TRIGGER/REFERENCES default for service_role", () => {
+    it("post-condition also rejects a global TRUNCATE/TRIGGER/REFERENCES default for service_role", () => {
       const post = postConditionBlock();
       expect(post).toMatch(/d\.defaclobjtype = 'r'/);
       expect(post).toMatch(/pg_get_userbyid\(a\.grantee\) = 'service_role'/);
-      expect(post).toMatch(/a\.privilege_type IN \('TRIGGER', 'REFERENCES'\)/);
+      expect(post).toMatch(/a\.privilege_type IN \('TRUNCATE', 'TRIGGER', 'REFERENCES'\)/);
     });
 
     it("detects PUBLIC via grantee = 0, not via pg_get_userbyid", () => {
@@ -377,11 +385,11 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(ownerRun).toMatch(/candidate <> 'pg_database_owner'/i);
     });
 
-    it("owner-run remediates the global service_role TRIGGER/REFERENCES defaults", () => {
+    it("owner-run remediates the global service_role TRUNCATE/TRIGGER/REFERENCES defaults", () => {
       // The global form must be present, documented as affecting every schema, and paired
       // with a verification query (4b) that excludes the owner self-entry.
       expect(ownerRun).toMatch(
-        /REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role/
+        /REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role/
       );
       expect(ownerRun).toMatch(/EVERY schema/i);
       expect(ownerRun).toMatch(/4b\./);
