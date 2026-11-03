@@ -23,7 +23,7 @@ never calls an effective-privilege function and never reads the membership graph
 |---|---|---|
 | `has_schema_privilege()` | **no** | "can `anon` create in `public`?" — the migration's §0c question — is unanswerable |
 | `has_table_privilege()` | **no** | `TRUNCATE`, `TRIGGER`, `REFERENCES` are invisible: they never surface as a row response, so no API probe can see them either |
-| `has_function_privilege()` | **no** | effective EXECUTE (vs. one ACL entry) is unanswerable |
+| `has_function_privilege()` | **partly** — called for the 3 Supabase roles in §4 | effective EXECUTE for other roles, and the PUBLIC EXECUTE entry, are unanswerable |
 | `has_sequence_privilege()` | **no** | sequence grants come only from `information_schema`, which omits a role with no grant |
 | `pg_auth_members` | **no** | an *inherited* privilege is invisible to a direct `nspacl` / `relacl` join |
 | `aclexplode()` | **no** | a grant to **PUBLIC** (`grantee = 0`) cannot be named — `pg_get_userbyid(0)` returns `'unknown (OID=0)'`, never `'PUBLIC'` |

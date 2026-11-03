@@ -6,10 +6,12 @@
 -- -------
 -- The baseline query set (docs/audits/F-A16_READ_ONLY_CATALOG_AUDIT.sql) reads
 -- pg_default_acl, information_schema grants, pg_policies, pg_proc and the ledger.
--- It does NOT read *effective* privilege: it never calls has_schema_privilege(),
--- has_table_privilege(), has_function_privilege() or has_sequence_privilege(),
--- and it never reads pg_auth_members / pg_has_role. It also never expands an ACL
--- with aclexplode(), so a grant to PUBLIC (grantee = 0) is invisible to it.
+-- It calls has_function_privilege() for the three Supabase roles, but it does NOT
+-- otherwise read *effective* privilege: it never calls has_schema_privilege(),
+-- has_table_privilege() or has_sequence_privilege(), and it never reads
+-- pg_auth_members / pg_has_role. It also never expands an ACL with aclexplode(),
+-- so a grant to PUBLIC (grantee = 0) is invisible to it — including a
+-- PUBLIC EXECUTE entry on a function.
 --
 -- Those are exactly the questions the F-A16 migration's preconditions ask
 -- (section 0c "can a public-facing role create in public?", section 4 "is the
@@ -142,10 +144,15 @@ ORDER  BY 1;
 --         holds which other role. An inherited CREATE or EXECUTE is invisible
 --         to a direct nspacl/relacl join; this is where it shows up.
 -- Cannot prove: privilege *use*; membership alone is not a grant.
+-- Column orientation: in `pg_auth_members`, `roleid` is the role that is
+--         GRANTED and `member` is the role that RECEIVES it. So `roleid` is the
+--         parent (privilege-holder) and `member` is the child. The aliases below
+--         name them that way; reading them the other way inverts every edge and
+--         would misreport which role inherits from which.
 -- Version note: only version-stable columns are selected. PG16 added
 -- `inherit_option` and `set_option`, which are deliberately not referenced.
-SELECT m.roleid::regrole::text AS member_role,
-       m.member::regrole::text AS granted_role,
+SELECT m.roleid::regrole::text AS granted_role,
+       m.member::regrole::text AS member_role,
        pg_get_userbyid(m.grantor) AS granted_by,
        m.admin_option
 FROM   pg_auth_members m

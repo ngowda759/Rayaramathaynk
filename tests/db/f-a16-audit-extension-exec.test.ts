@@ -128,11 +128,37 @@ describe("F-A16 audit extension — executes against a real Postgres", () => {
 
   it("pg_auth_members is readable and returns the stable columns", async () => {
     const r = await db.query<{ member_role: string; granted_role: string }>(
-      `SELECT m.roleid::regrole::text AS member_role,
-              m.member::regrole::text AS granted_role
+      `SELECT m.roleid::regrole::text AS granted_role,
+              m.member::regrole::text AS member_role
        FROM pg_auth_members m`
     );
     expect(Array.isArray(r.rows)).toBe(true);
+  });
+
+  it("orients pg_auth_members as roleid=granted, member=member", async () => {
+    // `roleid` is the role being GRANTED (the privilege holder); `member` is the
+    // role that RECEIVES it (the inheritor). Asserting this against a real
+    // Postgres pins the orientation, so a future edit cannot silently invert
+    // every membership edge the audit reports.
+    const db2 = await PGlite.create();
+    try {
+      await db2.exec(`
+        CREATE ROLE parent_role NOLOGIN;
+        CREATE ROLE child_role NOLOGIN;
+        GRANT parent_role TO child_role;
+      `);
+      const r = await db2.query<{ granted_role: string; member_role: string }>(
+        `SELECT m.roleid::regrole::text AS granted_role,
+                m.member::regrole::text AS member_role
+         FROM pg_auth_members m
+         WHERE m.roleid::regrole::text = 'parent_role'`
+      );
+      expect(r.rows).toHaveLength(1);
+      expect(r.rows[0].granted_role).toBe("parent_role");
+      expect(r.rows[0].member_role).toBe("child_role");
+    } finally {
+      await db2.close();
+    }
   });
 
   it("the default-ACL summary statement returns a single row", async () => {
