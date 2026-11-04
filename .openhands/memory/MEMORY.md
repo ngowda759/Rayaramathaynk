@@ -854,6 +854,37 @@ Working log archived; see daily logs. Not this repository.
   static policy sweep finds non-`false` SELECT policies on `temple_areas`, `announcements`,
   `ai_knowledge`, `featured_content` too — unresolved; the deferred DML phase must settle it.
 
+### F-A16 isolated integration verification (2026-11-04, PR #382)
+
+- **Use the official image `supabase/postgres:15.19.0.018` — it ships `supautils`, which is
+  the whole point.** On it a **non-superuser `postgres` CAN `CREATE EVENT TRIGGER`** (owned by
+  `postgres`); stock PostgreSQL refuses the same role (`Must be superuser to create an event
+  trigger`). So the F-A16-02b guard IS installable on Supabase. `supautils` is a shared
+  library, not a `pg_extension` row; config `/etc/postgresql-custom/supautils.conf`.
+- **RESIDUAL, measured: a `supabase_admin`-created function in `public` keeps the implicit
+  PUBLIC EXECUTE — the guard trigger does NOT fire for it.** Isolated by contrast: it DOES
+  fire for a superuser on stock PG 17.11 and on a Supabase image with `supautils` removed.
+  Cause = `supautils` runs privileged DDL in a non-`origin` replication role; a default
+  `ENABLE ORIGIN` trigger doesn't fire then. `ENABLE ALWAYS` does not help. This is exactly
+  why PGlite (superuser) can't see the gap. Low severity (residual is service_role-only);
+  documented in the guard header + `docs/audits/F-A16_INTEGRATION_VERIFICATION.md`.
+- **A fresh Supabase-image DB is owned by `supabase_admin`**, so `postgres` lacks CREATE on
+  `public`. As the superuser run `ALTER DATABASE <db> OWNER TO postgres; ALTER SCHEMA public
+  OWNER TO pg_database_owner;` (real projects own the DB as `postgres`).
+- **`public`-scoped `pg_default_acl` = 6 rows** (postgres + supabase_admin × r/S/f). "24" is
+  all schemas. `F-A16_EXECUTION_CHECKLISTS.md` wrongly said 24 for the public query.
+- **A `REVOKE` you may not perform only WARNS** (`no privileges could be revoked`); it does
+  not raise. Hence the guard's fail-closed `has_function_privilege` re-check.
+  `has_function_privilege('anon', oid, 'EXECUTE')` is true for a PUBLIC-granted function.
+- Docker NAT → `host` lines are `scram-sha-256`, so disposable login roles need a password.
+  After use: `REVOKE ALL ON SCHEMA public FROM r; DROP OWNED BY r; DROP ROLE r;`.
+- Harness: `tests/db/integration/f-a16.integration.test.ts` (13 scenarios, `pg` over TCP) +
+  `jest.integration.config.ts` + `npm run test:db:integration`; excluded from `jest.db.config.ts`;
+  refuses non-disposable targets and never logs the URL.
+- Numbers @ `4bfa86b7`: integration 13/13; PGlite 20 suites/298; unit 221 suites/2927+1
+  skipped; typecheck clean; lint 0 errors; build OK.
+  Details: `.openhands/memory/2026-11-04.md`.
+
 ### Test / tooling gotchas (hit again)
 
 - `tests/db/*.test.ts` are ESM: run `node --experimental-vm-modules
