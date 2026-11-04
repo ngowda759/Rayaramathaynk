@@ -179,8 +179,13 @@
 --     this file could see are covered", not "all creators are covered".
 --
 --   * "Covered" is per-role and the run is all-or-nothing: if any candidate creator
---     cannot be acted for (`pg_has_role(..., 'MEMBER')` is false), the file raises and
---     the entire migration rolls back. There is no partial-success state.
+--     cannot be acted for (`pg_has_role(..., 'MEMBER')` is false) AND its public default
+--     ACL still confers a public-facing grant, the file raises and the entire migration
+--     rolls back. There is no partial-success state. A candidate the applier is not a
+--     member of but that the owner-run step has ALREADY remediated (its public default ACL
+--     no longer leaks) is reported as converged, not failed closed on — so the documented
+--     "owner-run, then re-run this migration" workflow converges. A leaking role still
+--     aborts; only the already-clean case is allowed through.
 
 -- ---------------------------------------------------------------------------------
 -- 0. Preconditions — fail loudly rather than silently leaving the defaults broad.
@@ -313,6 +318,31 @@ BEGIN
       USING HINT = 'A public-facing role must not be able to create objects in public. Removing CREATE is a schema-ACL change (F-A16-01 scope, deferred) and needs owner review. Investigate whether CREATE was granted to these roles directly, via a role they are members of, or via PUBLIC. F-A16-02 is NOT remediated until this succeeds.';
   END IF;
 END $$;
+-- ---------------------------------------------------------------------------------
+-- 0d. Snapshot — record the non-`public` default ACLs BEFORE this migration touches
+--     anything, so section 3c can prove this file changed none of them.
+-- ---------------------------------------------------------------------------------
+-- Section 3c must assert that THIS migration did not alter a non-`public` schema. A bare
+-- "no public-facing grant exists in a non-`public` schema" assertion cannot do that: a
+-- stock Supabase project ALREADY carries such entries, provisioned by the platform —
+-- e.g. `storage.<owner> -> anon/authenticated` and `graphql*.<owner> -> anon/authenticated`
+-- (measured on the Supabase `postgres:15` image: 9 of the 24 schema-scoped default ACL
+-- entries are non-`public` and name `anon`/`authenticated`). Asserting their absence would
+-- fail the migration on a correct, unmodified project. So the snapshot is taken here, and
+-- section 3c fails only on a difference. It is a session-scoped temp table (not
+-- `ON COMMIT DROP`, which would vanish under a per-statement-autocommit apply such as
+-- `psql -f`), dropped at the end of section 3c.
+DROP TABLE IF EXISTS f_a16_02_pre_nonpublic_defaults;
+CREATE TEMP TABLE f_a16_02_pre_nonpublic_defaults AS
+SELECT d.defaclrole,
+       d.defaclnamespace,
+       d.defaclobjtype,
+       a.grantee,
+       a.privilege_type
+  FROM pg_catalog.pg_default_acl d
+  CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
+ WHERE d.defaclnamespace <> 0
+   AND d.defaclnamespace <> 'public'::regnamespace;
 
 -- ---------------------------------------------------------------------------------
 -- 1. The applying role — tighten its own defaults.
@@ -407,10 +437,22 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 -- half-tightened state — and the remediation cannot be described as complete while a
 -- role was skipped. The remedy is the split-out owner-run step:
 -- docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql
+--
+-- CONVERGENCE (F-A16-02 correction, integration verification). Failing closed on a role
+-- the applier is not a member of is correct while that role still holds a public-facing
+-- default grant. But the owner-run step is the documented remedy, and the operator is told
+-- to run it "then re-run this migration". Before this correction the re-run failed closed
+-- again on the same role purely because membership was still absent — so the loop never
+-- converged even though the role was already remediated. The loop below distinguishes the
+-- two states: a non-member whose public default ACL still leaks is failed closed on
+-- (unchanged); a non-member whose public default ACL no longer leaks is reported as
+-- already remediated. This does not weaken the guard: a leaking role still aborts.
 DO $$
 DECLARE
   skipped     text[] := ARRAY[]::text[];
   create_only text[] := ARRAY[]::text[];
+  converged   text[] := ARRAY[]::text[];
+  leaks       boolean;
   inv         record;
 BEGIN
   -- The complete creator inventory: class (A) union class (B), each labelled.
@@ -441,7 +483,37 @@ BEGIN
     END IF;
 
     IF NOT pg_catalog.pg_has_role(current_user, inv.candidate, 'MEMBER') THEN
-      skipped := skipped || inv.candidate;
+      -- Not a member: Postgres will not let us run `ALTER DEFAULT PRIVILEGES FOR ROLE`.
+      -- The owner-run step (docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql),
+      -- run as that role, is the remedy. It is CONVERGENT: after it, this role's public
+      -- default ACL holds no public-facing grant, and the check below treats it as already
+      -- remediated rather than failing closed on membership forever. Inline, so this file
+      -- still changes nothing but default privileges (no helper object is created).
+      SELECT EXISTS (
+               SELECT 1
+                 FROM pg_catalog.pg_default_acl d,
+                      pg_catalog.aclexplode(d.defaclacl) a
+                WHERE d.defaclnamespace = 'public'::regnamespace
+                  AND pg_catalog.pg_get_userbyid(d.defaclrole) = inv.candidate
+                  AND a.grantee <> d.defaclrole
+                  AND (
+                       (d.defaclobjtype IN ('r', 'S')
+                         AND (a.grantee = 0
+                              OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+                    OR (d.defaclobjtype = 'r'
+                         AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+                         AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
+                    OR (d.defaclobjtype = 'f'
+                         AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+                  )
+             )
+        INTO leaks;
+
+      IF leaks THEN
+        skipped := skipped || inv.candidate;
+      ELSE
+        converged := converged || inv.candidate;
+      END IF;
       CONTINUE;
     END IF;
 
@@ -456,6 +528,11 @@ BEGIN
   IF array_length(create_only, 1) > 0 THEN
     RAISE NOTICE 'F-A16-02: creator(s) with CREATE on public but no default ACL (hardwired defaults; tables/sequences owner-only, functions closed by the forward guard): %',
       array_to_string(create_only, ', ');
+  END IF;
+
+  IF array_length(converged, 1) > 0 THEN
+    RAISE NOTICE 'F-A16-02: role(s) already remediated by the owner-run step (no public-facing privilege in their public default ACL); nothing for this migration to do for them: %',
+      array_to_string(converged, ', ');
   END IF;
 
   IF array_length(skipped, 1) > 0 THEN
@@ -599,39 +676,54 @@ END $$;
 -- ---------------------------------------------------------------------------------
 -- Every statement above is `IN SCHEMA public`, so no default ACL for `storage`,
 -- `graphql`, `graphql_public` or any other schema may have been altered. This block
--- asserts that scope positively: it fails if a default ACL exists for a schema other
--- than `public` that names a public-facing grantee. It is the guard for the F-A16-02
--- correction ("explicitly scope application remediation to the public schema").
+-- asserts that scope positively, as a DIFF against the snapshot section 0d took before
+-- any statement ran. It is the guard for the F-A16-02 correction ("explicitly scope
+-- application remediation to the public schema").
 --
--- Note this is a *pre-existing-state* assertion, not a diff: the migration has no way to
--- read the pre-change ACLs back, so it asserts the property that must hold after it runs.
--- The 2026-11-03 audit found no such entries; a failure here means something outside this
--- migration put them there.
+-- WHY A DIFF, NOT AN ABSENCE CHECK. A stock Supabase project ALREADY carries non-`public`
+-- default ACLs that name `anon`/`authenticated` — the platform provisions them for
+-- `storage`, `graphql` and `graphql_public` (measured on the Supabase `postgres:15`
+-- image: 9 of the 24 schema-scoped default ACL entries are non-`public` and name
+-- `anon`/`authenticated`). Those are outside F-A16-02's scope (F-A16-01 territory) and
+-- this migration does not touch them. An "assert none exist" check would therefore fail
+-- the migration on a correct, unmodified project — which is exactly what happened in the
+-- F-A16 integration verification. Asserting the *difference* is the property that
+-- actually matters and is provable here: this file changed none of them.
 DO $$
 DECLARE
   foreign_leaks text;
 BEGIN
   SELECT string_agg(DISTINCT format('%s.%s %s -> %s (%s)',
                                     n.nspname,
-                                    pg_catalog.pg_get_userbyid(d.defaclrole),
-                                    d.defaclobjtype,
-                                    CASE WHEN a.grantee = 0 THEN 'PUBLIC'
-                                         ELSE pg_catalog.pg_get_userbyid(a.grantee) END,
-                                    a.privilege_type), '; ')
+                                    pg_catalog.pg_get_userbyid(x.defaclrole),
+                                    x.defaclobjtype,
+                                    CASE WHEN x.grantee = 0 THEN 'PUBLIC'
+                                         ELSE pg_catalog.pg_get_userbyid(x.grantee) END,
+                                    x.privilege_type), '; ')
     INTO foreign_leaks
-    FROM pg_catalog.pg_default_acl d
-    JOIN pg_catalog.pg_namespace n ON n.oid = d.defaclnamespace
-    CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
-   WHERE d.defaclnamespace <> 0
-     AND n.nspname <> 'public'
-     AND a.grantee <> d.defaclrole
-     AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated');
+    FROM (
+      -- Non-public default ACLs present AFTER this migration that were NOT present
+      -- BEFORE it (added, or re-granted), for a public-facing grantee.
+      SELECT d.defaclrole, d.defaclnamespace, d.defaclobjtype, a.grantee, a.privilege_type
+        FROM pg_catalog.pg_default_acl d
+        CROSS JOIN LATERAL pg_catalog.aclexplode(d.defaclacl) a
+       WHERE d.defaclnamespace <> 0
+         AND d.defaclnamespace <> 'public'::regnamespace
+      EXCEPT
+      SELECT defaclrole, defaclnamespace, defaclobjtype, grantee, privilege_type
+        FROM f_a16_02_pre_nonpublic_defaults
+    ) x
+    JOIN pg_catalog.pg_namespace n ON n.oid = x.defaclnamespace
+   WHERE x.grantee <> x.defaclrole
+     AND pg_catalog.pg_get_userbyid(x.grantee) IN ('anon', 'authenticated');
 
   IF foreign_leaks IS NOT NULL THEN
-    RAISE EXCEPTION 'F-A16-02: public-facing roles hold default privileges in non-public schemas: %', foreign_leaks
-      USING HINT = 'This migration must not touch storage/graphql/graphql_public. If these entries exist, they were NOT created by this migration — investigate their origin. F-A16-02 does not remediate them.';
+    RAISE EXCEPTION 'F-A16-02: this migration added public-facing default privileges in non-public schemas: %', foreign_leaks
+      USING HINT = 'Every statement in this file is `IN SCHEMA public`; a new non-public entry means a statement escaped its scope. Investigate before re-running. F-A16-02 does not remediate pre-existing non-public defaults (storage/graphql/graphql_public) — those are F-A16-01 scope.';
   END IF;
 END $$;
+
+DROP TABLE IF EXISTS f_a16_02_pre_nonpublic_defaults;
 
 -- ---------------------------------------------------------------------------------
 -- Rollback

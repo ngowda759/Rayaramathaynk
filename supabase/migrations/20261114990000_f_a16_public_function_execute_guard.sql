@@ -27,6 +27,27 @@
 -- Supabase platform object. It does NOT change any default privilege. It is scoped to
 -- `public` only.
 --
+-- RESIDUAL: a function created by a superuser is NOT covered (measured, 2026-11-04).
+-- ---------------------------------------------------------------------------------
+-- A function created by `supabase_admin` (the only superuser on a Supabase project)
+-- keeps the implicit PUBLIC EXECUTE. Measured on the Supabase `postgres:15.19.0.018`
+-- image: `CREATE FUNCTION` executed by `supabase_admin` does not fire this event trigger
+-- at all — the resulting `proacl` is
+-- `{=X/supabase_admin,supabase_admin=X/supabase_admin,postgres=X/supabase_admin,service_role=X/supabase_admin}`
+-- and `has_function_privilege('anon'|'authenticated', …)` is true. The cause is
+-- Supabase-specific: `supautils` runs privileged DDL in a non-`origin` replication role,
+-- and a default (`ENABLE ORIGIN`) event trigger does not fire in that mode; a plain
+-- non-superuser `postgres` DDL is unaffected. Confirmed by contrast — on stock
+-- PostgreSQL 17.11 the same trigger DOES fire for a superuser, and on a
+-- Supabase image with `supautils` absent it also fires for `supabase_admin`. So this is
+-- not "event triggers never fire for superusers"; it is the Supabase platform's
+-- privileged-DDL path. This migration cannot close it: it never sees the statement.
+-- The residual is `service_role`-only in practice (anon/authenticated cannot reach a
+-- superuser-created function without an explicit grant), and it is recorded here rather
+-- than papered over. Closing it needs a different mechanism (e.g. a superuser-run
+-- remediation for objects `supabase_admin` creates), out of scope for F-A16-02b. See
+-- docs/audits/F-A16_INTEGRATION_VERIFICATION.md (Test B.4).
+--
 -- HOW IT WORKS (measured on PostgreSQL 17 and 18 / PGlite)
 -- --------------------------------------------------------
 -- The guard function is `SECURITY DEFINER`, so it runs with its owner's rights and can
@@ -34,8 +55,13 @@
 -- function (true when the owner is a superuser, or is the same role, or is a member).
 -- Measured: a `SECURITY DEFINER` guard owned by role `G` revokes EXECUTE on a routine
 -- created by `G` (which is the normal case — migrations run as `postgres`, which owns the
--- guard); a routine created by a role `G` cannot manage raises `must be owner of
--- function`, which aborts the creating transaction — the deliberate fail-closed outcome.
+-- guard). When the guard owner CANNOT manage the routine the REVOKE does NOT raise
+-- `must be owner of function`: PostgreSQL emits `WARNING: no privileges could be revoked`
+-- and leaves the routine world-executable (measured on real PostgreSQL 15.19 and 17.11).
+-- The guard therefore re-reads the effective privilege with `has_function_privilege`
+-- after the REVOKE and RAISES if the grant survived, so an unmanageable creator aborts the
+-- creating transaction — the deliberate fail-closed outcome. See
+-- docs/audits/F-A16_INTEGRATION_VERIFICATION.md.
 --
 -- `ON ROUTINE`, not `ON FUNCTION` (F-A16-02b correction, 2026-11-03)
 -- -----------------------------------------------------------------
@@ -131,8 +157,7 @@ BEGIN
 
     -- Revoke the implicit PUBLIC EXECUTE and the platform's per-schema grant from the
     -- public-facing roles. service_role keeps EXECUTE by design (the seva RPC surface
-    -- depends on it — see F-A16-02 §2.5). If the guard owner cannot manage the new
-    -- routine this RAISES, which aborts the creating transaction: fail closed.
+    -- depends on it — see F-A16-02 §2.5).
     --
     -- `ON ROUTINE`, not `ON FUNCTION`: a procedure is not a function, and `ON FUNCTION`
     -- would raise `is not a function` and abort the CREATE PROCEDURE. `ON ROUTINE`
@@ -141,6 +166,25 @@ BEGIN
       'REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC, anon, authenticated',
       cmd.object_identity
     );
+
+    -- Fail closed. A REVOKE the guard owner may NOT perform does not raise: PostgreSQL
+    -- only emits `WARNING: no privileges could be revoked` and leaves the routine
+    -- world-executable. Measured on real PostgreSQL 15.19 and 17.11 — see
+    -- docs/audits/F-A16_INTEGRATION_VERIFICATION.md (Test A.3). Relying on the REVOKE to
+    -- raise was the defect this check fixes. Re-read the EFFECTIVE privilege and abort
+    -- the creating transaction if the grant survived, so a routine whose owner the guard
+    -- cannot manage is never left executable by a public-facing role.
+    --
+    -- `has_function_privilege` accepts a procedure as well as a function, and
+    -- `cmd.object_identity` already carries the full signature.
+    IF pg_catalog.has_function_privilege('anon', cmd.object_identity, 'EXECUTE')
+       OR pg_catalog.has_function_privilege('authenticated', cmd.object_identity, 'EXECUTE')
+    THEN
+      RAISE EXCEPTION
+        'F-A16-02b: could not revoke EXECUTE on % from anon/authenticated; the guard owner cannot manage the routine, so it would remain world-executable',
+        cmd.object_identity
+        USING HINT = 'Create functions in public only from a role the guard owner can manage (a member of it, or the same role). See docs/audits/F-A16_INTEGRATION_VERIFICATION.md.';
+    END IF;
   END LOOP;
 END;
 $$;

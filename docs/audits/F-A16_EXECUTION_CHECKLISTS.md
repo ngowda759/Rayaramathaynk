@@ -65,8 +65,12 @@ SELECT pg_get_userbyid(d.defaclrole) AS owner_role,
  ORDER BY 1, 2;
 ```
 
-Expected: 24 entries across `postgres` and `supabase_admin`. Note which owners appear —
-they are the candidate set the automated migration enumerates.
+Expected: **6** entries in `public` — `postgres` and `supabase_admin`, each with one
+`r` (tables), `S` (sequences) and `f` (functions) row. (The wider figure "24" is the
+total across *all* schemas: `public`, `storage`, `extensions`, `graphql`,
+`graphql_public`, `realtime`, `auth` — see the F-A16 integration verification doc.
+This `public`-scoped query returns 6, not 24.) Note which owners appear — they are the
+candidate set the automated migration enumerates.
 
 ### 3. Can the applying role act for each `public` default-ACL owner?
 

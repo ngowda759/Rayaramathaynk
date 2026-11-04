@@ -327,10 +327,14 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
   describe("discovery is an inventory, not a grantee-filtered search", () => {
     it("enumerates a creator whose public default ACL names only a non-public grantee", async () => {
       // `temple_creator` owns a `pg_default_acl` row for `public`, but it names
-      // `reporting_role` — not anon/authenticated/service_role. A grantee-filtered
-      // discovery would not see this role at all, and would silently succeed. The
-      // unfiltered inventory puts it in the candidate set, so an applier that cannot
-      // act for it must fail closed rather than skip it.
+      // `reporting_role` — not a public-facing role. A grantee-filtered discovery would
+      // not see this role at all. The unfiltered inventory puts it in the candidate set.
+      // Its public default ACL confers nothing on a public-facing role, so there is
+      // nothing to remediate: the migration reports it as CONVERGED (enumerated, named in
+      // a notice) rather than silently skipping it. A non-member applier is not failed
+      // closed on it, because there is no public-facing leak to fix — that is the
+      // convergence correction. (The fail-closed case for a non-member that DOES leak is
+      // covered by "fails closed … when a role it cannot act for keeps broad defaults".)
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(`
@@ -339,7 +343,9 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
         GRANT USAGE ON SCHEMA public TO reporting_role, temple_creator;
         GRANT CREATE ON SCHEMA public TO temple_creator;
       `);
-      await db.exec(PLATFORM_DEFAULTS_SELF);
+      // Only temple_creator owns a public default ACL, and it names reporting_role only
+      // (no public-facing role). No other role owns one, so the only question the
+      // migration faces is what it does with temple_creator.
       await db.exec(
         `ALTER DEFAULT PRIVILEGES FOR ROLE temple_creator IN SCHEMA public GRANT SELECT ON TABLES TO reporting_role;`
       );
@@ -353,14 +359,17 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       );
       expect(filtered.rows.map((r) => r.owner)).not.toContain("temple_creator");
 
-      // As an applier that is not a member of temple_creator, the migration must name it
-      // and fail closed — proof it was enumerated rather than silently skipped.
+      // As an applier that is not a member of temple_creator, the migration still names
+      // it — in the convergence notice — which is the proof it was enumerated rather than
+      // silently skipped.
       await db.exec(`CREATE ROLE applier NOLOGIN; GRANT USAGE, CREATE ON SCHEMA public TO applier;`);
       await db.exec(`SET ROLE applier;`);
-      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
-        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): .*temple_creator/
-      );
+      const notices: string[] = [];
+      await db.exec(fs.readFileSync(path.join(MIGRATIONS_DIR, DEFAULTS_MIGRATION), "utf8"), {
+        onNotice: (n) => notices.push(n.message),
+      });
       await db.exec(`RESET ROLE;`);
+      expect(notices.join("\n")).toMatch(/already remediated[\s\S]*temple_creator/);
     });
 
     it("inventories a CREATE holder with no default ACL row, without failing closed on it", async () => {

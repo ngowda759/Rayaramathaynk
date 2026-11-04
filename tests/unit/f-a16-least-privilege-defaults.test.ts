@@ -56,8 +56,12 @@ describe("F-A16-02 least-privilege default privileges", () => {
     expect(sql).not.toMatch(/REVOKE\s+[\s\S]*?\bON\s+(TABLE|SEQUENCE|FUNCTION)\b(?![\s\S]*DEFAULT)/i);
     expect(sql).not.toMatch(/\bGRANT\b/i);
     expect(sql).not.toMatch(/\bALTER\s+TABLE\b/i);
-    expect(sql).not.toMatch(/\bDROP\s+(TABLE|FUNCTION|POLICY|TRIGGER)\b/i);
     expect(sql).not.toMatch(/\bCREATE\s+(TABLE|POLICY|INDEX)\b/i);
+    // The only DROP allowed is the snapshot temp table's own lifecycle (created and dropped
+    // by this file); any other DROP would mean it touches an existing object.
+    expect(sql.replace(/DROP TABLE IF EXISTS f_a16_02_pre_nonpublic_defaults/gi, "")).not.toMatch(
+      /\bDROP\s+(TABLE|FUNCTION|POLICY|TRIGGER)\b/i
+    );
     // No TRUNCATE *command* (a data-destroying statement). Strip `--` comments and single
     // quoted literals first, then require every remaining TRUNCATE token to sit inside a
     // REVOKE (the privilege list). The post-condition's `privilege_type IN ('TRUNCATE', …)`
@@ -120,13 +124,32 @@ describe("F-A16-02 least-privilege default privileges", () => {
     );
   });
 
-  it("asserts it did not change any non-public schema's default ACLs", () => {
-    // Positive scope assertion: the migration must fail if a default ACL for a schema
-    // other than `public` names a public-facing grantee.
+  it("asserts it did not change any non-public schema's default ACLs (as a diff)", () => {
+    // Scope assertion: the migration must fail if it ADDS a default ACL for a schema other
+    // than `public` that names a public-facing grantee. It is a diff against a snapshot,
+    // not an absence check: a stock Supabase project already carries non-public defaults
+    // (storage/graphql/graphql_public) that F-A16-02 does not touch, so an absence check
+    // would fail on a correct project.
     expect(sql).toMatch(
-      /RAISE EXCEPTION 'F-A16-02: public-facing roles hold default privileges in non-public schemas/i
+      /RAISE EXCEPTION 'F-A16-02: this migration added public-facing default privileges in non-public schemas/i
     );
-    expect(sql).toMatch(/n\.nspname <> 'public'/i);
+    expect(sql).toMatch(/f_a16_02_pre_nonpublic_defaults/);
+    // The snapshot must be taken before the default-privilege statements, and dropped after.
+    const snapAt = sql.search(/CREATE TEMP TABLE f_a16_02_pre_nonpublic_defaults/);
+    const firstAlter = sql.search(/ALTER DEFAULT PRIVILEGES/);
+    expect(snapAt).toBeGreaterThan(-1);
+    expect(snapAt).toBeLessThan(firstAlter);
+  });
+
+  it("converges after the owner-run step instead of failing closed on membership forever", () => {
+    // A role the applier is not a member of must still fail closed WHILE it leaks, but a
+    // non-member the owner-run step already remediated must not block the re-run. The
+    // inline EXISTS check encodes that distinction without creating any helper object.
+    expect(sql).toMatch(/IF NOT pg_catalog\.pg_has_role\(current_user, inv\.candidate, 'MEMBER'\)/);
+    expect(sql).toMatch(/SELECT EXISTS \(/);
+    expect(sql).toMatch(/pg_catalog\.pg_get_userbyid\(d\.defaclrole\) = inv\.candidate/);
+    expect(sql).toMatch(/already remediated by the owner-run step/i);
+    expect(sql).toMatch(/IF leaks THEN/);
   });
 
   it("records (but does not fail on) the implicit PUBLIC EXECUTE residual", () => {
@@ -167,17 +190,19 @@ describe("F-A16-02 least-privilege default privileges", () => {
     expect(sql).toMatch(/unnest\(ARRAY\['anon', 'authenticated', 'service_role'\]\)/);
   });
 
-  it("is idempotent: every top-level statement is a REVOKE or a guarded DO block", () => {
+  it("is idempotent: every top-level statement is a REVOKE, a guarded DO block, or the snapshot lifecycle", () => {
     // Strip dollar-quoted bodies (the DO blocks) so the split sees only top-level
-    // statements. Re-running the file is a no-op because revoking an unheld
-    // privilege is a no-op in Postgres.
+    // statements. Re-running the file is a no-op because revoking an unheld privilege is a
+    // no-op in Postgres, and the snapshot table is dropped before it is recreated.
     const topLevel = sql.replace(/\$\$[\s\S]*?\$\$/g, '<DO_BODY>');
     const statements = topLevel
       .split(";")
       .map((s) => s.trim())
       .filter(Boolean);
     for (const stmt of statements) {
-      expect(stmt).toMatch(/^(ALTER DEFAULT PRIVILEGES|DO\s*<DO_BODY>)/i);
+      expect(stmt).toMatch(
+        /^(ALTER DEFAULT PRIVILEGES|DO\s*<DO_BODY>|CREATE TEMP TABLE|DROP TABLE IF EXISTS)/i
+      );
     }
   });
 

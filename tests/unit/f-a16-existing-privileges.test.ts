@@ -182,4 +182,17 @@ describe("F-A16-02b forward function-EXECUTE guard (structural)", () => {
     expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-02b: the forward function-EXECUTE guard was not installed'/i);
     expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-02b: the forward function-EXECUTE guard is installed but disabled'/i);
   });
+
+  it("re-reads the effective privilege after the REVOKE and raises if it survived", () => {
+    // A REVOKE the guard owner may not perform only WARNS (`no privileges could be
+    // revoked`) and leaves the routine world-executable — measured on real PostgreSQL
+    // 15.19 and 17.11. The guard must therefore re-read the effective privilege with
+    // `has_function_privilege` and RAISE, so an unmanageable creator fails closed.
+    // See docs/audits/F-A16_INTEGRATION_VERIFICATION.md (Test A.3).
+    expect(sql).toMatch(/has_function_privilege\('anon', cmd\.object_identity, 'EXECUTE'\)/i);
+    expect(sql).toMatch(/has_function_privilege\('authenticated', cmd\.object_identity, 'EXECUTE'\)/i);
+    expect(sql).toMatch(/F-A16-02b: could not revoke EXECUTE on %/i);
+    // And the header must no longer claim the REVOKE itself raises.
+    expect(sql).not.toMatch(/cannot manage raises `must be owner of/i);
+  });
 });
