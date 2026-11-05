@@ -937,3 +937,22 @@ Details: `.openhands/memory/2026-11-03.md`.
   the plan's "24 schema-scoped / 0 global" figures stay *attested*, not re-measurable.
 - Deliverable `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` (verdict NO-GO) left uncommitted
   for owner review. Details: `.openhands/memory/2026-11-04.md`.
+
+## F-A16 continued — PR #383, integration-verified (2026-11-05)
+
+- **PR #382 was already merged** (`1f719003`); its branch tip `6fc12946` is on `main`. The
+  brief's "expected HEAD `33fe197`" is a PRE-#382 SHA, not an ancestor of `main`. Pushed a
+  NEW branch `security/f-a16-integration-verification` off `origin/main` + NEW PR **#383**.
+- **Docker IS available** in this sandbox (`sudo dockerd &`, then `sudo docker …`). The
+  `supabase/postgres:15.19.0.018` image reproduces the production role model
+  (`postgres.rolsuper=false`, `supabase_admin.rolsuper=true`, `postgres` NOT member of
+  `supabase_admin`, 24 `pg_default_acl` rows, `public` owners postgres+supabase_admin,
+  `supautils` loaded). `npm run test:db:integration` → **17/17 pass** with
+  `FA16_ALLOW_DISPOSABLE_DB=1 FA16_TEST_DB_URL=…127.0.0.1:55432/fa16_test`.
+- **F-A16-02 redesign**: a `public` default-ACL owner the applier may not act for
+  (`supabase_admin`) is now OUT OF SCOPE (`RAISE NOTICE`, proceed) — the old fail-closed
+  design made the migration unappliable on hosted Supabase. Customer-controllable set still
+  fails closed. New **F-A16-07** migration `20261115000300_…` revokes EXECUTE on the two
+  existing world-executable functions. Commit `91341c24`.
+- `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` (NO-GO preflight) is intentionally
+  UNCOMMITTED for owner review.
