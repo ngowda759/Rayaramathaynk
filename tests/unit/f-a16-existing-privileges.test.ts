@@ -15,6 +15,7 @@ const MIGRATIONS = path.join(ROOT, "supabase", "migrations");
 
 const EXISTING_PRIVS_FILE = "20261115000200_f_a16_existing_table_privileges.sql";
 const GUARD_FILE = "20261114990000_f_a16_public_function_execute_guard.sql";
+const OWNER_RUN_SU_GUARD_FILE = "docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql";
 
 /** Strip `--` comments and dollar-quoted bodies, so structural regexes see only DDL. */
 function statements(sql: string): string[] {
@@ -194,5 +195,57 @@ describe("F-A16-02b forward function-EXECUTE guard (structural)", () => {
     expect(sql).toMatch(/F-A16-02b: could not revoke EXECUTE on %/i);
     // And the header must no longer claim the REVOKE itself raises.
     expect(sql).not.toMatch(/cannot manage raises `must be owner of/i);
+  });
+});
+
+describe("F-A16-02b superuser-owned owner-run guard (structural)", () => {
+  const raw = fs.readFileSync(path.join(ROOT, OWNER_RUN_SU_GUARD_FILE), "utf8");
+  // Structural checks run against comment-stripped text: the header prose names the very
+  // identifiers being asserted (e.g. it says the file does NOT issue ALTER DEFAULT
+  // PRIVILEGES), which would otherwise produce false failures.
+  const sql = raw
+    .split("\n")
+    .map((l) => l.replace(/--.*$/, ""))
+    .join("\n");
+
+  it("is marked PROPOSED / NOT APPLIED / NOT EXECUTED", () => {
+    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED\. NOT EXECUTED/);
+  });
+
+  it("installs a second, distinctly named guard function and trigger", () => {
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.f_a16_public_fn_guard_su\(\)/i);
+    expect(sql).toMatch(/DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard_su/i);
+    expect(sql).toMatch(/CREATE EVENT TRIGGER f_a16_public_fn_guard_su/i);
+  });
+
+  it("hardens the guard and scopes the revoke to public, keeping service_role executable", () => {
+    expect(sql).toMatch(/SECURITY DEFINER/i);
+    expect(sql).toMatch(/SET search_path = pg_catalog/i);
+    expect(sql).toMatch(/cmd\.schema_name <> 'public'/i);
+    expect(sql).toMatch(/REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC, anon, authenticated/i);
+    expect(sql).not.toMatch(/FROM PUBLIC, anon, authenticated, service_role/i);
+  });
+
+  it("fails closed if the revoke did not take effect", () => {
+    expect(sql).toMatch(/F-A16-02b\(su\): could not revoke EXECUTE on %/i);
+    expect(sql).toMatch(/has_function_privilege\('anon', cmd\.object_identity, 'EXECUTE'\)/i);
+    expect(sql).toMatch(/has_function_privilege\('authenticated', cmd\.object_identity, 'EXECUTE'\)/i);
+  });
+
+  it("verifies the trigger is superuser-owned, or supautils would skip it", () => {
+    expect(sql).toMatch(/F-A16-02b\(su\): the superuser-owned guard was not installed/i);
+    expect(sql).toMatch(/F-A16-02b\(su\): guard owner % is not a superuser/i);
+    expect(sql).toMatch(/rolname = trg\.owner AND rolsuper/i);
+  });
+
+  it("does not change any default privilege (that is the sibling owner-run file)", () => {
+    expect(sql).not.toMatch(/ALTER DEFAULT PRIVILEGES/i);
+  });
+
+  it("touches no existing user object: only its own guard function/trigger", () => {
+    expect(sql).not.toMatch(/\bDROP\s+(TABLE|POLICY|INDEX)\b/i);
+    expect(sql).not.toMatch(/\bALTER\s+TABLE\b/i);
+    expect(sql).not.toMatch(/\bauth\./i);
+    expect(sql).not.toMatch(/\bstorage\./i);
   });
 });

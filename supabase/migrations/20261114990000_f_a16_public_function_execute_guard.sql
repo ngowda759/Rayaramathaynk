@@ -27,26 +27,51 @@
 -- Supabase platform object. It does NOT change any default privilege. It is scoped to
 -- `public` only.
 --
--- RESIDUAL: a function created by a superuser is NOT covered (measured, 2026-11-04).
--- ---------------------------------------------------------------------------------
+-- RESIDUAL: a superuser creator is NOT covered by THIS trigger (measured, 2026-11-04).
+-- ------------------------------------------------------------------------------------
 -- A function created by `supabase_admin` (the only superuser on a Supabase project)
 -- keeps the implicit PUBLIC EXECUTE. Measured on the Supabase `postgres:15.19.0.018`
--- image: `CREATE FUNCTION` executed by `supabase_admin` does not fire this event trigger
--- at all — the resulting `proacl` is
+-- image: `CREATE FUNCTION` executed by `supabase_admin` does not fire this event trigger,
+-- so the resulting `proacl` is
 -- `{=X/supabase_admin,supabase_admin=X/supabase_admin,postgres=X/supabase_admin,service_role=X/supabase_admin}`
--- and `has_function_privilege('anon'|'authenticated', …)` is true. The cause is
--- Supabase-specific: `supautils` runs privileged DDL in a non-`origin` replication role,
--- and a default (`ENABLE ORIGIN`) event trigger does not fire in that mode; a plain
--- non-superuser `postgres` DDL is unaffected. Confirmed by contrast — on stock
--- PostgreSQL 17.11 the same trigger DOES fire for a superuser, and on a
--- Supabase image with `supautils` absent it also fires for `supabase_admin`. So this is
--- not "event triggers never fire for superusers"; it is the Supabase platform's
--- privileged-DDL path. This migration cannot close it: it never sees the statement.
--- The residual is `service_role`-only in practice (anon/authenticated cannot reach a
--- superuser-created function without an explicit grant), and it is recorded here rather
--- than papered over. Closing it needs a different mechanism (e.g. a superuser-run
--- remediation for objects `supabase_admin` creates), out of scope for F-A16-02b. See
--- docs/audits/F-A16_INTEGRATION_VERIFICATION.md (Test B.4).
+-- and `has_function_privilege('anon'|'authenticated', …)` is true.
+--
+-- MECHANISM (authoritative: supabase/supautils `src/supautils.c`, `supautils_fmgr_hook`).
+-- This is NOT the `session_replication_role` theory a first pass recorded. supautils
+-- installs an `fmgr` hook that inspects every event-trigger function about to run and
+-- replaces it with a no-op when the role executing it does not match the trigger
+-- function's owner class:
+--
+--   * the executing role is a superuser and the guard function is NOT superuser-owned
+--     -> skipped (that is this case: `postgres`-owned guard, `supabase_admin` DDL);
+--   * the executing role is a superuser and IS not the guard function's owner
+--     -> skipped;
+--   * the executing role is a reserved role and the guard function is not superuser-owned
+--     -> skipped (`reserved_roles` includes `service_role`, `authenticated`, `anon`, …).
+--
+-- Measured firing matrix (Supabase image), all consistent with the hook above:
+--   guard owned by `postgres`      fires for postgres and members, NOT for supabase_admin;
+--   guard owned by `supabase_admin` fires for postgres, members AND supabase_admin.
+-- `ALTER EVENT TRIGGER … ENABLE ALWAYS` does not change this (the hook is not the
+-- `ENABLE ORIGIN` filter). Stock PostgreSQL has no such hook: a superuser-owned trigger
+-- there fires for every creator.
+--
+-- REACHABILITY (measured, and it is NOT service_role-only). `anon` and `authenticated`
+-- hold `USAGE` on `public` on a fresh Supabase database, and the implicit PUBLIC EXECUTE
+-- on the created function is effective for them. `SET ROLE anon; SELECT public.<fn>()`
+-- returned the function's data. So a `SECURITY DEFINER` function that `supabase_admin`
+-- creates in `public` (with no explicit grant) is callable by `anon`/`authenticated`
+-- through PostgREST. The residual is a real, reachable gap — not merely `service_role`.
+--
+-- CLOSURE (this migration alone cannot close it; an owner-run step can). Because the
+-- executing role here is a superuser, the hook's second rule applies: the guard function
+-- must ALSO be superuser-owned, and the trigger must be owned by the same superuser.
+-- `postgres` cannot do that (`SET ROLE supabase_admin` -> denied; `ALTER EVENT TRIGGER …
+-- OWNER TO` -> denied, owner must be a superuser). The owner-run file
+-- `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a second guard,
+-- owned by `supabase_admin`, that closes the gap. This migration stays `postgres`-owned so
+-- it keeps working for the ordinary `postgres`/member creators, and is the backstop if the
+-- owner-run step is not run. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §9.
 --
 -- HOW IT WORKS (measured on PostgreSQL 17 and 18 / PGlite)
 -- --------------------------------------------------------

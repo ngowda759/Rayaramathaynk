@@ -104,6 +104,52 @@ const OWNER_RUN_PUBLIC_SQL = `
   ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated;
 `;
 
+/**
+ * The owner-run superuser-owned forward guard, mirroring
+ * docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql §5. supautils skips a
+ * NON-superuser-owned event-trigger function when the DDL role is a superuser
+ * (src/supautils.c, supautils_fmgr_hook), so a `supabase_admin`-created function is only
+ * covered by a guard that is itself superuser-owned. `postgres` cannot create that, which
+ * is why it is an owner-run step. Kept inline so the test does not depend on file layout.
+ */
+const OWNER_RUN_SU_GUARD_SQL = `
+  CREATE OR REPLACE FUNCTION public.f_a16_public_fn_guard_su()
+  RETURNS event_trigger
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = pg_catalog
+  AS $guard$
+  DECLARE
+    cmd record;
+  BEGIN
+    FOR cmd IN
+      SELECT * FROM pg_event_trigger_ddl_commands()
+       WHERE command_tag IN ('CREATE FUNCTION', 'CREATE PROCEDURE')
+         AND object_type IN ('function', 'procedure')
+    LOOP
+      CONTINUE WHEN cmd.schema_name IS NULL OR cmd.schema_name <> 'public';
+      EXECUTE format(
+        'REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC, anon, authenticated',
+        cmd.object_identity
+      );
+      IF pg_catalog.has_function_privilege('anon', cmd.object_identity, 'EXECUTE')
+         OR pg_catalog.has_function_privilege('authenticated', cmd.object_identity, 'EXECUTE')
+      THEN
+        RAISE EXCEPTION
+          'F-A16-02b(su): could not revoke EXECUTE on % from anon/authenticated',
+          cmd.object_identity;
+      END IF;
+    END LOOP;
+  END;
+  $guard$;
+  REVOKE EXECUTE ON FUNCTION public.f_a16_public_fn_guard_su() FROM PUBLIC, anon, authenticated;
+  DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard_su;
+  CREATE EVENT TRIGGER f_a16_public_fn_guard_su
+    ON ddl_command_end
+    WHEN TAG IN ('CREATE FUNCTION', 'CREATE PROCEDURE')
+    EXECUTE FUNCTION public.f_a16_public_fn_guard_su();
+`;
+
 const describeIf = RAW_URL ? describe : describe.skip;
 
 /** A throwaway password for the disposable test roles. Not a secret: local container. */
@@ -209,16 +255,38 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
       END $$;
       GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
     `);
+
+    // Reproduce the Supabase platform's public-schema bootstrap. The image applies this
+    // from docker-entrypoint-initdb.d/init-scripts/00000000000000-initial-schema.sql at
+    // cluster init, so a database created later with CREATE DATABASE does NOT inherit it.
+    // Without it a newly created function would not carry the platform's explicit
+    // anon/authenticated/service_role EXECUTE that the F-A16 migrations exist to remove,
+    // and the tests would silently stop exercising the real starting state. Statements are
+    // the image's, run for each object-creating role (`postgres`, `supabase_admin`) the way
+    // the image's separate `alter default privileges for user supabase_admin` lines do.
+    const PLATFORM_PUBLIC_DEFAULTS = `
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO postgres, anon, authenticated, service_role;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+    `;
+    await admin.query(`SET ROLE postgres`).then(() => admin.query(PLATFORM_PUBLIC_DEFAULTS));
+    await admin.query(`RESET ROLE`);
+    if (haveSuper) {
+      await runAsSuper(PLATFORM_PUBLIC_DEFAULTS);
+    }
   });
 
   afterAll(async () => {
     const cleanup = `
       DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard;
+      DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard_su;
       DROP FUNCTION IF EXISTS public.f_a16_public_fn_guard();
+      DROP FUNCTION IF EXISTS public.f_a16_public_fn_guard_su();
       DROP FUNCTION IF EXISTS public.fa16_a1_fn();
       DROP FUNCTION IF EXISTS public.fa16_a2_fn();
       DROP FUNCTION IF EXISTS public.fa16_a3_fn();
       DROP FUNCTION IF EXISTS public.fa16_a7_fn();
+      DROP FUNCTION IF EXISTS public.fa16_b7_fn();
       DROP PROCEDURE IF EXISTS public.fa16_a6_proc();
       DROP TABLE IF EXISTS public.fa16_b4_tbl;
       DROP SEQUENCE IF EXISTS public.fa16_b4_seq;
@@ -477,6 +545,9 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
         console.warn("B.4 skipped: no superuser connection");
         return;
       }
+      // Ensure the superuser-owned guard is absent so the "before closure" gap is
+      // observable on a re-run (B.7 installs it).
+      await runAsSuper(`DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard_su;`);
       await runAsSuper(`
         DROP TABLE IF EXISTS public.fa16_b4_tbl;
         DROP SEQUENCE IF EXISTS public.fa16_b4_seq;
@@ -568,6 +639,39 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
             AND defaclobjtype = 'r'`
       );
       expect(after.rows[0]?.acl).toBe(before.rows[0]?.acl);
+    });
+
+    it("B.7 — the owner-run supabase_admin guard closes the superuser creator gap", async () => {
+      if (!haveSuper) {
+        console.warn("B.7 skipped: no superuser connection");
+        return;
+      }
+      // 1. Under the postgres-owned migration guard alone, a supabase_admin-created
+      //    function keeps PUBLIC EXECUTE and is reachable by anon/authenticated.
+      await runAsSuper(`DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard_su;`);
+      await applyAsPostgres(GUARD_MIGRATION);
+      await runAsSuper(`DROP FUNCTION IF EXISTS public.fa16_b7_fn();`);
+      await runAsSuper(
+        `CREATE FUNCTION public.fa16_b7_fn() RETURNS int LANGUAGE sql AS 'SELECT 1';`
+      );
+      const before = await admin.query<{ anon: boolean; auth: boolean }>(
+        `SELECT pg_catalog.has_function_privilege('anon', 'public.fa16_b7_fn()', 'EXECUTE') AS anon,
+                pg_catalog.has_function_privilege('authenticated', 'public.fa16_b7_fn()', 'EXECUTE') AS auth`
+      );
+      expect(before.rows[0]).toMatchObject({ anon: true, auth: true });
+
+      // 2. Install the superuser-owned guard (owner-run §5) and create again.
+      await runAsSuper(OWNER_RUN_SU_GUARD_SQL);
+      await runAsSuper(`DROP FUNCTION IF EXISTS public.fa16_b7_fn();`);
+      await runAsSuper(
+        `CREATE FUNCTION public.fa16_b7_fn() RETURNS int LANGUAGE sql AS 'SELECT 1';`
+      );
+      const after = await admin.query<{ anon: boolean; auth: boolean; svc: boolean }>(
+        `SELECT pg_catalog.has_function_privilege('anon', 'public.fa16_b7_fn()', 'EXECUTE') AS anon,
+                pg_catalog.has_function_privilege('authenticated', 'public.fa16_b7_fn()', 'EXECUTE') AS auth,
+                pg_catalog.has_function_privilege('service_role', 'public.fa16_b7_fn()', 'EXECUTE') AS svc`
+      );
+      expect(after.rows[0]).toMatchObject({ anon: false, auth: false, svc: true });
     });
   });
 });

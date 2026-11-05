@@ -98,6 +98,16 @@ Reproduced by the harness `beforeAll`:
 2. `USAGE` on `public` granted to the three public-facing roles.
 3. The database reassigned to `postgres`, `public` to `pg_database_owner` — matching a
    real project, where `postgres` has the implicit `CREATE` on `public`.
+3b. The platform's `public` default ACLs reproduced for both object-creating roles
+   (`postgres` and `supabase_admin`), from the image's own
+   `docker-entrypoint-initdb.d/init-scripts/00000000000000-initial-schema.sql`:
+   `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES/FUNCTIONS/SEQUENCES TO
+   postgres, anon, authenticated, service_role`. **This matters.** The image applies it at
+   cluster init, so a database created later with `CREATE DATABASE` does **not** inherit it.
+   Without this step a newly created function carries no explicit `anon`/`authenticated`
+   EXECUTE, the guard has nothing to remove, and the tests would pass vacuously while no
+   longer exercising the real starting state. (This was a defect in the first harness
+   revision, found and fixed during this verification — see §9.)
 4. Disposable login roles `fa16_owner_member` and `fa16_rogue_owner` created with
    passwords, granted `USAGE, CREATE` on `public`. `fa16_owner_member` is additionally
    granted to `postgres` for the "guard can manage" case.
@@ -139,9 +149,10 @@ one behaviour that PGlite cannot prove and that this environment does.
 | B.1 | Initial owner state | **PASS** | 24 schema-scoped default-ACL entries; 6 in `public`; `postgres` and `supabase_admin` each own separate `public` rows |
 | B.2 | F-A16-02 as `postgres` | **PASS** | fails closed: `F-A16-02: cannot tighten default privileges for object-creating role(s): supabase_admin`; `pg_default_acl` byte-identical afterwards (atomic rollback) |
 | B.3 | Owner-run as `supabase_admin` | **PASS** | anon/authenticated gone from tables/sequences/functions in `public`; no PUBLIC entry on tables; `service_role` keeps DML, loses TRUNCATE/REFERENCES/TRIGGER |
-| B.4 | New objects as `supabase_admin` | **PARTIAL** | tables/sequences follow the model; a **function** created by the superuser keeps PUBLIC EXECUTE — the documented residual (section 9) |
+| B.4 | New objects as `supabase_admin` | **PASS (with owner-run guard file)** | tables/sequences follow the model; a **function** created by the superuser keeps PUBLIC EXECUTE under the `postgres`-owned guard alone (section 9) — the owner-run `supabase_admin`-owned guard closes it (`anon=false auth=false svc=true`) |
 | B.5 | Idempotency | **PASS** | the owner-run is a no-op on re-run; F-A16-02 re-runs cleanly and converges |
 | B.6 | Unauthorized owner operation | **PASS** | fails safely (`must be member of role "supabase_admin"`); default ACL unchanged |
+| B.7 | Owner-run `supabase_admin` guard | **PASS** | with the `postgres`-owned guard alone, a `supabase_admin`-created function is `anon=t auth=t`; after the owner-run guard, `anon=f auth=f svc=t` |
 
 **Convergence (the F-A16-02 correction).** Before the correction, re-running F-A16-02
 after the owner-run failed closed again on `supabase_admin` purely because `postgres`
@@ -184,7 +195,10 @@ owner-run has **already remediated** is reported as converged. Demonstrated in B
 
 The leading `=X/supabase_admin` is the implicit **PUBLIC** EXECUTE. `anon` and
 `authenticated` have no direct grant, but `has_function_privilege` is true for both
-through PUBLIC.
+through PUBLIC — and, because both hold `USAGE` on `public`, the call is **reachable**
+(`SET ROLE anon; SELECT public.ev_su()` succeeds). This is the gap the owner-run guard file
+`supabase_admin`-owned guard closes; after it, a `supabase_admin`-created function reads
+`anon=f auth=f svc=t` (section 9.3).
 
 **B.3 — `supabase_admin` public defaults after the owner-run:** no `anon=` /
 `authenticated=` entry on tables, sequences or functions; no PUBLIC entry on tables;
@@ -206,37 +220,90 @@ through PUBLIC.
 
 ---
 
-## 9. The superuser residual (A.3 variant / B.4)
+## 9. The superuser creator gap (A.3 variant / B.4) — reachable, and CLOSED by the owner-run step
 
-**A function created by the superuser `supabase_admin` is not covered by the guard.**
+**A function created by the superuser `supabase_admin` is not covered by the
+`postgres`-owned guard.** Measured: a `CREATE FUNCTION` executed by `supabase_admin` does
+**not** fire the migration's event trigger, so the implicit PUBLIC EXECUTE survives
+(section 7, `ev_su`).
 
-Measured: a `CREATE FUNCTION` executed by `supabase_admin` **does not fire the event
-trigger at all**, so the implicit PUBLIC EXECUTE survives (section 7, `ev_su`).
+### 9.1 Mechanism (authoritative)
 
-Cause (isolated by contrast):
+The first pass recorded the cause as `session_replication_role`. **That was wrong** — the
+session replication role is `origin` at fire time for every creator in this environment
+(measured directly inside the trigger). The real cause is in `supautils` itself
+(supabase/supautils, `src/supautils.c`, `supautils_fmgr_hook`): it installs an `fmgr` hook
+that inspects every event-trigger function about to run and replaces it with a no-op when
+the executing role does not match the function's owner class:
 
-| Environment | Does the trigger fire for a superuser creator? |
-| --- | --- |
-| Supabase image **with** `supautils` | **No** |
-| Supabase image **without** `supautils` | **Yes** |
-| Stock PostgreSQL 17.11 | **Yes** |
+* executing role is a **superuser** and the guard function is **not superuser-owned** →
+  skipped (this case: `postgres`-owned guard, `supabase_admin` DDL);
+* executing role is a **superuser** and is **not the function's owner** → skipped;
+* executing role is a **reserved role** (`service_role`, `authenticated`, `anon`, …) and
+  the guard function is **not superuser-owned** → skipped.
 
-So this is **not** "event triggers never fire for superusers". It is Supabase's
-`supautils` privileged-DDL path: privileged DDL runs in a non-`origin` replication role,
-and a default (`ENABLE ORIGIN`) event trigger does not fire in that mode. A plain
-non-superuser `postgres` DDL is unaffected — which is why every other test passes.
+Measured firing matrix on the Supabase image, consistent with the hook:
 
-**Why this is not closed here.** The guard never sees the statement, so there is nothing
-for it to revoke. `ALTER EVENT TRIGGER … ENABLE ALWAYS` was tested and does **not** help.
-Closing the gap needs a different mechanism (for example, a superuser-run remediation for
-objects `supabase_admin` creates, or a policy that only `postgres` creates functions in
-`public`). That is out of scope for F-A16-02b, so it is **recorded, not papered over**.
+| Guard function / trigger owner | fires for `postgres` | fires for members | fires for `supabase_admin` |
+| --- | --- | --- | --- |
+| `postgres` (as the migration creates it) | yes | yes | **no** |
+| `supabase_admin` | yes | yes | **yes** |
 
-**Practical impact.** `anon` and `authenticated` cannot *reach* a function owned by
-`supabase_admin` through PostgREST (schema exposure + no `USAGE`/grant path without an
-explicit grant), so the reachable privilege is `service_role`, which is already
-trusted-by-design for RPC. The residual is therefore low severity, but it is a real gap
-and must not be described as "all public functions are locked down".
+`ALTER EVENT TRIGGER … ENABLE ALWAYS` does not change this — the hook is not the
+`ENABLE ORIGIN` filter. Stock PostgreSQL has no such hook, so a superuser-owned trigger
+there fires for every creator (measured on PostgreSQL 17.5).
+
+### 9.2 Reachability — this is NOT `service_role`-only
+
+**Corrected.** On a fresh Supabase database `anon` and `authenticated` hold `USAGE` on
+`public`, and the implicit PUBLIC EXECUTE on a newly created function is effective for
+them. Measured directly: with the guard absent, a `SECURITY DEFINER` function created by
+`supabase_admin` in `public` (no explicit grant) was invoked successfully as `anon` and as
+`authenticated` via `SET ROLE anon; SELECT public.<fn>()` — the same path PostgREST uses.
+So a superuser-created `SECURITY DEFINER` function that reads a non-exposed table **is a
+reachable privilege path for `anon`/`authenticated`**, not merely a `service_role`
+concern. This raises the severity of the gap above the earlier "low" assessment.
+
+### 9.3 Closure (supported mechanism, no global default ACL)
+
+Because the executing role is a superuser, the hook's second rule applies: the guard
+function must **also be superuser-owned**, and the trigger must be owned by the same
+superuser. `postgres` cannot do this (`SET ROLE supabase_admin` → denied; `ALTER EVENT
+TRIGGER … OWNER TO` → denied, "The owner of an event trigger must be a superuser"). The
+owner-run file `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a
+second guard, **owned by `supabase_admin`**, with the same body. Measured end-to-end: with
+both guards installed, functions created by `postgres`, by a member, and by
+`supabase_admin` all end with `anon=false auth=false svc=true`.
+
+The two guards coexist deliberately: the `postgres`-owned guard (the migration) covers
+ordinary creators and is the backstop if the owner-run step is skipped; the
+`supabase_admin`-owned guard covers the superuser creator. `REVOKE … FROM PUBLIC, anon,
+authenticated` is idempotent, so double-firing is harmless. This uses only
+`ALTER DEFAULT PRIVILEGES`-free, schema-scoped, per-object REVOKEs — **no global default
+ACL is introduced**, so `storage`, `graphql` and `graphql_public` are untouched.
+
+This is why F-A16-02b is classified **PARTIAL by design in the automated migration** (it
+cannot be complete without the owner-run step) and **PASS** once the owner-run step is
+applied. The compensating control is the owner-run guard, plus the read-only pre-existing
+query in owner-run guard file §3.
+
+### 9.4 Two harness defects found and fixed during this verification
+
+These are recorded because both would have made the suite pass while proving nothing.
+
+1. **The platform `public` default ACLs were not reproduced.** The harness recreated the
+   test database with `CREATE DATABASE`, which does **not** inherit the default ACLs the
+   image installs at cluster init (`00000000000000-initial-schema.sql`). Without them a
+   newly created function carries no explicit `anon`/`authenticated` EXECUTE, so the guard
+   had nothing to remove and A.1 passed for the wrong reason. The harness `beforeAll` now
+   reproduces those statements for both `postgres` and `supabase_admin` (see §4 step 3b).
+2. **Two tests were order-dependent on a re-run.** B.4 and B.7 assert the *pre-closure*
+   state (a `supabase_admin`-created function still world-executable), which only holds
+   while the owner-run guard is absent. B.7 installs it, so a second run of the suite on
+   the same database failed. Both now `DROP EVENT TRIGGER IF EXISTS
+   f_a16_public_fn_guard_su` before measuring the gap, so the suite is deterministic on a
+   fresh database **and** on re-run (verified: three consecutive runs, 14/14 each, plus one
+   run from a freshly created database).
 
 ---
 
@@ -259,22 +326,39 @@ and must not be described as "all public functions are locked down".
    "owner-run, then re-run" workflow terminates. A leaking role still aborts. Implemented
    inline (no helper object), preserving the file's "changes only default privileges"
    invariant.
+4. **Superuser-creator closure** (`docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql`,
+   new). Adds a second, `supabase_admin`-owned forward guard that fires for
+   `supabase_admin`-created functions — the case the `postgres`-owned guard cannot see.
+   Verified end-to-end in the isolated environment. No global default ACL; no change to
+   the automated migration's ownership model.
+5. **Corrected the residual's mechanism and severity** in the guard header and this
+   document (supautils `fmgr` hook, not `session_replication_role`; reachable by
+   `anon`/`authenticated`, not `service_role`-only).
 
 ---
 
 ## 11. Production-readiness recommendation
 
-**Conditional PASS for the two migrations, with one documented residual.**
+**PASS with a required owner-run step.**
 
-* F-A16-02b (guard) — **PASS** in the isolated Supabase environment for every creator the
-  guard can manage (`postgres`, members), fails closed otherwise. The superuser residual
-  is recorded, low severity, and out of scope.
+* F-A16-02b (guard) — **PARTIAL by design in the automated migration; PASS once the
+  owner-run guard is applied.** For every creator the `postgres`-owned guard can see
+  (`postgres`, members) it works and fails closed otherwise. It cannot see a
+  `supabase_admin` creator (supautils skips a non-superuser-owned trigger function for a
+  superuser), and that path is **reachable by `anon`/`authenticated`** (section 9.2).
+  The owner-run guard file installs the `supabase_admin`-owned guard that closes it; the
+  isolated environment verifies the combined result (`anon=false auth=false svc=true`
+  for all three creator classes). Applying only the automated migration leaves the gap
+  open — the owner-run step is **required**, not optional.
 * F-A16-02 (defaults) — **PASS** for the applying role; the owner-run step is required for
   `supabase_admin` and the migration now **converges** after it.
 * **Preflight must still confirm**, on the production project, that `postgres` may create
   event triggers (the image says yes; a project's `supautils` config governs it). If it
   cannot, the guard migration fails closed with a clear error — which is the intended
   signal, not a silent no-op.
+* **Preflight must also confirm** the pre-existing function list (owner-run guard file §3, read-only):
+  functions `supabase_admin` created before the guard was installed still carry PUBLIC
+  EXECUTE and need the F-A16-07 existing-object step (`F-A16_REMEDIATION_PLAN.md` §12).
 
 No change weakens a security check. The guard change makes it strictly stronger
 (fail-closed); the F-A16-02 changes fix false failures and a non-terminating workflow
