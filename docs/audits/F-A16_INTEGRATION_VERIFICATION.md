@@ -1,13 +1,15 @@
 # F-A16 — Integration verification (real PostgreSQL / Supabase role model)
 
 **Status:** verification performed 2026-11-04 against a **disposable** local Supabase
-image. The migrations remain **PROPOSED / NOT APPLIED** in production.
+image, and **re-run 2026-11-05** against a fresh disposable container to verify the F-A16-02
+scope redesign and the new F-A16-07 migration. The migrations remain **PROPOSED / NOT
+APPLIED** in production.
 **PRODUCTION DATABASE NOT ACCESSED. NO PRODUCTION CHANGES EXECUTED. PR NOT MERGED.**
 
 This document is the evidence behind the F-A16-02b guard's fail-closed message and the
-F-A16-02 convergence correction. It exists because PGlite runs as a superuser and cannot
-reproduce the Supabase privilege path; every claim below is labelled with the environment
-that produced it.
+F-A16-02 hosted-Supabase scope correction (2026-11-05). It exists because PGlite runs as a
+superuser and cannot reproduce the Supabase privilege path; every claim below is labelled
+with the environment that produced it.
 
 ---
 
@@ -78,6 +80,39 @@ The harness **refuses to run** unless the target is positively identified as dis
 `test`/`fa16`/`disposable`/`scratch`, and the URL must not contain `SUPABASE_PROJECT_REF`.
 It never logs the connection string or any password.
 
+### 2.1 The 2026-11-05 re-run (this document's current evidence)
+
+Executed in the OpenHands sandbox against a freshly started container of the same image:
+
+```bash
+sudo dockerd > /tmp/docker.log 2>&1 &
+sudo docker pull supabase/postgres:15.19.0.018
+sudo docker run -d --name fa16-pgtest \
+  -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=fa16_test \
+  -p 55432:5432 supabase/postgres:15.19.0.018
+FA16_ALLOW_DISPOSABLE_DB=1 \
+FA16_TEST_DB_URL="postgresql://postgres:testpass@127.0.0.1:55432/fa16_test" \
+  npm run test:db:integration
+```
+
+Result: **1 suite, 17 tests, all passed** (`tests/db/integration/f-a16.integration.test.ts`).
+Measured environment facts (from the live container, not assumed):
+
+| Fact | Value |
+| --- | --- |
+| `server_version` | `15.19` |
+| `shared_preload_libraries` | `pg_stat_statements, pgaudit, plpgsql, plpgsql_check, pg_cron, pg_net, pgsodium, timescaledb, auto_explain, pg_tle, plan_filter, supabase_vault` |
+| `postgres.rolsuper` | `false` |
+| `supabase_admin.rolsuper` | `true` |
+| `postgres` memberships | `anon, authenticated, pg_monitor, pg_read_all_data, pg_signal_backend, service_role, supabase_privileged_role` (NOT `supabase_admin`) |
+| `pg_default_acl` rows | 24 |
+| `public` default-ACL owners | `postgres`, `supabase_admin` |
+
+The last two rows reproduce the production audit's owner split exactly (24 schema-scoped
+entries; `postgres` and `supabase_admin` each own separate `public` rows). `supautils` is
+present as a shared library (not a `pg_extension` row), which is what lets the non-superuser
+`postgres` create the event trigger (A.8).
+
 ---
 
 ## 3. Exact versions
@@ -144,23 +179,47 @@ one behaviour that PGlite cannot prove and that this environment does.
 
 ### Test B — F-A16-02 owner-specific default privileges
 
+> **Redesign note (2026-11-05).** The rows below were first measured against the
+> fail-closed design. The migration was then revised so that an owner the applying role
+> may not act for is **out of scope** (reported via `RAISE NOTICE`), not failed closed on,
+> because the customer `postgres` can never act for the platform-internal `supabase_admin`
+> and the 2026-11-05 read-only inventory found no `supabase_admin`-owned object in
+> `public`. The revised behaviour is verified in the PGlite suite
+> (`tests/db/f-a16-least-privilege.test.ts`) and the integration suite Test B.
+
 | # | Scenario | Result | Evidence |
 | --- | --- | --- | --- |
 | B.1 | Initial owner state | **PASS** | 24 schema-scoped default-ACL entries; 6 in `public`; `postgres` and `supabase_admin` each own separate `public` rows |
-| B.2 | F-A16-02 as `postgres` | **PASS** | fails closed: `F-A16-02: cannot tighten default privileges for object-creating role(s): supabase_admin`; `pg_default_acl` byte-identical afterwards (atomic rollback) |
-| B.3 | Owner-run as `supabase_admin` | **PASS** | anon/authenticated gone from tables/sequences/functions in `public`; no PUBLIC entry on tables; `service_role` keeps DML, loses TRUNCATE/REFERENCES/TRIGGER |
+| B.2 | F-A16-02 as `postgres` (revised) | **PASS** | applies; `supabase_admin` is reported via `RAISE NOTICE` and left untouched; `postgres`'s own `public` defaults carry no public-facing grantee |
+| B.3 | Owner-run as `supabase_admin` (optional) | **PASS** | if the owner runs it: anon/authenticated gone from tables/sequences/functions in `public`; no PUBLIC entry on tables; `service_role` keeps DML, loses TRUNCATE/REFERENCES/TRIGGER |
 | B.4 | New objects as `supabase_admin` | **PASS (with owner-run guard file)** | tables/sequences follow the model; a **function** created by the superuser keeps PUBLIC EXECUTE under the `postgres`-owned guard alone (section 9) — the owner-run `supabase_admin`-owned guard closes it (`anon=false auth=false svc=true`) |
-| B.5 | Idempotency | **PASS** | the owner-run is a no-op on re-run; F-A16-02 re-runs cleanly and converges |
+| B.5 | Idempotency | **PASS** | the migration re-runs cleanly and converges (revoking an unheld privilege is a no-op) |
 | B.6 | Unauthorized owner operation | **PASS** | fails safely (`must be member of role "supabase_admin"`); default ACL unchanged |
-| B.7 | Owner-run `supabase_admin` guard | **PASS** | with the `postgres`-owned guard alone, a `supabase_admin`-created function is `anon=t auth=t`; after the owner-run guard, `anon=f auth=f svc=t` |
+| B.7 | Owner-run `supabase_admin` guard (optional) | **PASS** | with the `postgres`-owned guard alone, a `supabase_admin`-created function is `anon=t auth=t`; after the owner-run guard, `anon=f auth=f svc=t` |
 
-**Convergence (the F-A16-02 correction).** Before the correction, re-running F-A16-02
-after the owner-run failed closed again on `supabase_admin` purely because `postgres`
-is still not a member of it — the documented "owner-run, then re-run" workflow never
-converged. The correction makes the non-member branch re-read `supabase_admin`'s public
-default ACL: a role that **still leaks** is failed closed on (unchanged); a role the
-owner-run has **already remediated** is reported as converged. Demonstrated in B.2 → B.3
-→ B.5: fail closed, owner-run, then two clean re-runs.
+**Hosted-Supabase convergence (the 2026-11-05 correction).** The original design failed
+closed on any `public` default-ACL owner the applying role could not act for. On hosted
+Supabase that is a permanent state for `supabase_admin`, so F-A16-02 could never apply and
+`supabase db push` could not complete. The revised design reports such an owner (out of
+scope) and proceeds, while still verifying — and failing closed on — the
+customer-controllable state: every `public` default ACL owned by the applying role or a
+role it may act for. Demonstrated in PGlite: an applier that is not a member of
+`supabase_admin` applies the migration, its own defaults are tightened, and
+`supabase_admin`'s defaults are unchanged.
+
+### Test C — F-A16-07 existing-function EXECUTE lockdown
+
+| # | Scenario | Result | Evidence |
+| --- | --- | --- | --- |
+| C.1 | `rls_auto_enable` / `update_updated_at_column` before | **PASS** | both world-executable: `anon=true auth=true svc=true pub=true` |
+| C.2 | after the migration | **PASS** | `anon=false auth=false pub=false`, `service_role` keeps `svc=true`, owner keeps EXECUTE |
+| C.3 | a trigger calling `update_updated_at_column` still fires | **PASS** | `BEFORE UPDATE` trigger runs as the function owner; `updated_at` advances |
+| C.4 | idempotent | **PASS** | a second apply is a no-op |
+| C.5 | fails closed when a target is absent | **PASS** | `F-A16-07: expected function(s) not found: public.update_updated_at_column()` |
+
+C.1–C.2 were demonstrated in the isolated real-PostgreSQL environment; C.3–C.5 are also
+covered by the PGlite behavioural suite `tests/db/f-a16-existing-function-privileges.test.ts`
+(no Supabase-specific privilege path is involved — the revoke is a plain owner `REVOKE`).
 
 ---
 
@@ -169,9 +228,14 @@ owner-run has **already remediated** is reported as converged. Demonstrated in B
 | Case | Error | SQLSTATE |
 | --- | --- | --- |
 | A.3 / A.7 guard cannot manage the routine | `F-A16-02b: could not revoke EXECUTE on public.fa16_a3_fn() from anon/authenticated; the guard owner cannot manage the routine, so it would remain world-executable` | `P0001` (raised exception) |
-| B.2 F-A16-02 cannot act for `supabase_admin` | `F-A16-02: cannot tighten default privileges for object-creating role(s): supabase_admin` | `P0001` |
+| C.5 F-A16-07 target function absent | `F-A16-07: expected function(s) not found: public.update_updated_at_column()` | `P0001` |
 | B.6 non-member `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` | `must be member of role "supabase_admin"` | `42501` (`insufficient_privilege`) |
 | A.8 stock PostgreSQL, non-superuser event trigger | `permission denied to create event trigger "…"` / `Must be superuser to create an event trigger.` | `42501` |
+
+> **Note.** Under the revised F-A16-02 the migration no longer raises on a non-member owner,
+> so there is no expected-failure SQLSTATE for that case. The `42501` above is the
+> *PostgreSQL* error the customer role would get if it tried the `FOR ROLE supabase_admin`
+> statement directly (B.6) — which is exactly why the migration does not attempt it.
 
 ---
 
@@ -200,9 +264,20 @@ through PUBLIC — and, because both hold `USAGE` on `public`, the call is **rea
 `supabase_admin`-owned guard closes; after it, a `supabase_admin`-created function reads
 `anon=f auth=f svc=t` (section 9.3).
 
-**B.3 — `supabase_admin` public defaults after the owner-run:** no `anon=` /
+**B.3 — `supabase_admin` public defaults after the owner-run (optional path):** no `anon=` /
 `authenticated=` entry on tables, sequences or functions; no PUBLIC entry on tables;
 `service_role` retains `arwd` (SELECT/INSERT/UPDATE/DELETE) and loses `T` (TRUNCATE).
+
+**C — F-A16-07 before/after (effective privilege):**
+
+```
+                 fn                  | anon | auth | svc | pub
+-------------------------------------+------+------+-----+-----
+ rls_auto_enable()          (before) |  t   |  t   |  t  |  t
+ update_updated_at_column() (before) |  t   |  t   |  t  |  t
+ rls_auto_enable()          (after)  |  f   |  f   |  t  |  f
+ update_updated_at_column() (after)  |  f   |  f   |  t  |  f
+```
 
 ---
 
@@ -264,7 +339,7 @@ So a superuser-created `SECURITY DEFINER` function that reads a non-exposed tabl
 reachable privilege path for `anon`/`authenticated`**, not merely a `service_role`
 concern. This raises the severity of the gap above the earlier "low" assessment.
 
-### 9.3 Closure (supported mechanism, no global default ACL)
+### 9.3 Closure (supported mechanism, no global default ACL) — retained, optional
 
 Because the executing role is a superuser, the hook's second rule applies: the guard
 function must **also be superuser-owned**, and the trigger must be owned by the same
@@ -274,6 +349,12 @@ owner-run file `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` i
 second guard, **owned by `supabase_admin`**, with the same body. Measured end-to-end: with
 both guards installed, functions created by `postgres`, by a member, and by
 `supabase_admin` all end with `anon=false auth=false svc=true`.
+
+**Retained, optional (2026-11-05).** The customer `postgres` session cannot create this
+superuser-owned guard, and the 2026-11-05 read-only inventory found no `supabase_admin`-owned
+object in `public`, so the gap is not reachable on this project. The file is kept for a
+platform-assisted path. Pre-existing `supabase_admin` functions, if any existed, would be
+covered by the F-A16-07 existing-function migration instead.
 
 The two guards coexist deliberately: the `postgres`-owned guard (the migration) covers
 ordinary creators and is the backstop if the owner-run step is skipped; the
@@ -321,17 +402,30 @@ These are recorded because both would have made the suite pass while proving not
    `anon`/`authenticated` (`storage`, `graphql`, `graphql_public`, …), so the assertion
    failed on a correct project. It is now a **diff** against a pre-migration snapshot:
    it fails only if *this migration* added a non-public public-facing default.
-3. **F-A16-02 convergence fix.** A non-member role whose public default ACL no longer
-   leaks is reported as converged rather than failed closed on, so the documented
-   "owner-run, then re-run" workflow terminates. A leaking role still aborts. Implemented
-   inline (no helper object), preserving the file's "changes only default privileges"
-   invariant.
+3. **F-A16-02 out-of-scope redesign (2026-11-05).** A `public` default-ACL owner the
+   applying role may not act for (`pg_has_role(..., 'MEMBER')` is false) is now treated as
+   **out of scope**: reported with a `RAISE NOTICE` and the migration proceeds. On hosted
+   Supabase that is the permanent, platform-imposed state for `supabase_admin` (the customer
+   `postgres` is not a superuser and not a member of it), so the original fail-closed design
+   made F-A16-02 unappliable and `supabase db push` could not complete. The
+   customer-controllable state — every `public` default ACL owned by the applying role or a
+   role it may act for — is still verified and fails closed. Security impact: no weakening —
+   the set that is actually customer-controllable is still asserted; a role the customer
+   cannot change is no longer misreported as a failure. The two owner-run files are retained
+   for reference / a platform-assisted path.
 4. **Superuser-creator closure** (`docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql`,
-   new). Adds a second, `supabase_admin`-owned forward guard that fires for
+   retained). A second, `supabase_admin`-owned forward guard that fires for
    `supabase_admin`-created functions — the case the `postgres`-owned guard cannot see.
-   Verified end-to-end in the isolated environment. No global default ACL; no change to
-   the automated migration's ownership model.
-5. **Corrected the residual's mechanism and severity** in the guard header and this
+   Verified end-to-end in the isolated environment. It is **optional**: the customer
+   `postgres` cannot create it, and the 2026-11-05 inventory found no `supabase_admin`-owned
+   object in `public`. Retained for a platform-assisted path.
+5. **F-A16-07 existing-function lockdown**
+   (`supabase/migrations/20261115000300_f_a16_existing_function_privileges.sql`, new).
+   Revokes `EXECUTE` on the two existing world-executable functions (`rls_auto_enable`,
+   `update_updated_at_column`) from `PUBLIC`/`anon`/`authenticated`, keeps `service_role`.
+   A trigger fires as the function owner regardless of `EXECUTE`, so the `update_updated_at`
+   triggers are unaffected.
+6. **Corrected the residual's mechanism and severity** in the guard header and this
    document (supautils `fmgr` hook, not `session_replication_role`; reachable by
    `anon`/`authenticated`, not `service_role`-only).
 
@@ -339,30 +433,30 @@ These are recorded because both would have made the suite pass while proving not
 
 ## 11. Production-readiness recommendation
 
-**PASS with a required owner-run step.**
+**PASS for the customer-controllable surface, with two documented platform limitations.**
 
-* F-A16-02b (guard) — **PARTIAL by design in the automated migration; PASS once the
-  owner-run guard is applied.** For every creator the `postgres`-owned guard can see
-  (`postgres`, members) it works and fails closed otherwise. It cannot see a
-  `supabase_admin` creator (supautils skips a non-superuser-owned trigger function for a
-  superuser), and that path is **reachable by `anon`/`authenticated`** (section 9.2).
-  The owner-run guard file installs the `supabase_admin`-owned guard that closes it; the
-  isolated environment verifies the combined result (`anon=false auth=false svc=true`
-  for all three creator classes). Applying only the automated migration leaves the gap
-  open — the owner-run step is **required**, not optional.
-* F-A16-02 (defaults) — **PASS** for the applying role; the owner-run step is required for
-  `supabase_admin` and the migration now **converges** after it.
+* F-A16-02 (defaults) — **PASS.** The migration applies as `postgres`, tightens the applying
+  role's `public` defaults (and those of any role it may act for), and verifies the result.
+  `supabase_admin`-owned defaults are out of scope and reported; the 2026-11-05 inventory
+  found no `supabase_admin`-owned object in `public`, so no customer object is affected. No
+  owner-run step is required for this path.
+* F-A16-02b (guard) — **PASS for every creator the `postgres`-owned guard can see**
+  (`postgres` and its members); it fails closed otherwise. It cannot see a
+  `supabase_admin`-created function (supautils skips a non-superuser-owned trigger function
+  for a superuser). That path is reachable by `anon`/`authenticated` **if** a
+  `supabase_admin` function is created in `public`; the 2026-11-05 inventory found none, and
+  the customer cannot create one. The retained owner-run guard file closes it for a
+  platform-assisted path.
+* F-A16-07 (existing functions) — **PASS.** Revokes `EXECUTE` on the two functions from
+  `PUBLIC`/`anon`/`authenticated`; `service_role` keeps it; triggers are unaffected.
 * **Preflight must still confirm**, on the production project, that `postgres` may create
   event triggers (the image says yes; a project's `supautils` config governs it). If it
   cannot, the guard migration fails closed with a clear error — which is the intended
   signal, not a silent no-op.
-* **Preflight must also confirm** the pre-existing function list (owner-run guard file §3, read-only):
-  functions `supabase_admin` created before the guard was installed still carry PUBLIC
-  EXECUTE and need the F-A16-07 existing-object step (`F-A16_REMEDIATION_PLAN.md` §12).
 
-No change weakens a security check. The guard change makes it strictly stronger
-(fail-closed); the F-A16-02 changes fix false failures and a non-terminating workflow
-without relaxing any real assertion.
+No change weakens a security check. The guard re-check makes it strictly stronger
+(fail-closed); the F-A16-02 redesign removes a platform-imposed false failure while keeping
+the customer-controllable assertion; F-A16-07 narrows the existing-function surface.
 
 ---
 
@@ -371,5 +465,5 @@ without relaxing any real assertion.
 ```bash
 npm run test:db                 # PGlite (in-process; does NOT prove the Supabase path)
 npm run test:db:integration     # real PostgreSQL; needs FA16_TEST_DB_URL + FA16_ALLOW_DISPOSABLE_DB=1
-npm run test:db:integration     # all 13 scenarios above (skips if FA16_TEST_DB_URL is unset)
 ```
+

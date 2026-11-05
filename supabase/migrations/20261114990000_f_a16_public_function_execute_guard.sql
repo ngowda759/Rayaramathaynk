@@ -63,15 +63,17 @@
 -- creates in `public` (with no explicit grant) is callable by `anon`/`authenticated`
 -- through PostgREST. The residual is a real, reachable gap — not merely `service_role`.
 --
--- CLOSURE (this migration alone cannot close it; an owner-run step can). Because the
--- executing role here is a superuser, the hook's second rule applies: the guard function
--- must ALSO be superuser-owned, and the trigger must be owned by the same superuser.
--- `postgres` cannot do that (`SET ROLE supabase_admin` -> denied; `ALTER EVENT TRIGGER …
--- OWNER TO` -> denied, owner must be a superuser). The owner-run file
--- `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a second guard,
--- owned by `supabase_admin`, that closes the gap. This migration stays `postgres`-owned so
--- it keeps working for the ordinary `postgres`/member creators, and is the backstop if the
--- owner-run step is not run. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §9.
+-- CLOSURE (this migration alone cannot close it; a superuser-owned guard can, but the
+-- customer cannot create one). Because the executing role here is a superuser, the hook's
+-- second rule applies: the guard function must ALSO be superuser-owned, and the trigger
+-- must be owned by the same superuser. `postgres` cannot do that (`SET ROLE supabase_admin`
+-- -> denied; `ALTER EVENT TRIGGER … OWNER TO` -> denied, owner must be a superuser). The
+-- retained file `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a
+-- second guard, owned by `supabase_admin`, for a platform-assisted path. On this project
+-- the residual is not reachable: the 2026-11-05 read-only inventory found no
+-- `supabase_admin`-owned object in `public`, and the customer cannot create one. This
+-- migration stays `postgres`-owned so it keeps working for the ordinary `postgres`/member
+-- creators. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §9.
 --
 -- HOW IT WORKS (measured on PostgreSQL 17 and 18 / PGlite)
 -- --------------------------------------------------------

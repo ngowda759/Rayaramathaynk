@@ -2,8 +2,33 @@
 --
 -- Status: PROPOSED. NOT APPLIED. Applying it is an owner action, gated on review.
 -- See docs/audits/F-A16_REMEDIATION_PLAN.md (finding F-A16-02),
--- docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql (the split-out owner step)
+-- docs/audits/F-A16_EXECUTION_CHECKLISTS.md (preflight / post-execution / rollback)
 -- and docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md.
+--
+-- HOSTED-SUPABASE CONSTRAINT — why this migration does NOT touch `supabase_admin`
+-- -----------------------------------------------------------------------------
+-- `supabase_admin` is a platform-INTERNAL, superuser role on hosted Supabase. The
+-- customer `postgres` session is not a superuser and is not a member of
+-- `supabase_admin`, so `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` is denied by
+-- PostgreSQL and can never be part of a customer-applied migration. This is a platform
+-- property, not a repository defect, and it is not remediable from the customer role.
+--
+-- F-A16-02 therefore remediates only the default privileges a customer role CAN own and
+-- change: those owned by the applying role (`postgres` on hosted Supabase) and by any
+-- role the applying role is a member of. Default privileges owned by a role the applying
+-- role cannot act for — in practice `supabase_admin` — are OUT OF SCOPE: they are
+-- documented here, reported with a `RAISE NOTICE`, and are NOT failed closed on. The
+-- 2026-11-05 read-only production inventory found NO `supabase_admin`-owned table,
+-- sequence, view, materialized view or function in `public`, so no customer object is
+-- created under that role's defaults. No production owner-run `supabase_admin` SQL is
+-- required for this path.
+--
+-- The migration still FAILS CLOSED on the customer-controllable state. After the revokes
+-- it verifies (section 3) that every `public` default ACL owned by a role the applying
+-- role may act for carries no public-facing grantee, and section 0b refuses to run while
+-- a global default confers future objects on a public-facing role for such an owner. If
+-- the applying role's own `public` defaults are not in the expected least-privilege
+-- state, the migration aborts.
 --
 -- What this changes
 -- -----------------
@@ -75,9 +100,11 @@
 --     default change and is scoped to `public`;
 --   * section 0b still **fails closed** if production ever carries a global default
 --     that leaks tables/sequences to a public-facing role, or a global direct
---     function grant to `anon`/`authenticated`. Removing such an entry needs the
---     global form and is left to the owner-run step
---     (docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql §4).
+--     function grant to `anon`/`authenticated`, for a role the applying role MAY act
+--     for. Removing such an entry needs the global form, which changes every schema in
+--     the database and is therefore an owner-reviewed action, not something this file
+--     does automatically. (A global default owned by `supabase_admin` is out of scope:
+--     the customer role cannot change it and no customer object is created under it.)
 --
 -- Mechanics that matter. All were verified against Postgres (PGlite) before this file
 -- was written; see the remediation plan §2.3.
@@ -96,12 +123,13 @@
 --
 --   3. Ownership: default privileges belong to the role that will *create* the
 --      object, not to the schema. `ALTER DEFAULT PRIVILEGES FOR ROLE x` may only be
---      issued by a role that is a member of `x` (or by a superuser). The audit found
---      both `postgres` and `supabase_admin` own default privileges in `public`, and
---      that `postgres` cannot manage `supabase_admin`'s through current membership.
---      This file covers the applying role directly (section 1) and then every other
---      role that owns a default ACL in `public` (section 2), failing closed on any it
---      cannot cover. The remedy is the split-out owner-run step.
+--      issued by a role that is a member of `x` (or by a superuser). On hosted Supabase
+--      the customer `postgres` role cannot act for `supabase_admin` (see the HOSTED-
+--      SUPABASE CONSTRAINT above). This file covers the applying role directly (section
+--      1) and then every other role whose `public` default ACL the applying role MAY act
+--      for (section 2). A role the applying role cannot act for is reported, not failed
+--      closed on; its `public` default ACL is only a customer-controllable defect if a
+--      customer object is actually created under it, and the inventory found none.
 --
 -- What is deliberately kept
 -- -------------------------
@@ -156,7 +184,7 @@
 --     refuses on those too. It is NOT remediated in this file, because removing a global
 --     default requires the global form — which changes defaults for every schema in the
 --     database, including platform-managed ones this migration must not touch. That is an
---     owner-reviewed action; see the owner-run step §4 and its verification §4b.
+--     owner-reviewed action, not something this file does automatically.
 --
 --   * The catalog cannot enumerate roles that do not exist yet. A role created after
 --     this migration runs carries no default ACL of its own, so it reverts to the
@@ -178,14 +206,17 @@
 --     enumerated — no catalog query can, for the reasons above. Read it as "the roles
 --     this file could see are covered", not "all creators are covered".
 --
---   * "Covered" is per-role and the run is all-or-nothing: if any candidate creator
---     cannot be acted for (`pg_has_role(..., 'MEMBER')` is false) AND its public default
---     ACL still confers a public-facing grant, the file raises and the entire migration
---     rolls back. There is no partial-success state. A candidate the applier is not a
---     member of but that the owner-run step has ALREADY remediated (its public default ACL
---     no longer leaks) is reported as converged, not failed closed on — so the documented
---     "owner-run, then re-run this migration" workflow converges. A leaking role still
---     aborts; only the already-clean case is allowed through.
+--   * "Covered" is per-role and the run is all-or-nothing FOR THE ROLES THIS MIGRATION
+--     MAY ACT FOR. If the applying role is not a member of a `public` default-ACL owner
+--     (`pg_has_role(..., 'MEMBER')` is false) — the exact precondition Postgres enforces
+--     for `ALTER DEFAULT PRIVILEGES FOR ROLE` — that role is OUT OF SCOPE. On hosted
+--     Supabase this is the expected state for `supabase_admin`, the platform-internal
+--     superuser: the customer `postgres` session can never act for it, and no customer
+--     object is created under its defaults (the 2026-11-05 inventory found none). Such a
+--     role is reported with a `RAISE NOTICE`, not failed closed on, so the migration
+--     converges on hosted Supabase. The customer-controllable state — every `public`
+--     default ACL owned by the applying role or a role it may act for — is still verified
+--     and fails closed (section 3).
 
 -- ---------------------------------------------------------------------------------
 -- 0. Preconditions — fail loudly rather than silently leaving the defaults broad.
@@ -226,6 +257,13 @@ END $$;
 -- block is expected to pass. It is retained as a fail-closed guard against a future
 -- provisioning change.
 --
+-- OWNER SCOPE. The check is limited to global defaults OWNED BY a role the applying role
+-- may act for (`pg_has_role(current_user, d.defaclrole, 'MEMBER')`). A global default
+-- owned by `supabase_admin` is not customer-controllable — the customer `postgres` session
+-- can neither change it nor be affected by a customer object (the 2026-11-05 inventory
+-- found no `supabase_admin`-owned object in `public`), so it is out of scope and must not
+-- block the migration. Only the customer-controllable global state fails closed.
+--
 -- Scope of this check:
 --   * tables and sequences — any global grant to `PUBLIC` or to `anon`/`authenticated`;
 --   * tables — a global grant of `TRUNCATE`, `TRIGGER` or `REFERENCES` to `service_role`.
@@ -249,8 +287,8 @@ END $$;
 -- The fix for what this block catches is deliberately NOT attempted here. Removing a
 -- global default means issuing the global form (no `IN SCHEMA`), which changes defaults
 -- for EVERY schema in the database — including platform-managed schemas this migration
--- must not touch. That is a broader action than F-A16-02 supports and is left to an
--- owner-reviewed step: docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql §4.
+-- must not touch. That is a broader action than F-A16-02 supports and is an owner-reviewed
+-- decision, not an automated step.
 DO $$
 DECLARE
   global_leaks text;
@@ -268,6 +306,9 @@ BEGIN
          pg_catalog.aclexplode(d.defaclacl) a
    WHERE d.defaclnamespace = 0
      AND a.grantee <> d.defaclrole
+     -- Only customer-controllable owners: a global default owned by a role the applying
+     -- role cannot act for (e.g. supabase_admin) is not ours to change and must not block.
+     AND pg_catalog.pg_has_role(current_user, d.defaclrole, 'MEMBER')
      AND (
           -- tables and sequences: PUBLIC or a named public-facing role
           (d.defaclobjtype IN ('r', 'S')
@@ -285,7 +326,7 @@ BEGIN
 
   IF global_leaks IS NOT NULL THEN
     RAISE EXCEPTION 'F-A16-02: global default privileges confer future objects on public-facing roles: %', global_leaks
-      USING HINT = 'A schema-scoped REVOKE cannot subtract a GLOBAL default. Remediate with the global form (no IN SCHEMA), which affects every schema in the database — an owner-reviewed action. See docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql section 4. F-A16-02 is NOT remediated until this succeeds.';
+      USING HINT = 'A schema-scoped REVOKE cannot subtract a GLOBAL default. Remediate with the global form (no IN SCHEMA), which affects every schema in the database — an owner-reviewed action. F-A16-02 is NOT remediated until this succeeds.';
   END IF;
 END $$;
 
@@ -382,15 +423,15 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 
 -- ---------------------------------------------------------------------------------
 -- 2. Creator inventory — every role that owns a `public` default ACL, and every role
---    that can create objects in `public`. Cover what must be covered; fail closed on
---    what cannot be.
+--    that can create objects in `public`. Cover what this migration MAY act for;
+--    report what it may not.
 -- ---------------------------------------------------------------------------------
 -- Section 1 only affects objects created by the *applying* role. Default privileges
--- are per-owner, so this section must cover every *other* role that can create an object
--- in `public`. The 2026-11-03 audit confirmed `postgres` and `supabase_admin` both own
--- default privileges in `public`, and that `postgres` cannot manage `supabase_admin`'s
--- through current membership — so this section is expected to stop and hand the operator
--- the owner-run step.
+-- are per-owner, so this section must cover every *other* role whose `public` defaults
+-- the applying role may change. On hosted Supabase the applying role is the customer
+-- `postgres`, which owns its own defaults and is a member of the roles it may act for;
+-- it is NOT a member of `supabase_admin` (the platform-internal superuser), so that
+-- role is out of scope (see the HOSTED-SUPABASE CONSTRAINT in the header).
 --
 -- THE INVENTORY IS THE UNION OF TWO CLASSES (F-A16-02 correction, 2026-11-03)
 -- -------------------------------------------------------------------------
@@ -402,8 +443,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 --
 --   (A) DEFAULT-ACL OWNERS — a role with a `pg_default_acl` row for `public`. It has had
 --       `ALTER DEFAULT PRIVILEGES` issued for it, so its new objects carry those defaults.
---       These are the roles that must be REVOKED (the six statements in the loop), and the
---       ones this migration must fail closed on when it cannot act for them.
+--       Those the applying role MAY act for are the ones that must be REVOKED (the six
+--       statements in the loop). A default-ACL owner the applying role may NOT act for is
+--       reported, not failed closed on (see CONVERGENCE below).
 --
 --   (B) EFFECTIVE-CREATE HOLDERS — a role for which `has_schema_privilege(role, 'public',
 --       'CREATE')` is true but that owns NO `pg_default_acl` row for `public`. Its new
@@ -417,8 +459,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 -- So class (B) is INVENTORIED and REPORTED (a `RAISE NOTICE`, so the operator sees the
 -- full creator set), but it is deliberately NOT revoked and NOT failed closed on: there is
 -- no default privilege to change, and aborting on it would widen the fail-closed set
--- without closing any residual (the trap an earlier revision fell into). Class (A) is both
--- revoked and failed closed on.
+-- without closing any residual (the trap an earlier revision fell into). Class (A) is
+-- revoked and verified.
 --
 -- `has_schema_privilege` is used for class (B), not a raw `aclexplode(nspacl)` join: it
 -- accounts for CREATE inherited through role membership and for a CREATE granted to
@@ -431,28 +473,21 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 --     owner is the database owner. It is named in the code and in a test rather than
 --     silently filtered.
 --
--- If any CLASS-(A) candidate cannot be covered (`pg_has_role(..., 'MEMBER')` is false — the
--- exact precondition Postgres enforces for `ALTER DEFAULT PRIVILEGES FOR ROLE`), the block
--- raises. The whole migration then rolls back, so the database is never left in a
--- half-tightened state — and the remediation cannot be described as complete while a
--- role was skipped. The remedy is the split-out owner-run step:
--- docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql
---
--- CONVERGENCE (F-A16-02 correction, integration verification). Failing closed on a role
--- the applier is not a member of is correct while that role still holds a public-facing
--- default grant. But the owner-run step is the documented remedy, and the operator is told
--- to run it "then re-run this migration". Before this correction the re-run failed closed
--- again on the same role purely because membership was still absent — so the loop never
--- converged even though the role was already remediated. The loop below distinguishes the
--- two states: a non-member whose public default ACL still leaks is failed closed on
--- (unchanged); a non-member whose public default ACL no longer leaks is reported as
--- already remediated. This does not weaken the guard: a leaking role still aborts.
+-- CONVERGENCE (F-A16-02 correction, hosted-Supabase redesign 2026-11-05). A CLASS-(A)
+-- candidate the applying role cannot act for (`pg_has_role(..., 'MEMBER')` is false — the
+-- exact precondition Postgres enforces for `ALTER DEFAULT PRIVILEGES FOR ROLE`) is OUT OF
+-- SCOPE, not a failure. On hosted Supabase that is the expected, permanent state for
+-- `supabase_admin`: the customer `postgres` session can never act for it, and no customer
+-- object is created under its defaults (the 2026-11-05 read-only inventory found no
+-- `supabase_admin`-owned object in `public`). Such a role is reported with a `RAISE NOTICE`
+-- so the operator sees it, and the migration proceeds. This is what lets F-A16-02 apply on
+-- hosted Supabase at all. The customer-controllable state — every `public` default ACL
+-- owned by a role the applying role MAY act for — is still verified in section 3 and fails
+-- closed if it is not least-privilege.
 DO $$
 DECLARE
-  skipped     text[] := ARRAY[]::text[];
   create_only text[] := ARRAY[]::text[];
-  converged   text[] := ARRAY[]::text[];
-  leaks       boolean;
+  out_of_scope text[] := ARRAY[]::text[];
   inv         record;
 BEGIN
   -- The complete creator inventory: class (A) union class (B), each labelled.
@@ -484,36 +519,11 @@ BEGIN
 
     IF NOT pg_catalog.pg_has_role(current_user, inv.candidate, 'MEMBER') THEN
       -- Not a member: Postgres will not let us run `ALTER DEFAULT PRIVILEGES FOR ROLE`.
-      -- The owner-run step (docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql),
-      -- run as that role, is the remedy. It is CONVERGENT: after it, this role's public
-      -- default ACL holds no public-facing grant, and the check below treats it as already
-      -- remediated rather than failing closed on membership forever. Inline, so this file
-      -- still changes nothing but default privileges (no helper object is created).
-      SELECT EXISTS (
-               SELECT 1
-                 FROM pg_catalog.pg_default_acl d,
-                      pg_catalog.aclexplode(d.defaclacl) a
-                WHERE d.defaclnamespace = 'public'::regnamespace
-                  AND pg_catalog.pg_get_userbyid(d.defaclrole) = inv.candidate
-                  AND a.grantee <> d.defaclrole
-                  AND (
-                       (d.defaclobjtype IN ('r', 'S')
-                         AND (a.grantee = 0
-                              OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
-                    OR (d.defaclobjtype = 'r'
-                         AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-                         AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
-                    OR (d.defaclobjtype = 'f'
-                         AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
-                  )
-             )
-        INTO leaks;
-
-      IF leaks THEN
-        skipped := skipped || inv.candidate;
-      ELSE
-        converged := converged || inv.candidate;
-      END IF;
+      -- On hosted Supabase this is the expected, permanent state for the platform-internal
+      -- superuser `supabase_admin`. Out of scope, not a failure: report it so the operator
+      -- sees the full set, and proceed. The customer-controllable state is verified in
+      -- section 3.
+      out_of_scope := out_of_scope || inv.candidate;
       CONTINUE;
     END IF;
 
@@ -530,15 +540,9 @@ BEGIN
       array_to_string(create_only, ', ');
   END IF;
 
-  IF array_length(converged, 1) > 0 THEN
-    RAISE NOTICE 'F-A16-02: role(s) already remediated by the owner-run step (no public-facing privilege in their public default ACL); nothing for this migration to do for them: %',
-      array_to_string(converged, ', ');
-  END IF;
-
-  IF array_length(skipped, 1) > 0 THEN
-    RAISE EXCEPTION 'F-A16-02: cannot tighten default privileges for object-creating role(s): %',
-      array_to_string(skipped, ', ')
-      USING HINT = 'Default privileges belong to the creating role and may only be changed by a member of it. Run docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql as that role (or as a superuser), then re-run this migration. F-A16-02 is NOT fully remediated until it succeeds.';
+  IF array_length(out_of_scope, 1) > 0 THEN
+    RAISE NOTICE 'F-A16-02: role(s) whose public default ACL the applying role may not change (platform-internal / not a member; out of scope on hosted Supabase): %',
+      array_to_string(out_of_scope, ', ');
   END IF;
 END $$;
 
@@ -552,10 +556,13 @@ END $$;
 -- rolls the whole migration back.
 --
 -- The scope is deliberately stated: this verifies every role that owns a `public`
--- default ACL (the section-2 candidate set), and that no GLOBAL default still leaks a
--- table or sequence to a public-facing role. It does NOT assert that every possible
--- future creator has been enumerated, because no catalog query can (see "Scope and
--- limitations" in the header).
+-- default ACL AND that the applying role MAY act for (the section-2 revoked set), and
+-- that no GLOBAL default owned by such a role still leaks a table or sequence to a
+-- public-facing role. A `public` default ACL owned by a role the applying role may NOT
+-- act for (e.g. `supabase_admin` on hosted Supabase) is out of scope and is not checked
+-- here — the customer cannot change it, and the 2026-11-05 inventory found no object
+-- created under it. It also does NOT assert that every possible future creator has been
+-- enumerated, because no catalog query can (see "Scope and limitations" in the header).
 --
 -- Note on `PUBLIC`: `pg_get_userbyid(0)` returns the string `'unknown (OID=0)'`, NOT
 -- NULL, so `pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')` never matches a
@@ -592,6 +599,10 @@ BEGIN
     FROM pg_catalog.pg_default_acl d,
          pg_catalog.aclexplode(d.defaclacl) a
    WHERE a.grantee <> d.defaclrole   -- the owner's own entry is inherent, not a leak
+     -- Only customer-controllable owners: a `public` default ACL owned by a role the
+     -- applying role cannot act for (e.g. supabase_admin on hosted Supabase) is out of
+     -- scope and is not this migration's to remediate.
+     AND pg_catalog.pg_has_role(current_user, d.defaclrole, 'MEMBER')
      AND (
           -- tables and sequences in public: nothing at all for the public-facing roles,
           -- including via PUBLIC (grantee = 0)

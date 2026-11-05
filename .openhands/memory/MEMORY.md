@@ -916,3 +916,24 @@ Working log archived; see daily logs. Not this repository.
 unit 221 suites / 2922 passed / 1 skipped; db 20 suites / 295 passed; `tsc` clean; eslint 0
 errors (715 pre-existing warnings); build OK. CI on PR #382 all green.
 Details: `.openhands/memory/2026-11-03.md`.
+
+## F-A16 production preflight — NO-GO (2026-11-05)
+
+- **The sandbox has NO production Supabase access.** `SUPABASE_DB_URL` → non-production
+  "Tournament" project (fp `72b54d98a3dc` ≠ approved `233ede17c9c7`; PG 17.6). Production
+  `db.<ref>.supabase.co` is IPv6-only (no egress here); the pooler TCP port is open but we
+  have no password; `<ref>.supabase.co` `/auth/v1/health` + `/rest/v1/` return 401 without
+  an apikey (none in the sandbox). Production catalog reads are **impossible here**.
+- **`pg` connect gotcha:** strip `?sslmode=…` from the URL *and* pass `ssl:false`, or pg
+  treats `require` as `verify-full` → "self-signed certificate in certificate chain".
+- **`supautils` is a shared library, not an extension.** `SELECT count(*) FROM pg_extension
+  WHERE extname='supautils'` is always 0 (also absent from `pg_available_extensions`).
+  Detect it via `pg_settings`: 19 `supautils.*` GUCs + `session_preload_libraries=supautils`;
+  `supautils.privileged_role=supabase_privileged_role`, `supautils.superuser=supabase_admin`.
+  The operator checklist §11 uses the wrong `pg_extension` probe — fix suggested in
+  `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` §7.
+- Production evidence from audit run `41642607988` is **age-encrypted** (artifact
+  `f-a16-catalog-audit-41642607988`, 903,380 B, expires 2026-12-03) with no key here, so
+  the plan's "24 schema-scoped / 0 global" figures stay *attested*, not re-measurable.
+- Deliverable `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` (verdict NO-GO) left uncommitted
+  for owner review. Details: `.openhands/memory/2026-11-04.md`.

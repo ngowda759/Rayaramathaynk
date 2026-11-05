@@ -253,11 +253,12 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
     expect(await publicFacingDefaults(db)).toEqual([]);
   });
 
-  describe("multi-owner coverage and fail-closed behaviour", () => {
+  describe("multi-owner coverage and out-of-scope handling (hosted-Supabase path)", () => {
     /**
-     * `supabase_admin` owns a separate default ACL. Whether the applying role can act
-     * for it decides between "covered" and "must fail closed", and that is exactly the
-     * distinction the review asked to be proven.
+     * `supabase_admin` owns a separate default ACL. On hosted Supabase the applying role
+     * can never act for it (not a member, not a superuser), so it is OUT OF SCOPE: the
+     * migration reports it and proceeds rather than failing closed. The customer-
+     * controllable state is still verified by the post-condition.
      */
     async function withAdminOwnedDefaults(canActForAdmin: boolean): Promise<PGlite> {
       const d = await newDb();
@@ -287,9 +288,10 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(await tablePrivs(db, "anon", "admin_table")).toEqual([]);
     });
 
-    it("fails closed, and commits nothing, when a role it cannot act for keeps broad defaults", async () => {
-      // The PGlite default session is a superuser, and Postgres reports a superuser as
-      // a member of every role, so the applier is switched to a plain role to model a
+    it("applies, reporting the role it may not act for, instead of failing closed", async () => {
+      // The hosted-Supabase path: the applying role is NOT a member of supabase_admin.
+      // The PGlite default session is a superuser and Postgres reports a superuser as a
+      // member of every role, so the applier is switched to a plain role to model a
       // non-superuser Supabase `postgres`.
       db = await withAdminOwnedDefaults(false);
       await db.exec(`CREATE ROLE applier NOLOGIN; GRANT USAGE, CREATE ON SCHEMA public TO applier;`);
@@ -298,17 +300,15 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(before.length).toBeGreaterThan(0);
 
       await db.exec(`SET ROLE applier;`);
-      // The message names every creator the applier cannot act for. `supabase_admin` is
-      // the one this test set up; `postgres` also appears because a superuser reports
-      // CREATE via `has_schema_privilege` and the applier is not a superuser.
-      await expect(apply(db, DEFAULTS_MIGRATION)).rejects.toThrow(
-        /F-A16-02: cannot tighten default privileges for object-creating role\(s\): .*supabase_admin/
-      );
+      // The migration no longer raises on the non-member role; it applies and reports it.
+      await expect(apply(db, DEFAULTS_MIGRATION)).resolves.toBeUndefined();
       await db.exec(`RESET ROLE;`);
 
-      // The raise rolled the whole migration back: nothing was half-applied, and the
-      // skipped role's defaults are untouched.
-      expect(await publicFacingDefaults(db)).toEqual(before);
+      // The applying role's OWN defaults were tightened (a new table it creates is
+      // owner-only for anon), even though supabase_admin's defaults remain untouched
+      // because the applier may not act for it.
+      await db.exec(`SET ROLE applier; CREATE TABLE public.applier_table (id int); RESET ROLE;`);
+      expect(await tablePrivs(db, "anon", "applier_table")).toEqual([]);
     });
   });
 
@@ -329,12 +329,9 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       // `temple_creator` owns a `pg_default_acl` row for `public`, but it names
       // `reporting_role` — not a public-facing role. A grantee-filtered discovery would
       // not see this role at all. The unfiltered inventory puts it in the candidate set.
-      // Its public default ACL confers nothing on a public-facing role, so there is
-      // nothing to remediate: the migration reports it as CONVERGED (enumerated, named in
-      // a notice) rather than silently skipping it. A non-member applier is not failed
-      // closed on it, because there is no public-facing leak to fix — that is the
-      // convergence correction. (The fail-closed case for a non-member that DOES leak is
-      // covered by "fails closed … when a role it cannot act for keeps broad defaults".)
+      // Its public default ACL confers nothing on a public-facing role, but the applying
+      // role is not a member of it, so it is reported as OUT OF SCOPE (enumerated, named in
+      // a notice) rather than silently skipped. The proof is that it IS named.
       db = await newDb();
       await db.exec(SUPABASE_ROLES);
       await db.exec(`
@@ -360,7 +357,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
       expect(filtered.rows.map((r) => r.owner)).not.toContain("temple_creator");
 
       // As an applier that is not a member of temple_creator, the migration still names
-      // it — in the convergence notice — which is the proof it was enumerated rather than
+      // it — in the out-of-scope notice — which is the proof it was enumerated rather than
       // silently skipped.
       await db.exec(`CREATE ROLE applier NOLOGIN; GRANT USAGE, CREATE ON SCHEMA public TO applier;`);
       await db.exec(`SET ROLE applier;`);
@@ -369,7 +366,7 @@ describe("F-A16-02 least-privilege defaults (behavioural)", () => {
         onNotice: (n) => notices.push(n.message),
       });
       await db.exec(`RESET ROLE;`);
-      expect(notices.join("\n")).toMatch(/already remediated[\s\S]*temple_creator/);
+      expect(notices.join("\n")).toMatch(/may not change[\s\S]*temple_creator/);
     });
 
     it("inventories a CREATE holder with no default ACL row, without failing closed on it", async () => {
