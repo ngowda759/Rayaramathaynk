@@ -19,6 +19,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:db": "node --experimental-vm-modules node_modules/jest/bin/jest.js -c jest.db.config.ts --runInBand",
+    "test:db:integration": "jest -c jest.integration.config.ts --runInBand",
     "test:rules": "npx -y firebase-tools@13.35.1 emulators:exec --only firestore --project demo-seva \"jest -c jest.rules.config.ts --runInBand\"",
     "test:e2e:seva": "npx -y firebase-tools@13.35.1 emulators:exec --only auth,firestore --project demo-seva \"playwright test -c tests/e2e/seva/playwright.config.ts\"",
     "setup-admin": "npx ts-node scripts/setup-admin.ts",

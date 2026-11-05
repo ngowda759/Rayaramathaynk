@@ -29,6 +29,16 @@
 -- Everything below is a REVOKE on *default* privileges. No existing table, sequence,
 -- function, policy or grant is touched. Idempotent: revoking an unheld privilege is a
 -- no-op, so this is safe to re-run.
+--
+-- NOTE ON FUNCTIONS (F-A16-02 correction, 2026-11-03). The main migration no longer
+-- issues the GLOBAL function revoke (`ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON
+-- FUNCTIONS FROM PUBLIC`, no `IN SCHEMA`), because the 2026-11-03 production audit found
+-- 0 global default ACL entries and a global statement would change the defaults for every
+-- schema — including storage/graphql/graphql_public. The implicit PUBLIC EXECUTE on
+-- future functions is instead closed forward by
+-- `supabase/migrations/20261114990000_f_a16_public_function_execute_guard.sql`. The
+-- per-role steps below therefore only revoke the platform's explicit per-schema
+-- `GRANT ALL ON FUNCTIONS` to anon/authenticated — they do NOT issue a global statement.
 -- =====================================================================================
 
 -- -------------------------------------------------------------------------------------
@@ -88,9 +98,14 @@ BEGIN
   END IF;
 
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated', target);
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role', target);
+  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC', target);
+  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role', target);
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated', target);
-  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC', target);
+  EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC', target);
+  -- Per-schema only. The GLOBAL function revoke (`FOR ROLE %I REVOKE EXECUTE ON
+  -- FUNCTIONS FROM PUBLIC`, no IN SCHEMA) was removed: it changes the default for every
+  -- schema and the audit found 0 global entries. The implicit PUBLIC EXECUTE on future
+  -- functions is closed forward by 20261114990000_f_a16_public_function_execute_guard.sql.
   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated', target);
 
   RAISE NOTICE 'F-A16-02: default privileges tightened for %', target;
@@ -99,6 +114,10 @@ END $$;
 -- -------------------------------------------------------------------------------------
 -- 2. Verify. Expect no rows.
 -- -------------------------------------------------------------------------------------
+-- The function arm checks for a DIRECT grant to a named public-facing role only. A
+-- per-schema PUBLIC function entry (grantee = 0) is deliberately NOT flagged: it cannot
+-- be removed by a per-schema statement, and it is closed forward by the function-EXECUTE
+-- guard migration — not by a global default revoke.
 SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
        d.defaclobjtype                          AS object_type,
        CASE WHEN a.grantee = 0 THEN 'PUBLIC'
@@ -112,18 +131,20 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
           AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
      OR (d.defaclobjtype = 'r'
           AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-          AND a.privilege_type IN ('TRIGGER', 'REFERENCES'))
+          AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES'))
      OR (d.defaclobjtype = 'f'
-          AND (a.grantee = 0
-               OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')))
+          AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
    )
  ORDER BY 1, 2, 3, 4;
 
--- 2b. Global (defaclnamespace = 0) function default ACLs that name a public-facing
---     role or PUBLIC. Expect no rows. The implicit PUBLIC EXECUTE is not readable here,
---     so it is proven by the presence of an owner-only global row per covered creator
---     instead. Note `grantee = 0` must be tested explicitly: `pg_get_userbyid(0)`
---     returns 'unknown (OID=0)', not NULL, so an IN-list never matches PUBLIC.
+-- 2b. Global (defaclnamespace = 0) function default ACLs that name a named public-facing
+--     role. Expect no rows. The 2026-11-03 audit found 0 global entries. A global PUBLIC
+--     (grantee = 0) function entry is deliberately NOT flagged here: the corrected
+--     remediation does not remove it with a global statement (that would change every
+--     schema); it is closed forward by the function-EXECUTE guard migration. Note
+--     `grantee = 0` must be tested explicitly if you do want to see PUBLIC entries:
+--     `pg_get_userbyid(0)` returns 'unknown (OID=0)', not NULL, so an IN-list never
+--     matches PUBLIC.
 SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
        CASE WHEN a.grantee = 0 THEN 'PUBLIC'
             ELSE pg_catalog.pg_get_userbyid(a.grantee) END AS grantee,
@@ -132,8 +153,7 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
        pg_catalog.aclexplode(d.defaclacl) a
  WHERE d.defaclnamespace = 0
    AND d.defaclobjtype = 'f'
-   AND (a.grantee = 0
-        OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated'))
+   AND pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')
  ORDER BY 1, 2, 3;
 
 -- 2c. Global (defaclnamespace = 0) TABLE and SEQUENCE default ACLs that name a
@@ -186,16 +206,18 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 --      3. run it in a transaction, verify, then commit — or roll back if unsure.
 --
 --    service_role is NOT a public-facing role, and the main migration deliberately keeps its
---    DML defaults. But it revokes TRIGGER and REFERENCES from service_role per schema
---    (RLS cannot cover those two), and a GLOBAL grant of either survives that revoke —
---    measured: after the per-schema revoke a new public table still reported both as
---    true. Step 4 therefore removes them globally too. DML is left alone.
+--    DML defaults. But it revokes TRUNCATE, TRIGGER and REFERENCES from service_role per
+--    schema (RLS cannot cover those three), and a GLOBAL grant of any survives that revoke —
+--    measured: after the per-schema revoke a new public table still reported them as true.
+--    Step 4 therefore removes them globally too. DML is left alone.
 --
---    Note the asymmetry with functions. The function default is revoked globally in the
---    main migration on purpose (it is the ONLY way to remove the implicit PUBLIC EXECUTE,
---    which is not readable from any ACL). For tables and sequences there is no implicit
---    PUBLIC grant — a PUBLIC entry exists only if someone created one — so this step is
---    narrower in motivation and is left to explicit owner review.
+--    Note the asymmetry with functions. The corrected main migration does NOT revoke the
+--    function default globally — it issues no global statement at all. For functions the
+--    implicit PUBLIC EXECUTE is closed forward by
+--    `20261114990000_f_a16_public_function_execute_guard.sql`, which is scoped to `public`
+--    and therefore narrower than a global default change. For tables and sequences there
+--    is no implicit PUBLIC grant — a PUBLIC entry exists only if someone created one — so
+--    this step is narrower in motivation still, and is left to explicit owner review.
 -- =====================================================================================
 -- DO $$
 -- DECLARE
@@ -214,7 +236,7 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON SEQUENCES FROM PUBLIC', target);
 --   -- service_role keeps DML, but these two survive the schema-scoped revoke in the main
 --   -- migration and must be removed globally as well.
---   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE TRIGGER, REFERENCES ON TABLES FROM service_role', target);
+--   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role', target);
 --
 --   RAISE NOTICE 'F-A16-02: global table/sequence defaults tightened for %', target;
 -- END $$;
@@ -223,10 +245,10 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON TABLES    TO anon, authenticated, service_role', target);
 --   EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT ALL ON SEQUENCES TO anon, authenticated, service_role', target);
 
--- 4b. Verify step 4 took effect for the two service_role privileges. Expect no rows.
---     A global TRIGGER/REFERENCES entry here means a future public table can still be
---     altered to attach a trigger, or referenced by a foreign key, by service_role —
---     which is exactly what section 1's schema-scoped revoke was meant to prevent.
+-- 4b. Verify step 4 took effect for the three service_role privileges. Expect no rows.
+--     A global TRUNCATE/TRIGGER/REFERENCES entry here means a future public table can still
+--     be truncated, altered to attach a trigger, or referenced by a foreign key, by
+--     service_role — exactly what section 1's schema-scoped revoke was meant to prevent.
 SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
        a.privilege_type
   FROM pg_catalog.pg_default_acl d,
@@ -235,5 +257,5 @@ SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS object_creating_role,
    AND d.defaclobjtype = 'r'
    AND a.grantee <> d.defaclrole
    AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
-   AND a.privilege_type IN ('TRIGGER', 'REFERENCES')
+   AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES')
  ORDER BY 1, 2;

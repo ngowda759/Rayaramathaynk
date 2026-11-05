@@ -23,8 +23,11 @@ by `tests/unit/f-a16-migration-ledger-reconciliation.test.ts`.
 | Duplicate **version** prefixes | **0** |
 | Duplicate **names** (distinct versions) | **2** — `create_temple_areas`, `seed_ai_settings` |
 
-> This PR adds **two** proposed migrations (`20261115000000_f_a16_least_privilege_defaults.sql`,
-> `20261115000100_f_a16_fail_closed_rls_assertion.sql`), both `NOT APPLIED`. They are
+> This PR adds **four** proposed migrations
+> (`20261114990000_f_a16_public_function_execute_guard.sql`,
+> `20261115000000_f_a16_least_privilege_defaults.sql`,
+> `20261115000100_f_a16_fail_closed_rls_assertion.sql`,
+> `20261115000200_f_a16_existing_table_privileges.sql`), all `NOT APPLIED`. They are
 > excluded from the counts above, which describe the audit base commit.
 
 ---
@@ -149,15 +152,17 @@ repair`) is a ledger-only action and must be done deliberately, never as part of
 4. **Do not** mark any migration applied, and **do not** run `supabase migration repair`
    as part of this remediation.
 
-### 5.1 The two proposed F-A16 migrations, for ledger purposes
+### 5.1 The four proposed F-A16 migrations, for ledger purposes
 
-This reconciliation covers the *existing* 43 files at base `3048196`. The F-A16
-remediation adds two more, which are **proposed and not applied**:
+This reconciliation covers the *existing* files at base `3048196`. The F-A16 remediation
+adds four more, which are **proposed and not applied**:
 
 | Proposed file | Version | Applied? | Note |
 |---|---|---|---|
-| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | 20261115000000 | **No** | future-dated relative to the 2026-10-31 snapshot, consistent with the other pending files in §2.2 |
+| `supabase/migrations/20261114990000_f_a16_public_function_execute_guard.sql` | 20261114990000 | **No** | forward function-EXECUTE guard; future-dated, consistent with the other pending files in §2.2 |
+| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | 20261115000000 | **No** | same |
 | `supabase/migrations/20261115000100_f_a16_fail_closed_rls_assertion.sql` | 20261115000100 | **No** | same |
+| `supabase/migrations/20261115000200_f_a16_existing_table_privileges.sql` | 20261115000200 | **No** | same |
 
 Their versions sort after every existing canonical file, so they do not introduce an
 out-of-order entry: `supabase db push` refuses a file older than the remote maximum, and
@@ -188,9 +193,10 @@ cannot drift silently.
 No row of `supabase_migrations.schema_migrations` was read, written, repaired or marked.
 No migration was applied, dispatched, or pushed. No production database was connected.
 
-The two F-A16 migrations named in §5.1 are **proposed only**: they exist in the working
+The four F-A16 migrations named in §5.1 are **proposed only**: they exist in the working
 tree, carry a `Status: PROPOSED. NOT APPLIED.` header, and have not been run against any
 database (they are exercised only against an in-process PGlite instance in
-`tests/db/f-a16-least-privilege.test.ts`).
+`tests/db/f-a16-least-privilege.test.ts` and
+`tests/db/f-a16-existing-privileges.test.ts`).
 
 **NOT APPLIED TO PRODUCTION.**

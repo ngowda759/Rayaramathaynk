@@ -818,3 +818,101 @@ Working log archived; see daily logs. Not this repository.
 - Schema: 67 public tables; 84 policies / 66 tables; RLS on 67; content tables have **no FK**
   (only seva/POS + knowledge-workflow do).
 - Tests @ `b1401ae`: unit 207/2668, db 17/244, `tsc` clean, eslint 0 errors.
+
+---
+
+## F-A16 least-privilege remediation — correction round (2026-11-03, PR #382)
+
+> Note: an earlier session had compressed this file in the working tree; that uncommitted
+> edit was lost when the branch was rebased onto latest `main`. This section re-records the
+> durable facts. The F-A16-02/02b/01 details below supersede anything earlier in this file.
+
+- **F-A16-02 must stay schema-scoped.** A GLOBAL `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE
+  ON FUNCTIONS FROM PUBLIC` changes every schema (incl. Supabase-managed `storage`/`graphql`/
+  `graphql_public`) and would only *create* a global entry (prod audit 2026-11-03 found **0**
+  global default ACL entries). Removed. The implicit PUBLIC EXECUTE residual on future
+  functions is closed **forward** by the `f_a16_public_fn_guard` event trigger
+  (`20261114990000_f_a16_public_function_execute_guard.sql`), which is scoped to `public`.
+- **A per-schema `REVOKE … FROM PUBLIC` on FUNCTIONS is a no-op.** Per-schema default ACLs
+  can only add, never subtract from the global default. Don't try to fix it per schema.
+- **Discovery = `pg_default_acl` for `public`, NO grantee filter, fail closed per owner.**
+  A grantee-filtered search silently misses a creator whose public default ACL names only
+  some other grantee. Do NOT also enumerate `has_schema_privilege(...,'CREATE')` holders —
+  that widens the fail-closed set without closing the residual (defer to owner-run). The
+  audit confirms `postgres` cannot act for `supabase_admin`, so F-A16-02 is **expected** to
+  stop with `F-A16-02: cannot tighten default privileges for object-creating role(s):
+  supabase_admin`; remedy = `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql`.
+- **F-A16-01 revokes only `TRUNCATE`/`REFERENCES`/`TRIGGER`** — the three privileges RLS
+  cannot compensate for. `service_role` keeps `TRUNCATE` on tables with a `BEFORE TRUNCATE`
+  guard, read from `pg_trigger` (`tgtype & 2` = BEFORE, `tgtype & 32` = TRUNCATE). DML
+  revokes stay deferred (matrix in `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md`).
+- **F-A16-07:** `PUBLIC` EXECUTE on `rls_auto_enable` / `update_updated_at_column` is
+  unnecessary (trigger machinery runs as the object owner and ignores session EXECUTE) but
+  not exploitable. Recommended SQL documented in the plan §12; **not** applied (pre-existing
+  non-F-A16 objects).
+- **Four public-read tables:** `aaradhanes`, `events`, `site_settings`, `social_links`. A
+  static policy sweep finds non-`false` SELECT policies on `temple_areas`, `announcements`,
+  `ai_knowledge`, `featured_content` too — unresolved; the deferred DML phase must settle it.
+
+### F-A16 isolated integration verification (2026-11-04, PR #382)
+
+- **Use the official image `supabase/postgres:15.19.0.018` — it ships `supautils`, which is
+  the whole point.** On it a **non-superuser `postgres` CAN `CREATE EVENT TRIGGER`** (owned by
+  `postgres`); stock PostgreSQL refuses the same role (`Must be superuser to create an event
+  trigger`). So the F-A16-02b guard IS installable on Supabase. `supautils` is a shared
+  library, not a `pg_extension` row; config `/etc/postgresql-custom/supautils.conf`.
+- **SUPERUSER-CREATOR GAP, measured: a `supabase_admin`-created function in `public` keeps
+  the implicit PUBLIC EXECUTE — a `postgres`-owned guard trigger does NOT fire for it.**
+  Cause = `supautils`'s **`fmgr` hook** (`src/supautils.c`, `supautils_fmgr_hook` →
+  `skip_event_trigger`): for a **superuser** creator, an event-trigger function that is
+  **not superuser-owned** is a no-op. (An earlier note blamed the replication role — WRONG;
+  it is `origin` at fire time. `ENABLE ALWAYS` is irrelevant.) Firing matrix: a
+  `postgres`-owned trigger fires for `postgres`+members, NOT `supabase_admin`; a
+  `supabase_admin`-owned trigger fires for all. **REACHABLE by `anon`/`authenticated`**
+  (fresh Supabase `public` grants them USAGE; a SECURITY DEFINER fn created by
+  `supabase_admin` was invoked via `SET ROLE anon`) — not service_role-only.
+  **CLOSED** by a required owner-run step:
+  `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a second,
+  `supabase_admin`-owned guard. `postgres` cannot install it (`SET ROLE supabase_admin`
+  denied; `ALTER EVENT TRIGGER … OWNER TO` needs a superuser).
+- **A fresh Supabase-image DB is owned by `supabase_admin`**, so `postgres` lacks CREATE on
+  `public`. As the superuser run `ALTER DATABASE <db> OWNER TO postgres; ALTER SCHEMA public
+  OWNER TO pg_database_owner;` (real projects own the DB as `postgres`).
+- **`public`-scoped `pg_default_acl` = 6 rows** (postgres + supabase_admin × r/S/f). "24" is
+  all schemas. `F-A16_EXECUTION_CHECKLISTS.md` wrongly said 24 for the public query.
+- **A `REVOKE` you may not perform only WARNS** (`no privileges could be revoked`); it does
+  not raise. Hence the guard's fail-closed `has_function_privilege` re-check.
+  `has_function_privilege('anon', oid, 'EXECUTE')` is true for a PUBLIC-granted function.
+- Docker NAT → `host` lines are `scram-sha-256`, so disposable login roles need a password.
+  After use: `REVOKE ALL ON SCHEMA public FROM r; DROP OWNED BY r; DROP ROLE r;`.
+- Harness: `tests/db/integration/f-a16.integration.test.ts` (14 scenarios, `pg` over TCP) +
+  `jest.integration.config.ts` + `npm run test:db:integration`; excluded from `jest.db.config.ts`;
+  refuses non-disposable targets and never logs the URL.
+- Numbers @ `5d886452`: integration **14/14** (fresh + 3x re-run); PGlite 20 suites/298;
+  unit 221 suites/2934+1 skipped; typecheck clean; lint 0 errors; build OK.
+- **Integration harness gotcha:** `CREATE DATABASE` does NOT inherit the image's `public`
+  default ACLs (installed at cluster init). `beforeAll` must reproduce them for `postgres`
+  AND `supabase_admin`, or A.1 passes vacuously. Re-run determinism: tests asserting the
+  pre-closure state must `DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard_su` first.
+  Details: `.openhands/memory/2026-11-04.md`.
+
+### Test / tooling gotchas (hit again)
+
+- `tests/db/*.test.ts` are ESM: run `node --experimental-vm-modules
+  node_modules/jest/bin/jest.js -c jest.db.config.ts --runInBand`. Plain `npx jest -c
+  jest.db.config.ts` fails with `import.meta` outside a module.
+- **Structural SQL guards must run against comment-stripped SQL.** A `RAISE HINT` sentence
+  matched `/\bREVOKE[^;]*/i`. Use `/\bREVOKE\s+(?:TRUNCATE|REFERENCES|TRIGGER|ALL)\b[^;']*/`.
+- The F-A16-01 migration raises `F-A16-01: schema public has no tables to remediate` on a
+  PGlite with only non-`public` tables — create a `public` table in such tests.
+- Post-condition / `publicFacingDefaults` helper must exclude the owner self-entry
+  (`a.grantee <> d.defaclrole`) AND treat a per-schema PUBLIC **function** entry as
+  non-leaking (closed forward by the guard, not by the migration).
+- `git stash -u -- . ':!.openhands'` excludes `.openhands/`; but a `git reset --hard` still
+  reverts any *tracked* working-tree edits under `.openhands/` (MEMORY.md is tracked).
+
+### Numbers @ `df90c66`
+
+unit 221 suites / 2922 passed / 1 skipped; db 20 suites / 295 passed; `tsc` clean; eslint 0
+errors (715 pre-existing warnings); build OK. CI on PR #382 all green.
+Details: `.openhands/memory/2026-11-03.md`.

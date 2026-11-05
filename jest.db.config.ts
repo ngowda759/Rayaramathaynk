@@ -16,6 +16,10 @@ const config: Config = {
     "^@/(.*)$": "<rootDir>/$1",
   },
   testMatch: ["**/tests/db/**/*.test.ts"],
+  // The real-PostgreSQL integration suite (tests/db/integration/**) connects over the
+  // wire with `pg` and must NOT run under the in-process PGlite config. It has its own
+  // config and `npm run test:db:integration`.
+  testPathIgnorePatterns: ["<rootDir>/tests/db/integration/"],
   transform: {
     "^.+\\.tsx?$": ["ts-jest", {
       useESM: true,
