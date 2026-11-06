@@ -7,6 +7,10 @@
 #   - serialised by a concurrency group, so two runs cannot overlap;
 #   - a hard project-ref guard runs BEFORE `supabase link` and before any
 #     database-changing command, and refuses any ref but the approved one;
+#   - a config guard runs before `supabase link` and refuses to run when
+#     `[db.migrations] enabled = false` is set in supabase/config.toml — that switch
+#     disables this workflow's `db push` as well as the Supabase GitHub integration's
+#     push-to-production deploy, so a dispatch would otherwise be a silent green no-op;
 #   - `db push` runs only after the guard and a dry-run have both succeeded.
 #
 # NOTE ON ENVIRONMENT PROTECTION: `environment: production` only pauses for a human
@@ -62,6 +66,27 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Fail closed if migrations have been disabled in config.toml. `[db.migrations]
+      # enabled = false` is the documented switch that stops the Supabase GitHub
+      # integration from running migrations on push to the production branch (see
+      # docs/audits/F-A16_INTEGRATION_VERIFICATION.md §13). It is also read by
+      # `supabase db push`, so if it is set here this workflow would silently apply
+      # nothing. Refuse loudly instead of reporting a green no-op.
+      - name: Assert migrations are enabled in config.toml
+        shell: bash
+        run: |
+          if grep -Eq '^[[:space:]]*\[[[:space:]]*db\.migrations[[:space:]]*\]' supabase/config.toml; then
+            if grep -Eq '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*(false|"false")' supabase/config.toml; then
+              echo "ERROR: [db.migrations] enabled = false in supabase/config.toml."
+              echo "This disables both the Supabase GitHub integration's push-to-production"
+              echo "deploy and this workflow's \`supabase db push\`. Re-enable migrations before"
+              echo "dispatching this workflow. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §13."
+              exit 1
+            fi
+          fi
+          echo "supabase/config.toml does not disable migrations."
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:

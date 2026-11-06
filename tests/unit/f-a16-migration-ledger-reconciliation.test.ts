@@ -34,11 +34,11 @@ const versions = files.map(migrationVersionFromFilename);
 describe("F-A16-06 migration ledger reconciliation", () => {
   it("counts exactly the files present (41 at the audit base commit 3048196)", () => {
     // Pinned so a new migration forces a conscious update of the reconciliation doc.
-    // Four F-A16 remediation migrations were added on top of the audit base; the
+    // Five F-A16 remediation migrations were added on top of the audit base; the
     // reconciliation document records both numbers.
     const baseline = 41;
     const proposed = files.filter((f) => /_f_a16_/.test(f)).length;
-    expect(proposed).toBe(4);
+    expect(proposed).toBe(5);
     expect(files.length).toBe(baseline + proposed);
   });
 
@@ -72,13 +72,14 @@ describe("F-A16-06 migration ledger reconciliation", () => {
       const v = migrationVersionFromFilename(f);
       return v !== null && v >= FIRST_VERSION_AFTER_AUDIT;
     });
-    // 14 at the audit base, plus the four F-A16 remediation migrations this PR adds.
+    // 14 at the audit base, plus the five F-A16 remediation migrations this PR adds.
     const proposed = future.filter((f) => /_f_a16_/.test(f));
     expect(proposed).toEqual([
       "20261114990000_f_a16_public_function_execute_guard.sql",
       "20261115000000_f_a16_least_privilege_defaults.sql",
       "20261115000100_f_a16_fail_closed_rls_assertion.sql",
       "20261115000200_f_a16_existing_table_privileges.sql",
+      "20261115000300_f_a16_existing_function_privileges.sql",
     ]);
     expect(future.length - proposed.length).toBe(14);
     expect(future).toContain("20261114000100_donations_updated_at.sql");
@@ -101,6 +102,6 @@ describe("F-A16-06 migration ledger reconciliation", () => {
       "utf8"
     );
     expect(doc.length).toBeGreaterThan(1500);
-    expect(doc).toMatch(/NOT APPLIED TO PRODUCTION/i);
+    expect(doc).toMatch(/PRODUCTION APPLICATION IS PENDING/i);
   });
 });

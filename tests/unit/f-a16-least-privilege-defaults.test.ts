@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * F-A16-02 — structural guard for the proposed least-privilege default-privileges
+ * F-A16-02 — structural guard for the least-privilege default-privileges
  * migration. These assertions read the SQL from disk; they do not connect to any
  * database. They exist so the migration cannot silently lose one of the properties
  * that make it safe to apply:
@@ -141,15 +141,17 @@ describe("F-A16-02 least-privilege default privileges", () => {
     expect(snapAt).toBeLessThan(firstAlter);
   });
 
-  it("converges after the owner-run step instead of failing closed on membership forever", () => {
-    // A role the applier is not a member of must still fail closed WHILE it leaks, but a
-    // non-member the owner-run step already remediated must not block the re-run. The
-    // inline EXISTS check encodes that distinction without creating any helper object.
+  it("treats a role it may not act for as OUT OF SCOPE, not a failure (hosted-Supabase path)", () => {
+    // On hosted Supabase the customer `postgres` can never be a member of `supabase_admin`,
+    // so failing closed on that non-membership would make F-A16-02 unappliable. A role the
+    // applying role may not act for is reported with a NOTICE and the migration proceeds.
+    // The customer-controllable state is still verified in the post-condition (section 3).
     expect(sql).toMatch(/IF NOT pg_catalog\.pg_has_role\(current_user, inv\.candidate, 'MEMBER'\)/);
-    expect(sql).toMatch(/SELECT EXISTS \(/);
-    expect(sql).toMatch(/pg_catalog\.pg_get_userbyid\(d\.defaclrole\) = inv\.candidate/);
-    expect(sql).toMatch(/already remediated by the owner-run step/i);
-    expect(sql).toMatch(/IF leaks THEN/);
+    expect(sql).toMatch(/out_of_scope := out_of_scope \|\| inv\.candidate/);
+    expect(sql).toMatch(/RAISE NOTICE 'F-A16-02: role\(s\) whose public default ACL the applying role may not change/i);
+    // The old fail-closed-on-membership behaviour is gone.
+    expect(sql).not.toMatch(/cannot tighten default privileges for object-creating role\(s\)/);
+    expect(sql).not.toMatch(/already remediated by the owner-run step/i);
   });
 
   it("records (but does not fail on) the implicit PUBLIC EXECUTE residual", () => {
@@ -207,7 +209,8 @@ describe("F-A16-02 least-privilege default privileges", () => {
   });
 
   it("is not marked as applied anywhere", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   describe("object-creating role coverage (fail-closed)", () => {
@@ -271,16 +274,21 @@ describe("F-A16-02 least-privilege default privileges", () => {
       expect(sql).toMatch(/pg_catalog\.pg_has_role\(current_user,\s*inv\.candidate,\s*'MEMBER'\)/i);
     });
 
-    it("raises — and does not merely warn — when a role cannot be covered", () => {
-      expect(sql).toMatch(
+    it("does not fail closed on a role it may not act for (hosted-Supabase convergence)", () => {
+      // A NOTICE (not a RAISE) for the out-of-scope role, so the migration applies on hosted
+      // Supabase. The customer-controllable state still fails closed in section 3.
+      expect(sql).not.toMatch(
         /RAISE EXCEPTION 'F-A16-02: cannot tighten default privileges for object-creating role\(s\): %'/i
       );
-      // A NOTICE would let the migration "succeed" while a role was skipped.
-      expect(sql).not.toMatch(/RAISE NOTICE 'F-A16-02: current role/i);
+      expect(sql).toMatch(/RAISE NOTICE 'F-A16-02: role\(s\) whose public default ACL the applying role may not change/i);
     });
 
-    it("points the operator at the split-out owner-run step in the exception hint", () => {
-      expect(sql).toMatch(/F-A16_OWNER_RUN_supabase_admin_defaults\.sql/);
+    it("scopes both the 0b precondition and the post-condition to customer-controllable owners", () => {
+      // A global or per-schema default owned by a role the applying role cannot act for
+      // (supabase_admin) is out of scope and must not block the migration. Both checks gate
+      // on pg_has_role(current_user, d.defaclrole, 'MEMBER').
+      const occurrences = sql.match(/pg_has_role\(current_user, d\.defaclrole, 'MEMBER'\)/gi) ?? [];
+      expect(occurrences.length).toBeGreaterThanOrEqual(2);
     });
 
     it("asserts a post-condition so a silent no-op revoke cannot pass", () => {
@@ -389,57 +397,54 @@ describe("F-A16-02 least-privilege default privileges", () => {
     });
   });
 
-  describe("split-out owner-run step", () => {
+  describe("hosted-Supabase constraint (no supabase_admin default-privilege change)", () => {
+    it("never issues ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin", () => {
+      // supabase_admin is a platform-internal superuser the customer `postgres` cannot act
+      // for; the migration must not attempt to change its default privileges.
+      expect(sql).not.toMatch(/FOR ROLE\s+supabase_admin/i);
+    });
+
+    it("documents the hosted-Supabase constraint in the file itself", () => {
+      expect(raw).toMatch(/HOSTED-SUPABASE CONSTRAINT/);
+      expect(raw).toMatch(/supabase_admin.*platform-INTERNAL/i);
+      expect(raw).toMatch(/customer `postgres` session is not a superuser and is not a member/i);
+      expect(raw).toMatch(/OUT OF SCOPE/i);
+      expect(raw).toMatch(/No production owner-run `supabase_admin` SQL is\s*\n?-- required|No production owner-run `supabase_admin` SQL is required/i);
+    });
+
+    it("records the out-of-scope role with a NOTICE rather than a RAISE", () => {
+      expect(sql).toMatch(
+        /RAISE NOTICE 'F-A16-02: role\(s\) whose public default ACL the applying role may not change/i
+      );
+    });
+
+    it("still fails closed on the customer-controllable state", () => {
+      // The post-condition remains a hard failure: a role the applying role MAY act for
+      // must not be left with a public-facing default grant.
+      expect(sql).toMatch(
+        /RAISE EXCEPTION 'F-A16-02: default privileges in public are still broader than intended/i
+      );
+    });
+  });
+
+  describe("owner-run files are retained but no longer required for this path", () => {
     const ownerRun = readFileSync(path.join(ROOT, OWNER_RUN_FILE), "utf8");
 
-    it("exists and is marked PROPOSED / NOT APPLIED", () => {
-      expect(ownerRun).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+    it("still exists and is marked locally tested with production application pending", () => {
+      expect(ownerRun).toMatch(/Status: exists and is fully tested locally/);
+      expect(ownerRun).toMatch(/PRODUCTION APPLICATION PENDING/);
     });
 
-    it("refuses to run as a role that may not change the target's defaults", () => {
-      expect(ownerRun).toMatch(/pg_catalog\.pg_has_role\(current_user, target, 'MEMBER'\)/);
-      expect(ownerRun).toMatch(/RAISE EXCEPTION 'F-A16-02: current role % may not change default privileges/i);
-    });
-
-    it("discovers candidates from both sources, not a grantee-filtered search", () => {
-      // It must not re-introduce the filter the migration dropped, and it must use
-      // effective CREATE (inheritance + PUBLIC aware) rather than a direct nspacl join.
-      expect(ownerRun).not.toMatch(/defaclacl::text\s*~/i);
-      expect(ownerRun).not.toMatch(/aclexplode\(n\.nspacl\)/i);
-      expect(ownerRun).toMatch(/has_schema_privilege\(r\.oid, 'public', 'CREATE'\)/i);
-      expect(ownerRun).toMatch(/candidate <> 'pg_database_owner'/i);
-    });
-
-    it("owner-run remediates the global service_role TRUNCATE/TRIGGER/REFERENCES defaults", () => {
-      // The global form must be present, documented as affecting every schema, and paired
-      // with a verification query (4b) that excludes the owner self-entry.
-      expect(ownerRun).toMatch(
-        /REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM service_role/
-      );
-      expect(ownerRun).toMatch(/EVERY schema/i);
-      expect(ownerRun).toMatch(/4b\./);
-      expect(ownerRun).toMatch(/a\.grantee <> d\.defaclrole/);
-    });
-
-    it("documents the owner-reviewed global table/sequence remediation", () => {
-      // The global fix affects every schema, so it must be a documented owner action,
-      // not something the main migration does automatically.
-      expect(ownerRun).toMatch(/GLOBAL table\/sequence defaults/);
-      expect(ownerRun).toMatch(/EVERY schema/i);
-      expect(ownerRun).toMatch(/REVOKE ALL ON TABLES\s+FROM PUBLIC/);
-      expect(ownerRun).toMatch(/REVOKE ALL ON SEQUENCES FROM PUBLIC/);
+    it("the migration no longer points the operator at the owner-run step", () => {
+      // The redesigned migration does not depend on the owner-run step; the hosted-Supabase
+      // constraint makes it inapplicable from the customer role.
+      expect(sql).not.toMatch(/F-A16_OWNER_RUN_supabase_admin_defaults\.sql/);
     });
 
     it("touches only default privileges, never an existing object", () => {
       expect(ownerRun).not.toMatch(/\bALTER\s+TABLE\b/i);
       expect(ownerRun).not.toMatch(/\bCREATE\s+(TABLE|POLICY|INDEX)\b/i);
       expect(ownerRun).not.toMatch(/\bDROP\s+(TABLE|FUNCTION|POLICY|TRIGGER)\b/i);
-    });
-
-    it("verifies the same post-condition as the migration, including global rows", () => {
-      expect(ownerRun).toMatch(/aclexplode\(d\.defaclacl\)/i);
-      expect(ownerRun).toMatch(/d\.defaclnamespace = 'public'::regnamespace/i);
-      expect(ownerRun).toMatch(/d\.defaclnamespace = 0/i);
     });
   });
 });

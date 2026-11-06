@@ -916,3 +916,93 @@ Working log archived; see daily logs. Not this repository.
 unit 221 suites / 2922 passed / 1 skipped; db 20 suites / 295 passed; `tsc` clean; eslint 0
 errors (715 pre-existing warnings); build OK. CI on PR #382 all green.
 Details: `.openhands/memory/2026-11-03.md`.
+
+## F-A16 production preflight — NO-GO (2026-11-05)
+
+- **The sandbox has NO production Supabase access.** `SUPABASE_DB_URL` → non-production
+  "Tournament" project (fp `72b54d98a3dc` ≠ approved `233ede17c9c7`; PG 17.6). Production
+  `db.<ref>.supabase.co` is IPv6-only (no egress here); the pooler TCP port is open but we
+  have no password; `<ref>.supabase.co` `/auth/v1/health` + `/rest/v1/` return 401 without
+  an apikey (none in the sandbox). Production catalog reads are **impossible here**.
+- **`pg` connect gotcha:** strip `?sslmode=…` from the URL *and* pass `ssl:false`, or pg
+  treats `require` as `verify-full` → "self-signed certificate in certificate chain".
+- **`supautils` is a shared library, not an extension.** `SELECT count(*) FROM pg_extension
+  WHERE extname='supautils'` is always 0 (also absent from `pg_available_extensions`).
+  Detect it via `pg_settings`: 19 `supautils.*` GUCs + `session_preload_libraries=supautils`;
+  `supautils.privileged_role=supabase_privileged_role`, `supautils.superuser=supabase_admin`.
+  The operator checklist §11 uses the wrong `pg_extension` probe — fix suggested in
+  `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` §7.
+- Production evidence from audit run `41642607988` is **age-encrypted** (artifact
+  `f-a16-catalog-audit-41642607988`, 903,380 B, expires 2026-12-03) with no key here, so
+  the plan's "24 schema-scoped / 0 global" figures stay *attested*, not re-measurable.
+- Deliverable `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` (verdict NO-GO) left uncommitted
+  for owner review. Details: `.openhands/memory/2026-11-04.md`.
+
+## F-A16 continued — PR #383, integration-verified (2026-11-05)
+
+- **PR #382 was already merged** (`1f719003`); its branch tip `6fc12946` is on `main`. The
+  brief's "expected HEAD `33fe197`" is a PRE-#382 SHA, not an ancestor of `main`. Pushed a
+  NEW branch `security/f-a16-integration-verification` off `origin/main` + NEW PR **#383**.
+- **Docker IS available** in this sandbox (`sudo dockerd &`, then `sudo docker …`). The
+  `supabase/postgres:15.19.0.018` image reproduces the production role model
+  (`postgres.rolsuper=false`, `supabase_admin.rolsuper=true`, `postgres` NOT member of
+  `supabase_admin`, 24 `pg_default_acl` rows, `public` owners postgres+supabase_admin,
+  `supautils` loaded). `npm run test:db:integration` → **17/17 pass** with
+  `FA16_ALLOW_DISPOSABLE_DB=1 FA16_TEST_DB_URL=…127.0.0.1:55432/fa16_test`.
+- **F-A16-02 redesign**: a `public` default-ACL owner the applier may not act for
+  (`supabase_admin`) is now OUT OF SCOPE (`RAISE NOTICE`, proceed) — the old fail-closed
+  design made the migration unappliable on hosted Supabase. Customer-controllable set still
+  fails closed. New **F-A16-07** migration `20261115000300_…` revokes EXECUTE on the two
+  existing world-executable functions. Commit `91341c24`.
+- `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` (NO-GO preflight) is intentionally
+  UNCOMMITTED for owner review. It is NOT on `origin/main`; a *different* tracked file,
+  `F-A16_PRODUCTION_PREFLIGHT_2026-11-02.md`, is. Do not treat it as committed.
+
+## F-A16 PR #383 — review findings B-1/B-2/B-3 fixed (2026-11-06, uncommitted)
+
+- **Durable SQL lesson (expensive):** a `REVOKE` the session may not perform only WARNS
+  (`no privileges could be revoked`, SQLSTATE `01007`) and leaves the routine
+  world-executable — it does NOT raise. Never trust a REVOKE's "success". Correct gate is
+  `pg_has_role(current_user, proowner, 'MEMBER')` (a role IS a member of itself). Resolve
+  the owner via `to_regprocedure(sig)` → `pg_proc.proowner`; verify with
+  `has_function_privilege(proowner::regrole::text, sig, 'EXECUTE')`.
+- **B-1:** F-A16-07 (`20261115000300`) now reads the target owner and fails closed unless
+  the session may act for it, instead of assuming `owner=postgres`. Integration C.4
+  (unmanageable owner → atomic fail-closed) + C.5 (manageable → succeeds) added.
+- **B-2:** the "2026-11-05 read-only production inventory" **never existed** (no run,
+  artifact or commit). Removed every claim that leaned on it. Real prior evidence is the
+  **2026-11-03** catalog audit (attested; raw rows age-encrypted, not readable here).
+- **B-3:** `rls_auto_enable()` owner is **UNRESOLVED** — `F-A15.1` assumed `postgres`,
+  `F-A16_PRODUCTION_PREFLIGHT.md` says `supabase_admin`, `F-A16_REMEDIATION_PLAN.md` marks
+  it an assumption, catalog audit NOT EXECUTED. Marked UNRESOLVED across all docs; the
+  migration is correct under either owner.
+- Counts after fix: unit 222 suites/2948 pass; PGlite db 21/305; integration 19/19;
+  typecheck clean; lint 0 errors; build OK. Committed `15481fed`, pushed, PR #383 updated.
+
+## Automatic production migration on push to `main` (2026-11-06, commit `2de2dba5`)
+
+- **The repo has a Supabase GitHub integration** (the `Supabase Preview` check, app slug
+  `supabase`, app id 330661) configured **in the Supabase dashboard**, NOT in the repo. On
+  every push to `main` it applies pending `supabase/migrations/*.sql` to the production
+  project `kvrkraqjuyxbraccxntk`. It is `skipped` on feature branches, so PR CI looks clean
+  while `main` is migrated. It is currently failing at
+  `20261115000000_f_a16_least_privilege_defaults.sql` (P0001, `supabase_admin`), and `main`
+  gets ~12 pushes/day from the scheduled `panchanga.yml` workflow.
+- **Disabling it is an owner action.** Setting = **Supabase Dashboard → Project Settings →
+  Integrations → GitHub Integration → "Deploy to production"**. No Management API endpoint
+  (`api.supabase.com/api/v1-json` has no `github`/`integration` path). A user token (`ghu_`)
+  cannot manage the App installation (401) and branch-protection/ruleset writes are `403`.
+- **The documented repo-side switch is NOT a usable interlock.** `[db.migrations] enabled =
+  false` in `supabase/config.toml` is documented to stop branching's migrations, but (a) the
+  same key gates the CLI's `supabase db push`, and (b) the **pinned CLI 1.200.0 does not
+  implement the gate at all** — measured on a disposable `postgres:15`, a pending migration
+  applied anyway; the gate string and `migrationsEnabled` are absent from the pinned binary.
+  Only the dashboard toggle is demonstrably effective.
+- Repository-side controls added (all that the repo *can* do): both migration workflows now
+  **fail closed** if `enabled = false` is set (new step *Assert migrations are enabled in
+  config.toml*, before `supabase link`); `config.toml` documents the switch (left OFF);
+  `F-A16_INTEGRATION_VERIFICATION.md` §13 + `F-A16_REMEDIATION_PLAN.md` §14;
+  `tests/unit/f-a16-auto-deploy-controls.test.ts` (19 tests, executes the guard).
+- Counts on `2de2dba5`: unit 223 suites/2967 pass/1 skipped; PGlite db 21/305; typecheck
+  clean; lint 0 errors (715 warnings); build OK. Pushed `15481fed..2de2dba5`; PR #383 body +
+  comment updated. Production NOT accessed; PR not merged.

@@ -2,6 +2,27 @@
 # working directory name when running `supabase init`.
 project_id = "rayaramathaynk"
 
+# ---------------------------------------------------------------------------
+# PRODUCTION AUTO-DEPLOY SWITCH — read this before changing `[db.migrations]`.
+#
+# A Supabase GitHub integration (the "Supabase Preview" check, app slug `supabase`)
+# is configured in the Supabase dashboard for this repository with "Deploy to
+# production" enabled. On every push to `main` it applies any pending
+# supabase/migrations/*.sql to the production project (kvrkraqjuyxbraccxntk),
+# independently of the manually dispatched `.github/workflows/supabase-migrations.yml`.
+#
+# Setting `enabled = false` under `[db.migrations]` is the documented switch that
+# stops that integration from running migrations on push. It is NOT set here today,
+# so the automatic deploy is still active. Turning it off is a REPOSITORY-SIDE
+# control with a coupled side effect: the same setting also gates `supabase db push`
+# in the manual workflow, so disabling it there requires the owner to first disable
+# the dashboard integration (or accept that manual dispatch applies nothing).
+# Both migration workflows now fail closed with a clear message if it is set to false.
+#
+# Do not set `enabled = false` as a standalone fix. Follow
+# docs/audits/F-A16_INTEGRATION_VERIFICATION.md §13 (owner procedure + verification).
+# ---------------------------------------------------------------------------
+
 [api]
 enabled = true
 port = 54321

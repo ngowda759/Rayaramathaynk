@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * F-A16-03 — structural guard for the proposed fail-closed RLS assertion.
+ * F-A16-03 — structural guard for the fail-closed RLS assertion migration.
  *
  * The assertion is additive: it adds a second event trigger that verifies the
  * post-condition of the platform's `ensure_rls`. These tests read the SQL from disk
@@ -85,7 +85,8 @@ describe("F-A16-03 fail-closed RLS assertion", () => {
   });
 
   it("is not marked as applied anywhere", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   describe("precondition (installing this guard without an enabler is a hazard)", () => {

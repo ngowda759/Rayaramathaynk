@@ -1,6 +1,8 @@
 -- Migration: F-A16-02b — forward guard against PUBLIC EXECUTE on new `public` functions
 --
--- Status: PROPOSED. NOT APPLIED. Applying it is an owner action, gated on review.
+-- Status: exists and is fully tested locally (unit + PGlite + real-PostgreSQL
+--         integration). PRODUCTION APPLICATION PENDING.
+--         Applying it is an owner action, gated on review.
 -- See docs/audits/F-A16_REMEDIATION_PLAN.md (findings F-A16-02, F-A16-02b and F-A16-07)
 -- and docs/audits/F-A16-01_PRIVILEGE_MATRIX.md.
 --
@@ -63,15 +65,20 @@
 -- creates in `public` (with no explicit grant) is callable by `anon`/`authenticated`
 -- through PostgREST. The residual is a real, reachable gap — not merely `service_role`.
 --
--- CLOSURE (this migration alone cannot close it; an owner-run step can). Because the
--- executing role here is a superuser, the hook's second rule applies: the guard function
--- must ALSO be superuser-owned, and the trigger must be owned by the same superuser.
--- `postgres` cannot do that (`SET ROLE supabase_admin` -> denied; `ALTER EVENT TRIGGER …
--- OWNER TO` -> denied, owner must be a superuser). The owner-run file
--- `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a second guard,
--- owned by `supabase_admin`, that closes the gap. This migration stays `postgres`-owned so
--- it keeps working for the ordinary `postgres`/member creators, and is the backstop if the
--- owner-run step is not run. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §9.
+-- CLOSURE (this migration alone cannot close it; a superuser-owned guard can, but the
+-- customer cannot create one). Because the executing role here is a superuser, the hook's
+-- second rule applies: the guard function must ALSO be superuser-owned, and the trigger
+-- must be owned by the same superuser. `postgres` cannot do that (`SET ROLE supabase_admin`
+-- -> denied; `ALTER EVENT TRIGGER … OWNER TO` -> denied, owner must be a superuser). The
+-- retained file `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a
+-- second guard, owned by `supabase_admin`, for a platform-assisted path. Whether this
+-- residual is reachable on the production project is UNRESOLVED: no production catalog read
+-- has established the owner of any pre-existing `public` function (the repository carries
+-- contradictory assumptions — see docs/audits/F-A16_INTEGRATION_VERIFICATION.md §10), and no
+-- "2026-11-05 read-only production inventory" exists (no such run, artifact or commit). The
+-- F-A16-07 migration reads each target's owner at apply time rather than assuming it. This
+-- migration stays `postgres`-owned so it keeps working for the ordinary `postgres`/member
+-- creators. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §9.
 --
 -- HOW IT WORKS (measured on PostgreSQL 17 and 18 / PGlite)
 -- --------------------------------------------------------

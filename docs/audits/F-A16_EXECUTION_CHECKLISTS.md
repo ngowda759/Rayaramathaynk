@@ -1,6 +1,8 @@
 # F-A16 — Production preflight, verification and rollback checklists
 
-**Status: NOT EXECUTED. Nothing in this file has been run against production.**
+**Status: NOT EXECUTED. Nothing in this file has been run against production.** The
+migrations it covers **exist and are fully tested locally**; applying them to production is
+still **pending**.
 
 This file is the operator-facing companion to `docs/audits/F-A16_REMEDIATION_PLAN.md`. It
 separates three things the plan deliberately keeps apart:
@@ -19,15 +21,24 @@ remediation that is clearly marked. No statement in this file was executed by th
 | Artifact | Applied by | Why |
 |---|---|---|
 | `20261114990000_f_a16_public_function_execute_guard.sql` | `supabase db push` (automated) | Pure forward guard; changes no existing object. **Requires the ability to `CREATE EVENT TRIGGER`** — see preflight step 11. |
-| `20261115000000_f_a16_least_privilege_defaults.sql` | `supabase db push` (automated), **but it fails closed** if it cannot act for every `public` default-ACL owner | Default privileges are per-owner; the platform `postgres` cannot act for `supabase_admin`. |
+| `20261115000000_f_a16_least_privilege_defaults.sql` | `supabase db push` (automated) | Tightens the `public` default privileges of the applying role (and any role it may act for). A role it may not act for — `supabase_admin` on hosted Supabase — is **out of scope** and reported, not failed closed on. |
 | `20261115000100_f_a16_fail_closed_rls_assertion.sql` | `supabase db push` (automated) | Additive assertion; refuses to install without an enabled enabler. |
 | `20261115000200_f_a16_existing_table_privileges.sql` | `supabase db push` (automated) | Catalog-driven revoke of three privileges; no DML, no policy. |
-| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | **Owner-run, manually** | The role(s) the automated migration could not act for. Run as that role, or as a superuser. |
-| `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` | **Owner-run, manually, as a superuser** | Closes the `supabase_admin` function-creation gap: `supautils` skips a non-superuser-owned guard for a superuser creator, so the guard function must itself be superuser-owned. `postgres` cannot create it. |
-| The global-default remediation (§4 of the owner-run file) | **Owner-run, manually, and only if §Preflight step 5 finds a global entry** | A global statement changes every schema. The 2026-11-03 audit found 0, so this is expected to be a no-op. |
+| `20261115000300_f_a16_existing_function_privileges.sql` | `supabase db push` (automated) | Revokes `EXECUTE` on the two existing world-executable functions (`rls_auto_enable`, `update_updated_at_column`) from `PUBLIC`/`anon`/`authenticated`; keeps `service_role`. |
+| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | **Retained, optional** | No longer required for the revised path: `supabase_admin` is a platform-internal role the customer `postgres` cannot act for. Whether any `supabase_admin`-owned object exists in `public` is UNRESOLVED (no production catalog read; see `F-A16_INTEGRATION_VERIFICATION.md` §10.1). Kept for reference / a platform-assisted path only. |
+| `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` | **Retained, optional** | Closes the `supabase_admin`-created-function gap (a `supautils` `fmgr`-hook skip). Not required for the customer path; the F-A16-07 existing-function step covers pre-existing functions. Kept for reference / a platform-assisted path only. |
+| The global-default remediation (§4 of the owner-run defaults file) | **Owner-run, only if a global default owned by the applying role is found** | A global statement changes every schema. The 2026-11-03 audit found 0, so this is expected to be a no-op. |
 
-The automated migrations are idempotent. The owner-run files are also idempotent and
-re-check their own preconditions, so they cannot silently do nothing.
+The automated migrations are idempotent. The owner-run files remain idempotent and
+re-check their own preconditions, but they are **not required** for the hosted-Supabase
+path (see "Hosted-Supabase constraint" below).
+
+> **Hosted-Supabase constraint.** `supabase_admin` is a platform-internal superuser role.
+> The customer `postgres` session is neither a superuser nor a member of `supabase_admin`,
+> so `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin` is denied and can never be part of
+> a customer-applied migration. F-A16-02 therefore remediates only the default privileges
+> a customer role can own and change, and the two owner-run files are retained for
+> reference / a platform-assisted path, not required for the revised path.
 
 > **Note on `CREATE EVENT TRIGGER`.** Two of the automated migrations install event
 > triggers (`f_a16_public_fn_guard`, `f_a16_assert_public_rls`). `CREATE EVENT TRIGGER` is
@@ -83,10 +94,12 @@ SELECT DISTINCT pg_get_userbyid(d.defaclrole) AS candidate_owner,
  ORDER BY 1;
 ```
 
-If any row is `false`, the automated F-A16-02 migration **will stop** (by design). Plan to
-run `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` as the owner (or a superuser)
-first, then re-run the migration. The 2026-11-03 audit says `supabase_admin` is such an
-owner.
+If any row is `false`, that owner's `public` defaults are **out of scope** for the
+automated F-A16-02 migration (the applying role cannot act for it), which reports it and
+proceeds. On hosted Supabase, `supabase_admin` is such an owner; whether any object exists
+under its defaults is UNRESOLVED (no production catalog read), which is why the runtime
+check gates on the applying role's membership rather than on that question. The owner-run
+defaults file is retained for reference / a platform-assisted path only.
 
 ### 4. Roles that effectively hold `CREATE` on `public` — the creator inventory
 
@@ -213,30 +226,25 @@ the SQL but **not** this platform path. Treat this step as mandatory.
 
 **NOT EXECUTED.** Only an owner runs these.
 
-1. **Automated migrations.** On the normal path, `supabase db push` applies the four
-   migrations in filename order. F-A16-02 is expected to stop with
-   `F-A16-02: cannot tighten default privileges for object-creating role(s): supabase_admin`.
-   That is the intended fail-closed behaviour, not a failure of the change.
+1. **Automated migrations.** On the normal path, `supabase db push` applies the five
+   migrations in filename order (14990000, 15000000, 15000100, 15000200, 15000300). On
+   hosted Supabase the F-A16-02 migration now **applies** (it treats `supabase_admin` as
+   out of scope rather than failing closed), and F-A16-07 revokes `EXECUTE` on the two
+   existing functions. No owner-run step is required for this path.
 
-2. **Owner-run step (default privileges).** Run
-   `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` as `supabase_admin` (or as a
-   superuser). It re-checks `pg_has_role` and raises if the operator still cannot act.
+2. **(Optional) owner-run steps.** The two `docs/audits/F-A16_OWNER_RUN_*.sql` files are
+   **retained for reference / a platform-assisted path** and are **not required** for the
+   customer path: `supabase_admin` is a platform-internal role the customer `postgres`
+   cannot act for, and whether a `supabase_admin`-owned object exists in `public` is
+   UNRESOLVED (no production catalog read). Run them only if the platform provides the
+   superuser capability.
 
-2b. **Owner-run step (function-creation guard).** Run
-   `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` as a superuser
-   (`supabase_admin`). Without it, a function created by `supabase_admin` in `public` keeps
-   the implicit PUBLIC EXECUTE and is reachable by `anon`/`authenticated`. This step is
-   **required**, not optional. Its step 3 (read-only) lists any pre-existing function that
-   still carries the grant; remediate those with the F-A16-07 existing-object step.
+3. **Global defaults.** Only if preflight step 5 finds a global entry **owned by the
+   applying role**: run the owner-run defaults file §4 (global form). Its blast radius is
+   every schema — treat it as a separate change with its own review. A global entry owned
+   by `supabase_admin` is out of scope.
 
-3. **Re-run F-A16-02.** With the owner's defaults tightened, the migration should now pass
-   its section 2 loop and its post-condition.
-
-4. **Global defaults.** Only if preflight step 5 found an entry: run the owner-run file §4
-   (global form). Its blast radius is every schema — treat it as a separate change with its
-   own review.
-
-5. **F-A16-01.** Applies automatically in step 1; verify in §Post-execution.
+4. **Verify.** Run §Post-execution A/B/D and the smoke test.
 
 ---
 
@@ -355,15 +363,33 @@ SELECT t.relname,
 
 Expected: both `true` on every row.
 
-### C. Smoke test the application
+### C. F-A16-07 — existing function privileges
+
+```sql
+-- Neither internal function may be executable by anon/authenticated, and service_role must
+-- keep EXECUTE.
+SELECT p.oid::regprocedure AS fn,
+       has_function_privilege('anon', p.oid, 'EXECUTE')          AS anon,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth,
+       has_function_privilege('service_role', p.oid, 'EXECUTE')  AS svc
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public'
+   AND p.proname IN ('rls_auto_enable', 'update_updated_at_column')
+ ORDER BY 1;
+```
+
+Expected: `anon = false`, `auth = false`, `svc = true` for both rows.
+
+### D. Smoke test the application
 
 * Load the four public pages (events, aaradhane, settings-driven pages, social links) and
   confirm they render rows.
 * Perform one admin write through the dashboard (service-role path) and confirm it
   succeeds.
 * Run one seva RPC through the admin UI.
+* Update any row carrying an `update_updated_at` trigger and confirm `updated_at` advances.
 
-### D. F-A16-03 — RLS assertion
+### E. F-A16-03 — RLS assertion
 
 ```sql
 SELECT evtname, evtenabled FROM pg_event_trigger WHERE evtname = 'f_a16_assert_public_rls';
@@ -392,6 +418,14 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authen
 ```sql
 DROP EVENT TRIGGER IF EXISTS f_a16_public_fn_guard;
 DROP FUNCTION IF EXISTS public.f_a16_public_fn_guard();
+```
+
+### F-A16-07 — restore the two function grants
+
+```sql
+-- Restores the pre-migration over-grant exactly (this is the point of a rollback).
+GRANT EXECUTE ON FUNCTION public.rls_auto_enable() TO PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO PUBLIC, anon, authenticated;
 ```
 
 ### F-A16-03 — drop the assertion

@@ -1,5 +1,5 @@
 /**
- * F-A16-01 / F-A16-02b — structural guards on the proposed migrations.
+ * F-A16-01 / F-A16-02b — structural guards on the migrations.
  *
  * These read the SQL and pin the properties a reviewer must not have to re-derive:
  * that the existing-privileges migration only revokes the three RLS-invisible
@@ -41,8 +41,9 @@ describe("F-A16-01 existing table privileges (structural)", () => {
     .join("\n");
   const stmts = statements(raw);
 
-  it("is marked PROPOSED / NOT APPLIED", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+  it("is marked locally tested with production application pending", () => {
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   it("revokes only TRUNCATE, REFERENCES and TRIGGER", () => {
@@ -147,8 +148,9 @@ describe("F-A16-02b forward function-EXECUTE guard (structural)", () => {
   const raw = fs.readFileSync(path.join(MIGRATIONS, GUARD_FILE), "utf8");
   const sql = raw;
 
-  it("is marked PROPOSED / NOT APPLIED", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+  it("is marked locally tested with production application pending", () => {
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   it("hardens the guard function (SECURITY DEFINER, pinned search_path)", () => {
@@ -208,8 +210,10 @@ describe("F-A16-02b superuser-owned owner-run guard (structural)", () => {
     .map((l) => l.replace(/--.*$/, ""))
     .join("\n");
 
-  it("is marked PROPOSED / NOT APPLIED / NOT EXECUTED", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED\. NOT EXECUTED/);
+  it("is marked locally tested, not executed, production application pending", () => {
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/NOT EXECUTED/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   it("installs a second, distinctly named guard function and trigger", () => {

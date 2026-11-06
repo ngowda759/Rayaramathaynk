@@ -1,6 +1,7 @@
 # F-A16-01 — Table-by-table privilege matrix
 
-**Status: PROPOSED. NOT APPLIED. No production database was read or written by this file.**
+**Status: the migration EXISTS and is FULLY TESTED LOCALLY; PRODUCTION APPLICATION IS
+PENDING. No production database was read or written by this file.**
 
 **Source of truth:** the 2026-11-03 read-only production catalog audit. It recorded, for
 the 67 `public` tables:

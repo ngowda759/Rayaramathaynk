@@ -132,6 +132,16 @@ disprove.
 No finding is marked *Confirmed in production* or *Different from F-A15.1*: neither
 label may be used without a live catalog read.
 
+### 5.1 Ownership of `rls_auto_enable()` — UNRESOLVED
+
+This audit shell does **not** establish the owner of `public.rls_auto_enable()`.
+`F-A15.1_REMEDIATION_PROPOSAL.md` assumed `postgres`; `F-A16_PRODUCTION_PREFLIGHT.md`
+states `supabase_admin`; `F-A16_REMEDIATION_PLAN.md` marks `postgres` as an assumption.
+Because the audit has **not executed**, none of these is confirmed. The owner must be read
+with `SELECT proowner::regrole FROM pg_proc WHERE proname = 'rls_auto_enable'` (see
+`F-A16_INTEGRATION_VERIFICATION.md` §10.1). No "2026-11-05 read-only production inventory"
+exists — no such run, artifact or commit.
+
 ## 6. Evidence layers
 
 This audit keeps three evidence sources strictly separate, so a conclusion from one

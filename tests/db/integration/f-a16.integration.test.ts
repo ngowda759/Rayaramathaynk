@@ -37,6 +37,7 @@ const MIGRATIONS_DIR = path.resolve(__dirname, "..", "..", "..", "supabase", "mi
 
 const GUARD_MIGRATION = "20261114990000_f_a16_public_function_execute_guard.sql";
 const DEFAULTS_MIGRATION = "20261115000000_f_a16_least_privilege_defaults.sql";
+const EXISTING_FN_PRIVS_MIGRATION = "20261115000300_f_a16_existing_function_privileges.sql";
 
 const RAW_URL = process.env.FA16_TEST_DB_URL ?? "";
 /** The superuser role on the disposable target (Supabase image default). */
@@ -481,44 +482,58 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
   });
 
   // ---------------------------------------------------------------------------------
-  // Test B — F-A16-02 owner-specific default privileges
+  // Test B — F-A16-02 owner-specific default privileges (hosted-Supabase model)
   // ---------------------------------------------------------------------------------
   describe("Test B — F-A16-02 owner-specific default privileges", () => {
-    it("B.2 — F-A16-02 as postgres fails closed on supabase_admin and rolls back atomically", async () => {
+    it("B.2 — F-A16-02 as postgres APPLIES, leaves supabase_admin out of scope, and does not change its defaults", async () => {
       if (!haveSuper) {
         console.warn("B.2 skipped: no superuser connection (set FA16_SUPERUSER_ROLE)");
         return;
       }
+      // Capture supabase_admin's public default ACL BEFORE the migration.
       const before = await admin.query<{ rows: string }>(
         `SELECT coalesce(string_agg(defaclacl::text, '|' ORDER BY defaclobjtype), '') AS rows
            FROM pg_catalog.pg_default_acl
-          WHERE defaclnamespace = 'public'::regnamespace`
+          WHERE defaclnamespace = 'public'::regnamespace
+            AND pg_catalog.pg_get_userbyid(defaclrole) = 'supabase_admin'`
       );
-      let failed = false;
-      let message = "";
-      try {
-        await applyAsPostgres(DEFAULTS_MIGRATION);
-      } catch (e) {
-        failed = true;
-        message = e instanceof Error ? e.message : String(e);
-      }
-      expect(failed).toBe(true);
-      expect(message).toMatch(
-        /cannot tighten default privileges for object-creating role\(s\):.*supabase_admin/
-      );
+
+      // The hosted-Supabase path: `postgres` cannot act for `supabase_admin`, but that is
+      // OUT OF SCOPE, so the migration applies rather than failing closed.
+      await expect(applyAsPostgres(DEFAULTS_MIGRATION)).resolves.toBeUndefined();
+
+      // supabase_admin's own defaults are untouched (postgres may not change them).
       const after = await admin.query<{ rows: string }>(
         `SELECT coalesce(string_agg(defaclacl::text, '|' ORDER BY defaclobjtype), '') AS rows
            FROM pg_catalog.pg_default_acl
-          WHERE defaclnamespace = 'public'::regnamespace`
+          WHERE defaclnamespace = 'public'::regnamespace
+            AND pg_catalog.pg_get_userbyid(defaclrole) = 'supabase_admin'`
       );
       expect(after.rows[0]!.rows).toBe(before.rows[0]!.rows);
+
+      // And postgres's OWN public defaults are now least-privilege: no public-facing grantee.
+      const ownLeaks = await admin.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+           FROM pg_catalog.pg_default_acl d, pg_catalog.aclexplode(d.defaclacl) a
+          WHERE d.defaclnamespace = 'public'::regnamespace
+            AND pg_catalog.pg_get_userbyid(d.defaclrole) = 'postgres'
+            AND a.grantee <> d.defaclrole
+            AND (a.grantee = 0
+                 OR pg_catalog.pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')
+                 OR (d.defaclobjtype = 'r'
+                     AND pg_catalog.pg_get_userbyid(a.grantee) = 'service_role'
+                     AND a.privilege_type IN ('TRUNCATE', 'TRIGGER', 'REFERENCES')))`
+      );
+      expect(ownLeaks.rows[0]!.n).toBe(0);
     });
 
-    it("B.3 — the owner-run step tightens supabase_admin's public defaults", async () => {
+    it("B.3 — the owner-run step is optional but still effective if the owner runs it", async () => {
       if (!haveSuper) {
         console.warn("B.3 skipped: no superuser connection");
         return;
       }
+      // Not required for the revised path, but the documented owner-run step still works:
+      // run as the superuser, it tightens supabase_admin's public defaults.
       await runAsSuper(OWNER_RUN_PUBLIC_SQL);
 
       const rows = await admin.query<{ defaclobjtype: string; acl: string }>(
@@ -540,7 +555,7 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
       expect(byType["r"] ?? "").not.toMatch(/service_role=[a-zA-Z]*T/);
     });
 
-    it("B.4 — new objects as supabase_admin follow the model; the superuser function gap is recorded", async () => {
+    it("B.4 — the customer path is not required to remediate supabase_admin; the superuser function gap is recorded", async () => {
       if (!haveSuper) {
         console.warn("B.4 skipped: no superuser connection");
         return;
@@ -586,6 +601,10 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
         `SELECT rolsuper AS r FROM pg_roles WHERE rolname = '${SUPER_ROLE}'`
       );
       if (isSuper.rows[0]!.r) {
+        // A supabase_admin-created function keeps PUBLIC EXECUTE under the postgres-owned
+        // guard (supautils skips it for a superuser creator). Recorded, not a failure of
+        // the customer path — closed forward by the owner-run superuser guard (B.7) or by
+        // the F-A16-07 existing-function step for pre-existing functions.
         expect(r.rows[0]).toMatchObject({ fn_anon: true, fn_auth: true, fn_svc: true });
       }
       await admin.query(`
@@ -595,11 +614,7 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
       `);
     });
 
-    it("B.5 + convergence — the re-run converges after the owner-run, and is idempotent", async () => {
-      if (!haveSuper) {
-        console.warn("B.5 skipped: no superuser connection");
-        return;
-      }
+    it("B.5 — F-A16-02 is idempotent on the hosted-Supabase path", async () => {
       await expect(applyAsPostgres(DEFAULTS_MIGRATION)).resolves.toBeUndefined();
       await expect(applyAsPostgres(DEFAULTS_MIGRATION)).resolves.toBeUndefined();
     });
@@ -672,6 +687,175 @@ describeIf("F-A16 real-PostgreSQL integration", () => {
                 pg_catalog.has_function_privilege('service_role', 'public.fa16_b7_fn()', 'EXECUTE') AS svc`
       );
       expect(after.rows[0]).toMatchObject({ anon: false, auth: false, svc: true });
+    });
+  });
+
+  // ---------------------------------------------------------------------------------
+  // Test C — F-A16-07 existing-function EXECUTE lockdown
+  // ---------------------------------------------------------------------------------
+  describe("Test C — F-A16-07 existing function privileges", () => {
+    it("C.1 — revokes EXECUTE on the two internal functions from PUBLIC/anon/authenticated only", async () => {
+      // Create the two target functions with the platform's broad grant, then apply the
+      // migration as postgres. NOTE: production ownership of rls_auto_enable() is unresolved
+      // (see docs/audits/F-A16_INTEGRATION_VERIFICATION.md §10), so this case creates them
+      // postgres-owned — the manageable-owner case. C.4 covers the unmanageable-owner case.
+      await admin.query(`
+        CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+        RETURNS event_trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$ BEGIN PERFORM 1; END; $$;
+        CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+        RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+        GRANT EXECUTE ON FUNCTION public.rls_auto_enable() TO PUBLIC, anon, authenticated, service_role;
+        GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO PUBLIC, anon, authenticated, service_role;
+      `);
+
+      const before = await admin.query<{ sig: string; anon: boolean; auth: boolean; svc: boolean; pub: boolean }>(
+        `SELECT sig,
+                pg_catalog.has_function_privilege('anon', sig, 'EXECUTE')          AS anon,
+                pg_catalog.has_function_privilege('authenticated', sig, 'EXECUTE') AS auth,
+                pg_catalog.has_function_privilege('service_role', sig, 'EXECUTE')  AS svc,
+                pg_catalog.has_function_privilege('public', sig, 'EXECUTE')        AS pub
+           FROM (VALUES ('public.rls_auto_enable()'), ('public.update_updated_at_column()')) AS t(sig)
+          ORDER BY sig`
+      );
+      for (const row of before.rows) {
+        expect(row).toMatchObject({ anon: true, auth: true, svc: true, pub: true });
+      }
+
+      await applyAsPostgres(EXISTING_FN_PRIVS_MIGRATION);
+
+      const after = await admin.query<{ sig: string; anon: boolean; auth: boolean; svc: boolean; pub: boolean }>(
+        `SELECT sig,
+                pg_catalog.has_function_privilege('anon', sig, 'EXECUTE')          AS anon,
+                pg_catalog.has_function_privilege('authenticated', sig, 'EXECUTE') AS auth,
+                pg_catalog.has_function_privilege('service_role', sig, 'EXECUTE')  AS svc,
+                pg_catalog.has_function_privilege('public', sig, 'EXECUTE')        AS pub
+           FROM (VALUES ('public.rls_auto_enable()'), ('public.update_updated_at_column()')) AS t(sig)
+          ORDER BY sig`
+      );
+      for (const row of after.rows) {
+        expect(row).toMatchObject({ anon: false, auth: false, svc: true, pub: false });
+      }
+    });
+
+    it("C.2 — a trigger that calls update_updated_at_column still fires after the revoke", async () => {
+      await admin.query(`
+        DROP TABLE IF EXISTS public.fa16_c2_tbl;
+        CREATE TABLE public.fa16_c2_tbl (id int primary key, updated_at timestamptz DEFAULT now());
+        CREATE TRIGGER fa16_c2_touch BEFORE UPDATE ON public.fa16_c2_tbl
+          FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+        INSERT INTO public.fa16_c2_tbl (id, updated_at) VALUES (1, '2000-01-01');
+      `);
+      await applyAsPostgres(EXISTING_FN_PRIVS_MIGRATION);
+      await admin.query(`UPDATE public.fa16_c2_tbl SET updated_at = updated_at WHERE id = 1;`);
+      const r = await admin.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM public.fa16_c2_tbl WHERE updated_at > '2000-01-01'`
+      );
+      expect(r.rows[0]!.n).toBe(1);
+      await admin.query(`DROP TABLE IF EXISTS public.fa16_c2_tbl;`);
+    });
+
+    it("C.3 — is idempotent and fails closed when a target is absent", async () => {
+      // Idempotent: a second apply is a no-op.
+      await expect(applyAsPostgres(EXISTING_FN_PRIVS_MIGRATION)).resolves.toBeUndefined();
+      // Fail closed: drop a target and confirm the precondition raises.
+      await admin.query(`DROP FUNCTION IF EXISTS public.update_updated_at_column();`);
+      let failed = false;
+      let message = "";
+      try {
+        await applyAsPostgres(EXISTING_FN_PRIVS_MIGRATION);
+      } catch (e) {
+        failed = true;
+        message = e instanceof Error ? e.message : String(e);
+      }
+      expect(failed).toBe(true);
+      expect(message).toMatch(/F-A16-07: expected function\(s\) not found/);
+      // Restore the function so later tests / cleanup are unaffected.
+      await admin.query(`
+        CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+        RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+      `);
+    });
+
+    it("C.4 — fails closed, atomically, when a target is owned by a role postgres may not act for (B-1)", async () => {
+      if (!haveSuper) {
+        console.warn("C.4 skipped: no superuser connection (set FA16_SUPERUSER_ROLE)");
+        return;
+      }
+      // Recreate rls_auto_enable() owned by the superuser (supabase_admin), world-executable —
+      // the non-postgres-owner case the earlier harness did not cover. Test-only and
+      // disposable; the target function is recreated, never the production one.
+      await admin.query(`DROP FUNCTION IF EXISTS public.rls_auto_enable();`);
+      await runAsSuper(`
+        CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+        RETURNS event_trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$ BEGIN PERFORM 1; END; $$;
+        GRANT EXECUTE ON FUNCTION public.rls_auto_enable() TO PUBLIC, anon, authenticated, service_role;
+      `);
+      // Ensure the other target is also world-executable, so a partial revoke would be visible.
+      await admin.query(
+        `GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO PUBLIC, anon, authenticated, service_role;`
+      );
+
+      const ownerRow = await admin.query<{ owner: string }>(
+        `SELECT pg_catalog.pg_get_userbyid(proowner) AS owner
+           FROM pg_catalog.pg_proc WHERE oid = pg_catalog.to_regprocedure('public.rls_auto_enable()')`
+      );
+      expect(ownerRow.rows[0]!.owner).not.toBe("postgres");
+
+      // The migration must abort with the F-A16-07 ownership error, not silently warn.
+      let failed = false;
+      let message = "";
+      try {
+        await applyAsPostgres(EXISTING_FN_PRIVS_MIGRATION);
+      } catch (e) {
+        failed = true;
+        message = e instanceof Error ? e.message : String(e);
+      }
+      expect(failed).toBe(true);
+      expect(message).toMatch(/F-A16-07: cannot change EXECUTE on target function\(s\) owned by a role this session may not act for/);
+
+      // Atomicity: the precondition runs before any REVOKE, so NEITHER function was changed —
+      // both remain world-executable. A partial revoke would leave update_updated_at_column
+      // locked down; it must not.
+      const after = await admin.query<{ sig: string; anon: boolean; auth: boolean }>(
+        `SELECT sig,
+                pg_catalog.has_function_privilege('anon', sig, 'EXECUTE')          AS anon,
+                pg_catalog.has_function_privilege('authenticated', sig, 'EXECUTE') AS auth
+           FROM (VALUES ('public.rls_auto_enable()'), ('public.update_updated_at_column()')) AS t(sig)
+          ORDER BY sig`
+      );
+      for (const row of after.rows) {
+        expect(row).toMatchObject({ anon: true, auth: true });
+      }
+    });
+
+    it("C.5 — succeeds when the target owner is manageable (postgres owns it) (B-1)", async () => {
+      // Restore rls_auto_enable() owned by postgres, world-executable, then apply.
+      await admin.query(`DROP FUNCTION IF EXISTS public.rls_auto_enable();`);
+      await admin.query(`
+        CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+        RETURNS event_trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$ BEGIN PERFORM 1; END; $$;
+        GRANT EXECUTE ON FUNCTION public.rls_auto_enable() TO PUBLIC, anon, authenticated, service_role;
+        GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO PUBLIC, anon, authenticated, service_role;
+      `);
+      const ownerRow = await admin.query<{ owner: string }>(
+        `SELECT pg_catalog.pg_get_userbyid(proowner) AS owner
+           FROM pg_catalog.pg_proc WHERE oid = pg_catalog.to_regprocedure('public.rls_auto_enable()')`
+      );
+      expect(ownerRow.rows[0]!.owner).toBe("postgres");
+
+      await expect(applyAsPostgres(EXISTING_FN_PRIVS_MIGRATION)).resolves.toBeUndefined();
+
+      const after = await admin.query<{ sig: string; anon: boolean; auth: boolean; svc: boolean }>(
+        `SELECT sig,
+                pg_catalog.has_function_privilege('anon', sig, 'EXECUTE')          AS anon,
+                pg_catalog.has_function_privilege('authenticated', sig, 'EXECUTE') AS auth,
+                pg_catalog.has_function_privilege('service_role', sig, 'EXECUTE')  AS svc
+           FROM (VALUES ('public.rls_auto_enable()'), ('public.update_updated_at_column()')) AS t(sig)
+          ORDER BY sig`
+      );
+      for (const row of after.rows) {
+        expect(row).toMatchObject({ anon: false, auth: false, svc: true });
+      }
     });
   });
 });

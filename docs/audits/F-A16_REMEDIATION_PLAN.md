@@ -1,6 +1,8 @@
 # F-A16 — Least-Privilege Remediation Plan
 
-**Status: PROPOSED. NOT APPLIED TO PRODUCTION.**
+**Status: the migrations EXIST and are FULLY TESTED LOCALLY (unit + PGlite + real-PostgreSQL
+integration). PRODUCTION APPLICATION IS PENDING — nothing here has been applied to any
+database.**
 
 **Repository:** `ngowda759/Rayaramathaynk` · **Base commit:** `6f371ae` (`main`)
 **Audit source:** the 2026-11-03 read-only production catalog audit, plus
@@ -20,8 +22,15 @@ plan previously had to assume, and three of them changed the design:
   The implicit `PUBLIC` EXECUTE residual is closed **forward** instead
   (`20261114990000_f_a16_public_function_execute_guard.sql`).
 * `postgres` **and** `supabase_admin` both own default privileges in `public`, and
-  `postgres` cannot manage `supabase_admin`'s through current membership. The owner-run
-  step is therefore not hypothetical; it is expected.
+  `postgres` cannot manage `supabase_admin`'s through current membership. **Correction
+  (2026-11-05):** `supabase_admin` is a platform-internal superuser role; the customer
+  `postgres` session can never act for it, so an owner-run step from the customer role is
+  not possible. It is therefore **out of scope**, not a required manual step. Whether any
+  object exists under `supabase_admin`'s `public` defaults is **UNRESOLVED** — no production
+  catalog read has established it, and there is no "2026-11-05 read-only production
+  inventory" (no such run, artifact or commit; see
+  `F-A16_INTEGRATION_VERIFICATION.md` §10.1–10.2). The migration reports the owner and
+  proceeds; the customer-controllable state is still verified and fails closed.
 * `anon` and `authenticated` hold `REFERENCES`, `TRIGGER`, `TRUNCATE` on numerous
   existing tables (and `service_role` on multiple). F-A16-01 is no longer deferred: a
   narrow, reviewable migration now exists
@@ -46,13 +55,13 @@ unread.
 | Finding | Severity | Confirmed? | Remediation in this PR | Applied? |
 |---|---|---|---|---|
 | F-A16-01 — broad existing table grants to `anon`/`authenticated` | **High** | Confirmed (2026-11-03 audit: REFERENCES/TRIGGER/TRUNCATE on numerous tables) | `20261115000200_f_a16_existing_table_privileges.sql` — revokes only the three RLS-invisible privileges, catalog-driven, with pre/post-conditions; DML revokes remain deferred with the matrix in `F-A16-01_PRIVILEGE_MATRIX.md` | No |
-| F-A16-02 — broad default ACLs for future objects | **High** | Confirmed (24 schema-scoped entries, 0 global) | `20261115000000_f_a16_least_privilege_defaults.sql` — **`public`-scoped only**, enumerates every `public` default-ACL owner and fails closed if one cannot be covered; `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` for the split-out owner step | No |
+| F-A16-02 — broad default ACLs for future objects | **High** | Confirmed (24 schema-scoped entries, 0 global) | `20261115000000_f_a16_least_privilege_defaults.sql` — **`public`-scoped only**, tightens the applying role's own `public` defaults and those of any role it may act for; a role it may not act for (`supabase_admin`) is out of scope and reported. `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` is retained as an optional reference path | No |
 | F-A16-02b — implicit `PUBLIC` EXECUTE on future functions | **Medium** | Confirmed (PostgreSQL default; the audit found no global default to revoke) | `20261114990000_f_a16_public_function_execute_guard.sql` — forward event-trigger guard, scoped to `public` | No |
 | F-A16-03 — RLS auto-enable fail-open | **Medium** | Confirmed (function body in F-A15.1) | `20261115000100_f_a16_fail_closed_rls_assertion.sql` | No |
 | F-A16-04 — `seva_list_items` RLS, zero policies | **Info / by design** | Confirmed (migration + app code) | Documented as intentional; guard tests added | N/A |
 | F-A16-05 — private Storage bucket, zero policies | **Info / by design** | Confirmed (app uses Vercel Blob) | Documented; guard tests added | N/A |
 | F-A16-06 — migration ledger reconciliation | **Info** | Confirmed (repo files) | Reconciliation report + guard test | N/A |
-| F-A16-07 — `PUBLIC` EXECUTE on two existing functions | **Low** | Confirmed (2026-11-03 audit: `rls_auto_enable`, `update_updated_at_column`) | Reviewed in §12; no revoke applied (owner decision) | No |
+| F-A16-07 — `PUBLIC` EXECUTE on two existing functions | **Low** | Confirmed (2026-11-03 audit: `rls_auto_enable`, `update_updated_at_column`) | `20261115000300_f_a16_existing_function_privileges.sql` — revokes `EXECUTE` from `PUBLIC`/`anon`/`authenticated`, keeps `service_role` | No |
 
 The guiding principle is the one in the task brief: **a smaller, evidence-backed
 remediation over broad permission changes.** F-A16-02 changes only *future-object*
@@ -133,8 +142,10 @@ reproductions are now permanent tests (`tests/db/f-a16-least-privilege.test.ts`)
 3. **Ownership — `ALTER DEFAULT PRIVILEGES FOR ROLE x` needs membership in `x`.** A
    superuser counts as a member; a plain role is refused for any role it is not a member
    of. The audit found `postgres` and `supabase_admin` both own `public` defaults and that
-   `postgres` cannot manage `supabase_admin`'s, so the migration enumerates owners and
-   fails closed on any it cannot act for.
+   `postgres` cannot manage `supabase_admin`'s. Because `supabase_admin` is a
+   platform-internal superuser the customer role can never act for (2026-11-05 correction),
+   the migration tightens the defaults of every owner it **may** act for and treats the rest
+   as out of scope, reporting them via `RAISE NOTICE` rather than failing closed.
 
 ### 2.4 Proposed least-privilege defaults
 
@@ -149,9 +160,9 @@ carries `IN SCHEMA public`; the file issues **no** global statement:
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated` | no public role can advance a sequence |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC` | as above, for a `PUBLIC` default (no-op today) |
 | `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated` | removes the platform's explicit grant to those roles |
-| `DO` block enumerating candidate creators from `pg_default_acl` rows for `public` (**no grantee filter**) and repeating the above `FOR ROLE <creator>` | covers a creator whose public default ACL names only some other grantee |
-| `DO` block raising if a candidate creator cannot be covered | the migration **fails closed** and rolls back; F-A16-02 is never described as complete while a role was skipped |
-| `DO` block verifying the post-condition via `aclexplode`, including global (`ns=0`) rows | a silent no-op revoke cannot pass |
+| `DO` block enumerating candidate creators from `pg_default_acl` rows for `public` (**no grantee filter**) and repeating the above `FOR ROLE <creator>` for each owner the applying role may act for | covers a creator whose public default ACL names only some other grantee |
+| `DO` block reporting (via `RAISE NOTICE`) a creator the applying role may **not** act for | that role is out of scope on hosted Supabase (e.g. `supabase_admin`); the customer-controllable state is still verified below |
+| `DO` block verifying the post-condition via `aclexplode`, including global (`ns=0`) rows, for owners the applying role may act for | a silent no-op revoke cannot pass |
 | `DO` block failing if a public-facing role holds a default ACL in a **non-`public`** schema | positive assertion that the change stayed inside `public` |
 | `DO` block raising `NOTICE` (not an error) when the forward guard is absent | records the implicit-`PUBLIC`-EXECUTE residual rather than pretending it is gone |
 
@@ -328,21 +339,29 @@ The residual risk from the first two bullets is recorded in §2.6 and covered by
 operational control named there.
 
 Section 2 of the migration discovers the owner set from `pg_default_acl`, applies the
-revokes for each owner it may act for, and **raises** if any is left. The raise rolls the
-whole migration back (`ALTER DEFAULT PRIVILEGES` is transactional — verified on PGlite), so
-the database is never left half-tightened. The exception hint names the split-out owner-run
-step:
+revokes for each owner it may act for, and **reports** (not raises on) any owner it may not
+act for. On hosted Supabase that is the expected, permanent state for `supabase_admin` — the
+customer `postgres` session can never be a member of a platform-internal superuser role — so
+failing closed on it would make F-A16-02 unappliable. The customer-controllable state — every
+`public` default ACL owned by the applying role or a role it may act for — is still verified
+in section 3 and **fails closed** if it is not least-privilege. `ALTER DEFAULT PRIVILEGES` is
+transactional (verified on PGlite), so a section-3 failure rolls the whole migration back.
+
+The two owner-run files are therefore **retained for reference / a platform-assisted path**,
+not required for the customer path:
 
 * `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` — the same tightening, run as
-  the role that owns the defaults (or as a superuser). It re-checks
-  `pg_has_role(current_user, target, 'MEMBER')` and raises if the operator still cannot
-  act, so it cannot silently do nothing either.
+  the role that owns the defaults (or as a superuser), only if the platform provides that
+  capability. It re-checks `pg_has_role(current_user, target, 'MEMBER')` and raises if the
+  operator still cannot act, so it cannot silently do nothing either.
 
-The precondition for applying the migration is therefore: **run it as a role that is a
-member of every `public` default-ACL owner, or accept that it will stop and hand you the
-owner-run step.** The 2026-11-03 audit says the latter is expected: `postgres` cannot manage
-`supabase_admin`'s defaults. Section 9 item 7 is the read-only catalog query that confirms
-it.
+The precondition for applying the migration is therefore simply that it runs as the
+migration applier (`postgres`). It no longer needs to be a member of every `public`
+default-ACL owner, because a non-member owner is out of scope. Whether any
+`supabase_admin`-owned object exists in `public` is **UNRESOLVED** (no production catalog
+read), so the migration does not depend on that claim: it gates the runtime checks on the
+applying role's own membership rather than on what objects exist. Section 9 item 7 is the
+read-only catalog query that would confirm the object set.
 
 ### 2.5 Explicitly preserved backend privileges
 
@@ -389,13 +408,14 @@ it. The controls are:
 * §9 item 7 is the read-only query that re-checks the owner set, so a future reviewer can
   confirm nothing new appeared without acting for it.
 
-**Creator inventory coverage (corrected 2026-11-03).** Section 2 now enumerates both
-classes of creator: (A) default-ACL owners, which it revokes for and fails closed on, and
-(B) effective-CREATE holders with no default ACL, which it reports via `RAISE NOTICE`
-(§2.4.2b). Class (B) needs no revoke — its tables/sequences are owner-only by the hardwired
-default — and its function residual is the guard's job. The one thing the catalog still
-cannot enumerate is a role that **does not exist yet**; that is a provisioning event, and
-the controls above (deliberate reviewed act; forward guard) cover it.
+**Creator inventory coverage (corrected 2026-11-03; scope corrected 2026-11-05).** Section
+2 enumerates both classes of creator: (A) default-ACL owners, which it revokes for when it
+may act for them and reports when it may not, and (B) effective-CREATE holders with no
+default ACL, which it reports via `RAISE NOTICE` (§2.4.2b). Class (B) needs no revoke — its
+tables/sequences are owner-only by the hardwired default — and its function residual is the
+guard's job. The one thing the catalog still cannot enumerate is a role that **does not exist
+yet**; that is a provisioning event, and the controls above (deliberate reviewed act; forward
+guard) cover it.
 
 ### 2.7 What this finding cannot prove without a live read
 
@@ -403,15 +423,15 @@ the controls above (deliberate reviewed act; forward guard) cover it.
   2026-11-03 audit recorded **24 schema-scoped entries and 0 global entries**; the exact
   per-role breakdown still needs the §9 item 6 read.
 * The **complete** set of `public` default-ACL owners. The migration reads the catalog at
-  apply time and fails closed if it cannot cover what it finds, but the *list* still needs a
-  live read to plan the owner-run step (§9 item 7).
+  apply time and reports any owner it may not act for, but the *list* still needs a live read
+  to document which owner(s) are out of scope (§9 item 7).
 * Whether any **global** (`ns=0`) function default ACL grants `EXECUTE` directly to
-  `anon`/`authenticated`. Section 0b checks for this shape; the 2026-11-03 audit recorded 0
-  global entries, and §9 item 7b confirms.
+  `anon`/`authenticated`. Section 0b checks for this shape (for owners the applying role may
+  act for); the 2026-11-03 audit recorded 0 global entries, and §9 item 7b confirms.
 * Whether the applying role is a member of every `public` default-ACL owner. The 2026-11-03
-  audit says it is **not** (`postgres` cannot manage `supabase_admin`'s), so the migration is
-  expected to stop and the operator must run the owner-run step. This is a deliberate
-  fail-closed outcome, not a defect.
+  audit says it is **not** (`postgres` cannot manage `supabase_admin`'s); under the corrected
+  design that owner is out of scope, reported via `RAISE NOTICE`, and does not stop the
+  migration.
 * **What any future session can actually do.** Default ACLs describe what a creating role
   stamps on new objects; effective privileges also depend on inherited memberships,
   `PUBLIC` and `BYPASSRLS`. Nothing here is a substitute for a live effective-privilege
@@ -535,7 +555,7 @@ semantics* — event-trigger firing order, `ddl_command_end` behaviour for
 | Event triggers fire in name order for the same event | **Verified** (PGlite; two triggers created in reverse name order still fired by name) | not needed — PostgreSQL behaviour |
 | The enabler trigger is named `ensure_rls` | **Assumption** (Supabase docs + F-A15.1) | `SELECT evtname, evtenabled, evtfoid::regprocedure FROM pg_event_trigger` |
 | `ensure_rls` is enabled | **Unverified** — the audit could not read it (F-A15.1 §12 item 5) | same query, read `evtenabled` |
-| `ensure_rls`'s function is owned by `postgres` and is `SECURITY DEFINER` | **Assumption** (F-A15.1 §4.1) | `SELECT proowner::regrole, prosecdef FROM pg_proc WHERE proname='rls_auto_enable'` |
+| `ensure_rls`'s function is owned by `postgres` and is `SECURITY DEFINER` | **UNRESOLVED / Assumption** (F-A15.1 §4.1 assumed `postgres`; the F-A16 preflight states `supabase_admin`; no confirming read) | `SELECT proowner::regrole, prosecdef FROM pg_proc WHERE proname='rls_auto_enable'` — see `F-A16_INTEGRATION_VERIFICATION.md` §10.1 |
 | The `f_a16_assert_public_rls` name sorts after `ensure_rls` | **Verified by construction** (`e` < `f`) | `SELECT evtname FROM pg_event_trigger ORDER BY evtname` |
 | The applying role may create an event trigger | **Unverified for the target project** — `CREATE EVENT TRIGGER` is superuser-only in stock PostgreSQL; Supabase's `postgres` relies on `supautils`. The repo's tests run as superuser and cannot load `supautils`, so they do not prove this path | preflight `F-A16_EXECUTION_CHECKLISTS.md` §11 (reads `rolsuper`, `supautils`, and whether any event trigger exists) |
 | Supabase PostgreSQL supports `ddl_command_end` event triggers | **Confirmed** — this is how the platform's own `ensure_rls` works | not needed |
@@ -937,7 +957,7 @@ function is anon-executable through the implicit `PUBLIC` EXECUTE even after F-A
 | **applying the assertion** with no enabled enabler | n/a | migration **refused** (precondition) — no guard installed |
 | `CREATE TABLE IF NOT EXISTS` on an existing table | no-op | no-op (event does not fire) |
 
-### 8.3 Existing table grants — F-A16-01 (proposed, not executed)
+### 8.3 Existing table grants — F-A16-01 (migration exists, locally tested; production application pending)
 
 | Table class | Role | Current (from audit) | After this migration |
 |---|---|---|---|
@@ -1025,32 +1045,45 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 
 | File | Purpose |
 |---|---|
-| `supabase/migrations/20261114990000_f_a16_public_function_execute_guard.sql` | F-A16-02b forward function-EXECUTE guard, proposed, not applied |
-| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | F-A16-02, proposed, not applied |
-| `supabase/migrations/20261115000100_f_a16_fail_closed_rls_assertion.sql` | F-A16-03, proposed, not applied |
-| `supabase/migrations/20261115000200_f_a16_existing_table_privileges.sql` | F-A16-01, proposed, not applied |
+| `supabase/migrations/20261114990000_f_a16_public_function_execute_guard.sql` | F-A16-02b forward function-EXECUTE guard — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | F-A16-02 — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000100_f_a16_fail_closed_rls_assertion.sql` | F-A16-03 — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000200_f_a16_existing_table_privileges.sql` | F-A16-01 — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000300_f_a16_existing_function_privileges.sql` | F-A16-07 — exists, locally tested, production application pending |
 | `tests/unit/f-a16-least-privilege-defaults.test.ts` | structural guard for F-A16-02 |
 | `tests/unit/f-a16-existing-privileges.test.ts` | structural guard for F-A16-01 / F-A16-02b |
+| `tests/unit/f-a16-existing-function-privileges.test.ts` | structural guard for F-A16-07 |
 | `tests/unit/f-a16-fail-closed-rls-assertion.test.ts` | structural guard for F-A16-03 |
 | `tests/unit/f-a16-seva-list-items-and-storage.test.ts` | F-A16-04 / F-A16-05 guards |
 | `tests/unit/f-a16-migration-ledger-reconciliation.test.ts` | F-A16-06 guard |
 | `tests/db/f-a16-least-privilege.test.ts` | behavioural PGlite tests for F-A16-02 / F-A16-03 |
 | `tests/db/f-a16-existing-privileges.test.ts` | behavioural PGlite tests for F-A16-01 / F-A16-02b |
-| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | F-A16-02 split-out owner-run step for owners the migration could not act for |
+| `tests/db/f-a16-existing-function-privileges.test.ts` | behavioural PGlite tests for F-A16-07 |
+| `tests/db/integration/f-a16.integration.test.ts` | real-PostgreSQL integration tests (event trigger, default privileges, F-A16-07) |
+| `docs/audits/F-A16_INTEGRATION_VERIFICATION.md` | real-PostgreSQL integration verification report |
+| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | F-A16-02 optional reference path for platform-internal owners |
+| `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` | F-A16-02b optional reference path for the superuser-created-function gap |
 | `docs/audits/F-A16-01_PRIVILEGE_MATRIX.md` | F-A16-01 table-by-table privilege matrix (incl. the deferred DML phase) |
 | `docs/audits/F-A16_EXECUTION_CHECKLISTS.md` | production preflight, post-execution verification, and rollback checklists |
 | `docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md` | F-A16-06 reconciliation report |
 | `docs/audits/F-A16_REMEDIATION_PLAN.md` | this document |
 
-**NOT APPLIED TO PRODUCTION.** No migration in this change has been applied to any
-database, and no production credential was used.
+**PRODUCTION APPLICATION IS PENDING.** No migration in this change has been applied to any
+database, and no production credential was used. Each migration **exists** in the working
+tree and is **fully tested locally** (unit structural guards, PGlite behavioural tests, and
+the real-PostgreSQL integration suite in `docs/audits/F-A16_INTEGRATION_VERIFICATION.md`).
+"Tested locally" is not "applied to production": the two are separate states, and only the
+first is true today.
 
 ---
 
 ## 12. F-A16-07 — `PUBLIC` EXECUTE on two existing functions
 
 The 2026-11-03 audit found `PUBLIC` EXECUTE on exactly two functions:
-`rls_auto_enable` and `update_updated_at_column`.
+`rls_auto_enable` and `update_updated_at_column`. **Update (2026-11-05):** both are now
+remediated by `supabase/migrations/20261115000300_f_a16_existing_function_privileges.sql`,
+which revokes `EXECUTE` from `PUBLIC`, `anon` and `authenticated` and keeps `service_role`.
+The reasoning below is retained as the justification for that migration.
 
 ### 12.1 `rls_auto_enable`
 
@@ -1059,11 +1092,10 @@ The 2026-11-03 audit found `PUBLIC` EXECUTE on exactly two functions:
 * **Caller:** an **event trigger** (`ensure_rls`), not a client. An event trigger executes
   its function as the role that owns the trigger (the owner of `ensure_rls`), not as the
   session role, so a `PUBLIC` EXECUTE grant is **not** required for it to fire.
-* **Recommendation:** the `PUBLIC` EXECUTE grant is **not necessary**. It is not revoked
-  here because (a) the function is platform-managed, and revoking a grant on a
-  Supabase-owned object is outside this change's scope, and (b) leaving it does not widen
-  the attack surface: the function only enables RLS, and only an event trigger invokes it.
-  Recorded as an owner decision, not a blind revoke.
+* **Decision:** the `PUBLIC` EXECUTE grant is **not necessary** and is revoked. Revoking a
+  grant on a function (not the function itself) is within F-A16's scope: it removes the
+  client-reachable surface without altering the platform-owned object or its event trigger.
+  The function only enables RLS, and only an event trigger invokes it.
 
 ### 12.2 `update_updated_at_column`
 
@@ -1091,19 +1123,18 @@ The 2026-11-03 audit found `PUBLIC` EXECUTE on exactly two functions:
   (This is the same set the forward guard uses, so the guard and the one-off revoke agree.)
   Verified: the trigger still fires after the revoke (the trigger machinery does not consult
   the session role's EXECUTE), and `service_role` keeps EXECUTE.
-* **Recommendation:** the corrected revoke is **safe** and is the least-privilege position,
-  but it is **not included in this change** because the function is created by a migration
-  outside F-A16 and a revoke on it belongs with the function's own owner review. It must be
-  applied *after* confirming no client code calls the function directly (a repo search finds
-  none).
+* **Decision:** the corrected revoke is applied by
+  `20261115000300_f_a16_existing_function_privileges.sql`. It is the least-privilege
+  position, the trigger still fires after it, and `service_role` keeps EXECUTE. A repo
+  search finds no client code that calls the function directly.
 
 ### 12.3 Why this is not a blind revoke
 
 Both functions are invoked by the trigger machinery, which runs as the object owner and
 does not consult the session role's `EXECUTE` privilege. That is why EXECUTE can be revoked
-without breaking them. It is *not* done automatically here because both are pre-existing,
-non-F-A16 objects and a revoke on them is an owner-reviewed change. The forward guard (§2.4)
-is what prevents the same pattern arising on **new** functions — and it uses `ON ROUTINE`
+without breaking them. The migration revokes only the grant, never the function, so the
+platform-owned `rls_auto_enable` and its event trigger are untouched. The forward guard
+(§2.4) prevents the same pattern arising on **new** functions — and it uses `ON ROUTINE`
 (not `ON FUNCTION`) so a new **procedure** is covered too (see §2.4.2c).
 
 ---
@@ -1114,3 +1145,26 @@ The full production preflight checklist, post-execution verification checklist a
 procedure are in `docs/audits/F-A16_EXECUTION_CHECKLISTS.md`. They are separate from this
 plan so an operator can follow them without reading the design rationale. Every step is
 marked **NOT EXECUTED** until an owner runs it.
+
+---
+
+## 14. Automatic production migration on `main` (rollout constraint)
+
+This plan assumes an operator controls when migrations reach production. That assumption is
+false today: a **Supabase GitHub integration** (`Supabase Preview`, app slug `supabase`)
+applies pending `supabase/migrations/*.sql` to the production project on **every push to
+`main`**, independently of the manually dispatched `.github/workflows/supabase-migrations.yml`.
+It is currently failing at `20261115000000_f_a16_least_privilege_defaults.sql`, and `main`
+receives roughly a dozen pushes a day (the scheduled `panchanga.yml` commits), so the
+F-A16 files are being attempted on a cadence no operator chose.
+
+Merging this branch to `main` therefore **fires the automatic deploy**. Before merging any
+F-A16 migration, an owner must disable the integration's **Deploy to production** option
+(Supabase Dashboard → Project Settings → Integrations → GitHub Integration), or accept that
+the migrations apply without the preflight and dry-run steps in §13. This cannot be fixed
+from the repository: there is no Management API endpoint for the setting, and the
+`config.toml` `[db.migrations] enabled = false` switch (a) is not honoured by the pinned CLI
+1.200.0 and (b) would also disable the manual workflow.
+
+Full analysis, evidence, owner procedure and the repository-side guards added for it:
+`docs/audits/F-A16_INTEGRATION_VERIFICATION.md` §13.
