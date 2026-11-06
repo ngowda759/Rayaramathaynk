@@ -1,8 +1,11 @@
 # F-A16 — Least-Privilege Remediation Plan
 
 **Status: the migrations EXIST and are FULLY TESTED LOCALLY (unit + PGlite + real-PostgreSQL
-integration). PRODUCTION APPLICATION IS PENDING — nothing here has been applied to any
-database.**
+integration), and they were APPLIED TO PRODUCTION on 2026-11-06 and verified read-only
+afterwards.** See `docs/audits/F-A16_PRODUCTION_VERIFICATION_2026-11-06.md` for the
+post-application evidence. One documented residual remains open and platform-side: the
+`supabase_admin` `public` default privileges (finding R-1), which the customer `postgres`
+role cannot change and which no object in `public` currently inherits.
 
 **Repository:** `ngowda759/Rayaramathaynk` · **Base commit:** `6f371ae` (`main`)
 **Audit source:** the 2026-11-03 read-only production catalog audit, plus
