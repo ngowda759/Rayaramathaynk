@@ -2,107 +2,129 @@
 
 **Audit Date:** 2026-11-06  
 **Audit Scope:** Phase 1 Read-Only Identity & Authentication Reconciliation  
-**Branch:** `auth-phase1-identity-audit`  
+**Branch:** `auth-phase1-identity-audit` (PR #387)  
 **Target Environments:**  
-- **Supabase Target:** `kvrkraqjuyxbraccxntk` (PostgreSQL 17.6, region `ap-south-1`)
-- **Firebase Legacy:** `sri-raghavendra-mutt` (Google Cloud multi-region)
+- **Supabase Production Project:** `kvrkraqjuyxbraccxntk` (PostgreSQL 17.6, region `ap-south-1`)
+- **Firebase Project:** `sri-raghavendra-mutt` (Google Cloud multi-region)
 **Live Data Modified:** **NO** (Strict read-only verification)
 
 ---
 
-## 1. Executive Summary & Identity Reconciliation Matrix
+## 1. Authentication Systems: Current Coexistence vs. Target Architecture
 
-This diagnostic reconciles identities across the four authorization stores operating in the repository:
-1. **Firebase Authentication** (Legacy Auth provider for public devotees, general admins, and seva staff)
-2. **Supabase Authentication** (Native Auth provider for Raya AI administration)
-3. **Supabase `public.users`** (Authoritative application RBAC table)
-4. **Supabase `public.staff`** (Authoritative counter terminal operations and POS staff table)
+The repository currently operates **two distinct authentication systems** with strictly segregated operational domains:
 
-### Identity Cross-Reference Summary
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 CURRENT REPOSITORY STATE                                │
+├─────────────────────────────────────────────┬───────────────────────────────────────────┤
+│ 1. Firebase Authentication [PRODUCTION GATE]│ 2. Supabase Authentication [SCOPED]       │
+├─────────────────────────────────────────────┼───────────────────────────────────────────┤
+│ • Devotee Portal: /login, /register, profile│ • Scoped ONLY to Raya AI administration   │
+│ • General Admin Portal: /admin/**           │   (/admin/ai/** and /api/ai/**)           │
+│ • General Admin API: /api/admin/**          │ • Session: @supabase/ssr cookies / Bearer │
+│ • Seva Entry POS & Desk: /seva/**           │ • Auth Source: Supabase auth.users        │
+│ • Seva API: /api/seva/**                    │ • Role Source: public.users.auth_user_id  │
+│ • Token: Firebase ID token Bearer           │ • Independent of Firebase SDKs            │
+│ • Role Source: public.users.firestore_id    │                                           │
+│   and Firestore users/{uid}                 │                                           │
+└─────────────────────────────────────────────┴───────────────────────────────────────────┘
+```
 
-| Store / Table | Key Identifier | Active Records | Role / Permission Authority | Target Architecture Status |
-|---|---|---:|---|---|
-| **Firebase Auth** | `uid` (Firebase UID) | Legacy admin / devotee base | Issued client JWT | **LEGACY** (Retain until Phase 4/5 cutover) |
-| **Supabase Auth** | `id` (UUID `auth.users.id`) | Admin account(s) (`/admin/ai`) | Native session cookies / JWT | **TARGET** (Primary for all administrative surfaces) |
-| **Supabase `public.users`** | `id` (UUID), `firestore_id`, `auth_user_id` | 1 confirmed admin row (live inventory) | Authoritative `role`, `active` | **TARGET** (Authoritative RBAC for `/admin/*`) |
-| **Supabase `public.staff`** | `id` (UUID), `firebase_uid`, `staff_no` | Counter staff & admin operators | Operational POS status (`active`, `view_only`) | **TRANSITIONAL / NEEDS ACTION** (Requires `auth_user_id`) |
-| **Firestore `users/{uid}`** | `uid` | Mirror of devotee/staff profiles | Legacy mirror read by Seva & Client | **LEGACY** (Phase out reads/writes) |
-
----
-
-## 2. Methodology & Evidence Sources
-
-1. **Production Table Inventory:** Corroborated against read-only catalog and service-endpoint proofs (`docs/audits/PRODUCTION_TABLE_INVENTORY.md` §1a line 39, confirming `users` count = 1).
-2. **Schema & Migration Analysis:** Evaluated 45+ migrations in `supabase/migrations/` (notably `20261001000000_create_content_tables.sql`, `20261020000000_seva_core.sql`, and `20261103000000_add_auth_user_id_to_users.sql`).
-3. **Guard Code Inspection:** Audited `lib/auth/admin-auth.ts`, `lib/auth/raya-admin-auth.ts`, `lib/seva/server/auth.ts`, and `lib/seva/server/identity-firebase.ts`.
-4. **Zero Live Mutation:** Verified that no DDL, DML, user creation, linking, or credential mutation occurred during this audit.
+> [!IMPORTANT]
+> **Clarification:** Supabase Authentication is **not** currently the primary provider for the overall administration portal or the temple website. It is active **exclusively** on `/admin/ai/*`. The rest of the temple administration (`/admin/*`) and Seva Counter (`/seva/*`) continue to run on Firebase Authentication. Unifying all admin surfaces under Supabase Auth is the objective of Phase 2, not the current state.
 
 ---
 
-## 3. Reconciliation Findings by Category
+## 2. Reconciled Firestore Runtime Status (Code Reality vs. Historical Findings)
 
-### A. MATCHED
-* **Raya AI Admin Identity:**
-  * **Mechanism:** Verified Supabase Auth identity matching `public.users.auth_user_id` with `active = true` and `role = 'super_admin'`.
-  * **Status:** Fully functional and isolated under `lib/auth/raya-admin-auth.ts` for `/admin/ai/*` and `/api/ai/*`.
-  * **Integrity Control:** Guarded by partial unique index `idx_users_auth_user_id` on `public.users (auth_user_id) WHERE auth_user_id IS NOT NULL`.
+A comprehensive cross-check between historical documentation (`docs/audits/FIRESTORE_DEPENDENCY_AUDIT.md`) and the active codebase establishes the exact boundary of Firestore elimination:
 
-### B. MISSING
-* **`auth_user_id` on `public.staff` Table:**
-  * **Finding:** Supabase `staff` schema (`20261020000000_seva_core.sql`) currently defines only `firebase_uid text NOT NULL UNIQUE`. It completely lacks an `auth_user_id uuid` column.
-  * **Impact:** Seva Counter staff cannot authenticate through native Supabase Auth until a column and identity mapping are introduced.
-* **Supabase `public.users` Rows for Seva-Onboarded Staff:**
-  * **Finding:** When a staff member or administrator is onboarded via `/api/admin/users/create-admin` or `lib/seva/server/staff.ts:onboardStaff`, rows are created in Firebase Auth, Firestore `users/{uid}`, and Supabase `staff`, but **no record is created in Supabase `public.users`**.
+### 2.1 Content & Domain Services: Clean (Zero Fallback Reads)
+All domain and content services have successfully cut over to Supabase PostgreSQL. There are **zero fallback reads** from Supabase to Firestore in the request path:
+* `events`, `sevas`, `quotes`, `gallery_albums`, `gallery_media`, `aaradhanes`, `ai_settings`, `ai_knowledge`, and `settings_documents` read exclusively from Supabase tables.
+* Code in `services/chat.server.ts`, `services/knowledge-workflow.service.ts`, and `lib/ai/retrieval/announcements.ts` explicitly rejects Firestore fallback paths (failures fail closed).
 
-### C. MISMATCH & LOCKOUT RISKS
-* **The `403 user_not_found` Admin Failure:**
-  * **Finding:** General admin route guard (`lib/auth/admin-auth.ts:147-164`) decodes the Firebase ID token and queries:
-    ```sql
-    SELECT role, active, email FROM public.users WHERE firestore_id = $1;
-    ```
-  * **Failure Mode:** If an administrator account exists in Firebase Auth but has no matching row in `public.users` where `firestore_id = firebase_uid`, the API returns `403 user_not_found`, locking out the administrator from all general admin functions.
-* **Trigger-Enforced Immutability on `staff.firebase_uid`:**
-  * **Finding:** Trigger `seva_staff_guard` on `public.staff` raises an exception (`seva guard: a staff login (firebase_uid) never changes`) on any update to `firebase_uid`.
-  * **Impact:** Modifying `firebase_uid` in-place is impossible; migrating staff to Supabase Auth requires adding a distinct `auth_user_id` column.
+### 2.2 Active Firestore Runtime Touchpoints (Current Code)
+Four specific runtime touchpoints still depend on Firestore and must be addressed during phased migration:
 
-### D. LEGACY DEPENDENCIES
-* **General Admin API Route Token Verification:**
-  * `lib/auth/admin-auth.ts` still requires the server-side Firebase Admin SDK (`firebase-admin/auth`) to decode bearer tokens.
-* **Seva Counter Identity Adapter:**
-  * `lib/seva/server/identity.ts` defaults to `firebaseIdentityAdapter`, which queries Firestore `users/{uid}` via Admin SDK to check `isActive` and `role`.
-* **Client-Side Profile Storage:**
-  * `services/auth.service.ts` and `context/AuthContext.tsx` read and write `users/{uid}` in Firestore on user login and registration.
-* **Client Environment Hardening:**
-  * `components/admin/layout/AdminAuthGuard.tsx` still renders a blocking "Firebase Not Configured" screen if Firebase environment variables are missing, even when Supabase is fully configured.
-
-### E. NEEDS ACTION (Prerequisites for Phase 2 Migration)
-1. **Dual-Token Verification in `lib/auth/admin-auth.ts`:**
-   * Extend the admin verifier to check for Supabase Auth session/token first (matching `auth_user_id`), falling back to Firebase bearer token (`firestore_id`).
-2. **Staff Schema Migration:**
-   * Prepare an additive SQL migration to add `auth_user_id uuid NULL UNIQUE` to `public.staff`, allowing counter operators to bind to Supabase Auth identities.
-3. **Identity Sync Script:**
-   * Provide a safe, read-only diagnostic report script to verify that any admin email intended to access `/admin/*` possesses both a Supabase Auth account and a mapped `public.users` authorization row.
+1. **Page View Logging (`proxy.ts` — Middleware):**
+   * **Behavior:** Next.js 16 request proxy imports `firebase/firestore` and writes a document to `page_views` collection on every public GET request (`proxy.ts:83`), in parallel with the Supabase client-side beacon (`PageViewTracker.tsx`).
+   * **Status:** Live residual write to Firestore.
+2. **Client-Side Auth Context & Profile Mirror (`services/auth.service.ts` & `context/AuthContext.tsx`):**
+   * **Behavior:** User login (`authService.login`) and registration (`authService.register`) execute `setDoc` on Firestore `users/{uid}`, while `getUserProfile` and `AuthContext` read `users/{uid}` via `getDoc`.
+   * **Status:** Client-side Firestore read/write mirror for non-AI users.
+3. **Seva Identity Adapter (`lib/seva/server/identity-firebase.ts`):**
+   * **Behavior:** In `getAccessProfile(externalUid)`, the adapter reads Firestore `users/{uid}` via Firebase Admin SDK (`db.collection("users").doc(externalUid).get()`) to inspect `role` and `isActive`. In `setAccessProfile`, it writes role/status updates to Firestore.
+   * **Status:** Server-side Firestore read/write dependency in `/api/seva/*`.
+4. **Site Settings Action Admin Gate (`lib/auth/admin.ts:58-75`):**
+   * **Behavior:** `isUserAdmin(uid)` executes `getDoc(doc(db, "users", uid))` against Firestore before allowing `app/actions/settings.ts` to update `site_settings` in Supabase.
+   * **Status:** Lingering Firestore authorization dependency for site settings.
 
 ---
 
-## 4. Collection-Level Migration Inventory
+## 3. Identity Verification & Admin Record Count
 
-| Collection / Entity | Firestore Status | Supabase Target Table | Migration / State | Action Required |
+### 3.1 Observed vs. Authorized Admin Counts
+* **Observed in Read-Only Inventory:** The read-only production table inventory (`docs/audits/PRODUCTION_TABLE_INVENTORY.md` §1a line 39) records **1 row** in `public.users` confirmed via the public statistics endpoint (`/api/public/stats` `totalUsers`).
+* **Critical Distinction:** This single confirmed row reflects only what is surfaced through the public stats aggregation. It **does NOT imply that only one administrator exists** across the organization.
+* **Lockout Exposure:** Any administrators or staff members created directly in Firebase Auth or via older scripts whose `firestore_id` or `auth_user_id` has not been mapped into `public.users` will be rejected by `lib/auth/admin-auth.ts` with `403 user_not_found`. Full enumeration requires a privileged service-role reconciliation query before migration.
+
+### 3.2 Schema Structure on `public.users`
+* `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+* `firestore_id text UNIQUE` (Provenance key matching Firebase Auth UID)
+* `auth_user_id uuid UNIQUE` (Guarded by partial index `idx_users_auth_user_id WHERE auth_user_id IS NOT NULL`)
+* `role text DEFAULT 'user'`, `active boolean DEFAULT true`
+
+---
+
+## 4. Reconciliation Findings Matrix
+
+| Finding Code | Classification | Store / Component | Description & Current State | Risk / Impact |
 |---|---|---|---|---|
-| `users` (Admin authorization) | Non-authoritative mirror | `public.users` | Migrated (1 confirmed admin row in prod) | Dual-auth support in route guards |
-| `staff` (Counter staff) | Firestore `users` mirror | `public.staff` | Migrated (POS tables live in Supabase) | Add `auth_user_id` column |
-| `profiles` (Devotee bookmarks/preferences) | Legacy datastore | `public.profiles` | Schema exists; data unmigrated | Plan devotee migration in Phase 5 |
-| `events` | Deprecated | `public.events` | Fully cut over (74 published rows) | Clean |
-| `sevas` / `seva_bookings` | Deprecated | `public.sevas`, `seva_bookings` | Fully cut over | Clean |
-| `quotes` | Deprecated | `public.quotes` | Fully cut over (6 seed rows) | Clean |
-| `gallery` | Deprecated | `public.gallery_albums`, `gallery_media` | Fully cut over (4 albums, 7 media) | Clean |
-| `ai_settings` / `ai_knowledge` | Deprecated | `public.ai_settings`, `ai_knowledge` | Fully cut over (19 articles) | Clean |
-| `page_views` | **Residual write** (`proxy.ts`) | `public.page_views` | Dual-write active | Remove Firestore write in `proxy.ts` |
+| **F-ID-01** | **MATCHED** | Supabase Auth $\leftrightarrow$ `public.users` | Raya AI admin account mapped via `auth_user_id` with `active = true` and `role = 'super_admin'`. | None for `/admin/ai/*`. Works as designed. |
+| **F-ID-02** | **MISSING** | Supabase `public.staff` | `public.staff` schema has `firebase_uid text NOT NULL UNIQUE` but **no `auth_user_id` column**. | Blocks Seva Counter from using native Supabase Auth. |
+| **F-ID-03** | **MISSING** | Supabase `public.users` | Onboarding staff via `onboardStaff` creates Firebase Auth, Firestore `users/{uid}`, and Supabase `staff`, but **no `public.users` record**. | Staff cannot access `/admin/*` without manual row insertion. |
+| **F-ID-04** | **MISMATCH** | General Admin Guard | `lib/auth/admin-auth.ts` verifies Firebase JWT and queries `public.users.firestore_id`. Missing rows answer `403 user_not_found`. | Immediate admin lockout if Firebase accounts lack `public.users` rows. |
+| **F-ID-05** | **MISMATCH** | Immutability Trigger | `seva_staff_guard` trigger raises an exception on any update to `staff.firebase_uid`. | `firebase_uid` cannot be mutated; migration must add `auth_user_id`. |
+| **F-ID-06** | **LEGACY** | Seva Identity Adapter | `lib/seva/server/identity.ts` defaults to `firebaseIdentityAdapter`, reading Firestore `users/{uid}` for `isActive`/`role`. | Dual-datastore dependency for counter operations. |
+| **F-ID-07** | **LEGACY** | Devotee Profile Storage | `services/auth.service.ts` writes profile updates directly to Firestore on login/register. | Prevents complete removal of client Firebase SDK. |
+| **F-ID-08** | **LEGACY** | Client Guard Blocker | `AdminAuthGuard.tsx` shows "Firebase Not Configured" screen if Firebase env vars are missing. | Blocks access to admin dashboard even when Supabase is up. |
 
 ---
 
-## 5. Certification
+## 5. Phase 2 Prerequisites & Implementation Requirements
 
-* **Zero Live Data Modified:** Confirmed. No production data or schemas were altered.
-* **Credentials & Secrets Protected:** Confirmed. No API keys, passwords, hashes, or tokens are logged or persisted in this document.
-* **Verification Status:** Ready for review and promotion to PR.
+To ensure a seamless, zero-lockout transition to unified Supabase authentication, the following prerequisites must be implemented in **Phase 2**:
+
+### 5.1 Full Privileged Identity Enumeration & Mapping
+* Execute a server-side read-only diagnostic script using `SUPABASE_SERVICE_ROLE_KEY` and Firebase service credentials to compile a complete list of:
+  - All Firebase Auth user UIDs and emails.
+  - All Supabase Auth user IDs and emails.
+  - All rows in `public.users` (`id`, `email`, `role`, `active`, `firestore_id`, `auth_user_id`).
+  - All rows in `public.staff` (`id`, `email`, `staff_no`, `status`, `firebase_uid`).
+* Ensure 100% of active administrators and staff have verified records in both Auth and database authorization tables before enabling cutover.
+
+### 5.2 Additive Schema Migration for `public.staff`
+* Create a non-destructive migration in `supabase/migrations/`:
+  ```sql
+  ALTER TABLE staff ADD COLUMN IF NOT EXISTS auth_user_id uuid UNIQUE;
+  ```
+* Ensure `seva_staff_guard` trigger is evaluated so it allows updating `auth_user_id` while continuing to protect `staff_no` and audit immutability.
+
+### 5.3 Dual-Token Verification Architecture in `lib/auth/admin-auth.ts`
+* Update `verifyAdminUserResult` with a safe fallback chain:
+  1. **Primary Check (Supabase Auth):** Check for Supabase session cookie (`@supabase/ssr`) or Supabase Bearer token. Resolve caller and check authorization via `public.users.auth_user_id`.
+  2. **Secondary Fallback (Firebase Auth):** If no Supabase token/session is present, verify the Firebase ID token and authorize via `public.users.firestore_id`.
+* This ensures existing Firebase administrators remain fully functional while Supabase accounts are onboarded and verified.
+
+### 5.4 Synchronized Admin & Staff Onboarding
+* Update `/api/admin/users/create-admin` and `lib/seva/server/staff.ts:onboardStaff` so that any staff or administrator created is automatically provisioned with a matching authorization row in `public.users`.
+
+---
+
+## 6. Verification & Certification
+
+* **Zero Live Mutations:** Confirmed. No production data, credentials, users, or schema objects were created, altered, or deleted during this diagnostic.
+* **Credentials Protected:** Confirmed. No passwords, tokens, API keys, or secret strings are included in this document.
+* **Repository Consistency:** Confirmed against current codebase on `auth-phase1-identity-audit`.
