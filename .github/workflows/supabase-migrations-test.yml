@@ -116,6 +116,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # `[db.migrations] enabled = false` in config.toml makes `supabase db push
+      # --dry-run` report nothing, which would turn this verification into a vacuous
+      # pass. Fail closed instead. (The same switch stops the Supabase GitHub
+      # integration from running migrations on push — see
+      # docs/audits/F-A16_INTEGRATION_VERIFICATION.md §13.)
+      - name: Assert migrations are enabled in config.toml
+        shell: bash
+        run: |
+          if grep -Eq '^[[:space:]]*\[[[:space:]]*db\.migrations[[:space:]]*\]' supabase/config.toml; then
+            if grep -Eq '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*(false|"false")' supabase/config.toml; then
+              echo "ERROR: [db.migrations] enabled = false in supabase/config.toml."
+              echo "This makes the dry-run below report nothing. Re-enable migrations before"
+              echo "dispatching this workflow. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §13."
+              exit 1
+            fi
+          fi
+          echo "supabase/config.toml does not disable migrations."
+
       # Fails closed on a missing, malformed, non-allow-listed or production ref,
       # and on a URL that does not resolve to the requested ref. Runs before the CLI
       # is installed and before any Supabase command.

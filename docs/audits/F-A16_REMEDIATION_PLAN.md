@@ -1139,3 +1139,26 @@ The full production preflight checklist, post-execution verification checklist a
 procedure are in `docs/audits/F-A16_EXECUTION_CHECKLISTS.md`. They are separate from this
 plan so an operator can follow them without reading the design rationale. Every step is
 marked **NOT EXECUTED** until an owner runs it.
+
+---
+
+## 14. Automatic production migration on `main` (rollout constraint)
+
+This plan assumes an operator controls when migrations reach production. That assumption is
+false today: a **Supabase GitHub integration** (`Supabase Preview`, app slug `supabase`)
+applies pending `supabase/migrations/*.sql` to the production project on **every push to
+`main`**, independently of the manually dispatched `.github/workflows/supabase-migrations.yml`.
+It is currently failing at `20261115000000_f_a16_least_privilege_defaults.sql`, and `main`
+receives roughly a dozen pushes a day (the scheduled `panchanga.yml` commits), so the
+F-A16 files are being attempted on a cadence no operator chose.
+
+Merging this branch to `main` therefore **fires the automatic deploy**. Before merging any
+F-A16 migration, an owner must disable the integration's **Deploy to production** option
+(Supabase Dashboard → Project Settings → Integrations → GitHub Integration), or accept that
+the migrations apply without the preflight and dry-run steps in §13. This cannot be fixed
+from the repository: there is no Management API endpoint for the setting, and the
+`config.toml` `[db.migrations] enabled = false` switch (a) is not honoured by the pinned CLI
+1.200.0 and (b) would also disable the manual workflow.
+
+Full analysis, evidence, owner procedure and the repository-side guards added for it:
+`docs/audits/F-A16_INTEGRATION_VERIFICATION.md` §13.

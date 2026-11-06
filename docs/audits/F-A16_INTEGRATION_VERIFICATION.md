@@ -558,3 +558,150 @@ npm run test:db                 # PGlite (in-process; does NOT prove the Supabas
 npm run test:db:integration     # real PostgreSQL; needs FA16_TEST_DB_URL + FA16_ALLOW_DISPOSABLE_DB=1
 ```
 
+---
+
+## 13. Automatic production migration on push to `main` (Supabase GitHub integration)
+
+This section is separate from the migration content above. It records a live
+production-safety finding discovered while preparing this branch, and the repository-side
+controls added for it. It is **not** a test of the migration SQL, and no production
+database was read to produce it: every fact below comes from the repository, the public
+GitHub API for this repository, and Supabase's public documentation.
+
+### 13.1 The finding
+
+Pushing to `main` triggers a **Supabase GitHub integration** — the `Supabase Preview`
+check run, GitHub App slug `supabase`, app id `330661` — which applies pending
+`supabase/migrations/*.sql` to the **production** project. This is not a repository
+workflow; it is configured in the Supabase dashboard and cannot be seen or changed in
+`.github/workflows/`.
+
+Evidence (read-only):
+
+* `GET /repos/ngowda759/Rayaramathaynk/commits/<sha>/check-runs` on recent `main` tips
+  (`af8c4b8f92`, `cfd060d9`) returns a completed `Supabase Preview` check whose
+  `details_url` is `https://supabase.com/dashboard/project/kvrkraqjuyxbraccxntk` — the
+  approved production project (`scripts/lib/approved-project.mjs`).
+* The same check is **skipped** on this branch's commits (a feature branch is not
+  associated with a Supabase branch), which is why the coupling is easy to miss: CI on a
+  pull request looks clean while `main` is being migrated.
+* The check is currently **failing** on `main` with
+  `ERROR: F-A16-02: cannot tighten default privileges for object-creating role(s):
+  supabase_admin (SQLSTATE P0001)` — the `20261115000000_f_a16_least_privilege_defaults.sql`
+  migration (see §9 and §10). Supabase documents that "Branching runs each migration file
+  inside a single transaction", so a file that fails rolls back that file, while earlier
+  files in the same run stay applied. The migration that fails here is not the last F-A16
+  file in timestamp order (`20261115000100`–`20261115000300` sort after it), so the
+  automatic deploy currently stops before applying them.
+* `main` receives roughly a dozen pushes a day, mostly the scheduled `panchanga.yml`
+  workflow's `chore: update daily panchanga` commits, so the integration fires on a
+  schedule the repository does not control.
+
+### 13.2 Why it cannot be disabled from the repository
+
+Supabase documents the integration at
+<https://supabase.com/docs/guides/deployment/branching/github-integration>:
+
+> Enable the **Deploy to production** option in your GitHub Integration configuration to
+> automatically deploy changes when you push or merge to production branch. […] New
+> migrations are applied.
+
+The configuration lives at **Supabase Dashboard → Project Settings → Integrations →
+GitHub Integration** for the project. There is no Management API endpoint for it: the
+v1 OpenAPI document (`https://api.supabase.com/api/v1-json`) has no `github` or
+`integration` path (only `/v1/branches/…`, which is branch management, not the
+integration's deploy setting). Turning it off is therefore an **owner action in the
+dashboard**, not a commit.
+
+The GitHub-side control surface is also unavailable to this agent: the Supabase App
+installation is not listed for the account's user token, and the branch-protection and
+ruleset APIs return `403 Resource not accessible by integration`. A ruleset or required
+status check is an owner action too (and, since the check currently fails, requiring it
+would block every `main` push rather than stop the migration).
+
+### 13.3 The repository-side control, and its coupling
+
+Supabase documents a repository-side switch
+(<https://supabase.com/docs/guides/deployment/branching/github-integration>):
+
+> To stop branching from running migrations, set `enabled = false` under
+> `[db.migrations]` in `config.toml`.
+
+That switch is **not set** in `supabase/config.toml` today, so the automatic deploy
+remains active. It is deliberately left off because it is **coupled**:
+
+* the Supabase integration reads it (the documented behaviour above), **and**
+* `supabase db push` reads the *same* key — `apps/cli/src/command-internal/db-push-core.ts`
+  in `supabase/cli` skips all migrations when `migrationsEnabled` is false
+  (`Skipping migrations because it is disabled in config.toml for project: …`).
+
+So setting `enabled = false` alone would silence the dashboard integration **and** turn
+`.github/workflows/supabase-migrations.yml` into a silent green no-op — worse, because the
+run would report success while applying nothing.
+
+**Measured caveat (CLI 1.200.0, the version this repository pins).** The documented
+`enabled = false` gate was exercised against a disposable `postgres:15` container with the
+pinned CLI (`supabase@1.200.0`, installed from npm). In CLI **1.200.0** it did **not** stop
+`supabase db push`: a new pending migration was applied anyway. The pinned binary does not
+contain the gate at all — `strings node_modules/supabase/bin/supabase | grep 'Skipping
+migrations because it is disabled'` returns nothing, and the string
+`migrationsEnabled` is absent from the package. The gate described in the docs is present in
+the current CLI (`apps/cli/src/command-internal/db-push-core.ts` on `supabase/cli` master,
+covered by `push.integration.test.ts`), but the pinned `1.200.0` predates it.
+
+**This means the repository cannot rely on `enabled = false` as a hard stop for the
+dashboard integration either** — that behaviour is not reproducible on the pinned
+toolchain, and the dashboard **Deploy to production** toggle (not `config.toml`) is the only
+control that is demonstrably effective. Do not treat the `config.toml` key as a safety
+interlock.
+
+### 13.4 Owner procedure (dashboard)
+
+To stop the automatic production migration:
+
+1. Supabase Dashboard → the production project → **Project Settings → Integrations →
+   GitHub Integration**.
+2. Turn **off** the **Deploy to production** option (or remove the repository from the
+   integration). Do not use the production project ref anywhere else.
+3. Confirm the effect: push a commit that changes only a non-`supabase/**` file to `main`,
+   and verify no `Supabase Preview` run applies migrations. A commit touching
+   `supabase/**` on a feature branch should still report `skipped`.
+4. Optional, and only after step 2: set `enabled = false` under `[db.migrations]` in
+   `supabase/config.toml` if the intent is to stop *all* migration application, accepting
+   that manual dispatch then applies nothing (both workflows now fail closed in that case,
+   see §13.5).
+
+To deploy migrations after step 2, use the manually dispatched workflow:
+`.github/workflows/supabase-migrations.yml` (project-ref guard, dry-run, then `db push`).
+
+### 13.5 Repository-side guards added (this change)
+
+Because the integration is dashboard-side, the repository can only (a) keep no *second*
+auto-apply path, (b) keep the config switch off, and (c) fail closed if the switch is ever
+turned on. All three are now enforced:
+
+* **No auto-apply path in the repository.** Only `supabase-migrations.yml` and
+  `supabase-migrations-test.yml` run `supabase db push`, and both are `workflow_dispatch`-only.
+  (The test workflow runs `db push --dry-run` only.)
+* **Config switch documented, not enabled.** `supabase/config.toml` carries a
+  `PRODUCTION AUTO-DEPLOY SWITCH` comment pointing at this section. The switch is off.
+* **Fail-closed guards.** Both migration workflows now run
+  *Assert migrations are enabled in config.toml* before `supabase link`, and refuse to
+  proceed if `[db.migrations] enabled = false` is set — so the coupled no-op above can
+  never be reported as success.
+* **Regression test.** `tests/unit/f-a16-auto-deploy-controls.test.ts` pins all of the
+  above and *executes* the guard script against throwaway `config.toml` files (it does not
+  merely grep the workflow text).
+
+### 13.6 Residual risk and status
+
+* **Not closed from the repository.** The automatic production migration continues on every
+  `main` push until an owner performs §13.4. This is `BLOCKED` on a dashboard action, not
+  `PASS`.
+* Merging any pull request to `main` — including this one — fires the integration. That is
+  why this section exists: the automatic deploy is independent of the in-repo workflow and
+  of whether this change is merged.
+* No production database, credential, or dashboard was accessed while producing this
+  section. The only network reads were the public GitHub API for this repository and the
+  public Supabase documentation.
+
