@@ -23,7 +23,7 @@ remediation that is clearly marked. No statement in this file was executed by th
 | `20261115000100_f_a16_fail_closed_rls_assertion.sql` | `supabase db push` (automated) | Additive assertion; refuses to install without an enabled enabler. |
 | `20261115000200_f_a16_existing_table_privileges.sql` | `supabase db push` (automated) | Catalog-driven revoke of three privileges; no DML, no policy. |
 | `20261115000300_f_a16_existing_function_privileges.sql` | `supabase db push` (automated) | Revokes `EXECUTE` on the two existing world-executable functions (`rls_auto_enable`, `update_updated_at_column`) from `PUBLIC`/`anon`/`authenticated`; keeps `service_role`. |
-| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | **Retained, optional** | No longer required for the revised path: `supabase_admin` is a platform-internal role the customer `postgres` cannot act for, and the 2026-11-05 inventory found no `supabase_admin`-owned object in `public`. Kept for reference / a platform-assisted path only. |
+| `docs/audits/F-A16_OWNER_RUN_supabase_admin_defaults.sql` | **Retained, optional** | No longer required for the revised path: `supabase_admin` is a platform-internal role the customer `postgres` cannot act for. Whether any `supabase_admin`-owned object exists in `public` is UNRESOLVED (no production catalog read; see `F-A16_INTEGRATION_VERIFICATION.md` §10.1). Kept for reference / a platform-assisted path only. |
 | `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` | **Retained, optional** | Closes the `supabase_admin`-created-function gap (a `supautils` `fmgr`-hook skip). Not required for the customer path; the F-A16-07 existing-function step covers pre-existing functions. Kept for reference / a platform-assisted path only. |
 | The global-default remediation (§4 of the owner-run defaults file) | **Owner-run, only if a global default owned by the applying role is found** | A global statement changes every schema. The 2026-11-03 audit found 0, so this is expected to be a no-op. |
 
@@ -94,9 +94,10 @@ SELECT DISTINCT pg_get_userbyid(d.defaclrole) AS candidate_owner,
 
 If any row is `false`, that owner's `public` defaults are **out of scope** for the
 automated F-A16-02 migration (the applying role cannot act for it), which reports it and
-proceeds. On hosted Supabase, `supabase_admin` is such an owner: the 2026-11-05 inventory
-found no `supabase_admin`-owned object in `public`, so no customer object is affected. The
-owner-run defaults file is retained for reference / a platform-assisted path only.
+proceeds. On hosted Supabase, `supabase_admin` is such an owner; whether any object exists
+under its defaults is UNRESOLVED (no production catalog read), which is why the runtime
+check gates on the applying role's membership rather than on that question. The owner-run
+defaults file is retained for reference / a platform-assisted path only.
 
 ### 4. Roles that effectively hold `CREATE` on `public` — the creator inventory
 
@@ -232,8 +233,9 @@ the SQL but **not** this platform path. Treat this step as mandatory.
 2. **(Optional) owner-run steps.** The two `docs/audits/F-A16_OWNER_RUN_*.sql` files are
    **retained for reference / a platform-assisted path** and are **not required** for the
    customer path: `supabase_admin` is a platform-internal role the customer `postgres`
-   cannot act for, and the 2026-11-05 inventory found no `supabase_admin`-owned object in
-   `public`. Run them only if the platform provides the superuser capability.
+   cannot act for, and whether a `supabase_admin`-owned object exists in `public` is
+   UNRESOLVED (no production catalog read). Run them only if the platform provides the
+   superuser capability.
 
 3. **Global defaults.** Only if preflight step 5 finds a global entry **owned by the
    applying role**: run the owner-run defaults file §4 (global form). Its blast radius is

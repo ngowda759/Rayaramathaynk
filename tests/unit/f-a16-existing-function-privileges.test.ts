@@ -95,8 +95,32 @@ describe("F-A16-07 existing function privileges (structural)", () => {
   it("fails closed with a precondition and a post-condition that raise", () => {
     expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-07: required Supabase roles are missing/i);
     expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-07: expected function\(s\) not found/i);
+    expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-07: cannot change EXECUTE on target function\(s\) owned by a role this session may not act for/i);
     expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-07: function\(s\) still executable by anon\/authenticated/i);
     expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-07: function\(s\) lost EXECUTE for service_role/i);
+    expect(sql).toMatch(/RAISE EXCEPTION 'F-A16-07: function\(s\) lost EXECUTE for the owner/i);
+  });
+
+  it("resolves the target owner from the catalog and gates on it before any REVOKE (B-1)", () => {
+    // Do not assume owner=postgres. The precondition must read proowner and refuse unless
+    // the session may act for the owner — the exact condition PostgreSQL enforces to change
+    // the ACL. A non-owner REVOKE only WARNS, so this is the fail-closed signal.
+    expect(sql).toMatch(/p\.proowner/);
+    expect(sql).toMatch(/pg_has_role\(current_user,\s*fn_owner,\s*'MEMBER'\)/i);
+    // It must NOT hard-code a specific owner name in the precondition.
+    expect(sql).not.toMatch(/pg_has_role\(current_user,\s*'postgres'/i);
+    expect(sql).not.toMatch(/pg_has_role\(current_user,\s*'supabase_admin'/i);
+    // The ownership gate must precede the first REVOKE.
+    const gateAt = sql.search(/pg_has_role\(current_user,\s*fn_owner,\s*'MEMBER'\)/i);
+    const firstRevokeAt = sql.search(/REVOKE EXECUTE ON FUNCTION public\.rls_auto_enable\(\)/i);
+    expect(gateAt).toBeGreaterThan(-1);
+    expect(firstRevokeAt).toBeGreaterThan(-1);
+    expect(gateAt).toBeLessThan(firstRevokeAt);
+  });
+
+  it("verifies the owner keeps EXECUTE without naming the owner", () => {
+    expect(sql).toMatch(/p\.proowner::regrole::text/);
+    expect(sql).toMatch(/function\(s\) lost EXECUTE for the owner/i);
   });
 
   it("verifies the effective privilege with has_function_privilege, not just the revoke", () => {

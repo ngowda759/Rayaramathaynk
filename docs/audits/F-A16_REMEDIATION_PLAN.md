@@ -23,10 +23,12 @@ plan previously had to assume, and three of them changed the design:
   `postgres` cannot manage `supabase_admin`'s through current membership. **Correction
   (2026-11-05):** `supabase_admin` is a platform-internal superuser role; the customer
   `postgres` session can never act for it, so an owner-run step from the customer role is
-  not possible. It is therefore **out of scope**, not a required manual step. The 2026-11-05
-  read-only inventory found no `supabase_admin`-owned object in `public`, so no customer
-  object is created under its defaults. The migration reports it and proceeds; the
-  customer-controllable state is still verified and fails closed.
+  not possible. It is therefore **out of scope**, not a required manual step. Whether any
+  object exists under `supabase_admin`'s `public` defaults is **UNRESOLVED** — no production
+  catalog read has established it, and there is no "2026-11-05 read-only production
+  inventory" (no such run, artifact or commit; see
+  `F-A16_INTEGRATION_VERIFICATION.md` §10.1–10.2). The migration reports the owner and
+  proceeds; the customer-controllable state is still verified and fails closed.
 * `anon` and `authenticated` hold `REFERENCES`, `TRIGGER`, `TRUNCATE` on numerous
   existing tables (and `service_role` on multiple). F-A16-01 is no longer deferred: a
   narrow, reviewable migration now exists
@@ -353,9 +355,11 @@ not required for the customer path:
 
 The precondition for applying the migration is therefore simply that it runs as the
 migration applier (`postgres`). It no longer needs to be a member of every `public`
-default-ACL owner, because a non-member owner is out of scope. The 2026-11-05 inventory
-found no `supabase_admin`-owned object in `public`, so no customer object is affected by
-leaving that owner alone. Section 9 item 7 is the read-only catalog query that confirms it.
+default-ACL owner, because a non-member owner is out of scope. Whether any
+`supabase_admin`-owned object exists in `public` is **UNRESOLVED** (no production catalog
+read), so the migration does not depend on that claim: it gates the runtime checks on the
+applying role's own membership rather than on what objects exist. Section 9 item 7 is the
+read-only catalog query that would confirm the object set.
 
 ### 2.5 Explicitly preserved backend privileges
 
@@ -549,7 +553,7 @@ semantics* — event-trigger firing order, `ddl_command_end` behaviour for
 | Event triggers fire in name order for the same event | **Verified** (PGlite; two triggers created in reverse name order still fired by name) | not needed — PostgreSQL behaviour |
 | The enabler trigger is named `ensure_rls` | **Assumption** (Supabase docs + F-A15.1) | `SELECT evtname, evtenabled, evtfoid::regprocedure FROM pg_event_trigger` |
 | `ensure_rls` is enabled | **Unverified** — the audit could not read it (F-A15.1 §12 item 5) | same query, read `evtenabled` |
-| `ensure_rls`'s function is owned by `postgres` and is `SECURITY DEFINER` | **Assumption** (F-A15.1 §4.1) | `SELECT proowner::regrole, prosecdef FROM pg_proc WHERE proname='rls_auto_enable'` |
+| `ensure_rls`'s function is owned by `postgres` and is `SECURITY DEFINER` | **UNRESOLVED / Assumption** (F-A15.1 §4.1 assumed `postgres`; the F-A16 preflight states `supabase_admin`; no confirming read) | `SELECT proowner::regrole, prosecdef FROM pg_proc WHERE proname='rls_auto_enable'` — see `F-A16_INTEGRATION_VERIFICATION.md` §10.1 |
 | The `f_a16_assert_public_rls` name sorts after `ensure_rls` | **Verified by construction** (`e` < `f`) | `SELECT evtname FROM pg_event_trigger ORDER BY evtname` |
 | The applying role may create an event trigger | **Unverified for the target project** — `CREATE EVENT TRIGGER` is superuser-only in stock PostgreSQL; Supabase's `postgres` relies on `supautils`. The repo's tests run as superuser and cannot load `supautils`, so they do not prove this path | preflight `F-A16_EXECUTION_CHECKLISTS.md` §11 (reads `rolsuper`, `supautils`, and whether any event trigger exists) |
 | Supabase PostgreSQL supports `ddl_command_end` event triggers | **Confirmed** — this is how the platform's own `ensure_rls` works | not needed |

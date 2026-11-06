@@ -955,4 +955,26 @@ Details: `.openhands/memory/2026-11-03.md`.
   fails closed. New **F-A16-07** migration `20261115000300_…` revokes EXECUTE on the two
   existing world-executable functions. Commit `91341c24`.
 - `docs/audits/F-A16_PRODUCTION_PREFLIGHT.md` (NO-GO preflight) is intentionally
-  UNCOMMITTED for owner review.
+  UNCOMMITTED for owner review. It is NOT on `origin/main`; a *different* tracked file,
+  `F-A16_PRODUCTION_PREFLIGHT_2026-11-02.md`, is. Do not treat it as committed.
+
+## F-A16 PR #383 — review findings B-1/B-2/B-3 fixed (2026-11-06, uncommitted)
+
+- **Durable SQL lesson (expensive):** a `REVOKE` the session may not perform only WARNS
+  (`no privileges could be revoked`, SQLSTATE `01007`) and leaves the routine
+  world-executable — it does NOT raise. Never trust a REVOKE's "success". Correct gate is
+  `pg_has_role(current_user, proowner, 'MEMBER')` (a role IS a member of itself). Resolve
+  the owner via `to_regprocedure(sig)` → `pg_proc.proowner`; verify with
+  `has_function_privilege(proowner::regrole::text, sig, 'EXECUTE')`.
+- **B-1:** F-A16-07 (`20261115000300`) now reads the target owner and fails closed unless
+  the session may act for it, instead of assuming `owner=postgres`. Integration C.4
+  (unmanageable owner → atomic fail-closed) + C.5 (manageable → succeeds) added.
+- **B-2:** the "2026-11-05 read-only production inventory" **never existed** (no run,
+  artifact or commit). Removed every claim that leaned on it. Real prior evidence is the
+  **2026-11-03** catalog audit (attested; raw rows age-encrypted, not readable here).
+- **B-3:** `rls_auto_enable()` owner is **UNRESOLVED** — `F-A15.1` assumed `postgres`,
+  `F-A16_PRODUCTION_PREFLIGHT.md` says `supabase_admin`, `F-A16_REMEDIATION_PLAN.md` marks
+  it an assumption, catalog audit NOT EXECUTED. Marked UNRESOLVED across all docs; the
+  migration is correct under either owner.
+- Counts after fix: unit 222 suites/2948 pass; PGlite db 21/305; integration 19/19;
+  typecheck clean; lint 0 errors; build OK. Not committed — awaiting owner approval.

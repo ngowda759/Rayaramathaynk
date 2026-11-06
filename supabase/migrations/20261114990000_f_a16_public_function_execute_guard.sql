@@ -69,9 +69,12 @@
 -- must be owned by the same superuser. `postgres` cannot do that (`SET ROLE supabase_admin`
 -- -> denied; `ALTER EVENT TRIGGER … OWNER TO` -> denied, owner must be a superuser). The
 -- retained file `docs/audits/F-A16_OWNER_RUN_supabase_admin_function_guard.sql` installs a
--- second guard, owned by `supabase_admin`, for a platform-assisted path. On this project
--- the residual is not reachable: the 2026-11-05 read-only inventory found no
--- `supabase_admin`-owned object in `public`, and the customer cannot create one. This
+-- second guard, owned by `supabase_admin`, for a platform-assisted path. Whether this
+-- residual is reachable on the production project is UNRESOLVED: no production catalog read
+-- has established the owner of any pre-existing `public` function (the repository carries
+-- contradictory assumptions — see docs/audits/F-A16_INTEGRATION_VERIFICATION.md §10), and no
+-- "2026-11-05 read-only production inventory" exists (no such run, artifact or commit). The
+-- F-A16-07 migration reads each target's owner at apply time rather than assuming it. This
 -- migration stays `postgres`-owned so it keeps working for the ordinary `postgres`/member
 -- creators. See docs/audits/F-A16_INTEGRATION_VERIFICATION.md §9.
 --

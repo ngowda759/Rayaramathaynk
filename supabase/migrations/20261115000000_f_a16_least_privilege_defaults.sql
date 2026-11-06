@@ -17,11 +17,14 @@
 -- change: those owned by the applying role (`postgres` on hosted Supabase) and by any
 -- role the applying role is a member of. Default privileges owned by a role the applying
 -- role cannot act for — in practice `supabase_admin` — are OUT OF SCOPE: they are
--- documented here, reported with a `RAISE NOTICE`, and are NOT failed closed on. The
--- 2026-11-05 read-only production inventory found NO `supabase_admin`-owned table,
--- sequence, view, materialized view or function in `public`, so no customer object is
--- created under that role's defaults. No production owner-run `supabase_admin` SQL is
--- required for this path.
+-- documented here, reported with a `RAISE NOTICE`, and are NOT failed closed on. Whether
+-- any object actually exists under such a role's defaults is UNRESOLVED: no production
+-- catalog read has established it (the repository carries contradictory assumptions, and
+-- no "2026-11-05 read-only production inventory" exists — see
+-- docs/audits/F-A16_INTEGRATION_VERIFICATION.md §10). Because it cannot be assumed away,
+-- the runtime checks below gate on the applying role's own membership rather than on any
+-- claim about what objects exist. No production owner-run `supabase_admin` SQL is required
+-- for this path.
 --
 -- The migration still FAILS CLOSED on the customer-controllable state. After the revokes
 -- it verifies (section 3) that every `public` default ACL owned by a role the applying
@@ -128,8 +131,9 @@
 --      SUPABASE CONSTRAINT above). This file covers the applying role directly (section
 --      1) and then every other role whose `public` default ACL the applying role MAY act
 --      for (section 2). A role the applying role cannot act for is reported, not failed
---      closed on; its `public` default ACL is only a customer-controllable defect if a
---      customer object is actually created under it, and the inventory found none.
+--      closed on; whether any object exists under that role's defaults is UNRESOLVED (no
+--      production catalog read), which is why the runtime check gates on the applying
+--      role's membership rather than on that question.
 --
 -- What is deliberately kept
 -- -------------------------
@@ -211,8 +215,8 @@
 --     (`pg_has_role(..., 'MEMBER')` is false) — the exact precondition Postgres enforces
 --     for `ALTER DEFAULT PRIVILEGES FOR ROLE` — that role is OUT OF SCOPE. On hosted
 --     Supabase this is the expected state for `supabase_admin`, the platform-internal
---     superuser: the customer `postgres` session can never act for it, and no customer
---     object is created under its defaults (the 2026-11-05 inventory found none). Such a
+--     superuser: the customer `postgres` session can never act for it, and whether any
+--     object exists under its defaults is UNRESOLVED (no production catalog read). Such a
 --     role is reported with a `RAISE NOTICE`, not failed closed on, so the migration
 --     converges on hosted Supabase. The customer-controllable state — every `public`
 --     default ACL owned by the applying role or a role it may act for — is still verified
@@ -260,8 +264,8 @@ END $$;
 -- OWNER SCOPE. The check is limited to global defaults OWNED BY a role the applying role
 -- may act for (`pg_has_role(current_user, d.defaclrole, 'MEMBER')`). A global default
 -- owned by `supabase_admin` is not customer-controllable — the customer `postgres` session
--- can neither change it nor be affected by a customer object (the 2026-11-05 inventory
--- found no `supabase_admin`-owned object in `public`), so it is out of scope and must not
+-- can neither change it nor be affected by it, and whether any object exists under it is
+-- UNRESOLVED (no production catalog read) — so it is out of scope and must not
 -- block the migration. Only the customer-controllable global state fails closed.
 --
 -- Scope of this check:
@@ -477,13 +481,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon,
 -- candidate the applying role cannot act for (`pg_has_role(..., 'MEMBER')` is false — the
 -- exact precondition Postgres enforces for `ALTER DEFAULT PRIVILEGES FOR ROLE`) is OUT OF
 -- SCOPE, not a failure. On hosted Supabase that is the expected, permanent state for
--- `supabase_admin`: the customer `postgres` session can never act for it, and no customer
--- object is created under its defaults (the 2026-11-05 read-only inventory found no
--- `supabase_admin`-owned object in `public`). Such a role is reported with a `RAISE NOTICE`
--- so the operator sees it, and the migration proceeds. This is what lets F-A16-02 apply on
--- hosted Supabase at all. The customer-controllable state — every `public` default ACL
--- owned by a role the applying role MAY act for — is still verified in section 3 and fails
--- closed if it is not least-privilege.
+-- `supabase_admin`: the customer `postgres` session can never act for it, and whether any
+-- object exists under its defaults is UNRESOLVED (no production catalog read). Such a role
+-- is reported with a `RAISE NOTICE` so the operator sees it, and the migration proceeds.
+-- This is what lets F-A16-02 apply on hosted Supabase at all. The customer-controllable
+-- state — every `public` default ACL owned by a role the applying role MAY act for — is
+-- still verified in section 3 and fails closed if it is not least-privilege.
 DO $$
 DECLARE
   create_only text[] := ARRAY[]::text[];
@@ -560,9 +563,10 @@ END $$;
 -- that no GLOBAL default owned by such a role still leaks a table or sequence to a
 -- public-facing role. A `public` default ACL owned by a role the applying role may NOT
 -- act for (e.g. `supabase_admin` on hosted Supabase) is out of scope and is not checked
--- here — the customer cannot change it, and the 2026-11-05 inventory found no object
--- created under it. It also does NOT assert that every possible future creator has been
--- enumerated, because no catalog query can (see "Scope and limitations" in the header).
+-- here — the customer cannot change it, and whether any object exists under it is
+-- UNRESOLVED (no production catalog read). It also does NOT assert that every possible
+-- future creator has been enumerated, because no catalog query can (see "Scope and
+-- limitations" in the header).
 --
 -- Note on `PUBLIC`: `pg_get_userbyid(0)` returns the string `'unknown (OID=0)'`, NOT
 -- NULL, so `pg_get_userbyid(a.grantee) IN ('anon', 'authenticated')` never matches a
