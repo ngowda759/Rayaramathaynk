@@ -1006,3 +1006,25 @@ Details: `.openhands/memory/2026-11-03.md`.
 - Counts on `2de2dba5`: unit 223 suites/2967 pass/1 skipped; PGlite db 21/305; typecheck
   clean; lint 0 errors (715 warnings); build OK. Pushed `15481fed..2de2dba5`; PR #383 body +
   comment updated. Production NOT accessed; PR not merged.
+
+### F-A16 closure — APPLIED to production (2026-11-06) — independently verified
+
+- **Production migration is DONE.** `Deploy Supabase Migrations` run `42196025779` (dispatch,
+  `main`@`57aa501d`, 09:34Z) applied, in order: `20261115000000`, `…15000100`, `…15000200`,
+  `…15000300`; log ends `Finished supabase db push.` Dry-run step listed the same four; the
+  `migration list` step showed REMOTE blank for those four and `20261114990000` already remote.
+  Ref-guard step passed (fingerprint `233ede17c9c7`). Five F-A16 migrations, not four.
+- **Independent read-only audit run `42193532703`** (same sha, 09:14Z, approved project):
+  `statements 37/37`, `audit_complete = true`, `transaction_read_only = on`, ap-south-1.
+- **Phase-3 lesson (this workspace).** The sandbox `SUPABASE_DB_URL` / `SUPABASE_PROJECT_REF` /
+  `SUPABASE_POOLER_HOST` point at a **different** project (Tournament DB) and
+  `SUPABASE_ACCESS_TOKEN` is **not** injected. So a bare `supabase db push` here fails
+  `Cannot find project ref`, and `scripts/lib/guard-approved-project.mjs` REFUSES
+  (`got 72b54d98a3dc` vs approved `233ede17c9c7`). Do NOT read that as "the migration failed" —
+  production was applied by the dispatched workflow, which carries the token. Also: the **shallow
+  clone can be stale**; `git fetch origin main` before treating a missing file (e.g.
+  `20261115000300`) as nonexistent.
+- **Auto-deploy control:** the Supabase dashboard "Deploy to production" toggle is the only
+  effective switch; `[db.migrations] enabled=false` is coupled to `db push` and was NOT implemented
+  by pinned CLI 1.200.0. Repo keeps no `[db.migrations]` table; both migration workflows fail closed
+  if it appears. Details: `.openhands/memory/2026-11-06.md` (on `main`).
