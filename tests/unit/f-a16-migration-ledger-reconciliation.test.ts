@@ -102,6 +102,6 @@ describe("F-A16-06 migration ledger reconciliation", () => {
       "utf8"
     );
     expect(doc.length).toBeGreaterThan(1500);
-    expect(doc).toMatch(/NOT APPLIED TO PRODUCTION/i);
+    expect(doc).toMatch(/PRODUCTION APPLICATION IS PENDING/i);
   });
 });

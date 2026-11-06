@@ -2,7 +2,9 @@
 -- F-A16-02b — OWNER-RUN STEP: superuser-owned forward guard for functions that
 --             `supabase_admin` creates in `public`.
 --
--- Status: PROPOSED. NOT APPLIED. NOT EXECUTED. Owner action, gated on review.
+-- Status: exists and is fully tested locally (unit + PGlite). NOT EXECUTED
+--         against production. PRODUCTION APPLICATION PENDING.
+--         Owner action, gated on review.
 --
 -- WHY THIS FILE EXISTS
 -- --------------------

@@ -1,6 +1,8 @@
 # F-A16 — Least-Privilege Remediation Plan
 
-**Status: PROPOSED. NOT APPLIED TO PRODUCTION.**
+**Status: the migrations EXIST and are FULLY TESTED LOCALLY (unit + PGlite + real-PostgreSQL
+integration). PRODUCTION APPLICATION IS PENDING — nothing here has been applied to any
+database.**
 
 **Repository:** `ngowda759/Rayaramathaynk` · **Base commit:** `6f371ae` (`main`)
 **Audit source:** the 2026-11-03 read-only production catalog audit, plus
@@ -955,7 +957,7 @@ function is anon-executable through the implicit `PUBLIC` EXECUTE even after F-A
 | **applying the assertion** with no enabled enabler | n/a | migration **refused** (precondition) — no guard installed |
 | `CREATE TABLE IF NOT EXISTS` on an existing table | no-op | no-op (event does not fire) |
 
-### 8.3 Existing table grants — F-A16-01 (proposed, not executed)
+### 8.3 Existing table grants — F-A16-01 (migration exists, locally tested; production application pending)
 
 | Table class | Role | Current (from audit) | After this migration |
 |---|---|---|---|
@@ -1043,11 +1045,11 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 
 | File | Purpose |
 |---|---|
-| `supabase/migrations/20261114990000_f_a16_public_function_execute_guard.sql` | F-A16-02b forward function-EXECUTE guard, proposed, not applied |
-| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | F-A16-02, proposed, not applied |
-| `supabase/migrations/20261115000100_f_a16_fail_closed_rls_assertion.sql` | F-A16-03, proposed, not applied |
-| `supabase/migrations/20261115000200_f_a16_existing_table_privileges.sql` | F-A16-01, proposed, not applied |
-| `supabase/migrations/20261115000300_f_a16_existing_function_privileges.sql` | F-A16-07, proposed, not applied |
+| `supabase/migrations/20261114990000_f_a16_public_function_execute_guard.sql` | F-A16-02b forward function-EXECUTE guard — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000000_f_a16_least_privilege_defaults.sql` | F-A16-02 — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000100_f_a16_fail_closed_rls_assertion.sql` | F-A16-03 — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000200_f_a16_existing_table_privileges.sql` | F-A16-01 — exists, locally tested, production application pending |
+| `supabase/migrations/20261115000300_f_a16_existing_function_privileges.sql` | F-A16-07 — exists, locally tested, production application pending |
 | `tests/unit/f-a16-least-privilege-defaults.test.ts` | structural guard for F-A16-02 |
 | `tests/unit/f-a16-existing-privileges.test.ts` | structural guard for F-A16-01 / F-A16-02b |
 | `tests/unit/f-a16-existing-function-privileges.test.ts` | structural guard for F-A16-07 |
@@ -1066,8 +1068,12 @@ and re-checked after applying F-A16-02 to confirm no future path regressed.
 | `docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md` | F-A16-06 reconciliation report |
 | `docs/audits/F-A16_REMEDIATION_PLAN.md` | this document |
 
-**NOT APPLIED TO PRODUCTION.** No migration in this change has been applied to any
-database, and no production credential was used.
+**PRODUCTION APPLICATION IS PENDING.** No migration in this change has been applied to any
+database, and no production credential was used. Each migration **exists** in the working
+tree and is **fully tested locally** (unit structural guards, PGlite behavioural tests, and
+the real-PostgreSQL integration suite in `docs/audits/F-A16_INTEGRATION_VERIFICATION.md`).
+"Tested locally" is not "applied to production": the two are separate states, and only the
+first is true today.
 
 ---
 

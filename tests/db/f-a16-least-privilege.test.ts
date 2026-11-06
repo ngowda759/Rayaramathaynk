@@ -1,7 +1,7 @@
 /**
  * F-A16-02 / F-A16-03 — behavioural tests on an in-process Postgres (PGlite).
  *
- * These apply the two PROPOSED migrations to a throwaway database that first
+ * These apply the two F-A16 migrations to a throwaway database that first
  * recreates the Supabase platform's roles and default privileges (the same baseline
  * `tests/db/harness.ts` uses for the seva suite). They prove the migrations do what
  * their headers claim, including the cases the review asked to be covered:

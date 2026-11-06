@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * F-A16-07 — structural guard for the proposed existing-function privilege migration.
+ * F-A16-07 — structural guard for the existing-function privilege migration.
  *
  * These assertions read the SQL from disk; they do not connect to any database. They pin
  * the properties a reviewer must not have to re-derive:
@@ -32,8 +32,9 @@ const sql = raw
 const TARGETS = ["public.rls_auto_enable()", "public.update_updated_at_column()"];
 
 describe("F-A16-07 existing function privileges (structural)", () => {
-  it("is marked PROPOSED / NOT APPLIED", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+  it("is marked locally tested with production application pending", () => {
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   it("revokes EXECUTE on exactly the two named functions", () => {

@@ -1,9 +1,10 @@
 # F-A16 — Integration verification (real PostgreSQL / Supabase role model)
 
-**Status:** verification performed 2026-11-04 against a **disposable** local Supabase
-image, and **re-run 2026-11-05** against a fresh disposable container to verify the F-A16-02
-scope redesign and the new F-A16-07 migration. The migrations remain **PROPOSED / NOT
-APPLIED** in production.
+**Status:** the migrations **exist** and are **fully tested locally** — verification
+performed 2026-11-04 against a **disposable** local Supabase image, and **re-run 2026-11-05**
+against a fresh disposable container to verify the F-A16-02 scope redesign and the new
+F-A16-07 migration. **PRODUCTION APPLICATION IS PENDING: the migrations have not been applied
+to any database.**
 **PRODUCTION DATABASE NOT ACCESSED. NO PRODUCTION CHANGES EXECUTED. PR NOT MERGED.**
 
 This document is the evidence behind the F-A16-02b guard's fail-closed message and the
@@ -516,6 +517,12 @@ refuse and the REVOKE must be run as, or on behalf of, the owning role.
 ---
 
 ## 11. Production-readiness recommendation
+
+**Scope of these verdicts.** Every `PASS` below is a **local verification** verdict: the
+migration exists and behaves correctly in the isolated real-PostgreSQL environment. It is
+**not** a statement that the migration has been applied. **Production application is
+pending** for all of them — see the preflight and post-execution checklists in
+`docs/audits/F-A16_EXECUTION_CHECKLISTS.md`, which are marked **NOT EXECUTED**.
 
 **PASS for the customer-controllable surface, with two documented platform limitations.**
 

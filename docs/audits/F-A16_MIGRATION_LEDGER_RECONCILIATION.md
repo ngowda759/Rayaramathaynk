@@ -1,6 +1,7 @@
 # F-A16-06 — Migration Ledger Reconciliation
 
-**Status: ANALYSIS ONLY. NOT APPLIED TO PRODUCTION.**
+**Status: ANALYSIS ONLY. The F-A16 migrations EXIST and are FULLY TESTED LOCALLY;
+PRODUCTION APPLICATION IS PENDING.**
 **Base commit:** `3048196` (`main`) · **Audit snapshot date:** 2026-11-01
 
 This report compares the repository's migration files against the migration-ledger
@@ -23,12 +24,13 @@ by `tests/unit/f-a16-migration-ledger-reconciliation.test.ts`.
 | Duplicate **version** prefixes | **0** |
 | Duplicate **names** (distinct versions) | **2** — `create_temple_areas`, `seed_ai_settings` |
 
-> This PR adds **five** proposed migrations
+> This PR adds **five** migrations
 > (`20261114990000_f_a16_public_function_execute_guard.sql`,
 > `20261115000000_f_a16_least_privilege_defaults.sql`,
 > `20261115000100_f_a16_fail_closed_rls_assertion.sql`,
 > `20261115000200_f_a16_existing_table_privileges.sql`,
-> `20261115000300_f_a16_existing_function_privileges.sql`), all `NOT APPLIED`. They are
+> `20261115000300_f_a16_existing_function_privileges.sql`) that **exist and are fully
+> tested locally**; all are **pending production application** (`NOT APPLIED`). They are
 > excluded from the counts above, which describe the audit base commit.
 
 ---
@@ -153,10 +155,11 @@ repair`) is a ledger-only action and must be done deliberately, never as part of
 4. **Do not** mark any migration applied, and **do not** run `supabase migration repair`
    as part of this remediation.
 
-### 5.1 The five proposed F-A16 migrations, for ledger purposes
+### 5.1 The five new F-A16 migrations, for ledger purposes
 
 This reconciliation covers the *existing* files at base `3048196`. The F-A16 remediation
-adds five more, which are **proposed and not applied**:
+adds five more, which **exist and are fully tested locally but are pending production
+application**:
 
 | Proposed file | Version | Applied? | Note |
 |---|---|---|---|
@@ -195,11 +198,11 @@ cannot drift silently.
 No row of `supabase_migrations.schema_migrations` was read, written, repaired or marked.
 No migration was applied, dispatched, or pushed. No production database was connected.
 
-The five F-A16 migrations named in §5.1 are **proposed only**: they exist in the working
-tree, carry a `Status: PROPOSED. NOT APPLIED.` header, and have not been run against any
-database (they are exercised only against an in-process PGlite instance in
-`tests/db/f-a16-least-privilege.test.ts`,
-`tests/db/f-a16-existing-privileges.test.ts` and
-`tests/db/f-a16-existing-function-privileges.test.ts`).
+The five F-A16 migrations named in §5.1 **exist and are fully tested locally**: they are in
+the working tree, carry a `Status: exists and is fully tested locally … PRODUCTION
+APPLICATION PENDING.` header, and are exercised against an in-process PGlite instance
+(`tests/db/f-a16-least-privilege.test.ts`, `tests/db/f-a16-existing-privileges.test.ts`,
+`tests/db/f-a16-existing-function-privileges.test.ts`) and against real PostgreSQL
+(`tests/db/integration/f-a16.integration.test.ts`). None has been run against production.
 
-**NOT APPLIED TO PRODUCTION.**
+**PRODUCTION APPLICATION IS PENDING.**

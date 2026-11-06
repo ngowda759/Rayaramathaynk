@@ -2,7 +2,9 @@
 -- F-A16-02 — OWNER-RUN STEP for default privileges of roles the migration could not
 --            act for (in practice `supabase_admin`).
 --
--- Status: PROPOSED. NOT APPLIED. NOT EXECUTED. Owner action, gated on review.
+-- Status: exists and is fully tested locally (unit + PGlite). NOT EXECUTED
+--         against production. PRODUCTION APPLICATION PENDING.
+--         Owner action, gated on review.
 --
 -- WHY THIS FILE EXISTS
 -- --------------------

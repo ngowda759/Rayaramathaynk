@@ -1,6 +1,8 @@
 -- Migration: F-A16-07 — revoke EXECUTE on the two existing world-executable functions
 --
--- Status: PROPOSED. NOT APPLIED. Applying it is an owner action, gated on review.
+-- Status: exists and is fully tested locally (unit + PGlite + real-PostgreSQL
+--         integration). PRODUCTION APPLICATION PENDING.
+--         Applying it is an owner action, gated on review.
 -- See docs/audits/F-A16_REMEDIATION_PLAN.md (finding F-A16-07),
 -- docs/audits/F-A16_EXECUTION_CHECKLISTS.md (preflight / post-execution / rollback) and
 -- docs/audits/F-A16_INTEGRATION_VERIFICATION.md.

@@ -1,7 +1,7 @@
 /**
  * F-A16-07 — behavioural tests for the existing-function privilege migration.
  *
- * These apply the PROPOSED migration to a throwaway in-process Postgres (PGlite). They
+ * These apply the F-A16-07 migration to a throwaway in-process Postgres (PGlite). They
  * prove it revokes EXECUTE on exactly the two named functions from PUBLIC/anon/authenticated,
  * keeps it for service_role and the owner, does not touch the functions' definitions or
  * their triggers, and fails closed when a target is missing.

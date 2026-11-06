@@ -1,6 +1,8 @@
 -- Migration: F-A16-01 — revoke the non-RLS-covered privileges from existing tables
 --
--- Status: PROPOSED. NOT APPLIED. Applying it is an owner action, gated on review.
+-- Status: exists and is fully tested locally (unit + PGlite + real-PostgreSQL
+--         integration). PRODUCTION APPLICATION PENDING.
+--         Applying it is an owner action, gated on review.
 -- See docs/audits/F-A16-01_PRIVILEGE_MATRIX.md (the table-by-table matrix),
 -- docs/audits/F-A16_REMEDIATION_PLAN.md (finding F-A16-01) and
 -- docs/audits/F-A16_EXECUTION_CHECKLISTS.md (preflight / post-execution / rollback).

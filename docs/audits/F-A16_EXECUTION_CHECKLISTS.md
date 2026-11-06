@@ -1,6 +1,8 @@
 # F-A16 — Production preflight, verification and rollback checklists
 
-**Status: NOT EXECUTED. Nothing in this file has been run against production.**
+**Status: NOT EXECUTED. Nothing in this file has been run against production.** The
+migrations it covers **exist and are fully tested locally**; applying them to production is
+still **pending**.
 
 This file is the operator-facing companion to `docs/audits/F-A16_REMEDIATION_PLAN.md`. It
 separates three things the plan deliberately keeps apart:

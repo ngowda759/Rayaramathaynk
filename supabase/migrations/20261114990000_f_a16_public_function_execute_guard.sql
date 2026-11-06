@@ -1,6 +1,8 @@
 -- Migration: F-A16-02b — forward guard against PUBLIC EXECUTE on new `public` functions
 --
--- Status: PROPOSED. NOT APPLIED. Applying it is an owner action, gated on review.
+-- Status: exists and is fully tested locally (unit + PGlite + real-PostgreSQL
+--         integration). PRODUCTION APPLICATION PENDING.
+--         Applying it is an owner action, gated on review.
 -- See docs/audits/F-A16_REMEDIATION_PLAN.md (findings F-A16-02, F-A16-02b and F-A16-07)
 -- and docs/audits/F-A16-01_PRIVILEGE_MATRIX.md.
 --

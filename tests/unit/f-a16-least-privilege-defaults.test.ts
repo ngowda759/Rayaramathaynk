@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * F-A16-02 — structural guard for the proposed least-privilege default-privileges
+ * F-A16-02 — structural guard for the least-privilege default-privileges
  * migration. These assertions read the SQL from disk; they do not connect to any
  * database. They exist so the migration cannot silently lose one of the properties
  * that make it safe to apply:
@@ -209,7 +209,8 @@ describe("F-A16-02 least-privilege default privileges", () => {
   });
 
   it("is not marked as applied anywhere", () => {
-    expect(raw).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+    expect(raw).toMatch(/Status: exists and is fully tested locally/);
+    expect(raw).toMatch(/PRODUCTION APPLICATION PENDING/);
   });
 
   describe("object-creating role coverage (fail-closed)", () => {
@@ -429,8 +430,9 @@ describe("F-A16-02 least-privilege default privileges", () => {
   describe("owner-run files are retained but no longer required for this path", () => {
     const ownerRun = readFileSync(path.join(ROOT, OWNER_RUN_FILE), "utf8");
 
-    it("still exists and is marked PROPOSED / NOT APPLIED", () => {
-      expect(ownerRun).toMatch(/Status: PROPOSED\. NOT APPLIED/);
+    it("still exists and is marked locally tested with production application pending", () => {
+      expect(ownerRun).toMatch(/Status: exists and is fully tested locally/);
+      expect(ownerRun).toMatch(/PRODUCTION APPLICATION PENDING/);
     });
 
     it("the migration no longer points the operator at the owner-run step", () => {
