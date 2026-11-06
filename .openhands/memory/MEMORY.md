@@ -977,4 +977,32 @@ Details: `.openhands/memory/2026-11-03.md`.
   it an assumption, catalog audit NOT EXECUTED. Marked UNRESOLVED across all docs; the
   migration is correct under either owner.
 - Counts after fix: unit 222 suites/2948 pass; PGlite db 21/305; integration 19/19;
-  typecheck clean; lint 0 errors; build OK. Not committed — awaiting owner approval.
+  typecheck clean; lint 0 errors; build OK. Committed `15481fed`, pushed, PR #383 updated.
+
+## Automatic production migration on push to `main` (2026-11-06, commit `2de2dba5`)
+
+- **The repo has a Supabase GitHub integration** (the `Supabase Preview` check, app slug
+  `supabase`, app id 330661) configured **in the Supabase dashboard**, NOT in the repo. On
+  every push to `main` it applies pending `supabase/migrations/*.sql` to the production
+  project `kvrkraqjuyxbraccxntk`. It is `skipped` on feature branches, so PR CI looks clean
+  while `main` is migrated. It is currently failing at
+  `20261115000000_f_a16_least_privilege_defaults.sql` (P0001, `supabase_admin`), and `main`
+  gets ~12 pushes/day from the scheduled `panchanga.yml` workflow.
+- **Disabling it is an owner action.** Setting = **Supabase Dashboard → Project Settings →
+  Integrations → GitHub Integration → "Deploy to production"**. No Management API endpoint
+  (`api.supabase.com/api/v1-json` has no `github`/`integration` path). A user token (`ghu_`)
+  cannot manage the App installation (401) and branch-protection/ruleset writes are `403`.
+- **The documented repo-side switch is NOT a usable interlock.** `[db.migrations] enabled =
+  false` in `supabase/config.toml` is documented to stop branching's migrations, but (a) the
+  same key gates the CLI's `supabase db push`, and (b) the **pinned CLI 1.200.0 does not
+  implement the gate at all** — measured on a disposable `postgres:15`, a pending migration
+  applied anyway; the gate string and `migrationsEnabled` are absent from the pinned binary.
+  Only the dashboard toggle is demonstrably effective.
+- Repository-side controls added (all that the repo *can* do): both migration workflows now
+  **fail closed** if `enabled = false` is set (new step *Assert migrations are enabled in
+  config.toml*, before `supabase link`); `config.toml` documents the switch (left OFF);
+  `F-A16_INTEGRATION_VERIFICATION.md` §13 + `F-A16_REMEDIATION_PLAN.md` §14;
+  `tests/unit/f-a16-auto-deploy-controls.test.ts` (19 tests, executes the guard).
+- Counts on `2de2dba5`: unit 223 suites/2967 pass/1 skipped; PGlite db 21/305; typecheck
+  clean; lint 0 errors (715 warnings); build OK. Pushed `15481fed..2de2dba5`; PR #383 body +
+  comment updated. Production NOT accessed; PR not merged.
