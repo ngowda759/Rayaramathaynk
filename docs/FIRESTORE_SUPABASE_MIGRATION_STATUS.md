@@ -36,30 +36,34 @@ The repository currently operates **two distinct authentication systems** with s
 
 ---
 
-## 2. Reconciled Firestore Runtime Status (Code Reality vs. Historical Findings)
+## 2. Reconciled Firestore Runtime Status (HEAD Verification & Dependencies)
 
-A comprehensive cross-check between historical documentation (`docs/audits/FIRESTORE_DEPENDENCY_AUDIT.md`) and the active codebase establishes the exact boundary of Firestore elimination:
+A rigorous verification against the **current HEAD of the repository** (`auth-phase1-identity-audit` / `origin/main`) establishes the exact state of Firestore elimination and isolates pre-existing findings from ongoing remediation tracks.
 
 ### 2.1 Content & Domain Services: Clean (Zero Fallback Reads)
-All domain and content services have successfully cut over to Supabase PostgreSQL. There are **zero fallback reads** from Supabase to Firestore in the request path:
+All domain and content services have cleanly cut over to Supabase PostgreSQL. There are **zero fallback reads** from Supabase to Firestore in the request path:
 * `events`, `sevas`, `quotes`, `gallery_albums`, `gallery_media`, `aaradhanes`, `ai_settings`, `ai_knowledge`, and `settings_documents` read exclusively from Supabase tables.
 * Code in `services/chat.server.ts`, `services/knowledge-workflow.service.ts`, and `lib/ai/retrieval/announcements.ts` explicitly rejects Firestore fallback paths (failures fail closed).
 
-### 2.2 Active Firestore Runtime Touchpoints (Current Code)
-Four specific runtime touchpoints still depend on Firestore and must be addressed during phased migration:
+### 2.2 Active Firestore Runtime Touchpoints (Current HEAD Verification)
+Verification confirms that **four Firestore runtime touchpoints still physically exist in the current HEAD**. The planned **Firestore runtime-elimination task/PR** is not yet merged into this branch. These items are classified as **pre-existing findings captured by the Phase-1 audit**, with the standalone **Firestore Runtime-Elimination PR** identified as their direct remediation dependency:
 
-1. **Page View Logging (`proxy.ts` — Middleware):**
-   * **Behavior:** Next.js 16 request proxy imports `firebase/firestore` and writes a document to `page_views` collection on every public GET request (`proxy.ts:83`), in parallel with the Supabase client-side beacon (`PageViewTracker.tsx`).
-   * **Status:** Live residual write to Firestore.
-2. **Client-Side Auth Context & Profile Mirror (`services/auth.service.ts` & `context/AuthContext.tsx`):**
-   * **Behavior:** User login (`authService.login`) and registration (`authService.register`) execute `setDoc` on Firestore `users/{uid}`, while `getUserProfile` and `AuthContext` read `users/{uid}` via `getDoc`.
-   * **Status:** Client-side Firestore read/write mirror for non-AI users.
-3. **Seva Identity Adapter (`lib/seva/server/identity-firebase.ts`):**
-   * **Behavior:** In `getAccessProfile(externalUid)`, the adapter reads Firestore `users/{uid}` via Firebase Admin SDK (`db.collection("users").doc(externalUid).get()`) to inspect `role` and `isActive`. In `setAccessProfile`, it writes role/status updates to Firestore.
-   * **Status:** Server-side Firestore read/write dependency in `/api/seva/*`.
-4. **Site Settings Action Admin Gate (`lib/auth/admin.ts:58-75`):**
-   * **Behavior:** `isUserAdmin(uid)` executes `getDoc(doc(db, "users", uid))` against Firestore before allowing `app/actions/settings.ts` to update `site_settings` in Supabase.
-   * **Status:** Lingering Firestore authorization dependency for site settings.
+1. **Page View Logging (`proxy.ts` — Middleware) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
+   * **Verification on Current HEAD:** `proxy.ts:4` imports `firebase/firestore` and lines 82–84 invoke `addDoc(collection(firestore, "page_views"), pageViewData)` on every public GET request.
+   * **Current State:** Live residual write to Firestore still present in current HEAD.
+   * **Remediation Dependency:** Scheduled for removal in the standalone Firestore runtime-elimination task (leaving the client-side Supabase `PageViewTracker.tsx` beacon as the sole analytics writer).
+2. **Client-Side Auth Context & Profile Mirror (`services/auth.service.ts` & `context/AuthContext.tsx`) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
+   * **Verification on Current HEAD:** `services/auth.service.ts:12-16` imports Firestore methods (`doc, getDoc, setDoc`). `login` and `register` write to `users/{uid}`, and `AuthContext.tsx:74` calls `getUserProfile(uid)`.
+   * **Current State:** Client-side Firestore profile mirror remains present in current HEAD.
+   * **Remediation Dependency:** Scheduled for elimination in the separate Firestore runtime-elimination task.
+3. **Seva Identity Adapter (`lib/seva/server/identity-firebase.ts`) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
+   * **Verification on Current HEAD:** `lib/seva/server/identity-firebase.ts:19-21` imports `getAdminFirestore` and line 41 executes `.get()` against Firestore `users/{uid}` to inspect `role` and `isActive`.
+   * **Current State:** Server-side Firestore profile dependency remains present in `/api/seva/*`.
+   * **Remediation Dependency:** Scheduled for elimination via the Seva `supabaseIdentityAdapter` transition in Phase 2 / Runtime Elimination.
+4. **Site Settings Action Admin Gate (`lib/auth/admin.ts:58-75`) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
+   * **Verification on Current HEAD:** `isUserAdmin(uid)` executes `getDoc(doc(db, "users", uid))` against Firestore before allowing `app/actions/settings.ts` to write `site_settings` in Supabase.
+   * **Current State:** Lingering Firestore authorization check remains present in current HEAD.
+   * **Remediation Dependency:** Scheduled for replacement by Supabase `public.users` role inspection in the Firestore runtime-elimination task.
 
 ---
 
@@ -80,16 +84,17 @@ Four specific runtime touchpoints still depend on Firestore and must be addresse
 
 ## 4. Reconciliation Findings Matrix
 
-| Finding Code | Classification | Store / Component | Description & Current State | Risk / Impact |
+| Finding Code | Classification | Store / Component | Description & Current State in HEAD | Remediation Dependency |
 |---|---|---|---|---|
 | **F-ID-01** | **MATCHED** | Supabase Auth $\leftrightarrow$ `public.users` | Raya AI admin account mapped via `auth_user_id` with `active = true` and `role = 'super_admin'`. | None for `/admin/ai/*`. Works as designed. |
-| **F-ID-02** | **MISSING** | Supabase `public.staff` | `public.staff` schema has `firebase_uid text NOT NULL UNIQUE` but **no `auth_user_id` column**. | Blocks Seva Counter from using native Supabase Auth. |
-| **F-ID-03** | **MISSING** | Supabase `public.users` | Onboarding staff via `onboardStaff` creates Firebase Auth, Firestore `users/{uid}`, and Supabase `staff`, but **no `public.users` record**. | Staff cannot access `/admin/*` without manual row insertion. |
-| **F-ID-04** | **MISMATCH** | General Admin Guard | `lib/auth/admin-auth.ts` verifies Firebase JWT and queries `public.users.firestore_id`. Missing rows answer `403 user_not_found`. | Immediate admin lockout if Firebase accounts lack `public.users` rows. |
-| **F-ID-05** | **MISMATCH** | Immutability Trigger | `seva_staff_guard` trigger raises an exception on any update to `staff.firebase_uid`. | `firebase_uid` cannot be mutated; migration must add `auth_user_id`. |
-| **F-ID-06** | **LEGACY** | Seva Identity Adapter | `lib/seva/server/identity.ts` defaults to `firebaseIdentityAdapter`, reading Firestore `users/{uid}` for `isActive`/`role`. | Dual-datastore dependency for counter operations. |
-| **F-ID-07** | **LEGACY** | Devotee Profile Storage | `services/auth.service.ts` writes profile updates directly to Firestore on login/register. | Prevents complete removal of client Firebase SDK. |
-| **F-ID-08** | **LEGACY** | Client Guard Blocker | `AdminAuthGuard.tsx` shows "Firebase Not Configured" screen if Firebase env vars are missing. | Blocks access to admin dashboard even when Supabase is up. |
+| **F-ID-02** | **MISSING** | Supabase `public.staff` | `public.staff` schema has `firebase_uid text NOT NULL UNIQUE` but **no `auth_user_id` column**. | Phase 2 Staff Schema Migration. |
+| **F-ID-03** | **MISSING** | Supabase `public.users` | Onboarding staff via `onboardStaff` creates Firebase Auth, Firestore `users/{uid}`, and Supabase `staff`, but **no `public.users` record**. | Phase 2 Synchronized Onboarding. |
+| **F-ID-04** | **MISMATCH** | General Admin Guard | `lib/auth/admin-auth.ts` verifies Firebase JWT and queries `public.users.firestore_id`. Missing rows answer `403 user_not_found`. | Phase 2 Dual-Token Verification. |
+| **F-ID-05** | **MISMATCH** | Immutability Trigger | `seva_staff_guard` trigger raises an exception on any update to `staff.firebase_uid`. | Phase 2 Additive Column Migration. |
+| **F-ID-06** | **LEGACY / PRE-EXISTING** | Seva Identity Adapter | `lib/seva/server/identity.ts` defaults to `firebaseIdentityAdapter`, reading Firestore `users/{uid}` for `isActive`/`role`. | Dedicated Firestore Runtime-Elimination PR. |
+| **F-ID-07** | **LEGACY / PRE-EXISTING** | Devotee Profile Storage | `services/auth.service.ts` writes profile updates directly to Firestore on login/register. | Dedicated Firestore Runtime-Elimination PR. |
+| **F-ID-08** | **LEGACY / PRE-EXISTING** | Request Middleware | `proxy.ts:83` writes page-view documents to Firestore `page_views` collection. | Dedicated Firestore Runtime-Elimination PR. |
+| **F-ID-09** | **LEGACY / PRE-EXISTING** | Client Guard Blocker | `AdminAuthGuard.tsx` shows "Firebase Not Configured" screen if Firebase env vars are missing. | Phase 2 Admin Guard Unification. |
 
 ---
 
@@ -127,4 +132,4 @@ To ensure a seamless, zero-lockout transition to unified Supabase authentication
 
 * **Zero Live Mutations:** Confirmed. No production data, credentials, users, or schema objects were created, altered, or deleted during this diagnostic.
 * **Credentials Protected:** Confirmed. No passwords, tokens, API keys, or secret strings are included in this document.
-* **Repository Consistency:** Confirmed against current codebase on `auth-phase1-identity-audit`.
+* **Repository Consistency:** Confirmed against current codebase HEAD on `auth-phase1-identity-audit`.
