@@ -3,9 +3,10 @@
 **Status:** the migrations **exist** and are **fully tested locally** — verification
 performed 2026-11-04 against a **disposable** local Supabase image, and **re-run 2026-11-05**
 against a fresh disposable container to verify the F-A16-02 scope redesign and the new
-F-A16-07 migration. **PRODUCTION APPLICATION IS PENDING: the migrations have not been applied
-to any database.**
-**PRODUCTION DATABASE NOT ACCESSED. NO PRODUCTION CHANGES EXECUTED. PR NOT MERGED.**
+F-A16-07 migration. **They were APPLIED TO PRODUCTION on 2026-11-06 and verified read-only
+afterwards** — see `docs/audits/F-A16_PRODUCTION_VERIFICATION_2026-11-06.md` for the
+post-application evidence (items 1, 2, 4 and 5 PASS; the `supabase_admin` default-privilege
+residual R-1 remains open and platform-side).
 
 This document is the evidence behind the F-A16-02b guard's fail-closed message and the
 F-A16-02 hosted-Supabase scope correction (2026-11-05). It exists because PGlite runs as a

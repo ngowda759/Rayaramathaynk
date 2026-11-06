@@ -1,7 +1,10 @@
 # F-A16-06 — Migration Ledger Reconciliation
 
-**Status: ANALYSIS ONLY. The F-A16 migrations EXIST and are FULLY TESTED LOCALLY;
-PRODUCTION APPLICATION IS PENDING.**
+**Status: ANALYSIS ONLY (point-in-time). The F-A16 migrations EXIST and are FULLY TESTED
+LOCALLY; at the time of this analysis PRODUCTION APPLICATION IS PENDING.**
+**Resolved 2026-11-06:** all five migrations are now recorded as applied in the production
+ledger and the privilege outcome was verified read-only — see
+`docs/audits/F-A16_PRODUCTION_VERIFICATION_2026-11-06.md` §4.5.
 **Base commit:** `3048196` (`main`) · **Audit snapshot date:** 2026-11-01
 
 This report compares the repository's migration files against the migration-ledger
