@@ -219,7 +219,6 @@ migrations:
   3. Disable the Supabase GitHub integration's **Deploy to production** on `main`
      (Dashboard → Project Settings → Integrations) so future migrations are applied only
      through the reviewed, dispatch-gated workflow.
-  4. Rotate the project database password, since it is a shared owner-role credential.
 
 ---
 
