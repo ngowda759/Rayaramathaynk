@@ -138,6 +138,57 @@ describe("Dual-Token Admin Auth — Primary Path (Supabase Auth)", () => {
       expect(result.reason).toBe("user_not_found");
       expect(result.status).toBe(403);
     }
+    // Critical: Firebase fallback MUST NOT be invoked when Supabase identity is found
+    expect(mockGetAuth).not.toHaveBeenCalled();
+  });
+
+  it("strictly prevents privilege escalation: unauthorized or inactive Supabase identity NEVER falls back to Firebase", async () => {
+    // 1. Inactive Supabase user with bearer token
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "sb-inactive-uuid-2", email: "inactive2@example.org" } },
+      error: null,
+    });
+    mockMaybeSingle.mockResolvedValue({
+      data: { role: "admin", active: false, email: "inactive2@example.org" },
+      error: null,
+    });
+
+    const inactiveResult = await verifyAdminUserResult(makeRequest("Bearer sb-inactive-token"));
+    expect(inactiveResult.ok).toBe(false);
+    expect(inactiveResult.reason).toBe("inactive_user");
+    expect(mockGetAuth).not.toHaveBeenCalled();
+
+    // 2. Devotee role Supabase user with bearer token
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "sb-devotee-uuid-2", email: "devotee2@example.org" } },
+      error: null,
+    });
+    mockMaybeSingle.mockResolvedValue({
+      data: { role: "devotee", active: true, email: "devotee2@example.org" },
+      error: null,
+    });
+
+    const nonAdminResult = await verifyAdminUserResult(makeRequest("Bearer sb-devotee-token"));
+    expect(nonAdminResult.ok).toBe(false);
+    expect(nonAdminResult.reason).toBe("insufficient_role");
+    expect(mockGetAuth).not.toHaveBeenCalled();
+  });
+
+  it("identifies expired Supabase token and returns expired_token (401) without unsafe fallback", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: "JWT expired: token has expired at 1700000000" },
+    });
+    mockGetAuth.mockReturnValue({
+      verifyIdToken: jest.fn().mockRejectedValue(
+        Object.assign(new Error("Invalid token"), { code: "auth/invalid-id-token" })
+      ),
+    });
+
+    const result = await verifyAdminUserResult(makeRequest("Bearer sb-expired-token"));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("expired_token");
+    expect(result.status).toBe(401);
   });
 });
 

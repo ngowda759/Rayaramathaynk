@@ -83,8 +83,11 @@ jest.mock("@/lib/supabase/admin", () => ({
 const mockRpc = jest.fn<Promise<unknown>, [string, Record<string, unknown>]>(async (fn: string, args: Record<string, unknown>) => {
   if (fn === "seva_next_staff_no") return 42;
   if (fn === "seva_staff_onboard") {
-    const staffId = "0f6e2b1a-1c1d-4e5f-8a9b-000000000042";
     const pStaff = args.p_staff as Record<string, unknown>;
+    if (pStaff?.email === "fail.staff@example.com") {
+      throw new Error("DB connection terminated or duplicate staff_no");
+    }
+    const staffId = "0f6e2b1a-1c1d-4e5f-8a9b-000000000042";
     mockStaffTable.push({
       id: staffId,
       staff_no: pStaff.staff_no,
@@ -93,7 +96,9 @@ const mockRpc = jest.fn<Promise<unknown>, [string, Record<string, unknown>]>(asy
       firebase_uid: pStaff.firebase_uid,
       auth_user_id: null,
       status: "invited",
-      view_only: pStaff.view_only,
+      view_only: pStaff.view_only ?? false,
+      invited_at: new Date().toISOString(),
+      first_signed_in_at: null,
     });
     return staffId;
   }
@@ -191,6 +196,89 @@ describe("Synchronized Staff Onboarding", () => {
       active: true,
       firestore_id: "fb-generated-uid-42",
       auth_user_id: "sb-new-uuid",
+    });
+  });
+
+  describe("Onboarding Partial Failures & Collision Controls", () => {
+    it("reports partial_failure when staff DB insert fails after identity creation", async () => {
+      await expect(
+        onboardStaff(
+          SUPER_ACTOR,
+          { fullName: "Failed Staff", email: "fail.staff@example.com", role: "priest", viewOnly: false },
+          { authUserId: "sb-fail-uuid" }
+        )
+      ).rejects.toMatchObject({
+        code: "partial_failure",
+        detail: expect.objectContaining({
+          done: ["identity"],
+          failed: "staff",
+        }),
+      });
+
+      // Staff row was NOT inserted into public.staff
+      expect(mockStaffTable.find((s) => s.email === "fail.staff@example.com")).toBeUndefined();
+    });
+
+    it("rejects duplicate email before any writes occur", async () => {
+      // Pre-existing staff member with this email
+      mockStaffTable.push({
+        id: "existing-staff-id",
+        staff_no: 5,
+        email: "taken.email@example.com",
+        full_name: "Prior Staff",
+        firebase_uid: "fb-taken-uid",
+        auth_user_id: null,
+        view_only: false,
+        status: "active",
+        invited_at: null,
+        first_signed_in_at: null,
+      });
+
+      await expect(
+        onboardStaff(
+          SUPER_ACTOR,
+          { fullName: "Duplicate Staff", email: "taken.email@example.com", role: "priest", viewOnly: false }
+        )
+      ).rejects.toMatchObject({
+        code: "validation",
+        detail: expect.objectContaining({
+          field: "email",
+        }),
+      });
+
+      // Identity adapter was never invoked to create a login
+      expect(mockIdentity.createLogin).not.toHaveBeenCalled();
+    });
+
+    it("rejects duplicate staff number before any writes occur", async () => {
+      // Pre-existing staff member with staff_no 10
+      mockStaffTable.push({
+        id: "existing-staff-10",
+        staff_no: 10,
+        email: "other@example.com",
+        full_name: "Staff Ten",
+        firebase_uid: "fb-uid-10",
+        auth_user_id: null,
+        view_only: false,
+        status: "active",
+        invited_at: null,
+        first_signed_in_at: null,
+      });
+
+      await expect(
+        onboardStaff(
+          SUPER_ACTOR,
+          { fullName: "Conflict Staff", email: "new@example.com", staffNo: 10, role: "priest", viewOnly: false }
+        )
+      ).rejects.toMatchObject({
+        code: "validation",
+        detail: expect.objectContaining({
+          field: "staffNo",
+        }),
+      });
+
+      // Identity adapter was never invoked
+      expect(mockIdentity.createLogin).not.toHaveBeenCalled();
     });
   });
 });
