@@ -1,18 +1,25 @@
 /**
  * Server-only admin authentication for admin API routes.
  *
- * Verifies the Firebase ID token sent by the admin UI (Authorization: Bearer)
- * using the Firebase Admin SDK, then checks the user's role and active flag in
- * Supabase (`public.users`, keyed by `firestore_id` = the Firebase UID).
- * Public/unauthenticated callers are rejected, and access is denied by default:
- * a valid token alone is never sufficient.
+ * Implements dual-token identity verification with zero-lockout:
  *
- * The verifier distinguishes *why* a request was rejected so that API routes
- * can return an accurate status code and diagnostics instead of a blanket 401
- * for every failure (expired token, missing profile, inactive user, blocked
- * role, or unavailable server credentials). The distinction is safe to expose:
- * an authorized caller is already authenticated, so the reason never leaks
- * information to an anonymous client beyond "your request was rejected".
+ *   PRIMARY PATH — Supabase Auth:
+ *     When a valid Supabase session or bearer token exists, verifies the Supabase
+ *     identity, obtains the authenticated Supabase Auth UUID, and loads the user's
+ *     authorization record from Supabase (`public.users`, keyed by `auth_user_id`).
+ *
+ *   SECONDARY PATH — Firebase Auth:
+ *     If no valid Supabase identity is available, verifies the Firebase ID token
+ *     server-side via Firebase Admin SDK, then loads the authorization record from
+ *     Supabase (`public.users`, keyed by `firestore_id` = Firebase UID).
+ *
+ * In both paths:
+ *   - The user must exist in `public.users`
+ *   - `active` must not be false
+ *   - `role` must be on the admin console allow-list
+ *   - Client-supplied claims, uids, or emails are never trusted
+ *   - Service-role credentials are never exposed
+ *   - The result clearly indicates `provider = "supabase"` or `provider = "firebase"`
  */
 
 import "server-only";
@@ -23,6 +30,7 @@ export interface ServerAdminUser {
   uid: string;
   email: string;
   role: string;
+  provider: "supabase" | "firebase";
 }
 
 export type AdminAuthFailureReason =
@@ -35,7 +43,7 @@ export type AdminAuthFailureReason =
   | "auth_unavailable";
 
 export type AdminAuthResult =
-  | { ok: true; user: ServerAdminUser }
+  | { ok: true; user: ServerAdminUser; provider: "supabase" | "firebase" }
   | { ok: false; reason: AdminAuthFailureReason; status: number; message: string };
 
 /**
@@ -70,15 +78,131 @@ export function isAdminConsoleRole(role: unknown): boolean {
 }
 
 /**
- * Verify the caller is an authorized admin.
- * Returns a structured result that identifies the failure reason so routes can
- * respond with an accurate HTTP status and actionable diagnostics.
+ * Verify the caller is an authorized admin using dual-token verification:
+ * Primary path: Supabase Auth. Secondary fallback path: Firebase Auth.
+ * Returns a structured result that identifies the provider and failure reason.
  */
 export async function verifyAdminUserResult(
   request: NextRequest
 ): Promise<AdminAuthResult> {
   const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  let bearerToken: string | null = null;
+
+  if (authHeader) {
+    if (!authHeader.startsWith("Bearer ")) {
+      return {
+        ok: false,
+        reason: "missing_token",
+        status: 401,
+        message: "Missing or malformed Authorization header.",
+      };
+    }
+    bearerToken = authHeader.slice("Bearer ".length).trim();
+    if (!bearerToken) {
+      return {
+        ok: false,
+        reason: "missing_token",
+        status: 401,
+        message: "Empty bearer token.",
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // PRIMARY PATH: Supabase Auth
+  // --------------------------------------------------------------------------
+  let supabaseAuthUser: { id: string; email: string | null } | null = null;
+  let supabaseExpired = false;
+
+  if (bearerToken) {
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const supabase = createAdminClient();
+      if (typeof supabase?.auth?.getUser === "function") {
+        const { data, error } = await supabase.auth.getUser(bearerToken);
+        if (data?.user) {
+          supabaseAuthUser = { id: data.user.id, email: data.user.email ?? null };
+        } else if (error && /expir/i.test(error.message)) {
+          supabaseExpired = true;
+        }
+      }
+    } catch {
+      // Not a Supabase token or Supabase Auth call unavailable; proceed to fallback
+    }
+  } else {
+    // Cookie session resolution when no bearer token is supplied
+    try {
+      const { createClient } = await import("@/lib/supabase/server");
+      const supabase = await createClient();
+      if (typeof supabase?.auth?.getUser === "function") {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          supabaseAuthUser = { id: data.user.id, email: data.user.email ?? null };
+        }
+      }
+    } catch {
+      // No cookie session available
+    }
+  }
+
+  if (supabaseAuthUser) {
+    const profile = await loadAuthorizationProfile({ authUserId: supabaseAuthUser.id });
+
+    if (!profile.ok) {
+      if (profile.reason === "user_not_found") {
+        console.warn(`[verifyAdminUser] No authorization profile for Supabase uid ${supabaseAuthUser.id}`);
+        return {
+          ok: false,
+          reason: "user_not_found",
+          status: 403,
+          message: "No admin profile found for this account.",
+        };
+      }
+      return {
+        ok: false,
+        reason: "auth_unavailable",
+        status: 503,
+        message: "Server authentication is temporarily unavailable (profile lookup failed).",
+      };
+    }
+
+    if (profile.active === false) {
+      console.warn(`[verifyAdminUser] Supabase user ${supabaseAuthUser.id} is not active`);
+      return {
+        ok: false,
+        reason: "inactive_user",
+        status: 403,
+        message: "This account is inactive.",
+      };
+    }
+
+    const role = normalizeRole(profile.role);
+    if (!ADMIN_CONSOLE_ROLES.has(role)) {
+      console.warn(`[verifyAdminUser] Supabase user ${supabaseAuthUser.id} has non-admin role ${role || "(empty)"}`);
+      return {
+        ok: false,
+        reason: "insufficient_role",
+        status: 403,
+        message: "This account does not have administrator permissions.",
+      };
+    }
+
+    return {
+      ok: true,
+      provider: "supabase",
+      user: {
+        uid: supabaseAuthUser.id,
+        email: String(profile.email || supabaseAuthUser.email || ""),
+        role,
+        provider: "supabase",
+      },
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // SECONDARY PATH: Firebase Auth fallback
+  // --------------------------------------------------------------------------
+  if (!bearerToken) {
     return {
       ok: false,
       reason: "missing_token",
@@ -87,24 +211,14 @@ export async function verifyAdminUserResult(
     };
   }
 
-  const idToken = authHeader.slice("Bearer ".length).trim();
-  if (!idToken) {
-    return {
-      ok: false,
-      reason: "missing_token",
-      status: 401,
-      message: "Empty bearer token.",
-    };
-  }
+  let firebaseDecoded: { uid: string; email?: string } | null = null;
+  let firebaseTokenError: { expired: boolean; code: string } | null = null;
 
-  // Verify the ID token. A failure here is either a bad/expired token (401) or
-  // a server-side problem such as missing Firebase Admin credentials (503).
-  let decoded: { uid: string; email?: string };
   try {
     const { getAdminApp } = await import("@/lib/admin-firebase");
     const adminApp = await getAdminApp();
     const { getAuth } = await import("firebase-admin/auth");
-    decoded = await getAuth(adminApp).verifyIdToken(idToken);
+    firebaseDecoded = await getAuth(adminApp).verifyIdToken(bearerToken);
   } catch (error) {
     const code = (error as { code?: string })?.code || "";
     const isTokenError =
@@ -115,46 +229,54 @@ export async function verifyAdminUserResult(
     if (isTokenError) {
       const expired =
         code === "auth/id-token-expired" || code === "auth/argument-error";
-      console.warn(
-        `[verifyAdminUser] Rejected ${expired ? "expired" : "invalid"} token: ${code}`
+      firebaseTokenError = { expired, code };
+    } else {
+      console.error(
+        "[verifyAdminUser] Firebase Admin verification unavailable:",
+        error instanceof Error ? error.message : error
       );
       return {
         ok: false,
-        reason: expired ? "expired_token" : "invalid_token",
-        status: 401,
-        message: expired
-          ? "Authentication token has expired."
-          : "Authentication token is invalid.",
+        reason: "auth_unavailable",
+        status: 503,
+        message:
+          "Server authentication is temporarily unavailable (Firebase Admin not configured).",
       };
     }
+  }
 
-    // Non-token failure: the Admin SDK itself could not verify (missing or
-    // malformed server credentials, network failure, etc.). This is a server
-    // misconfiguration, not a client authentication error.
-    console.error(
-      "[verifyAdminUser] Firebase Admin verification unavailable:",
-      error instanceof Error ? error.message : error
+  if (firebaseTokenError) {
+    const expired = firebaseTokenError.expired || supabaseExpired;
+    console.warn(
+      `[verifyAdminUser] Rejected ${expired ? "expired" : "invalid"} token: ${firebaseTokenError.code}`
     );
     return {
       ok: false,
-      reason: "auth_unavailable",
-      status: 503,
-      message:
-        "Server authentication is temporarily unavailable (Firebase Admin not configured).",
+      reason: expired ? "expired_token" : "invalid_token",
+      status: 401,
+      message: expired
+        ? "Authentication token has expired."
+        : "Authentication token is invalid.",
     };
   }
 
-  // Load the authorization profile from Supabase to enforce role/active checks.
-  //
-  // The authoritative source is `public.users`, keyed by `firestore_id` (the
-  // Firebase Auth UID written by the migration mappers). `role` and `active`
-  // live there. `profiles` has neither column, and its `id` is a generated
-  // uuid, so it must not be used for authorization.
-  const profile = await loadAuthorizationProfile(decoded.uid);
+  if (!firebaseDecoded) {
+    return {
+      ok: false,
+      reason: supabaseExpired ? "expired_token" : "invalid_token",
+      status: 401,
+      message: supabaseExpired
+        ? "Authentication token has expired."
+        : "Authentication token is invalid.",
+    };
+  }
+
+  // Authorize verified Firebase UID against public.users (keyed by firestore_id)
+  const profile = await loadAuthorizationProfile({ firestoreId: firebaseDecoded.uid });
 
   if (!profile.ok) {
     if (profile.reason === "user_not_found") {
-      console.warn(`[verifyAdminUser] No authorization profile for uid ${decoded.uid}`);
+      console.warn(`[verifyAdminUser] No authorization profile for Firebase uid ${firebaseDecoded.uid}`);
       return {
         ok: false,
         reason: "user_not_found",
@@ -162,8 +284,6 @@ export async function verifyAdminUserResult(
         message: "No admin profile found for this account.",
       };
     }
-    // A datastore or credential failure is a server problem, never a client
-    // authentication denial. Reporting it as 403 would hide a real outage.
     return {
       ok: false,
       reason: "auth_unavailable",
@@ -174,7 +294,7 @@ export async function verifyAdminUserResult(
   }
 
   if (profile.active === false) {
-    console.warn(`[verifyAdminUser] User ${decoded.uid} is not active`);
+    console.warn(`[verifyAdminUser] User ${firebaseDecoded.uid} is not active`);
     return {
       ok: false,
       reason: "inactive_user",
@@ -185,7 +305,7 @@ export async function verifyAdminUserResult(
 
   const role = normalizeRole(profile.role);
   if (!ADMIN_CONSOLE_ROLES.has(role)) {
-    console.warn(`[verifyAdminUser] User ${decoded.uid} has non-admin role ${role || "(empty)"}`);
+    console.warn(`[verifyAdminUser] User ${firebaseDecoded.uid} has non-admin role ${role || "(empty)"}`);
     return {
       ok: false,
       reason: "insufficient_role",
@@ -196,10 +316,12 @@ export async function verifyAdminUserResult(
 
   return {
     ok: true,
+    provider: "firebase",
     user: {
-      uid: decoded.uid,
-      email: String(profile.email || decoded.email || ""),
+      uid: firebaseDecoded.uid,
+      email: String(profile.email || firebaseDecoded.email || ""),
       role,
+      provider: "firebase",
     },
   };
 }
@@ -208,15 +330,16 @@ type AuthorizationProfile =
   | { ok: true; role: unknown; active: boolean | null; email: string | null }
   | { ok: false; reason: "user_not_found" | "auth_unavailable" };
 
+type ProfileLookupTarget =
+  | { authUserId: string; firestoreId?: never }
+  | { firestoreId: string; authUserId?: never };
+
 /**
- * Load the authorization profile for a verified Firebase UID from Supabase.
- *
- * Returns `auth_unavailable` when the Supabase admin client cannot be created
- * (missing service-role credentials) or the query fails, so the caller can
- * distinguish a datastore problem from a genuine authorization denial.
+ * Load the authorization profile from Supabase public.users.
+ * Keyed by `auth_user_id` (Supabase Auth UUID) or `firestore_id` (Firebase UID).
  */
 async function loadAuthorizationProfile(
-  uid: string
+  target: ProfileLookupTarget
 ): Promise<AuthorizationProfile> {
   let supabase: Awaited<
     ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>
@@ -232,10 +355,13 @@ async function loadAuthorizationProfile(
     return { ok: false, reason: "auth_unavailable" };
   }
 
+  const column = target.authUserId ? "auth_user_id" : "firestore_id";
+  const value = target.authUserId ?? target.firestoreId;
+
   const { data, error } = await supabase
     .from("users")
     .select("role, active, email")
-    .eq("firestore_id", uid)
+    .eq(column, value)
     .maybeSingle();
 
   if (error) {

@@ -55,8 +55,8 @@ mapping of each entry to a file is an **assumption**.
 
 Migrations in this repository are authored with a *planned* timestamp. Files are named
 for the date the change is intended to land, which can be **after** the audit date when
-a change is prepared in advance. The repository contains **14** files whose version is
-later than `20261101`:
+a change is prepared in advance. The repository contains **15** non-F-A16 files whose version is
+later than `20261101` (14 at the audit base plus Phase 2 migration `20261116000000_add_auth_user_id_to_staff.sql`):
 
 | Version | File |
 |---|---|
@@ -74,6 +74,7 @@ later than `20261101`:
 | 20261113000000 | `knowledge_workflow_tables.sql` |
 | 20261114000000 | `admin_console_tables.sql` |
 | 20261114000100 | `donations_updated_at.sql` |
+| 20261116000000 | `add_auth_user_id_to_staff.sql` |
 
 (`20261101000000_seva_paper_size_not_null.sql` is same-day, not later, and is excluded.)
 

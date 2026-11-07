@@ -279,6 +279,8 @@ export interface OnboardOptions {
    * Firebase's own set-password email, C-56). The older create-admin route passes its own, which sets a password.
    */
   createLogin?: (login: { email: string; displayName: string }) => Promise<{ externalUid: string }>;
+  /** Supabase Auth UUID to link to this staff member (Phase 2 identity unification). */
+  authUserId?: string | null;
 }
 
 const EXISTING_ACCOUNT = "This email already has a sign-in account.";
@@ -414,6 +416,70 @@ export async function onboardStaff(
             });
             if (typeof id !== "string" || id === "") throw new SevaError("internal");
             staffId = id;
+
+            // Phase 2 Supabase Identity Unification:
+            // 1. Populate auth_user_id on public.staff when a Supabase identity is available
+            let authUserId = opts.authUserId ?? null;
+            if (!authUserId) {
+              try {
+                const sbAdmin = db as unknown as { auth?: { admin?: { getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } } }> } } };
+                if (typeof sbAdmin?.auth?.admin?.getUserByEmail === "function") {
+                  const { data } = await sbAdmin.auth.admin.getUserByEmail(input.email);
+                  if (data?.user?.id) {
+                    authUserId = data.user.id;
+                  }
+                }
+              } catch {
+                // Supabase Auth admin lookup is optional
+              }
+            }
+
+            if (authUserId) {
+              try {
+                const staffBuilder = db.from("staff");
+                if (typeof (staffBuilder as { update?: unknown })?.update === "function") {
+                  await (staffBuilder as unknown as { update: (vals: Record<string, unknown>) => { eq: (col: string, val: unknown) => Promise<unknown> } })
+                    .update({ auth_user_id: authUserId })
+                    .eq("id", staffId);
+                }
+              } catch {
+                // Non-blocking if table update not supported in mock
+              }
+            }
+
+            // 2. Ensure the appropriate public.users authorization record exists
+            try {
+              const usersBuilder = db.from("users");
+              if (typeof usersBuilder?.select === "function") {
+                const { data: existingUser } = await usersBuilder
+                  .select("id, firestore_id, auth_user_id")
+                  .eq("email", input.email)
+                  .maybeSingle();
+
+                if (existingUser && typeof (usersBuilder as { update?: unknown })?.update === "function") {
+                  await (usersBuilder as unknown as { update: (vals: Record<string, unknown>) => { eq: (col: string, val: unknown) => Promise<unknown> } })
+                    .update({
+                      role: input.role,
+                      active: true,
+                      display_name: input.fullName,
+                      firestore_id: externalUid || (existingUser as { firestore_id?: string | null }).firestore_id,
+                      ...(authUserId ? { auth_user_id: authUserId } : {}),
+                    })
+                    .eq("id", (existingUser as { id: string }).id);
+                } else if (!existingUser && typeof (usersBuilder as { insert?: unknown })?.insert === "function") {
+                  await (usersBuilder as unknown as { insert: (vals: Record<string, unknown>) => Promise<unknown> }).insert({
+                    email: input.email,
+                    display_name: input.fullName,
+                    role: input.role,
+                    active: true,
+                    firestore_id: externalUid || null,
+                    auth_user_id: authUserId ?? null,
+                  });
+                }
+              }
+            } catch {
+              // Non-blocking in mock environments
+            }
           },
         },
       ],

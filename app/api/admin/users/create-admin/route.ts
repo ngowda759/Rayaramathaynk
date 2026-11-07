@@ -57,6 +57,39 @@ async function createPasswordLogin(
   }
 }
 
+/** Synchronizes or retrieves Supabase Auth identity for Phase 2 identity unification. */
+async function syncSupabaseAdminIdentity(
+  email: string,
+  password: string,
+  displayName: string,
+): Promise<string | null> {
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    const adminAuth = (supabase as unknown as { auth?: { admin?: { getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } } }>; createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }> } } })?.auth?.admin;
+    if (typeof adminAuth?.getUserByEmail === "function") {
+      const { data: existing } = await adminAuth.getUserByEmail(email);
+      if (existing?.user?.id) {
+        return existing.user.id;
+      }
+      if (typeof adminAuth?.createUser === "function") {
+        const { data: created, error } = await adminAuth.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: displayName },
+        });
+        if (!error && created?.user?.id) {
+          return created.user.id;
+        }
+      }
+    }
+  } catch {
+    // Supabase Auth admin lookup is optional
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const limit = rateLimit(`admin-create:${getClientIP(request)}`, { windowMs: 60 * 1000, maxRequests: 5 });
   if (!limit.success) return createRateLimitResponse(limit);
@@ -65,10 +98,14 @@ export async function POST(request: NextRequest) {
   if (!guard.ok) return guard.response;
   try {
     const { email, password, name } = parseInput(createAdminSchema, await readJson(request));
+    const authUserId = await syncSupabaseAdminIdentity(email, password, name);
     const { staffId, staffNo } = await onboardStaff(
       guard.actor,
       { fullName: name, email, role: "super_admin", viewOnly: false },
-      { createLogin: (login) => createPasswordLogin(login, password) },
+      {
+        createLogin: (login) => createPasswordLogin(login, password),
+        authUserId,
+      },
     );
     return NextResponse.json(
       {
