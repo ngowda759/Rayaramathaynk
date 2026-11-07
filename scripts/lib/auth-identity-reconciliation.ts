@@ -94,11 +94,19 @@ export interface EmailMatchDifferentId {
 }
 
 export interface OrphanedActiveIdentity {
-  source: "firebase" | "supabase" | "staff";
+  source: "firebase" | "supabase" | "staff" | "users";
   id: string;
   email: string | null;
   staffNo?: number | null;
   note: string;
+}
+
+export interface DuplicateIdFinding {
+  type: "auth_user_id" | "firebase_uid";
+  value: string;
+  source: "public.users" | "public.staff";
+  occurrences: number;
+  records: Array<{ id: string; email: string | null; role?: string | null; staffNo?: number | null }>;
 }
 
 export interface AmbiguousMapping {
@@ -126,6 +134,10 @@ export interface ReconciliationReport {
   emailMatchDifferentIds: EmailMatchDifferentId[];
   activeWithoutPublicUser: OrphanedActiveIdentity[];
   ambiguousMappings: AmbiguousMapping[];
+  duplicateAuthUserIds: DuplicateIdFinding[];
+  duplicateFirebaseUids: DuplicateIdFinding[];
+  activeAdminsWithoutMapping: OrphanedActiveIdentity[];
+  activeStaffWithoutMapping: OrphanedActiveIdentity[];
 }
 
 function normalizeEmail(value: string | null | undefined): string {
@@ -402,6 +414,123 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     }
   }
 
+  // 7. Authorization Safety Checks
+  // 7a. Active administrators without authorization mapping
+  const activeAdminsWithoutMapping: OrphanedActiveIdentity[] = [];
+  for (const u of publicUsers) {
+    const isAdmin = u.role === "super_admin" || u.role === "temple_admin" || u.role === "admin";
+    const isActive = u.active !== false;
+    if (isAdmin && isActive && !u.auth_user_id && !u.firestore_id) {
+      activeAdminsWithoutMapping.push({
+        source: "users",
+        id: u.id,
+        email: u.email,
+        note: `Active administrator (${u.email ?? u.id}, role: ${u.role}) lacks both auth_user_id and firestore_id mapping.`,
+      });
+    }
+  }
+
+  // 7b. Active staff without authorization mapping (neither auth_user_id nor firebase_uid)
+  const activeStaffWithoutMapping: OrphanedActiveIdentity[] = [];
+  for (const s of publicStaff) {
+    const isStaffActive = s.active !== false && s.status !== "inactive" && s.status !== "deleted";
+    if (isStaffActive && !s.auth_user_id && !s.firebase_uid) {
+      activeStaffWithoutMapping.push({
+        source: "staff",
+        id: s.id,
+        email: s.email,
+        staffNo: s.staff_no,
+        note: `Active staff member (staff_no: ${s.staff_no}) lacks both auth_user_id and firebase_uid mapping.`,
+      });
+    }
+  }
+
+  // 7c. Duplicate auth_user_id across public.users or public.staff
+  const usersByAuthIdList = new Map<string, PublicUserRecord[]>();
+  for (const u of publicUsers) {
+    if (u.auth_user_id) {
+      const list = usersByAuthIdList.get(u.auth_user_id) || [];
+      list.push(u);
+      usersByAuthIdList.set(u.auth_user_id, list);
+    }
+  }
+
+  const staffByAuthIdList = new Map<string, PublicStaffRecord[]>();
+  for (const s of publicStaff) {
+    if (s.auth_user_id) {
+      const list = staffByAuthIdList.get(s.auth_user_id) || [];
+      list.push(s);
+      staffByAuthIdList.set(s.auth_user_id, list);
+    }
+  }
+
+  const duplicateAuthUserIds: DuplicateIdFinding[] = [];
+  for (const [val, list] of usersByAuthIdList.entries()) {
+    if (list.length > 1) {
+      duplicateAuthUserIds.push({
+        type: "auth_user_id",
+        value: val,
+        source: "public.users",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, role: r.role })),
+      });
+    }
+  }
+  for (const [val, list] of staffByAuthIdList.entries()) {
+    if (list.length > 1) {
+      duplicateAuthUserIds.push({
+        type: "auth_user_id",
+        value: val,
+        source: "public.staff",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, staffNo: r.staff_no })),
+      });
+    }
+  }
+
+  // 7d. Duplicate Firebase UID across public.users (firestore_id) or public.staff (firebase_uid)
+  const usersByFbUidList = new Map<string, PublicUserRecord[]>();
+  for (const u of publicUsers) {
+    if (u.firestore_id) {
+      const list = usersByFbUidList.get(u.firestore_id) || [];
+      list.push(u);
+      usersByFbUidList.set(u.firestore_id, list);
+    }
+  }
+
+  const staffByFbUidList = new Map<string, PublicStaffRecord[]>();
+  for (const s of publicStaff) {
+    if (s.firebase_uid) {
+      const list = staffByFbUidList.get(s.firebase_uid) || [];
+      list.push(s);
+      staffByFbUidList.set(s.firebase_uid, list);
+    }
+  }
+
+  const duplicateFirebaseUids: DuplicateIdFinding[] = [];
+  for (const [val, list] of usersByFbUidList.entries()) {
+    if (list.length > 1) {
+      duplicateFirebaseUids.push({
+        type: "firebase_uid",
+        value: val,
+        source: "public.users",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, role: r.role })),
+      });
+    }
+  }
+  for (const [val, list] of staffByFbUidList.entries()) {
+    if (list.length > 1) {
+      duplicateFirebaseUids.push({
+        type: "firebase_uid",
+        value: val,
+        source: "public.staff",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, staffNo: r.staff_no })),
+      });
+    }
+  }
+
   return {
     stats: {
       firebaseCount: firebaseUsers.length,
@@ -421,5 +550,9 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     emailMatchDifferentIds,
     activeWithoutPublicUser,
     ambiguousMappings,
+    duplicateAuthUserIds,
+    duplicateFirebaseUids,
+    activeAdminsWithoutMapping,
+    activeStaffWithoutMapping,
   };
 }

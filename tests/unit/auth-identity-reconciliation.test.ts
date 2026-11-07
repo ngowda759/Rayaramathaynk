@@ -235,4 +235,176 @@ describe("reconcileIdentities", () => {
       ambiguousCount: 0,
     });
   });
+
+  it("detects duplicate auth_user_id across public.users or public.staff", () => {
+    const report = reconcileIdentities({
+      firebaseUsers: [],
+      supabaseUsers: [],
+      publicUsers: [
+        { id: "u-1", email: "a@test.com", role: "admin", active: true, firestore_id: null, auth_user_id: "shared-sb-uuid" },
+        { id: "u-2", email: "b@test.com", role: "user", active: true, firestore_id: null, auth_user_id: "shared-sb-uuid" },
+      ],
+      publicStaff: [
+        { id: "s-1", email: "c@test.com", staff_no: 10, active: true, firebase_uid: null, auth_user_id: "shared-staff-uuid" },
+        { id: "s-2", email: "d@test.com", staff_no: 11, active: true, firebase_uid: null, auth_user_id: "shared-staff-uuid" },
+      ],
+    });
+
+    expect(report.duplicateAuthUserIds).toHaveLength(2);
+    expect(report.duplicateAuthUserIds.some((d) => d.value === "shared-sb-uuid" && d.source === "public.users")).toBe(true);
+    expect(report.duplicateAuthUserIds.some((d) => d.value === "shared-staff-uuid" && d.source === "public.staff")).toBe(true);
+  });
+
+  it("detects duplicate Firebase UID across public.users or public.staff", () => {
+    const report = reconcileIdentities({
+      firebaseUsers: [],
+      supabaseUsers: [],
+      publicUsers: [
+        { id: "u-1", email: "a@test.com", role: "admin", active: true, firestore_id: "shared-fb-uid", auth_user_id: null },
+        { id: "u-2", email: "b@test.com", role: "user", active: true, firestore_id: "shared-fb-uid", auth_user_id: null },
+      ],
+      publicStaff: [
+        { id: "s-1", email: "c@test.com", staff_no: 20, active: true, firebase_uid: "shared-staff-fb", auth_user_id: null },
+        { id: "s-2", email: "d@test.com", staff_no: 21, active: true, firebase_uid: "shared-staff-fb", auth_user_id: null },
+      ],
+    });
+
+    expect(report.duplicateFirebaseUids).toHaveLength(2);
+    expect(report.duplicateFirebaseUids.some((d) => d.value === "shared-fb-uid" && d.source === "public.users")).toBe(true);
+    expect(report.duplicateFirebaseUids.some((d) => d.value === "shared-staff-fb" && d.source === "public.staff")).toBe(true);
+  });
+
+  it("detects active administrators lacking authorization mapping", () => {
+    const report = reconcileIdentities({
+      firebaseUsers: [],
+      supabaseUsers: [],
+      publicUsers: [
+        {
+          id: "admin-orphan-1",
+          email: "superadmin@example.com",
+          role: "super_admin",
+          active: true,
+          firestore_id: null,
+          auth_user_id: null,
+        },
+      ],
+      publicStaff: [],
+    });
+
+    expect(report.activeAdminsWithoutMapping).toHaveLength(1);
+    expect(report.activeAdminsWithoutMapping[0]).toMatchObject({
+      id: "admin-orphan-1",
+      email: "superadmin@example.com",
+    });
+  });
+
+  it("detects active staff lacking authorization mapping", () => {
+    const report = reconcileIdentities({
+      firebaseUsers: [],
+      supabaseUsers: [],
+      publicUsers: [],
+      publicStaff: [
+        {
+          id: "staff-unmapped-1",
+          email: "unmapped@example.com",
+          staff_no: 99,
+          active: true,
+          status: "active",
+          firebase_uid: null,
+          auth_user_id: null,
+        },
+      ],
+    });
+
+    expect(report.activeStaffWithoutMapping).toHaveLength(1);
+    expect(report.activeStaffWithoutMapping[0].staffNo).toBe(99);
+  });
+});
+
+describe("generateMarkdownReport", () => {
+  it("formats Markdown report with PRODUCTION CREDENTIALS UNAVAILABLE when credentials not configured", async () => {
+    const { generateMarkdownReport } = await import("../../scripts/diagnose-auth-identities");
+    const report = reconcileIdentities({
+      firebaseUsers: [],
+      supabaseUsers: [],
+      publicUsers: [],
+      publicStaff: [],
+    });
+
+    const markdown = generateMarkdownReport(report, {
+      firebaseAuth: {
+        source: "Firebase Auth",
+        queriedSuccessfully: false,
+        statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
+        total: null,
+      },
+      supabaseAuth: {
+        source: "Supabase Auth",
+        queriedSuccessfully: false,
+        statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
+        total: null,
+      },
+      publicUsers: {
+        source: "public.users",
+        queriedSuccessfully: false,
+        statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
+        total: null,
+      },
+      publicStaff: {
+        source: "public.staff",
+        queriedSuccessfully: false,
+        statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
+        total: null,
+      },
+    });
+
+    expect(markdown).toContain("NO (PRODUCTION CREDENTIALS UNAVAILABLE)");
+    expect(markdown).toContain("N/A (system not successfully queried)");
+    expect(markdown).toContain("Database rows changed: NO");
+    expect(markdown).toContain("Schema changed: NO");
+    expect(markdown).toContain("Auth users changed: NO");
+    expect(markdown).not.toContain("password");
+    expect(markdown).not.toContain("service_role");
+  });
+
+  it("formats Markdown report with PRODUCTION QUERY SUCCESSFUL when queries succeed", async () => {
+    const { generateMarkdownReport } = await import("../../scripts/diagnose-auth-identities");
+    const report = reconcileIdentities({
+      firebaseUsers: [{ uid: "fb-1", email: "user@example.com", disabled: false }],
+      supabaseUsers: [{ id: "sb-1", email: "user@example.com", disabled: false }],
+      publicUsers: [{ id: "u-1", email: "user@example.com", role: "admin", active: true, firestore_id: "fb-1", auth_user_id: "sb-1" }],
+      publicStaff: [{ id: "s-1", email: "user@example.com", staff_no: 1, role: "admin", active: true, firebase_uid: "fb-1", auth_user_id: "sb-1" }],
+    });
+
+    const markdown = generateMarkdownReport(report, {
+      firebaseAuth: {
+        source: "Firebase Auth",
+        queriedSuccessfully: true,
+        statusText: "PRODUCTION QUERY SUCCESSFUL",
+        total: 1,
+      },
+      supabaseAuth: {
+        source: "Supabase Auth",
+        queriedSuccessfully: true,
+        statusText: "PRODUCTION QUERY SUCCESSFUL",
+        total: 1,
+      },
+      publicUsers: {
+        source: "public.users",
+        queriedSuccessfully: true,
+        statusText: "PRODUCTION QUERY SUCCESSFUL",
+        total: 1,
+      },
+      publicStaff: {
+        source: "public.staff",
+        queriedSuccessfully: true,
+        statusText: "PRODUCTION QUERY SUCCESSFUL",
+        total: 1,
+      },
+    });
+
+    expect(markdown).toContain("YES (PRODUCTION QUERY SUCCESSFUL)");
+    expect(markdown).toContain("linked identities:** 1");
+    expect(markdown).toContain("Database rows changed: NO");
+  });
 });
