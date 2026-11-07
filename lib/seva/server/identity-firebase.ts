@@ -15,12 +15,6 @@ async function adminAuth() {
   return getAuth(app);
 }
 
-async function userDoc(externalUid: string) {
-  const { getAdminFirestore } = await import("@/lib/admin-firebase");
-  const db = await getAdminFirestore();
-  return db.collection("users").doc(externalUid);
-}
-
 function errorCode(error: unknown): string | null {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === "string" ? code : null;
@@ -38,11 +32,16 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async getAccessProfile(externalUid) {
-    const snapshot = await (await userDoc(externalUid)).get();
-    if (!snapshot.exists) return null;
-    const data = snapshot.data() ?? {};
-    // Only these two fields; never `email` (editable by the person). A missing or non-boolean isActive is inactive.
-    return { role: data.role, isActive: data.isActive === true };
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("users")
+      .select("role, active")
+      .eq("firestore_id", externalUid)
+      .maybeSingle();
+
+    if (!data) return null;
+    return { role: data.role, isActive: data.active === true };
   },
 
   async findLoginByEmail(email) {
@@ -81,15 +80,28 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async setAccessProfile(externalUid, patch) {
-    const { FieldValue } = await import("firebase-admin/firestore");
-    const write: Record<string, unknown> = { uid: externalUid };
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    
+    // Check if the user exists
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("firestore_id", externalUid)
+      .maybeSingle();
+      
+    const write: Record<string, unknown> = {};
     if (patch.role !== undefined) write.role = patch.role;
-    if (patch.isActive !== undefined) write.isActive = patch.isActive;
+    if (patch.isActive !== undefined) write.active = patch.isActive;
     if (patch.email !== undefined) write.email = patch.email;
-    // The site's profile keeps the display name in `name` (lib/auth/sign-in-profile.ts).
-    if (patch.displayName !== undefined) write.name = patch.displayName;
-    write.updatedAt = FieldValue.serverTimestamp();
-    await (await userDoc(externalUid)).set(write, { merge: true });
+    if (patch.displayName !== undefined) write.display_name = patch.displayName;
+    
+    if (existingUser) {
+      await supabase.from("users").update(write).eq("firestore_id", externalUid);
+    } else {
+      write.firestore_id = externalUid;
+      await supabase.from("users").insert(write);
+    }
   },
 
   async setLoginEnabled(externalUid, enabled) {

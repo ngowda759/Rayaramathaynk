@@ -18,10 +18,10 @@ if (typeof global.TransformStream === "undefined") global.TransformStream = stre
 if (typeof global.MessageChannel === "undefined") global.MessageChannel = workerThreads.MessageChannel;
 if (typeof global.MessagePort === "undefined") global.MessagePort = workerThreads.MessagePort;
 
-const { Request, Response, Headers, FormData, fetch } = require("undici");
+const undici = require("undici");
 
-if (typeof global.Request === "undefined") global.Request = Request;
-if (typeof global.Response === "undefined") global.Response = Response;
-if (typeof global.Headers === "undefined") global.Headers = Headers;
-if (typeof global.FormData === "undefined") global.FormData = FormData;
-if (typeof global.fetch === "undefined") global.fetch = fetch;
+if (typeof global.Request === "undefined") global.Request = undici.Request;
+if (typeof global.Response === "undefined") global.Response = undici.Response;
+if (typeof global.Headers === "undefined") global.Headers = undici.Headers;
+if (typeof global.FormData === "undefined") global.FormData = undici.FormData;
+if (typeof global.fetch === "undefined") global.fetch = undici.fetch;

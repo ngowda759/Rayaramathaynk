@@ -4,8 +4,6 @@
  */
 
 import { NextRequest } from "next/server";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 interface AdminUser {
   uid: string;
@@ -53,22 +51,19 @@ export async function checkAdminAuth(
 }
 
 /**
- * Check if user has admin role by querying Firestore
+ * Check if user has admin role by querying Supabase
  */
 export async function isUserAdmin(uid: string): Promise<boolean> {
-  if (!db) {
-    return false;
-  }
-
   try {
-    const userDoc = await getDoc(doc(db, "users", uid));
-    
-    if (!userDoc.exists()) {
-      return false;
-    }
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("users")
+      .select("role, active")
+      .eq("firestore_id", uid)
+      .maybeSingle();
 
-    const userData = userDoc.data();
-    return userData?.role === "admin" && userData?.isActive === true;
+    return data?.role === "admin" && data?.active === true;
   } catch (error) {
     console.error("Error checking admin status:", error);
     return false;

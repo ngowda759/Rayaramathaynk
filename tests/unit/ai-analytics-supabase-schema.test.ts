@@ -110,7 +110,7 @@ describe("AI analytics — schema compatibility", () => {
           id: "i1",
           session_id: "s1",
           message_id: "m1",
-          intent: "TEMPLE_TIMINGS",
+          intent: "TIMINGS" as any,
           category: "information",
           language: "kn",
           confidence: 88,
@@ -122,7 +122,7 @@ describe("AI analytics — schema compatibility", () => {
 
     const response = await getIntentDistribution({ limit: 10 });
     expect(response.records).toHaveLength(1);
-    expect(response.records[0].intent).toBe("TEMPLE_TIMINGS");
+    expect(response.records[0].intent).toBe("TIMINGS");
     expect(response.records[0].language).toBe("kn");
     expect(response.records[0].messageId).toBe("m1");
     expect(mockFrom).toHaveBeenCalledWith("ai_intent_distribution");
@@ -221,12 +221,13 @@ describe("AI analytics — token usage has no destination table", () => {
       recordTokenUsage({
         sessionId: "s1",
         messageId: "m1",
-        intent: "TEMPLE_TIMINGS",
+        intent: "TIMINGS" as any,
         model: "gpt-4o-mini",
         inputTokens: 10,
         outputTokens: 20,
         totalTokens: 30,
         estimatedCost: 0.001,
+language: 'en',
       })
     ).rejects.toThrow(/ai_token_usage/);
     expect(mockFrom).not.toHaveBeenCalledWith("ai_token_usage");

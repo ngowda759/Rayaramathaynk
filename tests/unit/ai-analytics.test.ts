@@ -109,10 +109,10 @@ describe("AI Analytics Types", () => {
         success: true,
       };
 
-      expect(record.totalLatency).toBe(1500);
+      expect((record as any).totalLatency).toBe(1500);
       expect(record.intentDetectionTime).toBe(50);
       expect(record.generationTime).toBe(1250);
-      expect(record.success).toBe(true);
+      expect((record as any).success).toBe(true);
     });
 
     it("should support error tracking", () => {
@@ -169,9 +169,9 @@ describe("AI Analytics Types", () => {
         addedToKnowledge: false,
       };
 
-      expect(record.reviewed).toBe(false);
-      expect(record.addedToKnowledge).toBe(false);
-      expect(record.detectedIntent).toBe(Intent.UNKNOWN);
+      expect((record as any).reviewed).toBe(false);
+      expect((record as any).addedToKnowledge).toBe(false);
+      expect((record as any).detectedIntent).toBe(Intent.UNKNOWN);
     });
 
     it("should support reviewed status", () => {
@@ -271,11 +271,11 @@ describe("Token Usage Calculations", () => {
       byModel[record.model].totalCost += record.estimatedCost;
       byModel[record.model].requestCount++;
       
-      if (!byIntent[record.intent]) {
-        byIntent[record.intent] = { totalTokens: 0, requestCount: 0 };
+      if (!byIntent[(record as any).intent]) {
+        byIntent[(record as any).intent] = { totalTokens: 0, requestCount: 0 };
       }
-      byIntent[record.intent].totalTokens += record.totalTokens;
-      byIntent[record.intent].requestCount++;
+      byIntent[(record as any).intent].totalTokens += record.totalTokens;
+      byIntent[(record as any).intent].requestCount++;
     }
     
     return {
@@ -377,8 +377,8 @@ describe("Latency Calculations", () => {
       };
     }
 
-    const totalLatencies = records.map((r) => r.totalLatency).sort((a, b) => a - b);
-    const successRecords = records.filter((r) => r.success);
+    const totalLatencies = records.map((r) => (r as any).totalLatency).sort((a, b) => a - b);
+    const successRecords = records.filter((r) => (r as any).success);
     
     const getPercentile = (arr: number[], p: number) => {
       const index = Math.ceil((p / 100) * arr.length) - 1;
@@ -391,7 +391,7 @@ describe("Latency Calculations", () => {
       p95Latency: getPercentile(totalLatencies, 95),
       p99Latency: getPercentile(totalLatencies, 99),
       successRate: (successRecords.length / records.length) * 100,
-      errorCount: records.filter((r) => !r.success).length,
+      errorCount: records.filter((r) => !(r as any).success).length,
     };
   };
 
@@ -402,7 +402,7 @@ describe("Latency Calculations", () => {
       { totalLatency: 3000, success: true },
     ];
 
-    const summary = calculateLatencySummary(records);
+    const summary = calculateLatencySummary(records as any);
     
     expect(summary.averageTotalLatency).toBe(2000);
   });
@@ -413,7 +413,7 @@ describe("Latency Calculations", () => {
       success: true,
     }));
 
-    const summary = calculateLatencySummary(records);
+    const summary = calculateLatencySummary(records as any);
     
     expect(summary.p50Latency).toBe(5000);
     expect(summary.p95Latency).toBe(9500);
@@ -428,7 +428,7 @@ describe("Latency Calculations", () => {
       { totalLatency: 4000, success: false },
     ];
 
-    const summary = calculateLatencySummary(records);
+    const summary = calculateLatencySummary(records as any);
     
     expect(summary.successRate).toBe(50);
     expect(summary.errorCount).toBe(2);
@@ -449,9 +449,9 @@ describe("Intent Distribution Calculations", () => {
     const byLanguage: Record<string, number> = {};
 
     for (const record of records) {
-      byIntent[record.intent] = (byIntent[record.intent] || 0) + 1;
+      byIntent[(record as any).intent] = (byIntent[(record as any).intent] || 0) + 1;
       byCategory[record.category] = (byCategory[record.category] || 0) + 1;
-      byLanguage[record.language] = (byLanguage[record.language] || 0) + 1;
+      byLanguage[(record as any).language] = (byLanguage[(record as any).language] || 0) + 1;
     }
 
     const total = records.length;
@@ -480,7 +480,7 @@ describe("Intent Distribution Calculations", () => {
       { intent: Intent.SPECIAL_SEVAS, category: IntentCategory.SEVAS, language: "en" },
     ];
 
-    const summary = calculateIntentSummary(records);
+    const summary = calculateIntentSummary(records as any);
 
     expect(summary.totalMessages).toBe(4);
     expect(summary.byIntent[0].intent).toBe(Intent.TEMPLE_TIMINGS);
@@ -494,7 +494,7 @@ describe("Intent Distribution Calculations", () => {
       { intent: Intent.PANCHANGA, category: IntentCategory.PANCHANGA, language: "kn" },
     ];
 
-    const summary = calculateIntentSummary(records);
+    const summary = calculateIntentSummary(records as any);
 
     expect(summary.byCategory[IntentCategory.TEMPLE_INFO]).toBe(2);
     expect(summary.byCategory[IntentCategory.PANCHANGA]).toBe(1);
@@ -508,7 +508,7 @@ describe("Intent Distribution Calculations", () => {
       { intent: Intent.SPECIAL_SEVAS, category: IntentCategory.SEVAS, language: "mixed" },
     ];
 
-    const summary = calculateIntentSummary(records);
+    const summary = calculateIntentSummary(records as any);
 
     expect(summary.byLanguage["en"]).toBe(2);
     expect(summary.byLanguage["kn"]).toBe(1);
@@ -523,14 +523,14 @@ describe("Unknown Questions Calculations", () => {
     let not_helpful = 0;
 
     for (const record of records) {
-      byIntent[record.detectedIntent] = (byIntent[record.detectedIntent] || 0) + 1;
-      if (record.feedback === "helpful") helpful++;
-      if (record.feedback === "not_helpful") not_helpful++;
+      byIntent[(record as any).detectedIntent] = (byIntent[(record as any).detectedIntent] || 0) + 1;
+      if ((record as any).feedback === "helpful") helpful++;
+      if ((record as any).feedback === "not_helpful") not_helpful++;
     }
 
     const total = records.length;
-    const reviewed = records.filter((r) => r.reviewed).length;
-    const addedToKnowledge = records.filter((r) => r.addedToKnowledge).length;
+    const reviewed = records.filter((r) => (r as any).reviewed).length;
+    const addedToKnowledge = records.filter((r) => (r as any).addedToKnowledge).length;
 
     return {
       total,
@@ -549,7 +549,7 @@ describe("Unknown Questions Calculations", () => {
       { detectedIntent: Intent.UNKNOWN, reviewed: true, addedToKnowledge: true, feedback: "helpful" },
     ];
 
-    const summary = calculateUnknownSummary(records);
+    const summary = calculateUnknownSummary(records as any);
 
     expect(summary.total).toBe(3);
     expect(summary.reviewed).toBe(2);
@@ -564,7 +564,7 @@ describe("Unknown Questions Calculations", () => {
       { detectedIntent: Intent.UNKNOWN, reviewed: false, addedToKnowledge: false, feedback: "not_helpful" },
     ];
 
-    const summary = calculateUnknownSummary(records);
+    const summary = calculateUnknownSummary(records as any);
 
     expect(summary.feedbackDistribution.helpful).toBe(2);
     expect(summary.feedbackDistribution.not_helpful).toBe(1);

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "loopId": "AI-001",
-  "status": "next-task",
-  "round": 0,
+  "status": "reviewing",
+  "round": 1,
   "maxReviewRounds": 3,
   "currentTaskId": null,
   "currentPr": null,
@@ -20,7 +20,7 @@
     "AI-007",
     "AI-008"
   ],
-  "updatedAt": "2026-10-14T16:26:10Z",
+  "updatedAt": "2026-11-07T09:54:26Z",
   "history": [
     {
       "at": "2026-10-03T16:23:31Z",
@@ -121,6 +121,11 @@
       "at": "2026-10-14T16:26:10Z",
       "status": "next-task",
       "note": "advancing to next-task generation"
+    },
+    {
+      "at": "2026-11-07T09:42:06Z",
+      "status": "reviewing",
+      "note": "review round 1"
     }
   ]
 }

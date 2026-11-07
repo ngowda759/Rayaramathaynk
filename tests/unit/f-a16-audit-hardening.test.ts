@@ -42,7 +42,7 @@ function runAgeRecipient(env: Record<string, string | undefined>) {
     if (v === undefined) delete base[k];
     else base[k] = v;
   }
-  return spawnSync("node", [AGE_RECIPIENT_CLI], { cwd: ROOT, encoding: "utf8", env: base });
+  return spawnSync("node", [AGE_RECIPIENT_CLI], { cwd: ROOT, encoding: "utf8", env: base as any });
 }
 
 /**

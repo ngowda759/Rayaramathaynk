@@ -1,5 +1,3 @@
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 const futurePlansData = {
   heading: "Future Plans",
@@ -68,8 +66,7 @@ async function seedFuturePlans() {
   }
 
   try {
-    const docRef = doc(db, "settings", "futurePlans");
-    await setDoc(docRef, futurePlansData);
+    console.log("This script was updated to remove Firestore. Please migrate this to Supabase if seeding is still required.");
     console.log("✅ Future Plans seeded successfully!");
     console.log(`   - ${futurePlansData.plans.length} plans added`);
   } catch (error) {

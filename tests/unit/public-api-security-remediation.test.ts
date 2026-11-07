@@ -51,7 +51,7 @@ function makeBuilder() {
     return builder;
   };
 
-  builder.from = jest.fn((table: string) => {
+  (builder as any).from = jest.fn((table: string) => {
     current = { table, op: "select", filters: [] };
     calls.push(current);
     return builder;
@@ -83,7 +83,7 @@ function makeBuilder() {
 const builder = makeBuilder();
 
 jest.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: (table: string) => builder.from(table) }),
+  createAdminClient: () => ({ from: (table: string) => (builder as any).from(table) }),
 }));
 
 import { sevaBookingService, SevaBookingError } from "@/services/sevaBooking.server";

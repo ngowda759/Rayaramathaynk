@@ -302,7 +302,7 @@ describe("Knowledge Bootstrap System", () => {
     });
 
     it("should import all seed files when no existing content", () => {
-      const files = fs.readdirSync(SEED_DIR).filter((f) => f.endsWith(".json"));
+      const files = fs.readdirSync(SEED_DIR).filter((f: string) => f.endsWith(".json"));
       const expectedImportCount = REQUIRED_CATEGORIES.length;
       
       expect(files.length).toBeGreaterThanOrEqual(expectedImportCount);

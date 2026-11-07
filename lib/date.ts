@@ -1,10 +1,8 @@
-import { Timestamp } from "firebase/firestore";
 
-export function formatEventDate(date?: Timestamp) {
+export function formatEventDate(date?: Date) {
   if (!date) return "-";
 
   return date
-    .toDate()
     .toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",

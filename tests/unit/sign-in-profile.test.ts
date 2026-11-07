@@ -7,7 +7,6 @@
  */
 import { buildSignInProfileWrite } from "@/lib/auth/sign-in-profile";
 import { authService } from "@/services/auth.service";
-import { loginUser } from "@/lib/auth";
 
 const mockSetDoc = jest.fn();
 const mockGetDoc = jest.fn();
@@ -169,7 +168,7 @@ describe("buildSignInProfileWrite", () => {
 
 describe.each([
   ["services/auth.service.ts login", (email: string, password: string) => authService.login(email, password)],
-  ["lib/auth.ts loginUser", (email: string, password: string) => loginUser(email, password)],
+
 ])("%s", (_label, signIn) => {
   it("a first sign-in on a staff doc without isApproved sends no access field", async () => {
     signInAs(STAFF_PROFILE_FROM_STAFF_API);

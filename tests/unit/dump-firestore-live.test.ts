@@ -1,10 +1,8 @@
 
 // Mock getAuthHeader everywhere
-import { globalPacer } from '../../scripts/dump-firestore-live';
 globalPacer.getAuthHeader = jest.fn().mockResolvedValue({ Authorization: 'Bearer test-token' }) as any;
 
 // MOCK THROTTLE TO AVOID TIMER HANGS
-import { globalPacer } from '../../scripts/dump-firestore-live';
 globalPacer.throttle = jest.fn().mockResolvedValue(undefined);
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { resolveCredentials, fetchCollectionListAll, globalPacer } from '../../scripts/dump-firestore-live';

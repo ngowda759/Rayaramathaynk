@@ -165,7 +165,7 @@ jest.mock("@/services/quote.server", () => ({
 }));
 
 const req = (url: string, init?: RequestInit) =>
-  new NextRequest(new URL(url, "http://localhost"), init);
+  new NextRequest(new URL(url, "http://localhost"), init as any);
 
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 

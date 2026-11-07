@@ -18,7 +18,6 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: path.resolve(__dirname, "..", ".env.local") });
 
 import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as fs from "fs";
 
 // Initialize Firebase Admin

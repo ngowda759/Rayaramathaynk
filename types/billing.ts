@@ -1,4 +1,3 @@
-import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type BillStatus = "draft" | "sent" | "paid" | "partial" | "overdue" | "cancelled";
 export type PaymentStatus = "pending" | "paid" | "partial" | "refunded";
@@ -16,7 +15,7 @@ export interface BillItem {
 export interface BillPayment {
   id: string;
   amount: number;
-  date: Timestamp | Date;
+  date: Date;
   method: "cash" | "bank_transfer" | "upi" | "card" | "other";
   reference?: string;
   notes?: string;
@@ -25,8 +24,8 @@ export interface BillPayment {
 export interface Bill {
   id: string;
   invoiceNumber: string;
-  billDate: Timestamp | Date;
-  dueDate: Timestamp | Date;
+  billDate: Date;
+  dueDate: Date;
   
   // Customer Details
   customerName: string;
@@ -57,8 +56,8 @@ export interface Bill {
   notes?: string;
   
   // Metadata
-  createdAt: Timestamp | FieldValue;
-  updatedAt: Timestamp | FieldValue;
+  createdAt: Date;
+  updatedAt: Date;
   createdBy: string;
 }
 
