@@ -9,7 +9,7 @@
  *   - public.users
  *   - public.staff
  *
- * Produces a reconciliation report identifying:
+ * Produces a redacted reconciliation report identifying:
  *   - Firebase-only identities
  *   - Supabase-only identities
  *   - Already linked identities
@@ -22,6 +22,8 @@
  * - Read-only: never performs writes, updates, deletes, or auto-linking.
  * - Never logs or reveals secrets, passwords, tokens, or private keys.
  * - Explicitly verifies zero mutations: Database rows changed: NO, Schema changed: NO, Auth users changed: NO.
+ * - Fail-closed: Never certifies status as CLEAN unless all 4 production sources succeed.
+ * - Genuinely redacted: Masks emails, UUIDs, UIDs, and staff numbers in report and console logs.
  */
 
 import * as fs from "fs";
@@ -33,18 +35,19 @@ import {
   type PublicUserRecord,
   type PublicStaffRecord,
   type ReconciliationReport,
+  type ProviderQueryStatus,
+  maskEmail,
+  maskId,
+  maskStaffNo,
+  redactSensitiveText,
+  isMissingColumnError,
+  classifyError,
 } from "./lib/auth-identity-reconciliation";
 
 const line = (s = "") => console.log(s);
 const head = (s: string) => line(`\n=== ${s} ===`);
 
-export interface ProviderQueryStatus {
-  source: "Firebase Auth" | "Supabase Auth" | "public.users" | "public.staff";
-  queriedSuccessfully: boolean;
-  statusText: "PRODUCTION QUERY SUCCESSFUL" | "PRODUCTION CREDENTIALS UNAVAILABLE" | string;
-  total: number | null;
-  error?: string;
-}
+export type { ProviderQueryStatus };
 
 export interface DiagnosticResult {
   report: ReconciliationReport;
@@ -55,6 +58,25 @@ export interface DiagnosticResult {
     publicStaff: ProviderQueryStatus;
   };
   markdownReportPath: string;
+  allSourcesSuccessful: boolean;
+}
+
+export interface DiagnosticDependencies {
+  fetchSupabaseData?: () => Promise<{
+    supabaseUsers: SupabaseIdentity[];
+    publicUsers: PublicUserRecord[];
+    publicStaff: PublicStaffRecord[];
+    supabaseAuthStatus: ProviderQueryStatus;
+    publicUsersStatus: ProviderQueryStatus;
+    publicStaffStatus: ProviderQueryStatus;
+  }>;
+  fetchFirebaseData?: () => Promise<{
+    firebaseUsers: FirebaseIdentity[];
+    firebaseAuthStatus: ProviderQueryStatus;
+  }>;
+  writeReportFile?: (filePath: string, content: string) => void;
+  appendStepSummary?: (content: string) => void;
+  outputArtifactPath?: string;
 }
 
 function hasFirebaseCredentials(): boolean {
@@ -71,11 +93,11 @@ function hasFirebaseCredentials(): boolean {
   return false;
 }
 
-async function fetchSupabaseData() {
+export async function fetchSupabaseData(clientOverride?: unknown) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !serviceKey) {
+  if (!clientOverride && (!url || !serviceKey)) {
     line("[WARN] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (PRODUCTION CREDENTIALS UNAVAILABLE).");
     return {
       supabaseUsers: [],
@@ -84,39 +106,47 @@ async function fetchSupabaseData() {
       supabaseAuthStatus: {
         source: "Supabase Auth" as const,
         queriedSuccessfully: false,
+        statusKind: "MISSING_CREDENTIALS" as const,
         statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
         total: null,
       },
       publicUsersStatus: {
         source: "public.users" as const,
         queriedSuccessfully: false,
+        statusKind: "MISSING_CREDENTIALS" as const,
         statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
         total: null,
       },
       publicStaffStatus: {
         source: "public.staff" as const,
         queriedSuccessfully: false,
+        statusKind: "MISSING_CREDENTIALS" as const,
         statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
         total: null,
+        queryVariant: "none (credentials unavailable)",
       },
     };
   }
 
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(url, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let supabase: any = clientOverride;
+  if (!supabase) {
+    const { createClient } = await import("@supabase/supabase-js");
+    supabase = createClient(url!, serviceKey!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
 
   const supabaseUsers: SupabaseIdentity[] = [];
   let supabaseAuthStatus: ProviderQueryStatus;
   try {
     let page = 1;
-    let listError: string | null = null;
+    let listError: unknown = null;
     for (;;) {
       const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
       if (error) {
-        listError = error.message;
-        line(`[FAIL] supabase.auth.admin.listUsers error: ${error.message}`);
+        listError = error;
+        line(`[FAIL] supabase.auth.admin.listUsers error on page ${page}: ${error.message ?? error}`);
         break;
       }
       for (const u of data.users) {
@@ -130,31 +160,39 @@ async function fetchSupabaseData() {
       if (data.users.length < 200) break;
       page += 1;
     }
+
     if (listError) {
+      // Partial pagination failure: discard partial users to prevent interpreting incomplete data as complete
+      supabaseUsers.length = 0;
+      const classified = classifyError(listError);
       supabaseAuthStatus = {
         source: "Supabase Auth",
         queriedSuccessfully: false,
-        statusText: `QUERY FAILED: ${listError}`,
+        statusKind: classified.kind,
+        statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
         total: null,
-        error: listError,
+        error: classified.message,
       };
     } else {
       supabaseAuthStatus = {
         source: "Supabase Auth",
         queriedSuccessfully: true,
+        statusKind: "SUCCESS",
         statusText: "PRODUCTION QUERY SUCCESSFUL",
         total: supabaseUsers.length,
       };
     }
   } catch (err) {
-    const msg = (err as Error).message;
-    line(`[FAIL] Could not list Supabase Auth users: ${msg}`);
+    supabaseUsers.length = 0;
+    const classified = classifyError(err);
+    line(`[FAIL] Could not list Supabase Auth users: ${classified.message}`);
     supabaseAuthStatus = {
       source: "Supabase Auth",
       queriedSuccessfully: false,
-      statusText: `QUERY FAILED: ${msg}`,
+      statusKind: classified.kind,
+      statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
       total: null,
-      error: msg,
+      error: classified.message,
     };
   }
 
@@ -165,13 +203,15 @@ async function fetchSupabaseData() {
       .from("users")
       .select("id, email, role, active, firestore_id, auth_user_id");
     if (error) {
-      line(`[FAIL] users query error: ${error.message}`);
+      const classified = classifyError(error);
+      line(`[FAIL] users query error: ${classified.message}`);
       publicUsersStatus = {
         source: "public.users",
         queriedSuccessfully: false,
-        statusText: `QUERY FAILED: ${error.message}`,
+        statusKind: classified.kind,
+        statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
         total: null,
-        error: error.message,
+        error: classified.message,
       };
     } else {
       for (const row of data ?? []) {
@@ -188,62 +228,86 @@ async function fetchSupabaseData() {
       publicUsersStatus = {
         source: "public.users",
         queriedSuccessfully: true,
+        statusKind: "SUCCESS",
         statusText: "PRODUCTION QUERY SUCCESSFUL",
         total: publicUsers.length,
       };
     }
   } catch (err) {
-    const msg = (err as Error).message;
-    line(`[FAIL] Could not query public.users: ${msg}`);
+    const classified = classifyError(err);
+    line(`[FAIL] Could not query public.users: ${classified.message}`);
     publicUsersStatus = {
       source: "public.users",
       queriedSuccessfully: false,
-      statusText: `QUERY FAILED: ${msg}`,
+      statusKind: classified.kind,
+      statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
       total: null,
-      error: msg,
+      error: classified.message,
     };
   }
 
   const publicStaff: PublicStaffRecord[] = [];
   let publicStaffStatus: ProviderQueryStatus;
   try {
-    // Attempt to select auth_user_id if column exists (Phase 2), else fallback to base columns
     const { data, error } = await supabase
       .from("staff")
       .select("id, email, staff_no, view_only, status, firebase_uid, auth_user_id");
+
     if (error) {
-      // If auth_user_id column is not yet present, query without it
-      const fallback = await supabase
-        .from("staff")
-        .select("id, email, staff_no, view_only, status, firebase_uid");
-      if (fallback.error) {
-        line(`[FAIL] staff query error: ${fallback.error.message}`);
+      // ONLY fallback if the database error specifically confirms that auth_user_id is missing
+      if (isMissingColumnError(error, "auth_user_id")) {
+        line("[INFO] staff.auth_user_id column not present in schema cache. Executing permitted fallback query without auth_user_id.");
+        const fallback = await supabase
+          .from("staff")
+          .select("id, email, staff_no, view_only, status, firebase_uid");
+
+        if (fallback.error) {
+          const classified = classifyError(fallback.error);
+          line(`[FAIL] staff fallback query error: ${classified.message}`);
+          publicStaffStatus = {
+            source: "public.staff",
+            queriedSuccessfully: false,
+            statusKind: classified.kind,
+            statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
+            total: null,
+            error: classified.message,
+            queryVariant: "fallback without auth_user_id (fallback failed)",
+          };
+        } else {
+          for (const row of fallback.data ?? []) {
+            const r = row as Record<string, unknown>;
+            publicStaff.push({
+              id: String(r.id),
+              email: typeof r.email === "string" ? r.email : null,
+              staff_no: Number(r.staff_no),
+              role: null,
+              active: r.status === "active",
+              status: typeof r.status === "string" ? r.status : null,
+              firebase_uid: typeof r.firebase_uid === "string" ? r.firebase_uid : null,
+              auth_user_id: null,
+            });
+          }
+          publicStaffStatus = {
+            source: "public.staff",
+            queriedSuccessfully: true,
+            statusKind: "SUCCESS",
+            statusText: "PRODUCTION QUERY SUCCESSFUL",
+            total: publicStaff.length,
+            queryVariant: "fallback without auth_user_id (column missing)",
+          };
+        }
+      } else {
+        // Authentication, permission, network, timeout or other errors MUST NOT trigger fallback
+        const classified = classifyError(error);
+        line(`[FAIL] staff query error (permission/auth/query error, fallback disallowed): ${classified.message}`);
         publicStaffStatus = {
           source: "public.staff",
           queriedSuccessfully: false,
-          statusText: `QUERY FAILED: ${fallback.error.message}`,
+          statusKind: classified.kind,
+          statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
           total: null,
-          error: fallback.error.message,
-        };
-      } else {
-        for (const row of fallback.data ?? []) {
-          const r = row as Record<string, unknown>;
-          publicStaff.push({
-            id: String(r.id),
-            email: typeof r.email === "string" ? r.email : null,
-            staff_no: Number(r.staff_no),
-            role: null,
-            active: r.status === "active",
-            status: typeof r.status === "string" ? r.status : null,
-            firebase_uid: typeof r.firebase_uid === "string" ? r.firebase_uid : null,
-            auth_user_id: null,
-          });
-        }
-        publicStaffStatus = {
-          source: "public.staff",
-          queriedSuccessfully: true,
-          statusText: "PRODUCTION QUERY SUCCESSFUL",
-          total: publicStaff.length,
+          error: classified.message,
+          queryVariant: "none (query failed without fallback)",
         };
       }
     } else {
@@ -263,34 +327,39 @@ async function fetchSupabaseData() {
       publicStaffStatus = {
         source: "public.staff",
         queriedSuccessfully: true,
+        statusKind: "SUCCESS",
         statusText: "PRODUCTION QUERY SUCCESSFUL",
         total: publicStaff.length,
+        queryVariant: "standard with auth_user_id",
       };
     }
   } catch (err) {
-    const msg = (err as Error).message;
-    line(`[FAIL] Could not query public.staff: ${msg}`);
+    const classified = classifyError(err);
+    line(`[FAIL] Could not query public.staff: ${classified.message}`);
     publicStaffStatus = {
       source: "public.staff",
       queriedSuccessfully: false,
-      statusText: `QUERY FAILED: ${msg}`,
+      statusKind: classified.kind,
+      statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
       total: null,
-      error: msg,
+      error: classified.message,
+      queryVariant: "none (exception caught)",
     };
   }
 
   return { supabaseUsers, publicUsers, publicStaff, supabaseAuthStatus, publicUsersStatus, publicStaffStatus };
 }
 
-async function fetchFirebaseData() {
+export async function fetchFirebaseData(authOverride?: unknown) {
   const firebaseUsers: FirebaseIdentity[] = [];
   let firebaseAuthStatus: ProviderQueryStatus;
 
-  if (!hasFirebaseCredentials()) {
+  if (!authOverride && !hasFirebaseCredentials()) {
     line("[WARN] Firebase Admin credentials not available (PRODUCTION CREDENTIALS UNAVAILABLE).");
     firebaseAuthStatus = {
       source: "Firebase Auth",
       queriedSuccessfully: false,
+      statusKind: "MISSING_CREDENTIALS",
       statusText: "PRODUCTION CREDENTIALS UNAVAILABLE",
       total: null,
     };
@@ -298,10 +367,14 @@ async function fetchFirebaseData() {
   }
 
   try {
-    const { getAdminApp } = await import("@/lib/admin-firebase");
-    const app = await getAdminApp();
-    const { getAuth } = await import("firebase-admin/auth");
-    const auth = getAuth(app);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let auth: any = authOverride;
+    if (!auth) {
+      const { getAdminApp } = await import("@/lib/admin-firebase");
+      const app = await getAdminApp();
+      const { getAuth } = await import("firebase-admin/auth");
+      auth = getAuth(app);
+    }
 
     let nextPageToken: string | undefined = undefined;
     do {
@@ -310,7 +383,7 @@ async function fetchFirebaseData() {
         firebaseUsers.push({
           uid: u.uid,
           email: u.email ?? null,
-          disabled: u.disabled,
+          disabled: Boolean(u.disabled),
         });
       }
       nextPageToken = listResult.pageToken;
@@ -319,18 +392,21 @@ async function fetchFirebaseData() {
     firebaseAuthStatus = {
       source: "Firebase Auth",
       queriedSuccessfully: true,
+      statusKind: "SUCCESS",
       statusText: "PRODUCTION QUERY SUCCESSFUL",
       total: firebaseUsers.length,
     };
   } catch (err) {
-    const msg = (err as Error).message;
-    line(`[FAIL] Firebase Admin Auth error: ${msg}`);
+    firebaseUsers.length = 0;
+    const classified = classifyError(err);
+    line(`[FAIL] Firebase Admin Auth error: ${classified.message}`);
     firebaseAuthStatus = {
       source: "Firebase Auth",
       queriedSuccessfully: false,
-      statusText: `QUERY FAILED: ${msg}`,
+      statusKind: classified.kind,
+      statusText: `${classified.kind === "AUTH_FAILURE" ? "AUTHENTICATION FAILURE" : "QUERY FAILED"}: ${classified.message}`,
       total: null,
-      error: msg,
+      error: classified.message,
     };
   }
   return { firebaseUsers, firebaseAuthStatus };
@@ -345,13 +421,21 @@ export function generateMarkdownReport(
     publicStaff: ProviderQueryStatus;
   }
 ): string {
+  const allSourcesSuccessful =
+    queryStatuses.firebaseAuth.queriedSuccessfully &&
+    queryStatuses.supabaseAuth.queriedSuccessfully &&
+    queryStatuses.publicUsers.queriedSuccessfully &&
+    queryStatuses.publicStaff.queriedSuccessfully;
+
   const formatStatus = (s: ProviderQueryStatus) =>
     s.queriedSuccessfully
       ? `YES (${s.statusText})`
       : `NO (${s.statusText})`;
 
-  const formatTotal = (s: ProviderQueryStatus, fallbackCount: number) =>
-    s.queriedSuccessfully ? String(s.total ?? fallbackCount) : "N/A (system not successfully queried)";
+  const formatTotal = (s: ProviderQueryStatus) =>
+    s.queriedSuccessfully && s.total !== null
+      ? String(s.total)
+      : "N/A (system not successfully queried)";
 
   const lines: string[] = [
     "# Phase 2 — Production Auth Identity Reconciliation Report",
@@ -363,36 +447,71 @@ export function generateMarkdownReport(
     "",
     "## Firebase Auth",
     `- **queried successfully:** ${formatStatus(queryStatuses.firebaseAuth)}`,
-    `- **total identities:** ${formatTotal(queryStatuses.firebaseAuth, report.stats.firebaseCount)}`,
+    `- **total identities:** ${formatTotal(queryStatuses.firebaseAuth)}`,
     "",
     "## Supabase Auth",
     `- **queried successfully:** ${formatStatus(queryStatuses.supabaseAuth)}`,
-    `- **total identities:** ${formatTotal(queryStatuses.supabaseAuth, report.stats.supabaseCount)}`,
+    `- **total identities:** ${formatTotal(queryStatuses.supabaseAuth)}`,
     "",
     "## public.users",
     `- **queried successfully:** ${formatStatus(queryStatuses.publicUsers)}`,
-    `- **total rows:** ${formatTotal(queryStatuses.publicUsers, report.stats.publicUsersCount)}`,
+    `- **total rows:** ${formatTotal(queryStatuses.publicUsers)}`,
     "",
     "## public.staff",
     `- **queried successfully:** ${formatStatus(queryStatuses.publicStaff)}`,
-    `- **total rows:** ${formatTotal(queryStatuses.publicStaff, report.stats.publicStaffCount)}`,
+    `- **query variant:** ${queryStatuses.publicStaff.queryVariant ?? (queryStatuses.publicStaff.queriedSuccessfully ? "standard with auth_user_id" : "none")}`,
+    `- **total rows:** ${formatTotal(queryStatuses.publicStaff)}`,
     "",
     "---",
     "",
     "## Reconciliation",
-    `- **linked identities:** ${report.stats.linkedCount}`,
-    `- **Firebase-only:** ${report.stats.firebaseOnlyCount}`,
-    `- **Supabase-only:** ${report.stats.supabaseOnlyCount}`,
-    `- **conflicts:** ${report.stats.matchingEmailDifferentIdsCount}`,
-    `- **ambiguous identities:** ${report.stats.ambiguousCount}`,
+  ];
+
+  if (!allSourcesSuccessful) {
+    lines.push(
+      "*Reconciliation metrics are withheld because one or more production data sources could not be successfully queried.*",
+      "",
+      "- **reconciliation status:** INCOMPLETE (reconciliation not certified)",
+      "- **linked identities:** N/A (source data incomplete)",
+      "- **Firebase-only:** N/A (source data incomplete)",
+      "- **Supabase-only:** N/A (source data incomplete)",
+      "- **conflicts:** N/A (source data incomplete)",
+      "- **ambiguous identities:** N/A (source data incomplete)"
+    );
+  } else {
+    lines.push(
+      `- **linked identities:** ${report.stats.linkedCount}`,
+      `- **Firebase-only:** ${report.stats.firebaseOnlyCount}`,
+      `- **Supabase-only:** ${report.stats.supabaseOnlyCount}`,
+      `- **conflicts:** ${report.stats.matchingEmailDifferentIdsCount}`,
+      `- **ambiguous identities:** ${report.stats.ambiguousCount}`
+    );
+  }
+
+  lines.push(
     "",
     "---",
     "",
-    "## Authorization safety",
-    `- **active administrators without authorization mapping:** ${report.activeAdminsWithoutMapping.length}`,
-    `- **active staff without authorization mapping:** ${report.activeStaffWithoutMapping.length}`,
-    `- **duplicate auth_user_id:** ${report.duplicateAuthUserIds.length}`,
-    `- **duplicate Firebase UID:** ${report.duplicateFirebaseUids.length}`,
+    "## Authorization safety"
+  );
+
+  if (!allSourcesSuccessful) {
+    lines.push(
+      "- **active administrators without authorization mapping:** N/A (source data incomplete)",
+      "- **active staff without authorization mapping:** N/A (source data incomplete)",
+      "- **duplicate auth_user_id:** N/A (source data incomplete)",
+      "- **duplicate Firebase UID:** N/A (source data incomplete)"
+    );
+  } else {
+    lines.push(
+      `- **active administrators without authorization mapping:** ${report.activeAdminsWithoutMapping.length}`,
+      `- **active staff without authorization mapping:** ${report.activeStaffWithoutMapping.length}`,
+      `- **duplicate auth_user_id:** ${report.duplicateAuthUserIds.length}`,
+      `- **duplicate Firebase UID:** ${report.duplicateFirebaseUids.length}`
+    );
+  }
+
+  lines.push(
     "",
     "---",
     "",
@@ -407,80 +526,92 @@ export function generateMarkdownReport(
     "---",
     "",
     "## Detailed Findings",
-    "",
-  ];
+    ""
+  );
 
-  if (report.linkedIdentities.length > 0) {
+  if (allSourcesSuccessful && report.linkedIdentities.length > 0) {
     lines.push("### Linked Identities");
     for (const id of report.linkedIdentities) {
       lines.push(
-        `- **${id.email ?? "(no email)"}**: Firebase UID \`${id.firebaseUid}\` <-> Supabase ID \`${id.supabaseAuthId}\` (role: \`${id.role ?? "none"}\`, active: \`${id.active}\`, via: \`${id.linkedVia}\`)`
+        `- **${maskEmail(id.email)}**: Firebase UID \`${maskId(id.firebaseUid)}\` <-> Supabase ID \`${maskId(id.supabaseAuthId)}\` (role: \`${id.role ?? "none"}\`, active: \`${id.active}\`, via: \`${id.linkedVia}\`)`
       );
     }
     lines.push("");
   }
 
-  if (report.emailMatchDifferentIds.length > 0) {
+  if (allSourcesSuccessful && report.emailMatchDifferentIds.length > 0) {
     lines.push("### Conflicts (Matching Email, Differing IDs — Action Required: Manual Review)");
     lines.push("Accounts sharing an email but having different identity IDs are NEVER auto-linked:");
     for (const m of report.emailMatchDifferentIds) {
-      lines.push(`- **${m.email}**:`);
-      lines.push(`  - Firebase UID: \`${m.firebaseUid}\``);
-      lines.push(`  - Supabase Auth: \`${m.supabaseAuthId}\``);
-      lines.push(`  - Note: ${m.reviewNote}`);
+      lines.push(`- **${maskEmail(m.email)}**:`);
+      lines.push(`  - Firebase UID: \`${maskId(m.firebaseUid)}\``);
+      lines.push(`  - Supabase Auth: \`${maskId(m.supabaseAuthId)}\``);
+      lines.push(`  - Note: ${redactSensitiveText(m.reviewNote)}`);
     }
     lines.push("");
   }
 
-  if (report.activeAdminsWithoutMapping.length > 0) {
+  if (allSourcesSuccessful && report.activeAdminsWithoutMapping.length > 0) {
     lines.push("### Active Administrators Lacking Authorization Mapping");
     for (const a of report.activeAdminsWithoutMapping) {
-      lines.push(`- [${a.source}] ${a.email ?? a.id}: ${a.note}`);
+      lines.push(`- [${a.source}] ${maskEmail(a.email) !== "(no email)" ? maskEmail(a.email) : maskId(a.id)}: ${redactSensitiveText(a.note)}`);
     }
     lines.push("");
   }
 
-  if (report.activeStaffWithoutMapping.length > 0) {
+  if (allSourcesSuccessful && report.activeStaffWithoutMapping.length > 0) {
     lines.push("### Active Staff Lacking Authorization Mapping");
     for (const s of report.activeStaffWithoutMapping) {
-      lines.push(`- [staff #${s.staffNo ?? "N/A"}] ${s.email ?? s.id}: ${s.note}`);
+      lines.push(`- [staff #${maskStaffNo(s.staffNo)}] ${maskEmail(s.email) !== "(no email)" ? maskEmail(s.email) : maskId(s.id)}: ${redactSensitiveText(s.note)}`);
     }
     lines.push("");
   }
 
-  if (report.duplicateAuthUserIds.length > 0) {
+  if (allSourcesSuccessful && report.duplicateAuthUserIds.length > 0) {
     lines.push("### Duplicate auth_user_id Occurrences");
     for (const d of report.duplicateAuthUserIds) {
-      lines.push(`- Duplicate \`${d.value}\` in \`${d.source}\` (${d.occurrences} records)`);
+      lines.push(`- Duplicate \`${maskId(d.value)}\` in \`${d.source}\` (${d.occurrences} records)`);
     }
     lines.push("");
   }
 
-  if (report.duplicateFirebaseUids.length > 0) {
+  if (allSourcesSuccessful && report.duplicateFirebaseUids.length > 0) {
     lines.push("### Duplicate Firebase UID Occurrences");
     for (const d of report.duplicateFirebaseUids) {
-      lines.push(`- Duplicate \`${d.value}\` in \`${d.source}\` (${d.occurrences} records)`);
+      lines.push(`- Duplicate \`${maskId(d.value)}\` in \`${d.source}\` (${d.occurrences} records)`);
     }
     lines.push("");
   }
 
-  if (report.ambiguousMappings.length > 0) {
+  if (allSourcesSuccessful && report.ambiguousMappings.length > 0) {
     lines.push("### Ambiguous Mappings");
     for (const amb of report.ambiguousMappings) {
-      lines.push(`- **${amb.email ?? "(no email)"}**: ${amb.reason}`);
+      lines.push(`- **${maskEmail(amb.email)}**: ${redactSensitiveText(amb.reason)}`);
     }
     lines.push("");
   }
 
   lines.push("## Summary Assessment");
-  if (
+  if (!allSourcesSuccessful) {
+    lines.push(
+      "STATUS: INCOMPLETE — RECONCILIATION NOT CERTIFIED",
+      "",
+      "One or more required production data sources could not be successfully queried:",
+      `- Firebase Auth: ${queryStatuses.firebaseAuth.statusText}`,
+      `- Supabase Auth: ${queryStatuses.supabaseAuth.statusText}`,
+      `- public.users: ${queryStatuses.publicUsers.statusText}`,
+      `- public.staff: ${queryStatuses.publicStaff.statusText}`,
+      "",
+      "Reconciliation metrics and conclusions cannot be certified when source data is partial or unqueried."
+    );
+  } else if (
     report.stats.matchingEmailDifferentIdsCount === 0 &&
     report.stats.ambiguousCount === 0 &&
     report.activeAdminsWithoutMapping.length === 0 &&
     report.duplicateAuthUserIds.length === 0 &&
     report.duplicateFirebaseUids.length === 0
   ) {
-    lines.push("STATUS: CLEAN — No identity collisions, duplicate IDs, or unmapped administrators identified.");
+    lines.push("STATUS: CLEAN — All four production sources successfully queried. No identity collisions, duplicate IDs, or unmapped administrators identified.");
   } else {
     lines.push("STATUS: REVIEW REQUIRED — One or more identity conflicts or authorization safety flags require operator review.");
   }
@@ -489,14 +620,17 @@ export function generateMarkdownReport(
   return lines.join("\n");
 }
 
-export async function runDiagnostic(): Promise<DiagnosticResult> {
+export async function runDiagnostic(deps?: DiagnosticDependencies): Promise<DiagnosticResult> {
   head("Phase 2 — Privileged Identity Enumeration & Reconciliation");
   line("Read-only diagnostic scanning Firebase Auth, Supabase Auth, public.users, and public.staff.");
   line("(No passwords, tokens, or credentials are read, stored, or printed.)");
 
+  const supabaseFetcher = deps?.fetchSupabaseData ?? fetchSupabaseData;
+  const firebaseFetcher = deps?.fetchFirebaseData ?? fetchFirebaseData;
+
   const [supabaseData, firebaseData] = await Promise.all([
-    fetchSupabaseData(),
-    fetchFirebaseData(),
+    supabaseFetcher(),
+    firebaseFetcher(),
   ]);
 
   const queryStatuses = {
@@ -505,6 +639,12 @@ export async function runDiagnostic(): Promise<DiagnosticResult> {
     publicUsers: supabaseData.publicUsersStatus,
     publicStaff: supabaseData.publicStaffStatus,
   };
+
+  const allSourcesSuccessful =
+    queryStatuses.firebaseAuth.queriedSuccessfully &&
+    queryStatuses.supabaseAuth.queriedSuccessfully &&
+    queryStatuses.publicUsers.queriedSuccessfully &&
+    queryStatuses.publicStaff.queriedSuccessfully;
 
   const report = reconcileIdentities({
     firebaseUsers: firebaseData.firebaseUsers,
@@ -517,62 +657,50 @@ export async function runDiagnostic(): Promise<DiagnosticResult> {
   line(`Firebase Auth: ${queryStatuses.firebaseAuth.statusText} (Total: ${queryStatuses.firebaseAuth.queriedSuccessfully ? report.stats.firebaseCount : "N/A"})`);
   line(`Supabase Auth: ${queryStatuses.supabaseAuth.statusText} (Total: ${queryStatuses.supabaseAuth.queriedSuccessfully ? report.stats.supabaseCount : "N/A"})`);
   line(`public.users:  ${queryStatuses.publicUsers.statusText} (Total: ${queryStatuses.publicUsers.queriedSuccessfully ? report.stats.publicUsersCount : "N/A"})`);
-  line(`public.staff:  ${queryStatuses.publicStaff.statusText} (Total: ${queryStatuses.publicStaff.queriedSuccessfully ? report.stats.publicStaffCount : "N/A"})`);
+  line(`public.staff:  ${queryStatuses.publicStaff.statusText} (Total: ${queryStatuses.publicStaff.queriedSuccessfully ? report.stats.publicStaffCount : "N/A"}, variant: ${queryStatuses.publicStaff.queryVariant ?? "N/A"})`);
 
   head("Reconciliation Summary");
-  line(`Already linked identities:  ${report.stats.linkedCount}`);
-  line(`Firebase-only identities:   ${report.stats.firebaseOnlyCount}`);
-  line(`Supabase-only identities:   ${report.stats.supabaseOnlyCount}`);
-  line(`Matching email, diff IDs:   ${report.stats.matchingEmailDifferentIdsCount}`);
-  line(`Ambiguous mappings:         ${report.stats.ambiguousCount}`);
+  if (allSourcesSuccessful) {
+    line(`Already linked identities:  ${report.stats.linkedCount}`);
+    line(`Firebase-only identities:   ${report.stats.firebaseOnlyCount}`);
+    line(`Supabase-only identities:   ${report.stats.supabaseOnlyCount}`);
+    line(`Matching email, diff IDs:   ${report.stats.matchingEmailDifferentIdsCount}`);
+    line(`Ambiguous mappings:         ${report.stats.ambiguousCount}`);
+  } else {
+    line("Reconciliation metrics withheld: one or more sources not successfully queried.");
+  }
 
   head("Authorization Safety");
-  line(`Active admins w/o mapping:  ${report.activeAdminsWithoutMapping.length}`);
-  line(`Active staff w/o mapping:   ${report.activeStaffWithoutMapping.length}`);
-  line(`Duplicate auth_user_id:     ${report.duplicateAuthUserIds.length}`);
-  line(`Duplicate Firebase UID:     ${report.duplicateFirebaseUids.length}`);
+  if (allSourcesSuccessful) {
+    line(`Active admins w/o mapping:  ${report.activeAdminsWithoutMapping.length}`);
+    line(`Active staff w/o mapping:   ${report.activeStaffWithoutMapping.length}`);
+    line(`Duplicate auth_user_id:     ${report.duplicateAuthUserIds.length}`);
+    line(`Duplicate Firebase UID:     ${report.duplicateFirebaseUids.length}`);
+  } else {
+    line("Authorization safety metrics withheld: one or more sources not successfully queried.");
+  }
 
   head("Mutation Check");
   line("Database rows changed: NO");
   line("Schema changed: NO");
   line("Auth users changed: NO");
 
-  if (report.linkedIdentities.length > 0) {
-    head("Already Linked Identities");
+  // Output masked details to console
+  if (allSourcesSuccessful && report.linkedIdentities.length > 0) {
+    head("Already Linked Identities (Masked)");
     for (const id of report.linkedIdentities) {
-      line(`- ${id.email ?? "(no email)"} (Firebase UID: ${id.firebaseUid} <-> Supabase ID: ${id.supabaseAuthId}, role: ${id.role ?? "none"}, active: ${id.active})`);
+      line(`- ${maskEmail(id.email)} (Firebase UID: ${maskId(id.firebaseUid)} <-> Supabase ID: ${maskId(id.supabaseAuthId)}, role: ${id.role ?? "none"}, active: ${id.active})`);
     }
   }
 
-  if (report.emailMatchDifferentIds.length > 0) {
+  if (allSourcesSuccessful && report.emailMatchDifferentIds.length > 0) {
     head("Matching Email With Different IDs (Action Required: Manual Review)");
     line("IMPORTANT: Never auto-linked based solely on email. The following accounts require operator review:");
     for (const m of report.emailMatchDifferentIds) {
-      line(`- Email: ${m.email}`);
-      line(`  Firebase UID:    ${m.firebaseUid}`);
-      line(`  Supabase Auth:   ${m.supabaseAuthId}`);
-      line(`  Review Note:     ${m.reviewNote}`);
-    }
-  }
-
-  if (report.activeAdminsWithoutMapping.length > 0) {
-    head("Active Administrators Lacking Authorization Mapping");
-    for (const a of report.activeAdminsWithoutMapping) {
-      line(`- [${a.source}] ${a.email ?? a.id}: ${a.note}`);
-    }
-  }
-
-  if (report.activeStaffWithoutMapping.length > 0) {
-    head("Active Staff Lacking Authorization Mapping");
-    for (const s of report.activeStaffWithoutMapping) {
-      line(`- [staff #${s.staffNo ?? "N/A"}] ${s.email ?? s.id}: ${s.note}`);
-    }
-  }
-
-  if (report.ambiguousMappings.length > 0) {
-    head("Ambiguous Mappings");
-    for (const a of report.ambiguousMappings) {
-      line(`- ${a.email ?? "(no email)"}: ${a.reason}`);
+      line(`- Email: ${maskEmail(m.email)}`);
+      line(`  Firebase UID:    ${maskId(m.firebaseUid)}`);
+      line(`  Supabase Auth:   ${maskId(m.supabaseAuthId)}`);
+      line(`  Review Note:     ${redactSensitiveText(m.reviewNote)}`);
     }
   }
 
@@ -582,12 +710,18 @@ export async function runDiagnostic(): Promise<DiagnosticResult> {
   if (!fs.existsSync(artifactsDir)) {
     fs.mkdirSync(artifactsDir, { recursive: true });
   }
-  const markdownReportPath = path.join(artifactsDir, "auth-identity-reconciliation.md");
-  fs.writeFileSync(markdownReportPath, markdown, "utf8");
+  const markdownReportPath = deps?.outputArtifactPath ?? path.join(artifactsDir, "auth-identity-reconciliation.md");
+  if (deps?.writeReportFile) {
+    deps.writeReportFile(markdownReportPath, markdown);
+  } else {
+    fs.writeFileSync(markdownReportPath, markdown, "utf8");
+  }
   line(`\n[OK] Redacted Markdown report generated: ${markdownReportPath}`);
 
   // Publish to GitHub Step Summary if running in GitHub Actions
-  if (process.env.GITHUB_STEP_SUMMARY) {
+  if (deps?.appendStepSummary) {
+    deps.appendStepSummary(markdown);
+  } else if (process.env.GITHUB_STEP_SUMMARY) {
     try {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown, "utf8");
       line("[OK] Published report to GITHUB_STEP_SUMMARY");
@@ -597,28 +731,34 @@ export async function runDiagnostic(): Promise<DiagnosticResult> {
   }
 
   head("Reconciliation Status");
-  if (
+  if (!allSourcesSuccessful) {
+    line("STATUS: INCOMPLETE — RECONCILIATION NOT CERTIFIED (one or more sources unavailable or failed)");
+  } else if (
     report.stats.ambiguousCount === 0 &&
     report.stats.matchingEmailDifferentIdsCount === 0 &&
     report.activeAdminsWithoutMapping.length === 0 &&
     report.duplicateAuthUserIds.length === 0 &&
     report.duplicateFirebaseUids.length === 0
   ) {
-    line("CLEAN: No conflicting or ambiguous identities found.");
+    line("STATUS: CLEAN — All four production sources successfully queried. No conflicting or ambiguous identities found.");
   } else {
     line(
-      `ACTION REQUIRED: ${report.stats.matchingEmailDifferentIdsCount} conflict(s), ` +
+      `STATUS: REVIEW REQUIRED — ${report.stats.matchingEmailDifferentIdsCount} conflict(s), ` +
         `${report.stats.ambiguousCount} ambiguous mapping(s), ` +
         `${report.activeAdminsWithoutMapping.length} unmapped admin(s) flagged.`
     );
   }
 
-  return { report, queryStatuses, markdownReportPath };
+  return { report, queryStatuses, markdownReportPath, allSourcesSuccessful };
 }
 
 if (require.main === module) {
   runDiagnostic()
-    .then(() => {
+    .then((result) => {
+      if (!result.allSourcesSuccessful) {
+        console.error("\n[FAIL] One or more production sources could not be successfully queried. Reconciliation not certified.");
+        process.exit(1);
+      }
       process.exit(0);
     })
     .catch((err) => {
