@@ -9,21 +9,20 @@
  *   - public.users
  *   - public.staff
  *
- * Produces a redacted reconciliation report identifying:
- *   - Firebase-only identities
- *   - Supabase-only identities
- *   - Already linked identities
- *   - Identities with matching email but different IDs (manual review required)
- *   - Active admin/staff identities without public.users authorization records
- *   - Ambiguous mappings
- *   - Authorization safety findings (unmapped admins/staff, duplicate IDs)
+ * Produces an aggregate-only reconciliation report identifying:
+ *   - Firebase-only identity counts
+ *   - Supabase-only identity counts
+ *   - Already linked identity counts
+ *   - Conflicts count (matching email with differing IDs requiring review)
+ *   - Ambiguous mappings count
+ *   - Authorization safety counts (unmapped admins/staff, duplicate IDs)
  *
  * CRITICAL SAFETY RULES:
  * - Read-only: never performs writes, updates, deletes, or auto-linking.
  * - Never logs or reveals secrets, passwords, tokens, or private keys.
  * - Explicitly verifies zero mutations: Database rows changed: NO, Schema changed: NO, Auth users changed: NO.
  * - Fail-closed: Never certifies status as CLEAN unless all 4 production sources succeed.
- * - Genuinely redacted: Masks emails, UUIDs, UIDs, and staff numbers in report and console logs.
+ * - Aggregate-only reporting: Excludes all identity-level records and identifiers from artifacts and step summary.
  */
 
 import * as fs from "fs";
@@ -36,10 +35,6 @@ import {
   type PublicStaffRecord,
   type ReconciliationReport,
   type ProviderQueryStatus,
-  maskEmail,
-  maskId,
-  maskStaffNo,
-  redactSensitiveText,
   isMissingColumnError,
   classifyError,
 } from "./lib/auth-identity-reconciliation";
@@ -442,6 +437,7 @@ export function generateMarkdownReport(
     "",
     `**Generated:** ${new Date().toISOString()}`,
     "**Execution Mode:** READ-ONLY diagnostic (zero mutations)",
+    "**Report Format:** Aggregate-only (zero identity-level findings)",
     "",
     "---",
     "",
@@ -525,73 +521,16 @@ export function generateMarkdownReport(
     "",
     "---",
     "",
-    "## Detailed Findings",
-    ""
+    "## Findings Policy",
+    "",
+    "Identity-level findings, individual user records, and account identifiers are strictly excluded from this artifact in accordance with the aggregate-only reporting security policy.",
+    "All statistics and verification counts above are aggregates derived from direct read-only enumeration.",
+    "",
+    "---",
+    "",
+    "## Summary Assessment"
   );
 
-  if (allSourcesSuccessful && report.linkedIdentities.length > 0) {
-    lines.push("### Linked Identities");
-    for (const id of report.linkedIdentities) {
-      lines.push(
-        `- **${maskEmail(id.email)}**: Firebase UID \`${maskId(id.firebaseUid)}\` <-> Supabase ID \`${maskId(id.supabaseAuthId)}\` (role: \`${id.role ?? "none"}\`, active: \`${id.active}\`, via: \`${id.linkedVia}\`)`
-      );
-    }
-    lines.push("");
-  }
-
-  if (allSourcesSuccessful && report.emailMatchDifferentIds.length > 0) {
-    lines.push("### Conflicts (Matching Email, Differing IDs — Action Required: Manual Review)");
-    lines.push("Accounts sharing an email but having different identity IDs are NEVER auto-linked:");
-    for (const m of report.emailMatchDifferentIds) {
-      lines.push(`- **${maskEmail(m.email)}**:`);
-      lines.push(`  - Firebase UID: \`${maskId(m.firebaseUid)}\``);
-      lines.push(`  - Supabase Auth: \`${maskId(m.supabaseAuthId)}\``);
-      lines.push(`  - Note: ${redactSensitiveText(m.reviewNote)}`);
-    }
-    lines.push("");
-  }
-
-  if (allSourcesSuccessful && report.activeAdminsWithoutMapping.length > 0) {
-    lines.push("### Active Administrators Lacking Authorization Mapping");
-    for (const a of report.activeAdminsWithoutMapping) {
-      lines.push(`- [${a.source}] ${maskEmail(a.email) !== "(no email)" ? maskEmail(a.email) : maskId(a.id)}: ${redactSensitiveText(a.note)}`);
-    }
-    lines.push("");
-  }
-
-  if (allSourcesSuccessful && report.activeStaffWithoutMapping.length > 0) {
-    lines.push("### Active Staff Lacking Authorization Mapping");
-    for (const s of report.activeStaffWithoutMapping) {
-      lines.push(`- [staff #${maskStaffNo(s.staffNo)}] ${maskEmail(s.email) !== "(no email)" ? maskEmail(s.email) : maskId(s.id)}: ${redactSensitiveText(s.note)}`);
-    }
-    lines.push("");
-  }
-
-  if (allSourcesSuccessful && report.duplicateAuthUserIds.length > 0) {
-    lines.push("### Duplicate auth_user_id Occurrences");
-    for (const d of report.duplicateAuthUserIds) {
-      lines.push(`- Duplicate \`${maskId(d.value)}\` in \`${d.source}\` (${d.occurrences} records)`);
-    }
-    lines.push("");
-  }
-
-  if (allSourcesSuccessful && report.duplicateFirebaseUids.length > 0) {
-    lines.push("### Duplicate Firebase UID Occurrences");
-    for (const d of report.duplicateFirebaseUids) {
-      lines.push(`- Duplicate \`${maskId(d.value)}\` in \`${d.source}\` (${d.occurrences} records)`);
-    }
-    lines.push("");
-  }
-
-  if (allSourcesSuccessful && report.ambiguousMappings.length > 0) {
-    lines.push("### Ambiguous Mappings");
-    for (const amb of report.ambiguousMappings) {
-      lines.push(`- **${maskEmail(amb.email)}**: ${redactSensitiveText(amb.reason)}`);
-    }
-    lines.push("");
-  }
-
-  lines.push("## Summary Assessment");
   if (!allSourcesSuccessful) {
     lines.push(
       "STATUS: INCOMPLETE — RECONCILIATION NOT CERTIFIED",
@@ -623,7 +562,7 @@ export function generateMarkdownReport(
 export async function runDiagnostic(deps?: DiagnosticDependencies): Promise<DiagnosticResult> {
   head("Phase 2 — Privileged Identity Enumeration & Reconciliation");
   line("Read-only diagnostic scanning Firebase Auth, Supabase Auth, public.users, and public.staff.");
-  line("(No passwords, tokens, or credentials are read, stored, or printed.)");
+  line("(Aggregate-only reporting: zero identity-level records or credentials output.)");
 
   const supabaseFetcher = deps?.fetchSupabaseData ?? fetchSupabaseData;
   const firebaseFetcher = deps?.fetchFirebaseData ?? fetchFirebaseData;
@@ -685,26 +624,7 @@ export async function runDiagnostic(deps?: DiagnosticDependencies): Promise<Diag
   line("Schema changed: NO");
   line("Auth users changed: NO");
 
-  // Output masked details to console
-  if (allSourcesSuccessful && report.linkedIdentities.length > 0) {
-    head("Already Linked Identities (Masked)");
-    for (const id of report.linkedIdentities) {
-      line(`- ${maskEmail(id.email)} (Firebase UID: ${maskId(id.firebaseUid)} <-> Supabase ID: ${maskId(id.supabaseAuthId)}, role: ${id.role ?? "none"}, active: ${id.active})`);
-    }
-  }
-
-  if (allSourcesSuccessful && report.emailMatchDifferentIds.length > 0) {
-    head("Matching Email With Different IDs (Action Required: Manual Review)");
-    line("IMPORTANT: Never auto-linked based solely on email. The following accounts require operator review:");
-    for (const m of report.emailMatchDifferentIds) {
-      line(`- Email: ${maskEmail(m.email)}`);
-      line(`  Firebase UID:    ${maskId(m.firebaseUid)}`);
-      line(`  Supabase Auth:   ${maskId(m.supabaseAuthId)}`);
-      line(`  Review Note:     ${redactSensitiveText(m.reviewNote)}`);
-    }
-  }
-
-  // Generate markdown report artifact
+  // Generate aggregate-only markdown report artifact
   const markdown = generateMarkdownReport(report, queryStatuses);
   const artifactsDir = path.join(process.cwd(), "artifacts");
   if (!fs.existsSync(artifactsDir)) {
@@ -716,7 +636,7 @@ export async function runDiagnostic(deps?: DiagnosticDependencies): Promise<Diag
   } else {
     fs.writeFileSync(markdownReportPath, markdown, "utf8");
   }
-  line(`\n[OK] Redacted Markdown report generated: ${markdownReportPath}`);
+  line(`\n[OK] Aggregate-only Markdown report generated: ${markdownReportPath}`);
 
   // Publish to GitHub Step Summary if running in GitHub Actions
   if (deps?.appendStepSummary) {
@@ -724,7 +644,7 @@ export async function runDiagnostic(deps?: DiagnosticDependencies): Promise<Diag
   } else if (process.env.GITHUB_STEP_SUMMARY) {
     try {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown, "utf8");
-      line("[OK] Published report to GITHUB_STEP_SUMMARY");
+      line("[OK] Published aggregate-only report to GITHUB_STEP_SUMMARY");
     } catch (e) {
       line(`[WARN] Failed to write to GITHUB_STEP_SUMMARY: ${(e as Error).message}`);
     }

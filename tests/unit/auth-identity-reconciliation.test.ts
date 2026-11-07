@@ -581,8 +581,8 @@ describe("Phase 2 Diagnostic and Workflow Regression Suite", () => {
     expect(writtenContent).toContain("STATUS: INCOMPLETE — RECONCILIATION NOT CERTIFIED");
   });
 
-  // Test 9: Report contains no raw emails or identity IDs
-  it("ensures the generated report contains no raw email addresses or full UUIDs", async () => {
+  // Test 9: Report is aggregate-only and contains NO identity-level findings or identifiers
+  it("ensures the generated report contains no raw or masked emails or identity IDs", async () => {
     const { generateMarkdownReport } = await import("../../scripts/diagnose-auth-identities");
 
     const sensitiveEmail = "priest.raghavendra@matha-temple.org";
@@ -612,10 +612,15 @@ describe("Phase 2 Diagnostic and Workflow Regression Suite", () => {
     expect(markdown).not.toContain(sensitiveUuid);
     expect(markdown).not.toContain(sensitiveFbUid);
 
-    // Verify masked forms ARE present
-    expect(markdown).toContain(maskEmail(sensitiveEmail));
-    expect(markdown).toContain(maskId(sensitiveUuid));
-    expect(markdown).toContain(maskId(sensitiveFbUid));
+    // Verify masked forms are ALSO NOT present (aggregate-only policy)
+    expect(markdown).not.toContain(maskEmail(sensitiveEmail));
+    expect(markdown).not.toContain(maskId(sensitiveUuid));
+    expect(markdown).not.toContain(maskId(sensitiveFbUid));
+
+    // Verify aggregate counts ARE present
+    expect(markdown).toContain("linked identities:** 1");
+    expect(markdown).toContain("Aggregate-only (zero identity-level findings)");
+    expect(markdown).not.toContain("### Linked Identities");
   });
 
   // Test 10: Failed workflow still uploads the diagnostic report
