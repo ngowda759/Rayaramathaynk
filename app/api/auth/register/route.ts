@@ -37,16 +37,22 @@ export async function POST(request: NextRequest) {
       // 1. Authoritative identity verification
       const caller = await verifyBearerIdToken(request);
       if (caller) {
-        // Authenticated request: caller UID must match the payload userId
+        // Authenticated request: caller UID and email must match the requested payload
         if (caller.uid !== userId) {
           return NextResponse.json(
             { error: "User identity does not match authenticated session" },
             { status: 403 }
           );
         }
+        if (caller.email && caller.email.trim().toLowerCase() !== email) {
+          return NextResponse.json(
+            { error: "Email does not match authenticated session token" },
+            { status: 400 }
+          );
+        }
       } else {
-        // Unauthenticated request (e.g. freshly signed up, email verification pending):
-        // Verify that the userId exists in Supabase Auth Admin and email matches
+        // Unauthenticated registration (e.g. freshly signed up, session not yet active):
+        // FAIL CLOSED: Require a functioning Supabase Auth Admin lookup. Never assume identity on provider failure.
         const adminAuth = (supabase.auth as unknown as {
           admin?: {
             getUserById?: (id: string) => Promise<{
@@ -56,42 +62,83 @@ export async function POST(request: NextRequest) {
           };
         })?.admin;
 
-        if (typeof adminAuth?.getUserById === "function") {
-          const { data: authUserResult, error: authUserError } =
-            await adminAuth.getUserById(userId);
+        if (!adminAuth || typeof adminAuth.getUserById !== "function") {
+          console.error("[api/auth/register] Supabase Auth Admin getUserById is unavailable");
+          return NextResponse.json(
+            { error: "Authentication admin lookup service is unavailable" },
+            { status: 500 }
+          );
+        }
 
-          if (authUserError || !authUserResult?.user?.id) {
-            return NextResponse.json(
-              { error: "User identity does not exist in authentication provider" },
-              { status: 400 }
-            );
-          }
+        const { data: authUserResult, error: authUserError } =
+          await adminAuth.getUserById(userId);
 
-          const registeredEmail = authUserResult.user.email?.trim().toLowerCase();
-          if (registeredEmail && registeredEmail !== email) {
-            return NextResponse.json(
-              { error: "Email does not match registered authentication account" },
-              { status: 400 }
-            );
-          }
+        if (authUserError || !authUserResult?.user?.id) {
+          return NextResponse.json(
+            { error: "User identity does not exist in authentication provider" },
+            { status: 400 }
+          );
+        }
+
+        if (authUserResult.user.id !== userId) {
+          return NextResponse.json(
+            { error: "User identity mismatch in authentication provider" },
+            { status: 400 }
+          );
+        }
+
+        const registeredEmail = authUserResult.user.email?.trim().toLowerCase();
+        if (registeredEmail && registeredEmail !== email) {
+          return NextResponse.json(
+            { error: "Email does not match registered authentication account" },
+            { status: 400 }
+          );
         }
       }
 
-      // 2. Check if user profile already exists
-      const { data: existing, error: existingError } = await supabase
+      // 2. Query existing profiles and reject ambiguous matches
+      const { data: existingList, error: queryError } = await supabase
         .from("users")
         .select("id, role, auth_user_id, email")
-        .or(`auth_user_id.eq.${userId},email.eq.${email}`)
-        .maybeSingle();
+        .or(`auth_user_id.eq.${userId},email.eq.${email}`);
+
+      if (queryError) {
+        console.error("[api/auth/register] DB lookup error:", queryError);
+        return NextResponse.json({ error: "Database lookup failed" }, { status: 500 });
+      }
+
+      if (Array.isArray(existingList) && existingList.length > 1) {
+        // Ambiguous match: one record has the email, another has the auth_user_id
+        return NextResponse.json(
+          { error: "Ambiguous user profile conflict" },
+          { status: 409 }
+        );
+      }
+
+      const existing = Array.isArray(existingList) ? existingList[0] : null;
 
       if (existing) {
-        // Link auth_user_id if missing on existing email record
+        // If profile already belongs to another auth_user_id
+        if (existing.auth_user_id && existing.auth_user_id !== userId) {
+          return NextResponse.json(
+            { error: "Account with this email already belongs to a different identity" },
+            { status: 409 }
+          );
+        }
+
+        // If email matches but auth_user_id was unpopulated (legacy record), link it
         if (!existing.auth_user_id && existing.email?.toLowerCase() === email) {
-          await supabase
+          const { error: updateError } = await supabase
             .from("users")
             .update({ auth_user_id: userId, display_name: name })
             .eq("id", existing.id);
+
+          if (updateError) {
+            console.error("[api/auth/register] Failed to link auth_user_id:", updateError);
+            return NextResponse.json({ error: "Failed to update user profile" }, { status: 500 });
+          }
         }
+
         return NextResponse.json({ success: true, message: "User already provisioned" });
       }
 
@@ -106,13 +153,35 @@ export async function POST(request: NextRequest) {
       });
 
       if (insertError) {
-        // Handle concurrent registration race (Postgres unique constraint violation code 23505)
+        // Handle concurrent registration race (PostgreSQL unique constraint violation code 23505)
         const isConflict =
           (insertError as { code?: string })?.code === "23505" ||
           /duplicate key|already exists/i.test(insertError.message || "");
 
         if (isConflict) {
-          return NextResponse.json({ success: true, message: "User already provisioned" });
+          // Re-query and verify exact identity mapping before returning success
+          const { data: recheck, error: recheckError } = await supabase
+            .from("users")
+            .select("id, role, auth_user_id, email")
+            .or(`auth_user_id.eq.${userId},email.eq.${email}`)
+            .maybeSingle();
+
+          if (recheckError) {
+            return NextResponse.json({ error: "Database error during race resolution" }, { status: 500 });
+          }
+
+          if (
+            recheck &&
+            recheck.auth_user_id === userId &&
+            recheck.email?.toLowerCase() === email
+          ) {
+            return NextResponse.json({ success: true, message: "User already provisioned" });
+          }
+
+          return NextResponse.json(
+            { error: "Conflict: user profile already exists with different credentials" },
+            { status: 409 }
+          );
         }
 
         console.error("[api/auth/register] Insert error:", insertError);

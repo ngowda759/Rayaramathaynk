@@ -142,9 +142,7 @@ describe("Phase 3.1 — Production Hardening", () => {
 
       mockFrom.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
-          or: jest.fn().mockReturnValue({
-            maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-          }),
+          or: jest.fn().mockResolvedValue({ data: [], error: null }),
         }),
       });
 
@@ -152,6 +150,23 @@ describe("Phase 3.1 — Production Hardening", () => {
       mockFrom.mockReturnValueOnce({
         insert: jest.fn().mockResolvedValue({
           error: { code: "23505", message: "duplicate key value violates unique constraint" },
+        }),
+      });
+
+      // Re-query finds the concurrently inserted matching record
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: {
+                id: "user-concurrent-id",
+                auth_user_id: "33333333-3333-3333-3333-333333333333",
+                email: "concurrent@example.test",
+                role: "devotee",
+              },
+              error: null,
+            }),
+          }),
         }),
       });
 
@@ -173,6 +188,223 @@ describe("Phase 3.1 — Production Hardening", () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.message).toMatch(/already provisioned/i);
+    });
+
+    it("fails closed (500) when unauthenticated and Supabase Auth Admin lookup service is unavailable", async () => {
+      mockGetUserById.mockImplementationOnce(() => {
+        throw new Error("Service down");
+      });
+
+      const req = new NextRequest("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "11111111-1111-1111-1111-111111111111",
+          email: "devotee@example.test",
+          name: "Test Devotee",
+        }),
+      });
+
+      const res = await registerHandler(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json.error).toMatch(/internal server error|unavailable/i);
+    });
+
+    it("rejects authenticated registration when token email does not match payload email", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "22222222-2222-2222-2222-222222222222", email: "token-email@example.test" } },
+        error: null,
+      });
+
+      const req = new NextRequest("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-for-mismatch",
+        },
+        body: JSON.stringify({
+          userId: "22222222-2222-2222-2222-222222222222",
+          email: "body-email@example.test",
+          name: "Mismatch User",
+        }),
+      });
+
+      const res = await registerHandler(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toMatch(/email does not match authenticated session token/i);
+    });
+
+    it("rejects registration when ambiguous user profiles exist across email and auth_user_id (409 conflict)", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "user@example.test" } },
+        error: null,
+      });
+
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockResolvedValue({
+            data: [
+              { id: "row-1", auth_user_id: "33333333-3333-3333-3333-333333333333", email: "other@example.test" },
+              { id: "row-2", auth_user_id: "other-uuid", email: "user@example.test" },
+            ],
+            error: null,
+          }),
+        }),
+      });
+
+      const req = new NextRequest("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-ambiguous",
+        },
+        body: JSON.stringify({
+          userId: "33333333-3333-3333-3333-333333333333",
+          email: "user@example.test",
+          name: "Ambiguous User",
+        }),
+      });
+
+      const res = await registerHandler(req);
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json.error).toMatch(/ambiguous user profile conflict/i);
+    });
+
+    it("rejects registration when existing profile belongs to a different auth_user_id (409 conflict)", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "user@example.test" } },
+        error: null,
+      });
+
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockResolvedValue({
+            data: [
+              { id: "row-1", auth_user_id: "different-auth-uuid", email: "user@example.test" },
+            ],
+            error: null,
+          }),
+        }),
+      });
+
+      const req = new NextRequest("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-conflict",
+        },
+        body: JSON.stringify({
+          userId: "33333333-3333-3333-3333-333333333333",
+          email: "user@example.test",
+          name: "Conflict User",
+        }),
+      });
+
+      const res = await registerHandler(req);
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json.error).toMatch(/already belongs to a different identity/i);
+    });
+
+    it("returns 500 when updating legacy profile with auth_user_id fails", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "legacy@example.test" } },
+        error: null,
+      });
+
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockResolvedValue({
+            data: [
+              { id: "row-legacy", auth_user_id: null, email: "legacy@example.test" },
+            ],
+            error: null,
+          }),
+        }),
+      });
+
+      mockFrom.mockReturnValueOnce({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({
+            error: { message: "Database update error" },
+          }),
+        }),
+      });
+
+      const req = new NextRequest("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-legacy",
+        },
+        body: JSON.stringify({
+          userId: "33333333-3333-3333-3333-333333333333",
+          email: "legacy@example.test",
+          name: "Legacy User",
+        }),
+      });
+
+      const res = await registerHandler(req);
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json.error).toMatch(/failed to update user profile/i);
+    });
+
+    it("returns 409 when duplicate conflict race (23505) resolution finds mismatching identity", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "concurrent@example.test" } },
+        error: null,
+      });
+
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      });
+
+      mockFrom.mockReturnValueOnce({
+        insert: jest.fn().mockResolvedValue({
+          error: { code: "23505", message: "duplicate key value violates unique constraint" },
+        }),
+      });
+
+      // Re-query finds record belonging to someone else
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({
+              data: {
+                id: "user-race-diff",
+                auth_user_id: "other-uuid-9999",
+                email: "concurrent@example.test",
+                role: "devotee",
+              },
+              error: null,
+            }),
+          }),
+        }),
+      });
+
+      const req = new NextRequest("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-for-concurrent",
+        },
+        body: JSON.stringify({
+          userId: "33333333-3333-3333-3333-333333333333",
+          email: "concurrent@example.test",
+          name: "Concurrent User",
+        }),
+      });
+
+      const res = await registerHandler(req);
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json.error).toMatch(/conflict: user profile already exists with different credentials/i);
     });
   });
 

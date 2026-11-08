@@ -17,6 +17,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createRateLimitResponse, getClientIP, rateLimit } from "@/lib/rate-limit";
 import { SevaError } from "@/lib/seva/errors";
+import { can } from "@/lib/seva/permissions";
 import { parseInput, readJson } from "@/lib/seva/server/reports";
 import { sevaErrorResponse } from "@/lib/seva/server/respond";
 import { onboardStaff, requireStaffAdmin } from "@/lib/seva/server/staff";
@@ -28,39 +29,7 @@ const createAdminSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80, "Keep the name to 80 characters or fewer"),
 });
 
-/** Compatibility helper: makes the Firebase Auth login with caller's password. */
-async function createPasswordLogin(
-  login: { email: string; displayName: string },
-  password: string,
-): Promise<{ externalUid: string }> {
-  try {
-    const { getAdminApp } = await import("@/lib/admin-firebase");
-    const { getAuth } = await import("firebase-admin/auth");
-    const user = await getAuth(await getAdminApp()).createUser({
-      email: login.email,
-      password,
-      displayName: login.displayName,
-      emailVerified: false,
-      disabled: false,
-    });
-    return { externalUid: user.uid };
-  } catch (error) {
-    const code = (error as { code?: unknown } | null)?.code;
-    if (code === "auth/email-already-exists") {
-      throw new SevaError("validation", { field: "email", message: "This email already has a sign-in account." });
-    }
-    if (code === "auth/invalid-password") {
-      throw new SevaError("validation", { field: "password", message: "Choose a longer password." });
-    }
-    if (code === "auth/invalid-email") {
-      throw new SevaError("validation", { field: "email", message: "Invalid email format" });
-    }
-    // If Firebase is disabled or unconfigured in pure Supabase mode, don't fail
-    return { externalUid: `compat-${login.email}` };
-  }
-}
-
-/** Synchronizes or creates Supabase Auth identity for authoritative admin unification (fail-closed). */
+/** Synchronizes or creates Supabase Auth identity for authoritative admin unification (fail-closed, single canonical identity). */
 async function syncSupabaseAdminIdentity(
   email: string,
   password: string,
@@ -113,22 +82,33 @@ export async function POST(request: NextRequest) {
 
   const guard = await requireStaffAdmin(request);
   if (!guard.ok) return guard.response;
+
+  // Caller permission check: only super admin may create another super admin
+  if (!can(guard.actor, "staff.grant_super_admin")) {
+    return sevaErrorResponse(new SevaError("forbidden"));
+  }
+
   try {
     const { email, password, name } = parseInput(createAdminSchema, await readJson(request));
-    
-    // MANDATORY: Synchronize or create Supabase Auth identity (fail-closed)
-    const authUserId = await syncSupabaseAdminIdentity(email, password, name);
-    if (!authUserId || !isUuid(authUserId)) {
-      throw new SevaError("internal", { message: "Supabase Auth identity is required for admin provisioning" });
-    }
+
+    let authUserId = "";
+    const onboardOpts = {
+      createLogin: async () => {
+        authUserId = await syncSupabaseAdminIdentity(email, password, name);
+        if (!authUserId || !isUuid(authUserId)) {
+          throw new SevaError("internal", { message: "Supabase Auth identity is required for admin provisioning" });
+        }
+        return { externalUid: authUserId };
+      },
+      get authUserId() {
+        return authUserId;
+      },
+    };
 
     const { staffId, staffNo } = await onboardStaff(
       guard.actor,
       { fullName: name, email, role: "super_admin", viewOnly: false },
-      {
-        createLogin: (login) => createPasswordLogin(login, password),
-        authUserId,
-      },
+      onboardOpts,
     );
 
     return NextResponse.json(
