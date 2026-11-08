@@ -1,5 +1,9 @@
 /**
- * Server-only check of a signed-in caller's Firebase ID token.
+ * Server-only check of a signed-in caller's bearer ID token.
+ *
+ * Implements unified token verification:
+ *   1. PRIMARY PATH: Supabase Auth access token verification via createAdminClient().auth.getUser(token).
+ *   2. FALLBACK PATH: Firebase ID token verification via Firebase Admin SDK for backward compatibility.
  *
  * For routes that serve any signed-in person (devotee or staff) their own data. It answers who the caller is and
  * nothing more: no Firestore profile, role or status checks (admin routes use lib/auth/admin-auth.ts for those).
@@ -7,7 +11,7 @@
  * - `verifyBearerIdToken` returns null on every failure - no header, a malformed or expired token, or a server that
  *   cannot verify tokens - so the caller answers 401.
  * - `checkBearerIdToken` tells "this token is no good" (`invalid`) apart from "the server could not check it right now"
- *   (`unavailable`), for callers that must answer a Firebase Auth outage with a 5xx so the client retries or works
+ *   (`unavailable`), for callers that must answer a sign-in provider outage with a 5xx so the client retries or works
  *   offline instead of asking the person to sign in again (the seva counter, DB §16.2).
  *
  * Logs carry the error code only, never the token.
@@ -59,6 +63,27 @@ export async function checkBearerIdToken(request: Request, options: VerifyIdToke
   const token = bearerToken(request);
   if (!token) return { status: "invalid" };
 
+  // 1. PRIMARY PATH: Supabase Auth access token verification
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    if (typeof supabase?.auth?.getUser === "function") {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user) {
+        return {
+          status: "ok",
+          caller: {
+            uid: data.user.id,
+            email: typeof data.user.email === "string" ? data.user.email : null,
+          },
+        };
+      }
+    }
+  } catch {
+    // Supabase client failure or not a Supabase token; fall through to Firebase fallback
+  }
+
+  // 2. SECONDARY / COMPATIBILITY PATH: Firebase Admin SDK ID token verification
   try {
     const { getAdminApp } = await import("@/lib/admin-firebase");
     const adminApp = await getAdminApp();
