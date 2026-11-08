@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { SiteSettingsPayload } from "@/types/settings";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
-import { checkAdminAuth, isUserAdmin } from "@/lib/auth/admin-auth-compat";
+import { checkAdminAuth, isUserAdmin } from "@/lib/auth/admin";
 import { z } from "zod";
 
 const settingsSchema = z.object({

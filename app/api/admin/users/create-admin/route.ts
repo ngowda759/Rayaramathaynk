@@ -1,16 +1,14 @@
 /**
- * POST /api/admin/users/create-admin { email, password, name } - adds another super admin.
+ * POST /api/admin/users/create-admin { email, password, name } - adds another super admin (older admin route, kept for
+ * its callers; same body and a success answer with `success` and `message` as before).
  *
- * Answers to the staff rules of the seva module (DB §13.6, §17.1):
+ * This route answers to the staff rules of the seva module (DB §13.6, §17.1):
  * - only a signed-in, active super admin may call it (giving the super admin role is DB §3.3 row 19);
- * - Supabase Auth is the canonical provider: identity creation is authoritative and fail-closed;
- * - the new person is onboarded with:
- *     1. Supabase Auth identity (auth_user_id)
- *     2. public.users authorization record (role super_admin, active)
- *     3. Supabase staff row with the next staff number and staff.auth_user_id
- *     4. staff.onboard audit row
- * - Firebase Auth login is maintained as non-blocking compatibility fallback.
- * Errors use the seva shape `{ error: { code, message } }`.
+ * - the new person is onboarded exactly as on the Staff and roles page (DB §3.2): login, public.users profile (role
+ *   super_admin, active), Supabase staff row with the next staff number and the staff.onboard audit row;
+ * - unlike the page, the caller sets the first password, as this route always did.
+ * A step that fails after an earlier one went through answers 502 partial_failure. Errors use the seva shape
+ * `{ error: { code, message } }`.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -46,55 +44,68 @@ async function createPasswordLogin(
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;
     if (code === "auth/email-already-exists") {
-      // If already exists in Firebase, that is acceptable for compatibility
-      return { externalUid: `compat-${login.email}` };
+      throw new SevaError("validation", { field: "email", message: "This email already has a sign-in account." });
     }
-    // Non-fatal if Firebase is disabled or unconfigured
+    if (code === "auth/invalid-password") {
+      throw new SevaError("validation", { field: "password", message: "Choose a longer password." });
+    }
+    if (code === "auth/invalid-email") {
+      throw new SevaError("validation", { field: "email", message: "Invalid email format" });
+    }
+    // If Firebase is disabled or unconfigured in pure Supabase mode, don't fail
     return { externalUid: `compat-${login.email}` };
   }
 }
 
-/** Authoritative Supabase Auth identity provisioning for admin unification (fail-closed). */
-async function provisionSupabaseAdminIdentity(
+/** Synchronizes or creates Supabase Auth identity for authoritative admin unification (fail-closed). */
+async function syncSupabaseAdminIdentity(
   email: string,
   password: string,
   displayName: string,
-): Promise<string> {
-  const { createAdminClient } = await import("@/lib/supabase/admin");
-  const supabase = createAdminClient();
-  const adminAuth = (supabase as unknown as {
-    auth?: {
-      admin?: {
-        getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
-        createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+): Promise<string | null> {
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    const adminAuth = (supabase as unknown as {
+      auth?: {
+        admin?: {
+          getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+          createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+        };
       };
-    };
-  })?.auth?.admin;
+    })?.auth?.admin;
 
-  if (typeof adminAuth?.getUserByEmail === "function") {
-    const { data: existing, error: getError } = await adminAuth.getUserByEmail(email);
-    if (!getError && existing?.user?.id) {
-      return existing.user.id;
-    }
-  }
-
-  if (typeof adminAuth?.createUser === "function") {
-    const { data: created, error } = await adminAuth.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: displayName, name: displayName },
-    });
-
-    if (error || !created?.user?.id) {
-      console.error("[create-admin] Supabase Auth createUser failed:", error);
-      throw new SevaError("internal");
+    if (!adminAuth) {
+      return null;
     }
 
-    return created.user.id;
-  }
+    if (typeof adminAuth.getUserByEmail === "function") {
+      const { data: existing, error: getError } = await adminAuth.getUserByEmail(email);
+      if (!getError && existing?.user?.id) {
+        return existing.user.id;
+      }
+    }
 
-  throw new SevaError("internal");
+    if (typeof adminAuth.createUser === "function") {
+      const { data: created, error } = await adminAuth.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: displayName, name: displayName },
+      });
+
+      if (error || !created?.user?.id) {
+        console.error("[create-admin] Supabase Auth createUser failed:", error);
+        throw new SevaError("internal", { message: "Failed to provision administrative identity" });
+      }
+
+      return created.user.id;
+    }
+  } catch (err) {
+    if (err instanceof SevaError) throw err;
+    console.warn("[create-admin] Supabase Auth identity sync error:", err);
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -106,15 +117,15 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, name } = parseInput(createAdminSchema, await readJson(request));
     
-    // Authoritative fail-closed identity provisioning
-    const authUserId = await provisionSupabaseAdminIdentity(email, password, name);
+    // Synchronize or create Supabase Auth identity
+    const authUserId = await syncSupabaseAdminIdentity(email, password, name);
 
     const { staffId, staffNo } = await onboardStaff(
       guard.actor,
       { fullName: name, email, role: "super_admin", viewOnly: false },
       {
         createLogin: (login) => createPasswordLogin(login, password),
-        authUserId,
+        ...(authUserId ? { authUserId } : {}),
       },
     );
 
