@@ -68,7 +68,21 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-function formatAuthUser(supaUser: any, token?: string): AuthUser {
+interface SupabaseAuthUserLike {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+  user_metadata?: {
+    name?: string;
+    full_name?: string;
+    displayName?: string;
+    avatar_url?: string;
+    picture?: string;
+  };
+  photoURL?: string | null;
+}
+
+function formatAuthUser(supaUser: SupabaseAuthUserLike, token?: string): AuthUser {
   const email = supaUser.email ?? null;
   const name =
     supaUser.user_metadata?.name ||
@@ -182,20 +196,21 @@ export function AuthProvider({
         const { auth } = await import("@/lib/firebase");
         const { onAuthStateChanged } = await import("firebase/auth");
         if (auth && typeof onAuthStateChanged === "function") {
-          unsubscribeFirebase = onAuthStateChanged(auth, async (fbUser: any) => {
+          unsubscribeFirebase = onAuthStateChanged(auth, async (fbUser) => {
+            const userObj = fbUser as { uid: string; email?: string | null; displayName?: string | null; photoURL?: string | null; emailVerified?: boolean; getIdToken?: () => Promise<string> } | null;
             if (!isMounted) return;
             const currentSupa = (await supabase.auth.getSession()).data?.session;
-            if (!currentSupa?.user && fbUser) {
+            if (!currentSupa?.user && userObj) {
               setUser({
-                id: fbUser.uid,
-                uid: fbUser.uid,
-                email: fbUser.email ?? null,
-                displayName: fbUser.displayName ?? null,
-                emailVerified: fbUser.emailVerified ?? false,
-                getIdToken: typeof fbUser.getIdToken === "function" ? () => fbUser.getIdToken() : async () => "",
-                rawUser: fbUser,
+                id: userObj.uid,
+                uid: userObj.uid,
+                email: userObj.email ?? null,
+                displayName: userObj.displayName ?? null,
+                emailVerified: userObj.emailVerified ?? false,
+                getIdToken: typeof userObj.getIdToken === "function" ? () => (userObj.getIdToken ? userObj.getIdToken() : Promise.resolve("")) : async () => "",
+                rawUser: userObj,
               });
-              await loadProfile(fbUser.uid);
+              await loadProfile(userObj.uid);
               setLoading(false);
             }
           });
