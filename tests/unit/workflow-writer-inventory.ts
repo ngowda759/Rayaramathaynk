@@ -640,10 +640,27 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     guardStyle: "step",
     concurrencyGroup: "f-a16-catalog-audit",
   },
+  {
+    // Read-only Phase 2 auth identity reconciliation. It queries Supabase Auth,
+    // public.users, public.staff, and Firebase Auth to diagnose identity mapping
+    // without performing any writes or schema changes.
+    id: "auth-identity-reconciliation",
+    file: "auth-identity-reconciliation.yml",
+    kind: "connect",
+    commands: ["npm run diagnose:auth-identities"],
+    rawCli: false,
+    guard: "scripts/lib/approved-project.mjs",
+    guardVar: "NEXT_PUBLIC_SUPABASE_URL",
+    destructive: false,
+    trigger: "manual",
+    environment: "",
+    guardStyle: "in-script",
+    concurrencyGroup: "auth-identity-reconciliation",
+  },
 ];
 
 export function readWorkflow(file: string): string {
-  return readFileSync(resolve(workflowsDir, file), "utf8");
+  return readFileSync(resolve(workflowsDir, file), "utf8").replace(/\r\n/g, "\n");
 }
 
 /**
