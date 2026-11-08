@@ -6,6 +6,8 @@
  * - only a signed-in, active super admin may call it (giving the super admin role is DB §3.3 row 19);
  * - the new person is onboarded exactly as on the Staff and roles page (DB §3.2): login, public.users profile (role
  *   super_admin, active), Supabase staff row with the next staff number and the staff.onboard audit row;
+ * - MANDATORY: Every admin account must have an authoritative Supabase Auth identity (auth_user_id).
+ *   Cannot complete without a valid Supabase Auth identity.
  * - unlike the page, the caller sets the first password, as this route always did.
  * A step that fails after an earlier one went through answers 502 partial_failure. Errors use the seva shape
  * `{ error: { code, message } }`.
@@ -18,6 +20,7 @@ import { SevaError } from "@/lib/seva/errors";
 import { parseInput, readJson } from "@/lib/seva/server/reports";
 import { sevaErrorResponse } from "@/lib/seva/server/respond";
 import { onboardStaff, requireStaffAdmin } from "@/lib/seva/server/staff";
+import { isUuid } from "@/lib/supabase/identifier";
 
 const createAdminSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email("Invalid email format")),
@@ -62,50 +65,46 @@ async function syncSupabaseAdminIdentity(
   email: string,
   password: string,
   displayName: string,
-): Promise<string | null> {
-  try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    const adminAuth = (supabase as unknown as {
-      auth?: {
-        admin?: {
-          getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
-          createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
-        };
+): Promise<string> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
+  const adminAuth = (supabase as unknown as {
+    auth?: {
+      admin?: {
+        getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+        createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
       };
-    })?.auth?.admin;
+    };
+  })?.auth?.admin;
 
-    if (!adminAuth) {
-      return null;
-    }
-
-    if (typeof adminAuth.getUserByEmail === "function") {
-      const { data: existing, error: getError } = await adminAuth.getUserByEmail(email);
-      if (!getError && existing?.user?.id) {
-        return existing.user.id;
-      }
-    }
-
-    if (typeof adminAuth.createUser === "function") {
-      const { data: created, error } = await adminAuth.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: displayName, name: displayName },
-      });
-
-      if (error || !created?.user?.id) {
-        console.error("[create-admin] Supabase Auth createUser failed:", error);
-        throw new SevaError("internal", { message: "Failed to provision administrative identity" });
-      }
-
-      return created.user.id;
-    }
-  } catch (err) {
-    if (err instanceof SevaError) throw err;
-    console.warn("[create-admin] Supabase Auth identity sync error:", err);
+  if (!adminAuth) {
+    throw new SevaError("internal", { message: "Supabase Auth admin service is unavailable" });
   }
-  return null;
+
+  if (typeof adminAuth.getUserByEmail === "function") {
+    const { data: existing, error: getError } = await adminAuth.getUserByEmail(email);
+    if (!getError && existing?.user?.id) {
+      return existing.user.id;
+    }
+  }
+
+  if (typeof adminAuth.createUser === "function") {
+    const { data: created, error } = await adminAuth.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: displayName, name: displayName },
+    });
+
+    if (error || !created?.user?.id) {
+      console.error("[create-admin] Supabase Auth createUser failed:", error);
+      throw new SevaError("internal", { message: "Failed to provision administrative identity" });
+    }
+
+    return created.user.id;
+  }
+
+  throw new SevaError("internal", { message: "Failed to provision administrative identity" });
 }
 
 export async function POST(request: NextRequest) {
@@ -117,15 +116,18 @@ export async function POST(request: NextRequest) {
   try {
     const { email, password, name } = parseInput(createAdminSchema, await readJson(request));
     
-    // Synchronize or create Supabase Auth identity
+    // MANDATORY: Synchronize or create Supabase Auth identity (fail-closed)
     const authUserId = await syncSupabaseAdminIdentity(email, password, name);
+    if (!authUserId || !isUuid(authUserId)) {
+      throw new SevaError("internal", { message: "Supabase Auth identity is required for admin provisioning" });
+    }
 
     const { staffId, staffNo } = await onboardStaff(
       guard.actor,
       { fullName: name, email, role: "super_admin", viewOnly: false },
       {
         createLogin: (login) => createPasswordLogin(login, password),
-        ...(authUserId ? { authUserId } : {}),
+        authUserId,
       },
     );
 

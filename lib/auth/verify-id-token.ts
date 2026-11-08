@@ -80,7 +80,7 @@ export async function checkBearerIdToken(request: Request, options: VerifyIdToke
       }
     }
   } catch {
-    // Supabase client failure or not a Supabase token; fall through to Firebase fallback
+    // Supabase client failure or not a Supabase token; proceed to fallback
   }
 
   // 2. SECONDARY / COMPATIBILITY PATH: Firebase Admin SDK ID token verification
@@ -90,6 +90,12 @@ export async function checkBearerIdToken(request: Request, options: VerifyIdToke
     const { getAuth } = await import("firebase-admin/auth");
     const auth = getAuth(adminApp);
     const decoded = options.checkRevoked ? await auth.verifyIdToken(token, true) : await auth.verifyIdToken(token);
+    
+    // Telemetry: audit legacy fallback invocation without exposing token
+    if (process.env.NODE_ENV !== "test") {
+      console.info(`[auth:fallback] Legacy Firebase token verified for UID: ${decoded.uid}`);
+    }
+
     return { status: "ok", caller: { uid: decoded.uid, email: typeof decoded.email === "string" ? decoded.email : null } };
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;
