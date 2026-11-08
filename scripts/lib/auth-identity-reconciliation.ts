@@ -14,6 +14,161 @@
  * - Exposes no passwords, hashes, tokens, or private keys.
  */
 
+export type QueryStatusKind =
+  | "SUCCESS"
+  | "MISSING_CREDENTIALS"
+  | "AUTH_FAILURE"
+  | "QUERY_FAILURE";
+
+export interface ProviderQueryStatus {
+  source: "Firebase Auth" | "Supabase Auth" | "public.users" | "public.staff";
+  queriedSuccessfully: boolean;
+  statusKind: QueryStatusKind;
+  statusText: string;
+  total: number | null;
+  error?: string;
+  queryVariant?: string;
+}
+
+/**
+ * Masks an email address to protect PII while preserving domain context.
+ * e.g. "admin@example.com" -> "a***n@e***.com"
+ */
+export function maskEmail(email: string | null | undefined): string {
+  if (!email) return "(no email)";
+  const trimmed = email.trim();
+  const atIndex = trimmed.indexOf("@");
+  if (atIndex <= 0 || atIndex === trimmed.length - 1) {
+    return trimmed.length <= 4 ? "***" : `${trimmed.slice(0, 2)}***${trimmed.slice(-1)}`;
+  }
+  const local = trimmed.slice(0, atIndex);
+  const domain = trimmed.slice(atIndex + 1);
+
+  const maskedLocal =
+    local.length <= 2
+      ? `${local[0]}***`
+      : `${local[0]}***${local.slice(-1)}`;
+
+  const dotIndex = domain.lastIndexOf(".");
+  if (dotIndex > 0) {
+    const dName = domain.slice(0, dotIndex);
+    const tld = domain.slice(dotIndex + 1);
+    const maskedDomain = dName.length <= 2 ? `${dName[0]}***` : `${dName[0]}***`;
+    return `${maskedLocal}@${maskedDomain}.${tld}`;
+  }
+  return `${maskedLocal}@${domain.slice(0, 1)}***`;
+}
+
+/**
+ * Masks an identifier (UUID, Firebase UID, etc.) while preserving prefix/suffix for correlation.
+ * e.g. "c9e12345-6789-4abc-def0-123456789701" -> "c9e...701"
+ */
+export function maskId(id: string | null | undefined): string {
+  if (!id) return "(none)";
+  const str = String(id).trim();
+  if (str.length <= 6) return `${str.slice(0, 1)}***`;
+  return `${str.slice(0, 3)}...${str.slice(-3)}`;
+}
+
+/**
+ * Masks a staff number for privacy while preserving the final digit.
+ * e.g. 42 -> "*2", 105 -> "**5"
+ */
+export function maskStaffNo(staffNo: number | string | null | undefined): string {
+  if (staffNo === null || staffNo === undefined) return "N/A";
+  const str = String(staffNo).trim();
+  if (str.length <= 1) return `*${str}`;
+  return `*`.repeat(str.length - 1) + str.slice(-1);
+}
+
+/**
+ * Redacts any raw email addresses or UUIDs inside a free-form string or note.
+ */
+export function redactSensitiveText(text: string): string {
+  if (!text) return "";
+  let result = text.replace(
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+    (match) => maskEmail(match)
+  );
+  result = result.replace(
+    /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g,
+    (match) => maskId(match)
+  );
+  return result;
+}
+
+/**
+ * Determines whether a database error specifically indicates that a column is missing.
+ * Postgres code 42703: undefined_column.
+ * PostgREST schema cache error referencing the column.
+ * Never returns true for authentication, permission, timeout, or general network errors.
+ */
+export function isMissingColumnError(error: unknown, columnName = "auth_user_id"): boolean {
+  if (!error) return false;
+  const errObj = typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {};
+  const code = typeof errObj.code === "string" ? errObj.code : "";
+  const msg = typeof errObj.message === "string" ? errObj.message : String(error);
+  const details = typeof errObj.details === "string" ? errObj.details : "";
+  const combined = `${code} ${msg} ${details}`.toLowerCase();
+  const col = columnName.toLowerCase();
+
+  // Postgres 42703 is undefined_column
+  if (code === "42703") {
+    return true;
+  }
+
+  // PostgREST column missing from schema cache or column does not exist
+  if (
+    (code === "PGRST204" || combined.includes("schema cache") || combined.includes("does not exist")) &&
+    combined.includes(col)
+  ) {
+    return true;
+  }
+
+  if (
+    combined.includes(`column "${col}" does not exist`) ||
+    combined.includes(`column ${col} does not exist`) ||
+    combined.includes(`could not find the '${col}' column`)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Classifies a query or database error into AUTH_FAILURE or QUERY_FAILURE.
+ */
+export function classifyError(error: unknown): { kind: "AUTH_FAILURE" | "QUERY_FAILURE"; message: string } {
+  const msg =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+
+  const lower = msg.toLowerCase();
+  const errObj = typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {};
+  const code = typeof errObj.code === "string" ? errObj.code.toLowerCase() : "";
+
+  if (
+    code === "42501" || // postgres permission_denied
+    code === "pgrst301" || // postgrest jwt invalid / expired
+    lower.includes("jwt") ||
+    lower.includes("unauthorized") ||
+    lower.includes("forbidden") ||
+    lower.includes("permission denied") ||
+    lower.includes("401") ||
+    lower.includes("403") ||
+    lower.includes("invalid api key") ||
+    lower.includes("auth/") ||
+    lower.includes("credential")
+  ) {
+    return { kind: "AUTH_FAILURE", message: redactSensitiveText(msg) };
+  }
+  return { kind: "QUERY_FAILURE", message: redactSensitiveText(msg) };
+}
+
 export interface FirebaseIdentity {
   uid: string;
   email: string | null;
@@ -94,11 +249,19 @@ export interface EmailMatchDifferentId {
 }
 
 export interface OrphanedActiveIdentity {
-  source: "firebase" | "supabase" | "staff";
+  source: "firebase" | "supabase" | "staff" | "users";
   id: string;
   email: string | null;
   staffNo?: number | null;
   note: string;
+}
+
+export interface DuplicateIdFinding {
+  type: "auth_user_id" | "firebase_uid";
+  value: string;
+  source: "public.users" | "public.staff";
+  occurrences: number;
+  records: Array<{ id: string; email: string | null; role?: string | null; staffNo?: number | null }>;
 }
 
 export interface AmbiguousMapping {
@@ -126,6 +289,10 @@ export interface ReconciliationReport {
   emailMatchDifferentIds: EmailMatchDifferentId[];
   activeWithoutPublicUser: OrphanedActiveIdentity[];
   ambiguousMappings: AmbiguousMapping[];
+  duplicateAuthUserIds: DuplicateIdFinding[];
+  duplicateFirebaseUids: DuplicateIdFinding[];
+  activeAdminsWithoutMapping: OrphanedActiveIdentity[];
+  activeStaffWithoutMapping: OrphanedActiveIdentity[];
 }
 
 function normalizeEmail(value: string | null | undefined): string {
@@ -203,8 +370,8 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     if (list.length > 1) {
       ambiguousMappings.push({
         email: em,
-        reason: `Multiple Firebase accounts share email ${em}`,
-        details: { count: list.length, uids: list.map((x) => x.uid) },
+        reason: `Multiple Firebase accounts share email ${maskEmail(em)}`,
+        details: { count: list.length, uids: list.map((x) => maskId(x.uid)) },
       });
     }
   }
@@ -212,8 +379,8 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     if (list.length > 1) {
       ambiguousMappings.push({
         email: em,
-        reason: `Multiple Supabase Auth accounts share email ${em}`,
-        details: { count: list.length, ids: list.map((x) => x.id) },
+        reason: `Multiple Supabase Auth accounts share email ${maskEmail(em)}`,
+        details: { count: list.length, ids: list.map((x) => maskId(x.id)) },
       });
     }
   }
@@ -221,8 +388,8 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     if (list.length > 1) {
       ambiguousMappings.push({
         email: em,
-        reason: `Multiple public.users rows share email ${em}`,
-        details: { count: list.length, ids: list.map((x) => x.id) },
+        reason: `Multiple public.users rows share email ${maskEmail(em)}`,
+        details: { count: list.length, ids: list.map((x) => maskId(x.id)) },
       });
     }
   }
@@ -230,8 +397,8 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     if (list.length > 1) {
       ambiguousMappings.push({
         email: em,
-        reason: `Multiple public.staff rows share email ${em}`,
-        details: { count: list.length, ids: list.map((x) => x.id), staff_nos: list.map((x) => x.staff_no) },
+        reason: `Multiple public.staff rows share email ${maskEmail(em)}`,
+        details: { count: list.length, ids: list.map((x) => maskId(x.id)), staff_nos: list.map((x) => maskStaffNo(x.staff_no)) },
       });
     }
   }
@@ -361,7 +528,7 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
           id: s.id,
           email: s.email,
           staffNo: s.staff_no,
-          note: `Active staff member (staff_no: ${s.staff_no}) has no public.users authorization record.`,
+          note: `Active staff member (staff_no: ${maskStaffNo(s.staff_no)}) has no public.users authorization record.`,
         });
       }
     }
@@ -402,6 +569,123 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     }
   }
 
+  // 7. Authorization Safety Checks
+  // 7a. Active administrators without authorization mapping
+  const activeAdminsWithoutMapping: OrphanedActiveIdentity[] = [];
+  for (const u of publicUsers) {
+    const isAdmin = u.role === "super_admin" || u.role === "temple_admin" || u.role === "admin";
+    const isActive = u.active !== false;
+    if (isAdmin && isActive && !u.auth_user_id && !u.firestore_id) {
+      activeAdminsWithoutMapping.push({
+        source: "users",
+        id: u.id,
+        email: u.email,
+        note: `Active administrator (role: ${u.role}) lacks both auth_user_id and firestore_id mapping.`,
+      });
+    }
+  }
+
+  // 7b. Active staff without authorization mapping (neither auth_user_id nor firebase_uid)
+  const activeStaffWithoutMapping: OrphanedActiveIdentity[] = [];
+  for (const s of publicStaff) {
+    const isStaffActive = s.active !== false && s.status !== "inactive" && s.status !== "deleted";
+    if (isStaffActive && !s.auth_user_id && !s.firebase_uid) {
+      activeStaffWithoutMapping.push({
+        source: "staff",
+        id: s.id,
+        email: s.email,
+        staffNo: s.staff_no,
+        note: `Active staff member (staff_no: ${maskStaffNo(s.staff_no)}) lacks both auth_user_id and firebase_uid mapping.`,
+      });
+    }
+  }
+
+  // 7c. Duplicate auth_user_id across public.users or public.staff
+  const usersByAuthIdList = new Map<string, PublicUserRecord[]>();
+  for (const u of publicUsers) {
+    if (u.auth_user_id) {
+      const list = usersByAuthIdList.get(u.auth_user_id) || [];
+      list.push(u);
+      usersByAuthIdList.set(u.auth_user_id, list);
+    }
+  }
+
+  const staffByAuthIdList = new Map<string, PublicStaffRecord[]>();
+  for (const s of publicStaff) {
+    if (s.auth_user_id) {
+      const list = staffByAuthIdList.get(s.auth_user_id) || [];
+      list.push(s);
+      staffByAuthIdList.set(s.auth_user_id, list);
+    }
+  }
+
+  const duplicateAuthUserIds: DuplicateIdFinding[] = [];
+  for (const [val, list] of usersByAuthIdList.entries()) {
+    if (list.length > 1) {
+      duplicateAuthUserIds.push({
+        type: "auth_user_id",
+        value: val,
+        source: "public.users",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, role: r.role })),
+      });
+    }
+  }
+  for (const [val, list] of staffByAuthIdList.entries()) {
+    if (list.length > 1) {
+      duplicateAuthUserIds.push({
+        type: "auth_user_id",
+        value: val,
+        source: "public.staff",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, staffNo: r.staff_no })),
+      });
+    }
+  }
+
+  // 7d. Duplicate Firebase UID across public.users (firestore_id) or public.staff (firebase_uid)
+  const usersByFbUidList = new Map<string, PublicUserRecord[]>();
+  for (const u of publicUsers) {
+    if (u.firestore_id) {
+      const list = usersByFbUidList.get(u.firestore_id) || [];
+      list.push(u);
+      usersByFbUidList.set(u.firestore_id, list);
+    }
+  }
+
+  const staffByFbUidList = new Map<string, PublicStaffRecord[]>();
+  for (const s of publicStaff) {
+    if (s.firebase_uid) {
+      const list = staffByFbUidList.get(s.firebase_uid) || [];
+      list.push(s);
+      staffByFbUidList.set(s.firebase_uid, list);
+    }
+  }
+
+  const duplicateFirebaseUids: DuplicateIdFinding[] = [];
+  for (const [val, list] of usersByFbUidList.entries()) {
+    if (list.length > 1) {
+      duplicateFirebaseUids.push({
+        type: "firebase_uid",
+        value: val,
+        source: "public.users",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, role: r.role })),
+      });
+    }
+  }
+  for (const [val, list] of staffByFbUidList.entries()) {
+    if (list.length > 1) {
+      duplicateFirebaseUids.push({
+        type: "firebase_uid",
+        value: val,
+        source: "public.staff",
+        occurrences: list.length,
+        records: list.map((r) => ({ id: r.id, email: r.email, staffNo: r.staff_no })),
+      });
+    }
+  }
+
   return {
     stats: {
       firebaseCount: firebaseUsers.length,
@@ -421,5 +705,9 @@ export function reconcileIdentities(input: ReconcileInput): ReconciliationReport
     emailMatchDifferentIds,
     activeWithoutPublicUser,
     ambiguousMappings,
+    duplicateAuthUserIds,
+    duplicateFirebaseUids,
+    activeAdminsWithoutMapping,
+    activeStaffWithoutMapping,
   };
 }
