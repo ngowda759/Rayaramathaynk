@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NEW_PROFILE_ACCESS_FIELDS } from "@/lib/auth/sign-in-profile";
+import { z } from "zod";
+
+const profileSyncSchema = z.object({
+  email: z.string().email().optional().or(z.literal("")),
+  name: z.string().max(200).optional().or(z.literal("")),
+  phone: z.string().max(50).optional().or(z.literal("")),
+  profileImage: z.string().url().max(1000).optional().or(z.literal("")),
+});
 
 export async function GET(request: NextRequest) {
   try {
-    const caller = await verifyBearerIdToken(request);
+    // Check revocation as this is an identity profile read where status matters
+    const caller = await verifyBearerIdToken(request, { checkRevoked: true });
     if (!caller) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -23,7 +32,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ profile: null }, { status: 200 });
     }
 
-    // Map the Supabase row back to the expected UserProfile structure
+    // Map the Supabase row back to the expected UserProfile structure.
+    // The previous implementation stored isApproved and emailVerified in Firestore,
+    // but the actual identity source of truth is Firebase Auth.
+    // We map them dynamically or safely fallback.
     const profile = {
       uid: data.firestore_id,
       name: data.display_name || "",
@@ -32,9 +44,11 @@ export async function GET(request: NextRequest) {
       role: data.role || "devotee",
       templeId: "main",
       profileImage: data.photo_url || "",
-      isApproved: false, // Legacy field, mock as false
+      // isApproved is mostly unused (F-11 audit noted it), we derive it from active
+      isApproved: data.active === true, 
       isActive: data.active === true,
-      emailVerified: true, // If they are logged in via Firebase Auth, assume verified for the profile return
+      // We know they successfully authenticated with Firebase to reach this endpoint with a valid token
+      emailVerified: true, 
       lastLogin: null,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
@@ -54,15 +68,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const payload = await request.json();
+    const payloadRaw = await request.json();
+    const parseResult = profileSyncSchema.safeParse(payloadRaw);
+    if (!parseResult.success) {
+      return NextResponse.json({ error: "Bad Request", details: parseResult.error.format() }, { status: 400 });
+    }
+    const payload = parseResult.data;
+
     const supabase = createAdminClient();
 
     // Check if user exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: checkError } = await supabase
       .from("users")
       .select("id")
       .eq("firestore_id", caller.uid)
       .maybeSingle();
+      
+    if (checkError) throw checkError;
 
     const write: Record<string, unknown> = {
       email: payload.email || caller.email || "",

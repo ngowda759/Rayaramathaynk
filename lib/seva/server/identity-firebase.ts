@@ -32,16 +32,22 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async getAccessProfile(externalUid) {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("users")
-      .select("role, active")
-      .eq("firestore_id", externalUid)
-      .maybeSingle();
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("users")
+        .select("role, active")
+        .eq("firestore_id", externalUid)
+        .maybeSingle();
 
-    if (!data) return null;
-    return { role: data.role, isActive: data.active === true };
+      if (error) throw error;
+      if (!data) return null;
+      return { role: data.role, isActive: data.active === true };
+    } catch (error) {
+      console.error("[identity-firebase] getAccessProfile failed:", error);
+      throw new SevaError("internal");
+    }
   },
 
   async findLoginByEmail(email) {
@@ -80,27 +86,35 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async setAccessProfile(externalUid, patch) {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    
-    // Check if the user exists
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("firestore_id", externalUid)
-      .maybeSingle();
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const supabase = createAdminClient();
       
-    const write: Record<string, unknown> = {};
-    if (patch.role !== undefined) write.role = patch.role;
-    if (patch.isActive !== undefined) write.active = patch.isActive;
-    if (patch.email !== undefined) write.email = patch.email;
-    if (patch.displayName !== undefined) write.display_name = patch.displayName;
-    
-    if (existingUser) {
-      await supabase.from("users").update(write).eq("firestore_id", externalUid);
-    } else {
-      write.firestore_id = externalUid;
-      await supabase.from("users").insert(write);
+      const { data: existingUser, error: checkError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("firestore_id", externalUid)
+        .maybeSingle();
+        
+      if (checkError) throw checkError;
+        
+      const write: Record<string, unknown> = {};
+      if (patch.role !== undefined) write.role = patch.role;
+      if (patch.isActive !== undefined) write.active = patch.isActive;
+      if (patch.email !== undefined) write.email = patch.email;
+      if (patch.displayName !== undefined) write.display_name = patch.displayName;
+      
+      if (existingUser) {
+        const { error: updateError } = await supabase.from("users").update(write).eq("firestore_id", externalUid);
+        if (updateError) throw updateError;
+      } else {
+        write.firestore_id = externalUid;
+        const { error: insertError } = await supabase.from("users").insert(write);
+        if (insertError) throw insertError;
+      }
+    } catch (error) {
+      console.error("[identity-firebase] setAccessProfile failed:", error);
+      throw new SevaError("internal");
     }
   },
 
