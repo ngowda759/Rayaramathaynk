@@ -35,6 +35,16 @@ function mockQuery(table: string) {
   const run = () => ({ data: (mockDb.tables[table] ?? []).filter((row) => filters.every((keep) => keep(row))), error: null });
   const query = {
     select: () => query,
+    update: (patch: Record<string, unknown>) => {
+      const rows = (mockDb.tables[table] ?? []).filter((row) => filters.every((keep) => keep(row)));
+      for (const row of rows) Object.assign(row, patch);
+      return query;
+    },
+    insert: async (vals: Record<string, unknown>) => {
+      mockDb.tables[table] = mockDb.tables[table] ?? [];
+      mockDb.tables[table].push(vals);
+      return { error: null };
+    },
     eq: (column: string, value: unknown) => {
       filters.push((row) => row[column] === value);
       return query;
@@ -45,7 +55,27 @@ function mockQuery(table: string) {
   };
   return query;
 }
-jest.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: (table: string) => mockQuery(table) }) }));
+const mockSupabaseAdminAuth = {
+  getUserByEmail: jest.fn(async (email: string) => {
+    const uid = mockLogins[email];
+    if (uid) return { data: { user: { id: uid, email } }, error: null };
+    return { data: { user: null }, error: null };
+  }),
+  createUser: jest.fn(async (input: { email: string; password?: string; user_metadata?: Record<string, unknown> }) => {
+    mockCalls.push("supabase.auth.createUser");
+    if (mockLogins[input.email]) throw Object.assign(new Error("exists"), { code: "auth/email-already-exists" });
+    const uid = "0f6e2b1a-1c1d-4e5f-8a9b-000000000099";
+    mockLogins[input.email] = uid;
+    return { data: { user: { id: uid, email: input.email } }, error: null };
+  }),
+};
+
+jest.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({
+    from: (table: string) => mockQuery(table),
+    auth: { admin: mockSupabaseAdminAuth },
+  }),
+}));
 
 // ---- SQL functions, identity adapter, Firebase Auth -----------------------------------------------------------------
 const mockCalls: string[] = [];
@@ -97,6 +127,7 @@ import { POST as createAdmin } from "../../../app/api/admin/users/create-admin/r
 const SUPER: SevaActor = { staffId: "0f6e2b1a-1c1d-4e5f-8a9b-000000000001", uid: "uid-nikhil", role: "super_admin", viewOnly: false, staffNo: 1, name: "Nikhil N" };
 const ADMIN: SevaActor = { staffId: "0f6e2b1a-1c1d-4e5f-8a9b-000000000008", uid: "uid-prakash", role: "temple_admin", viewOnly: false, staffNo: 8, name: "Prakash Rao" };
 const RAMESH_ID = "0f6e2b1a-1c1d-4e5f-8a9b-000000000023";
+const RAMESH_UID = "0f6e2b1a-1c1d-4e5f-8a9b-000000000023";
 
 let ip = 0;
 function request(path: string, body: unknown): NextRequest {
@@ -122,21 +153,24 @@ beforeEach(() => {
     staff: [
       { id: SUPER.staffId, firebase_uid: "uid-nikhil", staff_no: 1, full_name: "Nikhil N", email: "nikhil@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
       { id: ADMIN.staffId, firebase_uid: "uid-prakash", staff_no: 8, full_name: "Prakash Rao", email: "prakash@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
-      { id: RAMESH_ID, firebase_uid: "uid-ramesh", staff_no: 23, full_name: "Ramesh K", email: "ramesh@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
+      { id: RAMESH_ID, firebase_uid: RAMESH_UID, staff_no: 23, full_name: "Ramesh K", email: "ramesh@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
+    ],
+    users: [
+      { id: "user-ramesh", email: "ramesh@example.org", auth_user_id: RAMESH_UID },
     ],
   };
   for (const key of Object.keys(mockProfiles)) delete mockProfiles[key];
   Object.assign(mockProfiles, {
     "uid-nikhil": { role: "super_admin", isActive: true },
     "uid-prakash": { role: "temple_admin", isActive: true },
-    "uid-ramesh": { role: "receptionist", isActive: true },
+    [RAMESH_UID]: { role: "receptionist", isActive: true },
     "uid-devotee": { role: "devotee", isActive: true },
   });
   for (const key of Object.keys(mockLogins)) delete mockLogins[key];
   Object.assign(mockLogins, {
     "nikhil@example.org": "uid-nikhil",
     "prakash@example.org": "uid-prakash",
-    "ramesh@example.org": "uid-ramesh",
+    "ramesh@example.org": RAMESH_UID,
     "devotee@example.org": "uid-devotee",
     "nobody-signed-in@example.org": "uid-no-profile",
   });
@@ -160,9 +194,9 @@ describe("POST /api/admin/users/set-role", () => {
     mockSession.actor = SUPER;
     const res = await setRole(request("/api/admin/users/set-role", { email: "Ramesh@Example.org", role: "admin" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ success: true, userId: "uid-ramesh" });
+    expect(await res.json()).toMatchObject({ success: true, userId: RAMESH_UID });
     expect(mockCalls).toEqual(["identity.setAccessProfile", "rpc.seva_audit"]);
-    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-ramesh", { role: "admin" });
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith(RAMESH_UID, { role: "admin" });
     expect(mockRpc).toHaveBeenCalledWith("seva_audit", {
       p_action: "staff.role_change",
       p_entity: "staff",
@@ -203,7 +237,7 @@ describe("POST /api/admin/users/set-role", () => {
     const res = await setRole(request("/api/admin/users/set-role", { email: "ramesh@example.org", role: "billing" }));
     expect(res.status).toBe(200);
     expect(mockCalls).toEqual(["identity.setAccessProfile", "rpc.seva_audit"]);
-    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-ramesh", { role: "billing" });
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith(RAMESH_UID, { role: "billing" });
     expect(mockRpc).toHaveBeenCalledWith(
       "seva_audit",
       expect.objectContaining({
@@ -242,6 +276,7 @@ describe("POST /api/admin/users/create-admin", () => {
     expect((await errorOf(await createAdmin(request("/api/admin/users/create-admin", body)))).status).toBe(401);
     mockSession.actor = ADMIN;
     expect(await errorOf(await createAdmin(request("/api/admin/users/create-admin", body)))).toEqual({ status: 403, code: "forbidden" });
+    expect(mockSupabaseAdminAuth.createUser).not.toHaveBeenCalled();
     expect(mockFirebaseAuth.createUser).not.toHaveBeenCalled();
     expect(mockIdentity.setAccessProfile).not.toHaveBeenCalled();
   });
@@ -251,18 +286,19 @@ describe("POST /api/admin/users/create-admin", () => {
     const res = await createAdmin(request("/api/admin/users/create-admin", body));
     expect(res.status).toBe(200); // as before, for its existing callers
     expect(await res.json()).toMatchObject({ success: true, staffId: "0f6e2b1a-1c1d-4e5f-8a9b-000000000036", staffNo: 36 });
-    expect(mockCalls).toEqual(["rpc.seva_next_staff_no", "auth.createUser", "identity.setAccessProfile", "rpc.seva_staff_onboard"]);
-    expect(mockFirebaseAuth.createUser).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "new.admin@example.org", password: "long-enough-1", displayName: "New Admin" }),
+    expect(mockCalls).toEqual(["rpc.seva_next_staff_no", "supabase.auth.createUser", "identity.setAccessProfile", "rpc.seva_staff_onboard"]);
+    expect(mockSupabaseAdminAuth.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "new.admin@example.org", password: "long-enough-1", email_confirm: true, user_metadata: { full_name: "New Admin", name: "New Admin" } }),
     );
-    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-new-admin", {
+    expect(mockFirebaseAuth.createUser).not.toHaveBeenCalled();
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("0f6e2b1a-1c1d-4e5f-8a9b-000000000099", {
       role: "super_admin",
       isActive: true,
       email: "new.admin@example.org",
       displayName: "New Admin",
     });
     expect(mockRpc).toHaveBeenCalledWith("seva_staff_onboard", {
-      p_staff: { firebase_uid: "uid-new-admin", full_name: "New Admin", email: "new.admin@example.org", staff_no: 36, view_only: false },
+      p_staff: { firebase_uid: "0f6e2b1a-1c1d-4e5f-8a9b-000000000099", full_name: "New Admin", email: "new.admin@example.org", staff_no: 36, view_only: false },
       p_actor: SUPER.staffId,
     });
   });
@@ -274,6 +310,7 @@ describe("POST /api/admin/users/create-admin", () => {
       code: "validation",
     });
     expect((await errorOf(await createAdmin(request("/api/admin/users/create-admin", { email: "invalid" })))).status).toBe(400);
+    expect(mockSupabaseAdminAuth.createUser).not.toHaveBeenCalled();
     expect(mockFirebaseAuth.createUser).not.toHaveBeenCalled();
 
     mockLogins["new.admin@example.org"] = "uid-existing";

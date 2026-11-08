@@ -22,6 +22,7 @@ jest.mock("@/lib/rate-limit", () => ({
 const mockGetUserByEmail = jest.fn();
 const mockCreateUser = jest.fn();
 const mockListUsers = jest.fn();
+const mockFrom = jest.fn();
 
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -32,6 +33,7 @@ jest.mock("@/lib/supabase/admin", () => ({
         listUsers: (...args: unknown[]) => mockListUsers(...args),
       },
     },
+    from: (...args: unknown[]) => mockFrom(...args),
   }),
 }));
 
@@ -57,6 +59,44 @@ function makeRequest(url: string, body: unknown): NextRequest {
 describe("Admin User Provisioning Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "staff") {
+        return {
+          select: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              maybeSingle: jest.fn().mockResolvedValue({
+                data: null,
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "users") {
+        return {
+          select: jest.fn().mockReturnValue({
+            or: jest.fn().mockReturnValue({
+              maybeSingle: jest.fn().mockResolvedValue({
+                data: { role: "devotee", active: true },
+                error: null,
+              }),
+            }),
+          }),
+          update: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({
+                maybeSingle: jest.fn().mockResolvedValue({
+                  data: { id: "user-1", auth_user_id: "550e8400-e29b-41d4-a716-446655440002" },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {};
+    });
   });
 
   describe("POST /api/admin/users/create-admin", () => {
@@ -79,16 +119,21 @@ describe("Admin User Provisioning Routes", () => {
     it("provisions Supabase Auth admin identity and onboards staff as super_admin", async () => {
       mockRequireStaffAdmin.mockResolvedValue({
         ok: true,
-        actor: { staffId: "actor-1", role: "super_admin", staffNo: 1, name: "Owner" },
+        actor: { staffId: "actor-1", uid: "actor-uid-1", role: "super_admin", viewOnly: false, staffNo: 1, name: "Owner" },
       });
       mockGetUserByEmail.mockResolvedValue({ data: { user: null }, error: null });
       mockCreateUser.mockResolvedValue({
         data: { user: { id: "550e8400-e29b-41d4-a716-446655440001" } },
         error: null,
       });
-      mockOnboardStaff.mockResolvedValue({
-        staffId: "staff-rec-1",
-        staffNo: 42,
+      mockOnboardStaff.mockImplementation(async (_actor, _params, opts) => {
+        if (opts?.createLogin) {
+          await opts.createLogin({ email: _params.email, displayName: _params.fullName });
+        }
+        return {
+          staffId: "staff-rec-1",
+          staffNo: 42,
+        };
       });
 
       const req = makeRequest("http://localhost/api/admin/users/create-admin", {
@@ -117,12 +162,21 @@ describe("Admin User Provisioning Routes", () => {
     it("fails closed if Supabase Auth identity creation fails", async () => {
       mockRequireStaffAdmin.mockResolvedValue({
         ok: true,
-        actor: { staffId: "actor-1", role: "super_admin", staffNo: 1, name: "Owner" },
+        actor: { staffId: "actor-1", uid: "actor-uid-1", role: "super_admin", viewOnly: false, staffNo: 1, name: "Owner" },
       });
       mockGetUserByEmail.mockResolvedValue({ data: { user: null }, error: null });
       mockCreateUser.mockResolvedValue({
         data: { user: null },
         error: new Error("Supabase auth rate limit exceeded"),
+      });
+      mockOnboardStaff.mockImplementation(async (_actor, _params, opts) => {
+        if (opts?.createLogin) {
+          await opts.createLogin({ email: _params.email, displayName: _params.fullName });
+        }
+        return {
+          staffId: "staff-rec-1",
+          staffNo: 42,
+        };
       });
 
       const req = makeRequest("http://localhost/api/admin/users/create-admin", {
@@ -133,7 +187,6 @@ describe("Admin User Provisioning Routes", () => {
 
       const res = await createAdminPost(req);
       expect(res.status).toBe(500);
-      expect(mockOnboardStaff).not.toHaveBeenCalled();
     });
   });
 
@@ -141,7 +194,7 @@ describe("Admin User Provisioning Routes", () => {
     it("resolves target user via Supabase Auth and updates role", async () => {
       mockRequireStaffAdmin.mockResolvedValue({
         ok: true,
-        actor: { staffId: "actor-1", role: "super_admin", staffNo: 1, name: "Owner" },
+        actor: { staffId: "actor-1", uid: "actor-uid-1", role: "super_admin", viewOnly: false, staffNo: 1, name: "Owner" },
       });
       mockGetUserByEmail.mockResolvedValue({
         data: { user: { id: "550e8400-e29b-41d4-a716-446655440002" } },

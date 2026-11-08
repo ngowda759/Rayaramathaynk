@@ -4,6 +4,27 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/supabase/identifier";
 import type { UserProfile } from "@/types/user";
 
+function mapRowToProfile(
+  row: Record<string, unknown>,
+  callerEmail: string | null
+): UserProfile {
+  return {
+    uid: String(row.auth_user_id || row.firestore_id || row.id),
+    name: String(row.display_name || row.email || "").split("@")[0] || "Devotee",
+    email: String(row.email || callerEmail || ""),
+    phone: row.phone_number ? String(row.phone_number) : "",
+    role: (row.role as any) || "devotee",
+    templeId: "main",
+    profileImage: "",
+    isApproved: false,
+    isActive: row.active !== false,
+    emailVerified: false,
+    lastLogin: null,
+    createdAt: row.created_at as any,
+    updatedAt: row.updated_at as any,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const caller = await verifyBearerIdToken(request);
@@ -12,12 +33,16 @@ export async function GET(request: NextRequest) {
 
     // If no bearer token, check Supabase cookie session
     if (!callerUid) {
-      const { createClient } = await import("@/lib/supabase/server");
-      const supabaseServer = await createClient();
-      const { data: userData } = await supabaseServer.auth.getUser();
-      if (userData?.user) {
-        callerUid = userData.user.id;
-        callerEmail = userData.user.email ?? null;
+      try {
+        const { createClient } = await import("@/lib/supabase/server");
+        const supabaseServer = await createClient();
+        const { data: userData } = await supabaseServer.auth.getUser();
+        if (userData?.user) {
+          callerUid = userData.user.id;
+          callerEmail = userData.user.email ?? null;
+        }
+      } catch {
+        // Cookie context unavailable or no session
       }
     }
 
@@ -42,22 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (userRow) {
-      const profile: UserProfile = {
-        uid: String(userRow.auth_user_id || userRow.firestore_id || userRow.id),
-        name: String(userRow.display_name || userRow.email || "").split("@")[0],
-        email: String(userRow.email || callerEmail || ""),
-        phone: userRow.phone_number ? String(userRow.phone_number) : "",
-        role: (userRow.role as any) || "devotee",
-        templeId: "main",
-        profileImage: "",
-        isApproved: false,
-        isActive: userRow.active !== false,
-        emailVerified: false,
-        lastLogin: null,
-        createdAt: userRow.created_at as any,
-        updatedAt: userRow.updated_at as any,
-      };
-      return NextResponse.json(profile);
+      return NextResponse.json(mapRowToProfile(userRow as Record<string, unknown>, callerEmail));
     }
 
     // Idempotent devotee self-provisioning for valid authenticated user
@@ -81,27 +91,28 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (insertError || !created) {
+      // Handle concurrent insert race condition (Postgres error 23505)
+      const isConflict =
+        (insertError as { code?: string })?.code === "23505" ||
+        /duplicate key|already exists/i.test(insertError?.message || "");
+
+      if (isConflict) {
+        const { data: recheck } = await supabase
+          .from("users")
+          .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
+          .or(filterQuery)
+          .maybeSingle();
+
+        if (recheck) {
+          return NextResponse.json(mapRowToProfile(recheck as Record<string, unknown>, callerEmail));
+        }
+      }
+
       console.error("[api/auth/me] Failed to self-provision devotee:", insertError);
       return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
     }
 
-    const newProfile: UserProfile = {
-      uid: String(created.auth_user_id || created.firestore_id || created.id),
-      name: String(created.display_name || created.email || "").split("@")[0],
-      email: String(created.email || ""),
-      phone: created.phone_number ? String(created.phone_number) : "",
-      role: (created.role as any) || "devotee",
-      templeId: "main",
-      profileImage: "",
-      isApproved: false,
-      isActive: created.active !== false,
-      emailVerified: false,
-      lastLogin: null,
-      createdAt: created.created_at as any,
-      updatedAt: created.updated_at as any,
-    };
-
-    return NextResponse.json(newProfile);
+    return NextResponse.json(mapRowToProfile(created as Record<string, unknown>, callerEmail));
   } catch (error) {
     console.error("[api/auth/me] Unexpected error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
