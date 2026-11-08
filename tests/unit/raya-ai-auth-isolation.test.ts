@@ -3,8 +3,8 @@
  *
  * These assert the properties that must hold no matter how the code is
  * refactored: the service-role key stays server-side, the guard never trusts a
- * client-supplied identity, the non-AI admin path keeps its Firebase behaviour,
- * and the two auth providers stay separated.
+ * client-supplied identity, non-AI admin paths enforce authentication,
+ * and Raya AI auth retains its intended boundaries.
  */
 
 import fs from "fs";
@@ -123,13 +123,15 @@ describe("auth-provider separation", () => {
     expect(source).not.toContain("raya-admin-auth");
   });
 
-  it("AdminAuthGuard keeps the Firebase gate for every non-AI admin path", () => {
+  it("AdminAuthGuard gates non-AI admin paths with useAuth and separates Raya AI auth", () => {
     const source = read("components/admin/layout/AdminAuthGuard.tsx");
-    // The Firebase decision must still be present and still gate on the Firebase user.
+    // Admin access gates on authenticated user and admin permissions
     expect(source).toContain("useAuth");
-    expect(source).toContain("getFirebaseConfigStatus");
     expect(source).toContain("canAccessAdmin");
-    // And the Supabase session may only satisfy the Raya AI subtree.
+    // Unauthenticated callers redirect via safeReturnPath and signInPath
+    expect(source).toContain("safeReturnPath");
+    expect(source).toContain("signInPath");
+    // And the Supabase session specifically gates the Raya AI subtree
     expect(source).toContain("isRayaAiPath");
     // The three unauthenticated Raya AI pages are exempted through the shared
     // predicate, so the guard and the pages cannot drift apart.
@@ -179,15 +181,15 @@ describe("middleware does not gate admin authentication", () => {
 });
 
 describe("no Firestore fallback in the approved Raya AI paths", () => {
-  // Files that legitimately still reach Firebase/Firestore. Each is documented
-  // in docs/RAYA_AI_SUPABASE_NATIVE_AUTH.md §1.3 as outside the approved scope.
+  // Files that legitimately still reach Firebase/Firestore for backward compatibility.
+  // Each is documented in docs/auth/PHASE-3-AUTH-AUDIT.md §3 as outside the approved scope.
   // A new entry here is a deliberate scope decision, not a silent regression.
   const OUT_OF_SCOPE_FIREBASE_FILES = new Set([
-    // Non-AI admin authentication (the temple's other admin pages).
+    // Non-AI admin authentication fallback (the temple's other admin pages).
     path.join("lib", "auth", "admin-auth.ts"),
-    // Non-AI admin helper used by app/actions/settings.ts and seva receipts.
-    path.join("lib", "auth", "admin.ts"),
-    // Firebase ID-token verification for public receipts and seva (non-AI).
+    // Non-AI admin compatibility helper re-exports.
+    path.join("lib", "auth", "admin-auth-compat.ts"),
+    // Firebase ID-token verification for legacy tokens (non-AI).
     path.join("lib", "auth", "verify-id-token.ts"),
   ]);
 

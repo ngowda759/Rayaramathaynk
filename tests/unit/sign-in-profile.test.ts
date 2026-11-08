@@ -14,6 +14,20 @@ const mockGetDoc = jest.fn();
 const mockSignIn = jest.fn();
 const mockServerTimestamp = { sentinel: "serverTimestamp" };
 
+const mockSignInWithPassword = jest.fn();
+jest.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      signUp: jest.fn(),
+      signOut: jest.fn(),
+      resetPasswordForEmail: jest.fn(),
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+    },
+    from: jest.fn(),
+  }),
+}));
+
 jest.mock("firebase/auth", () => ({
   createUserWithEmailAndPassword: jest.fn(),
   signInWithEmailAndPassword: (...args: unknown[]) => mockSignIn(...args),
@@ -76,6 +90,7 @@ beforeEach(() => {
   mockSetDoc.mockReset();
   mockGetDoc.mockReset();
   mockSignIn.mockReset();
+  mockSignInWithPassword.mockReset();
 });
 
 describe("buildSignInProfileWrite", () => {
@@ -167,14 +182,24 @@ describe("buildSignInProfileWrite", () => {
   });
 });
 
-describe.each([
-  ["services/auth.service.ts login", (email: string, password: string) => authService.login(email, password)],
-  ["lib/auth.ts loginUser", (email: string, password: string) => loginUser(email, password)],
-])("%s", (_label, signIn) => {
+describe("sign-in merge write execution", () => {
+  async function executeSignInMerge(email: string, password: string) {
+    const userCredential = await mockSignIn(email, password);
+    const userRef = { path: `users/${userCredential.user.uid}` };
+    const profileSnapshot = await mockGetDoc(userRef);
+    const write = buildSignInProfileWrite({
+      account: userCredential.user,
+      typedEmail: email,
+      existingProfile: profileSnapshot.exists() ? profileSnapshot.data() : undefined,
+      now: mockServerTimestamp,
+    });
+    await mockSetDoc(userRef, write, { merge: true });
+  }
+
   it("a first sign-in on a staff doc without isApproved sends no access field", async () => {
     signInAs(STAFF_PROFILE_FROM_STAFF_API);
 
-    await signIn("counter@example.test", "secret");
+    await executeSignInMerge("counter@example.test", "secret");
 
     const { path, data, options } = lastWrite();
     expect(path).toBe("users/rec-uid");
@@ -187,7 +212,7 @@ describe.each([
   it("a sign-in with no profile yet creates a devotee profile", async () => {
     signInAs(undefined);
 
-    await signIn("counter@example.test", "secret");
+    await executeSignInMerge("counter@example.test", "secret");
 
     const { data, options } = lastWrite();
     expect(options).toEqual({ merge: true });
@@ -198,5 +223,34 @@ describe.each([
       isActive: true,
       createdAt: mockServerTimestamp,
     });
+  });
+});
+
+describe("services/auth.service.ts login and lib/auth.ts loginUser (Phase 3 Supabase Auth)", () => {
+  it("authenticates via Supabase Auth and never writes to Firestore directly", async () => {
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: { user: { id: "rec-uid", email: "counter@example.test" }, session: {} },
+      error: null,
+    });
+
+    const result = await authService.login("counter@example.test", "secret");
+    expect(result.data.user).toBeDefined();
+    expect(mockSignInWithPassword).toHaveBeenCalledWith({
+      email: "counter@example.test",
+      password: "secret",
+    });
+    // Zero runtime Firestore writes on login
+    expect(mockSetDoc).not.toHaveBeenCalled();
+  });
+
+  it("loginUser delegates to Supabase authService without Firestore writes", async () => {
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: { user: { id: "rec-uid", email: "counter@example.test" }, session: {} },
+      error: null,
+    });
+
+    const result = await loginUser("counter@example.test", "secret");
+    expect(result.data.user).toBeDefined();
+    expect(mockSetDoc).not.toHaveBeenCalled();
   });
 });
