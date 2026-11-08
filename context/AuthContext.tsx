@@ -173,10 +173,41 @@ export function AuthProvider({
       }
     );
 
+    // 3. Compatibility fallback: Firebase Auth listener for rollback and zero-lockout
+    let unsubscribeFirebase: (() => void) | undefined;
+    (async () => {
+      try {
+        const { auth } = await import("@/lib/firebase");
+        const { onAuthStateChanged } = await import("firebase/auth");
+        if (auth && typeof onAuthStateChanged === "function") {
+          unsubscribeFirebase = onAuthStateChanged(auth, async (fbUser: any) => {
+            if (!isMounted) return;
+            const currentSupa = (await supabase.auth.getSession()).data?.session;
+            if (!currentSupa?.user && fbUser) {
+              setUser({
+                id: fbUser.uid,
+                uid: fbUser.uid,
+                email: fbUser.email ?? null,
+                displayName: fbUser.displayName ?? null,
+                emailVerified: fbUser.emailVerified ?? false,
+                getIdToken: typeof fbUser.getIdToken === "function" ? () => fbUser.getIdToken() : async () => "",
+                rawUser: fbUser,
+              });
+              await loadProfile(fbUser.uid);
+              setLoading(false);
+            }
+          });
+        }
+      } catch {
+        // Firebase optional
+      }
+    })();
+
     return () => {
       isMounted = false;
       setAuthTokenGetter(null);
       subscription?.unsubscribe();
+      if (unsubscribeFirebase) unsubscribeFirebase();
     };
   }, []);
 

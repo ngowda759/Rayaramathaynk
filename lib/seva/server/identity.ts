@@ -1,6 +1,8 @@
 /**
  * The identity adapter - the only seva code that knows which sign-in provider is behind it (C-66). Everything else
- * works with the provider-neutral `externalUid` (stored as `staff.firebase_uid` today) and the access profile.
+ * works with the provider-neutral `externalUid` (stored as `staff.auth_user_id` canonically, with `staff.firebase_uid`
+ * retained for rollback/audit compatibility) and the access profile from `public.users`.
+ *
  * Moving to another provider later means writing a new adapter, not touching the routes.
  *
  * Identity rules (A1 security gate L-4): the email that identifies a person comes from the verified token or from
@@ -9,6 +11,9 @@
 
 import "server-only";
 import { firebaseIdentityAdapter } from "./identity-firebase";
+import { supabaseIdentityAdapter } from "./identity-supabase";
+
+export { firebaseIdentityAdapter, supabaseIdentityAdapter };
 
 export interface IdentityAdapter {
   /**
@@ -16,7 +21,7 @@ export interface IdentityAdapter {
    * 'internal') when the provider cannot be reached, so an outage answers 500, never "sign in again" (DB §16.2).
    */
   verifyRequest(req: Request): Promise<{ externalUid: string; email: string | null } | null>;
-  /** Role and active flag (Firestore `users/{uid}` today); null when the person has no profile. */
+  /** Role and active flag (`public.users` in Supabase); null when the person has no profile. */
   getAccessProfile(externalUid: string): Promise<{ role: unknown; isActive: boolean } | null>;
   /**
    * The sign-in account that already uses this email (a website admin, a devotee, the site owner), or null when there
@@ -39,7 +44,7 @@ export interface IdentityAdapter {
 let testAdapter: IdentityAdapter | null = null;
 
 export function getIdentityAdapter(): IdentityAdapter {
-  return testAdapter ?? firebaseIdentityAdapter;
+  return testAdapter ?? supabaseIdentityAdapter;
 }
 
 /** Swaps in a fake adapter for unit tests; `null` restores the real one. Refused outside the test environment. */

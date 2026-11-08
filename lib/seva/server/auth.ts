@@ -27,6 +27,7 @@ import { SevaError, type SevaErrorCode } from "@/lib/seva/errors";
 import { can, isWriteAction, mapFirestoreRole, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
 import { businessDate } from "@/lib/seva/time";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isUuid } from "@/lib/supabase/identifier";
 import type { SevaAction } from "@/types/seva";
 import { verifyDeviceHeader, type VerifiedDevice } from "./device";
 import { getIdentityAdapter } from "./identity";
@@ -92,15 +93,8 @@ function settledValue<T>(result: PromiseSettledResult<T>): T {
   return result.value;
 }
 
-async function findStaff(externalUid: string): Promise<StaffRow | null> {
-  const { data, error } = await createAdminClient()
-    .from("staff")
-    .select("id, staff_no, full_name, view_only, status")
-    .eq("firebase_uid", externalUid)
-    .maybeSingle();
-  if (error) throw new SevaError("internal");
-  if (!data) return null;
-  const row = data as Record<string, unknown>;
+function parseStaffRow(raw: unknown): StaffRow {
+  const row = raw as Record<string, unknown>;
   if (
     typeof row.id !== "string" ||
     typeof row.staff_no !== "number" ||
@@ -110,7 +104,42 @@ async function findStaff(externalUid: string): Promise<StaffRow | null> {
   ) {
     throw new SevaError("internal");
   }
-  return { id: row.id, staff_no: row.staff_no, full_name: row.full_name, view_only: row.view_only, status: row.status };
+  return {
+    id: row.id,
+    staff_no: row.staff_no,
+    full_name: row.full_name,
+    view_only: row.view_only,
+    status: row.status,
+  };
+}
+
+async function findStaff(externalUid: string): Promise<StaffRow | null> {
+  const supabase = createAdminClient();
+
+  // 1. Canonical path: check by auth_user_id first if externalUid is a UUID
+  if (isUuid(externalUid)) {
+    const { data: staffByAuth, error: authErr } = await supabase
+      .from("staff")
+      .select("id, staff_no, full_name, view_only, status")
+      .eq("auth_user_id", externalUid)
+      .maybeSingle();
+
+    if (authErr) throw new SevaError("internal");
+    if (staffByAuth) {
+      return parseStaffRow(staffByAuth);
+    }
+  }
+
+  // 2. Compatibility fallback: check by firebase_uid
+  const { data, error } = await supabase
+    .from("staff")
+    .select("id, staff_no, full_name, view_only, status")
+    .eq("firebase_uid", externalUid)
+    .maybeSingle();
+
+  if (error) throw new SevaError("internal");
+  if (!data) return null;
+  return parseStaffRow(data);
 }
 
 export async function requireSevaActor(

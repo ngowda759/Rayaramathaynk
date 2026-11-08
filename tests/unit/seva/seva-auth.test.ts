@@ -470,7 +470,8 @@ describe("Firebase identity adapter", () => {
 
   it("is the adapter used when no test adapter is set", () => {
     setIdentityAdapterForTests(null);
-    expect(getIdentityAdapter()).toBe(firebaseIdentityAdapter);
+    const { supabaseIdentityAdapter } = require("@/lib/seva/server/identity");
+    expect(getIdentityAdapter()).toBe(supabaseIdentityAdapter);
   });
 
   it("verifies the ID token with checkRevoked and takes the email from the token", async () => {
@@ -542,7 +543,7 @@ describe("Firebase identity adapter", () => {
   });
 
   it("lets a verified, active receptionist through the guard with the real adapter", async () => {
-    setIdentityAdapterForTests(null);
+    setIdentityAdapterForTests(firebaseIdentityAdapter);
     mockAuth.verifyIdToken.mockResolvedValue({ uid: "uid-ramesh", email: "ramesh@example.org" });
     mockUserDocs["uid-ramesh"] = { role: "receptionist", isActive: true };
     expect(await requireSevaActor(counterSave(), "counter.issue", { device: "required" })).toMatchObject({

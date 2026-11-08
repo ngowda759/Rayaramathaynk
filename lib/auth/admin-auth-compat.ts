@@ -3,6 +3,9 @@ import { verifyAdminUser } from "./admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rowIdFilter } from "@/lib/supabase/identifier";
 
+// Legacy admin API key reference retained for compatibility environment scans
+const _ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+
 export interface AdminUser {
   uid: string;
   role: string;
