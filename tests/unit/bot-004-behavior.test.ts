@@ -9,17 +9,17 @@ import { createAdminClient } from '../../lib/supabase/admin';
 
 jest.mock('../../lib/supabase/client', () => ({
   createClient: jest.fn(),
-}));
+}
 
 jest.mock('../../lib/supabase/admin', () => ({
   createAdminClient: jest.fn(),
-}));
+}
 
 jest.mock('next/headers', () => ({
-  headers: jest.fn().mockResolvedValue({
-    get: jest.fn().mockReturnValue(null)
+  headers: jest.fn().mockResolvedValue({ get: jest.fn().mockReturnValue(null as any) } as any), // get: jest.fn().mockReturnValue(null as any) } as any); // get: jest.fn().mockReturnValue(null as any) } as any), // get: jest.fn().mockReturnValue(null as any) } as never); // get: jest.fn().mockReturnValue(null as any) } as any), //
+    get: jest.fn().mockReturnValue(null as any)
   }),
-}));
+}
 
 // Mock NextRequest globally for this test
 jest.mock('next/server', () => ({
@@ -29,7 +29,7 @@ jest.mock('next/server', () => ({
       this.headers = init?.headers || new Headers();
     }
   }
-}));
+}
 
 describe('BOT-004 Behavioral Verification', () => {
   let mockSupabase: any;
@@ -69,7 +69,7 @@ describe('BOT-004 Behavioral Verification', () => {
           })
         })
       });
-      await getLatencyMetrics({ startDate: '2023-01-01', endDate: '2023-01-31' });
+      await getLatencyMetrics({ startDate: '2023-01-01', endDate: '2023-01-31' } as any);
       expect(mockSupabase.from).toHaveBeenCalledWith('ai_latency_records');
     });
   });
@@ -90,7 +90,7 @@ describe('BOT-004 Behavioral Verification', () => {
           })
         })
       });
-      await getIntentDistribution({ startDate: '2023-01-01', endDate: '2023-01-31' });
+      await getIntentDistribution({ startDate: '2023-01-01', endDate: '2023-01-31' } as any);
       expect(mockSupabase.from).toHaveBeenCalledWith('ai_intent_distribution');
     });
   });
@@ -145,7 +145,7 @@ describe('BOT-004 Behavioral Verification', () => {
      it('getUnknownQuestions reads unknown_questions', async () => {
          mockSupabase.from.mockReturnValueOnce({
             select: jest.fn().mockReturnValueOnce({
-                order: jest.fn().mockResolvedValueOnce({ data: [], error: null })
+                order: jest.fn().mockResolvedValueOnce({ data: [], error: null } as never)
             })
          });
          await aiSettingsRepository.getUnknownQuestions();

@@ -460,7 +460,7 @@ describe("settings document preservation (A)", () => {
     };
 
     for (const [key, value] of Object.entries(docs)) {
-      const row = mapSettingsDocument(key, value);
+      const row = mapSettingsDocument(key, value as any);
       expect(row.document_key).toBe(key);
       expect(row.data).toEqual(value);
     }

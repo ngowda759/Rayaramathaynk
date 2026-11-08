@@ -15,12 +15,6 @@ async function adminAuth() {
   return getAuth(app);
 }
 
-async function userDoc(externalUid: string) {
-  const { getAdminFirestore } = await import("@/lib/admin-firebase");
-  const db = await getAdminFirestore();
-  return db.collection("users").doc(externalUid);
-}
-
 function errorCode(error: unknown): string | null {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === "string" ? code : null;
@@ -38,11 +32,22 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async getAccessProfile(externalUid) {
-    const snapshot = await (await userDoc(externalUid)).get();
-    if (!snapshot.exists) return null;
-    const data = snapshot.data() ?? {};
-    // Only these two fields; never `email` (editable by the person). A missing or non-boolean isActive is inactive.
-    return { role: data.role, isActive: data.isActive === true };
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("users")
+        .select("role, active")
+        .eq("firestore_id", externalUid)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+      return { role: data.role, isActive: data.active === true };
+    } catch (error) {
+      console.error("[identity-firebase] getAccessProfile failed:", error);
+      throw new SevaError("internal");
+    }
   },
 
   async findLoginByEmail(email) {
@@ -81,15 +86,36 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async setAccessProfile(externalUid, patch) {
-    const { FieldValue } = await import("firebase-admin/firestore");
-    const write: Record<string, unknown> = { uid: externalUid };
-    if (patch.role !== undefined) write.role = patch.role;
-    if (patch.isActive !== undefined) write.isActive = patch.isActive;
-    if (patch.email !== undefined) write.email = patch.email;
-    // The site's profile keeps the display name in `name` (lib/auth/sign-in-profile.ts).
-    if (patch.displayName !== undefined) write.name = patch.displayName;
-    write.updatedAt = FieldValue.serverTimestamp();
-    await (await userDoc(externalUid)).set(write, { merge: true });
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const supabase = createAdminClient();
+
+      const { data: existingUser, error: checkError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("firestore_id", externalUid)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      const write: Record<string, unknown> = {};
+      if (patch.role !== undefined) write.role = patch.role;
+      if (patch.isActive !== undefined) write.active = patch.isActive;
+      if (patch.email !== undefined) write.email = patch.email;
+      if (patch.displayName !== undefined) write.display_name = patch.displayName;
+
+      if (existingUser) {
+        const { error: updateError } = await supabase.from("users").update(write).eq("firestore_id", externalUid);
+        if (updateError) throw updateError;
+      } else {
+        write.firestore_id = externalUid;
+        const { error: insertError } = await supabase.from("users").insert(write);
+        if (insertError) throw insertError;
+      }
+    } catch (error) {
+      console.error("[identity-firebase] setAccessProfile failed:", error);
+      throw new SevaError("internal");
+    }
   },
 
   async setLoginEnabled(externalUid, enabled) {

@@ -74,6 +74,7 @@ describe("reconciliation calculations (H)", () => {
   it("passes when source equals inserts + updates + failures", () => {
     const result = reconcileCounts({
       sourceCount: 10,
+      excludedMalformed: 0,
       inserts: 6,
       updates: 2,
       validationFailures: 1,
@@ -87,6 +88,7 @@ describe("reconciliation calculations (H)", () => {
   it("detects silently dropped documents", () => {
     const result = reconcileCounts({
       sourceCount: 10,
+      excludedMalformed: 0,
       inserts: 4,
       updates: 0,
       validationFailures: 0,
@@ -99,6 +101,7 @@ describe("reconciliation calculations (H)", () => {
   it("detects over-accounting", () => {
     const result = reconcileCounts({
       sourceCount: 2,
+      excludedMalformed: 0,
       inserts: 5,
       updates: 0,
       validationFailures: 0,
@@ -111,6 +114,7 @@ describe("reconciliation calculations (H)", () => {
   it("handles the empty-collection case", () => {
     const result = reconcileCounts({
       sourceCount: 0,
+      excludedMalformed: 0,
       inserts: 0,
       updates: 0,
       validationFailures: 0,

@@ -1,7 +1,6 @@
 // Script to seed testimonials into Firestore
 // Run with: npx tsx scripts/seed-testimonials.ts
 import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
 import * as fs from "fs";
 import * as path from "path";
 

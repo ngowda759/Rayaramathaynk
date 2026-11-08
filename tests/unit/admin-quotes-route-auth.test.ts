@@ -31,13 +31,13 @@ const mockGetQuoteById = jest.fn(async () => null);
 
 jest.mock("@/services/quote.server", () => ({
   quoteService: {
-    seedDefaultQuotes: (...a: unknown[]) => mockSeed(...a),
+    seedDefaultQuotes: mockSeed,
     clearCache: (...a: unknown[]) => mockClearCache(...a),
-    bulkImport: (...a: unknown[]) => mockBulkImport(...a),
-    getQuotes: (...a: unknown[]) => mockGetQuotes(...a),
-    updateQuote: (...a: unknown[]) => mockUpdateQuote(...a),
-    deleteQuote: (...a: unknown[]) => mockDeleteQuote(...a),
-    getQuoteById: (...a: unknown[]) => mockGetQuoteById(...a),
+    bulkImport: mockBulkImport,
+    getQuotes: mockGetQuotes,
+    updateQuote: mockUpdateQuote,
+    deleteQuote: mockDeleteQuote,
+    getQuoteById: mockGetQuoteById,
   },
 }));
 

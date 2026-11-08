@@ -329,7 +329,7 @@ describe("AI Settings Validation", () => {
   });
 
   it("should reject malformed prompt version missing content, createdAt, or updatedAt", () => {
-    const createPayload = (versionData) => ({
+    const createPayload = (versionData: any) => ({
       id: "main",
       general: {
         enabled: true,

@@ -16,7 +16,7 @@ const mockFrom = jest.fn(() => ({ select: mockSelect, insert: mockInsert }));
 const mockCreateAdminClient = jest.fn(() => ({ from: mockFrom }));
 
 jest.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: (...args: unknown[]) => mockCreateAdminClient(...args),
+  createAdminClient: mockCreateAdminClient,
 }));
 
 jest.mock("fs", () => ({

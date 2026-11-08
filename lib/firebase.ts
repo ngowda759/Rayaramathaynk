@@ -1,6 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { Auth, connectAuthEmulator, getAuth } from "firebase/auth";
-import { Firestore, connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
 // Validate Firebase configuration
@@ -55,20 +54,19 @@ export const getFirebaseConfigStatus = (): FirebaseConfigValidation => {
 };
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBJPt69fwPfcMLvSYMG28Jv64orqenNeC4",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "sri-raghavendra-mutt.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "sri-raghavendra-mutt",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "sri-raghavendra-mutt.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "231035009940",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:231035009940:web:dbc2c3b714c76ddb73ed81",
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-W4WCWH7378",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase only if properly configured - BUT only in browser
 // This prevents "window is not defined" errors during SSR
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
-let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 let authInitialized = false;
 
@@ -81,13 +79,9 @@ const isBrowser = typeof window !== "undefined";
  * (the SDK throws when Firestore is connected a second time after first use), while the Next.js server can load
  * this module in several bundles, each with its own instances, and every one of them must be connected.
  */
-function connectEmulatorsOnce(authInstance: Auth | null, dbInstance: Firestore): void {
+function connectEmulatorsOnce(authInstance: Auth | null): void {
   const holder = globalThis as typeof globalThis & { __sevaFirebaseEmulators?: WeakSet<object> };
   const connected = (holder.__sevaFirebaseEmulators ??= new WeakSet<object>());
-  if (!connected.has(dbInstance)) {
-    connectFirestoreEmulator(dbInstance, "127.0.0.1", 8080);
-    connected.add(dbInstance);
-  }
   if (authInstance && !connected.has(authInstance)) {
     connectAuthEmulator(authInstance, "http://127.0.0.1:9099", { disableWarnings: true });
     connected.add(authInstance);
@@ -110,12 +104,10 @@ if (isFirebaseConfigured()) {
     }
   }
   
-  // Always initialize Firestore (works on both client and server)
-  db = getFirestore(app);
 
   // Browser tests only (tests/e2e/seva): point Auth and Firestore at the local emulators, never a live project.
   if (process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1") {
-    connectEmulatorsOnce(auth, db);
+    connectEmulatorsOnce(auth);
   }
 }
 
@@ -145,5 +137,5 @@ export async function initializeAuthPersistence(authInstance: Auth): Promise<voi
   }
 }
 
-export { app, auth, db, storage, isFirebaseConfigured, validateFirebaseConfig };
+export { app, auth, storage, isFirebaseConfigured, validateFirebaseConfig };
 export default app;

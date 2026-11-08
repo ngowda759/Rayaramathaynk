@@ -26,7 +26,7 @@ jest.mock("../../lib/supabase/migration-inventory", () => {
 });
 
 describe("Batched Migration Execution Plan", () => {
-  beforeAll(() => { process.env.NODE_ENV = "test"; });
+  beforeAll(() => { // process.env.NODE_ENV = 'test'; });
   it("should return mapChatMessage for messages collection", () => {
     const { getMapperFn } = require("../../scripts/migrate-all-batched");
     const fn = getMapperFn("messages");
@@ -219,7 +219,7 @@ describe("executePlan fails closed on a MIGRATE collection with no destination",
   let saved: string | undefined;
 
   beforeAll(() => {
-    process.env.NODE_ENV = "test";
+    // process.env.NODE_ENV = 'test';
     // Snapshot any pre-existing manifest so real state is preserved. A real
     // migration always runs from the repository root, so this is the same path.
     existedBefore = fs.existsSync(MANIFEST);

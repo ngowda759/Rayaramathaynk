@@ -8,15 +8,7 @@ import {
   UserCredential,
 } from "firebase/auth";
 
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-
-import { auth, db, getFirebaseConfigStatus } from "@/lib/firebase";
-import { buildSignInProfileWrite } from "@/lib/auth/sign-in-profile";
+import { auth, getFirebaseConfigStatus } from "@/lib/firebase";
 
 export interface RegisterData {
   name: string;
@@ -41,7 +33,7 @@ class AuthService {
     phone,
     password,
   }: RegisterData): Promise<UserCredential> {
-    if (!auth || !db) throw this.getFirebaseError();
+    if (!auth) throw this.getFirebaseError();
     
     const credential = await createUserWithEmailAndPassword(
       auth,
@@ -55,21 +47,24 @@ class AuthService {
 
     await sendEmailVerification(credential.user);
 
-    await setDoc(doc(db, "users", credential.user.uid), {
-      uid: credential.user.uid,
-      name,
-      email,
-      phone,
-      role: "devotee",
-      templeId: "main",
-      profileImage: "",
-      isApproved: false,
-      isActive: true,
-      emailVerified: false,
-      lastLogin: null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    // Sync profile to Supabase backend
+    try {
+      const token = await credential.user.getIdToken();
+      await fetch("/api/auth/profile", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          name: name,
+          phone: phone,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to sync user profile on register:", error);
+    }
 
     return credential;
   }
@@ -78,7 +73,7 @@ class AuthService {
     email: string,
     password: string
   ): Promise<UserCredential> {
-    if (!auth || !db) throw this.getFirebaseError();
+    if (!auth) throw this.getFirebaseError();
     
     const credential = await signInWithEmailAndPassword(
       auth,
@@ -86,24 +81,24 @@ class AuthService {
       password
     );
 
-    const userRef = doc(db, "users", credential.user.uid);
-    const profileSnapshot = await getDoc(userRef);
-
-    // role, isApproved and isActive go only into a new profile; an existing
-    // one keeps the values the staff API wrote (firestore.rules refuses any
-    // client write that adds or changes them).
-    await setDoc(
-      userRef,
-      buildSignInProfileWrite({
-        account: credential.user,
-        typedEmail: email,
-        existingProfile: profileSnapshot.exists()
-          ? profileSnapshot.data()
-          : undefined,
-        now: serverTimestamp(),
-      }),
-      { merge: true }
-    );
+    // Sync profile to Supabase backend
+    try {
+      const token = await credential.user.getIdToken();
+      await fetch("/api/auth/profile", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: credential.user.email,
+          name: credential.user.displayName,
+          profileImage: credential.user.photoURL,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to sync user profile on login:", error);
+    }
 
     return credential;
   }
@@ -119,14 +114,24 @@ class AuthService {
   }
 
   async getUserProfile(uid: string) {
-    if (!db) throw this.getFirebaseError();
-    const snapshot = await getDoc(doc(db, "users", uid));
+    const user = this.currentUser();
+    if (!user || user.uid !== uid) return null;
 
-    if (!snapshot.exists()) {
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/auth/profile", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.profile || null;
+    } catch (error) {
+      console.error("Failed to get user profile:", error);
       return null;
     }
-
-    return snapshot.data();
   }
 
   currentUser() {

@@ -1,4 +1,3 @@
-import { Timestamp } from "firebase/firestore";
 
 export type UserRole =
   | "super_admin"
@@ -79,11 +78,11 @@ export interface UserProfile {
 
   emailVerified: boolean;
 
-  lastLogin: Timestamp | null;
+  lastLogin: Date | null;
 
-  createdAt: Timestamp;
+  createdAt: Date;
 
-  updatedAt: Timestamp;
+  updatedAt: Date;
 }
 
 export interface TempleUser {
@@ -101,9 +100,9 @@ export interface TempleUser {
 
   isActive: boolean;
 
-  createdAt: Timestamp;
+  createdAt: Date;
 
-  updatedAt: Timestamp;
+  updatedAt: Date;
 }
 
 export type TempleUserCreate = Pick<TempleUser, "name" | "email" | "phone" | "role" | "active">;

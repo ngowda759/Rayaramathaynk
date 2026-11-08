@@ -26,7 +26,7 @@ function runGuard(value: string | undefined, varName = "SEVA_BACKUP_DB_URL") {
   delete env.SEVA_BACKUP_DB_URL;
   delete env.GUARD_DB_URL_VAR;
   if (value !== undefined) env[varName] = value;
-  return spawnSync("node", [guard], { cwd: root, env, encoding: "utf8" });
+  return spawnSync("node", [guard], { cwd: root, env: env as any, encoding: "utf8" });
 }
 
 describe("approved database URL guard", () => {
@@ -115,7 +115,7 @@ describe("approved database URL guard", () => {
     delete env.SEVA_BACKUP_DB_URL;
     env.GUARD_DB_URL_VAR = "OTHER_DB_URL";
     env.OTHER_DB_URL = APPROVED_DIRECT;
-    const r = spawnSync("node", [guard], { cwd: root, env, encoding: "utf8" });
+    const r = spawnSync("node", [guard], { cwd: root, env: env as any, encoding: "utf8" });
     expect(r.status).toBe(0);
   });
 });

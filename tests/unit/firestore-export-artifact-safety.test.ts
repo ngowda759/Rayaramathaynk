@@ -250,7 +250,7 @@ describe("artifact upload policy script (behavioral)", () => {
     const script = runBody(policyStep!);
     const outFile = tmpFile();
     const r = spawnSync("bash", ["-c", script], {
-      env: { PATH: process.env.PATH, GITHUB_OUTPUT: outFile, ...env },
+      env: { PATH: process.env.PATH, GITHUB_OUTPUT: outFile, ...env } as any,
       encoding: "utf8",
     });
     const emitted = existsSync(outFile) ? readFileSync(outFile, "utf8") : "";
