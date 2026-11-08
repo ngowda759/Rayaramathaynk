@@ -1,5 +1,4 @@
-// Auth Module Exports
-export { checkAdminAuth, isUserAdmin } from "./admin-auth-compat";
+// Auth Module Client-Safe Exports
 export { resendVerification } from "./resend-verification";
 
 export const loginUser = async (email: string, password: string) => {

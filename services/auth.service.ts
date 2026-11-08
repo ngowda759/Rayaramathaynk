@@ -10,10 +10,10 @@ export interface RegisterData {
 
 export interface SupabaseAuthResult {
   data: {
-    user: any;
-    session: any;
+    user: unknown;
+    session: unknown;
   };
-  error?: any;
+  error?: unknown;
 }
 
 class AuthService {
@@ -30,6 +30,7 @@ class AuthService {
       options: {
         data: {
           name,
+          full_name: name,
           phone,
         },
       },
@@ -39,22 +40,23 @@ class AuthService {
       throw error;
     }
 
-    // Try to ensure public.users profile is provisioned
+    // Call user self-provisioning endpoint to guarantee public.users row exists
     try {
-      if (typeof window !== "undefined") {
-        await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, phone, userId: data.user?.id }),
-        }).catch(() => {
-          // Non-blocking in case offline or handled by email confirmation callback
-        });
-      }
-    } catch {
-      // Ignored
+      await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: data.user?.id,
+          email,
+          name,
+          phone,
+        }),
+      });
+    } catch (err) {
+      console.warn("[authService] register backend sync failed non-fatally:", err);
     }
 
-    return { data };
+    return { data, error };
   }
 
   async login(
@@ -71,7 +73,7 @@ class AuthService {
       throw error;
     }
 
-    return { data };
+    return { data, error };
   }
 
   async logout(): Promise<void> {
@@ -84,13 +86,8 @@ class AuthService {
 
   async forgotPassword(email: string): Promise<void> {
     const supabase = createClient();
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/reset-password`
-        : "/reset-password";
-
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
+      redirectTo: typeof window !== "undefined" ? `${window.location.origin}/admin/ai/reset-password` : undefined,
     });
 
     if (error) {
@@ -99,64 +96,60 @@ class AuthService {
   }
 
   async getUserProfile(uid: string): Promise<UserProfile | null> {
-    // In server environment or unit tests, query via createAdminClient
-    if (typeof window === "undefined" || process.env.NODE_ENV === "test") {
+    // 1. In browser with fetch available, query through authoritative API route
+    if (typeof window !== "undefined" && typeof fetch === "function" && process.env.NODE_ENV !== "test") {
       try {
-        const { createAdminClient } = await import("@/lib/supabase/admin");
-        const supabase = createAdminClient();
-        const { data, error } = await supabase
-          .from("users")
-          .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
-          .or(`auth_user_id.eq.${uid},firestore_id.eq.${uid},id.eq.${uid}`)
-          .maybeSingle();
+        const supabase = createClient();
+        const sessionResult = await supabase.auth.getSession();
+        const session = sessionResult?.data?.session;
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
 
-        if (error || !data) return null;
+        const res = await fetch("/api/auth/me", {
+          method: "GET",
+          headers,
+          credentials: "include",
+        });
 
-        const row = data as Record<string, unknown>;
-        return {
-          uid: String(row.auth_user_id || row.firestore_id || row.id),
-          name: String(row.display_name || row.email || "").split("@")[0],
-          email: String(row.email || ""),
-          phone: row.phone_number ? String(row.phone_number) : "",
-          role: (row.role as any) || "devotee",
-          templeId: "main",
-          profileImage: "",
-          isApproved: false,
-          isActive: row.active !== false,
-          emailVerified: false,
-          lastLogin: null,
-          createdAt: row.created_at as any,
-          updatedAt: row.updated_at as any,
-        };
+        if (res.ok) {
+          return (await res.json()) as UserProfile;
+        }
       } catch (err) {
-        console.error("[authService] getUserProfile server read failed:", err);
-        return null;
+        console.warn("[authService] getUserProfile client fetch fallback:", err);
       }
     }
 
-    // In browser environment, query via authenticated API route
+    // 2. Client SDK query fallback (used in unit tests and server-side fallback)
     try {
       const supabase = createClient();
-      const sessionResult = await supabase.auth.getSession();
-      const session = sessionResult?.data?.session;
-      const headers: Record<string, string> = {};
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
-      }
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
+        .or(`auth_user_id.eq.${uid},firestore_id.eq.${uid},id.eq.${uid}`)
+        .maybeSingle();
 
-      const res = await fetch("/api/auth/me", {
-        method: "GET",
-        headers,
-        credentials: "include",
-      });
+      if (error || !data) return null;
 
-      if (!res.ok) {
-        return null;
-      }
-
-      return (await res.json()) as UserProfile;
+      const row = data as Record<string, unknown>;
+      return {
+        uid: String(row.auth_user_id || row.firestore_id || row.id),
+        name: String(row.display_name || row.email || "").split("@")[0],
+        email: String(row.email || ""),
+        phone: row.phone_number ? String(row.phone_number) : "",
+        role: (row.role as any) || "devotee",
+        templeId: "main",
+        profileImage: "",
+        isApproved: false,
+        isActive: row.active !== false,
+        emailVerified: false,
+        lastLogin: null,
+        createdAt: row.created_at as any,
+        updatedAt: row.updated_at as any,
+      };
     } catch (err) {
-      console.error("[authService] getUserProfile client fetch failed:", err);
+      console.error("[authService] getUserProfile query failed:", err);
       return null;
     }
   }
@@ -164,7 +157,7 @@ class AuthService {
   currentUser() {
     if (typeof window === "undefined") return null;
     const supabase = createClient();
-    let user: any = null;
+    let user: unknown = null;
     supabase.auth.getSession().then(({ data }) => {
       user = data.session?.user ?? null;
     }).catch(() => {
