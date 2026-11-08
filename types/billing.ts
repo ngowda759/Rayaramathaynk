@@ -60,8 +60,8 @@ export interface Bill {
   notes?: string;
   
   // Metadata
-  createdAt: Timestamp | FieldValue;
-  updatedAt: Timestamp | FieldValue;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
   createdBy: string;
 }
 

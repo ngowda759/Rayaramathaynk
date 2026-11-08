@@ -24,6 +24,7 @@ export interface AuthUser {
   uid: string;
   email: string | null;
   displayName: string | null;
+  photoURL?: string | null;
   emailVerified: boolean;
   getIdToken: () => Promise<string>;
   rawUser?: unknown;
@@ -80,6 +81,7 @@ function formatAuthUser(supaUser: any, token?: string): AuthUser {
     uid: supaUser.id,
     email,
     displayName: name,
+    photoURL: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || supaUser.photoURL || null,
     emailVerified: !!supaUser.email_confirmed_at,
     getIdToken: async () => {
       try {
