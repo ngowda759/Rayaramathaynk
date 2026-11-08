@@ -61,6 +61,7 @@ All 11 auth and security test suites (170/170 tests) pass cleanly. Strict TypeSc
 | `tests/unit/seva/legacy-user-routes.test.ts` | Modified | Updated test mocks to support Supabase Auth Admin and authoritative UUID identities. |
 | `tests/security/auth-hardening.test.ts` | Modified | Added tests for missing lookup methods, provider errors, email mismatch, update failure, duplicate conflict with/without matching record, and ambiguous matches. |
 | `tests/security/admin-role-fail-closed.test.ts` | Added | 8 dedicated tests proving fail-closed behavior on missing Auth Admin, lookup failure, creation failure, invalid UUID, DB update failure, mismatch, and forbidden callers. |
+| `tests/unit/admin-user-provisioning.test.ts` | Modified | Added Supabase database client mock (`from`) and updated actor permission fixtures to support fail-closed administrative provisioning and role management. |
 
 ---
 
@@ -68,12 +69,12 @@ All 11 auth and security test suites (170/170 tests) pass cleanly. Strict TypeSc
 
 ### 4.1. Comprehensive Auth & Security Test Execution
 ```bash
-npx jest tests/security/ tests/unit/auth/ tests/unit/admin-auth.test.ts tests/unit/auth-service.test.ts tests/unit/raya-ai-auth-isolation.test.ts tests/unit/sign-in-profile.test.ts tests/unit/seva/legacy-user-routes.test.ts
+npx jest tests/security/ tests/unit/auth/ tests/unit/admin-auth.test.ts tests/unit/auth-service.test.ts tests/unit/raya-ai-auth-isolation.test.ts tests/unit/sign-in-profile.test.ts tests/unit/seva/legacy-user-routes.test.ts tests/unit/admin-user-provisioning.test.ts
 ```
 **Result:**
 ```
 Test Suites: 8 passed, 8 total
-Tests:       159 passed, 159 total
+Tests:       163 passed, 163 total
 Snapshots:   0 total
 Time:        10.149 s
 ```
@@ -96,6 +97,15 @@ npm run build
 ```
 **Result:** Next.js production build succeeded with exit code 0. All 266 static and dynamic routes compiled successfully.
 
+### 4.5. GitHub Actions Continuous Integration
+- **Run ID:** [42502049890](https://github.com/ngowda759/Rayaramathaynk/actions/runs/42502049890)
+- **HEAD Commit:** `1884071230dcc4f7e56759fc38a1a108f25cc608`
+- **Jobs Status:**
+  - `Lint, typecheck, test, build`: **PASS** (13m 2s)
+  - `CodeQL (actions, js/ts, python)`: **PASS**
+  - `Vercel Deployment`: **PASS**
+- **Repository Full Test Suite:** 238 passed test suites (3,425 passed tests, 1 skipped).
+
 ---
 
 ## 5. Review Findings Compliance Matrix
@@ -105,8 +115,8 @@ npm run build
 | Finding 1 | Admin role promotion — mandatory fail-closed | PASS | `tests/security/admin-role-fail-closed.test.ts` (8/8 passed) |
 | Finding 2 | Registration — strict identity verification | PASS | `tests/security/auth-hardening.test.ts` (15/15 passed) |
 | Finding 3 | Admin creation — one canonical identity | PASS | No Firebase `createUser`, canonical Supabase Auth identity used for both `users` and `staff` |
-| Finding 4 | Repair full CI regression on `legacy-user-routes.test.ts` | PASS | `tests/unit/seva/legacy-user-routes.test.ts` (11/11 passed) |
-| Finding 5 | Full suite validation, zero regressions | PASS | 159/159 tests passing, typecheck clean, lint clean, build clean |
+| Finding 4 | Repair full CI regression on `legacy-user-routes.test.ts` and `admin-user-provisioning.test.ts` | PASS | All unit and route suites passing (15/15 passed across both suites) |
+| Finding 5 | Full suite validation, zero regressions | PASS | GitHub Actions CI Run `42502049890` green, 238 suites passed, typecheck clean, lint clean, build clean |
 
 ---
 
