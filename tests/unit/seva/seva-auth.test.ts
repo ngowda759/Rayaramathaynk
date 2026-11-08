@@ -13,14 +13,14 @@ jest.mock("server-only", () => ({}), { virtual: true });
 
 // ---- Supabase: an in-memory stand-in for from(table).select().eq().maybeSingle() ----------------------------------
 type Row = Record<string, unknown>;
-const mockTables: Record<string, Row[]> = { staff: [], counter_devices: [] };
+const mockTables: Record<string, Row[]> = { staff: [], counter_devices: [], users: [] };
 const mockFailing = { table: null as string | null };
 const mockQueries: { table: string; columns: string; filters: [string, unknown][] }[] = [];
 
 function mockFakeSupabase() {
   return {
     from(table: string) {
-      const call = { table, columns: "", filters: [] as [string, unknown][] };
+      const call = { table, columns: "", filters: [] as [string, unknown][], orFilter: "" };
       const query = {
         select(columns: string) {
           call.columns = columns;
@@ -30,12 +30,56 @@ function mockFakeSupabase() {
           call.filters.push([column, value]);
           return query;
         },
+        or(filterStr: string) {
+          call.orFilter = filterStr;
+          return query;
+        },
+        update(values: Record<string, unknown>) {
+          return {
+            eq(column: string, value: unknown) {
+              const rows = (mockTables[table] ?? []).filter((r) => r[column] === value);
+              for (const row of rows) {
+                Object.assign(row, values);
+              }
+              return Promise.resolve({ data: rows, error: null });
+            },
+          };
+        },
+        insert(values: Record<string, unknown>) {
+          mockTables[table] = mockTables[table] ?? [];
+          mockTables[table].push(values);
+          return Promise.resolve({ data: [values], error: null });
+        },
         async maybeSingle() {
           mockQueries.push(call);
           if (mockFailing.table === table) {
             return { data: null, error: { message: "connection refused for ramesh@example.org", code: "XX000" } };
           }
-          const rows = (mockTables[table] ?? []).filter((row) => call.filters.every(([c, v]) => row[c] === v));
+          let rows = [...(mockTables[table] ?? [])];
+          if (table === "users") {
+            for (const [uid, doc] of Object.entries(mockUserDocs)) {
+              if (doc && !rows.some((r) => r.firestore_id === uid || r.auth_user_id === uid)) {
+                rows.push({
+                  id: `u-${uid}`,
+                  firestore_id: uid,
+                  role: doc.role,
+                  active: doc.isActive === true,
+                  email: doc.email,
+                  name: doc.name,
+                });
+              }
+            }
+          }
+          if (call.orFilter) {
+            const parts = call.orFilter.split(",");
+            rows = rows.filter((row) =>
+              parts.some((part) => {
+                const [col, op, val] = part.split(".");
+                return op === "eq" && row[col] === val;
+              })
+            );
+          }
+          rows = rows.filter((row) => call.filters.every(([c, v]) => row[c] === v));
           return { data: rows[0] ?? null, error: null };
         },
       };
@@ -559,14 +603,14 @@ describe("Firebase identity adapter", () => {
   });
 
   it("reads a missing or non-boolean isActive as inactive", async () => {
-    for (const doc of [{ role: "receptionist" }, { role: "receptionist", isActive: "true" }, { role: "receptionist", isActive: 1 }]) {
-      mockUserDocs["uid-x"] = doc;
+    for (const doc of [{ role: "receptionist" }, { role: "receptionist", active: "true" }, { role: "receptionist", active: 1 }]) {
+      mockTables.users = [{ id: "u-x", firestore_id: "uid-x", ...doc }];
       expect(await firebaseIdentityAdapter.getAccessProfile("uid-x")).toEqual({ role: "receptionist", isActive: false });
     }
   });
 
   it("returns null when there is no users doc", async () => {
-    mockUserDocs["uid-none"] = undefined;
+    mockTables.users = [];
     expect(await firebaseIdentityAdapter.getAccessProfile("uid-none")).toBeNull();
   });
 
@@ -583,21 +627,15 @@ describe("Firebase identity adapter", () => {
     });
   });
 
-  it("merges only the given access fields into users/{uid}", async () => {
+  it("merges only the given access fields into users table", async () => {
+    mockTables.users = [{ id: "u-ramesh", firestore_id: "uid-ramesh", role: "receptionist", active: false }];
     await firebaseIdentityAdapter.setAccessProfile("uid-ramesh", { role: "temple_admin", isActive: true });
-    expect(mockUserSet).toHaveBeenCalledWith(
-      "users",
-      "uid-ramesh",
-      { uid: "uid-ramesh", role: "temple_admin", isActive: true, updatedAt: "SERVER_TIMESTAMP" },
-      { merge: true },
-    );
+    expect(mockTables.users[0]).toMatchObject({ role: "temple_admin", active: true });
+
     await firebaseIdentityAdapter.setAccessProfile("uid-new", { email: "new@example.org", displayName: "New Person" });
-    expect(mockUserSet).toHaveBeenLastCalledWith(
-      "users",
-      "uid-new",
-      { uid: "uid-new", email: "new@example.org", name: "New Person", updatedAt: "SERVER_TIMESTAMP" },
-      { merge: true },
-    );
+    const newUser = mockTables.users.find((u) => u.firestore_id === "uid-new");
+    expect(newUser).toBeDefined();
+    expect(newUser).toMatchObject({ email: "new@example.org", name: "New Person" });
   });
 
   it("disabling a login also revokes its refresh tokens; enabling does not", async () => {

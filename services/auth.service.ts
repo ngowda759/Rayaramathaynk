@@ -42,18 +42,26 @@ class AuthService {
 
     // Call user self-provisioning endpoint to guarantee public.users row exists
     try {
-      await fetch("/api/auth/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: data.user?.id,
+          userId: (data.user as { id?: string } | undefined)?.id,
           email,
           name,
           phone,
         }),
       });
+
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        const msg = errBody?.error || `Profile synchronization failed (${res.status})`;
+        console.error("[authService] register backend sync failed:", msg);
+        throw new Error(msg);
+      }
     } catch (err) {
-      console.warn("[authService] register backend sync failed non-fatally:", err);
+      console.error("[authService] register backend sync failed:", err);
+      throw err;
     }
 
     return { data, error };

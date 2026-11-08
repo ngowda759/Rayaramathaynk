@@ -46,8 +46,7 @@ jest.mock("firebase/firestore", () => ({
 
 jest.mock("@/lib/firebase", () => ({
   auth: {},
-  db: {},
-  isFirebaseConfigured: true,
+    isFirebaseConfigured: true,
   getFirebaseConfigStatus: () => ({ isValid: true, missingFields: [] }),
 }));
 
