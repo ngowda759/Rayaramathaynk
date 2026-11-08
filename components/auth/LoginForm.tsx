@@ -66,26 +66,20 @@ export default function LoginForm() {
       }, 2000);
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string };
-      switch (err.code) {
-        case "auth/invalid-credential":
-          toast.error("Invalid email or password.");
-          break;
-
-        case "auth/user-not-found":
-          toast.error("No account found.");
-          break;
-
-        case "auth/wrong-password":
-          toast.error("Incorrect password.");
-          break;
-
-        case "auth/too-many-requests":
-          toast.error("Too many login attempts.");
-          break;
-
-        default:
-          toast.error(err.message || "Login failed.");
+      const code = err.code || "";
+      const msg = err.message || "";
+      if (code === "auth/invalid-credential" || code === "invalid_credentials" || /invalid login credentials|invalid email or password/i.test(msg)) {
+        toast.error("Invalid email or password.");
+      } else if (code === "auth/user-not-found" || /no account found|user not found/i.test(msg)) {
+        toast.error("No account found.");
+      } else if (code === "auth/wrong-password" || /incorrect password/i.test(msg)) {
+        toast.error("Incorrect password.");
+      } else if (code === "auth/too-many-requests" || code === "over_request_rate_limit" || /too many/i.test(msg)) {
+        toast.error("Too many login attempts.");
+      } else {
+        toast.error(msg || "Login failed.");
       }
+
     }
   }
 

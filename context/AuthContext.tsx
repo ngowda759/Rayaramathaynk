@@ -8,9 +8,7 @@ import {
   ReactNode,
 } from "react";
 
-import { User, onAuthStateChanged } from "firebase/auth";
-
-import { auth, initializeAuthPersistence } from "@/lib/firebase";
+import { createClient } from "@/lib/supabase/client";
 import { setAuthTokenGetter } from "@/lib/api/auth-token";
 import {
   authService,
@@ -21,12 +19,22 @@ import { UserProfile, UserRole, normalizeRole, NormalizedRole } from "@/types/us
 import { mapFirestoreRole } from "@/lib/seva/permissions";
 import type { SevaRole } from "@/types/seva";
 
+export interface AuthUser {
+  id: string;
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  emailVerified: boolean;
+  getIdToken: () => Promise<string>;
+  rawUser?: unknown;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   profile: UserProfile | null;
   normalizedRole: NormalizedRole;
   /**
-   * The Seva Entry role read from the Firestore role (C-62): temple_admin and legacy admin -> temple_admin; billing,
+   * The Seva Entry role read from the user profile role (C-62): temple_admin and legacy admin -> temple_admin; billing,
    * priest, staff and everything else -> null. Only hides and routes in the browser; the seva API decides access.
    */
   sevaRole: SevaRole | null;
@@ -59,10 +67,37 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+function formatAuthUser(supaUser: any, token?: string): AuthUser {
+  const email = supaUser.email ?? null;
+  const name =
+    supaUser.user_metadata?.name ||
+    supaUser.user_metadata?.full_name ||
+    supaUser.user_metadata?.displayName ||
+    (email ? email.split("@")[0] : null);
+
+  return {
+    id: supaUser.id,
+    uid: supaUser.id,
+    email,
+    displayName: name,
+    emailVerified: !!supaUser.email_confirmed_at,
+    getIdToken: async () => {
+      try {
+        const supabase = createClient();
+        const session = (await supabase.auth.getSession()).data.session;
+        return session?.access_token || token || "";
+      } catch {
+        return token || "";
+      }
+    },
+    rawUser: supaUser,
+  };
+}
+
 export function AuthProvider({
   children,
 }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const [profile, setProfile] =
     useState<UserProfile | null>(null);
@@ -72,10 +107,9 @@ export function AuthProvider({
   async function loadProfile(uid: string) {
     try {
       const data = await authService.getUserProfile(uid);
-
       setProfile(data as UserProfile | null);
     } catch (error) {
-      console.error("Failed to load user profile:", error);
+      console.error("[AuthContext] Failed to load user profile:", error);
       setProfile(null);
     }
   }
@@ -88,66 +122,61 @@ export function AuthProvider({
   }
 
   useEffect(() => {
-    // Skip Firebase auth if not properly configured
-    if (!auth) {
-      console.log("Firebase auth not configured - skipping auth listener");
-      // Use setTimeout to avoid synchronous state update during effect
-      setTimeout(() => setLoading(false), 0);
-      return;
-    }
-
-    let unsubscribe: (() => void) | undefined;
+    let isMounted = true;
+    const supabase = createClient();
 
     // Register the browser access-token provider used by `lib/api/fetch.ts`.
-    // `apiFetch` attaches the signed-in admin's Firebase ID token to every
-    // `/api/admin/**` request; without this registration those guarded routes
-    // receive no Authorization header and answer 401. The getter reads the token
-    // on demand from the live user, so a refreshed token is never cached stale.
+    // Attaches the signed-in user's Supabase access token to every `/api/**` request.
     setAuthTokenGetter(async () => {
-      const current = auth?.currentUser;
-      return current ? current.getIdToken() : null;
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        return session?.access_token || null;
+      } catch {
+        return null;
+      }
     });
 
-    try {
-      // Initialize auth persistence first (client-side only)
-      initializeAuthPersistence(auth).then(() => {
-        console.log("Auth persistence initialized");
-      }).catch(err => {
-        console.error("Failed to initialize auth persistence:", err);
-      });
+    // 1. Initial session check
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
+      if (session?.user) {
+        const authUser = formatAuthUser(session.user, session.access_token);
+        setUser(authUser);
+        await loadProfile(session.user.id);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+      setLoading(false);
+    }).catch((err) => {
+      console.error("[AuthContext] Failed to get Supabase session:", err);
+      if (isMounted) {
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      }
+    });
 
-      unsubscribe = onAuthStateChanged(
-        auth,
-        async (firebaseUser) => {
-          // Use setTimeout to avoid synchronous state update during effect
-          setTimeout(() => setLoading(true), 0);
-
-          try {
-            setUser(firebaseUser);
-
-            if (firebaseUser) {
-              await loadProfile(firebaseUser.uid);
-            } else {
-              setProfile(null);
-            }
-          } catch (err) {
-            console.error("Auth state change error:", err);
-            setProfile(null);
-          } finally {
-            setTimeout(() => setLoading(false), 0);
-          }
+    // 2. Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!isMounted) return;
+        if (session?.user) {
+          const authUser = formatAuthUser(session.user, session.access_token);
+          setUser(authUser);
+          await loadProfile(session.user.id);
+        } else {
+          setUser(null);
+          setProfile(null);
         }
-      );
-    } catch (err) {
-      console.error("Firebase auth initialization error:", err);
-      setTimeout(() => setLoading(false), 0);
-    }
+        setLoading(false);
+      }
+    );
 
     return () => {
+      isMounted = false;
       setAuthTokenGetter(null);
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      subscription?.unsubscribe();
     };
   }, []);
 
@@ -164,6 +193,7 @@ export function AuthProvider({
 
   async function logout() {
     await authService.logout();
+    setUser(null);
     setProfile(null);
   }
 
