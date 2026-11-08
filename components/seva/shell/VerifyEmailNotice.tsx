@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type JSX } from "react";
-import type { User } from "firebase/auth";
+
 
 import { PendingButton } from "@/components/seva/motion/PendingButton";
 import { Bilingual } from "@/components/seva/ui/Bilingual";
@@ -13,7 +13,7 @@ export const VERIFY_RESEND_COOLDOWN_MS = 60_000;
 
 export interface VerifyEmailNoticeProps {
   /** The signed-in Firebase user whose email is not verified. */
-  user: User;
+  user: { email?: string | null; emailVerified?: boolean };
 }
 
 /**

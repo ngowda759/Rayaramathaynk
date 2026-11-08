@@ -8,6 +8,9 @@
 const util = require("util");
 const streamWeb = require("stream/web");
 const workerThreads = require("worker_threads");
+const timers = require("timers");
+
+jest.mock("server-only", () => ({}), { virtual: true });
 
 // undici depends on these globals; jsdom does not provide them.
 if (typeof global.TextEncoder === "undefined") global.TextEncoder = util.TextEncoder;
@@ -17,6 +20,27 @@ if (typeof global.WritableStream === "undefined") global.WritableStream = stream
 if (typeof global.TransformStream === "undefined") global.TransformStream = streamWeb.TransformStream;
 if (typeof global.MessageChannel === "undefined") global.MessageChannel = workerThreads.MessageChannel;
 if (typeof global.MessagePort === "undefined") global.MessagePort = workerThreads.MessagePort;
+
+// Polyfill Node timers and Performance timing methods that undici requires in jsdom
+global.setImmediate = timers.setImmediate;
+global.clearImmediate = timers.clearImmediate;
+globalThis.setImmediate = timers.setImmediate;
+globalThis.clearImmediate = timers.clearImmediate;
+
+if (typeof window !== "undefined") {
+  window.setImmediate = timers.setImmediate;
+  window.clearImmediate = timers.clearImmediate;
+  if (typeof window.performance !== "undefined") {
+    if (typeof window.performance.markResourceTiming !== "function") {
+      window.performance.markResourceTiming = () => {};
+    }
+  }
+}
+if (typeof global.performance !== "undefined") {
+  if (typeof global.performance.markResourceTiming !== "function") {
+    global.performance.markResourceTiming = () => {};
+  }
+}
 
 const { Request, Response, Headers, FormData, fetch } = require("undici");
 

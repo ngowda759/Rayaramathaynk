@@ -62,15 +62,14 @@ export default function RegisterForm() {
       );
       router.push("/login");
     } catch (error: any) {
-      switch (error.code) {
-        case "auth/email-already-in-use":
-          toast.error("This email is already registered.");
-          break;
-        case "auth/weak-password":
-          toast.error("Please choose a stronger password.");
-          break;
-        default:
-          toast.error(error.message || "Registration failed.");
+      const code = error?.code || "";
+      const msg = error?.message || "";
+      if (code === "auth/email-already-in-use" || code === "user_already_exists" || /already registered|already in use/i.test(msg)) {
+        toast.error("This email is already registered.");
+      } else if (code === "auth/weak-password" || /weak password|at least 6 characters/i.test(msg)) {
+        toast.error("Please choose a stronger password.");
+      } else {
+        toast.error(msg || "Registration failed.");
       }
     }
   }

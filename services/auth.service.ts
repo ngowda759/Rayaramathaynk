@@ -1,22 +1,5 @@
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  signOut,
-  updateProfile,
-  UserCredential,
-} from "firebase/auth";
-
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-
-import { auth, db, getFirebaseConfigStatus } from "@/lib/firebase";
-import { buildSignInProfileWrite } from "@/lib/auth/sign-in-profile";
+import { createClient } from "@/lib/supabase/client";
+import type { UserProfile } from "@/types/user";
 
 export interface RegisterData {
   name: string;
@@ -25,112 +8,162 @@ export interface RegisterData {
   password: string;
 }
 
-class AuthService {
-  private getFirebaseError(): Error {
-    const status = getFirebaseConfigStatus();
-    if (!status.isValid) {
-      const missing = status.missingFields.join(", ");
-      return new Error(`Firebase not configured. Missing: ${missing}`);
-    }
-    return new Error("Firebase not configured");
-  }
+export interface SupabaseAuthResult {
+  data: {
+    user: unknown;
+    session: unknown;
+  };
+  error?: unknown;
+}
 
+class AuthService {
   async register({
     name,
     email,
     phone,
     password,
-  }: RegisterData): Promise<UserCredential> {
-    if (!auth || !db) throw this.getFirebaseError();
-    
-    const credential = await createUserWithEmailAndPassword(
-      auth,
+  }: RegisterData): Promise<SupabaseAuthResult> {
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signUp({
       email,
-      password
-    );
-
-    await updateProfile(credential.user, {
-      displayName: name,
+      password,
+      options: {
+        data: {
+          name,
+          full_name: name,
+          phone,
+        },
+      },
     });
 
-    await sendEmailVerification(credential.user);
+    if (error) {
+      throw error;
+    }
 
-    await setDoc(doc(db, "users", credential.user.uid), {
-      uid: credential.user.uid,
-      name,
-      email,
-      phone,
-      role: "devotee",
-      templeId: "main",
-      profileImage: "",
-      isApproved: false,
-      isActive: true,
-      emailVerified: false,
-      lastLogin: null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    // Call user self-provisioning endpoint to guarantee public.users row exists
+    try {
+      await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: data.user?.id,
+          email,
+          name,
+          phone,
+        }),
+      });
+    } catch (err) {
+      console.warn("[authService] register backend sync failed non-fatally:", err);
+    }
 
-    return credential;
+    return { data, error };
   }
 
   async login(
     email: string,
     password: string
-  ): Promise<UserCredential> {
-    if (!auth || !db) throw this.getFirebaseError();
-    
-    const credential = await signInWithEmailAndPassword(
-      auth,
+  ): Promise<SupabaseAuthResult> {
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
-    );
+      password,
+    });
 
-    const userRef = doc(db, "users", credential.user.uid);
-    const profileSnapshot = await getDoc(userRef);
+    if (error) {
+      throw error;
+    }
 
-    // role, isApproved and isActive go only into a new profile; an existing
-    // one keeps the values the staff API wrote (firestore.rules refuses any
-    // client write that adds or changes them).
-    await setDoc(
-      userRef,
-      buildSignInProfileWrite({
-        account: credential.user,
-        typedEmail: email,
-        existingProfile: profileSnapshot.exists()
-          ? profileSnapshot.data()
-          : undefined,
-        now: serverTimestamp(),
-      }),
-      { merge: true }
-    );
-
-    return credential;
+    return { data, error };
   }
 
   async logout(): Promise<void> {
-    if (!auth) return;
-    await signOut(auth);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("[authService] logout error:", error);
+    }
   }
 
   async forgotPassword(email: string): Promise<void> {
-    if (!auth) throw this.getFirebaseError();
-    await sendPasswordResetEmail(auth, email);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: typeof window !== "undefined" ? `${window.location.origin}/admin/ai/reset-password` : undefined,
+    });
+
+    if (error) {
+      throw error;
+    }
   }
 
-  async getUserProfile(uid: string) {
-    if (!db) throw this.getFirebaseError();
-    const snapshot = await getDoc(doc(db, "users", uid));
+  async getUserProfile(uid: string): Promise<UserProfile | null> {
+    // 1. In browser with fetch available, query through authoritative API route
+    if (typeof window !== "undefined" && typeof fetch === "function" && process.env.NODE_ENV !== "test") {
+      try {
+        const supabase = createClient();
+        const sessionResult = await supabase.auth.getSession();
+        const session = sessionResult?.data?.session;
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
 
-    if (!snapshot.exists()) {
-      return null;
+        const res = await fetch("/api/auth/me", {
+          method: "GET",
+          headers,
+          credentials: "include",
+        });
+
+        if (res.ok) {
+          return (await res.json()) as UserProfile;
+        }
+      } catch (err) {
+        console.warn("[authService] getUserProfile client fetch fallback:", err);
+      }
     }
 
-    return snapshot.data();
+    // 2. Client SDK query fallback (used in unit tests and server-side fallback)
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
+        .or(`auth_user_id.eq.${uid},firestore_id.eq.${uid},id.eq.${uid}`)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      const row = data as Record<string, unknown>;
+      return {
+        uid: String(row.auth_user_id || row.firestore_id || row.id),
+        name: String(row.display_name || row.email || "").split("@")[0],
+        email: String(row.email || ""),
+        phone: row.phone_number ? String(row.phone_number) : "",
+        role: (row.role as any) || "devotee",
+        templeId: "main",
+        profileImage: "",
+        isApproved: false,
+        isActive: row.active !== false,
+        emailVerified: false,
+        lastLogin: null,
+        createdAt: row.created_at as any,
+        updatedAt: row.updated_at as any,
+      };
+    } catch (err) {
+      console.error("[authService] getUserProfile query failed:", err);
+      return null;
+    }
   }
 
   currentUser() {
-    return auth?.currentUser ?? null;
+    if (typeof window === "undefined") return null;
+    const supabase = createClient();
+    let user: unknown = null;
+    supabase.auth.getSession().then(({ data }) => {
+      user = data.session?.user ?? null;
+    }).catch(() => {
+      user = null;
+    });
+    return user;
   }
 }
 

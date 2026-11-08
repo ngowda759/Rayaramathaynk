@@ -3,7 +3,8 @@
  */
 
 import { Locale } from "@/lib/i18n";
-import { Timestamp } from "firebase/firestore";
+import type { TimestampLike } from "@/types/user";
+
 
 export type Theme = "light" | "dark" | "system";
 
@@ -48,8 +49,8 @@ export interface DevoteeProfile {
   favorites: string[];
   recentlyViewed: string[];
   bookmarks: Bookmark[];
-  createdAt: Timestamp | Date;
-  updatedAt: Timestamp | Date;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
 }
 
 export interface Bookmark {
