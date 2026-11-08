@@ -6,7 +6,12 @@ const config: Config = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
-  testMatch: ["**/tests/unit/**/*.test.ts", "**/tests/unit/**/*.test.tsx", "**/tests/ai-uat/**/*.test.ts"],
+  testMatch: [
+    "**/tests/unit/**/*.test.ts",
+    "**/tests/unit/**/*.test.tsx",
+    "**/tests/security/**/*.test.ts",
+    "**/tests/ai-uat/**/*.test.ts",
+  ],
   setupFiles: ["<rootDir>/tests/setup/jest.setup.ts"],
   transform: {
     "^.+\\.tsx?$": ["ts-jest", {
