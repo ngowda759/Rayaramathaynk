@@ -1,15 +1,16 @@
 /**
- * POST /api/admin/users/create-admin { email, password, name } - adds another super admin (older admin route, kept for
- * its callers; same body and a success answer with `success` and `message` as before).
+ * POST /api/admin/users/create-admin { email, password, name } - adds another super admin.
  *
- * This route used to be open to anyone. It now answers to the staff rules of the seva module (DB §13.6, §17.1):
+ * Answers to the staff rules of the seva module (DB §13.6, §17.1):
  * - only a signed-in, active super admin may call it (giving the super admin role is DB §3.3 row 19);
- * - the new person is onboarded exactly as on the Staff and roles page (DB §3.2): login, Firestore profile (role
- *   super_admin, active), Supabase staff row with the next staff number (invited until the first sign-in) and the
- *   staff.onboard audit row - so they can later be offboarded like anyone else;
- * - unlike the page, the caller sets the first password, as this route always did.
- * A step that fails after an earlier one went through answers 502 partial_failure. Errors use the seva shape
- * `{ error: { code, message } }`.
+ * - Supabase Auth is the canonical provider: identity creation is authoritative and fail-closed;
+ * - the new person is onboarded with:
+ *     1. Supabase Auth identity (auth_user_id)
+ *     2. public.users authorization record (role super_admin, active)
+ *     3. Supabase staff row with the next staff number and staff.auth_user_id
+ *     4. staff.onboard audit row
+ * - Firebase Auth login is maintained as non-blocking compatibility fallback.
+ * Errors use the seva shape `{ error: { code, message } }`.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -26,14 +27,14 @@ const createAdminSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80, "Keep the name to 80 characters or fewer"),
 });
 
-/** Makes the Firebase Auth login with the caller's password (this route is Firebase-specific by nature). */
+/** Compatibility helper: makes the Firebase Auth login with caller's password. */
 async function createPasswordLogin(
   login: { email: string; displayName: string },
   password: string,
 ): Promise<{ externalUid: string }> {
-  const { getAdminApp } = await import("@/lib/admin-firebase");
-  const { getAuth } = await import("firebase-admin/auth");
   try {
+    const { getAdminApp } = await import("@/lib/admin-firebase");
+    const { getAuth } = await import("firebase-admin/auth");
     const user = await getAuth(await getAdminApp()).createUser({
       email: login.email,
       password,
@@ -45,49 +46,55 @@ async function createPasswordLogin(
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;
     if (code === "auth/email-already-exists") {
-      throw new SevaError("validation", { field: "email", message: "This email already has a sign-in account." });
+      // If already exists in Firebase, that is acceptable for compatibility
+      return { externalUid: `compat-${login.email}` };
     }
-    if (code === "auth/invalid-password") {
-      throw new SevaError("validation", { field: "password", message: "Choose a longer password." });
-    }
-    if (code === "auth/invalid-email") {
-      throw new SevaError("validation", { field: "email", message: "Invalid email format" });
-    }
-    throw error;
+    // Non-fatal if Firebase is disabled or unconfigured
+    return { externalUid: `compat-${login.email}` };
   }
 }
 
-/** Synchronizes or retrieves Supabase Auth identity for Phase 2 identity unification. */
-async function syncSupabaseAdminIdentity(
+/** Authoritative Supabase Auth identity provisioning for admin unification (fail-closed). */
+async function provisionSupabaseAdminIdentity(
   email: string,
   password: string,
   displayName: string,
-): Promise<string | null> {
-  try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    const adminAuth = (supabase as unknown as { auth?: { admin?: { getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } } }>; createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }> } } })?.auth?.admin;
-    if (typeof adminAuth?.getUserByEmail === "function") {
-      const { data: existing } = await adminAuth.getUserByEmail(email);
-      if (existing?.user?.id) {
-        return existing.user.id;
-      }
-      if (typeof adminAuth?.createUser === "function") {
-        const { data: created, error } = await adminAuth.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { full_name: displayName },
-        });
-        if (!error && created?.user?.id) {
-          return created.user.id;
-        }
-      }
+): Promise<string> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
+  const adminAuth = (supabase as unknown as {
+    auth?: {
+      admin?: {
+        getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+        createUser?: (opts: Record<string, unknown>) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+      };
+    };
+  })?.auth?.admin;
+
+  if (typeof adminAuth?.getUserByEmail === "function") {
+    const { data: existing, error: getError } = await adminAuth.getUserByEmail(email);
+    if (!getError && existing?.user?.id) {
+      return existing.user.id;
     }
-  } catch {
-    // Supabase Auth admin lookup is optional
   }
-  return null;
+
+  if (typeof adminAuth?.createUser === "function") {
+    const { data: created, error } = await adminAuth.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: displayName, name: displayName },
+    });
+
+    if (error || !created?.user?.id) {
+      console.error("[create-admin] Supabase Auth createUser failed:", error);
+      throw new SevaError("internal");
+    }
+
+    return created.user.id;
+  }
+
+  throw new SevaError("internal");
 }
 
 export async function POST(request: NextRequest) {
@@ -98,7 +105,10 @@ export async function POST(request: NextRequest) {
   if (!guard.ok) return guard.response;
   try {
     const { email, password, name } = parseInput(createAdminSchema, await readJson(request));
-    const authUserId = await syncSupabaseAdminIdentity(email, password, name);
+    
+    // Authoritative fail-closed identity provisioning
+    const authUserId = await provisionSupabaseAdminIdentity(email, password, name);
+
     const { staffId, staffNo } = await onboardStaff(
       guard.actor,
       { fullName: name, email, role: "super_admin", viewOnly: false },
@@ -107,6 +117,7 @@ export async function POST(request: NextRequest) {
         authUserId,
       },
     );
+
     return NextResponse.json(
       {
         success: true,

@@ -1,17 +1,15 @@
 /**
- * POST /api/admin/users/set-role { email, role } - sets a person's Firestore role (older admin route, kept for its
- * callers; same body, same role names and the same success answer as before).
+ * POST /api/admin/users/set-role { email, role } - sets a person's role.
  *
- * It answers to the staff rules of the seva module (DB §13.6, §17.1), through lib/seva/server/staff.ts:
+ * Answers to the staff rules of the seva module (DB §13.6, §17.1), through lib/seva/server/staff.ts:
  * - only a signed-in, active temple admin (not view-only) or super admin may call it;
  * - only a super admin gives `super_admin` (DB §3.3 row 19);
  * - a temple admin changes only another person who has a staff row and is below super admin (row 20, C-17);
- *   everyone else - and any legacy role - is a super admin's call (C-62);
+ *   everyone else is a super admin's call (C-62);
  * - a change for someone with a staff row writes the staff.role_change audit row.
  * Errors use the seva shape `{ error: { code, message } }`.
  *
- * The person is found by their sign-in email in Firebase Auth, never by the Firestore profile's own email field, which
- * the person can edit (A1 security gate L-4). An account that never signed in has no profile and is not found.
+ * Identity resolution uses Supabase Auth primary with Firebase Auth fallback.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -29,12 +27,50 @@ const setRoleSchema = z.object({
   role: z.enum(ROLES, { error: `Invalid role. Must be one of: ${ROLES.join(", ")}` }),
 });
 
-/** The Firebase Auth account for a sign-in email (this route is Firebase-specific by nature). */
+/** Resolves sign-in account identity via Supabase Auth primary and Firebase fallback. */
 async function findLoginUid(email: string): Promise<string> {
-  const { getAdminApp } = await import("@/lib/admin-firebase");
-  const { getAuth } = await import("firebase-admin/auth");
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // 1. Primary: Supabase Auth Admin
   try {
-    return (await getAuth(await getAdminApp()).getUserByEmail(email)).uid;
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    const adminAuth = (supabase as unknown as {
+      auth?: {
+        admin?: {
+          getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
+          listUsers?: () => Promise<{ data?: { users?: any[] }; error?: unknown }>;
+        };
+      };
+    })?.auth?.admin;
+
+    if (typeof adminAuth?.getUserByEmail === "function") {
+      const { data, error } = await adminAuth.getUserByEmail(normalizedEmail);
+      if (!error && data?.user?.id) {
+        return data.user.id;
+      }
+    }
+
+    if (typeof adminAuth?.listUsers === "function") {
+      const { data } = await adminAuth.listUsers();
+      if (Array.isArray(data?.users)) {
+        const found = data.users.find(
+          (u: any) => u.email?.trim().toLowerCase() === normalizedEmail
+        );
+        if (found?.id) {
+          return found.id;
+        }
+      }
+    }
+  } catch {
+    // proceed to compatibility fallback
+  }
+
+  // 2. Compatibility fallback: Firebase Auth
+  try {
+    const { getAdminApp } = await import("@/lib/admin-firebase");
+    const { getAuth } = await import("firebase-admin/auth");
+    return (await getAuth(await getAdminApp()).getUserByEmail(normalizedEmail)).uid;
   } catch (error) {
     if ((error as { code?: unknown } | null)?.code === "auth/user-not-found") {
       throw new SevaError("not_found", { entity: "user" });
