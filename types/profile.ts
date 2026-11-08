@@ -3,7 +3,7 @@
  */
 
 import { Locale } from "@/lib/i18n";
-import { Timestamp } from "firebase/firestore";
+
 
 export type Theme = "light" | "dark" | "system";
 

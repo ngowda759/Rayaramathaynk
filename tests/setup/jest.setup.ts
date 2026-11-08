@@ -9,6 +9,8 @@ const util = require("util");
 const streamWeb = require("stream/web");
 const workerThreads = require("worker_threads");
 
+jest.mock("server-only", () => ({}), { virtual: true });
+
 // undici depends on these globals; jsdom does not provide them.
 if (typeof global.TextEncoder === "undefined") global.TextEncoder = util.TextEncoder;
 if (typeof global.TextDecoder === "undefined") global.TextDecoder = util.TextDecoder;
