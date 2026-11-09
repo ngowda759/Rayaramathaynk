@@ -14,6 +14,16 @@ const profileSyncSchema = z
   })
   .strict();
 
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
 async function getCallerIdentity(request: NextRequest): Promise<{
   uid: string;
   email: string | null;
@@ -24,13 +34,56 @@ async function getCallerIdentity(request: NextRequest): Promise<{
   const token = header.slice(7).trim();
   if (!token) return null;
 
-  // 1. Supabase Auth
+  const payload = parseJwtPayload(token);
+  const iss = typeof payload?.iss === "string" ? payload.iss : "";
+  const aud = typeof payload?.aud === "string" ? payload.aud : "";
+
+  const isFirebaseToken = iss.startsWith("https://securetoken.google.com/");
+  const isSupabaseToken = iss.includes("supabase") || aud === "authenticated";
+
+  // 1. Firebase Admin Auth (for Firebase tokens, or unrecognized tokens if not explicitly Supabase)
+  if (isFirebaseToken || (!isSupabaseToken && !token.startsWith("sb-"))) {
+    try {
+      const { getAdminApp } = await import("@/lib/admin-firebase");
+      const app = await getAdminApp();
+      const { getAuth } = await import("firebase-admin/auth");
+      const auth = getAuth(app);
+      // Revocation checking enabled (checkRevoked = true)
+      const decoded = await auth.verifyIdToken(token, true);
+      return {
+        uid: decoded.uid,
+        email: typeof decoded.email === "string" ? decoded.email : null,
+        emailVerified: decoded.email_verified === true,
+      };
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      // Do not silently fall back if provider had an internal/server error
+      if (typeof code === "string" && (code === "auth/internal-error" || code === "auth/quota-exceeded")) {
+        console.error("[getCallerIdentity] Firebase auth server error:", code);
+        throw new Error("Authentication provider error");
+      }
+      // If the token explicitly claimed to be Firebase, do not fall back to Supabase
+      if (isFirebaseToken) {
+        return null;
+      }
+    }
+  }
+
+  // 2. Supabase Auth (for Supabase tokens or non-Firebase fallbacks)
   try {
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const supabase = createAdminClient();
     if (typeof supabase?.auth?.getUser === "function") {
       const { data, error } = await supabase.auth.getUser(token);
-      if (!error && data?.user) {
+      if (error) {
+        const status = (error as { status?: number })?.status;
+        if (typeof status === "number" && status >= 500) {
+          console.error("[getCallerIdentity] Supabase auth server error:", error.message);
+          throw new Error("Authentication provider error");
+        }
+        return null;
+      }
+      if (data?.user) {
         const emailVerified = Boolean(
           data.user.email_confirmed_at || (data.user as { confirmed_at?: string }).confirmed_at
         );
@@ -41,30 +94,26 @@ async function getCallerIdentity(request: NextRequest): Promise<{
         };
       }
     }
-  } catch {
-    // proceed to Firebase
-  }
-
-  // 2. Firebase Admin Auth
-  try {
-    const { getAdminApp } = await import("@/lib/admin-firebase");
-    const app = await getAdminApp();
-    const { getAuth } = await import("firebase-admin/auth");
-    const auth = getAuth(app);
-    const decoded = await auth.verifyIdToken(token, true);
-    return {
-      uid: decoded.uid,
-      email: typeof decoded.email === "string" ? decoded.email : null,
-      emailVerified: decoded.email_verified === true,
-    };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Authentication provider error") {
+      throw error;
+    }
     return null;
   }
+
+  return null;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const caller = await getCallerIdentity(request);
+    let caller: { uid: string; email: string | null; emailVerified: boolean } | null;
+    try {
+      caller = await getCallerIdentity(request);
+    } catch (authError) {
+      console.error("[GET /api/auth/profile] Auth provider failure:", authError);
+      return NextResponse.json({ error: "Authentication provider error" }, { status: 503 });
+    }
+
     if (!caller) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -89,6 +138,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ profile: null }, { status: 200 });
     }
 
+    // Read canonical approval field from Supabase users record
+    const isApproved = Boolean(
+      (data as Record<string, unknown>).is_approved ??
+      (data as Record<string, unknown>).isApproved ??
+      false
+    );
+
     const profile: UserProfile = {
       uid: String(data.auth_user_id || data.firestore_id || data.id),
       name: data.display_name || (data.email ? data.email.split("@")[0] : "Devotee"),
@@ -97,7 +153,7 @@ export async function GET(request: NextRequest) {
       role: (data.role as any) || "devotee",
       templeId: "main",
       profileImage: data.photo_url || "",
-      isApproved: false,
+      isApproved,
       isActive: data.active !== false,
       emailVerified: caller.emailVerified,
       lastLogin: null,
@@ -114,7 +170,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const caller = await getCallerIdentity(request);
+    let caller: { uid: string; email: string | null; emailVerified: boolean } | null;
+    try {
+      caller = await getCallerIdentity(request);
+    } catch (authError) {
+      console.error("[POST /api/auth/profile] Auth provider failure:", authError);
+      return NextResponse.json({ error: "Authentication provider error" }, { status: 503 });
+    }
+
     if (!caller) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -158,7 +221,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (existingUser) {
-      // Preserve existing role and active status - never allow client to change them
+      // Preserve existing role, approval, and active status - never allow client to change them
       const { error: updateError } = await supabase
         .from("users")
         .update(updateFields)
@@ -169,11 +232,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Database error" }, { status: 500 });
       }
     } else {
-      // New profile creation: default to devotee role, active: true
+      // New profile creation: default to devotee role, active: true, is_approved: false
       const insertData: Record<string, unknown> = {
         ...updateFields,
         role: "devotee",
         active: true,
+        is_approved: false,
         created_at: new Date().toISOString(),
       };
 

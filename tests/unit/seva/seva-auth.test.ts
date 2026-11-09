@@ -37,6 +37,9 @@ function mockFakeSupabase() {
         update(values: Record<string, unknown>) {
           return {
             eq(column: string, value: unknown) {
+              if (mockFailing.table === table || mockFailing.table === `${table}:update`) {
+                return Promise.resolve({ data: null, error: { message: "update failed", code: "XX000" } });
+              }
               const rows = (mockTables[table] ?? []).filter((r) => r[column] === value);
               for (const row of rows) {
                 Object.assign(row, values);
@@ -46,6 +49,9 @@ function mockFakeSupabase() {
           };
         },
         insert(values: Record<string, unknown>) {
+          if (mockFailing.table === table || mockFailing.table === `${table}:insert`) {
+            return Promise.resolve({ data: null, error: { message: "insert failed", code: "XX000" } });
+          }
           mockTables[table] = mockTables[table] ?? [];
           mockTables[table].push(values);
           return Promise.resolve({ data: [values], error: null });
@@ -655,5 +661,26 @@ describe("Firebase identity adapter", () => {
     await expect(firebaseIdentityAdapter.deleteLogin("uid-gone")).resolves.toBeUndefined();
     mockAuth.deleteUser.mockRejectedValueOnce(Object.assign(new Error("quota"), { code: "auth/quota-exceeded" }));
     await expect(firebaseIdentityAdapter.deleteLogin("uid-busy")).rejects.toThrow("quota");
+  });
+  it("throws SevaError internal when Supabase query fails in getAccessProfile", async () => {
+    mockFailing.table = "users";
+    await expect(firebaseIdentityAdapter.getAccessProfile("uid-fail")).rejects.toMatchObject({ code: "internal" });
+  });
+
+  it("throws SevaError internal when Supabase lookup fails in setAccessProfile", async () => {
+    mockFailing.table = "users";
+    await expect(firebaseIdentityAdapter.setAccessProfile("uid-fail", { role: "temple_admin" })).rejects.toMatchObject({ code: "internal" });
+  });
+
+  it("throws SevaError internal when Supabase update fails in setAccessProfile", async () => {
+    mockTables.users = [{ id: "u-ramesh", firestore_id: "uid-ramesh", role: "receptionist", active: true }];
+    mockFailing.table = "users:update";
+    await expect(firebaseIdentityAdapter.setAccessProfile("uid-ramesh", { role: "temple_admin" })).rejects.toMatchObject({ code: "internal" });
+  });
+
+  it("throws SevaError internal when Supabase insert fails in setAccessProfile", async () => {
+    mockTables.users = [];
+    mockFailing.table = "users:insert";
+    await expect(firebaseIdentityAdapter.setAccessProfile("uid-new", { role: "devotee" })).rejects.toMatchObject({ code: "internal" });
   });
 });

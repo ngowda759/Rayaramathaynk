@@ -2,10 +2,12 @@
  * Unit tests for app/api/auth/profile/route.ts
  *
  * Verifies profile API security rules:
- *   1. Never assume email verification from a valid token claim.
- *   2. Preserve existing role and approval/active status.
- *   3. Forbid client-controlled privileged field updates (role, isApproved, active).
- *   4. Fail safely and explicitly on Supabase database errors.
+ *   1. Canonical profile approval mapping (is_approved / isApproved).
+ *   2. Never assume email verification from a valid token claim.
+ *   3. Preserve existing role, approval, and active status.
+ *   4. Forbid client-controlled privileged field updates (role, isApproved, active).
+ *   5. Fail safely and explicitly on Supabase database errors (lookup, update, insert).
+ *   6. Fail safely with 503 on auth provider failures.
  */
 
 import { NextRequest } from "next/server";
@@ -34,6 +36,8 @@ jest.mock("firebase-admin/auth", () => ({
 type Row = Record<string, unknown>;
 const mockUsersTable: Row[] = [];
 let mockDbError: Error | null = null;
+let mockInsertError: Error | null = null;
+let mockUpdateError: Error | null = null;
 
 const mockSupabaseClient = {
   auth: {
@@ -73,7 +77,9 @@ const mockSupabaseClient = {
       update: (fields: Record<string, unknown>) => {
         return {
           eq: async (col: string, val: unknown) => {
-            if (mockDbError) return { data: null, error: mockDbError };
+            if (mockDbError || mockUpdateError) {
+              return { data: null, error: mockDbError || mockUpdateError };
+            }
             const index = mockUsersTable.findIndex((r) => r[col] === val);
             if (index !== -1) {
               mockUsersTable[index] = { ...mockUsersTable[index], ...fields };
@@ -83,7 +89,9 @@ const mockSupabaseClient = {
         };
       },
       insert: async (row: Record<string, unknown>) => {
-        if (mockDbError) return { data: null, error: mockDbError };
+        if (mockDbError || mockInsertError) {
+          return { data: null, error: mockDbError || mockInsertError };
+        }
         mockUsersTable.push(row);
         return { data: row, error: null };
       },
@@ -113,6 +121,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockUsersTable.length = 0;
   mockDbError = null;
+  mockInsertError = null;
+  mockUpdateError = null;
   mockGetAdminApp.mockResolvedValue({});
   mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error("no supabase user") });
 });
@@ -136,12 +146,14 @@ describe("GET /api/auth/profile", () => {
       display_name: "Unverified Devotee",
       role: "devotee",
       active: true,
+      is_approved: false,
     });
 
     const res = await GET(makeRequest("/api/auth/profile", { token: "valid-fb-token" }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.profile.emailVerified).toBe(false);
+    expect(body.profile.isApproved).toBe(false);
   });
 
   it("sets emailVerified true only when token explicitly claims email_verified true", async () => {
@@ -157,12 +169,60 @@ describe("GET /api/auth/profile", () => {
       display_name: "Verified Devotee",
       role: "devotee",
       active: true,
+      is_approved: true,
     });
 
     const res = await GET(makeRequest("/api/auth/profile", { token: "valid-fb-token" }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.profile.emailVerified).toBe(true);
+    expect(body.profile.isApproved).toBe(true);
+  });
+
+  it("correctly maps isApproved: true from canonical is_approved field", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-approved",
+      email: "admin@example.org",
+      email_verified: true,
+    });
+    mockUsersTable.push({
+      id: "u-approved",
+      firestore_id: "fb-uid-approved",
+      email: "admin@example.org",
+      display_name: "Admin User",
+      role: "temple_admin",
+      active: true,
+      is_approved: true,
+    });
+
+    const res = await GET(makeRequest("/api/auth/profile", { token: "valid-token" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.profile.isApproved).toBe(true);
+    expect(body.profile.role).toBe("temple_admin");
+    expect(body.profile.isActive).toBe(true);
+  });
+
+  it("correctly maps isApproved: false when is_approved is false or missing", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-unapproved",
+      email: "devotee@example.org",
+      email_verified: true,
+    });
+    mockUsersTable.push({
+      id: "u-unapproved",
+      firestore_id: "fb-uid-unapproved",
+      email: "devotee@example.org",
+      display_name: "Devotee User",
+      role: "devotee",
+      active: true,
+      is_approved: false,
+    });
+
+    const res = await GET(makeRequest("/api/auth/profile", { token: "valid-token" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.profile.isApproved).toBe(false);
   });
 
   it("handles Supabase errors explicitly and returns 500", async () => {
@@ -177,6 +237,16 @@ describe("GET /api/auth/profile", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("Database error");
+  });
+
+  it("returns 503 when Firebase authentication provider fails with server error", async () => {
+    const error = Object.assign(new Error("Firebase auth unavailable"), { code: "auth/internal-error" });
+    mockVerifyIdToken.mockRejectedValueOnce(error);
+
+    const res = await GET(makeRequest("/api/auth/profile", { token: "fb-server-error-token" }));
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toBe("Authentication provider error");
   });
 });
 
@@ -228,9 +298,31 @@ describe("POST /api/auth/profile", () => {
       })
     );
     expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("client-controlled changes to privileged fields are forbidden");
   });
 
-  it("preserves existing role and active status when updating an existing user", async () => {
+  it("rejects client-controlled changes to privileged field: active (400)", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-attacker",
+      email: "attacker@example.org",
+      email_verified: false,
+    });
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "attacker-token",
+        body: {
+          name: "Attacker",
+          active: true,
+        },
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("preserves existing role, approval, and active status when updating an existing user", async () => {
     mockVerifyIdToken.mockResolvedValueOnce({
       uid: "fb-uid-staff",
       email: "staff@example.org",
@@ -243,6 +335,7 @@ describe("POST /api/auth/profile", () => {
       display_name: "Staff Name",
       role: "receptionist",
       active: true,
+      is_approved: true,
     });
 
     const res = await POST(
@@ -261,6 +354,55 @@ describe("POST /api/auth/profile", () => {
     expect(updated?.phone_number).toBe("9876543210");
     expect(updated?.role).toBe("receptionist");
     expect(updated?.active).toBe(true);
+    expect(updated?.is_approved).toBe(true);
+  });
+
+  it("creates a new devotee profile with safe defaults when user does not exist", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-new",
+      email: "new@example.org",
+      email_verified: true,
+    });
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "new-user-token",
+        body: {
+          name: "New Devotee",
+          phone: "1234567890",
+        },
+      })
+    );
+    expect(res.status).toBe(200);
+    const created = mockUsersTable.find((u) => u.firestore_id === "fb-uid-new");
+    expect(created).toBeDefined();
+    expect(created?.display_name).toBe("New Devotee");
+    expect(created?.role).toBe("devotee");
+    expect(created?.active).toBe(true);
+    expect(created?.is_approved).toBe(false);
+  });
+
+  it("fails safely and explicitly returns 500 when Supabase errors on user lookup", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-lookup-err",
+      email: "err@example.org",
+      email_verified: true,
+    });
+    mockDbError = new Error("Lookup connection error");
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "staff-token",
+        body: {
+          name: "Updated Staff Name",
+        },
+      })
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Database error");
   });
 
   it("fails safely and explicitly returns 500 when Supabase errors on update", async () => {
@@ -276,7 +418,7 @@ describe("POST /api/auth/profile", () => {
       role: "receptionist",
       active: true,
     });
-    mockDbError = new Error("Connection failed");
+    mockUpdateError = new Error("Update failed");
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -284,6 +426,28 @@ describe("POST /api/auth/profile", () => {
         token: "staff-token",
         body: {
           name: "Updated Staff Name",
+        },
+      })
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Database error");
+  });
+
+  it("fails safely and explicitly returns 500 when Supabase errors on insert", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-insert-err",
+      email: "insert@example.org",
+      email_verified: true,
+    });
+    mockInsertError = new Error("Insert failed");
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "insert-token",
+        body: {
+          name: "New Person",
         },
       })
     );

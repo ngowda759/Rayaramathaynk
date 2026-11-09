@@ -6,6 +6,7 @@
 import "server-only";
 import { checkBearerIdToken } from "@/lib/auth/verify-id-token";
 import { SevaError } from "@/lib/seva/errors";
+import { isUuid } from "@/lib/supabase/identifier";
 import type { IdentityAdapter } from "./identity";
 
 async function adminAuth() {
@@ -35,14 +36,28 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
 
   async getAccessProfile(externalUid) {
     const supabase = await supabaseClient();
+    const filterQuery = isUuid(externalUid)
+      ? `auth_user_id.eq.${externalUid},id.eq.${externalUid},firestore_id.eq.${externalUid}`
+      : `firestore_id.eq.${externalUid}`;
+
     const { data, error } = await supabase
       .from("users")
       .select("role, active")
-      .or(`firestore_id.eq.${externalUid},auth_user_id.eq.${externalUid}`)
+      .or(filterQuery)
       .maybeSingle();
 
-    if (error || !data) return null;
-    return { role: data.role, isActive: data.active === true };
+    if (error) {
+      console.error("[identity-firebase] getAccessProfile error:", error.message);
+      throw new SevaError("internal");
+    }
+
+    if (!data) return null;
+
+    const row = data as { role?: unknown; active?: boolean | null };
+    return {
+      role: row.role as any,
+      isActive: row.active === true,
+    };
   },
 
   async findLoginByEmail(email) {
@@ -78,26 +93,64 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
 
   async setAccessProfile(externalUid, patch) {
     const supabase = await supabaseClient();
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (patch.role !== undefined) update.role = patch.role;
-    if (patch.isActive !== undefined) update.active = patch.isActive;
-    if (patch.email !== undefined) update.email = patch.email;
-    if (patch.displayName !== undefined) update.name = patch.displayName;
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.role !== undefined) updateData.role = patch.role;
+    if (patch.isActive !== undefined) updateData.active = patch.isActive;
+    if (patch.email !== undefined) updateData.email = patch.email;
+    if (patch.displayName !== undefined) {
+      updateData.display_name = patch.displayName;
+      updateData.name = patch.displayName;
+    }
 
-    const { data: existing } = await supabase
+    const isUidUuid = isUuid(externalUid);
+    const filterQuery = isUidUuid
+      ? `auth_user_id.eq.${externalUid},id.eq.${externalUid},firestore_id.eq.${externalUid}`
+      : `firestore_id.eq.${externalUid}`;
+
+    const { data: existing, error: findError } = await supabase
       .from("users")
       .select("id")
-      .or(`firestore_id.eq.${externalUid},auth_user_id.eq.${externalUid}`)
+      .or(filterQuery)
       .maybeSingle();
 
+    if (findError) {
+      console.error("[identity-firebase] setAccessProfile lookup failed:", findError.message);
+      throw new SevaError("internal");
+    }
+
     if (existing) {
-      await supabase.from("users").update(update).eq("id", existing.id);
+      const { error: updateError } = await supabase
+        .from("users")
+        .update(updateData)
+        .eq("id", existing.id);
+
+      if (updateError) {
+        console.error("[identity-firebase] setAccessProfile update failed:", updateError.message);
+        throw new SevaError("internal");
+      }
     } else {
-      await supabase.from("users").insert({
-        firestore_id: externalUid,
-        ...update,
+      const insertData: Record<string, unknown> = {
+        ...updateData,
+        role: patch.role || "devotee",
+        active: patch.isActive !== undefined ? patch.isActive : true,
         created_at: new Date().toISOString(),
-      });
+      };
+      if (isUidUuid) {
+        insertData.auth_user_id = externalUid;
+      } else {
+        insertData.firestore_id = externalUid;
+      }
+
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert(insertData);
+
+      if (insertError) {
+        console.error("[identity-firebase] setAccessProfile insert failed:", insertError.message);
+        throw new SevaError("internal");
+      }
     }
   },
 
