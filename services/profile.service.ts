@@ -23,18 +23,18 @@ import {
 class ProfileService {
   async getProfile(_uid: string): Promise<DevoteeProfile | null> {
     try {
-      return await apiFetch<DevoteeProfile>("/api/profile");
+      return await apiFetch<DevoteeProfile>("/api/auth/profile");
     } catch {
       return null;
     }
   }
 
   async saveProfile(_uid: string, data: Partial<DevoteeProfile>): Promise<DevoteeProfile> {
-    return apiFetch<DevoteeProfile>("/api/profile", { method: "POST", body: data });
+    return apiFetch<DevoteeProfile>("/api/auth/profile", { method: "POST", body: data });
   }
 
   async updateProfile(_uid: string, data: ProfileUpdateData): Promise<void> {
-    await apiFetch("/api/profile", { method: "PUT", body: data });
+    await apiFetch("/api/auth/profile", { method: "PUT", body: data });
   }
 
   async updatePreferences(_uid: string, data: PreferencesUpdateData): Promise<void> {
