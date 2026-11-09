@@ -1,5 +1,4 @@
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const futurePlansData = {
   heading: "Future Plans",
@@ -62,15 +61,27 @@ const futurePlansData = {
 };
 
 async function seedFuturePlans() {
-  if (!db) {
-    console.error("Firebase not initialized. Please check your configuration.");
+  const supabase = createAdminClient();
+  if (!supabase) {
+    console.error("Supabase admin client not initialized. Please check your configuration.");
     process.exit(1);
   }
 
   try {
-    const docRef = doc(db, "settings", "futurePlans");
-    await setDoc(docRef, futurePlansData);
-    console.log("✅ Future Plans seeded successfully!");
+    const { error } = await supabase
+      .from("settings_documents")
+      .upsert({
+        collection_id: "settings",
+        document_id: "futurePlans",
+        data: futurePlansData,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    console.log("✅ Future Plans seeded successfully into Supabase!");
     console.log(`   - ${futurePlansData.plans.length} plans added`);
   } catch (error) {
     console.error("❌ Error seeding Future Plans:", error);

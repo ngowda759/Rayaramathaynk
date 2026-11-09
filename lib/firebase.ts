@@ -1,6 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { Auth, connectAuthEmulator, getAuth } from "firebase/auth";
-import { Firestore, connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
 // Validate Firebase configuration
@@ -68,7 +67,6 @@ const firebaseConfig = {
 // This prevents "window is not defined" errors during SSR
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
-let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 let authInitialized = false;
 
@@ -81,13 +79,9 @@ const isBrowser = typeof window !== "undefined";
  * (the SDK throws when Firestore is connected a second time after first use), while the Next.js server can load
  * this module in several bundles, each with its own instances, and every one of them must be connected.
  */
-function connectEmulatorsOnce(authInstance: Auth | null, dbInstance: Firestore): void {
+function connectEmulatorsOnce(authInstance: Auth | null): void {
   const holder = globalThis as typeof globalThis & { __sevaFirebaseEmulators?: WeakSet<object> };
   const connected = (holder.__sevaFirebaseEmulators ??= new WeakSet<object>());
-  if (!connected.has(dbInstance)) {
-    connectFirestoreEmulator(dbInstance, "127.0.0.1", 8080);
-    connected.add(dbInstance);
-  }
   if (authInstance && !connected.has(authInstance)) {
     connectAuthEmulator(authInstance, "http://127.0.0.1:9099", { disableWarnings: true });
     connected.add(authInstance);
@@ -110,12 +104,9 @@ if (isFirebaseConfigured()) {
     }
   }
   
-  // Always initialize Firestore (works on both client and server)
-  db = getFirestore(app);
-
-  // Browser tests only (tests/e2e/seva): point Auth and Firestore at the local emulators, never a live project.
+  // Browser tests only (tests/e2e/seva): point Auth at the local emulator, never a live project.
   if (process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === "1") {
-    connectEmulatorsOnce(auth, db);
+    connectEmulatorsOnce(auth);
   }
 }
 
@@ -145,5 +136,5 @@ export async function initializeAuthPersistence(authInstance: Auth): Promise<voi
   }
 }
 
-export { app, auth, db, storage, isFirebaseConfigured, validateFirebaseConfig };
+export { app, auth, storage, isFirebaseConfigured, validateFirebaseConfig };
 export default app;

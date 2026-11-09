@@ -1,11 +1,12 @@
 /**
- * Firebase implementation of the seva identity adapter: Firebase Auth for logins, Firestore `users/{uid}` for the
+ * Firebase implementation of the seva identity adapter: Firebase Auth for logins, Supabase `users` table for the
  * role and the active flag (DB §3.2). Firebase Admin modules load on first use, as in lib/auth/verify-id-token.ts.
  */
 
 import "server-only";
 import { checkBearerIdToken } from "@/lib/auth/verify-id-token";
 import { SevaError } from "@/lib/seva/errors";
+import { isUuid } from "@/lib/supabase/identifier";
 import type { IdentityAdapter } from "./identity";
 
 async function adminAuth() {
@@ -15,10 +16,9 @@ async function adminAuth() {
   return getAuth(app);
 }
 
-async function userDoc(externalUid: string) {
-  const { getAdminFirestore } = await import("@/lib/admin-firebase");
-  const db = await getAdminFirestore();
-  return db.collection("users").doc(externalUid);
+async function supabaseClient() {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  return createAdminClient();
 }
 
 function errorCode(error: unknown): string | null {
@@ -28,9 +28,6 @@ function errorCode(error: unknown): string | null {
 
 export const firebaseIdentityAdapter: IdentityAdapter = {
   async verifyRequest(req) {
-    // checkRevoked: a disabled login or revoked sessions (offboarding) stop working at once, not when the hour-long
-    // ID token runs out. That check is a live call to Firebase Auth, so an outage or a network blip must not read as
-    // "signed out": it throws, the guard answers 500, and the counter retries or offers offline (DB §16.2).
     const result = await checkBearerIdToken(req, { checkRevoked: true });
     if (result.status === "unavailable") throw new SevaError("internal");
     if (result.status !== "ok") return null;
@@ -38,11 +35,29 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async getAccessProfile(externalUid) {
-    const snapshot = await (await userDoc(externalUid)).get();
-    if (!snapshot.exists) return null;
-    const data = snapshot.data() ?? {};
-    // Only these two fields; never `email` (editable by the person). A missing or non-boolean isActive is inactive.
-    return { role: data.role, isActive: data.isActive === true };
+    const supabase = await supabaseClient();
+    const filterQuery = isUuid(externalUid)
+      ? `auth_user_id.eq.${externalUid},id.eq.${externalUid},firestore_id.eq.${externalUid}`
+      : `firestore_id.eq.${externalUid}`;
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("role, active")
+      .or(filterQuery)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[identity-firebase] getAccessProfile error:", error.message);
+      throw new SevaError("internal");
+    }
+
+    if (!data) return null;
+
+    const row = data as { role?: unknown; active?: boolean | null };
+    return {
+      role: row.role as any,
+      isActive: row.active === true,
+    };
   },
 
   async findLoginByEmail(email) {
@@ -51,12 +66,10 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
       return {
         externalUid: user.uid,
         displayName: typeof user.displayName === "string" ? user.displayName : null,
-        // Fail closed: anything but a plain true is unverified, anything but a plain false is disabled.
         emailVerified: user.emailVerified === true,
         disabled: user.disabled !== false,
       };
     } catch (error) {
-      // No login with this email: the person is new. Any other failure (an outage) is the server's and answers 500.
       if (errorCode(error) === "auth/user-not-found") return null;
       throw error;
     }
@@ -67,8 +80,6 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
       const user = await (await adminAuth()).createUser({ email, displayName, emailVerified: false, disabled: false });
       return { externalUid: user.uid };
     } catch (error) {
-      // An email Firebase refuses is the form's to fix (400 on the email field), not a server failure: someone who
-      // signed in before, a legacy account (C-62), or a retry after a partial onboarding. Nothing was written yet.
       const code = errorCode(error);
       if (code === "auth/email-already-exists") {
         throw new SevaError("validation", { field: "email", message: "This email already has a sign-in account." });
@@ -81,15 +92,66 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
   },
 
   async setAccessProfile(externalUid, patch) {
-    const { FieldValue } = await import("firebase-admin/firestore");
-    const write: Record<string, unknown> = { uid: externalUid };
-    if (patch.role !== undefined) write.role = patch.role;
-    if (patch.isActive !== undefined) write.isActive = patch.isActive;
-    if (patch.email !== undefined) write.email = patch.email;
-    // The site's profile keeps the display name in `name` (lib/auth/sign-in-profile.ts).
-    if (patch.displayName !== undefined) write.name = patch.displayName;
-    write.updatedAt = FieldValue.serverTimestamp();
-    await (await userDoc(externalUid)).set(write, { merge: true });
+    const supabase = await supabaseClient();
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.role !== undefined) updateData.role = patch.role;
+    if (patch.isActive !== undefined) updateData.active = patch.isActive;
+    if (patch.email !== undefined) updateData.email = patch.email;
+    if (patch.displayName !== undefined) {
+      updateData.display_name = patch.displayName;
+      updateData.name = patch.displayName;
+    }
+
+    const isUidUuid = isUuid(externalUid);
+    const filterQuery = isUidUuid
+      ? `auth_user_id.eq.${externalUid},id.eq.${externalUid},firestore_id.eq.${externalUid}`
+      : `firestore_id.eq.${externalUid}`;
+
+    const { data: existing, error: findError } = await supabase
+      .from("users")
+      .select("id")
+      .or(filterQuery)
+      .maybeSingle();
+
+    if (findError) {
+      console.error("[identity-firebase] setAccessProfile lookup failed:", findError.message);
+      throw new SevaError("internal");
+    }
+
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from("users")
+        .update(updateData)
+        .eq("id", existing.id);
+
+      if (updateError) {
+        console.error("[identity-firebase] setAccessProfile update failed:", updateError.message);
+        throw new SevaError("internal");
+      }
+    } else {
+      const insertData: Record<string, unknown> = {
+        ...updateData,
+        role: patch.role || "devotee",
+        active: patch.isActive !== undefined ? patch.isActive : true,
+        created_at: new Date().toISOString(),
+      };
+      if (isUidUuid) {
+        insertData.auth_user_id = externalUid;
+      } else {
+        insertData.firestore_id = externalUid;
+      }
+
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert(insertData);
+
+      if (insertError) {
+        console.error("[identity-firebase] setAccessProfile insert failed:", insertError.message);
+        throw new SevaError("internal");
+      }
+    }
   },
 
   async setLoginEnabled(externalUid, enabled) {
@@ -102,7 +164,6 @@ export const firebaseIdentityAdapter: IdentityAdapter = {
     try {
       await (await adminAuth()).deleteUser(externalUid);
     } catch (error) {
-      // Already gone counts as deleted, so a retried delete succeeds.
       if (errorCode(error) === "auth/user-not-found") return;
       throw error;
     }

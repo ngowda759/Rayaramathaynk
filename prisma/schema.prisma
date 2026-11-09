@@ -241,6 +241,7 @@ model User {
   // `active = false` must deny access.
   role   String  @default("user") @db.Text
   active Boolean @default(true)
+  isApproved Boolean @default(false) @map("is_approved") @db.Boolean
 
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
