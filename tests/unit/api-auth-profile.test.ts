@@ -11,7 +11,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { GET, POST } from "@/app/api/auth/profile/route";
+import { GET, POST, PUT } from "@/app/api/auth/profile/route";
 
 jest.mock("server-only", () => ({}), { virtual: true });
 
@@ -529,5 +529,36 @@ describe("POST /api/auth/profile", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("Database error");
+  });
+
+  it("handles PUT method by delegating to POST logic", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-put-test",
+      email: "put@example.org",
+      email_verified: true,
+    });
+    mockUsersTable.push({
+      id: "user-put-1",
+      firestore_id: "fb-uid-put-test",
+      email: "put@example.org",
+      display_name: "Original Name",
+      role: "devotee",
+      active: true,
+      is_approved: false,
+    });
+
+    const res = await PUT(
+      makeRequest("/api/auth/profile", {
+        method: "PUT",
+        token: "put-token",
+        body: {
+          name: "Updated via PUT",
+        },
+      })
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(mockUsersTable[0].display_name).toBe("Updated via PUT");
   });
 });

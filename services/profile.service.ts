@@ -23,7 +23,8 @@ import {
 class ProfileService {
   async getProfile(_uid: string): Promise<DevoteeProfile | null> {
     try {
-      return await apiFetch<DevoteeProfile>("/api/auth/profile");
+      const { profile } = await apiFetch<{ profile: DevoteeProfile }>("/api/auth/profile");
+      return profile;
     } catch {
       return null;
     }
