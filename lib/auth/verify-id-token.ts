@@ -18,6 +18,7 @@
  */
 
 import "server-only";
+import { recordAuthFallback } from "@/lib/auth/fallback-telemetry";
 
 export interface VerifiedCaller {
   uid: string;
@@ -91,10 +92,8 @@ export async function checkBearerIdToken(request: Request, options: VerifyIdToke
     const auth = getAuth(adminApp);
     const decoded = options.checkRevoked ? await auth.verifyIdToken(token, true) : await auth.verifyIdToken(token);
     
-    // Telemetry: audit legacy fallback invocation without exposing token
-    if (process.env.NODE_ENV !== "test") {
-      console.info(`[auth:fallback] Legacy Firebase token verified for UID: ${decoded.uid}`);
-    }
+    // Telemetry: audit legacy fallback invocation with zero PII or tokens
+    recordAuthFallback("verify-id-token", "verified");
 
     return { status: "ok", caller: { uid: decoded.uid, email: typeof decoded.email === "string" ? decoded.email : null } };
   } catch (error) {
