@@ -77,4 +77,15 @@ describe("Fallback Telemetry Instrumentation", () => {
     expect(logCall).not.toMatch(/password/i);
     expect(logCall).not.toMatch(/@/); // No email format
   });
+
+  it("FAIL-SAFE GUARANTEE: suppresses any logging error without throwing", () => {
+    consoleSpy.mockImplementation(() => {
+      throw new Error("Console logging failed");
+    });
+
+    // Must not throw
+    expect(() => {
+      recordAuthFallback("admin-auth", "verified");
+    }).not.toThrow();
+  });
 });

@@ -10,6 +10,7 @@
  * - NO cookies or raw Authorization headers.
  * - NO user emails, phone numbers, or user IDs (zero PII).
  * - Format is standardized JSON prefixed with `[telemetry:auth_fallback]` for reliable parsing.
+ * - Fail-safe: Any logging error is caught to guarantee authentication is never broken.
  */
 
 export interface FallbackTelemetryPayload {
@@ -24,14 +25,18 @@ export function recordAuthFallback(
   source: FallbackTelemetryPayload["source"],
   status: FallbackTelemetryPayload["status"] = "verified"
 ): void {
-  const payload: FallbackTelemetryPayload = {
-    event: "auth_fallback_invoked",
-    provider: "firebase",
-    source,
-    status,
-    timestamp: new Date().toISOString(),
-  };
+  try {
+    const payload: FallbackTelemetryPayload = {
+      event: "auth_fallback_invoked",
+      provider: "firebase",
+      source,
+      status,
+      timestamp: new Date().toISOString(),
+    };
 
-  // Structured logging for Vercel / log aggregation
-  console.info(`[telemetry:auth_fallback] ${JSON.stringify(payload)}`);
+    // Structured logging for Vercel / log aggregation
+    console.info(`[telemetry:auth_fallback] ${JSON.stringify(payload)}`);
+  } catch {
+    // Fail-safe: telemetry failures must NEVER break authentication or throw
+  }
 }
