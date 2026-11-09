@@ -20,6 +20,7 @@ import { isAdminConsoleRole } from "@/lib/auth/admin-auth";
 import { createRateLimitResponse, getClientIP, rateLimit } from "@/lib/rate-limit";
 import { SevaError } from "@/lib/seva/errors";
 import { can, mapFirestoreRole } from "@/lib/seva/permissions";
+import { recordAuthFallback } from "@/lib/auth/fallback-telemetry";
 import { parseInput, readJson } from "@/lib/seva/server/reports";
 import { sevaErrorResponse } from "@/lib/seva/server/respond";
 import { getIdentityAdapter } from "@/lib/seva/server/identity";
@@ -77,6 +78,7 @@ async function findLoginUid(email: string): Promise<string> {
   try {
     const { getAdminApp } = await import("@/lib/admin-firebase");
     const { getAuth } = await import("firebase-admin/auth");
+    recordAuthFallback("set-role", "identity_resolved");
     return (await getAuth(await getAdminApp()).getUserByEmail(normalizedEmail)).uid;
   } catch (error) {
     if ((error as { code?: unknown } | null)?.code === "auth/user-not-found") {

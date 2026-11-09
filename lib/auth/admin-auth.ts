@@ -23,6 +23,7 @@
  */
 
 import "server-only";
+import { recordAuthFallback } from "@/lib/auth/fallback-telemetry";
 import type { NextRequest, NextResponse } from "next/server";
 import { NextResponse as NextResponseImpl } from "next/server";
 
@@ -313,6 +314,8 @@ export async function verifyAdminUserResult(
       message: "This account does not have administrator permissions.",
     };
   }
+
+  recordAuthFallback("admin-auth", "verified");
 
   return {
     ok: true,
