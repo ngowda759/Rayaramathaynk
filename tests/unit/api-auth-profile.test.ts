@@ -224,6 +224,28 @@ describe("GET /api/auth/profile", () => {
     const body = await res.json();
     expect(body.profile.isApproved).toBe(false);
   });
+  it("reads ONLY canonical is_approved and ignores legacy isApproved property", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-legacy",
+      email: "legacy@example.org",
+      email_verified: true,
+    });
+    mockUsersTable.push({
+      id: "u-legacy",
+      firestore_id: "fb-uid-legacy",
+      email: "legacy@example.org",
+      display_name: "Legacy User",
+      role: "devotee",
+      active: true,
+      is_approved: false,
+      isApproved: true,
+    });
+
+    const res = await GET(makeRequest("/api/auth/profile", { token: "valid-token" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.profile.isApproved).toBe(false);
+  });
 
   it("handles Supabase errors explicitly and returns 500", async () => {
     mockVerifyIdToken.mockResolvedValueOnce({
@@ -302,6 +324,28 @@ describe("POST /api/auth/profile", () => {
     expect(body.error).toContain("client-controlled changes to privileged fields are forbidden");
   });
 
+  it("rejects client-controlled changes to privileged field: is_approved (400)", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-attacker",
+      email: "attacker@example.org",
+      email_verified: false,
+    });
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "attacker-token",
+        body: {
+          name: "Attacker",
+          is_approved: true,
+        },
+      })
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("client-controlled changes to privileged fields are forbidden");
+  });
+
   it("rejects client-controlled changes to privileged field: active (400)", async () => {
     mockVerifyIdToken.mockResolvedValueOnce({
       uid: "fb-uid-attacker",
@@ -355,6 +399,37 @@ describe("POST /api/auth/profile", () => {
     expect(updated?.role).toBe("receptionist");
     expect(updated?.active).toBe(true);
     expect(updated?.is_approved).toBe(true);
+  });
+
+  it("preserves unapproved status (is_approved: false) when updating profile", async () => {
+    mockVerifyIdToken.mockResolvedValueOnce({
+      uid: "fb-uid-unapproved-update",
+      email: "unapproved@example.org",
+      email_verified: true,
+    });
+    mockUsersTable.push({
+      id: "u-unapproved-update",
+      firestore_id: "fb-uid-unapproved-update",
+      email: "unapproved@example.org",
+      display_name: "Original Name",
+      role: "devotee",
+      active: true,
+      is_approved: false,
+    });
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "user-token",
+        body: {
+          name: "Updated Name",
+        },
+      })
+    );
+    expect(res.status).toBe(200);
+    const updated = mockUsersTable.find((u) => u.id === "u-unapproved-update");
+    expect(updated?.display_name).toBe("Updated Name");
+    expect(updated?.is_approved).toBe(false);
   });
 
   it("creates a new devotee profile with safe defaults when user does not exist", async () => {

@@ -139,11 +139,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Read canonical approval field from Supabase users record
-    const isApproved = Boolean(
-      (data as Record<string, unknown>).is_approved ??
-      (data as Record<string, unknown>).isApproved ??
-      false
-    );
+    const isApproved = Boolean((data as Record<string, unknown>).is_approved);
 
     const profile: UserProfile = {
       uid: String(data.auth_user_id || data.firestore_id || data.id),

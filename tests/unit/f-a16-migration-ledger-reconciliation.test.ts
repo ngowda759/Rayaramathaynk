@@ -39,9 +39,11 @@ describe("F-A16-06 migration ledger reconciliation", () => {
     const baseline = 41;
     const proposed = files.filter((f) => /_f_a16_/.test(f)).length;
     const phase2 = files.filter((f) => /_add_auth_user_id_to_staff\.sql$/.test(f)).length;
+    const userApproval = files.filter((f) => /_add_is_approved_to_users\.sql$/.test(f)).length;
     expect(proposed).toBe(5);
     expect(phase2).toBe(1);
-    expect(files.length).toBe(baseline + proposed + phase2);
+    expect(userApproval).toBe(1);
+    expect(files.length).toBe(baseline + proposed + phase2 + userApproval);
   });
 
   it("has exactly one file with a non-14-digit version prefix", () => {
@@ -83,9 +85,10 @@ describe("F-A16-06 migration ledger reconciliation", () => {
       "20261115000200_f_a16_existing_table_privileges.sql",
       "20261115000300_f_a16_existing_function_privileges.sql",
     ]);
-    expect(future.length - proposed.length).toBe(15);
+    expect(future.length - proposed.length).toBe(16);
     expect(future).toContain("20261114000100_donations_updated_at.sql");
     expect(future).toContain("20261116000000_add_auth_user_id_to_staff.sql");
+    expect(future).toContain("20261201000000_add_is_approved_to_users.sql");
     // Same-day as the audit, not later.
     expect(future).not.toContain("20261101000000_seva_paper_size_not_null.sql");
   });
