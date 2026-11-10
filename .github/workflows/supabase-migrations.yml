@@ -136,14 +136,23 @@ jobs:
           # List local migration versions
           local=$(ls supabase/migrations/*.sql | sed -E 's/.*\/([0-9]+)_.*/\1/' | sort)
           # List remote migration versions
-          remote=$(supabase migration list | grep -E '^[0-9]{14}$' | sort || true)
-          # Compute pending (local not in remote)
-          pending=$(comm -23 <(echo "$local") <(echo "$remote"))
-          echo "Pending migrations:" $pending
-          echo "pending=$pending" >> $GITHUB_OUTPUT
-          # Expect exactly the two target migrations
-          expected="20261109000000\n20261109000001"
-          if [ "$pending" != "$expected" ]; then
+          remote=$(supabase migration list | grep -E '^[0-9]{8,14}$' | sort || true)
+          # Compute pending migrations (local not in remote)
+          pending=$(comm -23 <(echo "$local") <(echo "$remote")) || true
+          echo "Local migrations: $local"
+          echo "Remote migrations: $remote"
+          echo "Pending migrations:"
+          printf "%s\n" $pending
+          {
+            echo "pending<<EOF"
+            printf "%s\n" $pending
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          # Expected allowlist migrations
+          expected="20261109000000
+20261109000001"
+          # Compare pending with expected (order-insensitive)
+          if [[ "$(printf "%s\n" $pending | sort)" != "$(printf "%s\n" $expected | sort)" ]]; then
             echo "Unexpected pending migrations. Expected only the two approved migrations." >&2
             exit 1
           fi
