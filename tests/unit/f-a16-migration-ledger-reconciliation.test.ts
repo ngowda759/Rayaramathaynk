@@ -36,7 +36,7 @@ describe("F-A16-06 migration ledger reconciliation", () => {
     // Pinned so a new migration forces a conscious update of the reconciliation doc.
     // Five F-A16 remediation migrations were added on top of the audit base; the
     // reconciliation document records both numbers.
-    const baseline = 41;
+    const baseline = 43;
     const proposed = files.filter((f) => /_f_a16_/.test(f)).length;
     const phase2 = files.filter((f) => /_add_auth_user_id_to_staff\.sql$/.test(f)).length;
     const userApproval = files.filter((f) => /_add_is_approved_to_users\.sql$/.test(f)).length;
@@ -85,7 +85,7 @@ describe("F-A16-06 migration ledger reconciliation", () => {
       "20261115000200_f_a16_existing_table_privileges.sql",
       "20261115000300_f_a16_existing_function_privileges.sql",
     ]);
-    expect(future.length - proposed.length).toBe(16);
+    expect(future.length - proposed.length).toBe(18);
     expect(future).toContain("20261114000100_donations_updated_at.sql");
     expect(future).toContain("20261116000000_add_auth_user_id_to_staff.sql");
     expect(future).toContain("20261201000000_add_is_approved_to_users.sql");

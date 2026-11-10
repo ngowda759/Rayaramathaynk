@@ -90,7 +90,7 @@ describe("F-A13: admin API route authorization census", () => {
   const files = adminRouteFiles();
 
   it("enumerates the admin API surface (35 route files)", () => {
-    expect(files).toHaveLength(35);
+    expect(files).toHaveLength(36);
   });
 
   it("every exported method in every admin route is guarded", () => {
