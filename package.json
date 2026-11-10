@@ -13,7 +13,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint . --quiet",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
