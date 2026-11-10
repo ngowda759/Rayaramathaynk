@@ -1,4 +1,4 @@
-# Applies pending Supabase migrations to the approved production project.
+# Applies pending Supabase migrations to the approved production project. # workflow registration fix
 #
 # Safety properties (do not weaken):
 #   - workflow_dispatch only; it never runs on push or on a schedule;
