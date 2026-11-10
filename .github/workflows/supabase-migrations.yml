@@ -125,13 +125,33 @@ jobs:
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Run Supabase migration dry-run
-        run: npm run supabase:migrations:dry-run
+      - name: Run Supabase migration dry-run with include-all
+        run: supabase db push --dry-run --include-all
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Apply Supabase migrations
-        run: npm run supabase:migrations:push
+      - name: Determine pending migrations
+        id: pending
+        run: |
+          # List local migration versions
+          local=$(ls supabase/migrations/*.sql | sed -E 's/.*\/([0-9]+)_.*/\1/' | sort)
+          # List remote migration versions
+          remote=$(supabase migration list | grep -E '^[0-9]{14}$' | sort || true)
+          # Compute pending (local not in remote)
+          pending=$(comm -23 <(echo "$local") <(echo "$remote"))
+          echo "Pending migrations:" $pending
+          echo "pending=$pending" >> $GITHUB_OUTPUT
+          # Expect exactly the two target migrations
+          expected="20261109000000\n20261109000001"
+          if [ "$pending" != "$expected" ]; then
+            echo "Unexpected pending migrations. Expected only the two approved migrations." >&2
+            exit 1
+          fi
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Apply Supabase migrations with include-all
+        run: supabase db push --include-all
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
