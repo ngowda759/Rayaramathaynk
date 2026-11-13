@@ -339,7 +339,8 @@ describe("migration workflow safety properties", () => {
     }
     // The dry-run must also still be present, and must not itself be a push.
     const dryRun = steps.some(
-      (s) => commandStatements(s.runBody, "npm run supabase:migrations:dry-run", scripts).length > 0,
+      (s) =>
+        commandStatements(s.runBody, "supabase db push --dry-run --include-all", scripts).length > 0,
     );
     expect(dryRun).toBe(true);
   });

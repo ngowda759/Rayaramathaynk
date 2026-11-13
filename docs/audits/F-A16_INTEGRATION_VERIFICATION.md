@@ -680,7 +680,13 @@ To stop the automatic production migration:
    see §13.5).
 
 To deploy migrations after step 2, use the manually dispatched workflow:
-`.github/workflows/supabase-migrations.yml` (project-ref guard, dry-run, then `db push`).
+`.github/workflows/supabase-migrations.yml`. It has two modes — `dry-run` (the default,
+read-only: project-ref guard → dry-run → allowlist check) and `apply` (additionally
+requires the exact confirmation phrase `apply-supabase-migrations`). The apply command
+runs in a single step gated on `if: ${{ inputs.mode == 'apply' }}`, and before it the
+pending versions parsed from the dry-run output are checked against the reviewed
+allowlist in `scripts/lib/pending-migrations.mjs`; an unapproved pending migration fails
+the run closed. See `docs/SUPABASE_MIGRATIONS.md`.
 
 ### 13.5 Repository-side guards added (this change)
 
