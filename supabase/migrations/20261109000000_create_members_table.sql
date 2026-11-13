@@ -1,24 +1,24 @@
--- Migration: Create members table
--- This table stores member information for the temple.
-CREATE TABLE members (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  firestore_id text UNIQUE,
-  member_id text UNIQUE,
-  name text NOT NULL,
-  phone text,
-  sex text DEFAULT 'Male',
-  active boolean NOT NULL DEFAULT true,
-  address text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
--- Enable Row Level Security
-ALTER TABLE members ENABLE ROW LEVEL SECURITY;
-
--- Deny all public access (service-role only)
-CREATE POLICY "Deny all public access to members"
-  ON members
-  FOR ALL
-  TO public
-  USING (false);
+-- Migration: 20261109000000_create_members_table
+--
+-- Ledger marker only. This file originally created the `members` table, but it was
+-- authored with a version prefix (20261109) that sorts BEFORE the migration that
+-- already created the table in production:
+--
+--   * 20261110000000_fresh_supabase_native_content.sql (commit a5febf71, 2026-10-28)
+--     is the AUTHORITATIVE creator of `members`. It is recorded as applied and is the
+--     shape the application uses (services/volunteer.server.ts reads `member_id` as a
+--     plain, possibly-empty text field, and relies on the `updated_at` trigger).
+--   * This file (commit 02c5ad17, 2026-11-09) duplicated that table with a divergent
+--     shape (`member_id text UNIQUE`, nullable phone/address, NOT NULL timestamps and
+--     no updated_at trigger) and used a bare `CREATE TABLE` with no `IF NOT EXISTS`.
+--
+-- Left as executable SQL it would fail on an already-migrated database
+-- (`ERROR: relation "members" already exists`, SQLSTATE 42P07) and, on a FRESH
+-- database, it would win the filename-order race and create the wrong shape before
+-- 20261110000000's `CREATE TABLE IF NOT EXISTS` silently no-ops.
+--
+-- Therefore this migration is intentionally a NO-OP ledger marker. It MUST NOT
+-- contain executable SQL. The version is deliberately unchanged: re-versioning the
+-- file would create a new out-of-order entry and discard the historical record.
+--
+-- See docs/audits/F-A16_MIGRATION_LEDGER_RECONCILIATION.md.
