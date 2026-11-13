@@ -1,9 +1,25 @@
-# Applies pending Supabase migrations to the approved production project. # workflow registration fix
+# Deploy Supabase Migrations — explicit, reviewed, confirmed apply only.
+#
+# This workflow is the ONLY manual path that applies migrations to the approved
+# production project. It has two modes:
+#
+#   * mode: dry-run  (DEFAULT) — read-only. It links, lists and runs
+#     `supabase db push --dry-run --include-all`, then enforces the reviewed
+#     allowlist. It never writes to the database.
+#   * mode: apply              — additionally requires the exact confirmation
+#     phrase `apply-supabase-migrations`, then applies the pending migrations and
+#     runs post-apply verification.
 #
 # Safety properties (do not weaken):
-#   - workflow_dispatch only; it never runs on push or on a schedule;
-#   - bound to the `production` environment, so a protected environment requires
-#     a human approval before the job starts (see the note below);
+#   - workflow_dispatch only; it never runs on push or on a schedule, so there is
+#     no automatic production migration path in this repository;
+#   - the default mode is dry-run; an operator must opt in to `apply`;
+#   - the real apply command lives in a single step gated on
+#     `if: ${{ inputs.mode == 'apply' }}`, so a dry-run can never execute it;
+#   - apply additionally requires the exact confirmation phrase; a missing or
+#     incorrect phrase fails the run before any database-changing command;
+#   - bound to the `production` environment, so a protected environment requires a
+#     human approval before the job starts (see the note below);
 #   - serialised by a concurrency group, so two runs cannot overlap;
 #   - a hard project-ref guard runs BEFORE `supabase link` and before any
 #     database-changing command, and refuses any ref but the approved one;
@@ -11,7 +27,10 @@
 #     `[db.migrations] enabled = false` is set in supabase/config.toml — that switch
 #     disables this workflow's `db push` as well as the Supabase GitHub integration's
 #     push-to-production deploy, so a dispatch would otherwise be a silent green no-op;
-#   - `db push` runs only after the guard and a dry-run have both succeeded.
+#   - the pending migrations the dry-run reports are parsed from the dry-run output
+#     and checked against an explicit, reviewed allowlist
+#     (`scripts/lib/pending-migrations.mjs`). An unapproved or unexpected pending
+#     migration fails the run before the apply step.
 #
 # NOTE ON ENVIRONMENT PROTECTION: `environment: production` only pauses for a human
 # if the repository's `production` environment has required reviewers configured.
@@ -24,9 +43,16 @@ name: Deploy Supabase Migrations
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'dry-run (read-only, default) or apply (writes to production)'
+        type: choice
+        options:
+          - dry-run
+          - apply
+        default: dry-run
       confirm:
-        description: 'Type exactly: apply-supabase-migrations'
-        required: true
+        description: 'Type exactly: apply-supabase-migrations (required only for mode=apply)'
+        required: false
         type: string
 
 permissions:
@@ -46,15 +72,42 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      # Combined stdout+stderr of the dry-run, parsed by the allowlist checker.
+      DRY_RUN_OUTPUT_FILE: ${{ runner.temp }}/supabase-dry-run.txt
 
     steps:
+      # Resolve the requested mode and fail closed on anything unknown. The mode is
+      # published to later steps through $GITHUB_ENV so no step needs to interpolate
+      # `inputs.mode` into its script text.
+      - name: Resolve and validate run mode
+        env:
+          MODE: ${{ inputs.mode }}
+        shell: bash
+        run: |
+          if [ -z "$MODE" ]; then
+            MODE="dry-run"
+          fi
+          case "$MODE" in
+            dry-run|apply) ;;
+            *)
+              echo "ERROR: unknown mode '$MODE'. Allowed values are 'dry-run' and 'apply'."
+              exit 1
+              ;;
+          esac
+          echo "MODE=$MODE" >> "$GITHUB_ENV"
+          echo "Resolved mode: $MODE"
+
       # `inputs.confirm` is untrusted input. It is passed through an environment
       # variable and compared as a quoted shell variable, never interpolated into
       # the script text: `${{ inputs.confirm }}` inside `run:` would let a value
       # like `$(...)` or `; ...` execute, and `$(echo apply-supabase-migrations)`
       # would even satisfy the check. See tests/unit/supabase-diagnostics-
       # migration-safety.test.ts, which runs this step against adversarial values.
+      #
+      # Gated on apply mode: a dry-run does not require the confirmation phrase and
+      # must work independently of it.
       - name: Check confirmation phrase
+        if: ${{ inputs.mode == 'apply' }}
         env:
           CONFIRM_PHRASE: ${{ inputs.confirm }}
         shell: bash
@@ -120,51 +173,43 @@ jobs:
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
+      # Diagnostic only. The box-drawn table is human-facing and its format is not a
+      # stable contract, so it is never parsed: the pending set comes from the
+      # dry-run bullets below instead.
       - name: Diagnostic migration list
         run: supabase migration list
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
+      # Always runs, in both modes. `--dry-run` prints what would apply and writes
+      # nothing. Combined stdout+stderr is captured for the allowlist checker.
       - name: Run Supabase migration dry-run with include-all
-        run: supabase db push --dry-run --include-all
+        shell: bash
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
-      - name: Determine pending migrations
-        id: pending
         run: |
-          # List local migration versions
-          local=$(ls supabase/migrations/*.sql | sed -E 's/.*\/([0-9]+)_.*/\1/' | sort)
-          # List remote migration versions
-          remote=$(supabase migration list | grep -E '^[0-9]{8,14}$' | sort || true)
-          # Compute pending migrations (local not in remote)
-          pending=$(comm -23 <(echo "$local") <(echo "$remote")) || true
-          echo "Local migrations: $local"
-          echo "Remote migrations: $remote"
-          echo "Pending migrations:"
-          printf "%s\n" $pending
-          {
-            echo "pending<<EOF"
-            printf "%s\n" $pending
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-          # Expected allowlist migrations
-          expected="20261109000000
-          20261109000001"
-          # Compare pending with expected (order-insensitive)
-          if [[ "$(printf "%s\n" $pending | sort)" != "$(printf "%s\n" $expected | sort)" ]]; then
-            echo "Unexpected pending migrations. Expected only the two approved migrations." >&2
-            exit 1
-          fi
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          set -o pipefail
+          supabase db push --dry-run --include-all 2>&1 | tee "$DRY_RUN_OUTPUT_FILE"
 
+      # Parses the "Would push these migrations:" bullet section of the dry-run
+      # output and fails closed unless every pending version is on the reviewed
+      # allowlist. Runs before the apply step, so an unreviewed migration can never
+      # reach production. See scripts/lib/pending-migrations.mjs.
+      - name: Determine pending migrations and enforce the allowlist
+        run: node scripts/lib/check-pending-migrations.mjs
+
+      # The ONLY step that applies migrations. Gated on apply mode, and the mode's
+      # confirmation phrase is enforced by the gated step above, so this cannot run
+      # on a dry-run and cannot run on an unconfirmed apply.
       - name: Apply Supabase migrations with include-all
-        run: supabase db push --include-all
+        if: ${{ inputs.mode == 'apply' }}
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push --include-all
 
+      # Post-apply verification only ever runs after an apply.
       - name: Verify Supabase migrations
+        if: ${{ inputs.mode == 'apply' }}
         run: npm run verify:supabase-migrations
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co

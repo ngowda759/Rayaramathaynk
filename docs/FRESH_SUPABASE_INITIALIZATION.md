@@ -179,8 +179,22 @@ Use the guarded workflow `.github/workflows/supabase-migrations.yml`
 (`Deploy Supabase Migrations`). It is `workflow_dispatch`-only, never runs on push or a
 schedule, is bound to the `production` environment, is serialised by a concurrency
 group, and runs a hard project-ref guard (`scripts/lib/guard-approved-project.mjs`)
-**before** any database-changing command. It runs a dry-run, then `db push`, then
-`verify:supabase-migrations`.
+**before** any database-changing command.
+
+It has two dispatch modes:
+
+- **`dry-run` (the default)** — read-only: it links, runs
+  `supabase db push --dry-run --include-all` and enforces the pending-migration
+  allowlist. It never writes to the database.
+- **`apply`** — additionally requires the exact confirmation phrase
+  `apply-supabase-migrations`. Only then does it run `supabase db push --include-all`,
+  followed by `verify:supabase-migrations`.
+
+The apply command appears exactly once and only in a step gated on
+`if: ${{ inputs.mode == 'apply' }}`, so a dry-run cannot apply anything. Before the apply
+step, `scripts/lib/check-pending-migrations.mjs` parses the dry-run's pending versions
+from its `Would push these migrations:` bullet section and fails closed unless every
+version is on the reviewed allowlist in `scripts/lib/pending-migrations.mjs`.
 
 Owner prerequisites:
 
@@ -190,7 +204,14 @@ Owner prerequisites:
    (Settings → Environments). The environment exists but carries no protection rules, so
    the workflow is currently dispatch-gated but not reviewer-gated. Enabling required
    reviewers is what makes the human-approval step real.
-3. Dispatch the workflow and type the confirmation phrase `apply-supabase-migrations`.
+3. Review every pending migration and confirm it is safe to apply. Add its version to
+   `APPROVED_PENDING_MIGRATIONS` in `scripts/lib/pending-migrations.mjs` — an
+   unapproved pending migration fails the run closed.
+4. Dispatch the workflow with `mode: apply` and type the confirmation phrase
+   `apply-supabase-migrations`.
+
+There is **no automatic production migration path** in this repository: the workflow has
+no `push` or `schedule` trigger.
 
 ### Step 2 — initialize the production starter dataset
 

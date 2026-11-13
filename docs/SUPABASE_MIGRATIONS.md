@@ -59,24 +59,65 @@ npm run verify:supabase-migrations
 
 A dedicated manual workflow is available in `.github/workflows/supabase-migrations.yml`.
 
+### Modes: dry-run (default) and apply
+
+The workflow takes a `mode` dispatch input:
+
+- **`dry-run` (the default)** — read-only. The workflow links, lists and runs
+  `supabase db push --dry-run --include-all`, then enforces the pending-migration
+  allowlist (below). It **never** executes `supabase db push --include-all` and never
+  runs post-apply verification.
+- **`apply`** — additionally requires the exact confirmation phrase
+  `apply-supabase-migrations` typed into the `confirm` input. A missing or incorrect
+  phrase fails the run **before** any database-changing command.
+
+The apply command (`supabase db push --include-all`) appears exactly once in the
+workflow, in a step gated on `if: ${{ inputs.mode == 'apply' }}`. A dry-run dispatch
+cannot reach it.
+
 ### What the workflow does:
-1. Triggers manually via `workflow_dispatch`.
-2. Checks out the repository and installs dependencies via `npm ci`.
-3. Installs the Supabase CLI.
-4. Links to the configured Supabase project using the configured secrets.
-5. Runs a dry-run (`supabase db push --dry-run`) first. The workflow fails immediately if the dry-run fails.
-6. Only if the dry-run succeeds, it applies the migrations (`supabase db push`).
-7. Finally, it runs the static and live verification (`npm run verify:supabase-migrations`).
+1. Triggers manually via `workflow_dispatch` (never on push or a schedule).
+2. Resolves and validates the requested `mode`, defaulting to `dry-run`.
+3. For `apply`, checks the exact confirmation phrase before anything else.
+4. Runs the config guard (`Assert migrations are enabled in config.toml`) and the hard
+   project-ref guard (`scripts/lib/guard-approved-project.mjs`) — both **before** any
+   database-changing command.
+5. Installs the pinned Supabase CLI (`1.200.0`) and links the approved project.
+6. Runs the diagnostic `supabase migration list` (human-facing only — its box-drawn
+   output is **never** parsed).
+7. Runs the dry-run (`supabase db push --dry-run --include-all`), which writes nothing.
+8. Parses the pending migrations from the dry-run's `Would push these migrations:`
+   bullet section and enforces the allowlist (below).
+9. **Only in `apply` mode**: applies the migrations (`supabase db push --include-all`)
+   and runs post-apply verification (`npm run verify:supabase-migrations`).
+
+### Pending-migration allowlist (fail closed)
+
+`scripts/lib/pending-migrations.mjs` holds an explicit, reviewed allowlist
+(`APPROVED_PENDING_MIGRATIONS`) of the migration versions this workflow may apply. The
+dry-run's pending versions are parsed from its ` • <version>_<name>.sql` bullets — never
+from fixed line numbers and never from the box-drawn `migration list` table, whose format
+is not a stable contract. `scripts/lib/check-pending-migrations.mjs` runs **before** the
+apply step and exits non-zero if **any** pending version is not on the allowlist, so an
+unreviewed or unexpected migration can never be pushed to production.
+
+The allowlist is deliberately **not** "every pending migration". Adding a version is an
+explicit approval decision, made only after a human has reviewed the migration and
+confirmed it is safe. Known-but-withheld versions are listed separately
+(`AWAITING_VERIFICATION`): they are **not** approved and still fail closed.
 
 ### What it deliberately does NOT do:
 - **No data migration:** It does NOT run Firestore data migration scripts or import Firestore data.
 - **No destructive operations:** It does NOT delete PostgreSQL tables, reset the database, or use `supabase db reset`.
-- **No automatic execution:** It does NOT run automatically on every push to `main` merely because a PR is opened.
+- **No automatic execution:** It does NOT run automatically on every push to `main` merely because a PR is opened, and it has no `push`/`schedule` trigger. There is no automatic production migration path in this repository.
 
 ### How to trigger the workflow manually
 1. Navigate to the **Actions** tab in the GitHub repository.
 2. Select **Deploy Supabase Migrations** from the left sidebar.
-3. Click **Run workflow**, select the branch (e.g., `main`), and confirm.
+3. Click **Run workflow**, select the branch (e.g., `main`).
+4. Choose `mode`. Leave it as **`dry-run`** to preview safely. To apply, choose `apply`
+   and type `apply-supabase-migrations` in the `confirm` field.
+
 
 ## Test-project migration verification (read-only)
 
