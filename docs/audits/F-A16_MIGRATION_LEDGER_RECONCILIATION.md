@@ -132,6 +132,46 @@ local histories otherwise match and **no migration is pending** at that time.
 it is stale history drift, not a missing schema change. Repairing it (`supabase migration
 repair`) is a ledger-only action and must be done deliberately, never as part of this PR.
 
+### 3.4 The obsolete back-dated `members` / `volunteers` migrations (**marker-only**)
+
+`20261109000000_create_members_table.sql` and
+`20261109000001_create_volunteers_table.sql` were committed on 2026-11-09 (commit
+`02c5ad17`), **after** `20261110000000_fresh_supabase_native_content.sql` (commit
+`a5febf71`, 2026-10-28) had already created `members` and `volunteers` and been recorded
+as applied. Their version prefixes (20261109) therefore sort **before** the migration
+that actually created the tables.
+
+Left as executable SQL, both files are unsafe:
+
+* against an already-migrated database they raise
+  `ERROR: relation "members"/"volunteers" already exists` (SQLSTATE 42P07) — the bare
+  `CREATE TABLE` has no `IF NOT EXISTS`, and the `CREATE POLICY` collides (42710);
+* on a **fresh** database, migrations apply in filename order, so these files would win
+  the race, create a **divergent** shape (`member_id`/`volunteer_id text UNIQUE`,
+  nullable `phone`/`address`, `NOT NULL` timestamps and no `updated_at` trigger), and
+  `20261110000000`'s `CREATE TABLE IF NOT EXISTS` would then silently no-op. This is the
+  same failure mode documented for `temple_areas` in §3.1.
+
+**Resolved by making both files comment-only no-op ledger markers**, matching the
+existing marker pattern used for `20261006101759_seed_ai_settings` and
+`20261015000000_baseline_raya_ai` (see `tests/unit/ci-pages-and-supabase-ledger.test.ts`):
+
+* `20261110000000_fresh_supabase_native_content.sql` is the **authoritative creator** of
+  both tables — it is the shape `services/volunteer.server.ts` reads and writes.
+* The two 20261109 files **intentionally contain no executable SQL**. They keep their
+  original filenames and versions (re-versioning would create a new out-of-order entry
+  and discard the historical record).
+* This prevents duplicate creation and fresh-database schema divergence.
+
+Pinned by `tests/unit/obsolete-members-volunteers-migrations.test.ts`, which asserts both
+files exist with their original versions, contain no executable SQL, declare no tables,
+and that `20261110000000` is the sole declarer of `members` and `volunteers`.
+
+> **Not claimed:** this does **not** mean the two versions are marked applied in
+> production. They remain unapplied in the ledger until a normal, reviewed apply path
+> records them (as no-op markers they apply cleanly). No ledger write is performed by
+> this change.
+
 ---
 
 ## 4. What is *not* a problem
