@@ -150,7 +150,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           # Expected allowlist migrations
           expected="20261109000000
-20261109000001"
+          20261109000001"
           # Compare pending with expected (order-insensitive)
           if [[ "$(printf "%s\n" $pending | sort)" != "$(printf "%s\n" $expected | sort)" ]]; then
             echo "Unexpected pending migrations. Expected only the two approved migrations." >&2
