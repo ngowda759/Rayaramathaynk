@@ -326,7 +326,8 @@ describe("(h) the pending parser reads the dry-run bullet section", () => {
   it("reports the header as seen for captured output", () => {
     const parsed = evalParser(
       `m.parsePendingOutput(${JSON.stringify(CAPTURED_DRY_RUN_OUTPUT)})`,
-    ) as { headerSeen: boolean; versions: string[] };
+    ) as { status: string; headerSeen: boolean; versions: string[] };
+    expect(parsed.status).toBe("pending");
     expect(parsed.headerSeen).toBe(true);
     expect(parsed.versions).toHaveLength(4);
   });
@@ -338,12 +339,16 @@ describe("(h) the pending parser reads the dry-run bullet section", () => {
     ]);
   });
 
-  it("returns nothing when the remote database is already up to date", () => {
+  it("recognizes the CLI's explicit up-to-date line as `up-to-date`", () => {
     const upToDate = "DRY RUN: migrations will *not* be pushed to the database.\nRemote database is up to date.";
     const parsed = evalParser(`m.parsePendingOutput(${JSON.stringify(upToDate)})`) as {
+      status: string;
       headerSeen: boolean;
+      upToDateSeen: boolean;
       versions: string[];
     };
+    expect(parsed.status).toBe("up-to-date");
+    expect(parsed.upToDateSeen).toBe(true);
     expect(parsed.headerSeen).toBe(false);
     expect(parsed.versions).toEqual([]);
   });
@@ -422,6 +427,201 @@ describe("(i) an unexpected/unapproved migration fails closed", () => {
     });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not read the dry-run output/i);
+  });
+});
+
+// --- (l) Fail-closed recognition of the dry-run output ------------------------
+
+describe("(l) the parser and checker fail closed on unrecognized output", () => {
+  const parse = (output: string) =>
+    evalParser(`m.parsePendingOutput(${JSON.stringify(output)})`) as {
+      status: string;
+      versions: string[];
+      headerSeen: boolean;
+      upToDateSeen: boolean;
+      malformedBulletLines: string[];
+      reason: string | null;
+    };
+
+  it("classifies empty output as unrecognized", () => {
+    expect(parse("").status).toBe("unrecognized");
+    expect(parse("\n\n").status).toBe("unrecognized");
+  });
+
+  it("classifies arbitrary text as unrecognized", () => {
+    expect(parse("hello world\nsome unrelated log lines\n").status).toBe("unrecognized");
+    expect(parse("fatal: not a git repository").status).toBe("unrecognized");
+  });
+
+  it("classifies the dry-run banner alone as unrecognized", () => {
+    const banner = "DRY RUN: migrations will *not* be pushed to the database.";
+    const parsed = parse(banner);
+    expect(parsed.status).toBe("unrecognized");
+    expect(parsed.upToDateSeen).toBe(false);
+  });
+
+  it("classifies truncated output as unrecognized", () => {
+    // A section cut off mid-header, and a header with no bullets yet.
+    expect(parse("Would push these migr").status).toBe("unrecognized");
+    expect(parse("Would push these migrations:").status).toBe("unrecognized");
+  });
+
+  it("classifies an altered/missing pending header as unrecognized", () => {
+    const altered = [
+      "Would push these migrations", // trailing colon removed
+      " • 20261116000000_add_auth_user_id_to_staff.sql",
+    ].join("\n");
+    expect(parse(altered).status).toBe("unrecognized");
+
+    const missing = " • 20261116000000_add_auth_user_id_to_staff.sql";
+    expect(parse(missing).status).toBe("unrecognized");
+  });
+
+  it("classifies a pending header with zero parsed bullets as unrecognized", () => {
+    const parsed = parse("Would push these migrations:\n (unparseable)\n");
+    expect(parsed.status).toBe("unrecognized");
+    expect(parsed.headerSeen).toBe(true);
+    expect(parsed.versions).toEqual([]);
+  });
+
+  it("classifies malformed bullet lines as unrecognized and reports them", () => {
+    const malformed = [
+      "Would push these migrations:",
+      " • 20261116000000_add_auth_user_id_to_staff.sql",
+      " • 20261201000000_add_is_approved_to_users", // missing .sql
+    ].join("\n");
+    const parsed = parse(malformed);
+    expect(parsed.status).toBe("unrecognized");
+    expect(parsed.malformedBulletLines).toHaveLength(1);
+    expect(parsed.malformedBulletLines[0]).toContain("20261201000000");
+  });
+
+  it("recognizes a valid explicit up-to-date output", () => {
+    const upToDate =
+      "DRY RUN: migrations will *not* be pushed to the database.\nRemote database is up to date.";
+    expect(parse(upToDate).status).toBe("up-to-date");
+    // The exact single line is enough on its own.
+    expect(parse("Remote database is up to date.").status).toBe("up-to-date");
+  });
+
+  it("recognizes a valid pending output with approved versions", () => {
+    const approvedOnly = [
+      "Would push these migrations:",
+      " • 20261109000000_create_members_table.sql",
+      " • 20261109000001_create_volunteers_table.sql",
+      " • 20261116000000_add_auth_user_id_to_staff.sql",
+      "Finished supabase db push.",
+    ].join("\n");
+    const parsed = parse(approvedOnly);
+    expect(parsed.status).toBe("pending");
+    expect(parsed.versions).toHaveLength(3);
+  });
+
+  // --- checker exit codes ---
+
+  it("the checker exits non-zero for empty output", () => {
+    const r = runChecker("");
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/not recognized|unrecognized/i);
+  });
+
+  it("the checker exits non-zero for arbitrary text", () => {
+    const r = runChecker("nothing to see here\n");
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/unrecognized|not recognized/i);
+  });
+
+  it("the checker exits non-zero for banner-only output", () => {
+    const r = runChecker("DRY RUN: migrations will *not* be pushed to the database.\n");
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/unrecognized|not recognized/i);
+  });
+
+  it("the checker exits non-zero for truncated output", () => {
+    expect(runChecker("Would push these migrations:\n").status).toBe(1);
+    expect(runChecker("Would push these migr").status).toBe(1);
+  });
+
+  it("the checker exits non-zero for an altered/missing header", () => {
+    expect(runChecker("Would push these migrations\n • 20261116000000_x.sql\n").status).toBe(1);
+    expect(runChecker(" • 20261116000000_x.sql\n").status).toBe(1);
+  });
+
+  it("the checker exits non-zero for malformed bullet lines", () => {
+    const malformed = [
+      "Would push these migrations:",
+      " • 20261109000000_create_members_table.sql",
+      " • 20261116000000_add_auth_user_id_to_staff", // missing .sql
+    ].join("\n");
+    const r = runChecker(malformed);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/malformed/i);
+  });
+
+  it("the checker exits zero for valid explicit up-to-date output", () => {
+    const r = runChecker("Remote database is up to date.\n");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/up to date/i);
+  });
+
+  it("the checker exits zero for a valid pending section with approved versions", () => {
+    const approvedOnly = [
+      "Would push these migrations:",
+      " • 20261109000000_create_members_table.sql",
+      " • 20261109000001_create_volunteers_table.sql",
+      " • 20261116000000_add_auth_user_id_to_staff.sql",
+      "Finished supabase db push.",
+    ].join("\n");
+    expect(runChecker(approvedOnly).status).toBe(0);
+  });
+
+  it("the checker exits non-zero for a withheld pending migration", () => {
+    const withheld = [
+      "Would push these migrations:",
+      " • 20261116000000_add_auth_user_id_to_staff.sql",
+      " • 20261201000000_add_is_approved_to_users.sql",
+    ].join("\n");
+    const r = runChecker(withheld);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/20261201000000/);
+    expect(r.stderr).toMatch(/awaiting production catalog verification/i);
+  });
+
+  it("the checker exits non-zero for an unknown pending migration", () => {
+    const unknown = [
+      "Would push these migrations:",
+      " • 20270101000000_something_new.sql",
+    ].join("\n");
+    const r = runChecker(unknown);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Unexpected \/ unreviewed: 20270101000000/);
+  });
+
+  it("publishes the parse status to $GITHUB_OUTPUT", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pending-status-"));
+    try {
+      const outFile = join(dir, "dry-run.txt");
+      const ghFile = join(dir, "github-output.txt");
+      writeFileSync(outFile, "Remote database is up to date.\n");
+      const r = spawnSync("node", [checker], {
+        cwd: root,
+        env: { ...process.env, DRY_RUN_OUTPUT_FILE: outFile, GITHUB_OUTPUT: ghFile },
+        encoding: "utf8",
+      });
+      expect(r.status).toBe(0);
+      expect(readFileSync(ghFile, "utf8")).toMatch(/^status=up-to-date$/m);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("never infers up-to-date from the absence of the header", () => {
+    // Regression guard for the exact bug: a header-less, non-empty output that is not
+    // the explicit up-to-date line must NOT be treated as "nothing to do".
+    for (const output of ["", "some log output", "DRY RUN: migrations will *not* be pushed to the database."]) {
+      expect(parse(output).status).not.toBe("up-to-date");
+      expect(runChecker(output).status).toBe(1);
+    }
   });
 });
 
