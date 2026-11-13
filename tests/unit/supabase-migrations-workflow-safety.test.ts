@@ -381,11 +381,12 @@ describe("(h) the pending parser reads the dry-run bullet section", () => {
 // --- (i) An unexpected migration fails closed ---------------------------------
 
 describe("(i) an unexpected/unapproved migration fails closed", () => {
-  it("the checker exits non-zero when the withheld migration is pending", () => {
+  it("the checker exits zero when every captured pending migration is approved", () => {
+    // All four captured versions are on the allowlist as of 2026-11-13
+    // (20261201000000 was verified against production, so it is now approved).
     const r = runChecker(CAPTURED_DRY_RUN_OUTPUT);
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/unapproved pending migration/i);
-    expect(r.stderr).toMatch(/20261201000000/);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/on the reviewed allowlist/);
   });
 
   it("exits zero when only approved migrations are pending", () => {
@@ -575,17 +576,20 @@ describe("(l) the parser and checker fail closed on unrecognized output", () => 
     expect(runChecker(approvedOnly).status).toBe(0);
   });
 
-  it("the checker exits non-zero for a withheld pending migration", () => {
-    const withheld = [
+  it("the checker exits non-zero for an unapproved migration alongside approved ones", () => {
+    const mixed = [
       "Would push these migrations:",
       " • 20261116000000_add_auth_user_id_to_staff.sql",
       " • 20261201000000_add_is_approved_to_users.sql",
+      " • 20270101000000_something_new.sql",
       "Finished supabase db push.",
     ].join("\n");
-    const r = runChecker(withheld);
+    const r = runChecker(mixed);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/20261201000000/);
-    expect(r.stderr).toMatch(/awaiting production catalog verification/i);
+    expect(r.stderr).toMatch(/unapproved pending migration/i);
+    // The approved versions are not the reason; the unreviewed one is.
+    expect(r.stderr).toMatch(/Unexpected \/ unreviewed: 20270101000000/);
+    expect(r.stderr).not.toMatch(/20261201000000/);
   });
 
   it("the checker exits non-zero for an unknown pending migration", () => {
@@ -707,18 +711,21 @@ describe("(j) the reviewed allowlist is explicit and intact", () => {
   const approved = evalParser("m.APPROVED_PENDING_MIGRATIONS") as string[];
   const withheld = evalParser("m.AWAITING_VERIFICATION") as string[];
 
-  it("approves exactly the three reviewed migrations", () => {
+  it("approves exactly the four reviewed migrations", () => {
     expect(approved).toEqual([
       "20261109000000",
       "20261109000001",
       "20261116000000",
+      "20261201000000",
     ]);
   });
 
-  it("withholds the users.is_approved migration pending catalog verification", () => {
-    expect(withheld).toContain("20261201000000");
-    // It must NOT be approved: production catalog verification is still outstanding.
-    expect(approved).not.toContain("20261201000000");
+  it("approves the users.is_approved migration now that production verification is complete", () => {
+    // Verified 2026-11-13: the column already exists as `boolean NOT NULL DEFAULT false`,
+    // so the migration's `ADD COLUMN IF NOT EXISTS` is a no-op schema change.
+    expect(approved).toContain("20261201000000");
+    // Nothing remains withheld once approval is recorded.
+    expect(withheld).not.toContain("20261201000000");
   });
 
   it("is frozen so it cannot be mutated at run time", () => {
