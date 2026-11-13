@@ -12,10 +12,13 @@
 > [!NOTE]
 > **2026-11-13 reconciliation.** Production migration `20261116000000_add_auth_user_id_to_staff.sql`
 > has been applied: `public.staff.auth_user_id uuid UNIQUE` now exists (nullable, no foreign key).
-> The findings below (F-ID-02, F-ID-06) and the "Supabase Auth is scoped only to `/admin/ai/*`"
-> statement have been corrected to match the shipped code and schema. **Firebase has NOT been
-> removed** — it remains a compatibility/fallback path (see §7). No staff backfill has been
-> performed, so existing `public.staff` rows may still have `auth_user_id IS NULL`.
+> This document was **re-verified line-by-line against the current `origin/main`** (commit `467eb6d`),
+> which corrected several findings that were written against the older 2026-11-06 audit branch:
+> F-ID-02, F-ID-03, F-ID-04, F-ID-06, F-ID-07, F-ID-08, F-ID-09, the "Supabase Auth is scoped only
+> to `/admin/ai/*`" statement, and §2.2 (there is **no live Firestore runtime touchpoint** on the
+> request path). **Firebase has NOT been removed** — it remains a compatibility/fallback path
+> (see §7). No staff backfill has been performed, so existing `public.staff` rows may still have
+> `auth_user_id IS NULL`.
 
 ---
 
@@ -32,15 +35,18 @@ The repository currently operates **two distinct authentication systems** with s
 │ • Primary token path in lib/auth/verify-id- │ • Secondary/fallback token path (legacy    │
 │   token.ts (createAdminClient().auth.       │   Firebase ID tokens still verify)         │
 │   getUser(token))                           │ • Devotee Portal: /login, /register,       │
-│ • Seva API /api/seva/** (identity.ts        │   profile (Firestore profile mirror)       │
-│   defaults to supabaseIdentityAdapter)      │ • Remaining Firestore runtime touchpoints  │
-│ • Raya AI admin: /admin/ai/**, /api/ai/**   │   (proxy.ts page_views, admin.ts gate)     │
+│ • Seva API /api/seva/** (identity.ts        │   profile (Firebase Auth session)          │
+│   defaults to supabaseIdentityAdapter)      │ • Firebase Auth SDKs still initialised     │
+│ • Raya AI admin: /admin/ai/**, /api/ai/**   │   (lib/firebase.ts, lib/admin-firebase.ts) │
 │ • Session: @supabase/ssr cookies / Bearer   │ • Legacy staff lookups keyed on            │
 │ • Auth Source: Supabase auth.users          │   staff.firebase_uid (NOT NULL, retained)  │
 │ • Role Source: public.users.auth_user_id    │ • Role Source: public.users.firestore_id   │
-│ • Staff key: public.staff.auth_user_id      │   and Firestore users/{uid}                │
+│ • Staff key: public.staff.auth_user_id      │   (= Firebase UID)                         │
 └─────────────────────────────────────────────┴───────────────────────────────────────────┘
 ```
+
+> [!NOTE]
+> **No live Firestore runtime touchpoint remains on the request path.** `proxy.ts` writes no Firestore; page views go to Supabase `page_views`. The Firebase column above lists **Firebase *Auth*** fallbacks (identity), not Firestore data access — see §2.2 for the full re-verification.
 
 > [!IMPORTANT]
 > **Clarification (reconciled 2026-11-13):** Supabase Authentication is the **canonical identity direction**. `lib/auth/verify-id-token.ts` verifies Supabase Auth access tokens on its **primary path**, and the Seva identity adapter (`lib/seva/server/identity.ts`) now defaults to `supabaseIdentityAdapter` (`getIdentityAdapter()` returns `testAdapter ?? supabaseIdentityAdapter`). Supabase Auth is therefore active across the Seva API (`/api/seva/**`), Raya AI administration (`/admin/ai/**`, `/api/ai/**`), and any route using the shared token verifier — **not** only `/admin/ai/*` as previously stated.
@@ -51,32 +57,26 @@ The repository currently operates **two distinct authentication systems** with s
 
 ## 2. Reconciled Firestore Runtime Status (HEAD Verification & Dependencies)
 
-A rigorous verification against the **current HEAD of the repository** (`auth-phase1-identity-audit` / `origin/main`) establishes the exact state of Firestore elimination and isolates pre-existing findings from ongoing remediation tracks.
+A rigorous re-verification against the **current `origin/main`** (commit `467eb6d`, 2026-11-13) establishes the exact state of Firestore elimination and corrects the findings originally captured against the 2026-11-06 audit branch (`auth-phase1-identity-audit` / PR #387).
 
 ### 2.1 Content & Domain Services: Clean (Zero Fallback Reads)
 All domain and content services have cleanly cut over to Supabase PostgreSQL. There are **zero fallback reads** from Supabase to Firestore in the request path:
 * `events`, `sevas`, `quotes`, `gallery_albums`, `gallery_media`, `aaradhanes`, `ai_settings`, `ai_knowledge`, and `settings_documents` read exclusively from Supabase tables.
 * Code in `services/chat.server.ts`, `services/knowledge-workflow.service.ts`, and `lib/ai/retrieval/announcements.ts` explicitly rejects Firestore fallback paths (failures fail closed).
 
-### 2.2 Active Firestore Runtime Touchpoints (Current HEAD Verification)
-Verification confirms that **three Firestore runtime touchpoints still physically exist in the current HEAD** (the Seva identity adapter, item 3 below, was reconciled on 2026-11-13 and no longer reads Firestore). The planned **Firestore runtime-elimination task/PR** is not yet merged into this branch. These items are classified as **pre-existing findings captured by the Phase-1 audit**, with the standalone **Firestore Runtime-Elimination PR** identified as their direct remediation dependency:
+### 2.2 Firestore Runtime Touchpoints (re-verified against `origin/main`, 2026-11-13)
+A line-by-line re-verification against the **current `origin/main`** (commit `467eb6d`) — not the original 2026-11-06 audit branch — finds **no live Firestore runtime touchpoint on the request path**. Every item the original audit listed has since been eliminated or was already Supabase-backed:
 
-1. **Page View Logging (`proxy.ts` — Middleware) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
-   * **Verification on Current HEAD:** `proxy.ts:4` imports `firebase/firestore` and lines 82–84 invoke `addDoc(collection(firestore, "page_views"), pageViewData)` on every public GET request.
-   * **Current State:** Live residual write to Firestore still present in current HEAD.
-   * **Remediation Dependency:** Scheduled for removal in the standalone Firestore runtime-elimination task (leaving the client-side Supabase `PageViewTracker.tsx` beacon as the sole analytics writer).
-2. **Client-Side Auth Context & Profile Mirror (`services/auth.service.ts` & `context/AuthContext.tsx`) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
-   * **Verification on Current HEAD:** `services/auth.service.ts:12-16` imports Firestore methods (`doc, getDoc, setDoc`). `login` and `register` write to `users/{uid}`, and `AuthContext.tsx:74` calls `getUserProfile(uid)`.
-   * **Current State:** Client-side Firestore profile mirror remains present in current HEAD.
-   * **Remediation Dependency:** Scheduled for elimination in the separate Firestore runtime-elimination task.
-3. **Seva Identity Adapter (`lib/seva/server/identity-firebase.ts`) [RECONCILED 2026-11-13 — no longer a Firestore read]:**
-   * **Verification on Current HEAD:** `lib/seva/server/identity-firebase.ts` imports `firebase-admin/auth` (for login verification) and reads the access profile from the **Supabase `public.users` table** (`auth_user_id` / `firestore_id`) — it no longer imports `getAdminFirestore` or executes a Firestore `.get()`. This adapter is also no longer the default; `getIdentityAdapter()` returns `supabaseIdentityAdapter`.
-   * **Current State:** The adapter's profile read is Supabase-backed. Firebase Admin is still loaded for legacy ID-token verification (see §7.3).
-   * **Remediation Dependency:** Optional Phase 2 cleanup to retire the now-unused `firebaseIdentityAdapter`.
-4. **Site Settings Action Admin Gate (`lib/auth/admin.ts:58-75`) [PRE-EXISTING / PENDING RUNTIME ELIMINATION]:**
-   * **Verification on Current HEAD:** `isUserAdmin(uid)` executes `getDoc(doc(db, "users", uid))` against Firestore before allowing `app/actions/settings.ts` to write `site_settings` in Supabase.
-   * **Current State:** Lingering Firestore authorization check remains present in current HEAD.
-   * **Remediation Dependency:** Scheduled for replacement by Supabase `public.users` role inspection in the Firestore runtime-elimination task.
+1. **Page-view logging (`proxy.ts`) — ELIMINATED.** `proxy.ts` is now 47 lines and only sets security headers; it contains **no** `firebase/firestore` import and **no** `addDoc(...page_views...)`. Page-view analytics are written to **Supabase** `page_views` via `/api/public/pageview` and read via `/api/admin/web-analytics`; `services/pageviews.service.ts` states "There is no Firestore path."
+2. **Devotee profile storage (`services/auth.service.ts`, `context/AuthContext.tsx`) — NO FIRESTORE WRITE.** `services/auth.service.ts` imports only `@/lib/supabase/client` — no Firestore `doc/getDoc/setDoc` (the `firestore_id` strings are the Supabase **column** name). `context/AuthContext.tsx` retains a Firebase **Auth** listener (`firebase/auth` `onAuthStateChanged`) as a rollback / zero-lockout path, but performs no Firestore write.
+3. **Seva identity adapter (`lib/seva/server/identity-firebase.ts`) — NO FIRESTORE READ.** It imports `firebase-admin/auth` for login verification and reads the access profile from **Supabase** `public.users`; it does not import `getAdminFirestore`. It is also no longer the default: `getIdentityAdapter()` returns `supabaseIdentityAdapter`.
+4. **Site-settings admin gate (`lib/auth/admin.ts`) — ELIMINATED.** `lib/auth/admin.ts` is a 5-line compatibility re-export; `isUserAdmin()` now lives in `lib/auth/admin-auth-compat.ts` and queries **Supabase** `public.users`, not Firestore.
+
+**What remains on `main` (not a Firestore runtime touchpoint):**
+* **Firebase Auth (compatibility).** `lib/firebase.ts` (client) and `lib/admin-firebase.ts` `getAdminApp()` / `getAuth()` still back the token verifier's Firebase fallback and the Firebase identity adapter — the "Firebase not removed" path described in §7.3.
+* **A residual static import.** `lib/admin-firebase.ts` imports `firebase-admin/firestore` and defines `getAdminFirestore()`, but **no runtime code calls it** (only `scripts/*` ETL/dump tooling does). It is a candidate for a later cleanup PR, not a request-path touchpoint.
+
+**Out of scope:** the `scripts/*` Firestore ETL/dump tooling still reads Firestore directly by design (migration support) and is not part of the application request path.
 
 ---
 
@@ -101,13 +101,13 @@ Verification confirms that **three Firestore runtime touchpoints still physicall
 |---|---|---|---|---|
 | **F-ID-01** | **MATCHED** | Supabase Auth $\leftrightarrow$ `public.users` | Raya AI admin account mapped via `auth_user_id` with `active = true` and `role = 'super_admin'`. | None for `/admin/ai/*`. Works as designed. |
 | **F-ID-02** | **MATCHED** | Supabase `public.staff` | `public.staff` now has `auth_user_id uuid UNIQUE` (nullable, no FK) — applied via migration `20261116000000_add_auth_user_id_to_staff.sql`. `lib/seva/server/auth.ts:findStaff()` uses it as the canonical lookup when the external UID is a UUID; `firebase_uid` is retained as a fallback. Existing rows may still be `NULL` (no backfill). | None (column shipped). Backfill of existing rows remains outstanding — see §7. |
-| **F-ID-03** | **MISSING** | Supabase `public.users` | Onboarding staff via `onboardStaff` creates Firebase Auth, Firestore `users/{uid}`, and Supabase `staff`, but **no `public.users` record**. | Phase 2 Synchronized Onboarding. |
-| **F-ID-04** | **MISMATCH** | General Admin Guard | `lib/auth/admin-auth.ts` verifies Firebase JWT and queries `public.users.firestore_id`. Missing rows answer `403 user_not_found`. | Phase 2 Dual-Token Verification. |
-| **F-ID-05** | **MISMATCH** | Immutability Trigger | `seva_staff_guard` trigger raises an exception on any update to `staff.firebase_uid`. | Phase 2 Additive Column Migration. |
+| **F-ID-03** | **RECONCILED** | Supabase `public.users` | `onboardStaff()` **does** provision a matching `public.users` authorization record (upsert by email, setting `role`, `active`, `firestore_id`, and `auth_user_id`), in addition to the Supabase `staff` row. The original "no `public.users` record" finding is stale. | None (onboarding already synchronized). |
+| **F-ID-04** | **RECONCILED** | General Admin Guard | `lib/auth/admin-auth.ts` performs **dual-token** verification: **PRIMARY** Supabase Auth (`auth_user_id`), **SECONDARY** Firebase ID token (`firestore_id`) as fallback. Missing rows answer `403 user_not_found`. It no longer verifies *only* Firebase. | None for the primary path; Firebase fallback retained (see §7.3). |
+| **F-ID-05** | **MATCHED** | Immutability Trigger | `seva_staff_guard` raises on any change to `staff.id` / `staff.staff_no` / `staff.firebase_uid` and on deletes; it does **not** block `auth_user_id` updates, so the additive column is safe. | None. |
 | **F-ID-06** | **RECONCILED** | Seva Identity Adapter | `lib/seva/server/identity.ts:getIdentityAdapter()` returns `testAdapter ?? supabaseIdentityAdapter` — i.e. it **defaults to the Supabase identity adapter**, not `firebaseIdentityAdapter`. `firebaseIdentityAdapter` is still exported as a compatibility adapter but is not selected by default. Both adapters read the access profile from the Supabase `public.users` table (`auth_user_id` / `firestore_id`), not from Firestore. | None for the default path. Retiring the unused Firebase adapter is optional Phase 2 cleanup. |
-| **F-ID-07** | **LEGACY / PRE-EXISTING** | Devotee Profile Storage | `services/auth.service.ts` writes profile updates directly to Firestore on login/register. | Dedicated Firestore Runtime-Elimination PR. |
-| **F-ID-08** | **LEGACY / PRE-EXISTING** | Request Middleware | `proxy.ts:83` writes page-view documents to Firestore `page_views` collection. | Dedicated Firestore Runtime-Elimination PR. |
-| **F-ID-09** | **LEGACY / PRE-EXISTING** | Client Guard Blocker | `AdminAuthGuard.tsx` shows "Firebase Not Configured" screen if Firebase env vars are missing. | Phase 2 Admin Guard Unification. |
+| **F-ID-07** | **RECONCILED** | Devotee Profile Storage | `services/auth.service.ts` imports only `@/lib/supabase/client` and reads/writes `public.users`; it performs **no Firestore write**. The original "writes profile updates directly to Firestore" finding is stale. | None. |
+| **F-ID-08** | **ELIMINATED** | Request Middleware | `proxy.ts` is 47 lines of security-header logic with **no Firestore write**; page views go to Supabase `page_views`. The original `proxy.ts:83` finding is stale. | None. |
+| **F-ID-09** | **RECONCILED** | Client Guard Blocker | `components/admin/layout/AdminAuthGuard.tsx` no longer shows a "Firebase Not Configured" screen — it uses the Supabase session as canonical (Firebase config is not required client-side). | None for Supabase-auth paths. |
 
 ---
 
@@ -131,14 +131,14 @@ To ensure a seamless, zero-lockout transition to unified Supabase authentication
 * `seva_staff_guard` continues to protect `firebase_uid` (it raises only when `NEW.firebase_uid IS DISTINCT FROM OLD.firebase_uid`), so populating `auth_user_id` does not trip the immutability trigger.
 * **No backfill was performed.** Existing `public.staff` rows may still have `auth_user_id IS NULL`; they fall back to the `firebase_uid` lookup. See §7.
 
-### 5.3 Dual-Token Verification Architecture in `lib/auth/admin-auth.ts`
-* Update `verifyAdminUserResult` with a safe fallback chain:
-  1. **Primary Check (Supabase Auth):** Check for Supabase session cookie (`@supabase/ssr`) or Supabase Bearer token. Resolve caller and check authorization via `public.users.auth_user_id`.
-  2. **Secondary Fallback (Firebase Auth):** If no Supabase token/session is present, verify the Firebase ID token and authorize via `public.users.firestore_id`.
-* This ensures existing Firebase administrators remain fully functional while Supabase accounts are onboarded and verified.
+### 5.3 Dual-Token Verification Architecture in `lib/auth/admin-auth.ts` — **SHIPPED**
+* `lib/auth/admin-auth.ts` implements the safe fallback chain:
+  1. **Primary Check (Supabase Auth):** verifies the Supabase session / Bearer token and authorizes via `public.users.auth_user_id`.
+  2. **Secondary Fallback (Firebase Auth):** if no Supabase token/session is present, verifies the Firebase ID token and authorizes via `public.users.firestore_id`.
+* This keeps existing Firebase administrators functional while Supabase accounts are onboarded and verified.
 
-### 5.4 Synchronized Admin & Staff Onboarding
-* Update `/api/admin/users/create-admin` and `lib/seva/server/staff.ts:onboardStaff` so that any staff or administrator created is automatically provisioned with a matching authorization row in `public.users`.
+### 5.4 Synchronized Admin & Staff Onboarding — **SHIPPED**
+* `lib/seva/server/staff.ts:onboardStaff()` provisions a matching `public.users` authorization row (and populates `staff.auth_user_id`) for any staff member it creates; `/api/admin/users/create-admin` does the same for administrators.
 
 ---
 
@@ -146,7 +146,7 @@ To ensure a seamless, zero-lockout transition to unified Supabase authentication
 
 * **Zero Live Mutations:** Confirmed. No production data, credentials, users, or schema objects were created, altered, or deleted during this diagnostic.
 * **Credentials Protected:** Confirmed. No passwords, tokens, API keys, or secret strings are included in this document.
-* **Repository Consistency:** Confirmed against current codebase HEAD on `auth-phase1-identity-audit`.
+* **Repository Consistency:** Re-verified 2026-11-13 against current `origin/main` (commit `467eb6d`); the findings matrix and §2.2 reflect that revision, not the original 2026-11-06 audit branch.
 
 ---
 
@@ -167,9 +167,9 @@ This section records the shipped state after production migration `2026111600000
 
 ### 7.3 Firebase remains a compatibility / fallback path (NOT removed)
 
-* The token verifier still accepts legacy Firebase ID tokens.
-* `public.staff.firebase_uid` remains `NOT NULL UNIQUE` and is still used as a lookup key in several places (e.g. `lib/seva/server/staff.ts` `existingLogin()`/`setAccountRole()`, `app/api/admin/users/set-role/route.ts`, `lib/seva/server/counter.ts`).
-* Other Firestore runtime touchpoints listed in §2.2 remain in place.
+* The token verifier still accepts legacy Firebase ID tokens (secondary path), and `lib/firebase.ts` / `lib/admin-firebase.ts` still initialize the Firebase client/admin SDKs for that fallback.
+* `public.staff.firebase_uid` remains `NOT NULL UNIQUE` and is still used as a lookup key in several places (e.g. `lib/seva/server/auth.ts:findStaff()` fallback, `lib/seva/server/staff.ts` `existingLogin()`/`setAccountRole()`, `app/api/admin/users/set-role/route.ts`).
+* `lib/admin-firebase.ts` still imports `firebase-admin/firestore` and defines `getAdminFirestore()`; **no runtime code calls it** (only `scripts/*` tooling), and there is no live Firestore write on the request path (§2.2).
 * Retiring Firebase entirely is ongoing Phase 2 work and is **not** complete.
 
 ### 7.4 Outstanding (not part of this documentation change)
