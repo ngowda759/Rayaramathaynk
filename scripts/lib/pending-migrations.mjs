@@ -13,13 +13,17 @@
 //              • 20261116000000_add_auth_user_id_to_staff.sql
 //              • 20261201000000_add_is_approved_to_users.sql
 //
-//           followed by `Finished supabase db push.` on stdout.
+//           followed by the completion line `Finished supabase db push.` on stdout.
+//           A pending result requires BOTH the bullets and that completion line: the
+//           parser never treats bullets alone as a successful run, so output that is
+//           truncated or terminated by anything else fails closed.
 //        b. UP TO DATE (stdout, early return): a single explicit line, with no header
 //           and no bullets:
 //
 //             Remote database is up to date.
 //        c. FAILURE: any other output (empty, banner-only, truncated, a header with
-//           no bullets, or malformed bullet lines) is NOT a recognized outcome.
+//           no bullets, malformed bullet lines, or a pending section not terminated by
+//           the completion line) is NOT a recognized outcome.
 //
 //      The bullet lines are parsed from *inside the header section only* (never by
 //      fixed line number, and never from the box-drawn `supabase migration list`
@@ -44,6 +48,13 @@ export const PENDING_HEADER = "Would push these migrations:";
 
 /** The literal line the CLI prints (stdout) when there is nothing to push. */
 export const UP_TO_DATE_MESSAGE = "Remote database is up to date.";
+
+/**
+ * The literal completion line the CLI prints (stdout) after a successful run — in
+ * dry-run mode this is the last line after the pending bullets. A pending result is
+ * only recognized when this line is present, so truncated output fails closed.
+ */
+export const FINISHED_MESSAGE = "Finished supabase db push.";
 
 /**
  * A pending-migration bullet: an optional leading space, the `•` bullet, then a
@@ -97,15 +108,18 @@ function stripAnsi(line) {
 
 /**
  * Parse the raw combined output of `supabase db push --dry-run --include-all` into
- * one of three explicit outcomes. It never infers "up to date" from a missing header.
+ * one of three explicit outcomes. It never infers "up to date" from a missing header,
+ * and never treats parsed bullets alone as a successful run.
  *
  *   - `"pending"`      — a `Would push these migrations:` section with one or more
- *                        valid bullets was found. `versions` lists them.
+ *                        valid bullets, terminated by the CLI's completion line
+ *                        `Finished supabase db push.`. `versions` lists the bullets.
  *   - `"up-to-date"`   — the CLI's explicit up-to-date line was found and no pending
  *                        section was present. `versions` is empty.
  *   - `"unrecognized"` — anything else: empty output, arbitrary text, the dry-run
  *                        banner alone, a truncated section, an altered/missing header,
- *                        a header with zero bullets, or a malformed bullet line.
+ *                        a header with zero bullets, a malformed bullet line, or a
+ *                        pending section not terminated by the completion line.
  *
  * @param {string} output combined stdout+stderr of the dry-run command
  * @returns {{
@@ -113,6 +127,8 @@ function stripAnsi(line) {
  *   versions: string[],
  *   upToDateSeen: boolean,
  *   headerSeen: boolean,
+ *   finishedSeen: boolean,
+ *   unexpectedTerminator: string | null,
  *   malformedBulletLines: string[],
  *   reason: string | null,
  * }}
@@ -123,9 +139,11 @@ export function parsePendingOutput(output) {
 
   let headerSeen = false;
   let upToDateSeen = false;
+  let finishedSeen = false;
   let inSection = false;
   let sectionEnded = false;
   let sawNonEmptyLine = false;
+  let unexpectedTerminator = null;
   const versions = [];
   const malformedBulletLines = [];
   let reason = null;
@@ -148,22 +166,32 @@ export function parsePendingOutput(output) {
       continue;
     }
 
-    // Inside the pending section. The CLI writes the header, then the bullets, then
-    // nothing else in this block; the first non-bullet, non-blank line ends it.
+    // Inside the pending section, before it has ended: collect bullets and malformed
+    // bullet lines. The first non-bullet, non-blank line ends the section, and is the
+    // candidate terminator that must be the CLI completion line.
+    if (!sectionEnded) {
+      if (trimmed === "") continue;
+      if (BULLET_RE.test(line)) {
+        versions.push(BULLET_RE.exec(line)[1]);
+        continue;
+      }
+      // A bullet-looking line that is not a valid bullet is malformed, not the end of
+      // the block: keep it in-section so the parser reports it (and fails closed).
+      if (BULLET_MARKER_RE.test(line) || VERSION_RE.test(line)) {
+        malformedBulletLines.push(line);
+        continue;
+      }
+      sectionEnded = true;
+    }
+
+    // After the pending section: the first non-blank line must be the completion line.
     if (trimmed === "") continue;
-    if (BULLET_RE.test(line)) {
-      versions.push(BULLET_RE.exec(line)[1]);
-      continue;
+    if (trimmed === FINISHED_MESSAGE) {
+      finishedSeen = true;
+    } else if (unexpectedTerminator === null && !finishedSeen) {
+      unexpectedTerminator = trimmed;
     }
-    // A bullet-looking line that is not a valid bullet is malformed, not the end of
-    // the block: keep it in-section so the parser reports it (and fails closed) rather
-    // than silently treating the rest as "not pending".
-    if (BULLET_MARKER_RE.test(line) || VERSION_RE.test(line)) {
-      malformedBulletLines.push(line);
-      continue;
-    }
-    sectionEnded = true;
-    break;
+    continue;
   }
 
   const uniqueVersions = [...new Set(versions)];
@@ -171,17 +199,51 @@ export function parsePendingOutput(output) {
   if (headerSeen) {
     if (malformedBulletLines.length > 0) {
       reason = "pending section contained malformed migration bullet lines";
-      return unrecognized(reason, { upToDateSeen, headerSeen, malformedBulletLines });
+      return unrecognized(reason, {
+        upToDateSeen,
+        headerSeen,
+        finishedSeen,
+        unexpectedTerminator,
+        malformedBulletLines,
+      });
     }
     if (uniqueVersions.length === 0) {
       reason = "pending header printed but no migration bullets parsed";
-      return unrecognized(reason, { upToDateSeen, headerSeen, malformedBulletLines });
+      return unrecognized(reason, {
+        upToDateSeen,
+        headerSeen,
+        finishedSeen,
+        unexpectedTerminator,
+        malformedBulletLines,
+      });
+    }
+    if (unexpectedTerminator !== null) {
+      reason = `pending section was terminated by an unexpected line: ${JSON.stringify(unexpectedTerminator)}`;
+      return unrecognized(reason, {
+        upToDateSeen,
+        headerSeen,
+        finishedSeen,
+        unexpectedTerminator,
+        malformedBulletLines,
+      });
+    }
+    if (!finishedSeen) {
+      reason = "pending section was not terminated by the CLI completion line";
+      return unrecognized(reason, {
+        upToDateSeen,
+        headerSeen,
+        finishedSeen,
+        unexpectedTerminator,
+        malformedBulletLines,
+      });
     }
     return {
       status: "pending",
       versions: uniqueVersions,
       upToDateSeen,
       headerSeen,
+      finishedSeen,
+      unexpectedTerminator,
       malformedBulletLines,
       reason: null,
     };
@@ -195,6 +257,8 @@ export function parsePendingOutput(output) {
       versions: [],
       upToDateSeen,
       headerSeen,
+      finishedSeen,
+      unexpectedTerminator,
       malformedBulletLines,
       reason: null,
     };
@@ -210,12 +274,23 @@ export function parsePendingOutput(output) {
   return unrecognized(reason, { upToDateSeen, headerSeen, malformedBulletLines });
 }
 
-function unrecognized(reason, { upToDateSeen = false, headerSeen = false, malformedBulletLines = [] } = {}) {
+function unrecognized(
+  reason,
+  {
+    upToDateSeen = false,
+    headerSeen = false,
+    finishedSeen = false,
+    unexpectedTerminator = null,
+    malformedBulletLines = [],
+  } = {},
+) {
   return {
     status: "unrecognized",
     versions: [],
     upToDateSeen,
     headerSeen,
+    finishedSeen,
+    unexpectedTerminator,
     malformedBulletLines,
     reason,
   };

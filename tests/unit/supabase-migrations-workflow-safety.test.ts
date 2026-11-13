@@ -333,7 +333,7 @@ describe("(h) the pending parser reads the dry-run bullet section", () => {
   });
 
   it("tolerates ANSI bold escapes the CLI emits on a colour TTY", () => {
-    const ansi = `Would push these migrations:\n \u001b[1m• 20261116000000_add_auth_user_id_to_staff.sql\u001b[0m\n`;
+    const ansi = `Would push these migrations:\n \u001b[1m• 20261116000000_add_auth_user_id_to_staff.sql\u001b[0m\nFinished supabase db push.\n`;
     expect(evalParser(`m.parsePendingVersions(${JSON.stringify(ansi)})`)).toEqual([
       "20261116000000",
     ]);
@@ -580,6 +580,7 @@ describe("(l) the parser and checker fail closed on unrecognized output", () => 
       "Would push these migrations:",
       " • 20261116000000_add_auth_user_id_to_staff.sql",
       " • 20261201000000_add_is_approved_to_users.sql",
+      "Finished supabase db push.",
     ].join("\n");
     const r = runChecker(withheld);
     expect(r.status).toBe(1);
@@ -591,6 +592,7 @@ describe("(l) the parser and checker fail closed on unrecognized output", () => 
     const unknown = [
       "Would push these migrations:",
       " • 20270101000000_something_new.sql",
+      "Finished supabase db push.",
     ].join("\n");
     const r = runChecker(unknown);
     expect(r.status).toBe(1);
@@ -622,6 +624,80 @@ describe("(l) the parser and checker fail closed on unrecognized output", () => 
       expect(parse(output).status).not.toBe("up-to-date");
       expect(runChecker(output).status).toBe(1);
     }
+  });
+});
+
+// --- (m) A pending result requires the CLI completion line --------------------
+
+describe("(m) a pending result requires the CLI completion line", () => {
+  const parse = (output: string) =>
+    evalParser(`m.parsePendingOutput(${JSON.stringify(output)})`) as {
+      status: string;
+      versions: string[];
+      finishedSeen: boolean;
+      unexpectedTerminator: string | null;
+      reason: string | null;
+    };
+
+  const BULLETS = [
+    "Would push these migrations:",
+    " • 20261109000000_create_members_table.sql",
+    " • 20261116000000_add_auth_user_id_to_staff.sql",
+  ].join("\n");
+
+  it("exposes the FINISHED_MESSAGE constant", () => {
+    expect(evalParser("m.FINISHED_MESSAGE")).toBe("Finished supabase db push.");
+  });
+
+  it("valid pending output + completion line is `pending`", () => {
+    const parsed = parse(`${BULLETS}\nFinished supabase db push.`);
+    expect(parsed.status).toBe("pending");
+    expect(parsed.versions).toEqual(["20261109000000", "20261116000000"]);
+    expect(parsed.finishedSeen).toBe(true);
+    expect(parsed.unexpectedTerminator).toBeNull();
+  });
+
+  it("valid pending output WITHOUT the completion line is `unrecognized`", () => {
+    const parsed = parse(BULLETS);
+    expect(parsed.status).toBe("unrecognized");
+    expect(parsed.finishedSeen).toBe(false);
+    expect(parsed.reason).toMatch(/completion line/i);
+  });
+
+  it("valid pending output + an unexpected terminator is `unrecognized`", () => {
+    const parsed = parse(`${BULLETS}\nError: connection reset by peer`);
+    expect(parsed.status).toBe("unrecognized");
+    expect(parsed.finishedSeen).toBe(false);
+    expect(parsed.unexpectedTerminator).toBe("Error: connection reset by peer");
+    expect(parsed.reason).toMatch(/unexpected line/i);
+  });
+
+  it("truncated output after the bullets is `unrecognized`", () => {
+    // The completion line cut off mid-way.
+    const parsed = parse(`${BULLETS}\nFinished supabase db pu`);
+    expect(parsed.status).toBe("unrecognized");
+    expect(parsed.finishedSeen).toBe(false);
+  });
+
+  it("does not treat parsed bullets alone as a successful run", () => {
+    // Regression guard: a run that printed bullets but never completed must fail.
+    const parsed = parse(BULLETS);
+    expect(parsed.status).not.toBe("pending");
+    expect(parsed.versions).toEqual([]);
+  });
+
+  it("the checker exits zero only when the completion line is present", () => {
+    expect(runChecker(`${BULLETS}\nFinished supabase db push.`).status).toBe(0);
+    expect(runChecker(BULLETS).status).toBe(1);
+    expect(runChecker(`${BULLETS}\nError: boom`).status).toBe(1);
+    expect(runChecker(`${BULLETS}\nFinished supabase db pu`).status).toBe(1);
+  });
+
+  it("the checker reports an unrecognized status for a missing completion line", () => {
+    const r = runChecker(BULLETS);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/unrecognized|not recognized/i);
+    expect(r.stderr).toMatch(/completion line/i);
   });
 });
 
