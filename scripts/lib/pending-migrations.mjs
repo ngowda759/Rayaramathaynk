@@ -86,6 +86,11 @@ export const APPROVED_PENDING_MIGRATIONS = Object.freeze([
   // 2026-11-16 Phase 2 identity unification. Additive and non-destructive: it only
   // adds a nullable, unique `auth_user_id` column to public.staff.
   "20261116000000", // add_auth_user_id_to_staff
+  // 2026-12-01 user approval flag. VERIFIED against production on 2026-11-13: the
+  // column already exists as `boolean NOT NULL DEFAULT false` — exactly the shape this
+  // migration declares — so its `ADD COLUMN IF NOT EXISTS` is a no-op schema change
+  // that only records the ledger entry.
+  "20261201000000", // add_is_approved_to_users — verified no-op on production
 ]);
 
 /**
@@ -93,14 +98,13 @@ export const APPROVED_PENDING_MIGRATIONS = Object.freeze([
  * failure names the exact reason instead of reporting a bare "unexpected version".
  *
  * Being here is NOT approval: a pending version in this list still fails the run
- * closed. `20261201000000_add_is_approved_to_users` is withheld because production
- * catalog verification of `public.users.is_approved` is still outstanding — do not
- * move it to APPROVED_PENDING_MIGRATIONS until that verification has been done and
- * reviewed.
+ * closed. It is currently empty — the former entry, `20261201000000_add_is_approved_to_users`,
+ * was moved to APPROVED_PENDING_MIGRATIONS on 2026-11-13 once production catalog
+ * verification confirmed the column already exists with the intended shape. Add a
+ * version here (but do NOT approve it) when a pending migration is already known and
+ * still needs review.
  */
-export const AWAITING_VERIFICATION = Object.freeze([
-  "20261201000000", // add_is_approved_to_users — needs production catalog verification
-]);
+export const AWAITING_VERIFICATION = Object.freeze([]);
 
 function stripAnsi(line) {
   return String(line).replace(ANSI_RE, "");
