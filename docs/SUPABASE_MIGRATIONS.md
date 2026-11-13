@@ -101,10 +101,24 @@ is not a stable contract. `scripts/lib/check-pending-migrations.mjs` runs **befo
 apply step and exits non-zero if **any** pending version is not on the allowlist, so an
 unreviewed or unexpected migration can never be pushed to production.
 
+A pending result is only accepted when the CLI's completion line
+(`Finished supabase db push.`) terminates the section. Empty, truncated or otherwise
+unrecognized dry-run output fails closed instead of being read as "nothing to do".
+
 The allowlist is deliberately **not** "every pending migration". Adding a version is an
 explicit approval decision, made only after a human has reviewed the migration and
 confirmed it is safe. Known-but-withheld versions are listed separately
 (`AWAITING_VERIFICATION`): they are **not** approved and still fail closed.
+
+### Workflow-file validity (structural requirement)
+
+The dry-run output path is derived from `${{ runner.temp }}`. The `runner` context is
+only available **inside a step**, so this value must live in a step-level `env:` block —
+never in the job-level `env:`. A disallowed context in a job-level `env:` block makes
+GitHub reject the **entire file** (`Invalid workflow file: … Unrecognized named-value:
+'runner'`), and the workflow then fails on every trigger with zero jobs. Section (l) of
+`tests/unit/supabase-migrations-workflow-safety.test.ts` asserts that no job-level `env:`
+entry references a context GitHub forbids there.
 
 ### What it deliberately does NOT do:
 - **No data migration:** It does NOT run Firestore data migration scripts or import Firestore data.

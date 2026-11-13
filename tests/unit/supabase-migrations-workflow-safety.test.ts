@@ -780,3 +780,86 @@ describe("(k) a dry-run cannot reach the apply command", () => {
     expect(workflow).toMatch(/no automatic production migration path/i);
   });
 });
+
+// --- (l) The workflow file is structurally valid for GitHub Actions -----------
+//
+// GitHub rejects the ENTIRE file (the run fails at the workflow level with zero
+// jobs) when a context is used where it is not available. The `runner` context is
+// only available inside a step, so `${{ runner.temp }}` in a JOB-level `env:`
+// block makes the whole workflow unrunnable — the exact defect this section
+// guards against. Contexts allowed in `jobs.<id>.env` are, per GitHub's context
+// availability table: github, needs, strategy, matrix, vars, secrets, inputs.
+
+describe("(l) the workflow file is structurally valid for GitHub Actions", () => {
+  const JOB_ENV_ALLOWED = new Set([
+    "github",
+    "needs",
+    "strategy",
+    "matrix",
+    "vars",
+    "secrets",
+    "inputs",
+  ]);
+
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  /** Collect `key: value` entries of every job-level (`^    env:`) block. */
+  function jobLevelEnvEntries(text: string): { key: string; value: string }[] {
+    const lines = text.split("\n");
+    const entries: { key: string; value: string }[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (!/^ {4}env:\s*$/.test(lines[i])) continue;
+      for (let j = i + 1; j < lines.length; j++) {
+        const line = lines[j];
+        if (line.trim() === "") continue;
+        const indent = line.length - line.trimStart().length;
+        if (indent <= 4) break; // dedent ends the block
+        const m = /^\s*([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/.exec(line);
+        if (m) entries.push({ key: m[1], value: m[2] });
+      }
+    }
+    return entries;
+  }
+
+  /** Every top-level context referenced by a `${{ ... }}` expression. */
+  function contexts(expr: string): string[] {
+    const found: string[] = [];
+    const re = /\$\{\{\s*([a-zA-Z_][\w.]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(expr))) found.push(m[1].split(".")[0]);
+    return found;
+  }
+
+  it("uses no context in a job-level `env:` block that GitHub forbids there", () => {
+    const violations = jobLevelEnvEntries(workflow).flatMap(({ key, value }) =>
+      contexts(value)
+        .filter((c) => !JOB_ENV_ALLOWED.has(c))
+        .map((c) => `jobs.*.env.${key} uses '${c}' -> ${value}`),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps `runner.temp` at step level (where the `runner` context is available)", () => {
+    // The dry-run writer and the allowlist checker each need the captured output
+    // path. `runner.temp` must therefore appear in their step-level `env:`, never
+    // in the job-level `env:`.
+    const dryRun = steps().find(
+      (s) => commandStatements(s.runBody, DRY_RUN_COMMAND, scripts).length > 0,
+    )!;
+    const checker = steps().find((s) => s.runBody.includes("check-pending-migrations"))!;
+    expect(dryRun.runBody).toContain("DRY_RUN_OUTPUT_FILE");
+    expect(workflow).toMatch(
+      new RegExp(`name: ${escapeRegExp(dryRun.name)}[\\s\\S]{0,400}?DRY_RUN_OUTPUT_FILE: \\$\\{\\{ runner\\.temp \\}\\}`),
+    );
+    expect(workflow).toMatch(
+      new RegExp(`name: ${escapeRegExp(checker.name)}[\\s\\S]{0,400}?DRY_RUN_OUTPUT_FILE: \\$\\{\\{ runner\\.temp \\}\\}`),
+    );
+  });
+
+  it("declares no job-level `env:` entry that references `runner`", () => {
+    const offenders = jobLevelEnvEntries(workflow).filter(({ value }) =>
+      /\$\{\{\s*runner\./.test(value),
+    );
+    expect(offenders).toEqual([]);
+  });
+});
