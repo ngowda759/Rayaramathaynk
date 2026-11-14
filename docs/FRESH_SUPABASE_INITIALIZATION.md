@@ -240,6 +240,52 @@ where data::text like '%PLACEHOLDER - %';
 Every remaining placeholder is a value the owner has not yet confirmed. None of them is a
 fabricated value.
 
+## One-time Trust Committee initialization
+
+The admin `/admin/settings/trust-committee` page and the public `/trust` page both read
+`settings_documents` where `document_key = 'trustCommittee'` through the standard reader
+path (admin `GET/PUT /api/admin/settings/[key]`, public `GET /api/public/settings/[key]`,
+`services/settings-document.service.ts`). When that row is missing the admin page shows
+"No members added yet" and the public page shows its built-in fallback — a data gap, not a
+reader defect.
+
+`scripts/seed-trust-committee-supabase.ts` creates that single row from the canonical
+13-member data in `lib/supabase/seed-data/trust-committee.ts` (the Supabase-native
+equivalent of the legacy Firestore `scripts/seed-trust-committee.ts`, with the unused
+`phone`/`address` fields dropped). It is **Supabase-only** — it uses the existing Supabase
+admin client (`@/lib/supabase/admin`), writes only the `trustCommittee` row, never reads or
+writes Firestore, and never touches any other settings document.
+
+```bash
+# Dry run (the default; reads and reports, writes nothing):
+npm run seed:trust-committee
+
+# Apply (creates the row if missing; refuses to overwrite a populated document):
+npm run seed:trust-committee -- --execute
+
+# Replace an existing empty/incorrect document:
+npm run seed:trust-committee -- --execute --force
+```
+
+Properties:
+
+- **Idempotent.** A re-run after a successful create is a no-op (`state: matches`).
+- **Refuses silent overwrite.** A document that already has members is left untouched
+  unless `--force` is passed; an empty document is filled only with `--force`.
+- **Validates before writing.** The canonical data must have 13 active members ordered
+  1–13 with images present on disk, or the run exits `1` without touching the database.
+- **Clear before/after summary.** Prints the target project fingerprint, the document
+  key, the mode, and the member counts before and after; a write is verified afterwards.
+- **No credentials printed.** The service-role key is never logged; only the project-ref
+  fingerprint is shown.
+- **No migration.** It writes data only; it does not create or alter any schema.
+
+`tests/unit/trust-committee-seed.test.ts` pins the data, validation, classification and
+runner logic; `tests/db/trust-committee-seed.test.ts` proves the write path against a real
+(PGlite) Postgres: the row is created under the exact key with 13 active members, a re-run
+is a no-op, other settings documents are untouched, and an owner-edited document is refused
+without `--force`.
+
 ## Verification
 
 ```bash
