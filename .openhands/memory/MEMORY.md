@@ -1028,3 +1028,41 @@ Details: `.openhands/memory/2026-11-03.md`.
   effective switch; `[db.migrations] enabled=false` is coupled to `db push` and was NOT implemented
   by pinned CLI 1.200.0. Repo keeps no `[db.migrations]` table; both migration workflows fail closed
   if it appears. Details: `.openhands/memory/2026-11-06.md` (on `main`).
+
+## Supabase migration workflow safety redesign — PR #405 (2026-11-13)
+
+- `supabase-migrations.yml` now has `workflow_dispatch` inputs `mode` (choice dry-run|apply,
+  **default dry-run**) + `confirm`. Apply command `supabase db push --include-all` appears
+  **exactly once**, gated `if: ${{ inputs.mode == 'apply' }}`; apply also needs the exact
+  phrase `apply-supabase-migrations` (quoted env var, never interpolated into `run:`).
+- Pending versions are parsed from the dry-run's `Would push these migrations:` **bullet
+  section** (` • <14-digit>_<name>.sql`), NOT the box-drawn `migration list` table. Pinned CLI
+  1.200.0 has no `--output-format`. New `scripts/lib/pending-migrations.mjs` (parser + frozen
+  allowlist) and `scripts/lib/check-pending-migrations.mjs` (fails closed before apply).
+  Allowlist approves the 2 no-op markers + `20261116000000`; `20261201000000` (users.is_approved)
+  is withheld (`AWAITING_VERIFICATION`) and still fails closed.
+- ts-jest **cannot import `.mjs`** — test the parser via `node --input-type=module -e` child
+  (pattern from `guard-test-project.test.ts`).
+- Two tests fail on `main` unrelated to migrations: `seed-fresh-supabase-guards.test.ts`
+  (npm notice echoes argv into child stderr). Details: `.openhands/memory/2026-11-13.md`.
+
+## Missing settings_documents keys + consolidated initializer (2026-11-14)
+
+- Production `public.settings_documents` had 8 rows but the app expects more. Read-only
+  audit found **missing**: `homepage`, `guruParampara`, `socialLinks`, `shlokas`,
+  `festivalCalendar`, `ekadashiCalendar`, `device` (`trustCommittee` was fixed by PR #411).
+- **`homepage` is already in `SETTINGS_DOCUMENT_SEEDS`** (`lib/supabase/seed-data/settings-documents.ts`,
+  9 keys incl. homepage). The gap is NOT a missing seed: `seed-fresh-supabase.ts` refuses the
+  approved production ref, so the seed has **no production path**. `homepage` is also NOT in the
+  runtime registry `SETTINGS_DOCUMENT_KEYS` (12 keys); it is read by `services/homepage.server.ts`.
+- New Supabase-only, **insert-only** consolidated initializer (no Firestore, never overwrites):
+  `lib/supabase/seed-data/settings-initialization.ts` + `scripts/seed-missing-settings-supabase.ts`
+  (`npm run seed:missing-settings`; dry-run default; `--execute --confirm initialize-missing-settings`;
+  approved-ref guard; `upsert(..., {ignoreDuplicates:true})` = `ON CONFLICT DO NOTHING`). It
+  initializes `homepage` only; the other keys are in `EXCLUDED_SETTINGS_KEYS` with reasons
+  (guruParampara: no canonical seed + admin 17 vs `GURU_BIOGRAPHIES` 18; socialLinks: admin writes
+  the settings_documents key but public reads the `social_links` TABLE; shlokas/festival/ekadashi:
+  public pages read `data/*.ts`; device: no live reader).
+- Tests: `tests/unit/settings-initialization.test.ts` (25) + `tests/db/settings-initialization.test.ts`
+  (7, PGlite). New guard tests use `npx --no-install` to avoid the pre-existing
+  `seed-fresh-supabase-guards.test.ts` npm-notice failure. Details: `.openhands/memory/2026-11-14.md`.
