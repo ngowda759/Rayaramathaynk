@@ -286,6 +286,119 @@ runner logic; `tests/db/trust-committee-seed.test.ts` proves the write path agai
 is a no-op, other settings documents are untouched, and an owner-edited document is refused
 without `--force`.
 
+## Consolidated missing-settings initialization (Supabase-only)
+
+A read-only production audit (2026-11-14) found that `public.settings_documents`
+held 8 rows while the application reads more keys. This is the single, reviewed
+mechanism that fills the missing rows. It replaces the earlier per-key one-offs
+(`scripts/seed-trust-committee-supabase.ts` remains for the one-time Trust
+Committee case).
+
+### Purpose
+
+Insert the `settings_documents` rows that are missing in a target project, using the
+canonical seed data already in this repository (`SETTINGS_DOCUMENT_SEEDS`). It is
+**insert-only**: a row that already exists — including an owner-edited one — is
+never touched. There is deliberately no `--force`/overwrite path.
+
+### Supported keys
+
+The initializer acts only on the keys in `SETTINGS_INITIALIZATION_KEYS`
+(`lib/supabase/seed-data/settings-initialization.ts`). A key is listed only when it
+has canonical seed data **and** a confirmed application consumer. Today that is:
+
+| Key | Consumer | Canonical source |
+|-----|----------|------------------|
+| `homepage` | `services/homepage.server.ts` → `Hero`, `Panchanga`, `TempleTimings` | `SETTINGS_DOCUMENT_SEEDS` |
+
+Every other key the audit found missing is listed in `EXCLUDED_SETTINGS_KEYS` with
+the reason it is deliberately not seeded, and the script prints that list on every
+run. Those exclusions are decisions, not omissions:
+
+| Key | Why it is not seeded |
+|-----|----------------------|
+| `guruParampara` | No canonical Supabase seed document; the admin page's built-in defaults (17 gurus) disagree with `GURU_BIOGRAPHIES` (18), so neither is proven canonical. |
+| `socialLinks` | The admin page writes this document key but the public site reads the separate `social_links` **table**, which already holds the owner's links. Creating a document would duplicate the source of truth. See the design note below. |
+| `shlokas` | The public page reads `data/shlokas.ts`; the document is admin-only. |
+| `festivalCalendar` | The public page reads `data/calendar.ts`; the document is admin-only. |
+| `ekadashiCalendar` | The public page reads `data/calendar.ts`; the document is admin-only. |
+| `device` | No live reader — the public map uses the built-in `DEFAULT_DEVICE_SETTINGS`. |
+
+### Dry-run command (default; writes nothing)
+
+```bash
+npm run seed:missing-settings
+```
+
+Prints the target fingerprint, the mode, the keys it will insert, and the keys it
+will leave untouched. Nothing is written.
+
+### Execute command (owner-approved)
+
+```bash
+npm run seed:missing-settings -- --execute --confirm initialize-missing-settings
+```
+
+`--execute` requires the exact phrase `initialize-missing-settings`. The command
+inserts only missing rows, then verifies each inserted row holds the canonical
+document, and exits `1` if verification fails.
+
+### Production guard
+
+The target ref is read from `NEXT_PUBLIC_SUPABASE_URL` and must resolve to a
+`<ref>.supabase.co` project. The guard fails closed:
+
+- an unverifiable or unrecognised ref is refused;
+- `CI` or `VERCEL` refuses the run, so it can never fire automatically;
+- a ref that looks like production but is not the approved project is refused;
+- a **non-approved** ref is refused on `--execute` unless
+  `--yes-this-is-a-test-project` is passed;
+- the **approved production project** is the intended target and is allowed with
+  the confirmation phrase; the script prints only a non-reversible fingerprint,
+  never the ref or any secret.
+
+### Expected verification output
+
+```
+=== VERIFY ===
+  ✔ canonical documents verified for: homepage
+
+✔ Settings initialized: homepage under settings_documents.
+```
+
+A failed verification prints the offending keys and exits `1`:
+
+```
+=== VERIFY ===
+  ✖ homepage: stored document does not match the canonical seed
+
+✖ Verification failed: a target document is missing or does not match the canonical seed.
+```
+
+### Warning
+
+**Production execution requires owner approval.** The command is not wired to any
+workflow or pull request, is `--execute`-gated behind a confirmation phrase, and
+prints only fingerprints. Running it against production is a separate, explicitly
+approved owner action. See "Production rollout" above.
+
+### `socialLinks` design note (documented, not silently changed)
+
+The audit confirmed a key/table mismatch:
+
+```
+Admin  → settings_documents.document_key = "socialLinks"
+Public → public.social_links (table)
+```
+
+The admin page (`app/admin/settings/social-links/page.tsx`) reads and writes the
+`socialLinks` **settings document**, while the public site
+(`components/layout/SocialBar.tsx`, `Navbar`) reads the `social_links` **table**,
+which already holds the owner's links. The two are not connected. This initializer
+does **not** create a `socialLinks` document, because doing so would add a second,
+divergent source of truth. Converging the two is a dedicated change with its own
+review and is out of scope here.
+
 ## Verification
 
 ```bash
