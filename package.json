@@ -48,6 +48,7 @@
     "seed:supabase-sevas": "npx tsx scripts/seed-supabase-sevas.ts",
     "seed:fresh": "npx tsx scripts/seed-fresh-supabase.ts --local",
     "seed:fresh:dry-run": "npx tsx scripts/seed-fresh-supabase.ts --local --dry-run",
+    "seed:trust-committee": "npx tsx --conditions=react-server scripts/seed-trust-committee-supabase.ts",
     "diagnose:raya-admin-login": "tsx scripts/diagnose-raya-admin-login.ts",
     "diagnose:auth-identities": "tsx scripts/diagnose-auth-identities.ts",
     "seva:first-super-admin": "tsx scripts/seva/create-first-super-admin-supabase.ts",
