@@ -6,8 +6,10 @@
  *   - scripts/seva/create-first-super-admin-supabase.ts (orchestration via injected ports)
  *
  * No Supabase, network or credentials are needed: the planner is a pure function
- * and the CLI's I/O is injected as `BootstrapPorts`. A guard test also proves the
- * two files carry no Firebase/Firestore runtime import.
+ * and the CLI's I/O is injected as `BootstrapPorts`. Two guard tests prove the two
+ * files carry no Firebase/Firestore runtime import; the audit tests drive the real
+ * `createSupabasePorts` against a fake Supabase client, so the actor attribution and
+ * the conflict handling are exercised on the shipped code, not a mock of it.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -23,8 +25,12 @@ import {
   type UserProfileRow,
 } from "../../../scripts/lib/first-super-admin-supabase";
 import {
+  BootstrapConflictError,
   BootstrapError,
+  classificationHeadline,
+  createSupabasePorts,
   envIsDryRun,
+  isUniqueViolation,
   isWriteMode,
   parseArgs,
   projectRefFromUrl,
@@ -38,11 +44,11 @@ const OTHER_UID = "0f6e2b1a-1c1d-4e5f-8a9b-0000000000ff";
 const NOW = "2026-11-14T09:00:00.000Z";
 
 function authUser(over: Partial<AuthUserLike> = {}): AuthUserLike {
-  return { id: UID, email: "nikhil@example.org", displayName: "Nikhil N", ...over };
+  return { id: UID, email: "nikhil@example.org", displayName: "Nikhil N", disabled: false, emailVerified: true, ...over };
 }
 
 function resolvedAuthUser(over: Partial<ResolvedAuthUser> = {}): ResolvedAuthUser {
-  return { ...authUser(), disabled: false, ...over };
+  return { ...authUser(), ...over };
 }
 
 function profile(over: Partial<UserProfileRow> = {}): UserProfileRow {
@@ -131,6 +137,7 @@ describe("planFirstSuperAdmin", () => {
     });
 
     expect(plan.action).toBe("create");
+    expect(plan.classification).toBe("ready");
     expect(plan.safe).toBe(true);
     expect(plan.blockers).toEqual([]);
     expect(plan.plannedStaffRow).toEqual({
@@ -154,6 +161,7 @@ describe("planFirstSuperAdmin", () => {
       staffRows: [staffRow({ id: "staff-1", staff_no: 1, firebase_uid: UID, auth_user_id: UID, email: "nikhil@example.org" })],
     });
     expect(plan.action).toBe("noop");
+    expect(plan.classification).toBe("already_set_up");
     expect(plan.plannedStaffRow).toBeNull();
     expect(plan.existingStaffForUid).toHaveLength(1);
   });
@@ -168,56 +176,141 @@ describe("planFirstSuperAdmin", () => {
     expect(plan.action).toBe("noop");
   });
 
-  it("refuses when there is no public.users row", () => {
-    const plan = planFirstSuperAdmin({ authUser: authUser(), profile: null, profileMatch: "none", staffRows: [] });
-    expect(plan.action).toBe("refuse");
-    expect(plan.safe).toBe(false);
-    expect(plan.blockers.join(" ")).toMatch(/No public\.users row/);
+  // ---- Finding 1: profile prerequisite classification -----------------------
+  describe("classification (Finding 1)", () => {
+    it("classifies a missing public.users row as profile_repair_required, never not_eligible", () => {
+      const plan = planFirstSuperAdmin({ authUser: authUser(), profile: null, profileMatch: "none", staffRows: [] });
+      expect(plan.action).toBe("refuse");
+      expect(plan.classification).toBe("profile_repair_required");
+      expect(plan.safe).toBe(false);
+      expect(plan.eligibilityBlockers).toEqual([]);
+      expect(plan.profileBlockers.join(" ")).toMatch(/No public\.users row/);
+      expect(plan.repair?.reasons).toContain("missing_row");
+      expect(plan.repair?.command).toContain("scripts/bootstrap-raya-admin.ts");
+      expect(plan.repair?.note).toMatch(/Users page cannot repair this/);
+    });
+
+    it("classifies an unlinked row (auth_user_id null) as profile_repair_required with the LINK flag", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: profile({ auth_user_id: null }),
+        profileMatch: "email",
+        staffRows: [],
+      });
+      expect(plan.classification).toBe("profile_repair_required");
+      expect(plan.repair?.reasons).toContain("not_linked");
+      expect(plan.repair?.command).toContain("RAYA_ADMIN_LINK_LEGACY_EMAIL=1");
+    });
+
+    it("classifies an inactive row as profile_repair_required with the REACTIVATE flag", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: profile({ active: false }),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+      });
+      expect(plan.classification).toBe("profile_repair_required");
+      expect(plan.repair?.reasons).toContain("inactive");
+      expect(plan.repair?.command).toContain("RAYA_ADMIN_REACTIVATE=1");
+    });
+
+    it("refuses and never changes a non-super_admin role, with the FORCE_ROLE flag", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: profile({ role: "temple_admin" }),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+      });
+      expect(plan.action).toBe("refuse");
+      expect(plan.classification).toBe("profile_repair_required");
+      expect(plan.plannedStaffRow).toBeNull();
+      expect(plan.profileBlockers.join(" ")).toMatch(/not super_admin/);
+      expect(plan.repair?.reasons).toContain("not_super_admin");
+      expect(plan.repair?.command).toContain("RAYA_ADMIN_FORCE_ROLE=1");
+      // The planner reports the role but never proposes a value to write itself.
+      expect(plan.profile?.role).toBe("temple_admin");
+    });
+
+    it("flags a row linked to a different identity for manual review", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: profile({ auth_user_id: OTHER_UID }),
+        profileMatch: "email",
+        staffRows: [],
+      });
+      expect(plan.classification).toBe("profile_repair_required");
+      expect(plan.repair?.reasons).toContain("linked_to_another_identity");
+    });
+
+    it("accepts the display form 'Super Admin' as super_admin", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: profile({ role: "Super Admin" }),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+      });
+      expect(plan.action).toBe("create");
+    });
+
+    it("lets an ineligible account/staff table dominate the classification", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: null,
+        profileMatch: "none",
+        staffRows: [staffRow()],
+      });
+      expect(plan.classification).toBe("not_eligible");
+      expect(plan.repair).toBeNull();
+    });
   });
 
-  it("refuses and never changes a non-super_admin role", () => {
-    const plan = planFirstSuperAdmin({
-      authUser: authUser(),
-      profile: profile({ role: "temple_admin" }),
-      profileMatch: "auth_user_id",
-      staffRows: [],
+  // ---- Finding 4: Supabase Auth eligibility --------------------------------
+  describe("Auth account eligibility (Finding 4)", () => {
+    it("refuses a banned/disabled account by default", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser({ disabled: true }),
+        profile: profile(),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+      });
+      expect(plan.action).toBe("refuse");
+      expect(plan.classification).toBe("not_eligible");
+      expect(plan.eligibilityBlockers.join(" ")).toMatch(/banned or disabled/);
     });
-    expect(plan.action).toBe("refuse");
-    expect(plan.plannedStaffRow).toBeNull();
-    expect(plan.blockers.join(" ")).toMatch(/not super_admin/);
-    expect(plan.profile?.role).toBe("temple_admin");
-  });
 
-  it("accepts the display form 'Super Admin' as super_admin", () => {
-    const plan = planFirstSuperAdmin({
-      authUser: authUser(),
-      profile: profile({ role: "Super Admin" }),
-      profileMatch: "auth_user_id",
-      staffRows: [],
+    it("refuses an unconfirmed email by default", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser({ emailVerified: false }),
+        profile: profile(),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+      });
+      expect(plan.action).toBe("refuse");
+      expect(plan.classification).toBe("not_eligible");
+      expect(plan.eligibilityBlockers.join(" ")).toMatch(/not confirmed/);
     });
-    expect(plan.action).toBe("create");
-  });
 
-  it("refuses when the profile is inactive", () => {
-    const plan = planFirstSuperAdmin({
-      authUser: authUser(),
-      profile: profile({ active: false }),
-      profileMatch: "auth_user_id",
-      staffRows: [],
+    it("allows a disabled account only with the explicit owner opt-in", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser({ disabled: true }),
+        profile: profile(),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+        allowDisabledAccount: true,
+      });
+      expect(plan.action).toBe("create");
     });
-    expect(plan.action).toBe("refuse");
-    expect(plan.blockers.join(" ")).toMatch(/active is false/);
-  });
 
-  it("refuses when the profile is not linked to this Auth UUID (wrong identity)", () => {
-    const plan = planFirstSuperAdmin({
-      authUser: authUser(),
-      profile: profile({ auth_user_id: null }),
-      profileMatch: "email",
-      staffRows: [],
+    it("allows an unconfirmed email only with the explicit owner opt-in", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser({ emailVerified: false }),
+        profile: profile(),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+        allowUnverifiedEmail: true,
+      });
+      expect(plan.action).toBe("create");
     });
-    expect(plan.action).toBe("refuse");
-    expect(plan.blockers.join(" ")).toMatch(/auth_user_id is null/);
   });
 
   it("refuses once the staff table is not empty", () => {
@@ -252,6 +345,20 @@ describe("planFirstSuperAdmin", () => {
     expect(plan.action).toBe("create");
     expect(plan.warnings.join(" ")).toMatch(/public\.users\.email/);
   });
+
+  // ---- Finding 2: audit attribution ----------------------------------------
+  describe("audit attribution (Finding 2)", () => {
+    it("attributes the planned audit to the system/bootstrap, never to the new staff member", () => {
+      const plan = planFirstSuperAdmin({
+        authUser: authUser(),
+        profile: profile(),
+        profileMatch: "auth_user_id",
+        staffRows: [],
+      });
+      expect(plan.plannedAudit?.actorStaffId).toBeNull();
+      expect(plan.plannedAudit?.reason).toMatch(/system bootstrap/);
+    });
+  });
 });
 
 describe("runBootstrap - dry run (default)", () => {
@@ -268,9 +375,22 @@ describe("runBootstrap - dry run (default)", () => {
     expect(state.audited).toEqual([]);
     const output = lines.join("\n");
     expect(output).toContain("DRY RUN");
+    expect(output).toContain("READY TO CREATE STAFF 001");
     expect(output).toContain(UID);
     expect(output).toContain("first_signed_in_at");
     expect(output).toContain("safe to write       : YES");
+    expect(output).toContain("email confirmed    : yes");
+  });
+
+  it("prints the repair path and writes nothing when the profile is missing", async () => {
+    const state = freshState({ profile: null, profileMatch: "none" });
+    const { log, lines } = collect();
+    const result = await runBootstrap(fakePorts(state), { email: "nikhil@example.org", execute: false, dryRunEnv: false }, log);
+    expect(result.action).toBe("refuse");
+    const output = lines.join("\n");
+    expect(output).toContain("PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR");
+    expect(output).toContain("scripts/bootstrap-raya-admin.ts");
+    expect(state.inserted).toEqual([]);
   });
 
   it("DRY_RUN=true forces dry-run even when --execute is passed", async () => {
@@ -382,23 +502,158 @@ describe("runBootstrap - execute", () => {
     expect(result.action).toBe("create");
     expect(result.wrote).toBe(true);
   });
+
+  // ---- Finding 3: concurrency / idempotency --------------------------------
+  it("reports a safe conflict when a concurrent bootstrap wins the race (Finding 3)", async () => {
+    // Simulate a racing writer: the last-moment empty re-read still sees an empty
+    // table, but the insert hits the database's uniqueness constraint.
+    const state = freshState();
+    let reads = 0;
+    const ports: BootstrapPorts = {
+      ...fakePorts(state),
+      readStaff: async () => {
+        reads += 1;
+        // First read (plan): empty. Second read (last-moment guard): empty. Third read
+        // (after the conflict): the racing writer's row is now visible.
+        return reads >= 3 ? [{ ...staffRow({ id: "staff-1", staff_no: 1, firebase_uid: UID, auth_user_id: UID, email: "nikhil@example.org" }) }] : [];
+      },
+      insertStaff: async () => {
+        throw new BootstrapConflictError("duplicate key value violates unique constraint \"staff_staff_no_key\"", "staff_staff_no_key");
+      },
+    };
+    const { log, lines } = collect();
+    const result = await runBootstrap(ports, { email: "nikhil@example.org", execute: true, dryRunEnv: false, now: NOW }, log);
+    expect(result.action).toBe("noop");
+    expect(result.wrote).toBe(false);
+    expect(lines.join("\n")).toMatch(/concurrent write won/);
+  });
+
+  it("refuses safely when a uniqueness conflict leaves no visible row for this account", async () => {
+    const state = freshState();
+    const ports: BootstrapPorts = {
+      ...fakePorts(state),
+      insertStaff: async () => {
+        throw new BootstrapConflictError("duplicate key value violates unique constraint \"staff_email_key\"", "staff_email_key");
+      },
+    };
+    const { log } = collect();
+    await expect(
+      runBootstrap(ports, { email: "nikhil@example.org", execute: true, dryRunEnv: false, now: NOW }, log),
+    ).rejects.toThrow(/uniqueness constraint rejected the staff row/);
+    expect(state.inserted).toEqual([]);
+  });
+});
+
+// ---- Finding 2: the real audit port writes a system actor ------------------
+describe("createSupabasePorts.writeAudit (Finding 2)", () => {
+  it("passes p_staff_id: null (system/bootstrap actor) and a truthful after payload", async () => {
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const fakeSupabase = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        return { error: null };
+      },
+    } as unknown as Parameters<typeof createSupabasePorts>[0];
+
+    await createSupabasePorts(fakeSupabase).writeAudit("staff-1", "a reason");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].name).toBe("seva_audit");
+    expect(calls[0].args.p_action).toBe("staff.onboard");
+    expect(calls[0].args.p_entity).toBe("staff");
+    expect(calls[0].args.p_staff_id).toBeNull();
+    expect(calls[0].args.p_reason).toBe("a reason");
+    expect(calls[0].args.p_after).toMatchObject({ actor: "system_bootstrap" });
+  });
+});
+
+describe("createSupabasePorts.insertStaff (Finding 3)", () => {
+  it("turns a uniqueness violation into a BootstrapConflictError with the constraint name", async () => {
+    const fakeSupabase = {
+      from: () => ({
+        insert: () => ({
+          select: () => ({
+            single: async () => ({ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint", constraint: "staff_pkey" } }),
+          }),
+        }),
+      }),
+    } as unknown as Parameters<typeof createSupabasePorts>[0];
+
+    const ports = createSupabasePorts(fakeSupabase);
+    await expect(
+      ports.insertStaff({
+        firebase_uid: UID,
+        auth_user_id: UID,
+        staff_no: 1,
+        full_name: "N",
+        email: "n@example.org",
+        view_only: false,
+        status: "active",
+        first_signed_in_at: NOW,
+      }),
+    ).rejects.toBeInstanceOf(BootstrapConflictError);
+  });
+
+  it("surfaces a non-uniqueness insert error as a plain BootstrapError", async () => {
+    const fakeSupabase = {
+      from: () => ({
+        insert: () => ({
+          select: () => ({ single: async () => ({ data: null, error: { code: "42501", message: "permission denied" } }) }),
+        }),
+      }),
+    } as unknown as Parameters<typeof createSupabasePorts>[0];
+    const ports = createSupabasePorts(fakeSupabase);
+    await expect(
+      ports.insertStaff({
+        firebase_uid: UID,
+        auth_user_id: UID,
+        staff_no: 1,
+        full_name: "N",
+        email: "n@example.org",
+        view_only: false,
+        status: "active",
+        first_signed_in_at: NOW,
+      }),
+    ).rejects.toThrow(/Staff insert failed/);
+  });
 });
 
 describe("parseArgs", () => {
   it("reads --email and --uuid in both spellings and refuses anything else", () => {
-    expect(parseArgs(["--email", "Nikhil@Example.org"])).toEqual({ email: "Nikhil@Example.org", execute: false, help: false });
+    expect(parseArgs(["--email", "Nikhil@Example.org"])).toEqual({
+      email: "Nikhil@Example.org",
+      execute: false,
+      help: false,
+      allowUnverifiedEmail: false,
+      allowDisabledAccount: false,
+    });
     expect(parseArgs(["--email=nikhil@example.org", "--execute"])).toEqual({
       email: "nikhil@example.org",
       execute: true,
       help: false,
+      allowUnverifiedEmail: false,
+      allowDisabledAccount: false,
     });
-    expect(parseArgs(["--uuid", UID])).toEqual({ uuid: UID, execute: false, help: false });
-    expect(parseArgs(["--help"])).toEqual({ execute: false, help: true });
+    expect(parseArgs(["--uuid", UID])).toEqual({
+      uuid: UID,
+      execute: false,
+      help: false,
+      allowUnverifiedEmail: false,
+      allowDisabledAccount: false,
+    });
+    expect(parseArgs(["--help"])).toEqual({ execute: false, help: true, allowUnverifiedEmail: false, allowDisabledAccount: false });
     expect(() => parseArgs([])).toThrow(BootstrapError);
     expect(() => parseArgs(["--email", "not-an-email"])).toThrow(BootstrapError);
     expect(() => parseArgs(["--uuid", "not-a-uuid"])).toThrow(BootstrapError);
     expect(() => parseArgs(["--email", "a@b.org", "--uuid", UID])).toThrow(BootstrapError);
     expect(() => parseArgs(["--email", "a@b.org", "--force"])).toThrow(BootstrapError);
+  });
+
+  it("reads the owner opt-in flags", () => {
+    expect(parseArgs(["--email", "a@b.org", "--allow-unverified-email", "--allow-disabled-account"])).toMatchObject({
+      allowUnverifiedEmail: true,
+      allowDisabledAccount: true,
+    });
   });
 });
 
@@ -417,19 +672,47 @@ describe("helpers", () => {
     expect(isWriteMode({ execute: false, dryRunEnv: false })).toBe(false);
   });
 
+  it("isUniqueViolation recognises the PostgREST uniqueness signal", () => {
+    expect(isUniqueViolation({ code: "23505", message: "x" })).toBe(true);
+    expect(isUniqueViolation({ code: "42501", message: "permission denied" })).toBe(false);
+    expect(isUniqueViolation({ code: null, message: "duplicate key value violates unique constraint" })).toBe(true);
+    expect(isUniqueViolation(null)).toBe(false);
+  });
+
   it("projectRefFromUrl shows only the ref", () => {
     expect(projectRefFromUrl("https://kvrkraqjuyxbraccxntk.supabase.co")).toBe("kvrkraqjuyxbraccxntk");
     expect(projectRefFromUrl("nonsense")).toBe("(unrecognised URL)");
+  });
+
+  it("classificationHeadline maps each classification to a plain headline", () => {
+    const base = planFirstSuperAdmin({ authUser: authUser(), profile: profile(), profileMatch: "auth_user_id", staffRows: [] });
+    expect(classificationHeadline(base)).toBe("READY TO CREATE STAFF 001");
+    expect(classificationHeadline(planFirstSuperAdmin({ authUser: authUser(), profile: null, profileMatch: "none", staffRows: [] }))).toBe(
+      "PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR",
+    );
+    expect(classificationHeadline(planFirstSuperAdmin({ authUser: authUser(), profile: profile(), profileMatch: "auth_user_id", staffRows: [staffRow()] }))).toBe(
+      "ACCOUNT NOT ELIGIBLE",
+    );
+    expect(
+      classificationHeadline(
+        planFirstSuperAdmin({
+          authUser: authUser(),
+          profile: profile(),
+          profileMatch: "auth_user_id",
+          staffRows: [staffRow({ id: "s1", staff_no: 1, auth_user_id: UID, firebase_uid: UID })],
+        }),
+      ),
+    ).toBe("ALREADY SET UP — nothing to do");
   });
 
   it("normalizeRole / normalizeEmail / nameFor behave", () => {
     expect(normalizeRole("Super Admin")).toBe("super_admin");
     expect(normalizeRole(undefined)).toBe("");
     expect(normalizeEmail("  Nikhil@Example.ORG ")).toBe("nikhil@example.org");
-    expect(nameFor({ id: UID, email: "nikhil@example.org", displayName: null })).toBe("nikhil");
-    expect(nameFor({ id: UID, email: "a@b.org", displayName: "  Nikhil N  " })).toBe("Nikhil N");
-    expect(nameFor({ id: UID, email: null, displayName: null })).toBe("");
-    expect(nameFor({ id: UID, email: "a@b.org", displayName: "x".repeat(120) })).toHaveLength(80);
+    expect(nameFor({ email: "nikhil@example.org", displayName: null })).toBe("nikhil");
+    expect(nameFor({ email: "a@b.org", displayName: "  Nikhil N  " })).toBe("Nikhil N");
+    expect(nameFor({ email: null, displayName: null })).toBe("");
+    expect(nameFor({ email: "a@b.org", displayName: "x".repeat(120) })).toHaveLength(80);
   });
 });
 

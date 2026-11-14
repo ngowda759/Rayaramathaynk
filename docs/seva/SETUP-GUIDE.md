@@ -475,9 +475,12 @@ The seva module needs one first super admin. On your test projects, that is you.
    What you should see now: you are signed in to the test site as an ordinary member.
 2. Open a PowerShell window in `D:\Onboarding\Repos\POCs\seva-entry` (0.9).
 3. Type `npx tsx scripts/seva/create-first-super-admin-supabase.ts --email <the email you just used>` and press
-   **Enter**. It reads `.env.local` and prints no secret. It runs as a **dry run** first; read the plan, then add
-   `--execute` and run it again to create staff 001. (The Firebase-bound `scripts/seva/create-first-super-admin.ts`
-   is only for the Firebase-era path.)
+   **Enter**. It reads `.env.local` and prints no secret. It runs as a **dry run** first. Read the **CLASSIFICATION**
+   line: if it says **READY TO CREATE STAFF 001**, add `--execute` and run it again to create staff 001. If it says
+   **PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR**, run the repair command it prints
+   (`scripts/bootstrap-raya-admin.ts`) and re-run the dry run. If it says **ACCOUNT NOT ELIGIBLE**, fix the account
+   (for example, confirm the email) first. (The Firebase-bound `scripts/seva/create-first-super-admin.ts` is only for
+   the Firebase-era path.)
    What you should see now: a few lines ending in a message that staff 001 was created (or already exists). If it
    prints an error, copy it (it holds no secret) and send it to me.
 4. Open `http://localhost:3000/seva` (or `/seva` on your Vercel link). The public pages have no admin link and no
@@ -955,8 +958,18 @@ The seva module needs one first super admin, staff number 001. On the live site 
 script below with **Nikhil's live email** (the address he signs in to the live site with). The account must already
 be able to sign in to the site.
 
-**First, give Nikhil the website admin right away** (2 minutes): open **Website admin**, then **Users**, open Nikhil's
-account, set the role to **Super Admin** and click **Save**. Then run the script.
+**First, make sure Nikhil's authorization profile is ready.** The bootstrap below only checks this profile; it never
+changes it. There are two ways to get it to `role = Super Admin`, `active = true`, linked to Nikhil's Supabase Auth
+UUID:
+
+- **If you can already open Website admin → Users** (your own account is an authorized admin), open Nikhil's account
+  there, set the role to **Super Admin** and click **Save**.
+- **If that page denies you** (its own authorization guard reads the same profile, so it cannot repair a broken one),
+  run the separately authorized profile bootstrap instead — this is the canonical repair path:
+  `RAYA_ADMIN_EMAIL="<Nikhil's live email>" RAYA_ADMIN_ROLE="super_admin" npx tsx scripts/bootstrap-raya-admin.ts`
+  (add `RAYA_ADMIN_FORCE_ROLE=1` to change an existing role, `RAYA_ADMIN_REACTIVATE=1` to re-enable an inactive row,
+  or `RAYA_ADMIN_LINK_LEGACY_EMAIL=1` to link an unlinked row that shares the email). The staff bootstrap's dry run
+  prints the exact command to run.
 
 **Everyone else, including you,** is added afterwards on the **Staff and roles** page with **Onboard staff**. An email
 that already has a website account (yours, another website admin's, a devotee's) can be added too: Onboard staff
@@ -965,17 +978,22 @@ account's email must be verified; an unverified account is refused, and the pers
 verification email again from `/seva` (**Send verification email**).
 
 What you need: your copy of the repository (how-to above) and the **live `service_role` key** (Supabase dashboard,
-Project Settings, API), about 15 minutes. No Firebase key file is needed: the bootstrap reads and writes Supabase only.
+Project Settings, API), about 15 minutes. No Firebase key file is needed: the bootstrap reads and writes Supabase
+only. It needs **no migration** and writes **nothing to Firebase or Firestore**.
 
 1. In your copy of the repository, make a file `.env.local` with Notepad (save it with **Save as type** set to **All
    files**), holding two lines: `NEXT_PUBLIC_SUPABASE_URL=https://<live project ref>.supabase.co` and
    `SUPABASE_SERVICE_ROLE_KEY=<the live service_role key>`. Git ignores `.env.local`.
 2. Open a terminal in that folder and type
    `npx tsx scripts/seva/create-first-super-admin-supabase.ts --email <Nikhil's live email>`, then press **Enter**.
-   It prints no secret. It runs as a **dry run** first (reads only): it prints the account, its `public.users` row,
-   the exact staff row it would insert, whether the write is safe, and any conflict. Read it, then add `--execute` and
-   run it again to create staff 001. (`DRY_RUN=true` forces a dry run even with `--execute`.) The older
-   `scripts/seva/create-first-super-admin.ts` is Firebase-bound and is only for the Firebase-era path.
+   It prints no secret. It runs as a **dry run** first (reads only). Read the **CLASSIFICATION** line at the top:
+   - **READY TO CREATE STAFF 001** — add `--execute` and run it again to create staff 001.
+   - **PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR** — run the repair command it prints (above), then re-run this
+     dry run until it says READY.
+   - **ACCOUNT NOT ELIGIBLE** — the email is unconfirmed, the account is banned, or the staff table is not empty.
+     Fix the account and try again; do not force it.
+   (`DRY_RUN=true` forces a dry run even with `--execute`.) The older `scripts/seva/create-first-super-admin.ts` is
+   Firebase-bound and is only for the Firebase-era path.
    What you should see now: a message that staff 001 was created. If it prints an error, send Nikhil the error text
    (it holds no secret).
 3. Nikhil signs out of the website and signs in again.

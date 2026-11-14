@@ -21,7 +21,14 @@
  *
  * Dry-run mode prints the account, the `public.users` row, any matching
  * `public.staff` rows, the exact row that would be inserted, whether the write is
- * safe, and every conflict found. It reads only.
+ * safe, and every conflict found. It reads only. It leads with one of three plain
+ * classifications:
+ *   - READY TO CREATE STAFF 001;
+ *   - PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR (with the exact repair command);
+ *   - ACCOUNT NOT ELIGIBLE.
+ * The repair is never done here; it is a separate, owner-approved step
+ * (`scripts/bootstrap-raya-admin.ts`). The website admin Users page cannot repair
+ * it, because its own authorization guard reads the same broken profile.
  *
  * `DRY_RUN=true` (or `1` / `yes`) forces dry-run even when `--execute` is passed.
  *
@@ -31,10 +38,13 @@
  *
  * Guards: both variables are required; a project ref is derived from the URL and
  * printed so the operator can confirm the target; a write needs `--execute`; the
- * staff table must be empty and the account's `public.users` row must already be
- * `super_admin` + `active` + linked to this Auth UUID. No key or secret is ever
- * printed. All safety rules live in `../lib/first-super-admin-supabase.ts` and are
- * unit-tested; the orchestration below is unit-tested through injected ports.
+ * staff table must be empty, the account's Supabase Auth email must be confirmed
+ * and the account not banned/disabled (both overridable only with the explicit
+ * `--allow-unverified-email` / `--allow-disabled-account` owner opt-ins), and the
+ * account's `public.users` row must already be `super_admin` + `active` + linked
+ * to this Auth UUID. No key or secret is ever printed. All safety rules live in
+ * `../lib/first-super-admin-supabase.ts` and are unit-tested; the orchestration
+ * below is unit-tested through injected ports.
  */
 
 import * as path from "path";
@@ -57,20 +67,48 @@ export class BootstrapError extends Error {
   }
 }
 
+/**
+ * The staff insert lost a race (or met a duplicate): a database uniqueness
+ * constraint rejected it. Carries the constraint name when PostgREST reports one.
+ * `runBootstrap` catches it, re-reads the table and reports the conflict safely
+ * instead of failing blindly.
+ */
+export class BootstrapConflictError extends BootstrapError {
+  readonly constraint: string | null;
+  constructor(message: string, constraint: string | null = null) {
+    super(message);
+    this.name = "BootstrapConflictError";
+    this.constraint = constraint;
+  }
+}
+
+/** True when a PostgREST error is a uniqueness violation (SQLSTATE 23505). */
+export function isUniqueViolation(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "23505") return true;
+  return /duplicate key value|unique constraint|already exists/i.test(error.message ?? "");
+}
+
 export interface Options {
   email?: string;
   uuid?: string;
   execute: boolean;
   help: boolean;
+  /** Owner opt-in: allow an unconfirmed Supabase Auth email address. */
+  allowUnverifiedEmail: boolean;
+  /** Owner opt-in: allow a banned/disabled Supabase Auth account. */
+  allowDisabledAccount: boolean;
 }
 
 const USAGE = [
   "Usage: npx tsx scripts/seva/create-first-super-admin-supabase.ts (--email <address> | --uuid <uuid>) [--execute]",
   "",
-  "  --email <address>   the existing Supabase Auth account's email",
-  "  --uuid <uuid>       the existing Supabase Auth account's UUID",
-  "  --execute           perform the write (default: dry run, nothing is written)",
-  "  --help              show this message",
+  "  --email <address>        the existing Supabase Auth account's email",
+  "  --uuid <uuid>            the existing Supabase Auth account's UUID",
+  "  --execute                perform the write (default: dry run, nothing is written)",
+  "  --allow-unverified-email owner opt-in: allow an unconfirmed Auth email address",
+  "  --allow-disabled-account owner opt-in: allow a banned/disabled Auth account",
+  "  --help                   show this message",
   "",
   "  DRY_RUN=true in the environment forces a dry run even with --execute.",
 ].join("\n");
@@ -79,13 +117,22 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function parseArgs(argv: string[]): Options {
-  const options: Options = { execute: false, help: false };
+  const options: Options = {
+    execute: false,
+    help: false,
+    allowUnverifiedEmail: false,
+    allowDisabledAccount: false,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") {
       options.help = true;
     } else if (arg === "--execute") {
       options.execute = true;
+    } else if (arg === "--allow-unverified-email") {
+      options.allowUnverifiedEmail = true;
+    } else if (arg === "--allow-disabled-account") {
+      options.allowDisabledAccount = true;
     } else if (arg === "--email") {
       options.email = argv[++i];
     } else if (arg.startsWith("--email=")) {
@@ -128,6 +175,7 @@ function sqlLiteral(value: string): string {
 /** The Supabase Auth account, reduced to what the plan needs. */
 export interface ResolvedAuthUser extends AuthUserLike {
   disabled: boolean;
+  emailVerified: boolean;
 }
 
 /**
@@ -150,6 +198,10 @@ export interface RunOptions {
   uuid?: string;
   execute: boolean;
   dryRunEnv: boolean;
+  /** Owner opt-in: allow an unconfirmed Supabase Auth email address. */
+  allowUnverifiedEmail?: boolean;
+  /** Owner opt-in: allow a banned/disabled Supabase Auth account. */
+  allowDisabledAccount?: boolean;
   /** Injectable clock for `first_signed_in_at`; tests pass a fixed value. */
   now?: string;
 }
@@ -169,6 +221,20 @@ export function isWriteMode(options: RunOptions): boolean {
   return options.execute && !options.dryRunEnv;
 }
 
+/** The plain-language headline shown first, from the plan's classification. */
+export function classificationHeadline(plan: FirstSuperAdminPlan): string {
+  switch (plan.classification) {
+    case "ready":
+      return "READY TO CREATE STAFF 001";
+    case "already_set_up":
+      return "ALREADY SET UP — nothing to do";
+    case "profile_repair_required":
+      return "PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR";
+    case "not_eligible":
+      return "ACCOUNT NOT ELIGIBLE";
+  }
+}
+
 export function reportPlan(
   plan: FirstSuperAdminPlan,
   authUser: ResolvedAuthUser,
@@ -177,10 +243,12 @@ export function reportPlan(
 ): void {
   log("");
   log(mode === "dry-run" ? "=== DRY RUN — nothing will be written ===" : "=== EXECUTE — a write is planned ===");
+  log(`CLASSIFICATION : ${classificationHeadline(plan)}`);
   log(`1. Supabase Auth UUID : ${plan.authUser.id}`);
   log(`2. email              : ${plan.authUser.email ?? "(none)"}`);
   log(`   display name       : ${authUser.displayName ?? "(none)"}`);
   log(`   account disabled   : ${authUser.disabled ? "YES" : "no"}`);
+  log(`   email confirmed    : ${authUser.emailVerified ? "yes" : "NO"}`);
 
   log("3. public.users matching row:");
   if (plan.profile) {
@@ -216,7 +284,7 @@ export function reportPlan(
     log(`   VALUES (${Object.values(plan.plannedStaffRow).map((v) => sqlLiteral(String(v))).join(", ")});`);
     log(`   -- planned row: ${JSON.stringify(plan.plannedStaffRow)}`);
     log(
-      `   -- followed by: SELECT seva_audit('staff.onboard', 'staff', '<new id>', NULL, ${sqlLiteral(plan.plannedAudit?.reason ?? "")}, NULL, <after>, '<new id>');`,
+      `   -- followed by: SELECT seva_audit('staff.onboard', 'staff', '<new id>', NULL, ${sqlLiteral(plan.plannedAudit?.reason ?? "")}, NULL, <after>, NULL);  -- NULL staff id = system/bootstrap actor`,
     );
   } else {
     log("   (none — no write is planned)");
@@ -255,10 +323,31 @@ export async function runBootstrap(
 
   const staffRows = await ports.readStaff();
   const { profile, match } = await ports.readProfile(authUser.id, authUser.email);
-  const plan = planFirstSuperAdmin({ authUser, profile, profileMatch: match, staffRows, now: options.now });
+  const plan = planFirstSuperAdmin({
+    authUser,
+    profile,
+    profileMatch: match,
+    staffRows,
+    now: options.now,
+    allowUnverifiedEmail: options.allowUnverifiedEmail,
+    allowDisabledAccount: options.allowDisabledAccount,
+  });
+
+  const reportOutcome = (): void => {
+    if (plan.repair) {
+      log("");
+      log("PROFILE REPAIR REQUIRED (a separate, owner-approved step; nothing was written here):");
+      log(`   reasons : ${plan.repair.reasons.join(", ")}`);
+      log("   run     :");
+      for (const line of plan.repair.command.split("\n")) log(`     ${line}`);
+      log(`   note    : ${plan.repair.note}`);
+      log("   Then re-run this bootstrap's dry run to confirm it is READY.");
+    }
+  };
 
   if (mode === "dry-run") {
     reportPlan(plan, authUser, "dry-run", log);
+    reportOutcome();
     log("");
     if (plan.action === "create" && plan.safe) {
       log("Dry run complete. Re-run with --execute to create staff 001.");
@@ -273,6 +362,7 @@ export async function runBootstrap(
   // Write mode. Re-check and insert inside the same guard so a rerun is safe.
   if (!plan.safe || plan.action !== "create" || !plan.plannedStaffRow) {
     reportPlan(plan, authUser, "execute", log);
+    reportOutcome();
     if (plan.action === "noop") {
       log("Staff 001 already belongs to this account — nothing to write.");
       return { mode, action: plan.action, safe: plan.safe, wrote: false, plan };
@@ -296,7 +386,29 @@ export async function runBootstrap(
     );
   }
 
-  const { id: staffId } = await ports.insertStaff(plan.plannedStaffRow);
+  let staffId: string;
+  try {
+    ({ id: staffId } = await ports.insertStaff(plan.plannedStaffRow));
+  } catch (error) {
+    if (error instanceof BootstrapConflictError) {
+      // A uniqueness constraint (firebase_uid / staff_no / email) rejected the row: a
+      // concurrent bootstrap or a rerun won the race. Re-read and report safely.
+      const after = await ports.readStaff();
+      const owned = after.find(
+        (r) => r.auth_user_id === plan.plannedStaffRow!.auth_user_id || r.firebase_uid === plan.plannedStaffRow!.firebase_uid,
+      );
+      if (owned) {
+        log(`Staff 001 already belongs to this account (id ${owned.id}); the concurrent write won. Nothing further written.`);
+        return { mode, action: "noop", safe: true, wrote: false, plan };
+      }
+      throw new BootstrapError(
+        `Refusing to write: a uniqueness constraint rejected the staff row (${error.constraint ?? "unknown constraint"}), ` +
+          `and no row for this account is visible. Resolve the conflicting row (staff no. 001 or the email) before retrying. ` +
+          "Nothing was written by this run.",
+      );
+    }
+    throw error;
+  }
   log(`Created staff 001 (id ${staffId}).`);
   try {
     await ports.writeAudit(staffId, plan.plannedAudit?.reason ?? "");
@@ -355,18 +467,25 @@ function toResolvedAuthUser(user: unknown): ResolvedAuthUser {
     user_metadata?: Record<string, unknown> | null;
     disabled?: boolean;
     banned_until?: string | null;
+    email_confirmed_at?: string | null;
   };
   const meta = u.user_metadata ?? {};
   const displayName =
     (typeof meta.full_name === "string" && meta.full_name) ||
     (typeof meta.name === "string" && meta.name) ||
     null;
+  // Supabase Auth represents a disabled account two ways: the `disabled` flag, and a
+  // `banned_until` timestamp in the future. Both are treated as disabled.
   const banned = typeof u.banned_until === "string" && u.banned_until !== "" && new Date(u.banned_until) > new Date();
+  // An email is confirmed when `email_confirmed_at` is set. This mirrors
+  // lib/seva/server/identity-supabase.ts findLoginByEmail (emailVerified = !!email_confirmed_at).
+  const emailVerified = typeof u.email_confirmed_at === "string" && u.email_confirmed_at !== "";
   return {
     id: u.id,
     email: u.email ?? null,
     displayName,
     disabled: u.disabled === true || banned,
+    emailVerified,
   };
 }
 
@@ -402,7 +521,19 @@ export function createSupabasePorts(supabase: SupabaseClient): BootstrapPorts {
 
     insertStaff: async (row) => {
       const { data, error } = await supabase.from("staff").insert(row).select("id").single();
-      if (error) throw new BootstrapError(`Staff insert failed: ${error.message}`);
+      if (error) {
+        if (isUniqueViolation(error)) {
+          // A database uniqueness constraint is the final safeguard: firebase_uid,
+          // staff_no and email are all UNIQUE, so a concurrent bootstrap (or a
+          // rerun) that slips past the pre-read still cannot create a duplicate.
+          throw new BootstrapConflictError(
+            `The staff insert met a uniqueness constraint (${error.message}). Another row already holds this ` +
+              "identity, staff number or email.",
+            (error as { constraint?: string }).constraint ?? null,
+          );
+        }
+        throw new BootstrapError(`Staff insert failed: ${error.message}`);
+      }
       return { id: (data as { id: string }).id };
     },
 
@@ -414,8 +545,12 @@ export function createSupabasePorts(supabase: SupabaseClient): BootstrapPorts {
         p_receipt_no: null,
         p_reason: reason,
         p_before: null,
-        p_after: { staff_no: FIRST_SUPER_ADMIN_STAFF_NO, role: "super_admin" },
-        p_staff_id: staffId,
+        p_after: { staff_no: FIRST_SUPER_ADMIN_STAFF_NO, role: "super_admin", actor: "system_bootstrap" },
+        // p_staff_id NULL = a system/bootstrap actor, not a person in the app. The new
+        // staff member did not perform this action, so attributing it to them would be
+        // a lie. This matches scripts/seva/create-first-super-admin.ts and
+        // scripts/seva/seed-demo-data.ts, which both pass p_staff_id: null.
+        p_staff_id: null,
       });
       if (error) throw new BootstrapError(error.message);
     },
@@ -453,6 +588,8 @@ async function main(): Promise<void> {
     uuid: options.uuid,
     execute: options.execute,
     dryRunEnv: envIsDryRun(process.env),
+    allowUnverifiedEmail: options.allowUnverifiedEmail,
+    allowDisabledAccount: options.allowDisabledAccount,
   };
   const writeMode = isWriteMode(runOptions);
 
