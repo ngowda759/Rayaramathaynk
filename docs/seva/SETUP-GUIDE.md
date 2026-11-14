@@ -474,8 +474,10 @@ The seva module needs one first super admin. On your test projects, that is you.
    example `http://localhost:3000/register`) and sign up with your own email and a new password.
    What you should see now: you are signed in to the test site as an ordinary member.
 2. Open a PowerShell window in `D:\Onboarding\Repos\POCs\seva-entry` (0.9).
-3. Type `npx tsx scripts/seva/create-first-super-admin.ts --email <the email you just used>` and press **Enter**.
-   It reads `.env.local` and `.firebase-adminsdk.json` and prints no secret.
+3. Type `npx tsx scripts/seva/create-first-super-admin-supabase.ts --email <the email you just used>` and press
+   **Enter**. It reads `.env.local` and prints no secret. It runs as a **dry run** first; read the plan, then add
+   `--execute` and run it again to create staff 001. (The Firebase-bound `scripts/seva/create-first-super-admin.ts`
+   is only for the Firebase-era path.)
    What you should see now: a few lines ending in a message that staff 001 was created (or already exists). If it
    prints an error, copy it (it holds no secret) and send it to me.
 4. Open `http://localhost:3000/seva` (or `/seva` on your Vercel link). The public pages have no admin link and no
@@ -962,15 +964,18 @@ shows its current role and offers **Link this account**. The person keeps their 
 account's email must be verified; an unverified account is refused, and the person can send themselves the
 verification email again from `/seva` (**Send verification email**).
 
-What you need: your copy of the repository (how-to above), the new key file from B3 saved in it as
-`.firebase-adminsdk.json`, about 15 minutes.
+What you need: your copy of the repository (how-to above) and the **live `service_role` key** (Supabase dashboard,
+Project Settings, API), about 15 minutes. No Firebase key file is needed: the bootstrap reads and writes Supabase only.
 
 1. In your copy of the repository, make a file `.env.local` with Notepad (save it with **Save as type** set to **All
    files**), holding two lines: `NEXT_PUBLIC_SUPABASE_URL=https://<live project ref>.supabase.co` and
    `SUPABASE_SERVICE_ROLE_KEY=<the live service_role key>`. Git ignores `.env.local`.
 2. Open a terminal in that folder and type
-   `npx tsx scripts/seva/create-first-super-admin.ts --email <Nikhil's live email>`, then press **Enter**.
-   It prints no secret.
+   `npx tsx scripts/seva/create-first-super-admin-supabase.ts --email <Nikhil's live email>`, then press **Enter**.
+   It prints no secret. It runs as a **dry run** first (reads only): it prints the account, its `public.users` row,
+   the exact staff row it would insert, whether the write is safe, and any conflict. Read it, then add `--execute` and
+   run it again to create staff 001. (`DRY_RUN=true` forces a dry run even with `--execute`.) The older
+   `scripts/seva/create-first-super-admin.ts` is Firebase-bound and is only for the Firebase-era path.
    What you should see now: a message that staff 001 was created. If it prints an error, send Nikhil the error text
    (it holds no secret).
 3. Nikhil signs out of the website and signs in again.

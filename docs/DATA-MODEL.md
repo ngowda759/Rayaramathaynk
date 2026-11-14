@@ -911,7 +911,10 @@ other functions; the route code calls the rest through `callRpc`.
 
 `20261020000200_seva_seed.sql` seeds series C1, OF1, W and WT, Counter 1, the denominations and a settings row with
 SAMPLE text; `20261029235900_seva_privilege_hardening.sql` revokes `TRIGGER` and `REFERENCES` on the guarded tables.
-The first super admin `staff` row (001) is created by `scripts/seva/create-first-super-admin.ts`, not by a migration.
+The first super admin `staff` row (001) is created by a script, not by a migration:
+`scripts/seva/create-first-super-admin-supabase.ts` for the Supabase-native database (Supabase Auth Admin
+only; sets `staff.auth_user_id` and `staff.firebase_uid` to the account's Supabase Auth UUID), or the legacy
+Firebase-bound `scripts/seva/create-first-super-admin.ts` for the Firebase-era path.
 
 ### Audit actions
 

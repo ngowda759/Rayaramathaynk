@@ -50,6 +50,7 @@
     "seed:fresh:dry-run": "npx tsx scripts/seed-fresh-supabase.ts --local --dry-run",
     "diagnose:raya-admin-login": "tsx scripts/diagnose-raya-admin-login.ts",
     "diagnose:auth-identities": "tsx scripts/diagnose-auth-identities.ts",
+    "seva:first-super-admin": "tsx scripts/seva/create-first-super-admin-supabase.ts",
     "verify:supabase-migrations": "npx tsx --conditions=react-server scripts/verify-supabase-migrations.ts",
     "verify:supabase-migrations:static": "npx tsx --conditions=react-server scripts/verify-supabase-migrations.ts --static",
     "verify:supabase-migrations:json": "npx tsx --conditions=react-server scripts/verify-supabase-migrations.ts --json",

@@ -25,7 +25,7 @@ from the code at the end of Phase 1.
 | `types/seva.ts` | Shared types |
 | `styles/seva/` | `tokens.css` (the `.seva` tokens) and `print.css` |
 | `supabase/migrations/` | The nine `..._seva_*.sql` files (`docs/SUPABASE_MIGRATIONS.md`) |
-| `scripts/seva/` | `create-first-super-admin.ts` (staff 001), `backup.sh` and `verify-backup.sh` (nightly backup and restore drill), `seed-demo-data.ts` (test projects only) |
+| `scripts/seva/` | `create-first-super-admin-supabase.ts` (staff 001, Supabase-native), `create-first-super-admin.ts` (staff 001, legacy Firebase-bound), `backup.sh` and `verify-backup.sh` (nightly backup and restore drill), `seed-demo-data.ts` (test projects only) |
 | `public/seva-counter.webmanifest`, `public/seva-sw.js` | The installable app and its service worker |
 | `.github/workflows/seva-backup.yml`, `seva-maintenance.yml` | The nightly encrypted backup and the monthly purge of old devotee profiles |
 | `tests/unit/seva/`, `tests/db/`, `tests/rules/`, `tests/e2e/seva/` | Unit and route tests (Jest), database tests (PGlite), Firestore rules tests, browser tests (Playwright) |
@@ -109,6 +109,24 @@ The developer pushes every new migration to his own test project himself (the bu
 
 Applied files are never edited; a change is always a new file with a later timestamp. On the live project the site
 owner runs the **Deploy Supabase Migrations** workflow (SETUP-GUIDE B1). Details: `docs/SUPABASE_MIGRATIONS.md`.
+
+### Create the first super admin (staff 001)
+
+The Staff and roles page and `/api/admin/users/create-admin` both need an existing active staff actor, so neither can
+create the very first one. `scripts/seva/create-first-super-admin-supabase.ts` breaks that deadlock for an account that
+already exists in Supabase Auth. It is Supabase-native: it reads only Supabase Auth Admin and the service role, and it
+writes no Firestore document. `npm run seva:first-super-admin` runs it.
+
+1. Dry run (reads only; the default): `npm run seva:first-super-admin -- --email <owner@example.org>` (or `--uuid`).
+   It prints the account, its `public.users` row, any matching staff rows, the exact staff row it would insert,
+   whether the write is safe, and every conflict.
+2. Only when the dry run says `safe to write : YES`, add `--execute` and run it again to create staff 001.
+
+It never changes an existing role, creates nothing when the account is missing, is a no-op when the staff row already
+exists, and refuses once the staff table is not empty. `DRY_RUN=true` forces a dry run even with `--execute`. The
+planner is `scripts/lib/first-super-admin-supabase.ts`; the legacy Firebase-bound
+`scripts/seva/create-first-super-admin.ts` is only for the Firebase-era path. This is the Supabase-native replacement
+described in SETUP-GUIDE B5.
 
 ### Seed demo data on a test project
 
