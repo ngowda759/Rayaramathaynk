@@ -89,8 +89,8 @@ function methodBodies(source: string): Record<string, string> {
 describe("F-A13: admin API route authorization census", () => {
   const files = adminRouteFiles();
 
-  it("enumerates the admin API surface (35 route files)", () => {
-    expect(files).toHaveLength(36);
+  it("enumerates the admin API surface (37 route files)", () => {
+    expect(files).toHaveLength(37);
   });
 
   it("every exported method in every admin route is guarded", () => {
