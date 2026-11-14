@@ -2,9 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminUser } from "@/lib/auth/admin-auth";
-import { userService } from "@/services/user.service";
+import { userService } from "@/services/user.server";
 
 /**
+ * The directory is deny-all under RLS and carries role/activation state, so every
+ * operation reads and writes through the service-role Supabase client
+ * (`services/user.server`). Never import the browser client
+ * (`services/user.service`) here: it resolves `/api/admin/users` relatively, so the
+ * route would call itself and fail on a server runtime.
+ *
  * GET /api/admin/users - List all admin users.
  */
 export async function GET(request: NextRequest) {
@@ -37,7 +43,8 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/admin/users/:id - Update an existing user.
+ * PUT /api/admin/users - Update an existing user. The id travels in the body.
+ * Prefer `PUT /api/admin/users/:id`, which the browser client uses.
  */
 export async function PUT(request: NextRequest) {
   const auth = await requireAdminUser(request);
@@ -53,7 +60,8 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
- * DELETE /api/admin/users/:id - Delete a user.
+ * DELETE /api/admin/users - Delete a user. The id travels in the body.
+ * Prefer `DELETE /api/admin/users/:id`, which the browser client uses.
  */
 export async function DELETE(request: NextRequest) {
   const auth = await requireAdminUser(request);
