@@ -25,7 +25,7 @@ from the code at the end of Phase 1.
 | `types/seva.ts` | Shared types |
 | `styles/seva/` | `tokens.css` (the `.seva` tokens) and `print.css` |
 | `supabase/migrations/` | The nine `..._seva_*.sql` files (`docs/SUPABASE_MIGRATIONS.md`) |
-| `scripts/seva/` | `create-first-super-admin.ts` (staff 001), `backup.sh` and `verify-backup.sh` (nightly backup and restore drill), `seed-demo-data.ts` (test projects only) |
+| `scripts/seva/` | `create-first-super-admin-supabase.ts` (staff 001, Supabase-native), `create-first-super-admin.ts` (staff 001, legacy Firebase-bound), `backup.sh` and `verify-backup.sh` (nightly backup and restore drill), `seed-demo-data.ts` (test projects only) |
 | `public/seva-counter.webmanifest`, `public/seva-sw.js` | The installable app and its service worker |
 | `.github/workflows/seva-backup.yml`, `seva-maintenance.yml` | The nightly encrypted backup and the monthly purge of old devotee profiles |
 | `tests/unit/seva/`, `tests/db/`, `tests/rules/`, `tests/e2e/seva/` | Unit and route tests (Jest), database tests (PGlite), Firestore rules tests, browser tests (Playwright) |
@@ -109,6 +109,51 @@ The developer pushes every new migration to his own test project himself (the bu
 
 Applied files are never edited; a change is always a new file with a later timestamp. On the live project the site
 owner runs the **Deploy Supabase Migrations** workflow (SETUP-GUIDE B1). Details: `docs/SUPABASE_MIGRATIONS.md`.
+
+### Create the first super admin (staff 001)
+
+The Staff and roles page and `/api/admin/users/create-admin` both need an existing active staff actor, so neither can
+create the very first one. `scripts/seva/create-first-super-admin-supabase.ts` breaks that deadlock for an account that
+already exists in Supabase Auth. It is Supabase-native: it reads only Supabase Auth Admin and the service role, and it
+writes no Firestore document. **It needs no migration and no Firebase/Firestore write.** `npm run
+seva:first-super-admin` runs it.
+
+The dry run (the default) leads with one of three plain classifications, and the operator acts on that headline:
+
+1. **READY TO CREATE STAFF 001** — every prerequisite is met. Only then add `--execute` and run it again.
+2. **PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR** — the account's `public.users` row is missing, unlinked,
+   inactive or not `super_admin`. This bootstrap never repairs it, and the website admin Users page cannot either
+   (its own authorization guard reads the same broken profile). Repair it with the separately authorized bootstrap
+   `scripts/bootstrap-raya-admin.ts`, using the exact command the dry run prints. Then re-run this dry run.
+3. **ACCOUNT NOT ELIGIBLE** — the Supabase Auth email is unconfirmed, the account is banned/disabled, the staff table
+   is not empty, or staff no. 001 / the email is already taken. Fix the account (or, only with the owner's explicit
+   authorization, re-run with `--allow-unverified-email` / `--allow-disabled-account`) and try again.
+
+Owner-approved sequence for a fresh production database:
+
+```bash
+# 1. Confirm the account exists and its profile is super_admin + active + linked.
+#    If the dry run says PROFILE NEEDS A SEPARATELY AUTHORIZED REPAIR, run the repair it prints:
+RAYA_ADMIN_EMAIL="<owner email>" RAYA_ADMIN_PASSWORD="<only if the Auth user is missing>" \
+RAYA_ADMIN_ROLE="super_admin" npx tsx scripts/bootstrap-raya-admin.ts
+#    (add RAYA_ADMIN_FORCE_ROLE=1 / RAYA_ADMIN_REACTIVATE=1 / RAYA_ADMIN_LINK_LEGACY_EMAIL=1 as the dry run instructs)
+
+# 2. Dry run of the staff bootstrap (reads only):
+npm run seva:first-super-admin -- --email <owner@example.org>     # or --uuid <uuid>
+
+# 3. Only when it says "safe to write : YES", create staff 001:
+npm run seva:first-super-admin -- --email <owner@example.org> --execute
+```
+
+It never changes an existing role, creates nothing when the account is missing, is a no-op when the staff row already
+exists, and refuses once the staff table is not empty. A rerun is always safe. A concurrent run cannot create a
+duplicate: `staff.firebase_uid`, `staff.staff_no` and `staff.email` are all UNIQUE, and the bootstrap reports the
+resulting conflict safely instead of failing blindly. The audit row is written with **no acting staff member**
+(`p_staff_id = NULL`), the established convention for an out-of-band script (`scripts/seva/seed-demo-data.ts` does the
+same); the new staff member did not perform the action, so it is never attributed to them. `DRY_RUN=true` forces a dry
+run even with `--execute`. The planner is `scripts/lib/first-super-admin-supabase.ts`; the legacy Firebase-bound
+`scripts/seva/create-first-super-admin.ts` is only for the Firebase-era path. This is the Supabase-native replacement
+described in SETUP-GUIDE B5.
 
 ### Seed demo data on a test project
 

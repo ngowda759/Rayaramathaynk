@@ -911,7 +911,15 @@ other functions; the route code calls the rest through `callRpc`.
 
 `20261020000200_seva_seed.sql` seeds series C1, OF1, W and WT, Counter 1, the denominations and a settings row with
 SAMPLE text; `20261029235900_seva_privilege_hardening.sql` revokes `TRIGGER` and `REFERENCES` on the guarded tables.
-The first super admin `staff` row (001) is created by `scripts/seva/create-first-super-admin.ts`, not by a migration.
+The first super admin `staff` row (001) is created by a script, not by a migration, and needs no migration:
+`scripts/seva/create-first-super-admin-supabase.ts` for the Supabase-native database (Supabase Auth Admin
+only; sets `staff.auth_user_id` and `staff.firebase_uid` to the account's Supabase Auth UUID, writes no Firestore
+document), or the legacy Firebase-bound `scripts/seva/create-first-super-admin.ts` for the Firebase-era path. Its
+`staff.onboard` audit row carries **no acting staff member** (`p_staff_id = NULL`), the same system/bootstrap
+convention as `scripts/seva/seed-demo-data.ts`: the new staff member did not perform the action. The script only
+verifies the account's `public.users` row (`role = super_admin`, `active = true`, linked to the Auth UUID); a
+missing, unlinked, inactive or wrongly-roled row is repaired separately by `scripts/bootstrap-raya-admin.ts`, the
+only writer of `public.users.auth_user_id`/`role`.
 
 ### Audit actions
 
