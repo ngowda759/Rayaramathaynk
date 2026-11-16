@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { HomepageConfig } from "@/types/homepage";
+import { getPublicUrl, normaliseHeroImage } from "@/lib/supabase/helpers";
 
 const DOCUMENT_KEY = "homepage";
 
@@ -38,7 +39,12 @@ class HomepageService {
 
   async saveHomepage(config: HomepageConfig): Promise<void> {
     const supabase = createAdminClient();
-    const cleanData = this.removeUndefined(config);
+    // Normalise hero image to a public URL
+    const heroPath = normaliseHeroImage(config.heroImage ?? '');
+    const bucketName = 'RayaramathaYNK';
+    const publicUrl = heroPath ? getPublicUrl(bucketName, heroPath) : '';
+    const updatedConfig = { ...config, heroImage: publicUrl };
+    const cleanData = this.removeUndefined(updatedConfig);
     const { error } = await supabase.from("settings_documents").upsert(
       {
         document_key: DOCUMENT_KEY,
