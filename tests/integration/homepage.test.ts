@@ -1,33 +1,57 @@
 import { homepageService } from '@/services/homepage.server';
-import { normaliseHeroImage, getPublicUrl } from '@/lib/supabase/helpers';
+import type { HomepageConfig } from '@/types/homepage';
 
 /**
- * Integration test for saveHomepage – ensures a Supabase Dashboard URL is stored
- * as the correct public URL.
+ * Integration test for saveHomepage: a Supabase Dashboard URL must be normalised
+ * and persisted as the canonical public Storage URL.
+ *
+ * The default Jest config only matches tests/unit, so run this file directly
+ * with a testMatch override pointing at tests/integration.
  */
 
+const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+
+jest.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: () => ({ from: () => ({ upsert: mockUpsert }) }),
+}));
+
+const PROJECT_URL = 'https://kvrkraqjuyxbraccxntk.supabase.co';
+
+const DASHBOARD_URL =
+  'https://supabase.com/dashboard/project/kvrkraqjuyxbraccxntk/storage/files/buckets/RayaramathaYNK?path=General+Pictures&preview=9d28d1beb69c661e8f897d6297d7034e.jpg';
+
+const EXPECTED_PUBLIC_URL =
+  'https://kvrkraqjuyxbraccxntk.supabase.co/storage/v1/object/public/RayaramathaYNK/General%20Pictures/9d28d1beb69c661e8f897d6297d7034e.jpg';
+
 describe('HomepageService.saveHomepage integration', () => {
-  // Mock Supabase admin client – we replace the real client with a minimal stub
-  // that captures the upsert payload.
-  const mockUpsert = jest.fn().mockResolvedValue({ error: null });
-  jest.mock('@/lib/supabase/admin', () => ({
-    createAdminClient: () => ({
-      storage: { from: () => ({ getPublicUrl: (path: string) => ({ publicUrl: `https://example.supabase.co/storage/v1/object/public/RayaramathaYNK/${encodeURIComponent(path)}` }) }) },
-      from: () => ({ upsert: mockUpsert }),
-    }),
-  }));
+  beforeEach(() => {
+    mockUpsert.mockClear();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = PROJECT_URL;
+  });
 
-  const dashboardUrl =
-    'https://supabase.com/dashboard/project/kvrkraqjuyxbraccxntk/storage/files/buckets/RayaramathaYNK?path=General+Pictures&preview=hero.jpg';
+  it('stores the normalised public URL for a Dashboard URL', async () => {
+    const config = { heroImage: DASHBOARD_URL } as unknown as HomepageConfig;
 
-  const config = { heroImage: dashboardUrl } as any; // other fields omitted for brevity
-
-  it('stores public URL', async () => {
     await homepageService.saveHomepage(config);
-    const expectedPath = 'General Pictures/hero.jpg';
-    const expectedPublic = `https://example.supabase.co/storage/v1/object/public/RayaramathaYNK/${encodeURIComponent(expectedPath)}`;
+
     expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ heroImage: expectedPublic }) }),
+      expect.objectContaining({
+        document_key: 'homepage',
+        data: expect.objectContaining({ heroImage: EXPECTED_PUBLIC_URL }),
+      }),
+      { onConflict: 'document_key' },
+    );
+  });
+
+  it('stores an empty string when the hero image is empty', async () => {
+    const config = { heroImage: '' } as unknown as HomepageConfig;
+
+    await homepageService.saveHomepage(config);
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ heroImage: '' }),
+      }),
       { onConflict: 'document_key' },
     );
   });
