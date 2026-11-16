@@ -38,10 +38,6 @@ jest.mock("@/hooks/useSupabaseSession", () => ({
   useSupabaseSession: () => ({ session: authState.supabaseSession, loading: false }),
 }));
 
-jest.mock("@/lib/firebase", () => ({
-  getFirebaseConfigStatus: () => ({ isValid: true, missingFields: [] }),
-}));
-
 function reset() {
   mockSearch.current = "";
   mockPathname.current = "/admin/events";

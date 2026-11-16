@@ -41,7 +41,7 @@ import Input from "@/components/ui/input";
  *
  * The form is shown only for a session that came from a recovery link. The new
  * password is written with `updateUser({ password })` - the only supported
- * Supabase-native path. No Firebase call is involved.
+ * Supabase-native path; no other provider is involved.
  */
 export default function RayaAiResetPasswordPage() {
   const router = useRouter();

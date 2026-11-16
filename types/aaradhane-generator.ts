@@ -1,7 +1,7 @@
 /**
  * Types for the Aaradhane Event Generator
  * 
- * These types support reading Guru Parampara data from Firestore
+ * These types support reading Guru Parampara data
  * and generating Aaradhane events automatically.
  */
 
@@ -24,7 +24,7 @@ export type AaradhanePhase = "Poorva" | "Madhya" | "Uttara";
 export type GuruImportance = "major" | "minor";
 
 /**
- * Guru Parampara record stored in Firestore
+ * Guru Parampara record (as stored in the Supabase `guru_parampara` table)
  * Contains lunar calendar data for automatic Aaradhane event generation
  */
 export interface GuruParamparaRecord {
@@ -72,7 +72,7 @@ export interface GuruParamparaRecord {
 }
 
 /**
- * Firestore guruParampara collection structure
+ * Guru Parampara structure (the retired Firestore `guruParampara` document shape)
  */
 export interface GuruParamparaCollection {
   /** Collection document ID */
@@ -92,7 +92,7 @@ export interface GuruParamparaCollection {
 }
 
 /**
- * Generated event ready to be stored in Firestore
+ * Generated event ready to be stored in Supabase
  */
 export interface GeneratedAaradhaneEvent {
   /** Unique identifier for deduplication */
@@ -178,7 +178,7 @@ export interface GenerateResult {
 }
 
 /**
- * Firestore event document structure
+ * Event document structure (the retired Firestore shape)
  */
 export interface FirestoreEventDocument {
   title: string;
@@ -210,7 +210,7 @@ export interface FirestoreEventDocument {
 }
 
 /**
- * Existing Firestore event for comparison
+ * Existing event for comparison
  */
 export interface ExistingEvent {
   id: string;

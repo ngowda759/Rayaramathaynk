@@ -189,42 +189,11 @@ export function AuthProvider({
       }
     );
 
-    // 3. Compatibility fallback: Firebase Auth listener for rollback and zero-lockout
-    let unsubscribeFirebase: (() => void) | undefined;
-    (async () => {
-      try {
-        const { auth } = await import("@/lib/firebase");
-        const { onAuthStateChanged } = await import("firebase/auth");
-        if (auth && typeof onAuthStateChanged === "function") {
-          unsubscribeFirebase = onAuthStateChanged(auth, async (fbUser) => {
-            const userObj = fbUser as { uid: string; email?: string | null; displayName?: string | null; photoURL?: string | null; emailVerified?: boolean; getIdToken?: () => Promise<string> } | null;
-            if (!isMounted) return;
-            const currentSupa = (await supabase.auth.getSession()).data?.session;
-            if (!currentSupa?.user && userObj) {
-              setUser({
-                id: userObj.uid,
-                uid: userObj.uid,
-                email: userObj.email ?? null,
-                displayName: userObj.displayName ?? null,
-                emailVerified: userObj.emailVerified ?? false,
-                getIdToken: typeof userObj.getIdToken === "function" ? () => (userObj.getIdToken ? userObj.getIdToken() : Promise.resolve("")) : async () => "",
-                rawUser: userObj,
-              });
-              await loadProfile(userObj.uid);
-              setLoading(false);
-            }
-          });
-        }
-      } catch {
-        // Firebase optional
-      }
-    })();
-
+    // 3. Supabase Auth is the only sign-in provider; there is no Firebase listener.
     return () => {
       isMounted = false;
       setAuthTokenGetter(null);
       subscription?.unsubscribe();
-      if (unsubscribeFirebase) unsubscribeFirebase();
     };
   }, []);
 

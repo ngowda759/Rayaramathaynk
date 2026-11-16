@@ -1,6 +1,6 @@
 /**
  * Browser client for the seva catalogue routes (`/api/seva/sevas*`). Every call asks the token getter for the signed-in
- * person's Firebase ID token, so a page left open never sends an expired one; the server checks the role (DB §6.5).
+ * person's Supabase access token, so a page left open never sends an expired one; the server checks the role (DB §6.5).
  * Failures arrive as SevaClientError (services/seva/http.ts).
  */
 

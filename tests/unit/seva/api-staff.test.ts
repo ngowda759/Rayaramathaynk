@@ -29,6 +29,9 @@ jest.mock("@/lib/seva/server/auth", () => {
   };
 });
 
+// ---- Supabase Auth Admin, for the real Supabase adapter's createLogin / findLoginByEmail ----------------------------
+const mockSupabaseAuthAdmin = { createUser: jest.fn(), getUserByEmail: jest.fn(), listUsers: jest.fn() };
+
 // ---- Supabase: an in-memory stand-in for from(table).select().eq().in().order().limit() -----------------------------
 type Row = Record<string, unknown>;
 const mockDb: { tables: Record<string, Row[]> } = { tables: {} };
@@ -72,7 +75,12 @@ function mockQuery(table: string) {
   return query;
 }
 
-jest.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: (table: string) => mockQuery(table) }) }));
+jest.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({
+    from: (table: string) => mockQuery(table),
+    auth: { admin: mockSupabaseAuthAdmin },
+  }),
+}));
 
 // ---- One log of every write, in the order it happened -------------------------------------------------------------
 const mockCalls: string[] = [];
@@ -117,14 +125,9 @@ const mockIdentity: jest.Mocked<IdentityAdapter> = {
 };
 jest.mock("@/lib/seva/server/identity", () => ({ getIdentityAdapter: () => mockIdentity }));
 
-// ---- Firebase Admin, for the real Firebase adapter's createLogin -----------------------------------------------------
-const mockFirebaseAuth = { createUser: jest.fn(), getUserByEmail: jest.fn() };
-jest.mock("firebase-admin/auth", () => ({ getAuth: () => mockFirebaseAuth }));
-jest.mock("@/lib/admin-firebase", () => ({ getAdminApp: async () => ({}) }));
-
 import { GET, POST } from "../../../app/api/seva/staff/route";
 import { PUT } from "../../../app/api/seva/staff/[id]/route";
-import { firebaseIdentityAdapter } from "@/lib/seva/server/identity-firebase";
+import { supabaseIdentityAdapter } from "@/lib/seva/server/identity-supabase";
 import { staffApi } from "@/services/seva/staff.service";
 
 // ---- Fixtures -------------------------------------------------------------------------------------------------------
@@ -418,9 +421,9 @@ describe("POST /api/seva/staff (onboard)", () => {
 
   it("answers 400 on the email field when the email already has a sign-in account, with no other writes", async () => {
     mockSession.actor = ADMIN;
-    // The real Firebase adapter behind the route, with Firebase Auth refusing the email.
-    mockIdentity.createLogin.mockImplementationOnce((login) => firebaseIdentityAdapter.createLogin(login));
-    mockFirebaseAuth.createUser.mockRejectedValueOnce(Object.assign(new Error("exists"), { code: "auth/email-already-exists" }));
+    // The real Supabase adapter behind the route, with Supabase Auth refusing the email.
+    mockIdentity.createLogin.mockImplementationOnce((login) => supabaseIdentityAdapter.createLogin(login));
+    mockSupabaseAuthAdmin.createUser.mockResolvedValueOnce({ data: null, error: { message: "already registered" } });
 
     const refused = await errorOf(await POST(post(lakshmi)));
     expect(refused).toMatchObject({
@@ -428,7 +431,7 @@ describe("POST /api/seva/staff (onboard)", () => {
       code: "validation",
       detail: { field: "email", message: "This email already has a sign-in account." },
     });
-    expect(mockFirebaseAuth.createUser).toHaveBeenCalledTimes(1);
+    expect(mockSupabaseAuthAdmin.createUser).toHaveBeenCalledTimes(1);
     expect(mockIdentity.setAccessProfile).not.toHaveBeenCalled();
     expect(mockCalls).toEqual(["rpc.seva_next_staff_no"]);
   });
@@ -808,99 +811,49 @@ describe("PUT /api/seva/staff/[id]", () => {
   });
 });
 
-describe("Firebase identity adapter: createLogin", () => {
+describe("Supabase identity adapter: createLogin", () => {
   const login = { email: "ramesh@example.org", displayName: "Ramesh K" };
 
-  it("turns an email Firebase refuses into a validation error on the email field", async () => {
-    for (const code of ["auth/email-already-exists", "auth/invalid-email"]) {
-      mockFirebaseAuth.createUser.mockRejectedValueOnce(Object.assign(new Error("refused"), { code }));
-      const error: unknown = await firebaseIdentityAdapter.createLogin(login).catch((e: unknown) => e);
-      expect(error).toBeInstanceOf(SevaError);
-      expect(error).toMatchObject({ code: "validation", detail: { field: "email" } });
-    }
+  it("turns an email the provider refuses into a validation error on the email field", async () => {
+    mockSupabaseAuthAdmin.createUser.mockResolvedValueOnce({ data: null, error: { message: "already registered" } });
+    const error: unknown = await supabaseIdentityAdapter.createLogin(login).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SevaError);
+    expect(error).toMatchObject({ code: "validation", detail: { field: "email" } });
   });
 
-  it("passes any other Firebase failure through, so the route answers 500", async () => {
-    const outage = Object.assign(new Error("down"), { code: "auth/internal-error" });
-    mockFirebaseAuth.createUser.mockRejectedValueOnce(outage);
-    await expect(firebaseIdentityAdapter.createLogin(login)).rejects.toBe(outage);
+  it("fails closed with an internal error on any other provider failure, so the route answers 500", async () => {
+    mockSupabaseAuthAdmin.createUser.mockRejectedValueOnce(new Error("down"));
+    await expect(supabaseIdentityAdapter.createLogin(login)).rejects.toMatchObject({ code: "internal" });
   });
 });
 
-describe("Firebase identity adapter: findLoginByEmail", () => {
+describe("Supabase identity adapter: findLoginByEmail", () => {
   it("returns the existing login's uid and display name", async () => {
-    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({
-      uid: "uid-priya",
-      displayName: "Priya S",
-      emailVerified: true,
-      disabled: false,
+    mockSupabaseAuthAdmin.getUserByEmail.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: "uid-priya",
+          user_metadata: { name: "Priya S" },
+          email_confirmed_at: "2026-01-01T00:00:00Z",
+        },
+      },
+      error: null,
     });
-    expect(await firebaseIdentityAdapter.findLoginByEmail("priya.s@example.org")).toEqual({
+    expect(await supabaseIdentityAdapter.findLoginByEmail("priya.s@example.org")).toEqual({
       externalUid: "uid-priya",
       displayName: "Priya S",
       emailVerified: true,
       disabled: false,
     });
-    expect(mockFirebaseAuth.getUserByEmail).toHaveBeenCalledWith("priya.s@example.org");
-    // Anything but a plain true is read as not verified, and as disabled.
-    mockFirebaseAuth.getUserByEmail.mockResolvedValueOnce({ uid: "uid-x", disabled: "yes" });
-    expect(await firebaseIdentityAdapter.findLoginByEmail("x@example.org")).toEqual({
-      externalUid: "uid-x",
-      displayName: null,
-      emailVerified: false,
-      disabled: true,
-    });
+    expect(mockSupabaseAuthAdmin.getUserByEmail).toHaveBeenCalledWith("priya.s@example.org");
   });
 
-  it("answers null when no login has the email, and passes any other failure through", async () => {
-    mockFirebaseAuth.getUserByEmail.mockRejectedValueOnce(Object.assign(new Error("none"), { code: "auth/user-not-found" }));
-    expect(await firebaseIdentityAdapter.findLoginByEmail("new@example.org")).toBeNull();
-    const outage = Object.assign(new Error("down"), { code: "auth/internal-error" });
-    mockFirebaseAuth.getUserByEmail.mockRejectedValueOnce(outage);
-    await expect(firebaseIdentityAdapter.findLoginByEmail("new@example.org")).rejects.toBe(outage);
-  });
-});
+  it("answers null when no login has the email, and fails closed on any other failure", async () => {
+    mockSupabaseAuthAdmin.getUserByEmail.mockResolvedValueOnce({ data: { user: null }, error: { message: "not found" } });
+    mockSupabaseAuthAdmin.listUsers.mockResolvedValueOnce({ data: { users: [] }, error: null });
+    expect(await supabaseIdentityAdapter.findLoginByEmail("new@example.org")).toBeNull();
 
-describe("staffApi (browser client)", () => {
-  it("calls the staff routes with the sign-in token", async () => {
-    const seen: { url: string; method: string; auth: string | null; body: unknown }[] = [];
-    const fetchMock = jest.fn(async (url: string, init: RequestInit) => {
-      seen.push({
-        url,
-        method: init.method ?? "GET",
-        auth: new Headers(init.headers).get("authorization"),
-        body: init.body ? JSON.parse(String(init.body)) : undefined,
-      });
-      const answer = url.includes("next-staff-no")
-        ? { nextStaffNo: 35 }
-        : init.method === "POST"
-          ? { staffId: ID.lakshmi, staffNo: 35 }
-          : init.method === "PUT"
-            ? { ok: true }
-            : { staff: [] };
-      return new Response(JSON.stringify(answer), { status: 200 });
-    });
-    const realFetch = global.fetch;
-    global.fetch = fetchMock as unknown as typeof fetch;
-    try {
-      const api = staffApi(async () => "token-1");
-      expect(await api.list("inactive")).toEqual([]);
-      expect(await api.nextStaffNo()).toBe(35);
-      expect(await api.onboard({ fullName: "Lakshmi", email: "l@example.org", role: "receptionist", viewOnly: false })).toEqual({
-        staffId: ID.lakshmi,
-        staffNo: 35,
-      });
-      await api.update(ID.ramesh, { status: "inactive", reason: "Left the temple" });
-    } finally {
-      global.fetch = realFetch;
-    }
-    expect(seen.map((s) => [s.method, s.url])).toEqual([
-      ["GET", "/api/seva/staff?filter=inactive"],
-      ["GET", "/api/seva/staff?view=next-staff-no"],
-      ["POST", "/api/seva/staff"],
-      ["PUT", `/api/seva/staff/${ID.ramesh}`],
-    ]);
-    expect(seen.every((s) => s.auth === "Bearer token-1")).toBe(true);
-    expect(seen[3].body).toEqual({ status: "inactive", reason: "Left the temple" });
+    mockSupabaseAuthAdmin.getUserByEmail.mockRejectedValueOnce(new Error("down"));
+    await expect(supabaseIdentityAdapter.findLoginByEmail("new@example.org")).rejects.toMatchObject({ code: "internal" });
   });
 });

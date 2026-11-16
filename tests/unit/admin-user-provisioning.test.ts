@@ -37,17 +37,6 @@ jest.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
-}));
-
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({
-    createUser: jest.fn().mockResolvedValue({ uid: "fb-uid-1" }),
-    getUserByEmail: jest.fn().mockRejectedValue({ code: "auth/user-not-found" }),
-  }),
-}));
-
 function makeRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(url, {
     method: "POST",

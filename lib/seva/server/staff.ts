@@ -1,11 +1,11 @@
 /**
- * Staff and roles (DB §3.2, §3.4, §13.6) - the only code that changes a person's sign-in (the login and the Firestore
+ * Staff and roles (DB §3.2, §3.4, §13.6) - the only code that changes a person's sign-in (the login and the stored
  * profile, through the identity adapter) or their Supabase `staff` row. The staff routes and the older
  * /api/admin/users routes both call it, so all of them answer to the same rules.
  *
  * Who may do what (DB §3.3 rows 18-23, C-17). The route guard (`requireStaffAdmin`) first admits the people who may
  * onboard at all: an active temple admin who is not view-only, or a super admin. Each change is then judged with its
- * full context - the person's current Firestore role, their staff id and the new role. On top of the matrix:
+ * full context - the person's current stored role, their staff id and the new role. On top of the matrix:
  * - nobody changes their own role, view-only switch or status here (row 20 reads "another person's"; a super admin
  *   deactivating or deleting themself could lock the module out);
  * - a deleted person stays deleted (DB §3.4);
@@ -171,7 +171,7 @@ async function lastActivity(db: AdminClient, row: StaffRow): Promise<string | nu
   return latest([row.firstSignedInAt, firstText(rowsOf(audit), "at"), firstText(rowsOf(receipt), "issued_at")]);
 }
 
-/** The staff list, in staff-number order, with each person's role from Firestore. Never carries a phone number. */
+/** The staff list, in staff-number order, with each person's role from the `users` table. Never carries a phone number. */
 export async function listStaff(filter: StaffListFilter): Promise<StaffMember[]> {
   const db = createAdminClient();
   const statuses = FILTER_STATUSES[filter];
@@ -276,7 +276,7 @@ async function runSteps(
 export interface OnboardOptions {
   /**
    * Makes the login. Left out, the identity adapter's `createLogin` is used (no password: the client then sends
-   * Firebase's own set-password email, C-56). The older create-admin route passes its own, which sets a password.
+   * the Supabase set-password email, C-56). The older create-admin route passes its own, which sets a password.
    */
   createLogin?: (login: { email: string; displayName: string }) => Promise<{ externalUid: string }>;
   /** Supabase Auth UUID to link to this staff member (Phase 2 identity unification). */
@@ -289,7 +289,7 @@ const EXISTING_ACCOUNT = "This email already has a sign-in account.";
 interface LinkedLogin {
   externalUid: string;
   previousRole: string | null;
-  /** The Firestore `isActive` before the link; null when there was no profile. */
+  /** The `users.active` value before the link; null when there was no profile. */
   previousActive: boolean | null;
 }
 
@@ -299,7 +299,7 @@ interface LinkedLogin {
  * the dialog can ask first. Either way, and before that question is ever asked, the account is refused when it is
  * already staff, when its sign-in is switched off (`disabled_account`), or when its email is not verified
  * (`unverified_account`): anyone can register a login for any email, through the website or straight against
- * Firebase, so linking an unverified one would hand staff access and the website admin to whoever registered it.
+ * a login, so linking an unverified one would hand staff access and the website admin to whoever registered it.
  * Only a super admin (staff.grant_super_admin) links an account that already holds a website admin-console role
  * (super admin, temple admin, admin, billing, priest, staff, office staff - the admin allow-list, C-62) or that is
  * inactive on the website: a link overwrites that role and switches the account on. A temple admin gets 403
@@ -634,7 +634,7 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
 }
 
 /**
- * The older set-role route: writes a role (one of that route's own role names) to a person's Firestore profile under
+ * The older set-role route: writes a role (one of that route's own role names) to a person's `users` profile under
  * the same rules - super admin only by a super admin (row 19); a temple admin only for another person who has a staff
  * row and is below super admin, and only to `admin` (temple admin) (row 20, C-17); `billing`, `devotee` and
  * `volunteer` are a super admin's call (C-62). An account without a

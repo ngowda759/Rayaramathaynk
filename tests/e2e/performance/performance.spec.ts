@@ -103,7 +103,7 @@ test.describe('Performance Module', () => {
       
       // External scripts should be async or deferred
       for (const script of scripts) {
-        if (script.src && script.src.includes('google') || script.src.includes('firebase')) {
+        if (script.src && (script.src.includes('google') || script.src.includes('supabase'))) {
           expect(script.async || script.defer).toBe(true);
         }
       }

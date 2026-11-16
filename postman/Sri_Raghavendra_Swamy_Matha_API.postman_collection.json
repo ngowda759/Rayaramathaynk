@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Sri Raghavendra Swamy Matha API",
-    "description": "API collection for Sri Raghavendra Swamy Matha temple management system. Includes events, AI chat, knowledge base, donations, bookings, and admin APIs.\n\n## Authentication\n\n### Admin APIs\nAdmin APIs require Firebase ID token authentication. To get a token:\n\n1. **Option A - Via Browser (Recommended)**\n   - Log into the admin portal at https://sri-raghavendra-mutt.vercel.app/admin\n   - Open DevTools (F12) → Application → Local Storage\n   - Copy the `firebase:authUser` token or the `idToken`\n\n2. **Option B - Via Firebase Auth REST API**\n   ```bash\n   curl -X POST 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=YOUR_API_KEY' \\\n     -H 'Content-Type: application/json' \\\n     -d '{\"email\":\"admin@example.com\",\"password\":\"password\",\"returnSecureToken\":true}'\n   ```\n\n3. **Option C - Via Seed API Key (Limited routes)**\n   Some routes accept `x-admin-api-key` header with the `ADMIN_API_KEY` environment variable.\n\n### Using the Token in Postman\n\nFor admin requests, add the following header:\n```\nAuthorization: Bearer YOUR_FIREBASE_ID_TOKEN\n```\n\nSet the token as a variable `{{firebaseToken}}` in Postman.",
+    "description": "API collection for Sri Raghavendra Swamy Matha temple management system. Includes events, AI chat, knowledge base, donations, bookings, and admin APIs.\n\n## Authentication\n\n### Admin APIs\nAdmin APIs require a Supabase access token (the `access_token` returned by Supabase Auth). To get one:\n\n1. **Option A - Via Browser (Recommended)**\n   - Log into the admin portal and open DevTools (F12) → Application → Local Storage\n   - Copy the `access_token` from the Supabase session entry (`sb-<project-ref>-auth-token`)\n\n2. **Option B - Via the Supabase Auth REST API**\n   ```bash\n   curl -X POST 'https://<project-ref>.supabase.co/auth/v1/token?grant_type=password' \\\n     -H 'apikey: YOUR_SUPABASE_ANON_KEY' \\\n     -H 'Content-Type: application/json' \\\n     -d '{\"email\":\"admin@example.com\",\"password\":\"password\"}'\n   ```\n\n### Using the Token in Postman\n\nFor admin requests, add the following header:\n```\nAuthorization: Bearer YOUR_SUPABASE_ACCESS_TOKEN\n```\n\nSet the token as a variable `{{supabaseToken}}` in Postman.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,10 +16,10 @@
       "type": "string"
     },
     {
-      "key": "firebaseToken",
+      "key": "supabaseToken",
       "value": "",
       "type": "string",
-      "description": "Firebase ID token for admin authentication. Get from browser DevTools after logging in."
+      "description": "Supabase access token for admin authentication. Get from browser DevTools after logging in."
     },
     {
       "key": "adminApiKey",
@@ -28,10 +28,10 @@
       "description": "Admin API Key (x-admin-api-key header) for specific routes like seed-ai-settings"
     },
     {
-      "key": "firebaseApiKey",
-      "value": "AIzaSyBJPt69fwPfcMLvSYMG28Jv64orqenNeC4",
+      "key": "supabaseAnonKey",
+      "value": "",
       "type": "string",
-      "description": "Firebase Web API Key (for auth endpoints)"
+      "description": "Supabase anon (publishable) key (for auth endpoints)"
     }
   ],
   "item": [
@@ -48,7 +48,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "events"]
             },
-            "description": "Retrieve all events from Firestore"
+            "description": "Retrieve all events from Supabase"
           }
         },
         {
@@ -1078,7 +1078,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "aaradhane"]
             },
-            "description": "Get all aaradhane entries from Firestore"
+            "description": "Get all aaradhane entries from Supabase"
           }
         },
         {
@@ -1315,8 +1315,8 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
+                "value": "Bearer {{supabaseToken}}",
+                "description": "Supabase access token"
               }
             ],
             "body": {
@@ -1342,8 +1342,8 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
+                "value": "Bearer {{supabaseToken}}",
+                "description": "Supabase access token"
               }
             ],
             "body": {
@@ -1374,8 +1374,8 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
+                "value": "Bearer {{supabaseToken}}",
+                "description": "Supabase access token"
               }
             ],
             "body": {
@@ -1401,8 +1401,8 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
+                "value": "Bearer {{supabaseToken}}",
+                "description": "Supabase access token"
               }
             ],
             "body": {
@@ -1431,8 +1431,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
+                "value": "Bearer {{supabaseToken}}",
+                "description": "Supabase access token"
               }
             ],
             "url": {
@@ -1461,8 +1461,8 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{firebaseToken}}",
-                "description": "Firebase ID token"
+                "value": "Bearer {{supabaseToken}}",
+                "description": "Supabase access token"
               }
             ],
             "body": {
@@ -1483,7 +1483,7 @@
       "name": "Authentication",
       "item": [
         {
-          "name": "Sign In with Email/Password",
+          "name": "Sign In with Email/Password (Supabase Auth)",
           "request": {
             "method": "POST",
             "header": [
@@ -1494,24 +1494,24 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"your-password\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"your-password\"\n}"
             },
             "url": {
-              "raw": "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={{firebaseApiKey}}",
-              "host": ["identitytoolkit.googleapis.com"],
-              "path": ["v1", "accounts:signInWithPassword"],
+              "raw": "https://<project-ref>.supabase.co/auth/v1/token?grant_type=password",
+              "host": ["<project-ref>.supabase.co"],
+              "path": ["auth", "v1", "token"],
               "query": [
                 {
-                  "key": "key",
-                  "value": "{{firebaseApiKey}}"
+                  "key": "grant_type",
+                  "value": "password"
                 }
               ]
             },
-            "description": "Sign in to Firebase Auth and get ID token. Use the returned `idToken` as `{{firebaseToken}}` in other requests."
+            "description": "Sign in with Supabase Auth and get an access token. Use the returned `access_token` as `{{supabaseToken}}` in other requests. Send the anon key as the `apikey` header."
           }
         },
         {
-          "name": "Sign Up New User",
+          "name": "Sign Up New User (Supabase Auth)",
           "request": {
             "method": "POST",
             "header": [
@@ -1522,24 +1522,18 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePassword123\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePassword123\"\n}"
             },
             "url": {
-              "raw": "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={{firebaseApiKey}}",
-              "host": ["identitytoolkit.googleapis.com"],
-              "path": ["v1", "accounts:signUp"],
-              "query": [
-                {
-                  "key": "key",
-                  "value": "{{firebaseApiKey}}"
-                }
-              ]
+              "raw": "https://<project-ref>.supabase.co/auth/v1/signup",
+              "host": ["<project-ref>.supabase.co"],
+              "path": ["auth", "v1", "signup"]
             },
-            "description": "Create a new Firebase Auth user"
+            "description": "Create a new Supabase Auth user. Send the anon key as the `apikey` header."
           }
         },
         {
-          "name": "Refresh Token",
+          "name": "Refresh Token (Supabase Auth)",
           "request": {
             "method": "POST",
             "header": [
@@ -1553,17 +1547,17 @@
               "raw": "{\n  \"grant_type\": \"refresh_token\",\n  \"refresh_token\": \"YOUR_REFRESH_TOKEN\"\n}"
             },
             "url": {
-              "raw": "https://securetoken.googleapis.com/v1/token?key={{firebaseApiKey}}",
-              "host": ["securetoken.googleapis.com"],
-              "path": ["v1", "token"],
+              "raw": "https://<project-ref>.supabase.co/auth/v1/token?grant_type=refresh_token",
+              "host": ["<project-ref>.supabase.co"],
+              "path": ["auth", "v1", "token"],
               "query": [
                 {
-                  "key": "key",
-                  "value": "{{firebaseApiKey}}"
+                  "key": "grant_type",
+                  "value": "refresh_token"
                 }
               ]
             },
-            "description": "Refresh an expired ID token using refresh token"
+            "description": "Refresh an expired Supabase access token using the refresh token. Send the anon key as the `apikey` header."
           }
         }
       ]

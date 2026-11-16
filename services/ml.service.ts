@@ -36,7 +36,7 @@ export interface CorrectionEntry {
   lastUpdated: Date;
 }
 
-// In-memory correction cache (in production, use Firestore)
+// In-memory correction cache (the production path would persist to Supabase)
 const correctionCache: Map<string, CorrectionEntry> = new Map();
 const MAX_CACHE_SIZE = 1000;
 

@@ -16,21 +16,16 @@ import { GET, POST, PUT } from "@/app/api/auth/profile/route";
 jest.mock("server-only", () => ({}), { virtual: true });
 
 const mockGetUser = jest.fn();
-const mockVerifyIdToken = jest.fn();
-const mockGetAdminApp = jest.fn();
 
+/** Supabase Auth is the only identity provider. */
+function mockSupabaseAuth(uid: string, email: string | null, confirmed: boolean) {
+  mockGetUser.mockResolvedValueOnce({
+    data: { user: { id: uid, email, email_confirmed_at: confirmed ? "2026-01-01T00:00:00.000Z" : null } },
+    error: null,
+  });
+}
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => mockSupabaseClient,
-}));
-
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: (...args: unknown[]) => mockGetAdminApp(...args),
-}));
-
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({
-    verifyIdToken: (...args: unknown[]) => mockVerifyIdToken(...args),
-  }),
 }));
 
 type Row = Record<string, unknown>;
@@ -123,7 +118,6 @@ beforeEach(() => {
   mockDbError = null;
   mockInsertError = null;
   mockUpdateError = null;
-  mockGetAdminApp.mockResolvedValue({});
   mockGetUser.mockResolvedValue({ data: { user: null }, error: new Error("no supabase user") });
 });
 
@@ -133,15 +127,11 @@ describe("GET /api/auth/profile", () => {
     expect(res.status).toBe(401);
   });
 
-  it("never assumes email verification from a valid Firebase ID token when email_verified is false", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-123",
-      email: "unverified@example.org",
-      email_verified: false,
-    });
+  it("never assumes email verification from a valid Supabase token when the email is unconfirmed", async () => {
+    mockSupabaseAuth("11111111-1111-4111-8111-111111111111", "unverified@example.org", false);
     mockUsersTable.push({
       id: "u-123",
-      firestore_id: "fb-uid-123",
+      auth_user_id: "11111111-1111-4111-8111-111111111111",
       email: "unverified@example.org",
       display_name: "Unverified Devotee",
       role: "devotee",
@@ -156,15 +146,11 @@ describe("GET /api/auth/profile", () => {
     expect(body.profile.isApproved).toBe(false);
   });
 
-  it("sets emailVerified true only when token explicitly claims email_verified true", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-456",
-      email: "verified@example.org",
-      email_verified: true,
-    });
+  it("sets emailVerified true only when the Supabase account email is confirmed", async () => {
+    mockSupabaseAuth("22222222-2222-4222-8222-222222222222", "verified@example.org", true);
     mockUsersTable.push({
       id: "u-456",
-      firestore_id: "fb-uid-456",
+      auth_user_id: "22222222-2222-4222-8222-222222222222",
       email: "verified@example.org",
       display_name: "Verified Devotee",
       role: "devotee",
@@ -180,14 +166,10 @@ describe("GET /api/auth/profile", () => {
   });
 
   it("correctly maps isApproved: true from canonical is_approved field", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-approved",
-      email: "admin@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("33333333-3333-4333-8333-333333333333", "admin@example.org", true);
     mockUsersTable.push({
       id: "u-approved",
-      firestore_id: "fb-uid-approved",
+      auth_user_id: "33333333-3333-4333-8333-333333333333",
       email: "admin@example.org",
       display_name: "Admin User",
       role: "temple_admin",
@@ -204,14 +186,10 @@ describe("GET /api/auth/profile", () => {
   });
 
   it("correctly maps isApproved: false when is_approved is false or missing", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-unapproved",
-      email: "devotee@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("44444444-4444-4444-8444-444444444444", "devotee@example.org", true);
     mockUsersTable.push({
       id: "u-unapproved",
-      firestore_id: "fb-uid-unapproved",
+      auth_user_id: "44444444-4444-4444-8444-444444444444",
       email: "devotee@example.org",
       display_name: "Devotee User",
       role: "devotee",
@@ -225,14 +203,10 @@ describe("GET /api/auth/profile", () => {
     expect(body.profile.isApproved).toBe(false);
   });
   it("reads ONLY canonical is_approved and ignores legacy isApproved property", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-legacy",
-      email: "legacy@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("55555555-5555-4555-8555-555555555555", "legacy@example.org", true);
     mockUsersTable.push({
       id: "u-legacy",
-      firestore_id: "fb-uid-legacy",
+      auth_user_id: "55555555-5555-4555-8555-555555555555",
       email: "legacy@example.org",
       display_name: "Legacy User",
       role: "devotee",
@@ -248,11 +222,7 @@ describe("GET /api/auth/profile", () => {
   });
 
   it("handles Supabase errors explicitly and returns 500", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-err",
-      email: "err@example.org",
-      email_verified: false,
-    });
+    mockSupabaseAuth("66666666-6666-4666-8666-666666666666", "err@example.org", false);
     mockDbError = new Error("Database timeout");
 
     const res = await GET(makeRequest("/api/auth/profile", { token: "valid-token" }));
@@ -261,9 +231,11 @@ describe("GET /api/auth/profile", () => {
     expect(body.error).toBe("Database error");
   });
 
-  it("returns 503 when Firebase authentication provider fails with server error", async () => {
-    const error = Object.assign(new Error("Firebase auth unavailable"), { code: "auth/internal-error" });
-    mockVerifyIdToken.mockRejectedValueOnce(error);
+  it("returns 503 when the Supabase authentication provider fails with a server error", async () => {
+    mockGetUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "auth service unavailable", status: 503 },
+    });
 
     const res = await GET(makeRequest("/api/auth/profile", { token: "fb-server-error-token" }));
     expect(res.status).toBe(503);
@@ -281,11 +253,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: role (400)", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-attacker",
-      email: "attacker@example.org",
-      email_verified: false,
-    });
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -303,11 +271,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: isApproved (400)", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-attacker",
-      email: "attacker@example.org",
-      email_verified: false,
-    });
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -325,11 +289,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: is_approved (400)", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-attacker",
-      email: "attacker@example.org",
-      email_verified: false,
-    });
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -347,11 +307,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: active (400)", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-attacker",
-      email: "attacker@example.org",
-      email_verified: false,
-    });
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -367,14 +323,10 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("preserves existing role, approval, and active status when updating an existing user", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-staff",
-      email: "staff@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("88888888-8888-4888-8888-888888888888", "staff@example.org", true);
     mockUsersTable.push({
       id: "u-staff",
-      firestore_id: "fb-uid-staff",
+      auth_user_id: "88888888-8888-4888-8888-888888888888",
       email: "staff@example.org",
       display_name: "Staff Name",
       role: "receptionist",
@@ -402,14 +354,10 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("preserves unapproved status (is_approved: false) when updating profile", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-unapproved-update",
-      email: "unapproved@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("99999999-9999-4999-8999-999999999999", "unapproved@example.org", true);
     mockUsersTable.push({
       id: "u-unapproved-update",
-      firestore_id: "fb-uid-unapproved-update",
+      auth_user_id: "99999999-9999-4999-8999-999999999999",
       email: "unapproved@example.org",
       display_name: "Original Name",
       role: "devotee",
@@ -433,11 +381,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("creates a new devotee profile with safe defaults when user does not exist", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-new",
-      email: "new@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "new@example.org", true);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -450,7 +394,7 @@ describe("POST /api/auth/profile", () => {
       })
     );
     expect(res.status).toBe(200);
-    const created = mockUsersTable.find((u) => u.firestore_id === "fb-uid-new");
+    const created = mockUsersTable.find((u) => u.auth_user_id === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(created).toBeDefined();
     expect(created?.display_name).toBe("New Devotee");
     expect(created?.role).toBe("devotee");
@@ -459,11 +403,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("fails safely and explicitly returns 500 when Supabase errors on user lookup", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-lookup-err",
-      email: "err@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "err@example.org", true);
     mockDbError = new Error("Lookup connection error");
 
     const res = await POST(
@@ -481,14 +421,10 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("fails safely and explicitly returns 500 when Supabase errors on update", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-staff",
-      email: "staff@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("88888888-8888-4888-8888-888888888888", "staff@example.org", true);
     mockUsersTable.push({
       id: "u-staff",
-      firestore_id: "fb-uid-staff",
+      auth_user_id: "88888888-8888-4888-8888-888888888888",
       email: "staff@example.org",
       role: "receptionist",
       active: true,
@@ -510,11 +446,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("fails safely and explicitly returns 500 when Supabase errors on insert", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-insert-err",
-      email: "insert@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "insert@example.org", true);
     mockInsertError = new Error("Insert failed");
 
     const res = await POST(
@@ -532,14 +464,10 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("handles PUT method by delegating to POST logic", async () => {
-    mockVerifyIdToken.mockResolvedValueOnce({
-      uid: "fb-uid-put-test",
-      email: "put@example.org",
-      email_verified: true,
-    });
+    mockSupabaseAuth("dddddddd-dddd-4ddd-8ddd-dddddddddddd", "put@example.org", true);
     mockUsersTable.push({
       id: "user-put-1",
-      firestore_id: "fb-uid-put-test",
+      auth_user_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       email: "put@example.org",
       display_name: "Original Name",
       role: "devotee",

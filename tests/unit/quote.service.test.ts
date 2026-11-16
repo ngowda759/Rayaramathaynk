@@ -5,31 +5,6 @@
 
 import { Quote, QuoteCategory, Weekday, FestivalName, QuoteSelectionContext } from "@/types/quote";
 
-// Mock Firebase
-jest.mock("@/lib/firebase", () => ({
-  db: {
-    collection: jest.fn(),
-  },
-}));
-
-jest.mock("firebase/firestore", () => ({
-  collection: jest.fn(),
-  doc: jest.fn(),
-  getDoc: jest.fn(),
-  getDocs: jest.fn(),
-  addDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  query: jest.fn(),
-  where: jest.fn(),
-  orderBy: jest.fn(),
-  limit: jest.fn(),
-  Timestamp: {
-    fromDate: jest.fn(() => ({ toDate: () => new Date() })),
-  },
-  serverTimestamp: jest.fn(),
-}));
-
 describe("Quote Service - Rotation Logic", () => {
   describe("Deterministic Selection", () => {
     it("should return the same quote for the same date", () => {

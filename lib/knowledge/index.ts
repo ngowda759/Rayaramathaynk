@@ -1,5 +1,5 @@
 // Knowledge Base for Temple Information
-// This can be extended to fetch from Firebase in the future
+// This can be extended to fetch from Supabase in the future
 
 import { KnowledgeItem } from "@/types/ai";
 

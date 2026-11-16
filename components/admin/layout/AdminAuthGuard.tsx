@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupabaseSession } from "@/hooks/useSupabaseSession";
-// Firebase status check decoupled for Supabase Auth unification
 import { safeReturnPath } from "@/lib/auth/safe-return";
 import { isRayaAiPublicAuthPath } from "@/lib/auth/raya-auth-routes";
 import { signInPath } from "@/lib/seva/routes";
@@ -95,10 +94,10 @@ export default function AdminAuthGuard({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { user, loading, canAccessAdmin, sevaRole } = useAuth();
-  // Raya AI pages authenticate with Supabase Auth, not Firebase. A Supabase
-  // session on /admin/ai/* must satisfy this guard so the Raya AI console is
-  // reachable without a Firebase sign-in. Every other /admin/** path is
-  // unchanged: it still requires the Firebase session and role.
+  // Raya AI pages authenticate with Supabase Auth. A Supabase session on
+  // /admin/ai/* must satisfy this guard so the Raya AI console is reachable.
+  // Every other /admin/** path is unchanged: it still requires the Supabase
+  // session and role.
   const { session: supabaseSession, loading: supabaseLoading } = useSupabaseSession();
   // The Raya AI sign-in, recovery-request and reset pages establish or repair the
   // Supabase session, so they render ungated. Gating the reset page would drop the
@@ -143,7 +142,7 @@ export default function AdminAuthGuard({
     return <>{children}</>;
   }
 
-  // Supabase Auth is canonical; no client Firebase config is required.
+  // Supabase Auth is canonical.
 
   // Check if user is logged in
   if (!user) {

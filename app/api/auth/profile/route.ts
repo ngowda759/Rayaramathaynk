@@ -34,42 +34,7 @@ async function getCallerIdentity(request: NextRequest): Promise<{
   const token = header.slice(7).trim();
   if (!token) return null;
 
-  const payload = parseJwtPayload(token);
-  const iss = typeof payload?.iss === "string" ? payload.iss : "";
-  const aud = typeof payload?.aud === "string" ? payload.aud : "";
-
-  const isFirebaseToken = iss.startsWith("https://securetoken.google.com/");
-  const isSupabaseToken = iss.includes("supabase") || aud === "authenticated";
-
-  // 1. Firebase Admin Auth (for Firebase tokens, or unrecognized tokens if not explicitly Supabase)
-  if (isFirebaseToken || (!isSupabaseToken && !token.startsWith("sb-"))) {
-    try {
-      const { getAdminApp } = await import("@/lib/admin-firebase");
-      const app = await getAdminApp();
-      const { getAuth } = await import("firebase-admin/auth");
-      const auth = getAuth(app);
-      // Revocation checking enabled (checkRevoked = true)
-      const decoded = await auth.verifyIdToken(token, true);
-      return {
-        uid: decoded.uid,
-        email: typeof decoded.email === "string" ? decoded.email : null,
-        emailVerified: decoded.email_verified === true,
-      };
-    } catch (error) {
-      const code = (error as { code?: unknown } | null)?.code;
-      // Do not silently fall back if provider had an internal/server error
-      if (typeof code === "string" && (code === "auth/internal-error" || code === "auth/quota-exceeded")) {
-        console.error("[getCallerIdentity] Firebase auth server error:", code);
-        throw new Error("Authentication provider error");
-      }
-      // If the token explicitly claimed to be Firebase, do not fall back to Supabase
-      if (isFirebaseToken) {
-        return null;
-      }
-    }
-  }
-
-  // 2. Supabase Auth (for Supabase tokens or non-Firebase fallbacks)
+  // Supabase Auth is the only sign-in provider.
   try {
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const supabase = createAdminClient();

@@ -128,7 +128,7 @@ export default function GalleryDashboard() {
 
       {isEmpty && (
         <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-          <p className="text-gray-500 mb-4">No gallery data found. The collections may not exist in Firebase or contain no data.</p>
+          <p className="text-gray-500 mb-4">No gallery data found. The gallery tables may be empty or contain no data.</p>
           <button
             onClick={load}
             className="rounded-lg bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"

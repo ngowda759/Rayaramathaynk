@@ -37,7 +37,7 @@ export interface OnboardDialogProps {
   open: boolean;
   onClose(): void;
   api: StaffApi;
-  /** Asks Firebase to send its own set-password email to the new person (C-56). */
+  /** Asks Supabase to send its own set-password email to the new person (C-56). */
   sendInvite(email: string): Promise<void>;
   can: StaffCan;
   /**

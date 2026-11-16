@@ -3,7 +3,7 @@
 /**
  * Seed AI Knowledge Script
  * 
- * This script imports default knowledge files into the Firebase database.
+ * This script imports default knowledge files into the Supabase database.
  * Run with: npm run seed:ai
  */
 

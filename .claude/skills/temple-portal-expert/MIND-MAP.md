@@ -1,5 +1,11 @@
 # MIND-MAP - the router for the temple-portal expert
 
+> **Note (2026-11-16): Firebase is retired.** Firebase (Auth, Firestore, Storage) is no longer a live
+> store; Supabase is the only backend. This snapshot still describes the Firebase era. Where it says
+> "Firebase is still the live store" or names `lib/firebase.ts`, `lib/admin-firebase.ts`,
+> `firestore.rules` or `storage.rules`, read Supabase instead. See
+> `docs/audits/FIREBASE_RETIREMENT_AUDIT.md`.
+
 Refreshed 2026-10-18 against commit `424fdb8` (the repository HEAD `43361a3` adds only docs on top;
 the code is identical). Built 2026-09-19.
 

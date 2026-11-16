@@ -9,7 +9,7 @@ import { profileService } from "@/services/profile.server";
 /**
  * The signed-in caller's own devotee profile.
  *
- * The profile key is the verified Firebase ID token's `uid`, never a value from the
+ * The profile key is the verified Supabase access token's `uid`, never a value from the
  * request body, so a caller can only read or write their own profile. The body is
  * validated against an allow-list, so a caller cannot set `uid`, `email` or any other
  * column the profile service owns.

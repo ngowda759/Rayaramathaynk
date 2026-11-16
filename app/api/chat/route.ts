@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
       (lastUserMessage.content.includes("ಕನ್ನಡ") || /[\u0C80-\u0CFF]/.test(lastUserMessage.content) ? "kn" : "en");
 
     let responseMessage: AIMessage | undefined;
-    let responseSource: "hybrid" | "ai" | "firebase" = "hybrid";
+    let responseSource: "hybrid" | "ai" = "hybrid";
     let lastResult: { intent?: string; confidence?: number; source?: string } | undefined;
     const resolvedSessionId = sessionId || "";
 
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
         logError("Hybrid generation", hybridError, { requestId });
         console.log(`[Chat API] [${requestId}] Hybrid failed, falling back to AI provider`);
         
-        // Fall through to AI provider or Firebase
+        // Fall through to the safe structured response
         responseSource = "ai";
       }
     }
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
             timestamp: msg.timestamp || Date.now(),
           }));
 
-          // Get system prompt from Firebase (or defaults)
+          // Get the system prompt from structured retrieval (or defaults)
           const systemPrompt = await getSystemPrompt();
           console.log(`[Chat API] [${requestId}] System prompt length: ${systemPrompt.length} chars`);
 

@@ -3,7 +3,7 @@
  *
  * Application data lives in Supabase behind deny-all RLS, so admin reads and all
  * writes must go through the guarded route handlers with the signed-in admin's
- * Firebase ID token. Service modules cannot call `useAuth()` (they are plain
+ * Supabase access token. Service modules cannot call `useAuth()` (they are plain
  * modules, not components), so `AuthContext` registers a getter here once the
  * signed-in user changes and the service modules call {@link getAuthToken}.
  *

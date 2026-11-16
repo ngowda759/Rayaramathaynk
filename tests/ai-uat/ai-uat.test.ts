@@ -22,12 +22,6 @@ import {
   generateResponse,
 } from "@/lib/ai/generator";
 
-// Mock Firebase for tests
-jest.mock("@/lib/firebase", () => ({
-  db: null,
-  isFirebaseConfigured: () => false,
-}));
-
 // Mock aiSettingsService
 jest.mock("@/lib/ai/ai-settings", () => ({
   aiSettingsService: {
@@ -73,12 +67,6 @@ import {
   MIXED_TESTS,
   QUALITY_TESTS,
 } from "./test-cases";
-
-// Mock Firebase for tests
-jest.mock("@/lib/firebase", () => ({
-  db: null,
-  isFirebaseConfigured: () => false,
-}));
 
 // Mock retrieval modules
 jest.mock("@/lib/ai/retrieval", () => ({

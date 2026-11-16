@@ -94,7 +94,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Send seva-only roles to their page before any Firestore count runs.
+    // Send seva-only roles to their page before any dashboard count runs.
     if (landing) {
       router.replace(landing);
       return;

@@ -261,7 +261,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isExpanded, setIsExpanded] = useState(true); // Sidebar expanded by default
 
-  // Seva items follow the seva profile once loaded; until then the Firestore role, view-only assumed (fail closed).
+  // Seva items follow the seva profile once loaded; until then the stored role, view-only assumed (fail closed).
   const sevaColumn = me ? sevaNavColumn(me.role, me.viewOnly) : sevaNavColumn(sevaRole, null);
 
   // Get filtered navigation based on user permissions (memoized to prevent infinite loops)

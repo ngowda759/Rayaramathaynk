@@ -1,12 +1,11 @@
 /**
- * Server-only check of a signed-in caller's bearer ID token.
+ * Server-only check of a signed-in caller's Supabase access token.
  *
- * Implements unified token verification:
- *   1. PRIMARY PATH: Supabase Auth access token verification via createAdminClient().auth.getUser(token).
- *   2. FALLBACK PATH: Firebase ID token verification via Firebase Admin SDK for backward compatibility.
+ * Verifies the token with Supabase Auth only (`createAdminClient().auth.getUser(token)`). There is
+ * no Firebase fallback: a token that Supabase does not accept is not a usable sign-in.
  *
  * For routes that serve any signed-in person (devotee or staff) their own data. It answers who the caller is and
- * nothing more: no Firestore profile, role or status checks (admin routes use lib/auth/admin-auth.ts for those).
+ * nothing more: no profile, role or status checks (admin routes use lib/auth/admin-auth.ts for those).
  *
  * - `verifyBearerIdToken` returns null on every failure - no header, a malformed or expired token, or a server that
  *   cannot verify tokens - so the caller answers 401.
@@ -14,11 +13,10 @@
  *   (`unavailable`), for callers that must answer a sign-in provider outage with a 5xx so the client retries or works
  *   offline instead of asking the person to sign in again (the seva counter, DB §16.2).
  *
- * Logs carry the error code only, never the token.
+ * Logs carry the error message only, never the token.
  */
 
 import "server-only";
-import { recordAuthFallback } from "@/lib/auth/fallback-telemetry";
 
 export interface VerifiedCaller {
   uid: string;
@@ -33,12 +31,6 @@ export type IdTokenCheck =
 
 const BEARER_PREFIX = "Bearer ";
 
-/**
- * `auth/` codes that mean Firebase Auth itself failed, not the token: an unexpected backend answer, or the project's
- * quota running out. Every other `auth/` code (revoked, disabled, expired, malformed, unknown user...) is the token's.
- */
-const UNAVAILABLE_AUTH_CODES: ReadonlySet<string> = new Set(["auth/internal-error", "auth/quota-exceeded"]);
-
 function bearerToken(request: Request): string | null {
   const header = request.headers.get("authorization");
   if (!header || !header.startsWith(BEARER_PREFIX)) return null;
@@ -46,64 +38,60 @@ function bearerToken(request: Request): string | null {
   return token.length > 0 ? token : null;
 }
 
-/** No code (missing credentials, a thrown plain Error), a non-auth code (`app/network-error`...) or a backend failure. */
-function isUnavailable(code: unknown): boolean {
-  return typeof code !== "string" || !code.startsWith("auth/") || UNAVAILABLE_AUTH_CODES.has(code);
+/**
+ * True when the failure means Supabase Auth itself could not answer (a 5xx), rather than the token being rejected.
+ * A token rejection comes back as a resolved `{ error }` result with a 4xx status, handled before this check.
+ */
+function isUnavailableStatus(status: unknown): boolean {
+  return typeof status === "number" && status >= 500;
 }
 
 export interface VerifyIdTokenOptions {
   /**
-   * Also refuse a token whose account is disabled or whose refresh tokens were revoked after it was issued
-   * (Firebase `checkRevoked`; one extra call to Firebase Auth). The seva routes use it so an offboarded person is
-   * shut out at once (DB §3.2).
+   * Retained for call-site compatibility. Supabase verifies the account's current state on every `getUser` call, so
+   * a disabled or deleted account is refused without an extra round trip.
    */
   checkRevoked?: boolean;
 }
 
-export async function checkBearerIdToken(request: Request, options: VerifyIdTokenOptions = {}): Promise<IdTokenCheck> {
+export async function checkBearerIdToken(request: Request, _options: VerifyIdTokenOptions = {}): Promise<IdTokenCheck> {
   const token = bearerToken(request);
   if (!token) return { status: "invalid" };
 
-  // 1. PRIMARY PATH: Supabase Auth access token verification
+  let supabase: Awaited<ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>>;
   try {
     const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    if (typeof supabase?.auth?.getUser === "function") {
-      const { data, error } = await supabase.auth.getUser(token);
-      if (!error && data?.user) {
-        return {
-          status: "ok",
-          caller: {
-            uid: data.user.id,
-            email: typeof data.user.email === "string" ? data.user.email : null,
-          },
-        };
-      }
-    }
-  } catch {
-    // Supabase client failure or not a Supabase token; proceed to fallback
+    supabase = createAdminClient();
+  } catch (error) {
+    console.error("[checkBearerIdToken] Supabase admin client unavailable:", error instanceof Error ? error.message : error);
+    return { status: "unavailable" };
   }
 
-  // 2. SECONDARY / COMPATIBILITY PATH: Firebase Admin SDK ID token verification
-  try {
-    const { getAdminApp } = await import("@/lib/admin-firebase");
-    const adminApp = await getAdminApp();
-    const { getAuth } = await import("firebase-admin/auth");
-    const auth = getAuth(adminApp);
-    const decoded = options.checkRevoked ? await auth.verifyIdToken(token, true) : await auth.verifyIdToken(token);
-    
-    // Telemetry: audit legacy fallback invocation with zero PII or tokens
-    recordAuthFallback("verify-id-token", "verified");
+  if (typeof supabase?.auth?.getUser !== "function") {
+    console.error("[checkBearerIdToken] Supabase Auth client is not configured");
+    return { status: "unavailable" };
+  }
 
-    return { status: "ok", caller: { uid: decoded.uid, email: typeof decoded.email === "string" ? decoded.email : null } };
-  } catch (error) {
-    const code = (error as { code?: unknown } | null)?.code;
-    // A bad or expired token is the caller's problem and is not logged; anything else means the server could not verify.
-    if (isUnavailable(code)) {
-      console.error("[verifyBearerIdToken] token verification unavailable:", typeof code === "string" ? code : "no_code");
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (!error && data?.user) {
+      return {
+        status: "ok",
+        caller: {
+          uid: data.user.id,
+          email: typeof data.user.email === "string" ? data.user.email : null,
+        },
+      };
+    }
+    // A rejected token is the caller's problem, not a server outage; only a 5xx from Supabase is `unavailable`.
+    if (isUnavailableStatus((error as { status?: unknown } | null)?.status)) {
+      console.error("[checkBearerIdToken] Supabase Auth returned a server error");
       return { status: "unavailable" };
     }
     return { status: "invalid" };
+  } catch (error) {
+    console.error("[checkBearerIdToken] token verification unavailable:", error instanceof Error ? error.message : error);
+    return { status: "unavailable" };
   }
 }
 

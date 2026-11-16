@@ -12,7 +12,7 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Seed data for sevas (used when Firebase is not configured or has no sevas)
+ * Seed data for sevas (used when Supabase is not configured or has no sevas)
  */
 const SEED_SEVAS: TempleSeva[] = [
   {

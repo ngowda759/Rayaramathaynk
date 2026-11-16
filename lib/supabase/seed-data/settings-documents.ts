@@ -15,7 +15,7 @@
  *    payment link, committee name or date is invented.
  *  - `generic`: reviewed, accurate, non-specific public descriptions.
  *
- * This module contains no secrets and no Firebase references.
+ * This module contains no secrets and no legacy-store references.
  */
 
 /** Every unverified string the owner must replace is prefixed with this marker. */

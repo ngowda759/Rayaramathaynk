@@ -7,19 +7,19 @@
 
 ## Overview
 
-This document describes the Firestore data model, including collections, schemas, relationships, and indexes. It answers: "How is data structured?"
+This document describes the data model, including tables, schemas, relationships, and indexes. It answers: "How is data structured?"
 
 ---
 
 ## Database Overview
 
-### Firebase Services
+### Supabase Services
 
 | Service | Purpose |
 |---------|---------|
-| **Firestore** | Primary database for all application data |
-| **Firebase Auth** | User authentication |
-| **Firebase Storage** | File storage (images, videos, documents) |
+| **Supabase PostgreSQL** | Primary database for all application data |
+| **Supabase Auth** | User authentication |
+| **Supabase Storage** | File storage (images, videos, documents) |
 
 ### Database Rules
 
@@ -38,7 +38,7 @@ User profiles and authentication data.
 
 ```typescript
 interface User {
-  id: string;                    // Firebase Auth UID
+  id: string;                    // Supabase Auth UUID (auth_user_id)
   email: string;                 // Required, unique
   name: string;                  // Display name
   phone?: string;                // Optional contact
@@ -842,7 +842,7 @@ chat_sessions (1) ←→ (N) chat_messages
 ## Seva Entry (Supabase Postgres)
 
 Seva Entry - the counter receipts, prasadam, day close, reports and staff module - keeps its data in **Supabase
-Postgres**, not Firestore. Sign-in and the `users` role document stay in Firebase. The full design is
+Postgres**. Sign-in and the `users` role row are also in Supabase (Auth plus `public.users`). The full design is
 `docs/seva/DESIGN-BOOK.md` §7; this section is written from the migrations as built (2026-10-20).
 
 **Rules for every seva table**
@@ -863,7 +863,7 @@ Postgres**, not Firestore. Sign-in and the `users` role document stay in Firebas
 
 | Table | Holds | Key columns |
 |---|---|---|
-| `staff` | Seva profile of each staff member (role and active flag stay in Firestore `users`) | `firebase_uid` (unique), `staff_no` (1-999, never reused), `full_name`, `email`, `view_only`, `status` (`invited`, `active`, `inactive`, `deleted`), `status_reason`, `status_changed_at` (offboarding time, used to refuse later offline work) |
+| `staff` | Seva profile of each staff member (role and active flag live in `public.users`) | `auth_user_id` (Supabase Auth UUID), `firebase_uid` (legacy provenance key, still `NOT NULL`), `staff_no` (1-999, never reused), `full_name`, `email`, `view_only`, `status` (`invited`, `active`, `inactive`, `deleted`), `status_reason`, `status_changed_at` (offboarding time, used to refuse later offline work) |
 | `counters` | Counters (Counter 1 = 1) | `name`, `place`, `opening_float`, `active` |
 | `counter_devices` | Registered counter PCs | `counter_id`, `secret_hash` (SHA-256 of the PC's secret), `label`, `retired_at` / `retired_reason`, `last_seen_at`, `last_outbox_count`, `last_clock_skew_ms`, `app_version`, `of_group_floor_yymm` / `of_group_floor_no` |
 | `seva_settings` | One row (id 1): slip header and footer, which devotee details print, counter rules, Tally ledgers, the receipt paper size, and the last counter UPI payee read | `temple_name_en` / `_kn`, `print_gotra` / `_nakshatra` / `_rashi`, `cancel_window_minutes` (30), `counter_days_ahead`, `prasadam_undo_seconds` (120), `day_close_flag_threshold`, `tally_*`, `paper_size` (`a5` default, `a6`, `third_a4`, `roll_80`, `roll_58`, `custom`), `paper_custom_w_mm` / `_h_mm`, `counter_upi_vpa` / `counter_upi_payee_name` (written only by `seva_note_counter_upi`) |
@@ -887,8 +887,8 @@ Postgres**, not Firestore. Sign-in and the `users` role document stay in Firebas
 
 The existing `sevas` table gains `code`, `name_kn`, `visibility` (`counter`, `online`, `both`), `multi_date`,
 `allow_amount_change`, `any_amount`, `prasadam_given`, `prasadam_items`, `income_ledger` and `updated_by_staff_id`;
-its rate changes are recorded by a trigger. Firestore `sevas` still receives a mirror of the public fields for the
-website's other readers.
+its rate changes are recorded by a trigger. The former Firestore `sevas` mirror of the public fields has been
+retired; `sevas` is the single source of truth for the catalogue.
 
 ### SQL functions
 
@@ -912,9 +912,8 @@ other functions; the route code calls the rest through `callRpc`.
 `20261020000200_seva_seed.sql` seeds series C1, OF1, W and WT, Counter 1, the denominations and a settings row with
 SAMPLE text; `20261029235900_seva_privilege_hardening.sql` revokes `TRIGGER` and `REFERENCES` on the guarded tables.
 The first super admin `staff` row (001) is created by a script, not by a migration, and needs no migration:
-`scripts/seva/create-first-super-admin-supabase.ts` for the Supabase-native database (Supabase Auth Admin
-only; sets `staff.auth_user_id` and `staff.firebase_uid` to the account's Supabase Auth UUID, writes no Firestore
-document), or the legacy Firebase-bound `scripts/seva/create-first-super-admin.ts` for the Firebase-era path. Its
+`scripts/seva/create-first-super-admin-supabase.ts` (Supabase Auth Admin only; sets `staff.auth_user_id` and the
+legacy `staff.firebase_uid` to the account's Supabase Auth UUID). Its
 `staff.onboard` audit row carries **no acting staff member** (`p_staff_id = NULL`), the same system/bootstrap
 convention as `scripts/seva/seed-demo-data.ts`: the new staff member did not perform the action. The script only
 verifies the account's `public.users` row (`role = super_admin`, `active = true`, linked to the Auth UUID); a

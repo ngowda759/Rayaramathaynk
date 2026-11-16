@@ -148,19 +148,6 @@ export async function getCoreWebVitals(page: Page): Promise<Record<string, numbe
   });
 }
 
-// Firestore helpers
-export async function getFirestoreDoc(page: Page, collection: string, docId: string): Promise<unknown> {
-  return await page.evaluate(
-    ({ collection, docId }) => {
-      return new Promise((resolve) => {
-        // This would need actual Firestore implementation
-        resolve(null);
-      });
-    },
-    { collection, docId }
-  );
-}
-
 // Form validation helpers
 export async function validateEmail(email: string): Promise<boolean> {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

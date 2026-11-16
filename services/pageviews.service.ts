@@ -61,7 +61,7 @@ export async function trackPageView(data: PageViewData): Promise<void> {
 /**
  * Get the analytics summary for the dashboard.
  *
- * `authToken` is the admin's Firebase ID token; the route requires it.
+ * `authToken` is the admin's Supabase access token; the route requires it.
  */
 export async function getAnalyticsSummary(
   days = 7,

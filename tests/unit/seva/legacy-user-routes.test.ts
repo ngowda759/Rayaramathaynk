@@ -117,9 +117,6 @@ const mockFirebaseAuth = {
     return { uid: "uid-new-admin", email: input.email };
   }),
 };
-jest.mock("firebase-admin/auth", () => ({ getAuth: () => mockFirebaseAuth }));
-jest.mock("@/lib/admin-firebase", () => ({ getAdminApp: async () => ({}) }));
-
 import { POST as setRole } from "../../../app/api/admin/users/set-role/route";
 import { POST as createAdmin } from "../../../app/api/admin/users/create-admin/route";
 

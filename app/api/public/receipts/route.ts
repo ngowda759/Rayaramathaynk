@@ -1,7 +1,7 @@
 /**
  * GET /api/public/receipts - the signed-in caller's own seva bookings.
  *
- * Requires a Firebase ID token (Authorization: Bearer). Returns at most 20 of the
+ * Requires a Supabase access token (Authorization: Bearer). Returns at most 20 of the
  * caller's bookings, newest first, with only the fields a devotee needs to recognise a
  * booking - never phone, email, notes or payment references. Reads Supabase
  * `seva_bookings` through the service role, scoped to the verified token's uid; there

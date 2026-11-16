@@ -7,10 +7,6 @@ import path from "path";
 
 jest.mock("@/styles/seva/tokens.css", () => ({}));
 jest.mock("@/styles/seva/print.css", () => ({}));
-jest.mock("@/lib/firebase", () => ({
-  getFirebaseConfigStatus: () => ({ isValid: true, missingFields: [] }),
-}));
-
 const MANIFEST = "/seva-counter.webmanifest";
 
 describe("the Seva Entry install manifest is linked from every /seva page", () => {

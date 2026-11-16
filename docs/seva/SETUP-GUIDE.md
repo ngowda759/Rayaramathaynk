@@ -1,5 +1,10 @@
 # Seva Entry - setup guide
 
+> **Note (2026-11-16): Firebase is retired.** Supabase is the only backend. Sections A2 (a Firebase test project)
+> and B2 (publish Firebase rules) no longer apply, and B3 reduces to one manual step: revoke the old Firebase
+> service-account key in the Firebase console (open item O-18). No code reads a Firebase key any more. See
+> `docs/audits/FIREBASE_RETIREMENT_AUDIT.md`.
+
 For the Seva Entry build of the Sri Raghavendra Swamy Matha website. Rewritten 2026-10-19 (Monday) around who really
 owns what: you develop on your own fork, and the person who runs the live website owns every live account.
 

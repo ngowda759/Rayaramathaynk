@@ -3,7 +3,7 @@
  *
  * Order of checks (each failure answers at once):
  *  1. sign-in        - the identity adapter verifies the token (revoked or disabled logins fail)   401 unauthenticated
- *  2. access profile - Firestore `isActive` must be exactly true; no profile at all                 403 staff_inactive / forbidden
+ *  2. access profile - `users.active` must be exactly true; no profile at all                        403 staff_inactive / forbidden
  *  3. role           - the profile role must map to one of the four seva roles (C-62)               403 forbidden
  *  4. staff row      - Supabase `staff` by external uid, status `active` ('invited' only for `me`)   403 forbidden / staff_inactive
  *  5. device         - `x-seva-device` when the route asks for one (or asks for one from receptionists), and always for
@@ -12,7 +12,7 @@
  *  7. matrix         - `can(actor, action, ctx)`                                                     403 forbidden
  * Both stores must say "active", so drift between them can only deny (DB §3.2). A store that cannot be read - and a
  * sign-in provider that cannot be reached - answers 500 internal, so the counter retries or works offline rather than
- * asking the person to sign in again (DB §16.2). The person's email is never taken from the Firestore profile (A1
+ * asking the person to sign in again (DB §16.2). The person's email is never taken from the profile row (A1
  * security gate L-4).
  *
  * Once the token is verified, the profile, staff and device reads start together (DB §9.12: no extra round trips);

@@ -1,7 +1,7 @@
 # Security Documentation
 
 **Project:** Sri Raghavendra Swamy Matha Website
-**Last Updated:** 2026-07-19
+**Last Updated:** 2026-11-16
 
 ---
 
@@ -13,9 +13,10 @@ This document outlines the security measures, policies, and best practices for t
 
 ## Authentication
 
-### Firebase Authentication
+### Supabase Authentication
 
-The application uses Firebase Authentication for user identity management.
+The application uses Supabase Auth for user identity management. Supabase is the only identity
+provider; there is no Firebase fallback.
 
 #### Supported Providers
 
@@ -55,19 +56,19 @@ interface AuthConfig {
 User Login
     │
     ▼
-Firebase Auth (email/password)
+Supabase Auth (email/password)
     │
     ▼
-ID Token Generated (JWT)
+Access token issued (JWT)
     │
     ▼
-Token sent to client
+Session stored client-side
     │
     ▼
 Token included in requests
     │
     ▼
-Server validates token
+Server validates token (Supabase Auth Admin `getUser`)
 ```
 
 ---
@@ -131,98 +132,32 @@ export async function middleware(request: NextRequest) {
 
 ---
 
-## Firestore Security Rules
+## Row Level Security (Supabase)
 
-### Collection Rules
+Supabase PostgreSQL tables are protected by Row Level Security (RLS). Most application tables are
+**deny-all** for the `anon` and `authenticated` roles: the browser never reads them directly. Reads
+and writes go through Next.js route handlers and services that use the service-role key on the
+server, behind an authorization check. The migrations under `supabase/migrations/` are the source of
+truth for the policies.
 
-```javascript
-// firestore.rules
+Illustrative shape of the policy set:
 
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    function hasRole(role) {
-      return isAuthenticated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
-    }
-    
-    function isAdmin() {
-      return hasRole('super_admin') || hasRole('temple_admin');
-    }
-    
-    // Users collection
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin() || isOwner(userId);
-      allow update: if isAdmin() || isOwner(userId);
-      allow delete: if isAdmin();
-    }
-    
-    // Public collections (read for all, write for admin)
-    match /events/{eventId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /announcements/{announcementId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /gallery/{itemId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /sevas/{sevaId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    // Private collections
-    match /sevaBookings/{bookingId} {
-      allow read: if isAdmin() || 
-        resource.data.devoteeEmail == request.auth.token.email;
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
-    }
-    
-    match /donations/{donationId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
-    }
-    
-    // Chat sessions (user can only see own)
-    match /chat_sessions/{sessionId} {
-      allow read, write: if isAdmin() || 
-        resource.data.userId == request.auth.uid;
-    }
-    
-    // Settings (single document, admin only)
-    match /settings/{settingId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    
-    // Knowledge base
-    match /knowledge/{articleId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-  }
-}
+```sql
+-- Deny-all by default; the service role bypasses RLS.
+alter table public.seva_bookings enable row level security;
+
+-- A devotee may read only their own booking through a helper view; all other
+-- access is through the admin-guarded route with the service role.
+create policy "own bookings" on public.seva_bookings
+  for select using (auth.uid() = user_id);
+
+-- Public content (events, announcements, gallery, sevas) is served through
+-- API routes, not read directly from the browser, so the tables stay deny-all.
 ```
+
+Authorization for the admin surface is enforced in `lib/auth/admin-auth.ts` against
+`public.users` (keyed by `auth_user_id`), not in the client. Staff identity is resolved from
+`public.staff`.
 
 ---
 
@@ -231,18 +166,12 @@ service cloud.firestore {
 ### Required Variables
 
 ```env
-# Firebase (Public - Client-side)
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
-NEXT_PUBLIC_FIREBASE_APP_ID=
+# Supabase (Public - Client-side)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-# Firebase (Private - Server-side only)
-FIREBASE_ADMIN_PROJECT_ID=
-FIREBASE_ADMIN_CLIENT_EMAIL=
-FIREBASE_ADMIN_PRIVATE_KEY=
+# Supabase (Private - Server-side only)
+SUPABASE_SERVICE_ROLE_KEY=
 
 # AI Service
 OPENAI_API_KEY=
@@ -256,8 +185,8 @@ NEXT_PUBLIC_APP_URL=https://rayaramathaynk.com
 
 | Variable Type | Prefix | Exposure | Example |
 |---------------|--------|----------|---------|
-| Public | `NEXT_PUBLIC_` | Client + Server | `NEXT_PUBLIC_FIREBASE_API_KEY` |
-| Private | None | Server only | `FIREBASE_ADMIN_CLIENT_EMAIL` |
+| Public | `NEXT_PUBLIC_` | Client + Server | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| Private | None | Server only | `SUPABASE_SERVICE_ROLE_KEY` |
 | Secret | None | CI/CD only | `OPENAI_API_KEY` |
 
 ### Storage
@@ -408,7 +337,7 @@ const securityHeaders = [
   },
   {
     key: 'Content-Security-Policy',
-    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com;"
+    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://images.unsplash.com https://*.blob.vercel-storage.com https://*.public.vercel-storage.com https://*.supabase.co; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.googleusercontent.com https://api.stripe.com https://api.openai.com https://openrouter.ai https://api.anthropic.com https://generativelanguage.googleapis.com https://*.vercel-storage.com https://*.supabase.co wss://*.supabase.co;"
   }
 ];
 ```
@@ -455,36 +384,11 @@ export async function rateLimit(identifier: string) {
 
 ## File Upload Security
 
-### Storage Rules
+### Storage Rules (Supabase Storage)
 
-```javascript
-// storage.rules
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    
-    function isImage() {
-      return request.resource.contentType.matches('image/.*');
-    }
-    
-    function isUnder5MB() {
-      return request.resource.size < 5 * 1024 * 1024;
-    }
-    
-    // Gallery uploads (admin only)
-    match /gallery/{filename} {
-      allow read: if true;
-      allow write: if isAdmin() && isImage() && isUnder5MB();
-    }
-    
-    // Profile images (authenticated users)
-    match /avatars/{userId}/{filename} {
-      allow read: if true;
-      allow write: if request.auth.uid == userId && isImage() && isUnder5MB();
-    }
-  }
-}
-```
+Media is stored in Supabase Storage buckets. Uploads run through Next.js route handlers that
+authenticate the caller and then use the service-role key, so the bucket itself stays private.
+The allowed types and size limits below are enforced by the route handler before upload.
 
 ### Allowed File Types
 
@@ -583,8 +487,8 @@ function validateOutput(output: string): string {
 ### Deployment
 
 - [ ] Environment variables set
-- [ ] Firestore rules deployed
-- [ ] Storage rules deployed
+- [ ] Supabase RLS policies applied (migrations)
+- [ ] Supabase Storage buckets configured
 - [ ] CSP headers configured
 - [ ] HTTPS enforced
 - [ ] CORS configured
@@ -626,14 +530,14 @@ on 2026-10-20; the spec is `docs/seva/DESIGN-BOOK.md` §15.
 
 ### Authorisation: an allow-list, checked on the server
 
-- Every `/api/seva/*` route starts with `requireSevaActor` (`lib/seva/server/auth.ts`): a verified Firebase ID token
-  (revoked or disabled logins fail), the Firestore profile with `isActive` exactly true and a role that maps to one of
+- Every `/api/seva/*` route starts with `requireSevaActor` (`lib/seva/server/auth.ts`): a verified Supabase access
+  token (revoked or disabled logins fail), the `users` profile with `active` exactly true and a role that maps to one of
   the four seva roles, the Supabase `staff` row with status `active`, the counter PC when needed, view-only (blocks
   every write and the phone export), then the role x action allow-list in `lib/seva/permissions.ts`. Unknown, empty,
   legacy (`billing`, `priest`, `staff`, `office_staff`) or misspelt roles are denied. Both stores must say "active", so
   drift between them can only deny.
 - Only a super admin gives the Super admin role, reactivates a super admin, deactivates (offboards) or deletes a
-  person; a deactivation also disables the Firebase login and revokes its refresh tokens.
+  person; a deactivation also disables the Supabase Auth login and revokes its sessions.
 - The site-wide admin check (`lib/auth/admin-auth.ts`) uses an explicit allow-list too, instead of the old deny-list.
 
 ### Counter PC binding: the device token
@@ -687,24 +591,24 @@ devotee profiles cannot be listed by walking name prefixes. Both use the site's 
 
 ### Counter UPI id
 
-The counter's UPI payee is read from Firestore `settings/financeSettings`, which only a super admin may write
-(`firestore.rules`). Every read is compared with the last payee recorded in Supabase (`seva_note_counter_upi`); a
-change writes `settings.upi_changed` (VPAs masked) and stays on the Needs attention card `upi_changed` for 30 days. A
-read that cannot be recorded is not used, and there is no hard-coded fallback: no UPI id means cash only.
+The counter's UPI payee is read from the Supabase `settings_documents` row `financeSettings`, which only a super
+admin may write. Every read is compared with the last payee recorded in Supabase (`seva_note_counter_upi`); a change
+writes `settings.upi_changed` (VPAs masked) and stays on the Needs attention card `upi_changed` for 30 days. A read
+that cannot be recorded is not used, and there is no hard-coded fallback: no UPI id means cash only.
 
-### Firestore rules changed by Seva Entry
+### Profile rules changed by Seva Entry
 
-A new `users` document may not give itself a role other than `devotee`, nor `isActive` or `isApproved`; `sevas` and
-`settings/financeSettings` are written by super admins only (the server mirror uses the admin SDK); `isSuperAdmin()`
-also requires `isActive` not to be false.
+A new `users` row may not give itself a role other than `devotee`, nor set `active` or `approved`; `sevas` and
+`settings_documents/financeSettings` are written by super admins only (the server uses the service-role client); the
+super-admin check also requires `active` not to be false. RLS keeps these tables deny-all for the browser.
 
 ### Secrets and the old key revocation
 
-- Supabase and Firebase keys live only in Vercel environment variables, GitHub secrets or git-ignored local files
-  (`.env.local`, `.firebase-adminsdk.json`); never in the database, the client bundle or logs.
-- An old Firebase service-account key was committed in 11 scripts under `scripts/`. The scripts now read credentials
-  from the environment or the git-ignored key file (`tests/unit/seva/no-embedded-keys.test.ts` guards it). The site
-  owner must still **revoke** the old key after the merge: `docs/seva/SETUP-GUIDE.md` B3 (open item O-18).
+- Supabase keys live only in Vercel environment variables, GitHub secrets or the git-ignored local file
+  (`.env.local`); never in the database, the client bundle or logs.
+- An old Firebase service-account key was committed in 11 scripts under `scripts/` before the migration. Those scripts
+  have since been removed; the key is no longer read by any code. The site owner should still **revoke** the old
+  Firebase key in the Firebase console — a manual, out-of-band action (`docs/seva/SETUP-GUIDE.md` B3, open item O-18).
 
 ### Backups
 

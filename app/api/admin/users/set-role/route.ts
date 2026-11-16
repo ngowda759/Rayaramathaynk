@@ -11,7 +11,7 @@
  *   authoritative Supabase Auth identity (auth_user_id).
  * Errors use the seva shape `{ error: { code, message } }`.
  *
- * Identity resolution uses Supabase Auth primary with Firebase Auth fallback.
+ * Identity resolution uses Supabase Auth only.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -20,7 +20,6 @@ import { isAdminConsoleRole } from "@/lib/auth/admin-auth";
 import { createRateLimitResponse, getClientIP, rateLimit } from "@/lib/rate-limit";
 import { SevaError } from "@/lib/seva/errors";
 import { can, mapFirestoreRole } from "@/lib/seva/permissions";
-import { recordAuthFallback } from "@/lib/auth/fallback-telemetry";
 import { parseInput, readJson } from "@/lib/seva/server/reports";
 import { sevaErrorResponse } from "@/lib/seva/server/respond";
 import { getIdentityAdapter } from "@/lib/seva/server/identity";
@@ -35,57 +34,70 @@ const setRoleSchema = z.object({
   role: z.enum(ROLES, { error: `Invalid role. Must be one of: ${ROLES.join(", ")}` }),
 });
 
-/** Resolves sign-in account identity via Supabase Auth primary and Firebase fallback. */
+/**
+ * Resolves the sign-in account identity for an email via Supabase Auth only.
+ * Fails closed: when the Auth service cannot answer (missing service, thrown
+ * error, or a non-"not found" error result) it throws `internal` (500) rather
+ * than `not_found`, so an outage can never be read as "this user does not exist".
+ */
 async function findLoginUid(email: string): Promise<string> {
   const normalizedEmail = email.trim().toLowerCase();
 
-  // 1. Primary: Supabase Auth Admin
+  let adminAuth: {
+    getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } | null } | null; error?: unknown }>;
+    listUsers?: () => Promise<{ data?: { users?: { id?: string; email?: string | null }[] } | null; error?: unknown }>;
+  } | undefined;
   try {
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const supabase = createAdminClient();
-    const adminAuth = (supabase as unknown as {
-      auth?: {
-        admin?: {
-          getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } }; error?: unknown }>;
-          listUsers?: () => Promise<{ data?: { users?: any[] }; error?: unknown }>;
-        };
-      };
-    })?.auth?.admin;
-
-    if (typeof adminAuth?.getUserByEmail === "function") {
-      const { data, error } = await adminAuth.getUserByEmail(normalizedEmail);
-      if (!error && data?.user?.id) {
-        return data.user.id;
-      }
-    }
-
-    if (typeof adminAuth?.listUsers === "function") {
-      const { data } = await adminAuth.listUsers();
-      if (Array.isArray(data?.users)) {
-        const found = data.users.find(
-          (u: any) => u.email?.trim().toLowerCase() === normalizedEmail
-        );
-        if (found?.id) {
-          return found.id;
-        }
-      }
-    }
-  } catch {
-    // proceed to compatibility fallback
-  }
-
-  // 2. Compatibility fallback: Firebase Auth
-  try {
-    const { getAdminApp } = await import("@/lib/admin-firebase");
-    const { getAuth } = await import("firebase-admin/auth");
-    recordAuthFallback("set-role", "identity_resolved");
-    return (await getAuth(await getAdminApp()).getUserByEmail(normalizedEmail)).uid;
+    adminAuth = (supabase as unknown as { auth?: { admin?: typeof adminAuth } })?.auth?.admin;
   } catch (error) {
-    if ((error as { code?: unknown } | null)?.code === "auth/user-not-found") {
-      throw new SevaError("not_found", { entity: "user" });
-    }
-    throw error;
+    console.error("[set-role] Supabase Auth client unavailable:", error);
+    throw new SevaError("internal", { message: "Supabase Auth is unavailable" });
   }
+
+  if (!adminAuth || typeof adminAuth.getUserByEmail !== "function") {
+    throw new SevaError("internal", { message: "Supabase Auth Admin lookup service is unavailable" });
+  }
+
+  try {
+    const { data, error } = await adminAuth.getUserByEmail(normalizedEmail);
+    if (!error && data?.user?.id) {
+      return data.user.id;
+    }
+    // A "user not found" result is the only outcome that means the account does not exist; any other
+    // error is a service failure and must fail closed.
+    if (error && !isUserNotFoundError(error)) {
+      throw new SevaError("internal", { message: "Supabase Auth lookup failed" });
+    }
+
+    if (typeof adminAuth.listUsers === "function") {
+      const { data: listed, error: listError } = await adminAuth.listUsers();
+      if (listError) {
+        throw new SevaError("internal", { message: "Supabase Auth lookup failed" });
+      }
+      const found = listed?.users?.find(
+        (u) => u.email?.trim().toLowerCase() === normalizedEmail
+      );
+      if (found?.id) {
+        return found.id;
+      }
+    }
+  } catch (error) {
+    if (error instanceof SevaError) throw error;
+    console.error("[set-role] Supabase Auth identity lookup failed:", error);
+    throw new SevaError("internal", { message: "Supabase Auth lookup failed" });
+  }
+
+  throw new SevaError("not_found", { entity: "user" });
+}
+
+/** True when a Supabase Auth admin error means the requested user simply does not exist. */
+function isUserNotFoundError(error: unknown): boolean {
+  const message = typeof error === "string"
+    ? error
+    : (error as { message?: unknown } | null)?.message;
+  return typeof message === "string" && /not found|no user/i.test(message);
 }
 
 /**

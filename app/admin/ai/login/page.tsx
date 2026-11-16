@@ -16,8 +16,7 @@ import Input from "@/components/ui/input";
 /**
  * Sign-in for the Raya AI administration console.
  *
- * Uses Supabase Auth (email + password), which is independent of the temple's
- * Firebase login. After a successful sign-in the caller is returned to the AI
+ * Uses Supabase Auth (email + password). After a successful sign-in the caller is returned to the AI
  * page they opened. Authorization (role + active) is enforced server-side on
  * every /api/ai request; this page only establishes the session.
  *

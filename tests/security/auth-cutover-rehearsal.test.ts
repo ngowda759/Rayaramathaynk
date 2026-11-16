@@ -7,7 +7,7 @@
  * 3. Authorization Boundaries (admin, staff, devotee, forged UID, forged role, email substitution, cross-user isolation)
  * 4. Administrative Provisioning (create admin, duplicate refusal, fail-closed on auth or db failure)
  * 5. Staff & Seva Counter (staff.auth_user_id resolution, role permissions, normal-user refusal)
- * 6. Firebase Compatibility (legacy token resolution, invalid token, no privilege bypass, Supabase precedence)
+ * 6. Supabase-Only Verification (invalid token rejected, no privilege bypass, single provider)
  */
 
 import { NextRequest } from "next/server";
@@ -59,16 +59,6 @@ jest.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
-// Mocks for Firebase Admin SDK (compatibility fallback testing)
-const mockVerifyIdToken = jest.fn();
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({
-    verifyIdToken: (...args: unknown[]) => mockVerifyIdToken(...args),
-  }),
-}));
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
-}));
 
 function makeRequest(url: string, headers: Record<string, string> = {}, body?: unknown): NextRequest {
   const reqHeaders = new Headers(headers);
@@ -219,8 +209,6 @@ describe("Phase 3 Cutover Rehearsal: Complete Verification Suite", () => {
         data: { user: null },
         error: { message: "Invalid JWT token signature", status: 401 },
       });
-      mockVerifyIdToken.mockRejectedValueOnce({ code: "auth/invalid-id-token" });
-
       const req = makeRequest("/api/any", { authorization: "Bearer forged-garbage-jwt" });
       const caller = await verifyBearerIdToken(req);
       expect(caller).toBeNull();
@@ -231,8 +219,6 @@ describe("Phase 3 Cutover Rehearsal: Complete Verification Suite", () => {
         data: { user: null },
         error: { message: "JWT expired", status: 401 },
       });
-      mockVerifyIdToken.mockRejectedValueOnce({ code: "auth/id-token-expired" });
-
       const req = makeRequest("/api/admin/any", { authorization: "Bearer expired-jwt" });
       const result = await verifyAdminUserResult(req);
       expect(result.ok).toBe(false);
@@ -503,54 +489,39 @@ describe("Phase 3 Cutover Rehearsal: Complete Verification Suite", () => {
   });
 
   // =========================================================================
-  // DOMAIN 6: FIREBASE COMPATIBILITY & ZERO-LOCKOUT VERIFICATION
   // =========================================================================
-  describe("Domain 6: Firebase Compatibility (Rollback & Zero-Lockout)", () => {
-    it("6.1 [Legacy Token Fallback] verifies valid Firebase token when Supabase token is absent", async () => {
+  // DOMAIN 6: SUPABASE-ONLY VERIFICATION
+  // =========================================================================
+  describe("Domain 6: Supabase-Only Verification", () => {
+    it("6.1 [Invalid Token Rejected] rejects a token Supabase does not accept, with no other provider consulted", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: null },
-        error: { message: "Invalid token" },
+        error: { message: "Invalid token", status: 401 },
       });
 
-      mockVerifyIdToken.mockResolvedValueOnce({
-        uid: "fb-legacy-devotee-uid",
-        email: "legacy@devotee.com",
-      });
-
-      const req = makeRequest("/api/any", { authorization: "Bearer legacy-firebase-id-token" });
+      const req = makeRequest("/api/any", { authorization: "Bearer foreign-provider-id-token" });
       const caller = await verifyBearerIdToken(req);
-      expect(caller).toEqual({
-        uid: "fb-legacy-devotee-uid",
-        email: "legacy@devotee.com",
-      });
+      expect(caller).toBeNull();
     });
 
-    it("6.2 [Firebase Token Cannot Bypass Inactive Status] blocks inactive user even with valid Firebase token", async () => {
+    it("6.2 [No Privilege Bypass] an unverifiable token cannot reach an admin role or bypass inactive status", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: null },
-        error: { message: "Invalid Supabase token" },
-      });
-      mockVerifyIdToken.mockResolvedValueOnce({
-        uid: "fb-inactive-uid",
-        email: "inactive@temple.org",
+        error: { message: "Invalid token", status: 401 },
       });
 
-      mockAdminFrom.mockReturnValueOnce(
-        mockDbQuery({
-          firestore_id: "fb-inactive-uid",
-          role: "super_admin",
-          active: false,
-        })
-      );
-
-      const req = makeRequest("/api/admin/any", { authorization: "Bearer valid-firebase-token-inactive-user" });
+      const req = makeRequest("/api/admin/any", { authorization: "Bearer foreign-token" });
       const result = await verifyAdminUserResult(req);
       expect(result.ok).toBe(false);
-      expect(result.reason).toBe("inactive_user");
-      expect(result.status).toBe(403);
+      if (!result.ok) {
+        expect(result.reason).toBe("invalid_token");
+        expect(result.status).toBe(401);
+      }
+      // The authorization table is never consulted for an unverified token.
+      expect(mockAdminFrom).not.toHaveBeenCalled();
     });
 
-    it("6.3 [Supabase Precedence] Supabase bearer token always takes precedence over legacy Firebase identity", async () => {
+    it("6.3 [Single Provider] a valid Supabase bearer token resolves the caller identity", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: {
           user: {
@@ -563,8 +534,8 @@ describe("Phase 3 Cutover Rehearsal: Complete Verification Suite", () => {
 
       const req = makeRequest("/api/any", { authorization: "Bearer canonical-supabase-jwt" });
       const caller = await verifyBearerIdToken(req);
-      expect(mockVerifyIdToken).not.toHaveBeenCalled();
       expect(caller?.uid).toBe("canonical-supabase-uuid");
+      expect(caller?.email).toBe("canonical@temple.org");
     });
   });
 });

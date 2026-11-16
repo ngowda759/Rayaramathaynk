@@ -771,7 +771,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"source\": \"firebase\",\n  \"forceRefresh\": false\n}"
+              "raw": "{\n  \"overwrite\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/ai/knowledge/import",
@@ -1185,7 +1185,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "seed-ai-settings"]
             },
-            "description": "Seed AI settings to Firebase"
+            "description": "Seed AI settings to Supabase"
           }
         }
       ]

@@ -168,11 +168,11 @@ test.describe('Error Handling Module', () => {
     });
   });
 
-  test.describe('Firebase Error Handling', () => {
-    test('ERR-050: Firestore errors are handled', async ({ page }) => {
+  test.describe('Backend Error Handling', () => {
+    test('ERR-050: Supabase errors are handled', async ({ page }) => {
       const errors: string[] = [];
       page.on('console', msg => {
-        if (msg.type() === 'error' && msg.text().includes('Firestore')) {
+        if (msg.type() === 'error' && msg.text().includes('Supabase')) {
           errors.push(msg.text());
         }
       });
@@ -180,7 +180,7 @@ test.describe('Error Handling Module', () => {
       await page.goto(BASE_URL);
       await page.waitForTimeout(3000);
       
-      // Firestore errors should be handled gracefully
+      // Supabase errors should be handled gracefully
     });
 
     test('ERR-051: Auth errors are handled', async ({ page }) => {

@@ -22,8 +22,6 @@ const mockCallRpc = jest.fn();
 jest.mock('@/lib/seva/server/rpc', () => ({ callRpc: (...args: unknown[]) => mockCallRpc(...args) }));
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }));
 jest.mock('@/lib/seva/server/identity', () => ({ getIdentityAdapter: () => ({ getAccessProfile: async () => null }) }));
-jest.mock('@/lib/admin-firebase', () => ({ getAdminFirestore: async () => ({}) }));
-
 import { POST as refusedPost } from '@/app/api/seva/counter/refused/route';
 import { POST as setAsidePost } from '@/app/api/seva/counter/refused/set-aside/route';
 import { counterApi } from '@/services/seva/counter.service';

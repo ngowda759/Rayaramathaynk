@@ -8,11 +8,11 @@ import { Bilingual } from "@/components/seva/ui/Bilingual";
 import { resendVerification } from "@/lib/auth";
 import { SHELL } from "@/lib/seva/strings/shell";
 
-/** After a send the button rests this long, so nobody fires a stream of emails (Firebase also limits them). */
+/** After a send the button rests this long, so nobody fires a stream of emails (Supabase also limits them). */
 export const VERIFY_RESEND_COOLDOWN_MS = 60_000;
 
 export interface VerifyEmailNoticeProps {
-  /** The signed-in Firebase user whose email is not verified. */
+  /** The signed-in user whose email is not verified. */
   user: { email?: string | null; emailVerified?: boolean };
 }
 

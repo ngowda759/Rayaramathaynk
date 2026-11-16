@@ -1,16 +1,12 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { checkAdminAuth } from '../../lib/auth/admin';
 
-jest.mock('../../lib/admin-firebase', () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
-}));
-
-const verifyIdTokenMock = jest.fn();
-
-jest.mock('firebase-admin/auth', () => ({
-  getAuth: () => ({
-    verifyIdToken: verifyIdTokenMock
-  })
+// Supabase Auth is the only identity provider.
+const mockGetUser = jest.fn();
+jest.mock('../../lib/supabase/admin', () => ({
+  createAdminClient: () => ({
+    auth: { getUser: (...args: unknown[]) => mockGetUser(...args) },
+  }),
 }));
 
 describe('Admin Authentication Check', () => {
@@ -46,17 +42,17 @@ describe('Admin Authentication Check', () => {
   });
 
   it('rejects when token verification fails', async () => {
-    verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token'));
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token' } });
     const req = createMockRequest('Bearer invalid-token');
     const result = await checkAdminAuth(req);
     expect(result).toBeNull();
   });
 
   it('resolves valid tokens', async () => {
-    verifyIdTokenMock.mockResolvedValueOnce({ uid: 'user-123' });
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'user-123', email: 'u@example.test' } }, error: null });
     const req = createMockRequest('Bearer valid-token');
     const result = await checkAdminAuth(req);
-    expect(result).toEqual({ uid: 'user-123', role: 'user' });
+    expect(result).toEqual({ uid: 'user-123', role: 'user', email: 'u@example.test' });
   });
 
   describe('ADMIN_API_KEY bypass behavior', () => {
@@ -76,7 +72,7 @@ describe('Admin Authentication Check', () => {
 
     it('rejects tokens when ADMIN_API_KEY is not set', async () => {
       delete process.env.ADMIN_API_KEY;
-      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback'));
+      mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token fallback' } });
       const req = createMockRequest('Bearer some-random-string');
       const result = await checkAdminAuth(req);
       expect(result).toBeNull();
@@ -84,7 +80,7 @@ describe('Admin Authentication Check', () => {
 
     it('rejects incorrect tokens when ADMIN_API_KEY is set', async () => {
       process.env.ADMIN_API_KEY = 'secret-key';
-      verifyIdTokenMock.mockRejectedValueOnce(new Error('Invalid token fallback'));
+      mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token fallback' } });
       const req = createMockRequest('Bearer wrong-key');
       const result = await checkAdminAuth(req);
       expect(result).toBeNull();

@@ -1,7 +1,7 @@
 /**
  * Server-only admin authentication for the Raya AI administration API.
  *
- * Raya AI administration uses **Supabase Auth**, not Firebase Auth. This module
+ * Raya AI administration uses **Supabase Auth**. This module
  * resolves the signed-in caller from the Supabase session (the `@supabase/ssr`
  * cookie, or a Supabase access token in `Authorization: Bearer` for non-cookie
  * callers), then loads the caller's `role` and `active` from `public.users`,
@@ -11,8 +11,8 @@
  * row must exist in `public.users`, `active` must not be false, and `role` must
  * be on the admin-console allow-list.
  *
- * This module is deliberately separate from `lib/auth/admin-auth.ts` (the
- * Firebase path) so the rest of the temple admin keeps working unchanged. The
+ * This module is deliberately separate from `lib/auth/admin-auth.ts` so the
+ * rest of the temple admin keeps working unchanged. The
  * only route surface that uses it is `app/api/ai/**`.
  *
  * The failure reason and HTTP status are safe to expose: an authorized caller is
@@ -46,7 +46,7 @@ export type AdminAuthResult =
 
 /**
  * Roles that may use the Raya AI administration console. Same allow-list as the
- * Firebase admin guard (DB §17.4). An empty, unknown or misspelt role is refused.
+ * Supabase admin guard (DB §17.4). An empty, unknown or misspelt role is refused.
  */
 export const ADMIN_CONSOLE_ROLES: ReadonlySet<string> = new Set([
   "super_admin",

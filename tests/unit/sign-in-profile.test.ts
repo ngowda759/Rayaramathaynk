@@ -28,28 +28,6 @@ jest.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
-jest.mock("firebase/auth", () => ({
-  createUserWithEmailAndPassword: jest.fn(),
-  signInWithEmailAndPassword: (...args: unknown[]) => mockSignIn(...args),
-  sendPasswordResetEmail: jest.fn(),
-  sendEmailVerification: jest.fn(),
-  signOut: jest.fn(),
-  updateProfile: jest.fn(),
-}));
-
-jest.mock("firebase/firestore", () => ({
-  doc: (_db: unknown, ...segments: string[]) => ({ path: segments.join("/") }),
-  getDoc: (...args: unknown[]) => mockGetDoc(...args),
-  setDoc: (...args: unknown[]) => mockSetDoc(...args),
-  serverTimestamp: () => mockServerTimestamp,
-}));
-
-jest.mock("@/lib/firebase", () => ({
-  auth: {},
-    isFirebaseConfigured: true,
-  getFirebaseConfigStatus: () => ({ isValid: true, missingFields: [] }),
-}));
-
 const ACCESS_FIELDS = ["role", "isApproved", "isActive"] as const;
 
 const STAFF_ACCOUNT = {

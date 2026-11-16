@@ -267,7 +267,7 @@ export default function GalleryTable({ images, onRefresh }: GalleryTableProps) {
           <DialogHeader>
             <DialogTitle>Delete Image</DialogTitle>
             <DialogDescription>
-              This will remove the image record from Firestore. The actual file
+              This will remove the image record from Supabase. The actual file
               in the public folder must be deleted manually via Git.
             </DialogDescription>
           </DialogHeader>

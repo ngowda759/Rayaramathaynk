@@ -14,7 +14,17 @@ type SevaMeHook = typeof import("@/hooks/seva/useSevaMe").useSevaMe;
 let mockSevaMe: ReturnType<SevaMeHook> | null = null;
 const mockSevaFetch = jest.fn();
 const mockGetProfile = jest.fn();
-let mockFirebaseUser: { uid: string } | null = null;
+let mockSessionUser: { id: string; email?: string } | null = null;
+jest.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      getSession: async () => ({
+        data: { session: mockSessionUser ? { user: mockSessionUser, access_token: "tok" } : null },
+      }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+    },
+  }),
+}));
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
@@ -40,21 +50,6 @@ jest.mock("framer-motion", () => {
     AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
   };
 });
-
-jest.mock("@/lib/firebase", () => ({
-  auth: {},
-  db: null,
-  isFirebaseConfigured: false,
-  initializeAuthPersistence: () => Promise.resolve(),
-  getFirebaseConfigStatus: () => ({ isValid: true, missingFields: [] }),
-}));
-
-jest.mock("firebase/auth", () => ({
-  onAuthStateChanged: (_auth: unknown, cb: (u: unknown) => void) => {
-    cb(mockFirebaseUser);
-    return () => undefined;
-  },
-}));
 
 jest.mock("@/services/auth.service", () => ({
   authService: { getUserProfile: (...args: unknown[]) => mockGetProfile(...args) },
@@ -158,7 +153,7 @@ const OLD_SEVA_HREFS = [
 beforeEach(() => {
   mockAuth = {};
   mockSevaMe = null;
-  mockFirebaseUser = null;
+  mockSessionUser = null;
   mockSevaFetch.mockReset();
   mockGetProfile.mockReset();
   mockPush.mockReset();
@@ -402,7 +397,7 @@ describe("AuthContext", () => {
       ["super_admin", "super_admin"],
     ];
     for (const [stored, expected] of cases) {
-      mockFirebaseUser = { uid: `u-${stored}` };
+      mockSessionUser = { id: `u-${stored}` };
       mockGetProfile.mockResolvedValueOnce({ uid: `u-${stored}`, role: stored, isActive: true });
       const { unmount } = render(
         <actual.AuthProvider>

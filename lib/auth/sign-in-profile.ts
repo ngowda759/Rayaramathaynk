@@ -10,7 +10,7 @@
  * staff API wrote without `isApproved` still signs in.
  */
 
-/** The Firebase Auth account fields sign-in copies into the profile. */
+/** The Supabase Auth account fields sign-in copies into the profile. */
 export interface SignInAccount {
   uid: string;
   displayName: string | null;

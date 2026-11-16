@@ -14,19 +14,19 @@ import {
 
 // Hardcoded facts that should NOT be in the system prompt
 const FORBIDDEN_PATTERNS = [
-  // Temple timings (should come from Firebase)
+  // Temple timings (should come from Supabase)
   { pattern: /Morning.*6:00 AM/i, reason: "Hardcoded morning timing" },
   { pattern: /Evening.*5:00 PM/i, reason: "Hardcoded evening timing" },
   { pattern: /12:00 PM/i, reason: "Hardcoded closing time" },
   { pattern: /8:30 PM/i, reason: "Hardcoded evening closing time" },
   
-  // Specific sevas (should come from Firebase)
+  // Specific sevas (should come from Supabase)
   { pattern: /Suprabhata Seva/i, reason: "Hardcoded seva name" },
   { pattern: /Panchamruta Abhisheka/i, reason: "Hardcoded seva name" },
   { pattern: /Maha Mangalarati/i, reason: "Hardcoded mangalarati" },
   { pattern: /Tulasi Archana/i, reason: "Hardcoded archana type" },
   
-  // Specific amounts (should come from Firebase)
+  // Specific amounts (should come from Supabase)
   { pattern: /₹51/i, reason: "Hardcoded amount" },
   { pattern: /51 rupees/i, reason: "Hardcoded amount" },
   
@@ -107,7 +107,7 @@ describe("System Prompt - Anti-Hallucination Guidelines", () => {
 
   describe("Context Injection & Structured Retrieval", () => {
     it("should mention using provided/fetched data", () => {
-      expect(SYSTEM_PROMPT).toMatch(/provided|system|Firebase|repository/i);
+      expect(SYSTEM_PROMPT).toMatch(/provided|system|Supabase|repositor/i);
     });
 
     it("should warn against guessing Panchanga", () => {
@@ -391,7 +391,7 @@ describe("Anti-Hallucination Checklist", () => {
     { check: "Context injection guidance", pass: SYSTEM_PROMPT.includes("Context") || SYSTEM_PROMPT.includes("provided") },
     { check: "Never fabricate instruction", pass: /never.*invent|do not.*invent/i.test(SYSTEM_PROMPT) },
     { check: "Official data fallback", pass: /official|website|repository/i.test(SYSTEM_PROMPT) },
-    { check: "Firebase/structured retrieval mentioned", pass: /Firebase|repository|structured/i.test(SYSTEM_PROMPT) },
+    { check: "Supabase/structured retrieval mentioned", pass: /Supabase|structured retrieval/i.test(SYSTEM_PROMPT) },
   ];
 
   checklist.forEach(({ check, pass }) => {

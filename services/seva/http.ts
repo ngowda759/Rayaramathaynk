@@ -1,5 +1,5 @@
 /**
- * Browser HTTP client for the seva API. Every call carries the Firebase ID token as a Bearer header and, from a
+ * Browser HTTP client for the seva API. Every call carries the Supabase access token as a Bearer header and, from a
  * registered counter PC, the `x-seva-device` header. Every failure becomes a SevaClientError:
  * - the server's `{ error: { code, message, detail? } }` keeps its code and HTTP status;
  * - no answer in time -> code 'timeout', status 0; no connection -> 'network', status 0; the caller's own abort

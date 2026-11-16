@@ -1,7 +1,7 @@
 /**
  * Browser client for the staff routes (the Staff and roles page, Task A4-11).
  *
- * After a successful `onboard` the page sends Firebase's own set-password email (C-56). A change that went only part
+ * After a successful `onboard` the page sends the Supabase set-password email (C-56). A change that went only part
  * of the way fails with SevaClientError code 'partial_failure' whose `detail` is StaffPartialFailure (which step was
  * done, which failed), so the page can say exactly where the person now stands.
  */

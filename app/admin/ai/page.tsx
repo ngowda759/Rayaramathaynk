@@ -85,7 +85,7 @@ export default function AdminAIPage() {
           getVolunteerRequests(),
         ]);
 
-        // Fetch conversation stats from Supabase (no Firestore fallback)
+        // Fetch conversation stats from Supabase
         let totalConversations = 0;
         let todayConversations = 0;
 

@@ -172,7 +172,7 @@ export default function LocalGalleryAssets({
             </h2>
             <p className="text-sm leading-6 text-stone-600">
               These files exist in the public folder but are not yet stored in the
-              Firestore gallery collection.
+              gallery collection.
             </p>
           </div>
         </div>

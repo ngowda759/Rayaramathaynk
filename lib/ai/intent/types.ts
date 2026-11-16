@@ -156,7 +156,7 @@ export enum IntentPriority {
 
 // Retrieval type for hybrid responses
 export enum RetrievalType {
-  REPOSITORY = "repository",     // Data from Firebase repositories
+  REPOSITORY = "repository",     // Data from structured repositories
   KNOWLEDGE_BASE = "knowledge_base", // Static knowledge articles
   KEYWORD_MATCH = "keyword_match", // Exact keyword matching
   SEMANTIC_MATCH = "semantic_match", // Semantic similarity matching

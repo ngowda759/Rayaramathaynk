@@ -18,7 +18,7 @@ export default function Testimonials() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch testimonials from Firestore
+  // Fetch testimonials from Supabase
   useEffect(() => {
     async function fetchTestimonials() {
       try {

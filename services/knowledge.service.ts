@@ -24,7 +24,7 @@ import {
   KNOWLEDGE_CATEGORY_CONFIG,
 } from "@/types/knowledge";
 
-// View count cache (in-memory, would be Firestore in production)
+// View count cache (in-memory; the production path persists to Supabase)
 const viewCounts = new Map<string, number>();
 
 /**

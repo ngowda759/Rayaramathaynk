@@ -3,17 +3,17 @@
  * works with the provider-neutral `externalUid` (stored as `staff.auth_user_id` canonically, with `staff.firebase_uid`
  * retained for rollback/audit compatibility) and the access profile from `public.users`.
  *
- * Moving to another provider later means writing a new adapter, not touching the routes.
+ * Supabase Auth is the only provider. Moving to another provider later means writing a new adapter, not touching the
+ * routes.
  *
  * Identity rules (A1 security gate L-4): the email that identifies a person comes from the verified token or from
  * `staff.email`; the profile's own email field is never read, because the person can edit it.
  */
 
 import "server-only";
-import { firebaseIdentityAdapter } from "./identity-firebase";
 import { supabaseIdentityAdapter } from "./identity-supabase";
 
-export { firebaseIdentityAdapter, supabaseIdentityAdapter };
+export { supabaseIdentityAdapter };
 
 export interface IdentityAdapter {
   /**

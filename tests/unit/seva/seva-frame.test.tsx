@@ -66,14 +66,6 @@ jest.mock("@/components/ai/QuickQuestionIcons", () => ({ QuickQuestionIcons: () 
 jest.mock("@/styles/seva/tokens.css", () => ({}));
 jest.mock("@/styles/seva/print.css", () => ({}));
 
-jest.mock("@/lib/firebase", () => ({
-  auth: {},
-  db: null,
-  isFirebaseConfigured: false,
-  initializeAuthPersistence: () => Promise.resolve(),
-  getFirebaseConfigStatus: () => ({ isValid: true, missingFields: [] }),
-}));
-
 jest.mock("@/context/AuthContext", () => {
   const actual = jest.requireActual("@/context/AuthContext");
   return { ...actual, useAuthContext: () => mockAuth };

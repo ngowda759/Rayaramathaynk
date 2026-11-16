@@ -7,7 +7,7 @@ Base URL: `https://rayaramathaynk.vercel.app/api`
 ## Admin User Management
 
 ### 1. Create Super Admin
-Creates a new super admin user with Firebase Authentication and Firestore.
+Creates a new super admin user with Supabase Auth and the Supabase `users` table.
 
 **Endpoint:** `POST /api/admin/users/create-admin`
 
@@ -50,7 +50,7 @@ Content-Type: application/json
 ---
 
 ### 2. Set User Role
-Updates the role of an existing user in Firestore.
+Updates the role of an existing user in the Supabase `users` table.
 
 **Endpoint:** `POST /api/admin/users/set-role`
 
@@ -78,7 +78,7 @@ Content-Type: application/json
 {
   "success": true,
   "message": "User user@example.com has been set as super_admin",
-  "userId": "firebase-uid-123"
+  "userId": "supabase-auth-uuid"
 }
 ```
 
@@ -211,9 +211,9 @@ built on 2026-10-20.
 
 **Common rules**
 
-- **Sign-in:** every call sends `Authorization: Bearer <Firebase ID token>`. The guard
-  (`requireSevaActor`, `lib/seva/server/auth.ts`) checks, in order: the token (401 `unauthenticated`), the Firestore
-  profile's `isActive` and role (403 `staff_inactive` / `forbidden`), the Supabase `staff` row's status (403), the
+- **Sign-in:** every call sends `Authorization: Bearer <Supabase access token>`. The guard
+  (`requireSevaActor`, `lib/seva/server/auth.ts`) checks, in order: the token (401 `unauthenticated`), the
+  `public.users` profile's active flag and role (403 `staff_inactive` / `forbidden`), the Supabase `staff` row's status (403), the
   counter PC when the route needs one (403 `device_required` / `device_unknown`), view-only (403 `view_only` on every
   write), then the role x action allow-list (`lib/seva/permissions.ts`, 403 `forbidden`).
 - **Counter PC:** counter calls also send `x-seva-device: <device id>.<secret>`; the server keeps only the SHA-256 of
@@ -297,7 +297,7 @@ built on 2026-10-20.
 | Route | Who | Body / query | Answer |
 |---|---|---|---|
 | `GET /api/seva/sevas` | R, TA, TV, SA | - | the whole catalogue in counter-key order |
-| `POST /api/seva/sevas` | TA, SA | a seva: `code`, `nameEn`, `nameKn`, `ratePaise` or `anyAmount`, `visibility` (`counter`, `online`, `both`), `multiDate`, `allowAmountChange`, `prasadamGiven`, `prasadamItems`, `category`, `incomeLedger`, `active` | the seva; its public fields are then mirrored to Firestore `sevas` (a failed mirror answers 200 with `mirror: 'failed'`) |
+| `POST /api/seva/sevas` | TA, SA | a seva: `code`, `nameEn`, `nameKn`, `ratePaise` or `anyAmount`, `visibility` (`counter`, `online`, `both`), `multiDate`, `allowAmountChange`, `prasadamGiven`, `prasadamItems`, `category`, `incomeLedger`, `active` | the seva (the answer keeps `mirror: 'ok'` for the response contract; the former Firestore mirror is retired) |
 | `GET /api/seva/sevas/[id]` | R, TA, TV, SA | - | the seva's rate history |
 | `PUT /api/seva/sevas/[id]` | TA, SA | as POST; a rate change needs `reason` | the seva (mirrored as above) |
 | `PUT /api/seva/sevas/reorder` | TA, SA | `{ ids }` in the new counter-key order | - |
@@ -316,14 +316,14 @@ built on 2026-10-20.
 | `GET /api/seva/settings/lists` | TA, TV, SA | - | the gotra, nakshatra and rashi lists |
 | `POST /api/seva/settings/lists` | TA, SA | `{ kind: 'gotra', id?, nameEn?, nameKn?, active? }` (add or change a gotra) or `{ kind: 'nakshatra' or 'rashi', id, nameKn }` (Kannada only) | the saved item (audited as `settings.list_item`) |
 
-The counter UPI id is not a seva setting: it is read from Firestore `settings/financeSettings` (super admin only).
+The counter UPI id is not a seva setting: it is read from Supabase `settings_documents/financeSettings` (super admin only).
 
 ### Staff
 
 | Route | Who | Body / query | Answer |
 |---|---|---|---|
 | `GET /api/seva/staff` | TA (not view-only), SA | `filter` = `all`, `active`, `inactive`; or `view=next-staff-no` | the staff list with roles, or the next free staff number |
-| `POST /api/seva/staff` | TA (not view-only; roles below super admin; links an existing account only when it has no website admin-console role and is active, else 403 `forbidden` with `reason: 'needs_super_admin'` before any write), SA | `{ fullName, email, role, viewOnly, staffNo?, linkExisting? }` | 201 `{ staffId, staffNo }`; the browser then sends Firebase's own set-password email. An email that already has a sign-in answers 400 `validation` with detail `{ field: 'email', reason: 'existing_account', currentRole, currentlyActive, displayName }` before any write; resent with `linkExisting: true`, that account is linked (no new login, no set-password email) and the answer adds `linkedExisting: true`. Refused before any write: an account that is already staff, a login whose email is not verified (`reason: 'unverified_account'`) and a disabled login (`reason: 'disabled_account'`). A link's 502 `partial_failure` detail adds `previous_role` and `previous_active` |
+| `POST /api/seva/staff` | TA (not view-only; roles below super admin; links an existing account only when it has no website admin-console role and is active, else 403 `forbidden` with `reason: 'needs_super_admin'` before any write), SA | `{ fullName, email, role, viewOnly, staffNo?, linkExisting? }` | 201 `{ staffId, staffNo }`; the browser then sends Supabase Auth's own set-password email. An email that already has a sign-in answers 400 `validation` with detail `{ field: 'email', reason: 'existing_account', currentRole, currentlyActive, displayName }` before any write; resent with `linkExisting: true`, that account is linked (no new login, no set-password email) and the answer adds `linkedExisting: true`. Refused before any write: an account that is already staff, a login whose email is not verified (`reason: 'unverified_account'`) and a disabled login (`reason: 'disabled_account'`). A link's 502 `partial_failure` detail adds `previous_role` and `previous_active` |
 | `PUT /api/seva/staff/[id]` | TA (roles and view-only below super admin, reactivate a non-super-admin); SA (give Super admin, reactivate a super admin, deactivate, delete) | `{ role?, viewOnly?, status? ('active', 'inactive', 'deleted'), reason? }` (deactivate and delete need a reason) | the person; a step that fails after an earlier one went through answers 502 `partial_failure` with what was done |
 
 ### Public QR page (not an API route)

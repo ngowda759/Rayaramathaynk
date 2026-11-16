@@ -32,7 +32,7 @@ function jsonResponse(status: number, body: Record<string, unknown>): Response {
  * Admin fetch that attaches a fresh Supabase Auth access token to every request.
  *
  * Raya AI administration authenticates with Supabase Auth (the temple's other
- * admin pages still use Firebase). The session cookie set by `@supabase/ssr` is
+ * admin pages use Supabase Auth). The session cookie set by `@supabase/ssr` is
  * sent automatically to same-origin route handlers; the access token is also
  * attached as `Authorization: Bearer` so the server guard can verify it
  * explicitly and so non-cookie callers work the same way.

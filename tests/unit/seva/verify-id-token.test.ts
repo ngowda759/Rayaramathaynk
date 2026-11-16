@@ -5,15 +5,11 @@ import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 
 jest.mock("server-only", () => ({}), { virtual: true });
 
-const mockVerifyIdToken = jest.fn();
-const mockGetAdminApp = jest.fn();
-
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({ verifyIdToken: (...args: unknown[]) => mockVerifyIdToken(...args) }),
-}));
-
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: (...args: unknown[]) => mockGetAdminApp(...args),
+const mockGetUser = jest.fn();
+jest.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: () => ({
+    auth: { getUser: (...args: unknown[]) => mockGetUser(...args) },
+  }),
 }));
 
 function makeRequest(authorization?: string): Request {
@@ -24,7 +20,6 @@ function makeRequest(authorization?: string): Request {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetAdminApp.mockResolvedValue({});
 });
 
 describe("verifyBearerIdToken", () => {
@@ -32,17 +27,17 @@ describe("verifyBearerIdToken", () => {
     expect(await verifyBearerIdToken(makeRequest())).toBeNull();
     expect(await verifyBearerIdToken(makeRequest("Basic abc"))).toBeNull();
     expect(await verifyBearerIdToken(makeRequest("Bearer    "))).toBeNull();
-    expect(mockVerifyIdToken).not.toHaveBeenCalled();
+    expect(mockGetUser).not.toHaveBeenCalled();
   });
 
   it("returns null for an invalid token", async () => {
-    mockVerifyIdToken.mockRejectedValue(Object.assign(new Error("bad token"), { code: "auth/argument-error" }));
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "bad token" } });
     expect(await verifyBearerIdToken(makeRequest("Bearer not-a-token"))).toBeNull();
-    expect(mockVerifyIdToken).toHaveBeenCalledWith("not-a-token");
+    expect(mockGetUser).toHaveBeenCalledWith("not-a-token");
   });
 
   it("returns null when the server cannot verify tokens at all", async () => {
-    mockGetAdminApp.mockRejectedValue(new Error("No Firebase Admin credentials found."));
+    mockGetUser.mockRejectedValue(new Error("No Supabase credentials found."));
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
 
     expect(await verifyBearerIdToken(makeRequest("Bearer secret-token-value"))).toBeNull();
@@ -53,16 +48,16 @@ describe("verifyBearerIdToken", () => {
   });
 
   it("returns uid and email for a valid token", async () => {
-    mockVerifyIdToken.mockResolvedValue({ uid: "u1", email: "devotee@example.org" });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1", email: "devotee@example.org" } }, error: null });
     expect(await verifyBearerIdToken(makeRequest("Bearer good-token"))).toEqual({
       uid: "u1",
       email: "devotee@example.org",
     });
-    expect(mockVerifyIdToken).toHaveBeenCalledWith("good-token");
+    expect(mockGetUser).toHaveBeenCalledWith("good-token");
   });
 
   it("returns a null email when the token carries none", async () => {
-    mockVerifyIdToken.mockResolvedValue({ uid: "u2" });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u2", email: null } }, error: null });
     expect(await verifyBearerIdToken(makeRequest("Bearer phone-only"))).toEqual({ uid: "u2", email: null });
   });
 });

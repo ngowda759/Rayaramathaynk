@@ -67,7 +67,7 @@ All admin modules follow this pattern:
 ```typescript
 // services/[module].service.ts
 export class ModuleService {
-  // All operations go through service - no direct Firestore calls
+  // All operations go through service - no direct Supabase calls
   
   async getAll(options?: QueryOptions): Promise<ModuleItem[]> { ... }
   async getById(id: string): Promise<ModuleItem | null> { ... }

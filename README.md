@@ -1,6 +1,6 @@
 # Rayara Math Temple Portal
 
-A modern, responsive temple management portal built using **Next.js**, **TypeScript**, **Tailwind CSS**, and **Firebase**. The application provides devotees with an easy way to explore temple information, book sevas, make donations, view events, and allows administrators to efficiently manage temple operations.
+A modern, responsive temple management portal built using **Next.js**, **TypeScript**, **Tailwind CSS**, and **Supabase**. The application provides devotees with an easy way to explore temple information, book sevas, make donations, view events, and allows administrators to efficiently manage temple operations.
 
 ----
 
@@ -42,15 +42,14 @@ A modern, responsive temple management portal built using **Next.js**, **TypeScr
 
 ### Backend
 
-* Firebase Authentication
-* Firestore Database
-* Firebase Storage
-* Firebase Hosting (optional)
+* Supabase Authentication
+* Supabase PostgreSQL Database
+* Supabase Storage
+* Vercel Blob (testimonial photos)
 
 ### Deployment
 
 * Vercel
-* Firebase Hosting
 
 ---
 
@@ -100,7 +99,7 @@ Create your environment file:
 cp .env.example .env.local
 ```
 
-Fill in the required Firebase configuration values.
+Fill in the required Supabase configuration values.
 
 Start the development server:
 
@@ -164,12 +163,6 @@ Runs ESLint.
 vercel
 ```
 
-### Firebase
-
-```bash
-firebase deploy
-```
-
 ---
 
 ## AI Settings & Seed API
@@ -178,7 +171,7 @@ The portal includes an AI chatbot (Raya) that provides information about temple 
 
 ### Initializing AI Settings
 
-After deployment, you need to seed the AI settings to Firestore. Follow these steps:
+After deployment, you need to seed the AI settings into Supabase. Follow these steps:
 
 #### Option 1: Using the Admin UI (Recommended)
 
@@ -199,7 +192,7 @@ curl -X POST https://your-domain.com/api/seed-ai-settings
 
 ### What Gets Seeded
 
-The seed operation creates the following Firestore documents:
+The seed operation creates the following Supabase rows:
 
 | Collection | Document | Description |
 |------------|----------|-------------|
@@ -218,31 +211,13 @@ For the seed API to work in production, ensure these environment variables are s
 
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Your Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API key |
-| `FIREBASE_ADMIN_PRIVATE_KEY` | Service account private key |
-| `FIREBASE_ADMIN_CLIENT_EMAIL` | Service account email |
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon (publishable) key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (server only) |
 
-### Firebase Firestore Rules
-
-The seed API requires write access to `ai_settings` and `settings` collections. Update your Firestore rules:
-
-```javascript
-match /ai_settings/{docId} {
-  allow read: if true;
-  allow write: if true;
-}
-
-match /settings/{docId} {
-  allow read: if true;
-  allow write: if true;
-}
-```
-
-To deploy rules via Firebase CLI:
-```bash
-firebase deploy --only firestore:rules
-```
+The seed API writes to the `ai_settings` and `settings` tables with the service-role key, so no
+Row Level Security policy change is needed. Access is restricted to authenticated administrators by
+the route guard.
 
 ---
 
@@ -301,7 +276,7 @@ Built with:
 * React
 * TypeScript
 * Tailwind CSS
-* Firebase
+* Supabase
 * Vercel
 
 ---

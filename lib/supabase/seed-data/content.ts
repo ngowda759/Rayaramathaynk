@@ -1,7 +1,7 @@
 /**
  * Fresh Supabase-native starter content for the content and configuration tables.
  *
- * Every record is created directly in Supabase. Nothing here reads Firebase or a
+ * Every record is created directly in Supabase. Nothing here reads a legacy store or a
  * Firestore export. Content is split three ways (docs/CONTENT-GUIDELINES.md):
  *
  *  - verified   — already published in this repository's own data modules

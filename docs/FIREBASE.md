@@ -1,8 +1,15 @@
 # Firebase Documentation
 
+> **Superseded (2026-11-16).** Firebase has been fully retired. Supabase is the only backend for
+> authentication, database, profiles, storage, settings, analytics and Raya AI. This document is
+> kept as a historical record of the Firestore schema that was migrated; it is **not** a
+> description of the current system. See `docs/DATA-MODEL.md` for the current Supabase schema and
+> `docs/audits/FIREBASE_RETIREMENT_AUDIT.md` for the retirement record. No application runtime code
+> reads Firebase.
+
 ## Overview
 
-The project uses Firebase for backend services:
+The project **used to** use Firebase for backend services:
 - **Firebase Authentication** - User authentication
 - **Cloud Firestore** - Database
 - **Firebase Storage** - File storage (images, videos)
