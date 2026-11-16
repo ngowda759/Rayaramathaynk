@@ -1045,3 +1045,48 @@ Details: `.openhands/memory/2026-11-03.md`.
   (pattern from `guard-test-project.test.ts`).
 - Two tests fail on `main` unrelated to migrations: `seed-fresh-supabase-guards.test.ts`
   (npm notice echoes argv into child stderr). Details: `.openhands/memory/2026-11-13.md`.
+## Missing settings_documents keys + consolidated initializer (2026-11-14)
+
+- Production `public.settings_documents` had 8 rows but the app expects more. Read-only
+  audit found **missing**: `homepage`, `guruParampara`, `socialLinks`, `shlokas`,
+  `festivalCalendar`, `ekadashiCalendar`, `device` (`trustCommittee` was fixed by PR #411).
+- **`homepage` is already in `SETTINGS_DOCUMENT_SEEDS`** (`lib/supabase/seed-data/settings-documents.ts`,
+  9 keys incl. homepage). The gap is NOT a missing seed: `seed-fresh-supabase.ts` refuses the
+  approved production ref, so the seed has **no production path**. `homepage` is also NOT in the
+  runtime registry `SETTINGS_DOCUMENT_KEYS` (12 keys); it is read by `services/homepage.server.ts`.
+- New Supabase-only, **insert-only** consolidated initializer (no Firestore, never overwrites):
+  `lib/supabase/seed-data/settings-initialization.ts` + `scripts/seed-missing-settings-supabase.ts`
+  (`npm run seed:missing-settings`; dry-run default; `--execute --confirm initialize-missing-settings`;
+  approved-ref guard; `upsert(..., {ignoreDuplicates:true})` = `ON CONFLICT DO NOTHING`). It
+  initializes `homepage` only; the other keys are in `EXCLUDED_SETTINGS_KEYS` with reasons
+  (guruParampara: no canonical seed + admin 17 vs `GURU_BIOGRAPHIES` 18; socialLinks: admin writes
+  the settings_documents key but public reads the `social_links` TABLE; shlokas/festival/ekadashi:
+  public pages read `data/*.ts`; device: no live reader).
+- Tests: `tests/unit/settings-initialization.test.ts` (25) + `tests/db/settings-initialization.test.ts`
+  (7, PGlite). New guard tests use `npx --no-install` to avoid the pre-existing
+  `seed-fresh-supabase-guards.test.ts` npm-notice failure. Details: `.openhands/memory/2026-11-14.md`.
+
+## Firebase retirement — Supabase-only runtime, PR #416 (2026-11-16)
+
+- Branch `retire-firebase-supabase-only`, PR #416 → `main`. Full inventory in
+  `docs/audits/FIREBASE_RETIREMENT_AUDIT.md` (5-class classification).
+- **Runtime is Supabase-only.** Deleted `lib/firebase.ts`, `lib/admin-firebase.ts`,
+  `lib/utils/firebase-key-parser.ts`, `lib/auth/fallback-telemetry.ts`,
+  `lib/seva/server/identity-firebase.ts`. Auth = Supabase access token / session cookie only;
+  profiles+roles from `public.users`, staff from `public.staff`. Also removed `firebase.json`,
+  `firestore.rules`, `firestore.indexes.json`, `storage.rules`, `jest.rules.config.ts`,
+  `tests/rules/**`, the Firestore migration/dump/diagnostic scripts and their workflows, and the
+  `NEXT_PUBLIC_FIREBASE_*` env vars.
+- **Guard test:** `tests/unit/no-firebase-runtime.test.ts` walks app/ lib/ services/ components/
+  hooks/ context/ middleware next.config types/ and fails on any Firebase import/entry/env read/endpoint.
+- **Two legacy column names are retained on purpose** (inert provenance keys, not connections):
+  `firestore_id` (migrated row ids → stable public URLs) and `firebase_uid` (`staff`, `NOT NULL`,
+  still matched by `lib/seva/server/auth.ts`; canonical key is `auth_user_id`). The guard allows
+  these names but forbids the SDK/endpoint surface.
+- **e2e seva harness** now runs a **local Supabase stack** via `scripts/e2e/run-seva-e2e.mjs`
+  (replaces `firebase-tools emulators:exec --only auth,firestore`); `tests/e2e/seva/server-env.ts`
+  supplies local URL/keys. Legacy `tests/e2e/{firestore,storage}/*.spec.ts` removed.
+- **Pre-existing failure (not ours):** `tests/unit/seed-fresh-supabase-guards.test.ts`
+  "refuses the approved production ref even with test-project confirmation" — npm notice echoes argv
+  into child stderr so `stderr` contains the ref; fails identically on `main`.
+- Validation: typecheck pass; lint 0 errors; unit 237/238 suites, 3490 pass; build 268/268 pages.
