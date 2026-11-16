@@ -1,14 +1,20 @@
 // Helper utilities for Supabase storage URLs.
-import { createAdminClient } from '@/lib/supabase/admin';
+// import { createAdminClient } from '@/lib/supabase/admin'; // Removed to avoid storage SDK usage
 
 /**
  * Returns a public URL for a given bucket and path using Supabase Storage.
  * Assumes the bucket is public.
  */
 export function getPublicUrl(bucket: string, path: string): string {
-  const supabase = createAdminClient();
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data?.publicUrl ?? '';
+  // Manually construct the public URL without using the Supabase Storage SDK.
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/^https:\/\//, '');
+  if (!base) {
+    console.warn('Missing NEXT_PUBLIC_SUPABASE_URL env var for public URL construction');
+    return '';
+  }
+  // Encode each path segment separately to avoid double‑encoding.
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+  return `https://${base}/storage/v1/object/public/${bucket}/${encodedPath}`;
 }
 
 /**
