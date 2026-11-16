@@ -49,7 +49,9 @@ export function normaliseHeroImage(value: string): string {
     }
 
     // Supabase Dashboard URL – contains '/buckets/' and query parameters
-    if (url.hostname.includes('supabase.com') && url.pathname.includes('/buckets/')) {
+    const hostname = url.hostname.toLowerCase();
+    const isSupabaseHost = hostname === 'supabase.com' || hostname.endsWith('.supabase.com');
+    if (isSupabaseHost && url.pathname.includes('/buckets/')) {
       const pathParam = url.searchParams.get('path');
       const preview = url.searchParams.get('preview');
       if (pathParam) {
