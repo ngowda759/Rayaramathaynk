@@ -18,19 +18,83 @@ export function getPublicUrl(bucket: string, path: string): string {
  * - Returns raw relative path otherwise.
  */
 export function normaliseHeroImage(value: string): string {
+  // Return empty string for falsy input
   if (!value) return '';
 
-  // Supabase dashboard URL with preview param
-  // Example: https://supabase.com/dashboard/project/<proj>/storage/files/buckets/<bucket>?path=Folder+Name&preview=filename.jpg
-  const dashMatch = value.match(/buckets\/[^/]+\?path=([^&]+)&preview=([^&]+)/i);
-  if (dashMatch) {
-    const folder = decodeURIComponent(dashMatch[1].replace(/\+/g, ' '));
-    const file = decodeURIComponent(dashMatch[2]);
-    return `${folder}/${file}`;
+  // Helper to decode plus‑sign spaces and percent‑encoding
+  const decode = (s: string) => decodeURIComponent(s.replace(/\+/g, ' '));
+
+  // Attempt to treat the value as a URL first (Supabase dashboard or public URL)
+  try {
+    const url = new URL(value);
+
+    // Public storage URL (e.g. https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>)
+    if (url.pathname.includes('/object/public/')) {
+      // Split after '/object/public/' to get "<bucket>/<path>"
+      const [, bucketAndPath] = url.pathname.split('/object/public/');
+      if (bucketAndPath) {
+        const slashIdx = bucketAndPath.indexOf('/');
+        if (slashIdx !== -1) {
+          const path = bucketAndPath.slice(slashIdx + 1);
+          return decode(path);
+        }
+      }
+    }
+
+    // Supabase Dashboard URL – contains '/buckets/' and query parameters
+    if (url.hostname.includes('supabase.com') && url.pathname.includes('/buckets/')) {
+      const pathParam = url.searchParams.get('path');
+      const preview = url.searchParams.get('preview');
+      if (pathParam) {
+        const folder = decode(pathParam);
+        if (preview) {
+          const file = decode(preview);
+          return `${folder}/${file}`;
+        }
+        return folder;
+      }
+    }
+  } catch {
+    // Not a valid URL – fall back to string handling
+  }
+
+  // Legacy dashboard string format: "buckets/<bucket>/<relativePath>"
+  const legacyPrefix = 'buckets/';
+  if (value.startsWith(legacyPrefix)) {
+    const parts = value.split('/');
+    // Expected: ['buckets', '<bucket>', '<path>', ...]
+    if (parts.length >= 3) {
+      const relative = parts.slice(2).join('/');
+      return decode(relative);
+    }
+  }
+
+  // Assume the value is already a relative path – just decode plus signs
+  return decode(value);
+}
+  if (!value) return '';
+
+  // Try parsing as a Supabase dashboard URL
+  try {
+    const url = new URL(value);
+    if (url.hostname.includes('supabase.com') && url.pathname.includes('/buckets/')) {
+      const pathParam = url.searchParams.get('path');
+      const preview = url.searchParams.get('preview');
+      if (pathParam) {
+        const folder = decodeURIComponent(pathParam.replace(/\+/g, ' '));
+        if (preview) {
+          const file = decodeURIComponent(preview.replace(/\+/g, ' '));
+          return `${folder}/${file}`;
+        }
+        return folder;
+      }
+    }
+  } catch {
+    // Not a URL – fall back to other patterns
   }
 
   // Public URL pattern from Supabase getPublicUrl
-  const publicMatch = value.match(/https?:\/\/[^\/]+\/storage\/v1\/object\/public\/[^\/]+\/(.+)$/i);
+  const publicMatch = value.match(/https?:\/\/[^/]+\/storage\/v1\/object\/public\/[^/]+\/(.+)$/i);
   if (publicMatch) {
     return decodeURIComponent(publicMatch[1]);
   }
