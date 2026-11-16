@@ -15,6 +15,7 @@ import {
   DailyQuote,
   FeaturedEvent,
 } from "@/types/daily-spiritual";
+import { useMounted } from "@/hooks/useMounted";
 
 interface DailySpiritualDashboardProps {
   initialData?: {
@@ -22,6 +23,7 @@ interface DailySpiritualDashboardProps {
     quote: DailyQuote | null;
     featuredEvent: FeaturedEvent | null;
     announcement2: string | null;
+    lastUpdated?: string | null;
   } | null;
 }
 
@@ -30,6 +32,7 @@ function formatTime(date: Date): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    timeZone: "Asia/Kolkata",
   });
 }
 
@@ -39,6 +42,7 @@ function formatDate(date: Date): string {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 }
 
@@ -79,6 +83,7 @@ function FeaturedAnnouncementBanner({ text }: { text: string | null }) {
  * Temple Status Card Widget
  */
 function TempleStatusCard({ status }: { status: TempleStatus }) {
+  const mounted = useMounted();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -148,7 +153,7 @@ function TempleStatusCard({ status }: { status: TempleStatus }) {
               Current Time
             </p>
             <p className="mt-1 font-mono text-lg font-bold text-stone-900">
-              {formatTime(currentTime)}
+              {mounted ? formatTime(currentTime) : status.currentTime}
             </p>
           </div>
 
@@ -264,6 +269,7 @@ export default function DailySpiritualDashboard({
 }: DailySpiritualDashboardProps) {
   const [data] = useState(initialData);
   const [loading] = useState(!initialData);
+  const mounted = useMounted();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Update time every minute
@@ -273,6 +279,17 @@ export default function DailySpiritualDashboard({
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // The header date is derived from the clock, which differs between the server
+  // render and the client's first render (and across an ISR-cached page). The
+  // server-provided `lastUpdated` is stable on both, so use it until the client
+  // can safely fall back to the live clock after hydration.
+  const lastUpdated = initialData?.lastUpdated ?? null;
+  const displayDate: Date | null = lastUpdated
+    ? new Date(lastUpdated)
+    : mounted
+      ? currentTime
+      : null;
 
   if (loading) {
     return (
@@ -287,7 +304,7 @@ export default function DailySpiritualDashboard({
               Today&apos;s Spiritual Journey
             </h2>
             <p className="mt-2 text-stone-600">
-              {formatDate(currentTime)}
+              {displayDate ? formatDate(displayDate) : "\u00A0"}
             </p>
           </div>
 
@@ -327,7 +344,7 @@ export default function DailySpiritualDashboard({
             Today&apos;s Spiritual Journey
           </h2>
           <p className="mt-2 text-stone-600">
-            {formatDate(currentTime)}
+            {displayDate ? formatDate(displayDate) : "\u00A0"}
           </p>
         </motion.div>
 
