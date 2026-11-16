@@ -5,9 +5,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
  * Assumes the bucket is public.
  */
 export function getPublicUrl(bucket: string, path: string): string {
-  const supabase = createAdminClient();
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data?.publicUrl ?? '';
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
+  if (!baseUrl) {
+    console.error('[supabase] Missing NEXT_PUBLIC_SUPABASE_URL env var');
+    return '';
+  }
+  // Encode path but preserve slashes
+  const encodedPath = encodeURIComponent(path).replace(/%2F/g, '/');
+  return `${baseUrl}/storage/v1/object/public/${bucket}/${encodedPath}`;
 }
 
 /**
