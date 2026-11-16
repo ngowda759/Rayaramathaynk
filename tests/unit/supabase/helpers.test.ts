@@ -1,3 +1,4 @@
+// Unit tests for normaliseHeroImage
 import { normaliseHeroImage } from '@/lib/supabase/helpers';
 
 describe('normaliseHeroImage', () => {
