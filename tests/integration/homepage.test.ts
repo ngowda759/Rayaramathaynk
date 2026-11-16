@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { homepageService } from '@/services/homepage.server';
 import { normaliseHeroImage, getPublicUrl } from '@/lib/supabase/helpers';
 
@@ -30,5 +31,45 @@ describe('HomepageService.saveHomepage integration', () => {
       expect.objectContaining({ data: expect.objectContaining({ heroImage: expectedPublic }) }),
       { onConflict: 'document_key' },
     );
+=======
+// tests/integration/homepage.test.ts
+// Mock server-only to bypass client component restriction
+jest.mock('server-only', () => ({}), { virtual: true });
+
+import { homepageService } from '@/services/homepage.server';
+import { supabase } from '@/lib/supabase/admin';
+import { normaliseHeroImage } from '@/lib/supabase/helpers';
+
+jest.mock('@/lib/supabase/admin', () => {
+  const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+  const mockFrom = jest.fn(() => ({ upsert: mockUpsert }));
+  return {
+    createAdminClient: () => ({ from: mockFrom }),
+    supabase: { from: mockFrom },
+  };
+});
+
+describe('HomepageService.saveHomepage integration', () => {
+  it('should normalise hero image URL before persisting', async () => {
+    const dashboardUrl =
+      'https://supabase.com/dashboard/project/kvrkraqjuyxbraccxntk/storage/files/buckets/RayaramathaYNK?path=General+Pictures&preview=9d28d1beb69c661e8f897d6297d7034e.jpg';
+    const expectedPublicUrl =
+      'https://supabase.com/storage/v1/object/public/RayaramathaYNK/General Pictures/9d28d1beb69c661e8f897d6297d7034e.jpg';
+    // Mock config with heroImage as dashboard URL
+    const config = {
+      ...homepageService.getDefaultConfig(),
+      heroTitle: 'Test',
+      heroSubtitle: '',
+      heroImage: dashboardUrl,
+    } as any;
+
+    // Spy on normaliseHeroImage indirectly via saveHomepage (assuming it uses that helper)
+    await homepageService.saveHomepage(config);
+    // Verify upsert called with normalized URL
+    const mockFrom = require('@/lib/supabase/admin').supabase.from;
+    const upsertCall = mockFrom.mock.calls[0][0]; // table name
+    const upsertData = mockFrom.mock.results[0].value.upsert.mock.calls[0][0];
+    expect(upsertData.data.heroImage).toBe(expectedPublicUrl);
+>>>>>>> a3308b06 (Helper ts fix)
   });
 });

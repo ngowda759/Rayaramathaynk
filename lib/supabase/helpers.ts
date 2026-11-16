@@ -1,3 +1,4 @@
+// Helper utilities for Supabase storage URLs.
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -22,7 +23,7 @@ export function normaliseHeroImage(value: string): string {
   if (!value) return '';
 
   // Helper to decode plus‑sign spaces and percent‑encoding
-  const decode = (s: string) => decodeURIComponent(s.replace(/\+/g, ' '));
+  const decode = (s: string) => decodeURIComponent(s.replace(/\\+/g, ' '));
 
   // Attempt to treat the value as a URL first (Supabase dashboard or public URL)
   try {
@@ -71,40 +72,4 @@ export function normaliseHeroImage(value: string): string {
 
   // Assume the value is already a relative path – just decode plus signs
   return decode(value);
-}
-  if (!value) return '';
-
-  // Try parsing as a Supabase dashboard URL
-  try {
-    const url = new URL(value);
-    if (url.hostname.includes('supabase.com') && url.pathname.includes('/buckets/')) {
-      const pathParam = url.searchParams.get('path');
-      const preview = url.searchParams.get('preview');
-      if (pathParam) {
-        const folder = decodeURIComponent(pathParam.replace(/\+/g, ' '));
-        if (preview) {
-          const file = decodeURIComponent(preview.replace(/\+/g, ' '));
-          return `${folder}/${file}`;
-        }
-        return folder;
-      }
-    }
-  } catch {
-    // Not a URL – fall back to other patterns
-  }
-
-  // Public URL pattern from Supabase getPublicUrl
-  const publicMatch = value.match(/https?:\/\/[^/]+\/storage\/v1\/object\/public\/[^/]+\/(.+)$/i);
-  if (publicMatch) {
-    return decodeURIComponent(publicMatch[1]);
-  }
-
-  // Legacy dashboard URL without preview (bucket path after /buckets/)
-  const legacyMatch = value.match(/buckets\/[^/]+\/(.+)$/i);
-  if (legacyMatch) {
-    return decodeURIComponent(legacyMatch[1]);
-  }
-
-  // Assume already a relative path like "General Pictures/hero.jpg"
-  return value;
 }
