@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     const identity = getIdentityAdapter();
     const [profile, target] = await Promise.all([
       identity.getAccessProfile(loginUid),
-      db.from("staff").select("id, firebase_uid, view_only, status").eq("firebase_uid", loginUid).maybeSingle(),
+      db.from("staff").select("id, view_only, status").eq("auth_user_id", loginUid).maybeSingle(),
     ]);
 
     if (!profile) {

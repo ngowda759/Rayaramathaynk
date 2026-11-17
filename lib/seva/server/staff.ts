@@ -61,7 +61,7 @@ export const staffListQuerySchema = z.object({
 // Reading staff rows
 // ---------------------------------------------------------------------------------------------------------------------
 
-const STAFF_COLUMNS = "id, firebase_uid, staff_no, full_name, email, view_only, status, invited_at, first_signed_in_at";
+const STAFF_COLUMNS = "id, auth_user_id, staff_no, full_name, email, view_only, status, invited_at, first_signed_in_at";
 const STATUSES: readonly StaffStatus[] = ["invited", "active", "inactive", "deleted"];
 const FILTER_STATUSES: Record<StaffListFilter, readonly StaffStatus[] | null> = {
   all: null,
@@ -71,7 +71,8 @@ const FILTER_STATUSES: Record<StaffListFilter, readonly StaffStatus[] | null> = 
 
 interface StaffRow {
   id: string;
-  firebaseUid: string;
+  /** The Supabase Auth UUID this staff row is linked to; null until the office links the row (identity unification). */
+  authUserId: string | null;
   staffNo: number;
   fullName: string;
   email: string;
@@ -95,7 +96,7 @@ function toStaffRow(raw: unknown): StaffRow {
   const row = (raw ?? {}) as Record<string, unknown>;
   if (
     typeof row.id !== "string" ||
-    typeof row.firebase_uid !== "string" ||
+    (row.auth_user_id !== null && row.auth_user_id !== undefined && typeof row.auth_user_id !== "string") ||
     typeof row.staff_no !== "number" ||
     typeof row.full_name !== "string" ||
     typeof row.email !== "string" ||
@@ -106,7 +107,7 @@ function toStaffRow(raw: unknown): StaffRow {
   }
   return {
     id: row.id,
-    firebaseUid: row.firebase_uid,
+    authUserId: typeof row.auth_user_id === "string" ? row.auth_user_id : null,
     staffNo: row.staff_no,
     fullName: row.full_name,
     email: row.email,
@@ -125,12 +126,21 @@ function rowsOf(result: { data: unknown; error: unknown }): unknown[] {
 
 async function findStaff(
   db: AdminClient,
-  column: "id" | "firebase_uid" | "email" | "staff_no",
+  column: "id" | "auth_user_id" | "email" | "staff_no",
   value: string | number,
 ): Promise<StaffRow | null> {
   const { data, error } = await db.from("staff").select(STAFF_COLUMNS).eq(column, value).maybeSingle();
   if (error) throw new SevaError("internal");
   return data ? toStaffRow(data) : null;
+}
+
+/**
+ * The Supabase Auth UUID a staff row is linked to. A row with no `auth_user_id` has no sign-in to act on, so every
+ * identity write (role, deactivate, reactivate, delete) fails closed with `internal` rather than guessing a login.
+ */
+function identityUidOf(row: StaffRow): string {
+  if (!row.authUserId) throw new SevaError("internal");
+  return row.authUserId;
 }
 
 /** A timestamptz from PostgREST as an ISO-8601 UTC string; null when missing or unreadable. */
@@ -182,7 +192,10 @@ export async function listStaff(filter: StaffListFilter): Promise<StaffMember[]>
   const identity = getIdentityAdapter();
   return Promise.all(
     rows.map(async (row): Promise<StaffMember> => {
-      const [profile, lastActiveAt] = await Promise.all([identity.getAccessProfile(row.firebaseUid), lastActivity(db, row)]);
+      const [profile, lastActiveAt] = await Promise.all([
+        row.authUserId ? identity.getAccessProfile(row.authUserId) : Promise.resolve(null),
+        lastActivity(db, row),
+      ]);
       return {
         id: row.id,
         staffNo: row.staffNo,
@@ -310,7 +323,7 @@ async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnbo
   const login = await identity.findLoginByEmail(input.email);
   if (!login) return null;
   const [staff, profile] = await Promise.all([
-    findStaff(db, "firebase_uid", login.externalUid),
+    findStaff(db, "auth_user_id", login.externalUid),
     identity.getAccessProfile(login.externalUid),
   ]);
   if (staff) throw invalid("email", `This website account is already staff (staff no. ${staffNoText(staff.staffNo)})`);
@@ -417,68 +430,44 @@ export async function onboardStaff(
             if (typeof id !== "string" || id === "") throw new SevaError("internal");
             staffId = id;
 
-            // Phase 2 Supabase Identity Unification:
-            // 1. Populate auth_user_id on public.staff when a Supabase identity is available
-            let authUserId = opts.authUserId ?? null;
-            if (!authUserId) {
-              try {
-                const sbAdmin = db as unknown as { auth?: { admin?: { getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } } }> } } };
-                if (typeof sbAdmin?.auth?.admin?.getUserByEmail === "function") {
-                  const { data } = await sbAdmin.auth.admin.getUserByEmail(input.email);
-                  if (data?.user?.id) {
-                    authUserId = data.user.id;
-                  }
-                }
-              } catch {
-                // Supabase Auth admin lookup is optional
-              }
-            }
+            // The row's canonical Supabase Auth identity is `auth_user_id`. `externalUid` is a Supabase Auth UUID on
+            // every path (a fresh createLogin, a linked account, or create-admin's Supabase sync); `firebase_uid` is
+            // written once by the SQL function above for rollback compatibility and is never read again.
+            const authUserId = opts.authUserId ?? (externalUid || null);
 
             if (authUserId) {
-              try {
-                const staffBuilder = db.from("staff");
-                if (typeof (staffBuilder as { update?: unknown })?.update === "function") {
-                  await (staffBuilder as unknown as { update: (vals: Record<string, unknown>) => { eq: (col: string, val: unknown) => Promise<unknown> } })
-                    .update({ auth_user_id: authUserId })
-                    .eq("id", staffId);
-                }
-              } catch {
-                // Non-blocking if table update not supported in mock
-              }
+              const { error: linkError } = await db.from("staff").update({ auth_user_id: authUserId }).eq("id", staffId);
+              if (linkError) throw new SevaError("internal");
             }
 
-            // 2. Ensure the appropriate public.users authorization record exists
-            try {
-              const usersBuilder = db.from("users");
-              if (typeof usersBuilder?.select === "function") {
-                const { data: existingUser } = await usersBuilder
-                  .select("id, firestore_id, auth_user_id")
-                  .eq("email", input.email)
-                  .maybeSingle();
+            // Keep the `public.users` authorization record (role + active) in step with the staff row.
+            const { data: existingUser, error: readError } = await db
+              .from("users")
+              .select("id")
+              .eq("email", input.email)
+              .maybeSingle();
+            if (readError) throw new SevaError("internal");
 
-                if (existingUser && typeof (usersBuilder as { update?: unknown })?.update === "function") {
-                  await (usersBuilder as unknown as { update: (vals: Record<string, unknown>) => { eq: (col: string, val: unknown) => Promise<unknown> } })
-                    .update({
-                      role: input.role,
-                      active: true,
-                      display_name: input.fullName,
-                      firestore_id: externalUid || (existingUser as { firestore_id?: string | null }).firestore_id,
-                      ...(authUserId ? { auth_user_id: authUserId } : {}),
-                    })
-                    .eq("id", (existingUser as { id: string }).id);
-                } else if (!existingUser && typeof (usersBuilder as { insert?: unknown })?.insert === "function") {
-                  await (usersBuilder as unknown as { insert: (vals: Record<string, unknown>) => Promise<unknown> }).insert({
-                    email: input.email,
-                    display_name: input.fullName,
-                    role: input.role,
-                    active: true,
-                    firestore_id: externalUid || null,
-                    auth_user_id: authUserId ?? null,
-                  });
-                }
-              }
-            } catch {
-              // Non-blocking in mock environments
+            if (existingUser) {
+              const { error: updateError } = await db
+                .from("users")
+                .update({
+                  role: input.role,
+                  active: true,
+                  display_name: input.fullName,
+                  ...(authUserId ? { auth_user_id: authUserId } : {}),
+                })
+                .eq("id", (existingUser as { id: string }).id);
+              if (updateError) throw new SevaError("internal");
+            } else {
+              const { error: insertError } = await db.from("users").insert({
+                email: input.email,
+                display_name: input.fullName,
+                role: input.role,
+                active: true,
+                auth_user_id: authUserId,
+              });
+              if (insertError) throw new SevaError("internal");
             }
           },
         },
@@ -566,7 +555,8 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
   if (target.id === actor.staffId) throw new SevaError("forbidden");
 
   const identity = getIdentityAdapter();
-  const profile = await identity.getAccessProfile(target.firebaseUid);
+  const authUserId = target.authUserId;
+  const profile = authUserId ? await identity.getAccessProfile(authUserId) : null;
   const rawRole = typeof profile?.role === "string" ? profile.role : null;
   const currentRole: SevaRole | undefined = mapFirestoreRole(profile?.role) ?? undefined;
 
@@ -593,19 +583,20 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
           ? "reactivate"
           : null;
   const reason = patch.reason ? patch.reason : null;
-  const uid = target.firebaseUid;
 
   const profilePatch: { role?: string; isActive?: boolean } = {};
   if (newRole) profilePatch.role = newRole;
   if (change) profilePatch.isActive = change === "reactivate";
 
+  // Every identity write targets the row's linked Supabase Auth UUID. A row without one (auth_user_id NULL) has no
+  // login to change, so a role or status change on it fails closed here, before any write.
   const identityWrites: Write[] = [];
-  if (change === "deactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(uid, false) });
+  if (change === "deactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(identityUidOf(target), false) });
   if (Object.keys(profilePatch).length > 0) {
-    identityWrites.push({ name: "profile", run: () => identity.setAccessProfile(uid, profilePatch) });
+    identityWrites.push({ name: "profile", run: () => identity.setAccessProfile(identityUidOf(target), profilePatch) });
   }
-  if (change === "reactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(uid, true) });
-  if (change === "delete") identityWrites.push({ name: "login", run: () => identity.deleteLogin(uid) });
+  if (change === "reactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(identityUidOf(target), true) });
+  if (change === "delete") identityWrites.push({ name: "login", run: () => identity.deleteLogin(identityUidOf(target)) });
 
   const staffPatch: { view_only?: boolean; status?: string } = {};
   if (viewOnly !== undefined && viewOnly !== target.viewOnly) staffPatch.view_only = viewOnly;
@@ -649,7 +640,7 @@ export async function setAccountRole(
   const identity = getIdentityAdapter();
   const [profile, target] = await Promise.all([
     identity.getAccessProfile(input.externalUid),
-    findStaff(db, "firebase_uid", input.externalUid),
+    findStaff(db, "auth_user_id", input.externalUid),
   ]);
   if (!profile) throw new SevaError("not_found", { entity: "user" });
   if (input.externalUid === actor.uid || target?.id === actor.staffId) throw new SevaError("forbidden");

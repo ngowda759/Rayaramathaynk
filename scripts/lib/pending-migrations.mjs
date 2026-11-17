@@ -91,6 +91,13 @@ export const APPROVED_PENDING_MIGRATIONS = Object.freeze([
   // migration declares — so its `ADD COLUMN IF NOT EXISTS` is a no-op schema change
   // that only records the ledger entry.
   "20261201000000", // add_is_approved_to_users — verified no-op on production
+  // 2026-12-02 staff identity backfill. VERIFIED against production on 2026-11-16:
+  // both staff rows carry a UUID-valued `firebase_uid`; the one row without
+  // `auth_user_id` (staff_no 2, invited) has `firebase_uid` equal to its Supabase Auth
+  // UUID. This migration only fills `auth_user_id` where it is NULL, from a
+  // UUID-shaped `firebase_uid`, so it links the outstanding row and is a no-op
+  // elsewhere. It does not touch `firebase_uid`, `staff_no` or `status`.
+  "20261202000000", // backfill_staff_auth_user_id — verified one-row fill on production
 ]);
 
 /**

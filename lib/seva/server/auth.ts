@@ -27,7 +27,6 @@ import { SevaError, type SevaErrorCode } from "@/lib/seva/errors";
 import { can, isWriteAction, mapFirestoreRole, type PermissionContext, type SevaActor } from "@/lib/seva/permissions";
 import { businessDate } from "@/lib/seva/time";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isUuid } from "@/lib/supabase/identifier";
 import type { SevaAction } from "@/types/seva";
 import { verifyDeviceHeader, type VerifiedDevice } from "./device";
 import { getIdentityAdapter } from "./identity";
@@ -113,28 +112,16 @@ function parseStaffRow(raw: unknown): StaffRow {
   };
 }
 
-async function findStaff(externalUid: string): Promise<StaffRow | null> {
-  const supabase = createAdminClient();
-
-  // 1. Canonical path: check by auth_user_id first if externalUid is a UUID
-  if (isUuid(externalUid)) {
-    const { data: staffByAuth, error: authErr } = await supabase
-      .from("staff")
-      .select("id, staff_no, full_name, view_only, status")
-      .eq("auth_user_id", externalUid)
-      .maybeSingle();
-
-    if (authErr) throw new SevaError("internal");
-    if (staffByAuth) {
-      return parseStaffRow(staffByAuth);
-    }
-  }
-
-  // 2. Compatibility fallback: check by firebase_uid
-  const { data, error } = await supabase
+/**
+ * The caller's staff row, matched on `staff.auth_user_id` - the Supabase Auth UUID the verified token carries.
+ * `firebase_uid` is no longer read: a row that was never linked to a Supabase Auth identity (auth_user_id NULL)
+ * simply has no staff row here, so the guard denies. The office links such a row once (see the retirement audit).
+ */
+async function findStaff(authUserId: string): Promise<StaffRow | null> {
+  const { data, error } = await createAdminClient()
     .from("staff")
     .select("id, staff_no, full_name, view_only, status")
-    .eq("firebase_uid", externalUid)
+    .eq("auth_user_id", authUserId)
     .maybeSingle();
 
   if (error) throw new SevaError("internal");

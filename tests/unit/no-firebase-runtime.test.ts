@@ -31,6 +31,21 @@ const ROOT = path.resolve(__dirname, "../..");
 const RUNTIME_DIRS = ["app", "lib", "services", "components", "hooks", "context", "types"];
 const RUNTIME_FILES = ["proxy.ts", "middleware.ts", "next.config.ts", "next.config.js"];
 
+/**
+ * Tooling and CI surfaces that must also be free of a *reachable* Firebase dependency: the maintenance
+ * scripts and the GitHub Actions workflows. These legitimately mention the inert `firebase_uid` *column*
+ * (a Supabase-issued UUID in a legacy-named column), which is why only the SDK/endpoint/env surface is
+ * checked here, not the column name.
+ */
+const TOOLING_DIRS = ["scripts", ".github"];
+
+/** Deployment and environment manifests, where a Firebase *variable declaration* would re-introduce a dependency. */
+const MANIFEST_FILES = [".env.example", ".env.local.example", "vercel.json", "supabase/config.toml", "package.json"];
+
+/** A bare `FIREBASE_*`-style assignment (dotenv style), as opposed to a `process.env` read. */
+const MANIFEST_FIREBASE_ENV =
+  /^[ \t]*(?:export[ \t]+)?(?:NEXT_PUBLIC_FIREBASE\w*|FIREBASE_\w+|GCLOUD_PROJECT|GOOGLE_APPLICATION_CREDENTIALS)[ \t]*=/m;
+
 /** Files that are explicitly NOT part of the runtime, so the scan skips them. */
 const RUNTIME_EXCLUDES = [
   // Documentation of the (historical) Firebase migration, kept for the audit trail.
@@ -80,6 +95,36 @@ function offenders(predicate: (text: string) => boolean): string[] {
     .filter((file) => predicate(fs.readFileSync(file, "utf8")))
     .map((file) => path.relative(ROOT, file))
     .sort();
+}
+
+/** Every file under the tooling directories (`scripts/`, `.github/`) with a source or workflow extension. */
+function toolingFiles(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|js|jsx|mjs|cjs|ya?ml)$/.test(name)) out.push(full);
+    }
+  };
+  for (const dir of TOOLING_DIRS) {
+    const full = path.join(ROOT, dir);
+    if (fs.existsSync(full)) walk(full);
+  }
+  return out;
+}
+
+function toolingOffenders(predicate: (text: string) => boolean): string[] {
+  return toolingFiles()
+    .filter((file) => predicate(fs.readFileSync(file, "utf8")))
+    .map((file) => path.relative(ROOT, file))
+    .sort();
+}
+
+/** The manifest files that exist on disk. */
+function manifestFiles(): string[] {
+  return MANIFEST_FILES.map((name) => path.join(ROOT, name)).filter((full) => fs.existsSync(full));
 }
 
 describe("Firebase retirement: no Firebase reachable from the application runtime", () => {
@@ -157,5 +202,35 @@ describe("Firebase retirement: no Firebase reachable from the application runtim
     const allowed = /^(?:docs\/|FIREBASE_MIGRATION_PHASE1_AUDIT\.md$|FIRESTORE_\w+\.md$|data\/exports\/.*firestore\.json$|supabase\/migrations\/.*firestore\w*\.sql$|tests\/unit\/.*firestore.*\.test\.ts$|tests\/unit\/.*no-firebase.*\.test\.ts$)/;
     const unexpected = tracked.filter((file) => !allowed.test(file));
     expect(unexpected).toEqual([]);
+  });
+
+  it("scans a non-trivial number of tooling and workflow files", () => {
+    expect(toolingFiles().length).toBeGreaterThan(50);
+  });
+
+  it("has no Firebase import, entry point, environment read or endpoint in scripts/ or .github/", () => {
+    const byImport = toolingOffenders((text) => FORBIDDEN_IMPORT.test(text));
+    const byCall = toolingOffenders((text) => FORBIDDEN_CALL.test(text));
+    const byEndpoint = toolingOffenders((text) => FORBIDDEN_ENDPOINT.test(text));
+    const byEnv = toolingOffenders((text) => {
+      for (const match of text.matchAll(FORBIDDEN_ENV)) {
+        const name = match[1] ?? match[2];
+        if (FIREBASE_ENV.test(name)) return true;
+      }
+      return false;
+    });
+    expect({ byImport, byCall, byEndpoint, byEnv }).toEqual({
+      byImport: [],
+      byCall: [],
+      byEndpoint: [],
+      byEnv: [],
+    });
+  });
+
+  it("declares no Firebase environment variable in any deployment or environment manifest", () => {
+    const offenders = manifestFiles()
+      .filter((full) => MANIFEST_FIREBASE_ENV.test(fs.readFileSync(full, "utf8")))
+      .map((full) => path.relative(ROOT, full));
+    expect(offenders).toEqual([]);
   });
 });

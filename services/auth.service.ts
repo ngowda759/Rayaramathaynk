@@ -129,20 +129,21 @@ class AuthService {
       }
     }
 
-    // 2. Client SDK query fallback (used in unit tests and server-side fallback)
+    // 2. Client SDK query (used in unit tests and as a server-side fallback). `uid` is a Supabase Auth UUID, so the
+    // row is matched on `auth_user_id` (its primary key as a fallback); no Firestore id is consulted.
     try {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("users")
-        .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
-        .or(`auth_user_id.eq.${uid},firestore_id.eq.${uid},id.eq.${uid}`)
+        .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
+        .or(`auth_user_id.eq.${uid},id.eq.${uid}`)
         .maybeSingle();
 
       if (error || !data) return null;
 
       const row = data as Record<string, unknown>;
       return {
-        uid: String(row.auth_user_id || row.firestore_id || row.id),
+        uid: String(row.auth_user_id || row.id),
         name: String(row.display_name || row.email || "").split("@")[0],
         email: String(row.email || ""),
         phone: row.phone_number ? String(row.phone_number) : "",

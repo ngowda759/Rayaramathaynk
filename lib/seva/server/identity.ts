@@ -1,7 +1,7 @@
 /**
  * The identity adapter - the only seva code that knows which sign-in provider is behind it (C-66). Everything else
- * works with the provider-neutral `externalUid` (stored as `staff.auth_user_id` canonically, with `staff.firebase_uid`
- * retained for rollback/audit compatibility) and the access profile from `public.users`.
+ * works with the provider-neutral `externalUid` (stored as `staff.auth_user_id`, the canonical staff identity) and the
+ * access profile from `public.users`.
  *
  * Supabase Auth is the only provider. Moving to another provider later means writing a new adapter, not touching the
  * routes.

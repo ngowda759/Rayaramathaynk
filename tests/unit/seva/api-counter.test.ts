@@ -258,8 +258,8 @@ function resetTables(): void {
     { series_code: 'C1', year: 2027, last_no: 999 },
   ];
   mockTables.staff = [
-    { id: 'staff-ramesh', staff_no: 23, firebase_uid: 'uid-ramesh', status: 'active' },
-    { id: 'staff-suresh', staff_no: 24, firebase_uid: 'uid-suresh', status: 'active' },
+    { id: 'staff-ramesh', staff_no: 23, auth_user_id: 'uid-ramesh', status: 'active' },
+    { id: 'staff-suresh', staff_no: 24, auth_user_id: 'uid-suresh', status: 'active' },
   ];
   mockProfiles['uid-ramesh'] = { role: 'receptionist', isActive: true };
   mockProfiles['uid-suresh'] = { role: 'receptionist', isActive: true };
@@ -647,7 +647,7 @@ describe('GET /api/seva/me', () => {
       ].sort(),
     );
 
-    mockTables.staff.push({ id: 'staff-admin', staff_no: 1, firebase_uid: 'uid-admin', status: 'active' });
+    mockTables.staff.push({ id: 'staff-admin', staff_no: 1, auth_user_id: 'uid-admin', status: 'active' });
     mockRequire.mockResolvedValue(allow(ADMIN, null));
     const admin = await json(await meGet(request('me')));
     expect(admin.counter).toBeNull();
@@ -738,11 +738,13 @@ describe('POST /api/seva/counter/sync', () => {
     // Suresh (receptionist) syncs; the outbox names others.
     mockRequire.mockResolvedValue(allow(SURESH));
     mockTables.staff.push(
-      { id: 'staff-admin', staff_no: 1, firebase_uid: 'uid-admin', status: 'active' },
-      { id: 'staff-drift', staff_no: 30, firebase_uid: 'uid-drift', status: 'active' },
-      { id: 'staff-gone', staff_no: 31, firebase_uid: 'uid-gone', status: 'inactive' },
-      { id: 'staff-nodoc', staff_no: 32, firebase_uid: 'uid-nodoc', status: 'active' },
-      { id: 'staff-billing', staff_no: 33, firebase_uid: 'uid-billing', status: 'active' },
+      { id: 'staff-admin', staff_no: 1, auth_user_id: 'uid-admin', status: 'active' },
+      { id: 'staff-drift', staff_no: 30, auth_user_id: 'uid-drift', status: 'active' },
+      { id: 'staff-gone', staff_no: 31, auth_user_id: 'uid-gone', status: 'inactive' },
+      { id: 'staff-nodoc', staff_no: 32, auth_user_id: 'uid-nodoc', status: 'active' },
+      { id: 'staff-billing', staff_no: 33, auth_user_id: 'uid-billing', status: 'active' },
+      // Identity only in the inert `firebase_uid` column, `auth_user_id` NULL: no Firebase fallback, so no role.
+      { id: 'staff-legacy', staff_no: 40, auth_user_id: null, firebase_uid: 'uid-legacy', status: 'active' },
     );
     mockProfiles['uid-admin'] = { role: 'admin', isActive: true };
     // Firestore says inactive while the staff row is still active: the stores disagree, so no role (drift only denies).
@@ -750,6 +752,7 @@ describe('POST /api/seva/counter/sync', () => {
     // Offboarded after the work: both stores say inactive, the role they had is kept for the SQL check and audit.
     mockProfiles['uid-gone'] = { role: 'receptionist', isActive: false };
     mockProfiles['uid-billing'] = { role: 'billing', isActive: true };
+    mockProfiles['uid-legacy'] = { role: 'receptionist', isActive: true };
     mockCallRpc.mockImplementation(async (fn: string, args: Row) =>
       fn === 'seva_cancel_receipts' ? cancelAnswer(args.p_receipt_ids as string[]) : sqlOrder(),
     );
@@ -761,8 +764,9 @@ describe('POST /api/seva/counter/sync', () => {
       { seq: 4, kind: 'order', payload: offlineOrder(4, 32) },
       { seq: 5, kind: 'order', payload: offlineOrder(5, 33) },
       { seq: 6, kind: 'order', payload: offlineOrder(6, 99) },
-      cancelItem(7, [id(801)], 23),
-      cancelItem(8, [id(802)], 30),
+      { seq: 7, kind: 'order', payload: offlineOrder(7, 40) },
+      cancelItem(8, [id(801)], 23),
+      cancelItem(9, [id(802)], 30),
     ];
     const res = await syncPost(request('counter/sync', { body: { items } }));
     expect(res.status).toBe(200);
@@ -780,11 +784,15 @@ describe('POST /api/seva/counter/sync', () => {
       ['order', 33, null, SURESH.staffId],
       // An unknown staff no. is passed through; the SQL function refuses it.
       ['order', 99, null, SURESH.staffId],
+      // A legacy firebase_uid is never consulted, so the role is unknown.
+      ['order', 40, null, SURESH.staffId],
       ['cancel', 23, 'receptionist', SURESH.staffId],
       ['cancel', 30, null, SURESH.staffId],
     ]);
     // The syncer's own profile is never read for the role of someone else's work.
     expect(mockGetAccessProfile).not.toHaveBeenCalledWith('uid-suresh');
+    // The legacy firebase_uid is never resolved through the identity adapter.
+    expect(mockGetAccessProfile).not.toHaveBeenCalledWith('uid-legacy');
   });
 
   it("sync accepts an offline cancel only for receipts of the syncing device's counter", async () => {

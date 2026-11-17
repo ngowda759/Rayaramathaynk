@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isUuid } from "@/lib/supabase/identifier";
 import type { UserProfile } from "@/types/user";
 
 function mapRowToProfile(
@@ -9,7 +8,7 @@ function mapRowToProfile(
   callerEmail: string | null
 ): UserProfile {
   return {
-    uid: String(row.auth_user_id || row.firestore_id || row.id),
+    uid: String(row.auth_user_id || row.id),
     name: String(row.display_name || row.email || "").split("@")[0] || "Devotee",
     email: String(row.email || callerEmail || ""),
     phone: row.phone_number ? String(row.phone_number) : "",
@@ -51,13 +50,13 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const filterQuery = isUuid(callerUid)
-      ? `auth_user_id.eq.${callerUid},id.eq.${callerUid}`
-      : `firestore_id.eq.${callerUid}`;
+    // Supabase Auth is the only sign-in provider, so `callerUid` is always a Supabase Auth UUID. The users row is
+    // matched on `auth_user_id` (its primary key as a fallback); no Firestore id is consulted.
+    const filterQuery = `auth_user_id.eq.${callerUid},id.eq.${callerUid}`;
 
     const { data: userRow, error: queryError } = await supabase
       .from("users")
-      .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
+      .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
       .or(filterQuery)
       .maybeSingle();
 
@@ -76,18 +75,13 @@ export async function GET(request: NextRequest) {
       role: "devotee",
       active: true,
       display_name: callerEmail ? callerEmail.split("@")[0] : "Devotee",
+      auth_user_id: callerUid,
     };
-
-    if (isUuid(callerUid)) {
-      insertPayload.auth_user_id = callerUid;
-    } else {
-      insertPayload.firestore_id = callerUid;
-    }
 
     const { data: created, error: insertError } = await supabase
       .from("users")
       .insert(insertPayload)
-      .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
+      .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
       .single();
 
     if (insertError || !created) {
@@ -99,7 +93,7 @@ export async function GET(request: NextRequest) {
       if (isConflict) {
         const { data: recheck } = await supabase
           .from("users")
-          .select("id, auth_user_id, firestore_id, email, display_name, phone_number, role, active, created_at, updated_at")
+          .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
           .or(filterQuery)
           .maybeSingle();
 

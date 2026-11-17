@@ -1,11 +1,11 @@
 /**
  * @jest-environment node
  *
- * Unit tests for Phase 2 Synchronized Admin and Staff Onboarding.
+ * Unit tests for synchronized admin and staff onboarding.
  * Verifies that:
- *  - Staff onboarding populates auth_user_id when available
- *  - Staff onboarding maintains public.users authorization record
- *  - firebase_uid is preserved
+ *  - Staff onboarding links `auth_user_id` (the Supabase Auth UUID) as the canonical identity
+ *  - Staff onboarding maintains the public.users authorization record (role + active)
+ *  - The legacy `firebase_uid` column is written once by the SQL function and never read
  *  - Idempotent updates succeed
  */
 
@@ -128,7 +128,7 @@ beforeEach(() => {
 });
 
 describe("Synchronized Staff Onboarding", () => {
-  it("populates auth_user_id and public.users record when Supabase identity is available", async () => {
+  it("links auth_user_id and creates the public.users record", async () => {
     const res = await onboardStaff(
       SUPER_ACTOR,
       { fullName: "Supabase Staff", email: "supabase.staff@example.com", role: "receptionist", viewOnly: false },
@@ -138,36 +138,38 @@ describe("Synchronized Staff Onboarding", () => {
     expect(res.staffId).toBe("0f6e2b1a-1c1d-4e5f-8a9b-000000000042");
     expect(res.staffNo).toBe(42);
 
-    // Verify staff table updated with auth_user_id while preserving firebase_uid
+    // The staff row keeps the SQL-written firebase_uid for rollback, and is linked to its Supabase Auth UUID.
     const staffRow = mockStaffTable.find((r) => r.id === res.staffId);
     expect(staffRow).toBeDefined();
     expect(staffRow?.firebase_uid).toBe("fb-generated-uid-42");
     expect(staffRow?.auth_user_id).toBe("sb-uuid-staff-1");
 
-    // Verify public.users row created with both identities
+    // The public.users authorization record carries the role and the Supabase Auth identity.
     const userRow = mockUsersTable.find((r) => r.email === "supabase.staff@example.com");
     expect(userRow).toBeDefined();
     expect(userRow?.role).toBe("receptionist");
     expect(userRow?.active).toBe(true);
-    expect(userRow?.firestore_id).toBe("fb-generated-uid-42");
     expect(userRow?.auth_user_id).toBe("sb-uuid-staff-1");
   });
 
-  it("creates public.users authorization row even when Supabase identity is not yet present (Firebase-only)", async () => {
-    const res = await onboardStaff(
-      SUPER_ACTOR,
-      { fullName: "Firebase Staff", email: "firebase.staff@example.com", role: "priest", viewOnly: false },
-    );
+  it("links auth_user_id from the created login when no explicit id is given", async () => {
+    const res = await onboardStaff(SUPER_ACTOR, {
+      fullName: "Fresh Staff",
+      email: "fresh.staff@example.com",
+      role: "receptionist",
+      viewOnly: false,
+    });
 
     expect(res.staffId).toBe("0f6e2b1a-1c1d-4e5f-8a9b-000000000042");
 
-    // public.users should be present with firestore_id
-    const userRow = mockUsersTable.find((r) => r.email === "firebase.staff@example.com");
+    const staffRow = mockStaffTable.find((r) => r.id === res.staffId);
+    expect(staffRow?.auth_user_id).toBe("fb-generated-uid-42");
+
+    const userRow = mockUsersTable.find((r) => r.email === "fresh.staff@example.com");
     expect(userRow).toBeDefined();
-    expect(userRow?.role).toBe("priest");
+    expect(userRow?.role).toBe("receptionist");
     expect(userRow?.active).toBe(true);
-    expect(userRow?.firestore_id).toBe("fb-generated-uid-42");
-    expect(userRow?.auth_user_id).toBeNull();
+    expect(userRow?.auth_user_id).toBe("fb-generated-uid-42");
   });
 
   it("is idempotent when public.users row already exists", async () => {
@@ -177,7 +179,6 @@ describe("Synchronized Staff Onboarding", () => {
       email: "existing.admin@example.com",
       role: "user",
       active: true,
-      firestore_id: null,
       auth_user_id: null,
     });
 
@@ -194,7 +195,6 @@ describe("Synchronized Staff Onboarding", () => {
       email: "existing.admin@example.com",
       role: "super_admin",
       active: true,
-      firestore_id: "fb-generated-uid-42",
       auth_user_id: "sb-new-uuid",
     });
   });
@@ -227,7 +227,7 @@ describe("Synchronized Staff Onboarding", () => {
         email: "taken.email@example.com",
         full_name: "Prior Staff",
         firebase_uid: "fb-taken-uid",
-        auth_user_id: null,
+        auth_user_id: "fb-taken-uid",
         view_only: false,
         status: "active",
         invited_at: null,
@@ -258,7 +258,7 @@ describe("Synchronized Staff Onboarding", () => {
         email: "other@example.com",
         full_name: "Staff Ten",
         firebase_uid: "fb-uid-10",
-        auth_user_id: null,
+        auth_user_id: "fb-uid-10",
         view_only: false,
         status: "active",
         invited_at: null,

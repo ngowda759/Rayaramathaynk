@@ -70,8 +70,8 @@ document ids so that existing public URLs and bookmarks keep working.
 
 | Symbol | Where | Why retained |
 |--------|-------|--------------|
-| `firestore_id` | `users`, `events`, `announcements`, `sevas`, `seva_bookings`, `ai_knowledge`, gallery and other content tables | The public API returns a row's `firestore_id` when present and its primary key otherwise (`lib/supabase/identifier.ts`). Dropping it would break existing links. |
-| `firebase_uid` | `staff` (`NOT NULL`, `UNIQUE`), `users` | Legacy sign-in key. `lib/seva/server/auth.ts` still matches a staff row by `firebase_uid` as a compatibility fallback; the canonical key is `auth_user_id`. |
+| `firestore_id` | `users`, `events`, `announcements`, `sevas`, `seva_bookings`, `ai_knowledge`, gallery and other content tables | The public API returns a row's `firestore_id` when present and its primary key otherwise (`lib/supabase/identifier.ts`). Dropping it would break existing links. It is **not** consulted as a user-identity key: the auth routes and `services/auth.service.ts` match a user on `auth_user_id` (primary key as a fallback) only. |
+| `firebase_uid` | `staff` (`NOT NULL`, `UNIQUE`) | The `firebase_uid` column predates the Supabase migration but on this project already holds the row's Supabase Auth UUID. No application code reads it: the staff guard (`lib/seva/server/auth.ts`), the identity adapter and `readOfflineRole` all match on `auth_user_id` only. It survives because the `seva_staff_onboard` SQL function still writes it and `seva_staff_guard` freezes it (see §3.6); the backfill migration copies it into `auth_user_id`. |
 | `mapFirestoreRole()` | `lib/seva/permissions.ts` | Maps legacy role strings (`admin`, `devotee`, ...) to `SevaRole`. Pure function; no Firebase. |
 
 These names are documented in `docs/DATA-MODEL.md`. They are covered by the guard's column-name
@@ -124,6 +124,20 @@ happened and are not executable:
 
 ---
 
+### 3.6 Staff identity backfill (Class 3 — data step, no runtime connection)
+
+`supabase/migrations/20261202000000_backfill_staff_auth_user_id.sql` fills `staff.auth_user_id` from a
+UUID-shaped `staff.firebase_uid` where `auth_user_id` is NULL, so that no runtime path needs to read
+`firebase_uid`. It is idempotent, touches only `auth_user_id`, and respects `seva_staff_guard` (which
+forbids changing `firebase_uid`, `staff_no` and `status`). Verified against production on 2026-11-16:
+both staff rows carry a UUID-valued `firebase_uid`; the one row without `auth_user_id` (staff_no 2,
+`invited`, never signed in) has `firebase_uid` equal to its Supabase Auth UUID, so the migration links
+exactly that row and is a no-op elsewhere. The migration is on the reviewed allowlist
+(`scripts/lib/pending-migrations.mjs`) and is applied only through the dispatch-gated migration
+workflow — never automatically by this change.
+
+---
+
 ## 4. Environment variables
 
 ### 4.1 Removed
@@ -148,9 +162,11 @@ Supabase variables only: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_
 
 | Location | Class | Justification |
 |----------|-------|---------------|
-| `firestore_id`, `firebase_uid` columns and `mapFirestoreRole()` | 2 (inert) | Legacy id provenance; see §3.2. No SDK, endpoint or credential. |
+| `firestore_id`, `firebase_uid` columns and `mapFirestoreRole()` | 2 (inert) | Legacy id provenance; see §3.2. No SDK, endpoint or credential. `firebase_uid` is written only by the `seva_staff_onboard` SQL function and frozen by `seva_staff_guard`; no runtime path reads it. |
 | `docs/FIREBASE.md` and the `FIRESTORE_*` docs | 5 | Historical audit trail. |
-| `tests/unit/no-firestore-analytics.test.ts`, `tests/unit/seva/no-firestore-receipt-links.test.ts`, `tests/unit/aaradhane/firestore-write-retirement.test.ts` | 4 | Regression tests that assert the *absence* of Firestore writes. |
+| `AARADHANE_GENERATOR.md` | 5 | Rewritten in this change to document the Supabase-only generator (`--apply` to Supabase, no `--firestore` flag, no `firebase-admin.json`). |
+| `BLOCKED_REPORT.md` | 5 | Historical migration report; names `firebase-admin.json` only to explain why an old migration run was blocked. |
+| `tests/unit/no-firestore-analytics.test.ts`, `tests/unit/seva/no-firestore-receipt-links.test.ts`, `tests/unit/aaradhane/firestore-write-retirement.test.ts`, `tests/unit/no-firebase-runtime.test.ts` | 4 | Regression tests that assert the *absence* of Firebase/Firestore reachability. |
 | Comments in runtime files that say "no Firebase fallback" / "no Firestore path" | 5 | Documentation of the Supabase-only decision; they describe what is *not* there. |
 
 No remaining reference is a Class 1 connection.
@@ -163,8 +179,17 @@ No remaining reference is a Class 1 connection.
 |-------|--------|
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors) |
-| `npm test` | pass (one pre-existing, unrelated `seed-fresh-supabase-guards` failure) |
+| `npm test` | pass except one pre-existing, unrelated `seed-fresh-supabase-guards` failure (an `npm notice` banner is echoed into a child process's stderr by this environment) |
 | `npm run build` | pass |
-| `tests/unit/no-firebase-runtime.test.ts` | pass |
+| `tests/unit/no-firebase-runtime.test.ts` | pass (13 tests, now also scanning `scripts/`, `.github/` and the deployment manifests) |
+
+### 6.1 Tests added or strengthened in this change
+
+| Test | Proves |
+|------|--------|
+| `tests/unit/no-firebase-runtime.test.ts` | No Firebase import/entry-point/env/endpoint in the runtime **or** in `scripts/`/`.github/`; no Firebase variable declared in `.env.example`, `vercel.json`, `supabase/config.toml` or `package.json`. |
+| `tests/unit/seva/api-staff.test.ts` — *fails closed when a staff row has no linked Supabase Auth identity* | A staff row with `auth_user_id` NULL cannot be role/status changed: the route answers 500 and writes nothing (no Firebase fallback). |
+| `tests/unit/seva/api-counter.test.ts` — *sync passes the issuer's and the canceller's role* (extended) | A staff row whose identity lives only in the inert `firebase_uid` column yields **no** offline role; the legacy uid is never resolved through the identity adapter. |
+| `tests/unit/f-a16-migration-ledger-reconciliation.test.ts`, `tests/unit/supabase-migrations-workflow-safety.test.ts` | The ledger and the reviewed allowlist account for the new backfill migration. |
 
 See the pull request for the full validation report.

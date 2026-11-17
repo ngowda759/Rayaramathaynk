@@ -69,6 +69,20 @@ function mockQuery(table: string) {
       return query;
     },
     maybeSingle: async () => ({ data: run().data[0] ?? null, error: null }),
+    update: (values: Row) => ({
+      eq: (column: string, value: unknown) => {
+        for (const row of mockDb.tables[table] ?? []) {
+          if (row[column] === value) Object.assign(row, values);
+        }
+        return Promise.resolve({ data: null, error: null });
+      },
+    }),
+    insert: (values: Row) => {
+      const rows = (mockDb.tables[table] ??= []);
+      const row = { id: `${table}-${rows.length + 1}`, ...values };
+      rows.push(row);
+      return Promise.resolve({ data: row, error: null });
+    },
     then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
       Promise.resolve(run()).then(resolve, reject),
   };
@@ -146,13 +160,13 @@ const ADMIN: SevaActor = { staffId: ID.prakash, uid: "uid-prakash", role: "templ
 const VIEWER: SevaActor = { staffId: ID.kamala, uid: "uid-kamala", role: "temple_admin", viewOnly: true, staffNo: 12, name: "Kamala Iyengar" };
 const RECEPTIONIST: SevaActor = { staffId: ID.ramesh, uid: "uid-ramesh", role: "receptionist", viewOnly: false, staffNo: 23, name: "Ramesh K" };
 
-function staffRow(id: string, uid: string, no: number, name: string, over: Row = {}): Row {
+function staffRow(id: string, authUserId: string | null, no: number, name: string, over: Row = {}): Row {
   return {
     id,
-    firebase_uid: uid,
+    auth_user_id: authUserId,
     staff_no: no,
     full_name: name,
-    email: `${uid.slice(4)}@example.org`,
+    email: authUserId ? `${authUserId.slice(4)}@example.org` : "",
     view_only: false,
     status: "active",
     invited_at: "2026-10-01T04:30:00+00:00",
@@ -230,8 +244,11 @@ function resetFixtures() {
     seva_next_staff_no: () => 35,
     seva_staff_onboard: (args: Record<string, unknown>) => {
       const p = args.p_staff as Row;
+      // The SQL function writes `firebase_uid` (rollback compatibility) and leaves `auth_user_id` NULL; the route
+      // then links the Supabase Auth UUID, exactly as production does.
       mockDb.tables.staff.push(
-        staffRow(ID.lakshmi, String(p.firebase_uid), Number(p.staff_no), String(p.full_name), {
+        staffRow(ID.lakshmi, null, Number(p.staff_no), String(p.full_name), {
+          firebase_uid: p.firebase_uid,
           email: p.email,
           view_only: p.view_only,
           status: "invited",
@@ -808,6 +825,21 @@ describe("PUT /api/seva/staff/[id]", () => {
     mockSession.actor = SUPER;
     expect((await errorOf(await put("0f6e2b1a-1c1d-4e5f-8a9b-000000000999", { status: "active" }))).status).toBe(404);
     expect((await errorOf(await put("not-an-id", { status: "active" }))).status).toBe(404);
+  });
+
+  it("fails closed when a staff row has no linked Supabase Auth identity (auth_user_id NULL)", async () => {
+    // A row that was never linked to a Supabase Auth login has no `auth_user_id`. Identity writes target that
+    // column, so a role or status change on such a row must fail closed (500 internal) rather than guess a login.
+    mockDb.tables.staff = mockDb.tables.staff.map((row) =>
+      row.id === ID.ramesh ? { ...row, auth_user_id: null } : row,
+    );
+    mockSession.actor = SUPER;
+    for (const patch of [{ role: "prasadam_counter" }, { status: "inactive", reason: "Left the temple" }, { status: "deleted", reason: "Entered twice" }]) {
+      expect(await errorOf(await put(ID.ramesh, patch))).toMatchObject({ status: 500, code: "internal" });
+    }
+    // Nothing was written through either the identity provider or the staff RPC.
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalledWith("seva_staff_update", expect.anything());
   });
 });
 

@@ -73,10 +73,10 @@ function mockFakeSupabase() {
           let rows = [...(mockTables[table] ?? [])];
           if (table === "users") {
             for (const [uid, doc] of Object.entries(mockUserDocs)) {
-              if (doc && !rows.some((r) => r.firestore_id === uid || r.auth_user_id === uid)) {
+              if (doc && !rows.some((r) => r.auth_user_id === uid)) {
                 rows.push({
                   id: `u-${uid}`,
-                  firestore_id: uid,
+                  auth_user_id: uid,
                   role: doc.role,
                   active: doc.isActive === true,
                   email: doc.email,
@@ -138,7 +138,7 @@ const fakeIdentity: jest.Mocked<IdentityAdapter> = {
 function staffRow(over: Row = {}): Row {
   return {
     id: "staff-ramesh",
-    firebase_uid: "uid-ramesh",
+    auth_user_id: "uid-ramesh",
     staff_no: 23,
     full_name: "Ramesh",
     email: "ramesh@example.org",
@@ -269,7 +269,7 @@ describe("requireSevaActor", () => {
   it("403 forbidden when no staff row exists", async () => {
     mockTables.staff = [];
     expect(await denial(await requireSevaActor(request(), "me"))).toEqual({ status: 403, code: "forbidden" });
-    expect(mockQueries[0]).toMatchObject({ table: "staff", filters: [["firebase_uid", "uid-ramesh"]] });
+    expect(mockQueries[0]).toMatchObject({ table: "staff", filters: [["auth_user_id", "uid-ramesh"]] });
   });
 
   it("403 staff_inactive when Firestore says active but staff says inactive", async () => {
@@ -588,10 +588,10 @@ describe("Supabase identity adapter", () => {
 
   it("treats only an explicit active=false as inactive; a missing or non-false flag reads as active", async () => {
     for (const doc of [{ role: "receptionist" }, { role: "receptionist", active: "true" }, { role: "receptionist", active: 1 }]) {
-      mockTables.users = [{ id: "u-x", firestore_id: "uid-x", ...doc }];
+      mockTables.users = [{ id: "u-x", auth_user_id: "uid-x", ...doc }];
       expect(await supabaseIdentityAdapter.getAccessProfile("uid-x")).toEqual({ role: "receptionist", isActive: true });
     }
-    mockTables.users = [{ id: "u-off", firestore_id: "uid-off", role: "receptionist", active: false }];
+    mockTables.users = [{ id: "u-off", auth_user_id: "uid-off", role: "receptionist", active: false }];
     expect(await supabaseIdentityAdapter.getAccessProfile("uid-off")).toEqual({ role: "receptionist", isActive: false });
   });
 
@@ -613,13 +613,13 @@ describe("Supabase identity adapter", () => {
   });
 
   it("merges only the given access fields into the users table", async () => {
-    mockTables.users = [{ id: "u-ramesh", firestore_id: "uid-ramesh", role: "receptionist", active: false }];
+    mockTables.users = [{ id: "u-ramesh", auth_user_id: "uid-ramesh", role: "receptionist", active: false }];
     await supabaseIdentityAdapter.setAccessProfile("uid-ramesh", { role: "temple_admin", isActive: true });
     expect(mockTables.users[0]).toMatchObject({ role: "temple_admin", active: true });
 
     mockTables.users = [];
     await supabaseIdentityAdapter.setAccessProfile("uid-new", { email: "new@example.org", displayName: "New Person" });
-    const newUser = mockTables.users.find((u) => u.firestore_id === "uid-new");
+    const newUser = mockTables.users.find((u) => u.auth_user_id === "uid-new");
     expect(newUser).toBeDefined();
     expect(newUser).toMatchObject({ email: "new@example.org", display_name: "New Person" });
   });
@@ -652,7 +652,7 @@ describe("Supabase identity adapter", () => {
   });
 
   it("throws SevaError internal when Supabase update fails in setAccessProfile", async () => {
-    mockTables.users = [{ id: "u-ramesh", firestore_id: "uid-ramesh", role: "receptionist", active: true }];
+    mockTables.users = [{ id: "u-ramesh", auth_user_id: "uid-ramesh", role: "receptionist", active: true }];
     mockFailing.table = "users:update";
     await expect(supabaseIdentityAdapter.setAccessProfile("uid-ramesh", { role: "temple_admin" })).rejects.toMatchObject({ code: "internal" });
   });
