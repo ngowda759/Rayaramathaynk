@@ -12,7 +12,9 @@
 --   * does not touch `firebase_uid`, `staff_no` or `status`, so `seva_staff_guard` (which forbids changing the
 --     staff login key and staff number) is satisfied;
 --   * `auth_user_id` is UNIQUE, and `firebase_uid` is UNIQUE, so the source values cannot collide.
+--   * `auth_user_id` is `uuid` while `firebase_uid` is `text`; the WHERE clause already restricts to UUID-shaped
+--     values, so the `::uuid` cast is always well-formed.
 UPDATE public.staff
-   SET auth_user_id = firebase_uid
+   SET auth_user_id = firebase_uid::uuid
  WHERE auth_user_id IS NULL
    AND firebase_uid ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
