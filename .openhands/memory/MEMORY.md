@@ -1078,11 +1078,22 @@ Details: `.openhands/memory/2026-11-03.md`.
   `tests/rules/**`, the Firestore migration/dump/diagnostic scripts and their workflows, and the
   `NEXT_PUBLIC_FIREBASE_*` env vars.
 - **Guard test:** `tests/unit/no-firebase-runtime.test.ts` walks app/ lib/ services/ components/
-  hooks/ context/ middleware next.config types/ and fails on any Firebase import/entry/env read/endpoint.
+  hooks/ context/ middleware next.config types/ **plus `scripts/`, `.github/` and the deployment
+  manifests (`.env.example`, `vercel.json`, `supabase/config.toml`, `package.json`)** and fails on any
+  Firebase import/entry/env read/endpoint (13 tests).
 - **Two legacy column names are retained on purpose** (inert provenance keys, not connections):
-  `firestore_id` (migrated row ids → stable public URLs) and `firebase_uid` (`staff`, `NOT NULL`,
-  still matched by `lib/seva/server/auth.ts`; canonical key is `auth_user_id`). The guard allows
-  these names but forbids the SDK/endpoint surface.
+  `firestore_id` (migrated row ids → stable public URLs) and `firebase_uid` (`staff`, `NOT NULL`).
+  As of the 2026-11-16 final-review pass **no runtime path reads either as an identity key** — every
+  staff/user lookup matches on `auth_user_id` (falling back to the row `id`), and an unlinked staff
+  row (NULL `auth_user_id`) fails closed. The guard allows these names but forbids the SDK/endpoint
+  surface.
+- **`supabase/migrations/20261202000000_backfill_staff_auth_user_id.sql`** fills `staff.auth_user_id`
+  from a UUID-shaped `firebase_uid` (guarded by `~` regex; **needs an explicit `firebase_uid::uuid`
+  cast** — `auth_user_id` is `uuid`, `firebase_uid` is `text`, and the unqualified assignment fails on
+  both PGlite and Postgres with "column auth_user_id is of type uuid but expression is of type text").
+  Idempotent + guard-safe. Read-only production preview (2026-11-16): 2 staff rows, exactly 1 (staff_no
+  2, `invited`) gets linked. On the reviewed allowlist in `scripts/lib/pending-migrations.mjs`; applied
+  only via the dispatch-gated `supabase-migrations.yml` (mode=apply + phrase), never automatically.
 - **e2e seva harness** now runs a **local Supabase stack** via `scripts/e2e/run-seva-e2e.mjs`
   (replaces `firebase-tools emulators:exec --only auth,firestore`); `tests/e2e/seva/server-env.ts`
   supplies local URL/keys. Legacy `tests/e2e/{firestore,storage}/*.spec.ts` removed.
