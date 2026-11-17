@@ -20,7 +20,7 @@ Read these documents **in order** before implementing any feature, enhancement, 
 2. **`docs/ARCHITECTURE.md`** — System design and data flow
 3. **`docs/CODING-STANDARDS.md`** — Code style and conventions
 4. **`docs/UI-GUIDELINES.md`** — Visual design standards
-5. **`docs/DATA-MODEL.md`** — Firestore collections and schemas
+5. **`docs/DATA-MODEL.md`** — Database tables and schemas
 6. **`docs/ADMIN-GUIDELINES.md`** — Admin UI patterns
 7. **`docs/AI-GUIDELINES.md`** — *(When modifying Raya AI)*
 8. **`docs/CONTENT-GUIDELINES.md`** — Content standards
@@ -216,8 +216,8 @@ Answers: "How should an AI contribute to this repository?"
 | Animation | Framer Motion |
 | Icons | Lucide React |
 | UI Components | shadcn/ui |
-| Backend | Firebase (Auth, Firestore, Storage) |
-| AI | Hybrid retrieval (Firebase + LLM fallback) |
+| Backend | Supabase (Auth, PostgreSQL, Storage) |
+| AI | Hybrid retrieval (Supabase + LLM fallback) |
 | Deployment | Vercel |
 
 ---
@@ -226,7 +226,7 @@ Answers: "How should an AI contribute to this repository?"
 
 1. **Server Components First** — Default to Server Components for performance and SEO
 2. **Repository Pattern** — All data access through services in `/services/`
-3. **No Direct Firebase Calls** — Use services only
+3. **No Direct Supabase Calls** — Use services only
 4. **Structured Retrieval for AI** — Facts from repositories, not LLM knowledge
 5. **Mobile-First** — Responsive design across all breakpoints
 
@@ -299,7 +299,7 @@ Every feature/enhancement must satisfy:
 ### ❌ Don't
 
 - Use `any` type — use `unknown` for truly unknown types
-- Make direct Firebase calls — use services only
+- Make direct Supabase calls — use services only
 - Create duplicate components — check existing first
 - Leave console.log statements
 - Hardcode credentials or secrets
@@ -339,7 +339,7 @@ npm run build && npm run lint && npm run type-check
 
 - **Never commit secrets** — Use environment variables
 - **Validate all inputs** — Server-side validation required
-- **Use least privilege** — Firebase rules follow need-to-know
+- **Use least privilege** — Supabase Row Level Security follows need-to-know
 - **Sanitize data** — Escape user content before display
 - **HTTPS only** — All external requests must be secure
 
@@ -378,8 +378,8 @@ PRs should include:
 | State | Server Components + React Context |
 | Data | Services in `/services/`, types in `/types/` |
 | API | Route Handlers in `app/api/` |
-| Auth | Firebase Auth via `services/auth.service.ts` |
-| Database | Firestore via admin SDK |
+| Auth | Supabase Auth via `services/auth.service.ts` |
+| Database | Supabase PostgreSQL via the service-role client |
 | AI | Hybrid retrieval (see docs/AI-GUIDELINES.md) |
 | Testing | Jest + Playwright |
 
@@ -393,7 +393,7 @@ Before contributing, read these docs:
 2. `docs/ARCHITECTURE.md` — How the project is designed
 3. `docs/AI-GUIDELINES.md` — Raya AI guidelines
 4. `docs/UI-GUIDELINES.md` — Visual design standards
-5. `docs/DATA-MODEL.md` — Firestore collections and schemas
+5. `docs/DATA-MODEL.md` — Database tables and schemas
 
 ---
 
@@ -442,9 +442,3 @@ Before contributing, read these docs:
 ---
 
 > ✅ **Provide this completion report when marking a task as complete.**
-
-## Firestore dump / Supabase migration tooling (added 2026-09-10(
-
-- `npm run firestore:dump` = `tsx scripts/dump-firestore-live.ts` — live REST v1 dump (service account `.firebase-adminsdk.json`, JWT via google-auth-library datastore scope(,, paginated, excludes users/profiles/bookmarks/sessions (auth-owned(,, writes NDJSON wire + decoded JSON + MANIFEST classification (present / expected-known-missing / intentionallyExcluded / unexpected / failed(.
-- `npm run firestore:dump:cli` = legacy `bash scripts/dump-firestore-configs.sh` (Firebase CLI export path(; `npm run firestore:convert` = TS CLI-to-decoded converter` Convert helper: `scripts/lib/firestore-values.ts`.
-- Quirk: Firestore free tier ~50k reads/day; `page_views` ~47k docs, so one full dump/day; REST gets 429 RESOURCE_EXHAUSTED; the live dumper retries 48x discovery +  5x/collection with backoff; leave it parked until quota resets. Auth migrates separately via Supabase Auth..

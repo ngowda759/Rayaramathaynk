@@ -4,21 +4,23 @@
 import { readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 
-import config from "../../e2e/seva/playwright.config";
+import { sevaE2EServerEnv } from "../../e2e/seva/server-env";
 
 /**
- * A4P-FIX item 6: the seva e2e dev server must never reach a real Supabase or Firebase project, even when the owner's
- * git-ignored `.env.local` holds real keys. Playwright merges `webServer.env` over process.env, and Next only fills a
- * variable from `.env*` files when it is not set at all, so every server-side Supabase and Firebase-admin variable the
- * app reads is set here to a local or inert value. The list of variables is found by scanning the app's code.
+ * A4P-FIX item 6: the seva e2e dev server must never reach a real Supabase project, even when the owner's git-ignored
+ * `.env.local` holds real keys. Playwright merges `webServer.env` over process.env, and Next only fills a variable from
+ * `.env*` files when it is not set at all, so every server-side Supabase variable the app reads is set here to a local
+ * or inert value. The list of variables is found by scanning the app's code.
+ *
+ * There is no Firebase any more: the suite runs against a local Supabase stack, so no `FIREBASE_*` variable is set,
+ * read or required. The one-time Firebase retirement is guarded separately (no-firebase-runtime.test.ts).
  */
 
 const ROOT = path.resolve(__dirname, "..", "..", "..");
 const SOURCE_DIRS = ["app", "lib", "services", "hooks", "components"];
 const SOURCE_FILES = ["proxy.ts", "next.config.ts"];
-// Supabase, Firebase Admin credentials and Google credentials. The NEXT_PUBLIC_FIREBASE_* browser settings other than
-// the private key are already the demo-seva values.
-const SENSITIVE = /^(?:NEXT_PUBLIC_SUPABASE_\w+|SUPABASE_\w+|PRISMA_DATABASE_URL|FIREBASE_\w+|NEXT_PUBLIC_FIREBASE_PRIVATE_KEY|GOOGLE_APPLICATION_CREDENTIALS)$/;
+// Supabase credentials. The NEXT_PUBLIC_SUPABASE_* browser settings are the local stack's own keys.
+const SENSITIVE = /^(?:NEXT_PUBLIC_SUPABASE_\w+|SUPABASE_\w+|PRISMA_DATABASE_URL)$/;
 // Every other secret the app reads (A4S-FIX item 6): the AI providers, WhatsApp, e-mail, the admin API key, and any
 // variable whose name says it is a key, secret, token, password or credential.
 const OTHER_SECRET =
@@ -62,32 +64,35 @@ function variablesTheAppReads(): string[] {
   return envNamesTheAppReads((name) => SENSITIVE.test(name));
 }
 
-/** The other secrets the app reads. The NEXT_PUBLIC_FIREBASE_* browser settings are the demo-seva values. */
+/** The other secrets the app reads. */
 function otherSecretsTheAppReads(): string[] {
-  return envNamesTheAppReads(
-    (name) => OTHER_SECRET.test(name) && !SENSITIVE.test(name) && !name.startsWith("NEXT_PUBLIC_FIREBASE_"),
-  );
+  return envNamesTheAppReads((name) => OTHER_SECRET.test(name) && !SENSITIVE.test(name));
 }
 
+/** The dev-server environment the Playwright config builds, with a fake local stack. */
 function serverEnv(): Record<string, string> {
-  const server = config.webServer;
-  if (!server || Array.isArray(server)) throw new Error("expected one webServer");
-  return server.env ?? {};
+  return sevaE2EServerEnv({
+    NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-placeholder-anon-key",
+    SUPABASE_SERVICE_ROLE_KEY: "e2e-placeholder-service-role-key",
+  });
 }
 
 describe("seva e2e isolation", () => {
-  it("finds the Supabase and Firebase-admin variables the app reads", () => {
+  it("finds the Supabase variables the app reads", () => {
     const names = variablesTheAppReads();
     for (const expected of [
       "NEXT_PUBLIC_SUPABASE_URL",
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
-      "FIREBASE_CLIENT_EMAIL",
-      "FIREBASE_PRIVATE_KEY",
-      "FIREBASE_PROJECT_ID",
     ]) {
       expect(names).toContain(expected);
     }
+  });
+
+  it("reads no Firebase variable anywhere in the app", () => {
+    const names = envNamesTheAppReads(() => true);
+    expect(names.filter((name) => /FIREBASE|FIRESTORE|GCLOUD_PROJECT|GOOGLE_APPLICATION_CREDENTIALS/.test(name))).toEqual([]);
   });
 
   it("overrides every one of them in webServer.env, so .env.local can never supply a real key", () => {
@@ -108,15 +113,9 @@ describe("seva e2e isolation", () => {
     }
   });
 
-  it("blanks the Firebase Admin credentials and keeps the emulator project", () => {
+  it("sets no Firebase variable at all", () => {
     const env = serverEnv();
-    for (const key of ["FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY", "FIREBASE_SERVICE_ACCOUNT_JSON", "NEXT_PUBLIC_FIREBASE_PRIVATE_KEY", "GOOGLE_APPLICATION_CREDENTIALS"]) {
-      expect(env[key]).toBe("");
-    }
-    expect(env.FIREBASE_PROJECT_ID).toBe("demo-seva");
-    expect(env.NEXT_PUBLIC_FIREBASE_PROJECT_ID).toBe("demo-seva");
-    expect(env.FIREBASE_AUTH_EMULATOR_HOST).toBe("127.0.0.1:9099");
-    expect(env.FIRESTORE_EMULATOR_HOST).toBe("127.0.0.1:8080");
+    expect(Object.keys(env).filter((name) => /FIREBASE|FIRESTORE|GCLOUD_PROJECT/.test(name))).toEqual([]);
   });
 
   it("finds the AI, admin-key and other secrets the app reads", () => {

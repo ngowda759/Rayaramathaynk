@@ -15,7 +15,7 @@ export const MIGRATION_INVENTORY: InventoryItem[] = [
   ...EXCLUDED_AUTH_COLLECTIONS.map(col => ({
     collection: col,
     classification: "EXCLUDE_AUTH" as MigrationClassification,
-    reason: "Auth-related: owned by Firebase Auth, excluded from application data migration",
+    reason: "Auth-related: owned by Supabase Auth, excluded from application data migration",
   })),
 
   // EXCLUDE_SYSTEM

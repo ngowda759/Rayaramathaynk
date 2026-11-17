@@ -823,9 +823,9 @@ For information about participating in or contributing to these services, please
 ];
 
 /**
- * Convert seed articles to Firestore format
+ * Convert seed articles to insert-ready rows (server timestamps)
  */
-export function getSeedArticlesForFirebase(): Array<Omit<KnowledgeArticle, "id">> {
+export function getSeedArticlesForInsert(): Array<Omit<KnowledgeArticle, "id">> {
   return SEED_ARTICLES.map(({ id, ...article }: any) => ({
     ...article,
     createdAt: new Date(),

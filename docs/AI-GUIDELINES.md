@@ -18,7 +18,7 @@ Raya AI is the official AI assistant for Sri Raghavendra Swamy Matha. This docum
 **Never rely on LLM knowledge for temple facts.**
 
 ```typescript
-// ✅ Correct - Get data from Firebase
+// ✅ Correct - Get data from Supabase
 const timings = await settingsService.getTimings();
 const response = `The temple opens at ${timings.morningOpen}...`;
 
@@ -32,18 +32,18 @@ Temple facts must come from structured repositories:
 
 | Fact Type | Source |
 |-----------|--------|
-| Temple timings | `settings` collection |
-| Seva details | `sevas` collection |
-| Event schedules | `events` collection |
-| Donations | `donations` collection |
-| History/philosophy | `knowledge` collection |
+| Temple timings | `settings_documents` table |
+| Seva details | `sevas` table |
+| Event schedules | `events` table |
+| Donations | `donations` table |
+| History/philosophy | `ai_knowledge` table |
 
 ### 3. Fallback Chain
 
 When structured data is unavailable, use this fallback order:
 
 ```
-1. Repository (Firebase collections)
+1. Repository (Supabase tables)
      ↓
 2. Knowledge Base (Articles)
      ↓
@@ -370,7 +370,7 @@ interface ChatSession {
 const systemPrompt = `You are Raya, the AI assistant for Sri Raghavendra Swamy Matha.
 
 Guidelines:
-1. Always use temple data from Firebase, never hallucinate
+1. Always use temple data from Supabase, never hallucinate
 2. Support English, Kannada, and mixed language
 3. Be respectful and devotional in tone
 4. Cite sources when providing factual information
@@ -397,7 +397,7 @@ Current temple information:
 
 ### Adding New Knowledge
 
-1. Create article in Firebase `knowledge` collection
+1. Create article in the Supabase `ai_knowledge` table
 2. Add keywords for searchability
 3. Update patterns if needed
 4. Test with sample queries
@@ -466,7 +466,7 @@ await analyticsService.log({
 **Symptoms:** Responses take > 5 seconds.
 
 **Solution:**
-1. Check Firebase connection
+1. Check the Supabase connection
 2. Verify Panchanga files accessible
 3. Review knowledge base search time
 4. Check LLM API latency

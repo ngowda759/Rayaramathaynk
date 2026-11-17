@@ -568,17 +568,10 @@ describe("ref extraction fails closed on malformed and ambiguous values", () => 
   });
 });
 
-// --- Destination guard for write-capable Firestore migration workflows -------
+// --- Destination guard for every write-capable migration workflow -----------
 // Every workflow that can write to Supabase must verify the destination project
-// before any database-changing command. The Firestore migration workflows
-// authenticate with a URL + service key (not a ref), so they need the URL guard.
+// before any database-changing command.
 describe("write-capable migration workflows verify the destination project", () => {
-  const urlGuard = resolve(root, "scripts/lib/guard-approved-supabase-url.mjs");
-
-  const DEST_WRITING_WORKFLOWS = [
-    "firestore-batched-migration.yml",
-    "firestore-staged-migration.yml",
-  ];
   const GUARDED_REF_WORKFLOWS = [
     "supabase-migrations.yml",
     "ai-knowledge-migration-apply.yml",
@@ -620,45 +613,6 @@ describe("write-capable migration workflows verify the destination project", () 
     }
   });
 
-  // The migration scripts each workflow actually invokes, listed per file so the
-  // check is real rather than a shared marker list that happens to match nothing.
-  const DEST_WRITING_COMMANDS: Record<string, string[]> = {
-    "firestore-batched-migration.yml": [
-      "npx tsx scripts/fetch-checkpoint.ts",
-      "npx tsx scripts/migrate-all-batched.ts",
-    ],
-    "firestore-staged-migration.yml": ["npx tsx scripts/migrate-staged-phase1.ts"],
-  };
-
-  it.each(DEST_WRITING_WORKFLOWS)(
-    "%s runs the URL guard before any migration script",
-    (file) => {
-      const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
-      const guardCommand = "node scripts/lib/guard-approved-supabase-url.mjs";
-      const commands = DEST_WRITING_COMMANDS[file];
-      expect(commands).toBeDefined();
-      const scripts = readPackageScripts();
-
-      const violations = guardOrderingViolations(wf, commands, guardCommand, scripts);
-      expect(violations).toEqual([]);
-
-      // Non-vacuity: the guard and every command must genuinely be present.
-      const steps = parseWorkflow(wf).flatMap((j) => j.steps);
-      expect(steps.length).toBeGreaterThan(0);
-      for (const command of [guardCommand, ...commands]) {
-        const found = steps.some((s) => commandStatements(s.runBody, command, scripts).length > 0);
-        expect(`${file} ${command}:${found}`).toBe(`${file} ${command}:true`);
-      }
-    },
-  );
-
-  it.each(DEST_WRITING_WORKFLOWS)("%s passes the URL via env, never interpolated into a shell", (file) => {
-    const wf = readFileSync(resolve(root, ".github/workflows", file), "utf8");
-    const block = /- name: Guard approved Supabase project\n([\s\S]*?)\n\n/.exec(wf)?.[0] ?? "";
-    expect(block).toMatch(/NEXT_PUBLIC_SUPABASE_URL:\s*\$\{\{\s*secrets\.NEXT_PUBLIC_SUPABASE_URL\s*\}\}/);
-    expect(block).not.toMatch(/\$\{\{\s*inputs\./);
-  });
-
   it("every workflow that invokes a migration writer also runs a destination guard", () => {
     // Completeness guard: adding a new migration-writer invocation without a guard
     // is the failure mode this suite exists to catch. Detection is step-aware and
@@ -671,11 +625,9 @@ describe("write-capable migration workflows verify the destination project", () 
     // `psql` writers, the read-only Prisma connection path, and the Firestore
     // scheduled writer are enumerated and guarded by
     // `tests/unit/workflow-db-writer-guards.test.ts`, which is the authoritative
-    // seven-writer inventory. This check is kept as a narrower, migration-specific
+    // writer inventory. This check is kept as a narrower, migration-specific
     // regression net and is intentionally not widened here.
     const DB_WRITERS = [
-      "npx tsx scripts/migrate-all-batched.ts",
-      "npx tsx scripts/migrate-staged-phase1.ts",
       "node scripts/apply-ai-knowledge-migration.mjs",
       "node scripts/resolve-baseline-raya-ai.mjs",
       "supabase link",
@@ -715,6 +667,8 @@ describe("write-capable migration workflows verify the destination project", () 
   });
 
   describe("URL guard refuses anything but the approved project", () => {
+    const urlGuard = resolve(root, "scripts/lib/guard-approved-supabase-url.mjs");
+
     function runUrlGuard(env: Record<string, string>) {
       return spawnSync("node", [urlGuard], { cwd: root, env: { ...process.env, ...env }, encoding: "utf8" });
     }

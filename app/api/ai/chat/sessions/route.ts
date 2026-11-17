@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getUserChatSessions } from "@/services/chat.server";
 
-/** The caller's recent chat sessions, keyed by their Firebase UID. */
+/** The caller's recent chat sessions, keyed by their Supabase Auth user id. */
 export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get("user");
   if (!userId) return NextResponse.json({ error: "user is required" }, { status: 400 });

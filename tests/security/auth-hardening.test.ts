@@ -14,9 +14,9 @@
  *    - Mandatory Supabase Auth identity (fail-closed)
  * 4. Role promotion hardening:
  *    - Ensures promoted admins receive Supabase Auth identity
- * 5. Telemetry & fallback preservation:
- *    - Supabase primary path priority
- *    - Safe non-blocking fallback for legacy tokens
+ * 5. Supabase-only verification:
+ *    - Supabase is the only identity provider
+ *    - No fallback to any other provider for an invalid token
  */
 
 import { NextRequest } from "next/server";
@@ -44,19 +44,6 @@ jest.mock("@/lib/supabase/admin", () => ({
     },
     from: (...args: unknown[]) => mockFrom(...args),
   }),
-}));
-
-const mockVerifyIdToken = jest.fn();
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({
-    verifyIdToken: (...args: unknown[]) => mockVerifyIdToken(...args),
-    getUserByEmail: jest.fn().mockRejectedValue({ code: "auth/user-not-found" }),
-    createUser: jest.fn().mockResolvedValue({ uid: "fb-compat-uid" }),
-  }),
-}));
-
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
 }));
 
 describe("Phase 3.1 — Production Hardening", () => {
@@ -518,8 +505,8 @@ describe("Phase 3.1 — Production Hardening", () => {
     });
   });
 
-  describe("4. Telemetry and Secondary Fallback Preservation", () => {
-    it("verifies Supabase tokens primarily without attempting Firebase verification", async () => {
+  describe("4. Supabase-only Token Verification", () => {
+    it("verifies a Supabase token and resolves the caller", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: { id: "pure-supabase-uid", email: "user@example.test" } },
         error: null,
@@ -535,27 +522,21 @@ describe("Phase 3.1 — Production Hardening", () => {
       if (check.status === "ok") {
         expect(check.caller.uid).toBe("pure-supabase-uid");
       }
-      expect(mockVerifyIdToken).not.toHaveBeenCalled();
     });
 
-    it("falls back to Firebase ID token verification when Supabase verification fails", async () => {
-      mockGetUser.mockRejectedValueOnce(new Error("Not a Supabase token"));
-      mockVerifyIdToken.mockResolvedValueOnce({
-        uid: "legacy-firebase-uid",
-        email: "legacy@example.test",
+    it("rejects a token Supabase does not accept: no fallback to any other provider", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "invalid JWT", status: 401 },
       });
 
       const { checkBearerIdToken } = await import("@/lib/auth/verify-id-token");
       const req = new Request("http://localhost/api/any", {
-        headers: { Authorization: "Bearer valid-legacy-firebase-token" },
+        headers: { Authorization: "Bearer some-other-provider-token" },
       });
 
       const check = await checkBearerIdToken(req);
-      expect(check.status).toBe("ok");
-      if (check.status === "ok") {
-        expect(check.caller.uid).toBe("legacy-firebase-uid");
-      }
-      expect(mockVerifyIdToken).toHaveBeenCalled();
+      expect(check.status).toBe("invalid");
     });
   });
 });

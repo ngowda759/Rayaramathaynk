@@ -81,17 +81,6 @@ jest.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: (t:
 // ---- Firestore: the seva catalogue no longer mirrors to it; any call is a test failure -------------------------------
 const mockFirestoreSet = jest.fn();
 const mockFirestoreDocs: string[] = [];
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminFirestore: async () => ({
-    collection: (name: string) => ({
-      doc: (id: string) => {
-        mockFirestoreDocs.push(`${name}/${id}`);
-        return { set: (...args: unknown[]) => mockFirestoreSet(...args) };
-      },
-    }),
-  }),
-}));
-
 import { GET as listSevas, POST as createSeva } from "@/app/api/seva/sevas/route";
 import { GET as sevaHistory, PUT as updateSeva } from "@/app/api/seva/sevas/[id]/route";
 import { PUT as reorderSevas } from "@/app/api/seva/sevas/reorder/route";

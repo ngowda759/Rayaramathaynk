@@ -1,6 +1,6 @@
 /**
  * Browser client for Settings - Devotee lists (`/api/seva/settings/lists`, plan A4P-5): read the gotra, nakshatra
- * and rashi lists, add a gotra, or change one item. Every call asks the token getter for a fresh Firebase ID token.
+ * and rashi lists, add a gotra, or change one item. Every call asks the token getter for a fresh Supabase access token.
  * Failures arrive as SevaClientError (services/seva/http.ts).
  */
 

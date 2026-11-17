@@ -1,11 +1,11 @@
 /**
- * Staff and roles (DB §3.2, §3.4, §13.6) - the only code that changes a person's sign-in (the login and the Firestore
+ * Staff and roles (DB §3.2, §3.4, §13.6) - the only code that changes a person's sign-in (the login and the stored
  * profile, through the identity adapter) or their Supabase `staff` row. The staff routes and the older
  * /api/admin/users routes both call it, so all of them answer to the same rules.
  *
  * Who may do what (DB §3.3 rows 18-23, C-17). The route guard (`requireStaffAdmin`) first admits the people who may
  * onboard at all: an active temple admin who is not view-only, or a super admin. Each change is then judged with its
- * full context - the person's current Firestore role, their staff id and the new role. On top of the matrix:
+ * full context - the person's current stored role, their staff id and the new role. On top of the matrix:
  * - nobody changes their own role, view-only switch or status here (row 20 reads "another person's"; a super admin
  *   deactivating or deleting themself could lock the module out);
  * - a deleted person stays deleted (DB §3.4);
@@ -61,7 +61,7 @@ export const staffListQuerySchema = z.object({
 // Reading staff rows
 // ---------------------------------------------------------------------------------------------------------------------
 
-const STAFF_COLUMNS = "id, firebase_uid, staff_no, full_name, email, view_only, status, invited_at, first_signed_in_at";
+const STAFF_COLUMNS = "id, auth_user_id, staff_no, full_name, email, view_only, status, invited_at, first_signed_in_at";
 const STATUSES: readonly StaffStatus[] = ["invited", "active", "inactive", "deleted"];
 const FILTER_STATUSES: Record<StaffListFilter, readonly StaffStatus[] | null> = {
   all: null,
@@ -71,7 +71,8 @@ const FILTER_STATUSES: Record<StaffListFilter, readonly StaffStatus[] | null> = 
 
 interface StaffRow {
   id: string;
-  firebaseUid: string;
+  /** The Supabase Auth UUID this staff row is linked to; null until the office links the row (identity unification). */
+  authUserId: string | null;
   staffNo: number;
   fullName: string;
   email: string;
@@ -95,7 +96,7 @@ function toStaffRow(raw: unknown): StaffRow {
   const row = (raw ?? {}) as Record<string, unknown>;
   if (
     typeof row.id !== "string" ||
-    typeof row.firebase_uid !== "string" ||
+    (row.auth_user_id !== null && row.auth_user_id !== undefined && typeof row.auth_user_id !== "string") ||
     typeof row.staff_no !== "number" ||
     typeof row.full_name !== "string" ||
     typeof row.email !== "string" ||
@@ -106,7 +107,7 @@ function toStaffRow(raw: unknown): StaffRow {
   }
   return {
     id: row.id,
-    firebaseUid: row.firebase_uid,
+    authUserId: typeof row.auth_user_id === "string" ? row.auth_user_id : null,
     staffNo: row.staff_no,
     fullName: row.full_name,
     email: row.email,
@@ -125,12 +126,21 @@ function rowsOf(result: { data: unknown; error: unknown }): unknown[] {
 
 async function findStaff(
   db: AdminClient,
-  column: "id" | "firebase_uid" | "email" | "staff_no",
+  column: "id" | "auth_user_id" | "email" | "staff_no",
   value: string | number,
 ): Promise<StaffRow | null> {
   const { data, error } = await db.from("staff").select(STAFF_COLUMNS).eq(column, value).maybeSingle();
   if (error) throw new SevaError("internal");
   return data ? toStaffRow(data) : null;
+}
+
+/**
+ * The Supabase Auth UUID a staff row is linked to. A row with no `auth_user_id` has no sign-in to act on, so every
+ * identity write (role, deactivate, reactivate, delete) fails closed with `internal` rather than guessing a login.
+ */
+function identityUidOf(row: StaffRow): string {
+  if (!row.authUserId) throw new SevaError("internal");
+  return row.authUserId;
 }
 
 /** A timestamptz from PostgREST as an ISO-8601 UTC string; null when missing or unreadable. */
@@ -171,7 +181,7 @@ async function lastActivity(db: AdminClient, row: StaffRow): Promise<string | nu
   return latest([row.firstSignedInAt, firstText(rowsOf(audit), "at"), firstText(rowsOf(receipt), "issued_at")]);
 }
 
-/** The staff list, in staff-number order, with each person's role from Firestore. Never carries a phone number. */
+/** The staff list, in staff-number order, with each person's role from the `users` table. Never carries a phone number. */
 export async function listStaff(filter: StaffListFilter): Promise<StaffMember[]> {
   const db = createAdminClient();
   const statuses = FILTER_STATUSES[filter];
@@ -182,7 +192,10 @@ export async function listStaff(filter: StaffListFilter): Promise<StaffMember[]>
   const identity = getIdentityAdapter();
   return Promise.all(
     rows.map(async (row): Promise<StaffMember> => {
-      const [profile, lastActiveAt] = await Promise.all([identity.getAccessProfile(row.firebaseUid), lastActivity(db, row)]);
+      const [profile, lastActiveAt] = await Promise.all([
+        row.authUserId ? identity.getAccessProfile(row.authUserId) : Promise.resolve(null),
+        lastActivity(db, row),
+      ]);
       return {
         id: row.id,
         staffNo: row.staffNo,
@@ -276,7 +289,7 @@ async function runSteps(
 export interface OnboardOptions {
   /**
    * Makes the login. Left out, the identity adapter's `createLogin` is used (no password: the client then sends
-   * Firebase's own set-password email, C-56). The older create-admin route passes its own, which sets a password.
+   * the Supabase set-password email, C-56). The older create-admin route passes its own, which sets a password.
    */
   createLogin?: (login: { email: string; displayName: string }) => Promise<{ externalUid: string }>;
   /** Supabase Auth UUID to link to this staff member (Phase 2 identity unification). */
@@ -289,7 +302,7 @@ const EXISTING_ACCOUNT = "This email already has a sign-in account.";
 interface LinkedLogin {
   externalUid: string;
   previousRole: string | null;
-  /** The Firestore `isActive` before the link; null when there was no profile. */
+  /** The `users.active` value before the link; null when there was no profile. */
   previousActive: boolean | null;
 }
 
@@ -299,7 +312,7 @@ interface LinkedLogin {
  * the dialog can ask first. Either way, and before that question is ever asked, the account is refused when it is
  * already staff, when its sign-in is switched off (`disabled_account`), or when its email is not verified
  * (`unverified_account`): anyone can register a login for any email, through the website or straight against
- * Firebase, so linking an unverified one would hand staff access and the website admin to whoever registered it.
+ * a login, so linking an unverified one would hand staff access and the website admin to whoever registered it.
  * Only a super admin (staff.grant_super_admin) links an account that already holds a website admin-console role
  * (super admin, temple admin, admin, billing, priest, staff, office staff - the admin allow-list, C-62) or that is
  * inactive on the website: a link overwrites that role and switches the account on. A temple admin gets 403
@@ -310,7 +323,7 @@ async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnbo
   const login = await identity.findLoginByEmail(input.email);
   if (!login) return null;
   const [staff, profile] = await Promise.all([
-    findStaff(db, "firebase_uid", login.externalUid),
+    findStaff(db, "auth_user_id", login.externalUid),
     identity.getAccessProfile(login.externalUid),
   ]);
   if (staff) throw invalid("email", `This website account is already staff (staff no. ${staffNoText(staff.staffNo)})`);
@@ -417,68 +430,44 @@ export async function onboardStaff(
             if (typeof id !== "string" || id === "") throw new SevaError("internal");
             staffId = id;
 
-            // Phase 2 Supabase Identity Unification:
-            // 1. Populate auth_user_id on public.staff when a Supabase identity is available
-            let authUserId = opts.authUserId ?? null;
-            if (!authUserId) {
-              try {
-                const sbAdmin = db as unknown as { auth?: { admin?: { getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } } }> } } };
-                if (typeof sbAdmin?.auth?.admin?.getUserByEmail === "function") {
-                  const { data } = await sbAdmin.auth.admin.getUserByEmail(input.email);
-                  if (data?.user?.id) {
-                    authUserId = data.user.id;
-                  }
-                }
-              } catch {
-                // Supabase Auth admin lookup is optional
-              }
-            }
+            // The row's canonical Supabase Auth identity is `auth_user_id`. `externalUid` is a Supabase Auth UUID on
+            // every path (a fresh createLogin, a linked account, or create-admin's Supabase sync); `firebase_uid` is
+            // written once by the SQL function above for rollback compatibility and is never read again.
+            const authUserId = opts.authUserId ?? (externalUid || null);
 
             if (authUserId) {
-              try {
-                const staffBuilder = db.from("staff");
-                if (typeof (staffBuilder as { update?: unknown })?.update === "function") {
-                  await (staffBuilder as unknown as { update: (vals: Record<string, unknown>) => { eq: (col: string, val: unknown) => Promise<unknown> } })
-                    .update({ auth_user_id: authUserId })
-                    .eq("id", staffId);
-                }
-              } catch {
-                // Non-blocking if table update not supported in mock
-              }
+              const { error: linkError } = await db.from("staff").update({ auth_user_id: authUserId }).eq("id", staffId);
+              if (linkError) throw new SevaError("internal");
             }
 
-            // 2. Ensure the appropriate public.users authorization record exists
-            try {
-              const usersBuilder = db.from("users");
-              if (typeof usersBuilder?.select === "function") {
-                const { data: existingUser } = await usersBuilder
-                  .select("id, firestore_id, auth_user_id")
-                  .eq("email", input.email)
-                  .maybeSingle();
+            // Keep the `public.users` authorization record (role + active) in step with the staff row.
+            const { data: existingUser, error: readError } = await db
+              .from("users")
+              .select("id")
+              .eq("email", input.email)
+              .maybeSingle();
+            if (readError) throw new SevaError("internal");
 
-                if (existingUser && typeof (usersBuilder as { update?: unknown })?.update === "function") {
-                  await (usersBuilder as unknown as { update: (vals: Record<string, unknown>) => { eq: (col: string, val: unknown) => Promise<unknown> } })
-                    .update({
-                      role: input.role,
-                      active: true,
-                      display_name: input.fullName,
-                      firestore_id: externalUid || (existingUser as { firestore_id?: string | null }).firestore_id,
-                      ...(authUserId ? { auth_user_id: authUserId } : {}),
-                    })
-                    .eq("id", (existingUser as { id: string }).id);
-                } else if (!existingUser && typeof (usersBuilder as { insert?: unknown })?.insert === "function") {
-                  await (usersBuilder as unknown as { insert: (vals: Record<string, unknown>) => Promise<unknown> }).insert({
-                    email: input.email,
-                    display_name: input.fullName,
-                    role: input.role,
-                    active: true,
-                    firestore_id: externalUid || null,
-                    auth_user_id: authUserId ?? null,
-                  });
-                }
-              }
-            } catch {
-              // Non-blocking in mock environments
+            if (existingUser) {
+              const { error: updateError } = await db
+                .from("users")
+                .update({
+                  role: input.role,
+                  active: true,
+                  display_name: input.fullName,
+                  ...(authUserId ? { auth_user_id: authUserId } : {}),
+                })
+                .eq("id", (existingUser as { id: string }).id);
+              if (updateError) throw new SevaError("internal");
+            } else {
+              const { error: insertError } = await db.from("users").insert({
+                email: input.email,
+                display_name: input.fullName,
+                role: input.role,
+                active: true,
+                auth_user_id: authUserId,
+              });
+              if (insertError) throw new SevaError("internal");
             }
           },
         },
@@ -566,7 +555,8 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
   if (target.id === actor.staffId) throw new SevaError("forbidden");
 
   const identity = getIdentityAdapter();
-  const profile = await identity.getAccessProfile(target.firebaseUid);
+  const authUserId = target.authUserId;
+  const profile = authUserId ? await identity.getAccessProfile(authUserId) : null;
   const rawRole = typeof profile?.role === "string" ? profile.role : null;
   const currentRole: SevaRole | undefined = mapFirestoreRole(profile?.role) ?? undefined;
 
@@ -593,19 +583,20 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
           ? "reactivate"
           : null;
   const reason = patch.reason ? patch.reason : null;
-  const uid = target.firebaseUid;
 
   const profilePatch: { role?: string; isActive?: boolean } = {};
   if (newRole) profilePatch.role = newRole;
   if (change) profilePatch.isActive = change === "reactivate";
 
+  // Every identity write targets the row's linked Supabase Auth UUID. A row without one (auth_user_id NULL) has no
+  // login to change, so a role or status change on it fails closed here, before any write.
   const identityWrites: Write[] = [];
-  if (change === "deactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(uid, false) });
+  if (change === "deactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(identityUidOf(target), false) });
   if (Object.keys(profilePatch).length > 0) {
-    identityWrites.push({ name: "profile", run: () => identity.setAccessProfile(uid, profilePatch) });
+    identityWrites.push({ name: "profile", run: () => identity.setAccessProfile(identityUidOf(target), profilePatch) });
   }
-  if (change === "reactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(uid, true) });
-  if (change === "delete") identityWrites.push({ name: "login", run: () => identity.deleteLogin(uid) });
+  if (change === "reactivate") identityWrites.push({ name: "login", run: () => identity.setLoginEnabled(identityUidOf(target), true) });
+  if (change === "delete") identityWrites.push({ name: "login", run: () => identity.deleteLogin(identityUidOf(target)) });
 
   const staffPatch: { view_only?: boolean; status?: string } = {};
   if (viewOnly !== undefined && viewOnly !== target.viewOnly) staffPatch.view_only = viewOnly;
@@ -634,7 +625,7 @@ export async function updateStaff(actor: SevaActor, staffId: string, patch: Staf
 }
 
 /**
- * The older set-role route: writes a role (one of that route's own role names) to a person's Firestore profile under
+ * The older set-role route: writes a role (one of that route's own role names) to a person's `users` profile under
  * the same rules - super admin only by a super admin (row 19); a temple admin only for another person who has a staff
  * row and is below super admin, and only to `admin` (temple admin) (row 20, C-17); `billing`, `devotee` and
  * `volunteer` are a super admin's call (C-62). An account without a
@@ -649,7 +640,7 @@ export async function setAccountRole(
   const identity = getIdentityAdapter();
   const [profile, target] = await Promise.all([
     identity.getAccessProfile(input.externalUid),
-    findStaff(db, "firebase_uid", input.externalUid),
+    findStaff(db, "auth_user_id", input.externalUid),
   ]);
   if (!profile) throw new SevaError("not_found", { entity: "user" });
   if (input.externalUid === actor.uid || target?.id === actor.staffId) throw new SevaError("forbidden");

@@ -117,9 +117,6 @@ const mockFirebaseAuth = {
     return { uid: "uid-new-admin", email: input.email };
   }),
 };
-jest.mock("firebase-admin/auth", () => ({ getAuth: () => mockFirebaseAuth }));
-jest.mock("@/lib/admin-firebase", () => ({ getAdminApp: async () => ({}) }));
-
 import { POST as setRole } from "../../../app/api/admin/users/set-role/route";
 import { POST as createAdmin } from "../../../app/api/admin/users/create-admin/route";
 
@@ -151,9 +148,9 @@ beforeEach(() => {
   mockSession.actor = null;
   mockDb.tables = {
     staff: [
-      { id: SUPER.staffId, firebase_uid: "uid-nikhil", staff_no: 1, full_name: "Nikhil N", email: "nikhil@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
-      { id: ADMIN.staffId, firebase_uid: "uid-prakash", staff_no: 8, full_name: "Prakash Rao", email: "prakash@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
-      { id: RAMESH_ID, firebase_uid: RAMESH_UID, staff_no: 23, full_name: "Ramesh K", email: "ramesh@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
+      { id: SUPER.staffId, auth_user_id: "uid-nikhil", staff_no: 1, full_name: "Nikhil N", email: "nikhil@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
+      { id: ADMIN.staffId, auth_user_id: "uid-prakash", staff_no: 8, full_name: "Prakash Rao", email: "prakash@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
+      { id: RAMESH_ID, auth_user_id: RAMESH_UID, staff_no: 23, full_name: "Ramesh K", email: "ramesh@example.org", view_only: false, status: "active", invited_at: null, first_signed_in_at: null },
     ],
     users: [
       { id: "user-ramesh", email: "ramesh@example.org", auth_user_id: RAMESH_UID },

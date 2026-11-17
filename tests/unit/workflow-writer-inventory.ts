@@ -464,40 +464,6 @@ export const DB_WRITER_INVENTORY: WriterEntry[] = [
     concurrencyGroup: "resolve-raya-ai-baseline",
   },
   {
-    id: "firestore-batched-migration",
-    file: "firestore-batched-migration.yml",
-    kind: "migration",
-    commands: [
-      "npx tsx scripts/fetch-checkpoint.ts",
-      "npx tsx scripts/migrate-all-batched.ts",
-    ],
-    rawCli: false,
-    guard: "node scripts/lib/guard-approved-supabase-url.mjs",
-    guardVar: "NEXT_PUBLIC_SUPABASE_URL",
-    destructive: false,
-    trigger: "manual",
-    environment: "production",
-    guardStyle: "step",
-    concurrencyGroup: "",
-  },
-  {
-    id: "firestore-staged-migration",
-    file: "firestore-staged-migration.yml",
-    kind: "migration",
-    commands: [
-      "npx tsx scripts/dump-firestore-staged.ts",
-      "npx tsx scripts/migrate-staged-phase1.ts",
-    ],
-    rawCli: false,
-    guard: "node scripts/lib/guard-approved-supabase-url.mjs",
-    guardVar: "NEXT_PUBLIC_SUPABASE_URL",
-    destructive: false,
-    trigger: "manual",
-    environment: "production",
-    guardStyle: "step",
-    concurrencyGroup: "",
-  },
-  {
     // Nightly encrypted backup. Writes a row to public.ops_backup_runs on every
     // run and streams pg_dump through the same connection string.
     id: "seva-backup",
@@ -639,23 +605,6 @@ export const DB_CONNECTION_INVENTORY: WriterEntry[] = [
     environment: "f-a16-catalog-audit",
     guardStyle: "step",
     concurrencyGroup: "f-a16-catalog-audit",
-  },
-  {
-    // Read-only Phase 2 auth identity reconciliation. It queries Supabase Auth,
-    // public.users, public.staff, and Firebase Auth to diagnose identity mapping
-    // without performing any writes or schema changes.
-    id: "auth-identity-reconciliation",
-    file: "auth-identity-reconciliation.yml",
-    kind: "connect",
-    commands: ["npm run diagnose:auth-identities"],
-    rawCli: false,
-    guard: "scripts/lib/approved-project.mjs",
-    guardVar: "NEXT_PUBLIC_SUPABASE_URL",
-    destructive: false,
-    trigger: "manual",
-    environment: "",
-    guardStyle: "in-script",
-    concurrencyGroup: "auth-identity-reconciliation",
   },
 ];
 

@@ -4,7 +4,7 @@
  * The browser never talks to Supabase with the service role. Service modules that
  * used to read/write deny-all tables directly now call the matching `/api/...`
  * route, which re-verifies the caller. Every call attaches the signed-in user's
- * Firebase ID token as a Bearer header so the route guard can verify it.
+ * Supabase access token as a Bearer header so the route guard can verify it.
  *
  * A non-2xx answer becomes an {@link ApiError} carrying the status and the
  * server's message, so callers can distinguish a real failure from an empty

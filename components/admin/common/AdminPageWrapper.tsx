@@ -12,7 +12,7 @@ interface State {
   error?: Error;
 }
 
-// Error Boundary component to catch Firebase and other errors
+// Error Boundary component to catch data and other errors
 export default class AdminPageWrapper extends Component<Props, State> {
   constructor(props: Props) {
     super(props);

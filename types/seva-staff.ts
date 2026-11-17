@@ -2,7 +2,7 @@
  * Seva Entry - staff and roles DTOs (wire format; DB §3.2, §3.4, §13.6).
  *
  * Built by the staff routes (`app/api/seva/staff/**`, Task A3-5) from the Supabase `staff` row plus the role held in
- * Firestore `users/{uid}` - the single source of roles (DB §3.2). Times are ISO-8601 strings. No phone number is ever
+ * the Supabase `users` row - the single source of roles (DB §3.2). Times are ISO-8601 strings. No phone number is ever
  * part of a staff answer.
  */
 import type { SevaRole } from '@/types/seva';
@@ -17,7 +17,7 @@ export interface StaffMember {
   staffNo: number;
   fullName: string;
   email: string;
-  /** The Firestore role mapped to a seva role; null for a legacy or missing role (C-62). */
+  /** The stored `users.role` mapped to a seva role; null for a legacy or missing role (C-62). */
   role: SevaRole | null;
   viewOnly: boolean;
   status: StaffStatus;
@@ -49,9 +49,9 @@ export interface StaffOnboardResponse {
 export interface StaffExistingAccountDetail {
   field: "email";
   reason: "existing_account";
-  /** Their Firestore role as stored (e.g. 'admin', 'devotee'), or null when they have no profile. */
+  /** Their `users.role` as stored (e.g. 'admin', 'devotee'), or null when they have no profile. */
   currentRole: string | null;
-  /** Their Firestore `isActive`; false shows "currently inactive; linking makes it active"; null with no profile. */
+  /** Their `users.active`; false shows "currently inactive; linking makes it active"; null with no profile. */
   currentlyActive: boolean | null;
   displayName: string | null;
   message: string;
@@ -65,8 +65,8 @@ export interface StaffExistingAccountDetail {
 export type StaffUnlinkableReason = "unverified_account" | "disabled_account";
 
 /**
- * The stores a staff change writes, in this order (DB §3.2): the sign-in store (Firebase Auth login and Firestore
- * profile), the Supabase `staff` row, then the audit row.
+ * The stores a staff change writes, in this order (DB §3.2): the sign-in store (Supabase Auth login and the
+ * Supabase `users` profile), the Supabase `staff` row, then the audit row.
  */
 export type StaffChangeStep = 'identity' | 'staff' | 'audit';
 

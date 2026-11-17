@@ -58,7 +58,7 @@ export default function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Delay redirect to allow Firebase auth state to persist. Only a path on this site is followed (no //host,
+      // Delay redirect to allow the Supabase auth state to persist. Only a path on this site is followed (no //host,
       // scheme or backslash tricks); anything else lands on the home page.
       const redirect = safeReturnPath(searchParams.get("redirect"), "/");
       setTimeout(() => {

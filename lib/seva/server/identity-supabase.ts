@@ -11,7 +11,6 @@ import "server-only";
 import { checkBearerIdToken } from "@/lib/auth/verify-id-token";
 import { SevaError } from "@/lib/seva/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isUuid } from "@/lib/supabase/identifier";
 import type { IdentityAdapter } from "./identity";
 
 export const supabaseIdentityAdapter: IdentityAdapter = {
@@ -28,9 +27,9 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
 
   async getAccessProfile(externalUid) {
     const supabase = createAdminClient();
-    const filterQuery = isUuid(externalUid)
-      ? `auth_user_id.eq.${externalUid},id.eq.${externalUid},firestore_id.eq.${externalUid}`
-      : `firestore_id.eq.${externalUid}`;
+    // `externalUid` is the Supabase Auth UUID the verified token carries; the profile is matched on `auth_user_id`
+    // (its primary key as a fallback). No Firestore id is consulted.
+    const filterQuery = `auth_user_id.eq.${externalUid},id.eq.${externalUid}`;
 
     const { data, error } = await supabase
       .from("users")
@@ -150,7 +149,8 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
     if (patch.displayName !== undefined) updateData.display_name = patch.displayName;
     updateData.updated_at = new Date().toISOString();
 
-    const filterCol = isUuid(externalUid) ? "auth_user_id" : "firestore_id";
+    // `externalUid` is a Supabase Auth UUID; the profile row is found on `auth_user_id`.
+    const filterCol = "auth_user_id";
 
     const { data: existing, error: findError } = await supabase
       .from("users")

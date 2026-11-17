@@ -615,10 +615,13 @@ export async function readPrintTargets(
  */
 async function readOfflineRole(staffNo: number): Promise<SevaRole | null> {
   const staff = row(
-    await createAdminClient().from("staff").select("firebase_uid, status").eq("staff_no", staffNo).maybeSingle(),
+    await createAdminClient().from("staff").select("auth_user_id, status").eq("staff_no", staffNo).maybeSingle(),
   );
   if (!staff) return null;
-  const uid = str(staff.firebase_uid);
+  // A row with no linked Supabase Auth identity (`auth_user_id` NULL) has no sign-in to read a role from: there is no
+  // Firebase fallback, so it simply has no role here (the docstring's "no profile" case), never an internal error.
+  const uid = strOrNull(staff.auth_user_id);
+  if (!uid) return null;
   const status = str(staff.status);
   const profile = await getIdentityAdapter().getAccessProfile(uid);
   if (!profile) return null;

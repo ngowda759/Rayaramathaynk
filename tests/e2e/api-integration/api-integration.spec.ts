@@ -3,7 +3,7 @@ import { BASE_URL } from '../test-utils';
 
 /**
  * API Integration Tests - Sprint 2
- * Tests for Firebase Firestore and API endpoint integration
+ * Tests for the Supabase-backed data layer and API endpoint integration
  */
 
 test.describe('API Integration: Public Endpoints', () => {

@@ -13,7 +13,7 @@ import {
  *
  * `profiles` is deny-all under RLS, so the browser never reads the table directly.
  * Every call goes through the signed-in user's own `/api/profile` routes, which verify
- * the Firebase ID token and derive the profile key from the token's `uid` — the caller
+ * the Supabase access token and derive the profile key from the token's `uid` — the caller
  * can only ever reach their own profile. Profile images go to Vercel Blob through
  * `storageService`; there is no Firestore path.
  *

@@ -1,6 +1,7 @@
 /**
  * Demo data for the seva browser tests: the e2e staff, their `me` answers, a small catalogue, settings, a dashboard and
- * report fixtures. Everything here is made up for the emulator project `demo-seva`; nothing reaches a live service.
+ * report fixtures. Everything here is made up for the local Supabase stack the suite runs against; nothing reaches a
+ * live service.
  * UI tasks that need other data seed it through `createFakeSevaApi(seed)` or add routes with `extend`.
  */
 import type { CatalogueSeva, CounterBootstrap, SevaAction, SevaMe, SevaRole, SlipSettings } from "../../../../types/seva";

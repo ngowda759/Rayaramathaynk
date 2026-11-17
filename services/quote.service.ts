@@ -167,7 +167,7 @@ function getFallbackQuote(dayOfWeek: number): Quote {
 }
 
 /**
- * Convert Firestore document to Quote
+ * Convert a Supabase `quotes` row to a Quote
  */
 function rowToQuote(row: any): Quote {
   return {
@@ -415,7 +415,7 @@ class QuoteService {
   async buildSelectionContext(date: Date = new Date()): Promise<QuoteSelectionContext> {
     const dayOfWeek = date.getDay() as Weekday;
     
-    // Get today's events from Firestore
+    // Get today's events from Supabase
     let activeEvents: QuoteSelectionContext["activeEvents"] = [];
     try {
       const todayStr = getDateString(date);

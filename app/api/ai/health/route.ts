@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   if (!guard.ok) return guard.response;
 
   // Read-only connectivity probe: reading the settings document exercises the
-  // server-side Firestore/Supabase Admin credentials without writing anything.
+  // server-side Supabase Admin credentials without writing anything.
   try {
     const settings = await aiAdminRepository.getSettings();
 

@@ -188,7 +188,7 @@ const FIRESTORE_ROLES: ReadonlyMap<string, SevaRole> = new Map<string, SevaRole>
 ]);
 
 /**
- * The Firestore `users.role` value to a seva role (C-62). Spelling is normalised the way the admin console's server
+ * The stored `users.role` value to a seva role (C-62). Spelling is normalised the way the admin console's server
  * allow-list does it (trim, lower case, spaces to `_`), so 'Temple Admin' reads as temple_admin. Legacy `admin` is a
  * temple admin; `billing`, `priest`, `staff`, `office_staff`, devotees, blanks, misspellings and non-strings get null.
  */

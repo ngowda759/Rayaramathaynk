@@ -6,7 +6,7 @@ import { createFakeSevaApi } from "./fixtures/fake-api";
 
 /**
  * Module shell (plans A3-6, A4S): role landing from /admin and Seva Entry's section rail per role at /seva. Every
- * /api/seva/** call is answered by the fake API; accounts live in the Auth and Firestore emulators (global-setup.ts).
+ * /api/seva/** call is answered by the fake API; accounts live in the local Supabase stack (global-setup.ts).
  */
 
 test("a receptionist landing on /admin goes to the counter", async ({ page }) => {

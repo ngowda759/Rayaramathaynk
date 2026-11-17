@@ -80,16 +80,6 @@ jest.mock("@/lib/seva/server/identity", () => ({
   }),
 }));
 
-const mockFirebaseGetUserByEmail = jest.fn();
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({
-    getUserByEmail: (...args: unknown[]) => mockFirebaseGetUserByEmail(...args),
-  }),
-}));
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
-}));
-
 import { POST as setRoleHandler } from "@/app/api/admin/users/set-role/route";
 import { setAccountRole } from "@/lib/seva/server/staff";
 
@@ -112,7 +102,6 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
       staffNo: 1,
       name: "Super Admin",
     };
-    mockFirebaseGetUserByEmail.mockResolvedValue({ uid: validUuid });
     mockGetUserByEmail.mockResolvedValue({
       data: { user: { id: validUuid, email: targetEmail } },
       error: null,
@@ -167,7 +156,7 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
   }
 
   it("1. Fails closed (500) and blocks role promotion when Auth Admin service is missing", async () => {
-    // findLoginUid succeeds via Firebase fallback, but requireAdminSupabaseIdentity fails on missing service
+    // The Supabase Auth Admin service is absent, so the identity lookup fails closed.
     mockAdminAuthService = null;
 
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
@@ -178,7 +167,7 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
   });
 
   it("2. Fails closed (500) and blocks role promotion when getUserByEmail throws an error in identity sync", async () => {
-    // 1st call for findLoginUid succeeds
+    // 1st call for findLoginUid (Supabase) succeeds
     mockGetUserByEmail
       .mockResolvedValueOnce({ data: { user: { id: validUuid } }, error: null })
       // 2nd call in requireAdminSupabaseIdentity fails
@@ -192,10 +181,11 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
   });
 
   it("3. Fails closed (500) and blocks role promotion when provisioning (invite and create) fails", async () => {
-    // 1st call for findLoginUid finds Firebase identity
-    mockGetUserByEmail.mockResolvedValueOnce({ data: null, error: null }); // Supabase not yet created
-    // 2nd call in requireAdminSupabaseIdentity finds no user
-    mockGetUserByEmail.mockResolvedValueOnce({ data: null, error: null });
+    // findLoginUid (1st call) resolves the account; requireAdminSupabaseIdentity (2nd call) then
+    // sees no Supabase Auth account and attempts to provision one.
+    mockGetUserByEmail
+      .mockResolvedValueOnce({ data: { user: { id: validUuid } }, error: null })
+      .mockResolvedValueOnce({ data: { user: null }, error: null });
     mockInviteUserByEmail.mockResolvedValueOnce({ data: null, error: { message: "Invite disabled" } });
     mockCreateUser.mockResolvedValueOnce({ data: null, error: { message: "Create rejected" } });
 

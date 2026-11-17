@@ -1,7 +1,7 @@
 "use client";
 
 export default function DebugPage() {
-  const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const aiProvider = process.env.AI_PROVIDER;
   
@@ -28,9 +28,9 @@ export default function DebugPage() {
           </div>
           
           <div className="flex items-center gap-4">
-            <span className="font-medium min-w-48">NEXT_PUBLIC_FIREBASE_API_KEY:</span>
-            <span className={firebaseApiKey ? "text-green-600 truncate" : "text-red-600"}>
-              {firebaseApiKey ? `${firebaseApiKey.substring(0, 20)}...` : "NOT SET"}
+            <span className="font-medium min-w-48">NEXT_PUBLIC_SUPABASE_URL:</span>
+            <span className={supabaseUrl ? "text-green-600 truncate" : "text-red-600"}>
+              {supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : "NOT SET"}
             </span>
           </div>
         </div>

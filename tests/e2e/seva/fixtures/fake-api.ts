@@ -6,7 +6,7 @@
  * the window, prints, prasadam states, day close, and fixtures for reports, settings and staff. Errors use the real
  * wire shape `{ error: { code, message } }` with the code's HTTP status from `lib/seva/errors.ts`.
  *
- * The caller's role comes from `req.role`, or in the browser from the e-mail inside the emulator ID token sent as
+ * The caller's role comes from `req.role`, or in the browser from the e-mail inside the Supabase access token sent as
  * `Authorization: Bearer <token>` (see `fixtures/auth.ts`). UI tasks add or override routes with `extend()`, in their
  * own files; an extended handler runs before the role checks and answers 200 with what it returns, `fakeResponse()`
  * for another status, or throws `FakeApiError`.

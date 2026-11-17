@@ -90,7 +90,7 @@ function matches(member: StaffMember, search: string): boolean {
 
 export interface StaffListProps {
   api: StaffApi;
-  /** Asks Firebase to send its own set-password email (C-56). */
+  /** Asks Supabase to send its own set-password email (C-56). */
   sendInvite(email: string): Promise<void>;
   me: SevaMe;
   can: StaffCan;

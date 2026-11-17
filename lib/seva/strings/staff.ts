@@ -139,7 +139,7 @@ export const STAFF_TEXT = {
     kn: 'ಈ ವ್ಯಕ್ತಿಯ ಇಮೇಲ್ ದೃಢೀಕರಿಸಲಾಗಿಲ್ಲ. ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ಸೈನ್ ಇನ್ ಮಾಡಿ, /seva ತೆರೆದು "Send verification email" ಒತ್ತಲು ಅವರಿಗೆ ಹೇಳಿ, ನಂತರ ಆ ಇಮೇಲ್‌ನ ಲಿಂಕ್ ಒತ್ತಲು ಹೇಳಿ. ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
   } as Bi,
   linkDisabled: {
-    en: 'This email has a website account, but its sign-in is switched off, so it cannot be linked. Ask the site owner to switch it on first (Firebase console, Authentication, Users), or use a different email.',
+    en: 'This email has a website account, but its sign-in is switched off, so it cannot be linked. Ask the site owner to switch it on first (Supabase dashboard, Authentication, Users), or use a different email.',
     kn: 'ಈ ಇಮೇಲ್‌ಗೆ ವೆಬ್‌ಸೈಟ್ ಖಾತೆ ಇದೆ, ಆದರೆ ಅದರ ಸೈನ್ ಇನ್ ನಿಲ್ಲಿಸಲಾಗಿದೆ, ಆದ್ದರಿಂದ ಜೋಡಿಸಲು ಆಗುವುದಿಲ್ಲ. ಮೊದಲು ಅದನ್ನು ಆನ್ ಮಾಡಲು ಸೈಟ್ ಮಾಲೀಕರಿಗೆ ಹೇಳಿ, ಅಥವಾ ಬೇರೆ ಇಮೇಲ್ ಬಳಸಿ.',
   } as Bi,
   /** 403 `needs_super_admin`: the existing account holds a website admin-console role or is inactive (C-62). */

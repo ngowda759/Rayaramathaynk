@@ -11,13 +11,7 @@ import {
   generateResponse,
 } from "@/lib/ai/generator";
 
-// Mock Firebase for tests
-jest.mock("@/lib/firebase", () => ({
-  db: null,
-  isFirebaseConfigured: () => false,
-}));
-
-// Mock retrieval modules to avoid Firebase calls
+// Mock retrieval modules to avoid live data calls
 
 // Mock aiSettingsService
 jest.mock("@/lib/ai/ai-settings", () => ({

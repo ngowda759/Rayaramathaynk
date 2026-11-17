@@ -16,7 +16,7 @@
  * 12. Forged client user ID
  * 13. Forged client role
  * 14. Email mismatch
- * 15. Firebase UID mismatch
+ * 15. Foreign-provider token cannot map to a Supabase authorization row
  * 16. Supabase auth_user_id mismatch
  * 17. Missing public.users
  * 18. Duplicate identity mapping
@@ -27,7 +27,7 @@
  * - Email matching cannot authenticate a user
  * - Client role cannot elevate privileges
  * - Client user ID cannot select another user's authorization
- * - Firebase UID cannot override auth_user_id
+ * - A foreign-provider token cannot override auth_user_id
  */
 
 import { NextRequest } from "next/server";
@@ -38,7 +38,6 @@ import { SevaError } from "@/lib/seva/errors";
 
 const mockGetUser = jest.fn();
 const mockFrom = jest.fn();
-const mockVerifyIdToken = jest.fn();
 
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -58,16 +57,6 @@ jest.mock("@/lib/supabase/server", () => ({
     auth: {
       getUser: (...args: unknown[]) => mockGetUser(...args),
     },
-  }),
-}));
-
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: jest.fn().mockResolvedValue({}),
-}));
-
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({
-    verifyIdToken: (...args: unknown[]) => mockVerifyIdToken(...args),
   }),
 }));
 
@@ -108,14 +97,11 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
   });
 
   // 2. Invalid Supabase token
-  it("2. Invalid Supabase token: returns 401 invalid_token when token fails verification in both providers", async () => {
+  it("2. Invalid Supabase token: returns 401 invalid_token when Supabase rejects the token", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: null },
       error: { message: "invalid" },
     });
-    mockVerifyIdToken.mockRejectedValue(
-      Object.assign(new Error("Invalid token"), { code: "auth/invalid-id-token" })
-    );
 
     const req = makeRequest("http://localhost/api/admin/overview", {
       authorization: "Bearer bogus-token",
@@ -135,7 +121,6 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
       data: { user: null },
       error: { message: "JWT expired" },
     });
-    mockVerifyIdToken.mockRejectedValue({ code: "auth/id-token-expired" });
 
     const req = makeRequest("http://localhost/api/admin/overview", {
       authorization: "Bearer expired-token",
@@ -396,32 +381,26 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
     }
   });
 
-  // 15. Firebase UID mismatch
-  it("15. Firebase UID mismatch: a Firebase token cannot claim another user's firestore_id", async () => {
+  // 15. Foreign-provider token
+  it("15. Foreign-provider token: a token Supabase does not accept is rejected and never mapped to a user row", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "Not Supabase" } });
-    mockVerifyIdToken.mockResolvedValue({ uid: "fb-attacker-uid", email: "attacker@example.com" });
-
-    const mockMaybeSingle = jest.fn().mockResolvedValue({
-      data: null, // No row matching firestore_id = fb-attacker-uid
-      error: null,
-    });
-    mockFrom.mockReturnValue({
-      select: () => ({ eq: () => ({ maybeSingle: mockMaybeSingle }) }),
-    });
 
     const req = makeRequest("http://localhost/api/admin/overview", {
-      authorization: "Bearer fb-attacker-token",
+      authorization: "Bearer foreign-provider-token",
     });
 
     const result = await verifyAdminUserResult(req);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toBe("user_not_found");
+      expect(result.reason).toBe("invalid_token");
+      expect(result.status).toBe(401);
     }
+    // No authorization lookup is attempted for a token Supabase rejected.
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   // 16. Supabase auth_user_id mismatch
-  it("16. Supabase auth_user_id mismatch: Firebase UID cannot override auth_user_id", async () => {
+  it("16. Supabase auth_user_id resolution: a foreign uid cannot override auth_user_id", async () => {
     // When a request arrives with a Supabase token, it resolves strictly by auth_user_id
     mockGetUser.mockResolvedValue({
       data: { user: { id: "canonical-auth-user-id", email: "test@example.com" } },
@@ -443,7 +422,7 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
     });
 
     await verifyAdminUserResult(req);
-    // Verified: strictly queries auth_user_id, not firestore_id
+    // Verified: strictly queries auth_user_id
     expect(mockEq).toHaveBeenCalledWith("auth_user_id", "canonical-auth-user-id");
   });
 

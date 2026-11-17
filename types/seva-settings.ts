@@ -4,7 +4,7 @@
  * server-only repositories, so a browser module never has to import from lib/seva/server/*.
  */
 
-/** The answer to a seva create or edit: the saved id and whether the Firestore `sevas` mirror succeeded. */
+/** The answer to a seva create or edit: the saved id and whether the Supabase `sevas` write succeeded. */
 export interface SaveSevaResult {
   id: string;
   mirror: "ok" | "failed";

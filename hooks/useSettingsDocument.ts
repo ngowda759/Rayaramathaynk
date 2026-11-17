@@ -9,7 +9,7 @@ import type { SettingsDocumentKey } from "@/services/settings-document.service";
  * Load and save a website settings document.
  *
  * The public site reads `/api/public/settings/<key>`; an admin page reads and writes
- * `/api/admin/settings/<key>` with the signed-in admin's Firebase ID token, the same
+ * `/api/admin/settings/<key>` with the signed-in admin's Supabase access token, the same
  * mechanism `useHomepageForm` and the guru-parampara form use. `settings_documents` is
  * deny-all under RLS, so the browser can never read it directly. There is no Firestore
  * listener.

@@ -1,8 +1,9 @@
 import type { Page } from "@playwright/test";
 
 /**
- * The five e2e accounts. global-setup.ts creates each one in the Auth emulator and writes its `users/{uid}` doc in the
- * Firestore emulator; `temple_admin_view_only` is a temple admin whose fake `me` answer carries `viewOnly: true`.
+ * The five e2e accounts. global-setup.ts creates each one in the local Supabase stack (a Supabase Auth
+ * user plus its `public.users` and `public.staff` rows); `temple_admin_view_only` is a temple admin
+ * whose fake `me` answer carries `viewOnly: true`.
  */
 export type E2ERole = "receptionist" | "prasadam_counter" | "temple_admin" | "temple_admin_view_only" | "super_admin";
 

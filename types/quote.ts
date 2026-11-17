@@ -105,7 +105,7 @@ export interface QuoteContent {
  * Main Quote interface
  */
 export interface Quote {
-  /** Firestore document ID */
+  /** Public row id (`firestore_id` when present, else the primary key). */
   id: string;
   
   /** URL-friendly identifier */

@@ -11,7 +11,7 @@
  *   2. the read-only-but-connected Prisma drift gate, which accepted an
  *      operator-supplied connection string with no destination verification.
  *
- * This suite enumerates all eight database-writing jobs plus the connection path
+ * This suite enumerates every database-writing job plus the connection path
  * explicitly, so removing one from the inventory — or removing its guard — fails
  * here. Everything is file- and process-based: no database, no network, no
  * dispatch.
@@ -69,18 +69,15 @@ function concurrencyGroups(yaml: string): string[] {
 }
 
 describe("database-writer inventory", () => {
-  it("enumerates exactly the eight database-writing jobs", () => {
-    // A fixed count is the point: adding a ninth writer means consciously
+  it("enumerates exactly the expected database-writing jobs", () => {
+    // A fixed count is the point: adding a writer means consciously
     // extending this list (and its guard), not silently widening the surface.
-    // `aaradhane-generate` was added here when the Aaradhane generator became a
-    // Supabase writer (PR-D4a/D4b); it was previously a Firestore-only writer and
-    // deliberately invisible to the Postgres detector.
-    expect(DB_WRITER_INVENTORY).toHaveLength(8);
+    // The three Firestore-to-Supabase migration workflows were removed with the
+    // Firebase retirement; only the live Supabase writers remain.
+    expect(DB_WRITER_INVENTORY).toHaveLength(6);
     expect(DB_WRITER_INVENTORY.map((w) => w.id).sort()).toEqual([
       "aaradhane-generate",
       "ai-knowledge-migration-apply",
-      "firestore-batched-migration",
-      "firestore-staged-migration",
       "resolve-raya-ai-baseline",
       "seva-backup",
       "seva-maintenance",
@@ -142,8 +139,6 @@ describe("database-writer inventory", () => {
     for (const id of [
       "supabase-migrations",
       "ai-knowledge-migration-apply",
-      "firestore-batched-migration",
-      "firestore-staged-migration",
     ]) {
       expect(byId.get(id)?.kind).toBe("migration");
     }

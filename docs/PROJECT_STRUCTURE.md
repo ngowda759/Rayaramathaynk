@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sri Raghavendra Swamy Temple website - a Next.js 14 application with Firebase backend.
+Sri Raghavendra Swamy Temple website - a Next.js 14 application with a Supabase backend.
 
 ---
 
@@ -76,7 +76,7 @@ Rayaramathaynk/
 │   └── useHomepage.ts
 │
 ├── lib/                         # Utilities
-│   ├── firebase.ts               # Firebase config
+│   ├── supabase/                # Supabase clients (browser, server, admin)
 │   ├── auth.ts                  # Auth utilities
 │   ├── utils.ts                 # General utilities
 │   ├── constants.ts             # Constants
@@ -124,7 +124,6 @@ Rayaramathaynk/
 ├── docs/                        # Documentation
 │   ├── API.md
 │   ├── PANCHANGA.md
-│   ├── FIREBASE.md
 │   └── PROJECT_STRUCTURE.md
 │
 ├── scripts/                     # Utility scripts
@@ -204,13 +203,10 @@ Rayaramathaynk/
 ## Environment Variables
 
 ```env
-# Firebase (Required)
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
-NEXT_PUBLIC_FIREBASE_APP_ID=
+# Supabase (Required)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 
 # Chatbot (Optional)
 NEXT_PUBLIC_CHATBOT_ID=
@@ -231,6 +227,6 @@ NEXT_PUBLIC_APP_URL=
 | Styling | Tailwind CSS |
 | Animation | Framer Motion |
 | Icons | Lucide React |
-| Backend | Firebase (Auth, Firestore, Storage) |
+| Backend | Supabase (Auth, PostgreSQL, Storage) |
 | Deployment | Vercel |
 | Calendar | Panchanga (Python) |

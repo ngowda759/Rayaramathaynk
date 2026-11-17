@@ -34,43 +34,6 @@ interface IntentRecord {
   timestamp: number;
 }
 
-// Mock Firebase
-jest.mock("@/lib/firebase", () => ({
-  db: {
-    collection: jest.fn(),
-  },
-  isFirebaseConfigured: () => false,
-}));
-
-// Mock Firebase Firestore methods
-jest.mock("firebase/firestore", () => ({
-  collection: jest.fn(() => ({
-    doc: jest.fn(() => ({
-      get: jest.fn(),
-      set: jest.fn(),
-      update: jest.fn(),
-    })),
-  })),
-  doc: jest.fn(),
-  query: jest.fn(),
-  where: jest.fn(),
-  orderBy: jest.fn(),
-  limit: jest.fn(),
-  getDocs: jest.fn(),
-  addDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  getCountFromServer: jest.fn(),
-  Timestamp: {
-    fromDate: jest.fn((date: Date) => ({
-      toMillis: () => date.getTime(),
-    })),
-    now: jest.fn(() => ({
-      toMillis: () => Date.now(),
-    })),
-  },
-  serverTimestamp: jest.fn(() => ({ toMillis: () => Date.now() })),
-}));
-
 describe("AI Analytics Types", () => {
   describe("TokenUsageRecord", () => {
     it("should have required fields", () => {

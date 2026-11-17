@@ -279,9 +279,6 @@ describe("static: no untrusted expression is interpolated into a run: block", ()
       "supabase-migrations.yml",
       "ai-knowledge-migration-apply.yml",
       "resolve-raya-ai-baseline.yml",
-      "firestore-batched-migration.yml",
-      "firestore-staged-migration.yml",
-      "firestore-production-export.yml",
       "aaradhane.yml",
     ];
     const unpinned: string[] = [];

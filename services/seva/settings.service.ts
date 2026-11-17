@@ -1,6 +1,6 @@
 /**
  * Browser client for the seva settings routes (`/api/seva/settings/*`): slip template, counter rules, cash
- * denominations, festival days and counters (DB §13.2-13.4). Every call asks the token getter for a fresh Firebase ID
+ * denominations, festival days and counters (DB §13.2-13.4). Every call asks the token getter for a fresh Supabase
  * token, so a page left open never sends an expired one. Failures arrive as SevaClientError (services/seva/http.ts).
  * The cash-difference note and changed-amount reason are always required, so there is no switch for them here.
  */

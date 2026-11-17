@@ -11,7 +11,7 @@ const TABLE = "users";
  *
  * The service-role client is used for every operation: `users` is deny-all under RLS
  * and carries role and activation state used for authorization. There is no Firestore
- * path. Note: this manages the directory row, not Firebase Authentication — the login
+ * path. Note: this manages the directory row, not Supabase Authentication — the login
  * provider is unchanged.
  */
 function rowToUser(row: any): TempleUser {

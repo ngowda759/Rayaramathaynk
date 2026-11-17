@@ -10,13 +10,6 @@ import {
   normalizeText,
 } from "@/lib/ai/intent";
 
-// Mock Firebase for tests
-jest.mock("@/lib/firebase", () => ({
-  db: null,
-  isFirebaseConfigured: () => false,
-}));
-
-
 jest.mock('server-only', () => { return {}; }, { virtual: true });
 global.fetch = jest.fn(() => Promise.resolve({
   ok: true,

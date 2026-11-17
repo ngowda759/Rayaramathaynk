@@ -1,5 +1,11 @@
 # temple-portal-expert
 
+> **Note (2026-11-16): Firebase is retired.** Firebase (Auth, Firestore, Storage) is no longer a live
+> store; Supabase is the only backend. This snapshot still describes the Firebase era. Where it says
+> "Firebase is still the live store" or names `lib/firebase.ts`, `lib/admin-firebase.ts`,
+> `firestore.rules` or `storage.rules`, read Supabase instead. See
+> `docs/audits/FIREBASE_RETIREMENT_AUDIT.md`.
+
 Built **2026-09-19** against the repository at `D:\Onboarding\Repos\POCs\General Purpose POCs`.
 Refreshed **2026-10-18** against commit `424fdb8` of the git clone at
 `D:\Onboarding\Repos\POCs\General Purpose POCs Git Connected` - 17 brain files, with M17 added for

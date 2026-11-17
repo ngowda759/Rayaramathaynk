@@ -10,12 +10,6 @@ jest.mock("next/server", () => ({
   NextResponse: mockNextResponse,
 }));
 
-// Mock Firebase
-jest.mock("@/lib/firebase", () => ({
-  db: null,
-  isFirebaseConfigured: () => false,
-}));
-
 // Mock fs module
 jest.mock("fs", () => ({
   existsSync: jest.fn(),
@@ -60,7 +54,7 @@ describe("Knowledge Coverage API", () => {
     });
 
     it("should return proper coverage structure", () => {
-      // Expected response structure when Firebase is not configured
+      // Expected response structure when the data store is not configured
       const mockResponse = {
         success: true,
         data: {
@@ -166,14 +160,14 @@ describe("Knowledge Coverage API", () => {
   });
 
   describe("Error Handling", () => {
-    it("should return error when Firebase is not configured", () => {
+    it("should return error when the data store is not configured", () => {
       const mockErrorResponse = {
         success: false,
-        error: "Firebase not configured",
+        error: "Data store not configured",
       };
 
       expect(mockErrorResponse.success).toBe(false);
-      expect(mockErrorResponse.error).toBe("Firebase not configured");
+      expect(mockErrorResponse.error).toBe("Data store not configured");
     });
 
     it("should return error when seed directory is not found", () => {

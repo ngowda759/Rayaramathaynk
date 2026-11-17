@@ -27,7 +27,7 @@ export async function checkAdminAuth(request: NextRequest): Promise<AdminUser | 
       return { uid: "api-admin", role: "admin" };
     }
 
-    // 1. PRIMARY: Supabase Auth access token verification
+    // Supabase Auth access token verification (only path)
     try {
       const supabase = createAdminClient();
       if (typeof supabase?.auth?.getUser === "function") {
@@ -44,20 +44,7 @@ export async function checkAdminAuth(request: NextRequest): Promise<AdminUser | 
       // Supabase unavailable in test mock or not a Supabase token
     }
 
-    // 2. FALLBACK: Firebase ID token verification
-    try {
-      const { getAdminApp } = await import("@/lib/admin-firebase");
-      const adminApp = await getAdminApp();
-      const { getAuth } = await import("firebase-admin/auth");
-      const decoded = await getAuth(adminApp).verifyIdToken(token);
-      return {
-        uid: decoded.uid,
-        role: "user",
-        email: decoded.email,
-      };
-    } catch {
-      return null;
-    }
+    return null;
   } catch (error) {
     console.error("Admin auth check failed:", error);
     return null;

@@ -666,7 +666,7 @@ function countsLine(c: DayCounts): string {
 // =====================================================================================================================
 
 export interface RunOptions extends SeedOptions {
-  /** The role of the issuing staff member as the routes read it from Firestore; 001 is the super admin. */
+  /** The role of the issuing staff member as the routes read it from Supabase; 001 is the super admin. */
   issuerRole: "receptionist" | "temple_admin" | "super_admin";
   /** Parallel prasadam gives (each is its own transaction). */
   concurrency: number;

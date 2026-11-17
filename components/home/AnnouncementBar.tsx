@@ -19,9 +19,6 @@ export default function AnnouncementBar() {
         console.log("Fetched announcements:", data.length);
       } catch (error: any) {
         console.error("Failed to load announcements:", error);
-        if (error?.message?.includes("requires an index") || error?.code === "failed-precondition") {
-          console.error("Firestore index may be missing.");
-        }
         setHasError(true);
       } finally {
         setLoading(false);

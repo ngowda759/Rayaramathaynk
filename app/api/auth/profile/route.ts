@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isUuid } from "@/lib/supabase/identifier";
 import type { UserProfile } from "@/types/user";
 
 // Strict schema: reject any client trying to set privileged fields
@@ -34,42 +33,7 @@ async function getCallerIdentity(request: NextRequest): Promise<{
   const token = header.slice(7).trim();
   if (!token) return null;
 
-  const payload = parseJwtPayload(token);
-  const iss = typeof payload?.iss === "string" ? payload.iss : "";
-  const aud = typeof payload?.aud === "string" ? payload.aud : "";
-
-  const isFirebaseToken = iss.startsWith("https://securetoken.google.com/");
-  const isSupabaseToken = iss.includes("supabase") || aud === "authenticated";
-
-  // 1. Firebase Admin Auth (for Firebase tokens, or unrecognized tokens if not explicitly Supabase)
-  if (isFirebaseToken || (!isSupabaseToken && !token.startsWith("sb-"))) {
-    try {
-      const { getAdminApp } = await import("@/lib/admin-firebase");
-      const app = await getAdminApp();
-      const { getAuth } = await import("firebase-admin/auth");
-      const auth = getAuth(app);
-      // Revocation checking enabled (checkRevoked = true)
-      const decoded = await auth.verifyIdToken(token, true);
-      return {
-        uid: decoded.uid,
-        email: typeof decoded.email === "string" ? decoded.email : null,
-        emailVerified: decoded.email_verified === true,
-      };
-    } catch (error) {
-      const code = (error as { code?: unknown } | null)?.code;
-      // Do not silently fall back if provider had an internal/server error
-      if (typeof code === "string" && (code === "auth/internal-error" || code === "auth/quota-exceeded")) {
-        console.error("[getCallerIdentity] Firebase auth server error:", code);
-        throw new Error("Authentication provider error");
-      }
-      // If the token explicitly claimed to be Firebase, do not fall back to Supabase
-      if (isFirebaseToken) {
-        return null;
-      }
-    }
-  }
-
-  // 2. Supabase Auth (for Supabase tokens or non-Firebase fallbacks)
+  // Supabase Auth is the only sign-in provider.
   try {
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const supabase = createAdminClient();
@@ -119,9 +83,9 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const filterQuery = isUuid(caller.uid)
-      ? `auth_user_id.eq.${caller.uid},id.eq.${caller.uid}`
-      : `firestore_id.eq.${caller.uid}`;
+    // Supabase Auth is the only sign-in provider, so `caller.uid` is always a Supabase Auth UUID; the users row is
+    // matched on `auth_user_id` (its primary key as a fallback). No Firestore id is consulted.
+    const filterQuery = `auth_user_id.eq.${caller.uid},id.eq.${caller.uid}`;
 
     const { data, error } = await supabase
       .from("users")
@@ -142,7 +106,7 @@ export async function GET(request: NextRequest) {
     const isApproved = Boolean((data as Record<string, unknown>).is_approved);
 
     const profile: UserProfile = {
-      uid: String(data.auth_user_id || data.firestore_id || data.id),
+      uid: String(data.auth_user_id || data.id),
       name: data.display_name || (data.email ? data.email.split("@")[0] : "Devotee"),
       email: data.email || caller.email || "",
       phone: data.phone_number || "",
@@ -193,9 +157,7 @@ export async function POST(request: NextRequest) {
     const payload = parseResult.data;
 
     const supabase = createAdminClient();
-    const filterQuery = isUuid(caller.uid)
-      ? `auth_user_id.eq.${caller.uid},id.eq.${caller.uid}`
-      : `firestore_id.eq.${caller.uid}`;
+    const filterQuery = `auth_user_id.eq.${caller.uid},id.eq.${caller.uid}`;
 
     const { data: existingUser, error: checkError } = await supabase
       .from("users")
@@ -235,13 +197,8 @@ export async function POST(request: NextRequest) {
         active: true,
         is_approved: false,
         created_at: new Date().toISOString(),
+        auth_user_id: caller.uid,
       };
-
-      if (isUuid(caller.uid)) {
-        insertData.auth_user_id = caller.uid;
-      } else {
-        insertData.firestore_id = caller.uid;
-      }
 
       const { error: insertError } = await supabase
         .from("users")

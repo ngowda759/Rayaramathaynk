@@ -11,7 +11,7 @@ import {
 
 import {
   SEED_ARTICLES,
-  getSeedArticlesForFirebase,
+  getSeedArticlesForInsert,
 } from "@/lib/ai/knowledge/seed";
 
 import {
@@ -21,12 +21,6 @@ import {
 } from "@/lib/ai/knowledge/repository";
 
 // Mock Firebase for tests
-jest.mock("@/lib/firebase", () => ({
-  db: null,
-  isFirebaseConfigured: () => false,
-}));
-
-
 jest.mock('server-only', () => { return {}; }, { virtual: true });
 global.fetch = jest.fn(() => Promise.resolve({
   ok: true,
@@ -96,16 +90,16 @@ describe("Knowledge Base", () => {
     });
   });
 
-  describe("getSeedArticlesForFirebase", () => {
+  describe("getSeedArticlesForInsert", () => {
     it("should return articles without IDs", () => {
-      const articles = getSeedArticlesForFirebase();
+      const articles = getSeedArticlesForInsert();
       articles.forEach((article) => {
         expect((article as Record<string, unknown>).id).toBeUndefined();
       });
     });
 
     it("should return same number as seed articles", () => {
-      const articles = getSeedArticlesForFirebase();
+      const articles = getSeedArticlesForInsert();
       expect(articles.length).toBe(SEED_ARTICLES.length);
     });
   });

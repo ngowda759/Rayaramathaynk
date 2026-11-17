@@ -53,7 +53,7 @@ This document describes the system architecture, data flow, and component hierar
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Data Layer (Firestore)                              │
+│                          Data Layer (Supabase PostgreSQL)                      │
 │                                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
 │  │   events    │  │    sevas     │  │  donations   │  │    users    │       │
@@ -97,7 +97,7 @@ This document describes the system architecture, data flow, and component hierar
 
 ### `services/` — Business Logic
 
-All data access goes through services. Never call Firestore directly.
+All data access goes through services. Never call Supabase directly.
 
 | Service | Purpose |
 |---------|---------|
@@ -134,13 +134,13 @@ All TypeScript interfaces and types for data models.
 ### Public Page Data Flow
 
 ```
-User Request → Server Component → Service Layer → Firestore → Render HTML
+User Request → Server Component → Service Layer → Supabase → Render HTML
 ```
 
 ### Admin Page Data Flow
 
 ```
-Admin Request → API Route → Service Layer → Admin SDK → Firestore → JSON Response
+Admin Request → API Route → Service Layer → Supabase (service role) → JSON Response
 ```
 
 ### AI Chat Flow
@@ -155,7 +155,7 @@ User Message → API Route → Intent Detection → Structured Retrieval → Kno
 
 ### Flow
 
-1. Firebase Auth handles user authentication
+1. Supabase Auth handles user authentication
 2. Auth state managed via `AuthContext.tsx`
 3. Protected routes check auth state
 4. Admin routes check user role
@@ -174,7 +174,7 @@ See `docs/AI-GUIDELINES.md` for detailed AI documentation.
 
 ### Key Principles
 
-1. **Retrieval-First** — Facts from Firebase repositories
+1. **Retrieval-First** — Facts from Supabase repositories
 2. **No Hallucination** — Structured data only
 3. **Fallback Chain** — Repository → Knowledge Base → LLM → Static
 4. **Language Support** — English, Kannada, mixed
@@ -202,8 +202,8 @@ interface IService<T> {
 // ✅ Correct - Using service
 const events = await eventService.getAll();
 
-// ❌ Wrong - Direct Firestore call
-const snapshot = await firestore.collection('events').get();
+// ❌ Wrong - Direct Supabase call in a component
+const { data } = await supabase.from('events').select('*');
 ```
 
 ---
@@ -258,7 +258,7 @@ Root Layout (app/layout.tsx)
 | React Context | Shared state across component tree (Auth, Theme) |
 | Local State (`useState`) | Component-specific state |
 | URL State | Filters, pagination, navigation |
-| Service Layer | Server data, Firestore queries |
+| Service Layer | Server data, Supabase queries |
 
 ---
 
@@ -325,11 +325,11 @@ return NextResponse.json(
 - Server-side validation
 - Rate limiting on sensitive endpoints
 
-### Firestore Rules
+### Row Level Security
 
-- Authenticated users can only read/write their own data
-- Admin operations require role check
-- Public data has read-only access
+- Application tables are deny-all for the `anon` and `authenticated` roles
+- Reads and writes go through server route handlers behind an authorization check
+- Admin operations require a role check against `public.users`
 
 ---
 
@@ -352,7 +352,7 @@ Firestore code (its `/api/admin/receipts` APIs, numbering, validation, PDF, serv
 | People and devices | The counter PC (Windows, Edge or Chrome, the installed app, kiosk printing); the prasadam phone or PC (camera or USB scanner); admins' phones and PCs |
 | App on Vercel (this Next.js app) | Module pages under `/seva` (`app/seva/**`): the full-screen counter frame (`(counter)`: counter, today's receipts, close day) and the desk frame (`(desk)`: dashboard, register, receipt pages, reports, settings, prasadam) with its own header, section rail and phone bar (`components/seva/shell/*`). Staff stays at `/admin/users`. Route handlers `app/api/seva/**`; server services `lib/seva/server/*`; pure logic `lib/seva/*`; browser clients `services/seva/*` |
 | Data | Supabase Postgres: the seva tables and `seva_*` SQL functions (see `docs/DATA-MODEL.md`) |
-| Outside services | Firebase Auth and Firestore `users` (sign-in, role, `isActive`); Firestore `settings/financeSettings` (the counter UPI id) and a mirror of `sevas`; GitHub Actions (CI, the nightly encrypted backup `seva-backup.yml`, the monthly purge `seva-maintenance.yml`); the counter PC's disk (the Excel copy) |
+| Outside services | Supabase Auth and `public.users` (sign-in, role, active flag); Supabase `settings_documents/financeSettings` (the counter UPI id); GitHub Actions (CI, the nightly encrypted backup `seva-backup.yml`, the monthly purge `seva-maintenance.yml`); the counter PC's disk (the Excel copy) |
 
 All module addresses come from one constant, `SEVA_ROUTES` in `lib/seva/routes.ts`. The website admin has one
 "Seva Entry" menu item; `/seva` sends each role to its landing page (`sevaHomePath`): receptionist to `/seva/counter`,
@@ -371,11 +371,12 @@ prasadam counter to `/seva/prasadam`, temple admin and super admin to the dashbo
 
 ### Identity adapter
 
-`lib/seva/server/identity.ts` is the only seva code that knows the sign-in provider (`lib/seva/server/identity-firebase.ts`
-today). Everything else works with a provider-neutral `externalUid` (stored as `staff.firebase_uid`) and an access
-profile (`role`, `isActive`). The adapter verifies the request's token, reads the access profile, creates, enables,
-disables and deletes logins. Moving away from Firebase later means a new adapter, not new routes. A person is let in
-only when both stores agree: Firestore `isActive` and an allowed role, and Supabase `staff.status = 'active'`.
+`lib/seva/server/identity.ts` is the only seva code that knows the sign-in provider (`lib/seva/server/identity-supabase.ts`
+today, Supabase Auth). Everything else works with a provider-neutral `externalUid` (stored as `staff.auth_user_id`,
+with the legacy `staff.firebase_uid` column retained only as an inert provenance key) and an access profile (`role`,
+`active`). The adapter verifies the request's token, reads the access profile, creates, enables, disables and deletes
+logins. Moving to another provider later means a new adapter, not new routes. A person is let in only when both stores
+agree: the `public.users` profile is active with an allowed role, and Supabase `staff.status = 'active'`.
 
 ### Flows
 

@@ -7,8 +7,8 @@ import { TempleUser, TempleUserCreate, TempleUserUpdate } from "@/types/user";
  * `users` is deny-all under RLS and carries the role and activation state used for
  * authorization, so the browser never reads it directly: every call goes through the
  * admin-guarded `/api/admin/users` routes, which use the service role server-side.
- * There is no Firestore path. Note: this manages the directory row, not Firebase
- * Authentication — the login provider is unchanged.
+ * There is no Firestore path. Note: this manages the directory row only — the
+ * login provider is Supabase Auth.
  */
 class UserService {
   async getUsers(): Promise<TempleUser[]> {

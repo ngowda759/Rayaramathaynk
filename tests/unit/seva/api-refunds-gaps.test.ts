@@ -77,7 +77,7 @@ function signIn(who: Who): void {
   mockStaff.length = 0;
   mockStaff.push({
     id: "staff-1",
-    firebase_uid: "uid-1",
+    auth_user_id: "uid-1",
     staff_no: 8,
     full_name: "Prakash",
     email: "prakash@example.org",

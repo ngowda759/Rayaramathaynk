@@ -78,15 +78,6 @@ describe("No Firestore dependencies in Analytics queries", () => {
     }
   });
 
-  it("scripts/migrate-ai-analytics.ts handles legacy overlap collections correctly", () => {
-    const scriptPath = path.resolve(__dirname, "../../scripts/migrate-ai-analytics.ts");
-    const contentScript = fs.readFileSync(scriptPath, "utf-8");
-
-    // Check if it executes against both 'unknown_questions' and 'ai_unknown_questions'
-    expect(contentScript).toContain('"unknown_questions",');
-    expect(contentScript).toContain('"ai_unknown_questions",');
-  });
-
   it("getLatencyMetrics removes fabricated 'intent' and 'messageId' from output and limits AnalyticsQueryParams", () => {
     const servicePath = path.resolve(__dirname, "../../services/ai-analytics.service.ts");
     const contentAnalytics = fs.readFileSync(servicePath, "utf-8");

@@ -1,8 +1,10 @@
 /**
  * @jest-environment node
  *
- * Dedicated tests for Phase 2 dual-token admin authentication:
- * Primary path: Supabase Auth. Secondary fallback path: Firebase Auth.
+ * Supabase-only admin authentication. Supabase Auth is the only identity
+ * provider: a token Supabase rejects is refused outright, with no fallback to
+ * any other provider. `public.users` (keyed by `auth_user_id`) is the only
+ * authorization source.
  */
 
 import { NextRequest } from "next/server";
@@ -12,17 +14,6 @@ import {
 } from "../../lib/auth/admin-auth";
 
 jest.mock("server-only", () => ({}), { virtual: true });
-
-const mockGetAuth = jest.fn();
-const mockGetAdminApp = jest.fn();
-
-jest.mock("firebase-admin/auth", () => ({
-  getAuth: (...args: unknown[]) => mockGetAuth(...args),
-}));
-
-jest.mock("@/lib/admin-firebase", () => ({
-  getAdminApp: (...args: unknown[]) => mockGetAdminApp(...args),
-}));
 
 const mockGetUser = jest.fn();
 const mockMaybeSingle = jest.fn();
@@ -50,7 +41,6 @@ function makeRequest(authHeader: string | null) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetAdminApp.mockResolvedValue({});
   mockCreateAdminClient.mockReturnValue({
     from: mockFrom,
     auth: { getUser: mockGetUser },
@@ -60,7 +50,7 @@ beforeEach(() => {
   mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle });
 });
 
-describe("Dual-Token Admin Auth — Primary Path (Supabase Auth)", () => {
+describe("Supabase Admin Auth — Primary Path (Supabase Auth)", () => {
   it("authenticates a valid Supabase admin and labels provider as supabase", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "sb-admin-uuid-1", email: "sb.admin@example.org" } },
@@ -85,8 +75,6 @@ describe("Dual-Token Admin Auth — Primary Path (Supabase Auth)", () => {
 
     // Looked up by auth_user_id
     expect(mockEq).toHaveBeenCalledWith("auth_user_id", "sb-admin-uuid-1");
-    // Firebase Admin was NOT called because Supabase succeeded
-    expect(mockGetAuth).not.toHaveBeenCalled();
   });
 
   it("refuses an inactive Supabase user with inactive_user (403)", async () => {
@@ -138,11 +126,9 @@ describe("Dual-Token Admin Auth — Primary Path (Supabase Auth)", () => {
       expect(result.reason).toBe("user_not_found");
       expect(result.status).toBe(403);
     }
-    // Critical: Firebase fallback MUST NOT be invoked when Supabase identity is found
-    expect(mockGetAuth).not.toHaveBeenCalled();
   });
 
-  it("strictly prevents privilege escalation: unauthorized or inactive Supabase identity NEVER falls back to Firebase", async () => {
+  it("strictly prevents privilege escalation: an unauthorized or inactive Supabase identity is never retried", async () => {
     // 1. Inactive Supabase user with bearer token
     mockGetUser.mockResolvedValue({
       data: { user: { id: "sb-inactive-uuid-2", email: "inactive2@example.org" } },
@@ -155,8 +141,7 @@ describe("Dual-Token Admin Auth — Primary Path (Supabase Auth)", () => {
 
     const inactiveResult = await verifyAdminUserResult(makeRequest("Bearer sb-inactive-token"));
     expect(inactiveResult.ok).toBe(false);
-    expect(inactiveResult.reason).toBe("inactive_user");
-    expect(mockGetAuth).not.toHaveBeenCalled();
+    expect(inactiveResult.ok ? null : inactiveResult.reason).toBe("inactive_user");
 
     // 2. Devotee role Supabase user with bearer token
     mockGetUser.mockResolvedValue({
@@ -170,132 +155,53 @@ describe("Dual-Token Admin Auth — Primary Path (Supabase Auth)", () => {
 
     const nonAdminResult = await verifyAdminUserResult(makeRequest("Bearer sb-devotee-token"));
     expect(nonAdminResult.ok).toBe(false);
-    expect(nonAdminResult.reason).toBe("insufficient_role");
-    expect(mockGetAuth).not.toHaveBeenCalled();
+    expect(nonAdminResult.ok ? null : nonAdminResult.reason).toBe("insufficient_role");
   });
 
-  it("identifies expired Supabase token and returns expired_token (401) without unsafe fallback", async () => {
+  it("identifies expired Supabase token and returns expired_token (401)", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: null },
       error: { message: "JWT expired: token has expired at 1700000000" },
     });
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockRejectedValue(
-        Object.assign(new Error("Invalid token"), { code: "auth/invalid-id-token" })
-      ),
-    });
 
     const result = await verifyAdminUserResult(makeRequest("Bearer sb-expired-token"));
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe("expired_token");
-    expect(result.status).toBe(401);
+    expect(result.ok ? null : result.reason).toBe("expired_token");
+    expect(result.ok ? null : result.status).toBe(401);
   });
 });
 
-describe("Dual-Token Admin Auth — Secondary Path (Firebase Fallback)", () => {
-  it("falls back to Firebase when token is rejected by Supabase Auth and authenticates successfully", async () => {
-    // Supabase rejects the token (e.g. invalid signature for Supabase)
+describe("Supabase Admin Auth — No fallback path", () => {
+  it("refuses a token Supabase rejects: no second provider is consulted", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: null },
       error: { message: "Invalid JWT token" },
     });
 
-    // Firebase verifies the token successfully
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({
-        uid: "fb-admin-uid-1",
-        email: "fb.admin@example.org",
-      }),
-    });
-
-    // public.users lookup by firestore_id succeeds
-    mockMaybeSingle.mockResolvedValue({
-      data: { role: "temple_admin", active: true, email: "fb.admin@example.org" },
-      error: null,
-    });
-
-    const result = await verifyAdminUserResult(makeRequest("Bearer fb-id-token"));
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.provider).toBe("firebase");
-      expect(result.user).toEqual({
-        uid: "fb-admin-uid-1",
-        email: "fb.admin@example.org",
-        role: "temple_admin",
-        provider: "firebase",
-      });
-    }
-
-    expect(mockEq).toHaveBeenCalledWith("firestore_id", "fb-admin-uid-1");
-  });
-
-  it("refuses an inactive Firebase user with inactive_user (403)", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid" } });
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({ uid: "fb-inactive", email: "in@t.org" }),
-    });
-    mockMaybeSingle.mockResolvedValue({
-      data: { role: "admin", active: false, email: "in@t.org" },
-      error: null,
-    });
-
-    const result = await verifyAdminUserResult(makeRequest("Bearer fb-token"));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("inactive_user");
-      expect(result.status).toBe(403);
-    }
-  });
-
-  it("refuses a Firebase user missing a public.users authorization row with user_not_found (403)", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid" } });
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockResolvedValue({ uid: "fb-orphan", email: "orp@t.org" }),
-    });
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
-
-    const result = await verifyAdminUserResult(makeRequest("Bearer fb-token"));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("user_not_found");
-      expect(result.status).toBe(403);
-    }
-  });
-
-  it("returns expired_token (401) when Firebase reports token expiration", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid" } });
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockRejectedValue(
-        Object.assign(new Error("Token expired"), { code: "auth/id-token-expired" })
-      ),
-    });
-
-    const result = await verifyAdminUserResult(makeRequest("Bearer expired-token"));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("expired_token");
-      expect(result.status).toBe(401);
-    }
-  });
-
-  it("returns invalid_token (401) when both Supabase and Firebase reject token", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid" } });
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockRejectedValue(
-        Object.assign(new Error("Invalid token"), { code: "auth/invalid-id-token" })
-      ),
-    });
-
-    const result = await verifyAdminUserResult(makeRequest("Bearer garbage-token"));
+    const result = await verifyAdminUserResult(makeRequest("Bearer not-a-supabase-token"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toBe("invalid_token");
       expect(result.status).toBe(401);
     }
+    // The authorization table must never be queried for a token that failed verification.
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("returns auth_unavailable (503) when Supabase Auth cannot answer (5xx)", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: "upstream unavailable", status: 503 },
+    });
+
+    const result = await verifyAdminUserResult(makeRequest("Bearer sb-token"));
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.reason).toBe("auth_unavailable");
+    expect(result.ok ? null : result.status).toBe(503);
   });
 });
 
-describe("Dual-Token Admin Auth — Common Security Controls", () => {
+describe("Supabase Admin Auth — Common Security Controls", () => {
   it("rejects missing authorization header with missing_token (401)", async () => {
     const result = await verifyAdminUserResult(makeRequest(null));
     expect(result.ok).toBe(false);
@@ -316,11 +222,6 @@ describe("Dual-Token Admin Auth — Common Security Controls", () => {
 
   it("does not leak secret tokens in the rejection response of requireAdminUser", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid" } });
-    mockGetAuth.mockReturnValue({
-      verifyIdToken: jest.fn().mockRejectedValue(
-        Object.assign(new Error("Invalid"), { code: "auth/invalid-id-token" })
-      ),
-    });
 
     const secretToken = "super-sensitive-secret-token-12345";
     const res = await requireAdminUser(makeRequest(`Bearer ${secretToken}`));

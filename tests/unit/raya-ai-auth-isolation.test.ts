@@ -181,17 +181,10 @@ describe("middleware does not gate admin authentication", () => {
 });
 
 describe("no Firestore fallback in the approved Raya AI paths", () => {
-  // Files that legitimately still reach Firebase/Firestore for backward compatibility.
-  // Each is documented in docs/auth/PHASE-3-AUTH-AUDIT.md §3 as outside the approved scope.
-  // A new entry here is a deliberate scope decision, not a silent regression.
-  const OUT_OF_SCOPE_FIREBASE_FILES = new Set([
-    // Non-AI admin authentication fallback (the temple's other admin pages).
-    path.join("lib", "auth", "admin-auth.ts"),
-    // Non-AI admin compatibility helper re-exports.
-    path.join("lib", "auth", "admin-auth-compat.ts"),
-    // Firebase ID-token verification for legacy tokens (non-AI).
-    path.join("lib", "auth", "verify-id-token.ts"),
-  ]);
+  // The Firebase retirement is complete: no file under these directories reaches
+  // Firebase/Firestore at all, not even as a legacy fallback. Any new entry here
+  // would be a silent regression, so the set is deliberately empty.
+  const OUT_OF_SCOPE_FIREBASE_FILES = new Set<string>();
 
   it("no in-scope AI module imports Firestore or Firebase Admin", () => {
     const offenders: string[] = [];
@@ -206,13 +199,14 @@ describe("no Firestore fallback in the approved Raya AI paths", () => {
     expect(offenders.filter((f) => !OUT_OF_SCOPE_FIREBASE_FILES.has(f))).toEqual([]);
   });
 
-  it("the documented out-of-scope allowlist matches reality exactly", () => {
-    // Guards the guard: if one of these is ported to Supabase, this fails and the
-    // allowlist must be tightened rather than left stale.
-    const stillOnFirebase = [...OUT_OF_SCOPE_FIREBASE_FILES].filter((rel) =>
-      reachesFirebase(read(rel))
-    );
-    expect(stillOnFirebase.sort()).toEqual([...OUT_OF_SCOPE_FIREBASE_FILES].sort());
+  it("no auth or AI module reaches Firebase at all", () => {
+    // Guards the guard: nothing under these directories may reach Firebase/Firestore,
+    // so the allowlist stays empty and cannot go stale.
+    const stillOnFirebase = [
+      ...walk("lib/auth"),
+      ...walk("lib/ai"),
+    ].filter((rel) => reachesFirebase(read(rel)));
+    expect(stillOnFirebase).toEqual([]);
   });
 
   it("the AI settings repository reads Supabase, not Firestore", () => {

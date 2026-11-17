@@ -5,6 +5,6 @@ export async function getTempleSettings() {
 }
 
 export async function updateTempleSettings(data: unknown) {
-  // We'll replace this with Firestore later
+  // TODO: persist temple settings to Supabase (settings_documents).
   console.log("Saving temple settings", data);
 }

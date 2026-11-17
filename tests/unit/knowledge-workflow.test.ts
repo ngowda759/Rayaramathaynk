@@ -4,34 +4,6 @@
 import { WorkflowStatus, WorkflowActionType } from "@/types/knowledge-workflow";
 import { Intent, IntentCategory } from "@/lib/ai/intent/types";
 
-// Mock Firebase
-jest.mock("@/lib/firebase", () => ({
-  db: {
-    collection: jest.fn(),
-  },
-  isFirebaseConfigured: () => false,
-}));
-
-// Mock Firebase Firestore methods
-jest.mock("firebase/firestore", () => ({
-  collection: jest.fn(),
-  doc: jest.fn(),
-  addDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  getDoc: jest.fn(),
-  getDocs: jest.fn(),
-  query: jest.fn(),
-  where: jest.fn(),
-  orderBy: jest.fn(),
-  limit: jest.fn(),
-  serverTimestamp: jest.fn(() => new Date()),
-  Timestamp: {
-    fromDate: jest.fn((date: Date) => ({ toDate: () => date })),
-    now: jest.fn(() => ({ toDate: () => new Date() })),
-  },
-}));
-
 describe("Workflow Status Types", () => {
   it("should have all required workflow statuses", () => {
     const statuses: WorkflowStatus[] = [
