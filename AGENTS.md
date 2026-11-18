@@ -442,3 +442,230 @@ Before contributing, read these docs:
 ---
 
 > ✅ **Provide this completion report when marking a task as complete.**
+
+---
+
+# 🦸 Superpowers Engineering Workflow (v7.0.2)
+
+**Purpose:** Integrate the Superpowers plugin into the existing Rayaramathaynk engineering contract.
+
+Superpowers supplements this repository's existing instructions. It does not replace, override, weaken, or bypass any existing architectural, coding, security, testing, documentation, or deployment requirements.
+
+## 1. Mandatory Skill Discovery
+
+At the beginning of every development task:
+
+- Invoke `using-superpowers` to establish the available workflow.
+- Identify the applicable Superpowers skills.
+- Use the installed Superpowers skills rather than manually improvising an equivalent process.
+- If a required skill is unavailable, explicitly report the limitation and follow the existing repository contract.
+
+Installed version: Superpowers 7.0.2.
+
+## 2. Requirement Analysis and Brainstorming
+
+For new features, architectural changes, significant enhancements, and design decisions:
+
+- Invoke `brainstorming` before implementation.
+- Understand the business objective and acceptance criteria.
+- Inspect existing implementations and reusable modules.
+- Evaluate at least two viable approaches when multiple approaches exist.
+- Explain trade-offs and recommend the approach best aligned with repository architecture.
+- Obtain clarification or approval when requirements or architectural decisions require user input.
+
+Do not use brainstorming to bypass the mandatory planning requirements already established in this file.
+
+## 3. Mandatory Implementation Planning
+
+Before changing application code:
+
+- Invoke `writing-plans`.
+- Produce the complete implementation plan required by this AGENTS.md.
+- Break work into small, independently verifiable steps.
+- Identify affected files, dependencies, risks, regression scenarios and validation commands.
+- Identify database and migration implications.
+- Ensure all changes respect the existing architecture.
+
+Do not start implementation until the mandatory planning phase is complete.
+
+## 4. Test-Driven Development
+
+Use `test-driven-development` for feature development and bug fixes.
+
+Follow the cycle:
+
+1. RED: Write a test demonstrating the expected behavior or regression.
+2. GREEN: Implement the minimum change needed to pass.
+3. REFACTOR: Improve implementation while keeping tests passing.
+
+Requirements:
+
+- Add regression tests for identified bugs.
+- Cover relevant edge cases and failure scenarios.
+- Use existing test infrastructure and repository conventions.
+- Do not weaken or remove existing tests merely to make a change pass.
+- Do not claim test coverage without actual test evidence.
+
+## 5. Systematic Debugging
+
+Whenever unexpected behavior, test failures, or production defects are encountered:
+
+- Invoke `systematic-debugging`.
+- Reproduce the issue.
+- Gather evidence.
+- Identify the underlying root cause.
+- Evaluate potential contributing factors.
+- Implement a targeted correction.
+- Add regression coverage.
+
+Avoid speculative patches, unrelated refactoring, and repeated changes without evidence.
+
+## 6. Implementation Execution
+
+Use the appropriate execution skill:
+
+- `executing-plans` for sequential implementation.
+- `subagent-driven-development` for suitable independent implementation tasks.
+- `dispatching-parallel-agents` for genuinely independent work.
+- `using-git-worktrees` when isolation is beneficial.
+
+All execution must follow existing repository conventions.
+
+Requirements:
+
+- Keep changes focused and minimal.
+- Reuse existing components, services, utilities and types.
+- Maintain backward compatibility.
+- Never bypass the service/repository architecture.
+- Never introduce unnecessary dependencies.
+- Keep application changes separate from unrelated formatting or cleanup.
+
+Parallel agents must not independently modify the same files without coordination.
+
+## 7. Verification Before Completion
+
+Always invoke `verification-before-completion` before reporting implementation as complete.
+
+Run applicable checks and inspect their actual output.
+
+Baseline validation:
+
+```bash
+npm run type-check
+npm run lint
+npm run build
+```
+
+Also run relevant:
+
+- Unit tests.
+- Integration tests.
+- End-to-end tests.
+- Security checks.
+- Migration validation, where applicable.
+- Accessibility and responsive UI checks, where applicable.
+
+Requirements:
+
+- Report commands actually executed.
+- Report passed, failed, skipped and blocked checks separately.
+- Investigate failures rather than hiding them.
+- Never claim a successful build or test without evidence.
+- Distinguish locally verified behavior from production-verified behavior.
+
+## 8. Independent Code and Security Review
+
+For significant changes, invoke:
+
+- `requesting-code-review`
+- `receiving-code-review`
+
+Review must independently evaluate:
+
+- Architectural consistency.
+- Security and authorization.
+- Authentication and access control.
+- Supabase RLS and data integrity.
+- Input validation and error handling.
+- Performance and scalability.
+- Backward compatibility.
+- Test quality.
+- Accessibility and responsive behavior.
+
+Address material findings before considering the implementation ready.
+
+For security-sensitive changes, obtain an explicit security-focused review rather than relying solely on the implementation agent's self-assessment.
+
+## 9. Git, Branch and Pull Request Discipline
+
+For application code changes:
+
+- Use a dedicated, appropriately named feature or fix branch.
+- Keep commits focused and descriptive.
+- Do not commit unrelated changes.
+- Do not overwrite or discard existing user changes.
+- Prepare a pull request with a clear title, implementation summary, testing evidence and relevant screenshots.
+- Verify applicable CI checks before requesting completion.
+
+Use `finishing-a-development-branch` when implementation and verification are complete.
+
+## 10. Explicit User Approval and Production Safety
+
+The following operations ALWAYS require explicit user approval:
+
+- Merging a pull request.
+- Deploying to production.
+- Executing production database migrations.
+- Modifying production database records.
+- Running production seed or initialization scripts.
+- Changing production authentication, authorization or security configuration.
+- Deleting production data or resources.
+
+Additional requirements:
+
+- Never infer approval from a general request to implement a feature.
+- Never perform destructive or irreversible operations without approval.
+- Prefer read-only production diagnostics.
+- Clearly explain the expected impact and rollback strategy before requesting approval.
+- Stop and wait for approval before performing the operation.
+
+Creating a feature branch, implementing approved code changes, running local tests and preparing a PR do not authorize production operations or PR merging.
+
+## 11. Mandatory Completion Report
+
+Every completed development task must follow the existing completion-report format in this AGENTS.md.
+
+Additionally include:
+
+- Superpowers skills invoked.
+- Implementation plan completed.
+- Tests added or modified.
+- Actual verification commands and results.
+- Independent review findings and resolutions.
+- CI and PR status.
+- Any operations requiring further user approval.
+- Remaining risks or limitations.
+
+Never mark incomplete or unverified work as complete.
+
+## 12. Priority and Conflict Resolution
+
+The following priority applies:
+
+1. Explicit user instructions and approvals.
+2. Existing repository security and architectural requirements.
+3. Existing AGENTS.md development contract.
+4. Relevant repository documentation.
+5. Superpowers workflow recommendations.
+
+Superpowers must always operate within the repository's established engineering contract.
+
+If a skill recommendation conflicts with an existing repository requirement, follow the repository requirement and explain the conflict.
+
+---
+
+**Final principle:**
+
+Understand → Brainstorm → Plan → Test → Implement → Debug → Verify → Review → PR → Obtain approval for integration and production operations.
+
+Quality, security, data integrity and maintainability take priority over implementation speed.
