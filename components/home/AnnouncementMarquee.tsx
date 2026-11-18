@@ -24,7 +24,7 @@ export function AnnouncementMarquee({
           .join("   ✦   ");
 
   return (
-    <div className="bg-[#7A1024] text-white border-y border-yellow-500/30">
+    <div className="relative z-20 bg-[#7A1024] text-white border-y border-yellow-500/30">
       <style>{`
         @keyframes marquee {
           from {
@@ -52,11 +52,11 @@ export function AnnouncementMarquee({
         }
       `}</style>
 
-      <div className="mx-auto flex max-w-7xl items-center gap-3 px-6 py-3">
-        <Bell className="h-5 w-5 flex-shrink-0 text-yellow-300" />
+      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 sm:px-6 py-2.5 sm:py-3">
+        <Bell className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 text-yellow-300" aria-hidden="true" />
 
         <div className="marquee-wrapper">
-          <div className="marquee-content text-sm font-medium">
+          <div className="marquee-content text-xs sm:text-sm font-medium">
             {content}
           </div>
         </div>

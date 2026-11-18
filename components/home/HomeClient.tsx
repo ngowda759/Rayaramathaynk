@@ -32,10 +32,12 @@ export default function HomeClient({
   dashboardData,
 }: HomeClientProps) {
   return (
-    <PageTransition>
+    <>
       <Navbar />
       <AnnouncementBar />
-      <Hero />
+
+      <PageTransition>
+        <Hero />
 
       <SacredDivider variant="mandala" />
 
@@ -84,5 +86,6 @@ export default function HomeClient({
 
       <Footer />
     </PageTransition>
+    </>
   );
 }

@@ -289,11 +289,11 @@ export default function Navbar() {
     "text-stone-700 hover:bg-[var(--temple-cream)] hover:text-[var(--temple-maroon)]";
 
   return (
-    <header className="sticky top-0 z-50 flex w-full justify-center px-3 sm:px-4 lg:px-6">
+    <header className="sticky top-0 z-50 flex w-full justify-center px-3 sm:px-4 lg:px-6 pb-3.5 sm:pb-4.5 lg:pb-5">
       {/* Floating glass container */}
       <div
         className={[
-          "mt-2 w-full max-w-[1400px] transition-all duration-500 ease-out",
+          "mt-2 sm:mt-2.5 lg:mt-3 w-full max-w-[1400px] transition-all duration-500 ease-out",
           "motion-reduce:transition-none",
           "rounded-3xl",
           "border border-[var(--temple-gold-light)]/40",

@@ -44,6 +44,34 @@ test.describe('Devotional Glassmorphism Navbar', () => {
       const onlineServices = desktopNav.locator('button:has-text("Online Services")');
       await expect(onlineServices).toBeVisible();
     });
+
+    for (const width of [1280, 1440, 1920]) {
+      test(`NAV-DESK-CLEARANCE-${width}: Floating navbar maintains clear vertical separation at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(500);
+
+        const metrics = await page.evaluate(() => {
+          const header = document.querySelector('header');
+          const floatingBox = header?.querySelector('div[class*="rounded-3xl"]')?.getBoundingClientRect();
+          const marquee = document.querySelector('.bg-\\[\\#7A1024\\]')?.getBoundingClientRect();
+          const bell = document.querySelector('.bg-\\[\\#7A1024\\] svg')?.getBoundingClientRect();
+
+          return {
+            floatingBottom: floatingBox?.bottom ?? 0,
+            marqueeTop: marquee?.top ?? 0,
+            bellTop: bell?.top ?? 0,
+          };
+        });
+
+        // Pill bottom must be strictly above marquee top
+        expect(metrics.marqueeTop).toBeGreaterThan(metrics.floatingBottom);
+        // Clearance must be at least 14px
+        expect(metrics.marqueeTop - metrics.floatingBottom).toBeGreaterThanOrEqual(14);
+        // Bell icon must not be underneath the navbar
+        expect(metrics.bellTop).toBeGreaterThan(metrics.floatingBottom + 20);
+      });
+    }
   });
 
   test.describe('Intermediate Breakpoints (1024px, 1100px)', () => {
@@ -74,6 +102,31 @@ test.describe('Devotional Glassmorphism Navbar', () => {
       const menuBtn = page.locator('button[aria-label="Open navigation menu"]');
       await expect(menuBtn).toBeVisible();
     });
+
+    for (const width of [1024, 1100]) {
+      test(`NAV-INT-CLEARANCE-${width}: Intermediate breakpoint maintains clear vertical separation at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(500);
+
+        const metrics = await page.evaluate(() => {
+          const header = document.querySelector('header');
+          const floatingBox = header?.querySelector('div[class*="rounded-3xl"]')?.getBoundingClientRect();
+          const marquee = document.querySelector('.bg-\\[\\#7A1024\\]')?.getBoundingClientRect();
+          const bell = document.querySelector('.bg-\\[\\#7A1024\\] svg')?.getBoundingClientRect();
+
+          return {
+            floatingBottom: floatingBox?.bottom ?? 0,
+            marqueeTop: marquee?.top ?? 0,
+            bellTop: bell?.top ?? 0,
+          };
+        });
+
+        expect(metrics.marqueeTop).toBeGreaterThan(metrics.floatingBottom);
+        expect(metrics.marqueeTop - metrics.floatingBottom).toBeGreaterThanOrEqual(14);
+        expect(metrics.bellTop).toBeGreaterThan(metrics.floatingBottom + 20);
+      });
+    }
   });
 
   test.describe('Mobile Viewport & Accessibility (375px, 390px, 430px)', () => {
@@ -90,6 +143,34 @@ test.describe('Devotional Glassmorphism Navbar', () => {
 
         const donateBtn = page.locator('header a[href="/donation"]:visible');
         await expect(donateBtn).toBeVisible();
+      });
+    }
+
+    for (const width of [375, 390, 430]) {
+      test(`NAV-MOB-CLEARANCE-${width}: Mobile navbar maintains clear vertical separation and bell clearance at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(500);
+
+        const metrics = await page.evaluate(() => {
+          const header = document.querySelector('header');
+          const floatingBox = header?.querySelector('div[class*="rounded-3xl"]')?.getBoundingClientRect();
+          const marquee = document.querySelector('.bg-\\[\\#7A1024\\]')?.getBoundingClientRect();
+          const bell = document.querySelector('.bg-\\[\\#7A1024\\] svg')?.getBoundingClientRect();
+
+          return {
+            floatingBottom: floatingBox?.bottom ?? 0,
+            marqueeTop: marquee?.top ?? 0,
+            bellTop: bell?.top ?? 0,
+          };
+        });
+
+        // Pill bottom must be strictly above marquee top
+        expect(metrics.marqueeTop).toBeGreaterThan(metrics.floatingBottom);
+        // Mobile clearance must be at least 10px (measured 14px)
+        expect(metrics.marqueeTop - metrics.floatingBottom).toBeGreaterThanOrEqual(10);
+        // Bell icon must be below navbar with ample margin (measured ~29px)
+        expect(metrics.bellTop).toBeGreaterThan(metrics.floatingBottom + 15);
       });
     }
 
@@ -192,6 +273,40 @@ test.describe('Devotional Glassmorphism Navbar', () => {
       await guruAccordionBtn.click();
       await expect(guruAccordionBtn).toHaveAttribute('aria-expanded', 'false');
       await expect(subLink).toHaveAttribute('tabindex', '-1');
+    });
+  });
+
+  test.describe('Scroll Behavior & Layering', () => {
+    test('NAV-SCROLL-01: Header remains sticky at top:0 and content scrolls beneath without visual collision', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(500);
+
+      // Verify initial clearance before scroll
+      const initialMetrics = await page.evaluate(() => {
+        const header = document.querySelector('header');
+        const floatingBox = header?.querySelector('div[class*="rounded-3xl"]')?.getBoundingClientRect();
+        const marquee = document.querySelector('.bg-\\[\\#7A1024\\]')?.getBoundingClientRect();
+        return {
+          floatingBottom: floatingBox?.bottom ?? 0,
+          marqueeTop: marquee?.top ?? 0,
+        };
+      });
+      expect(initialMetrics.marqueeTop).toBeGreaterThan(initialMetrics.floatingBottom);
+
+      // Scroll down 250px
+      await page.evaluate(() => window.scrollTo(0, 250));
+      await page.waitForTimeout(400);
+
+      // Sticky header remains fixed at y = 0
+      const headerBox = await page.locator('header').boundingBox();
+      expect(headerBox?.y).toBe(0);
+
+      // After scrolling past announcement bar, marquee is scrolled above viewport or behind header
+      const scrolledMarqueeTop = await page.evaluate(() => {
+        return document.querySelector('.bg-\\[\\#7A1024\\]')?.getBoundingClientRect().top ?? 0;
+      });
+      expect(scrolledMarqueeTop).toBeLessThan(0);
     });
   });
 });
