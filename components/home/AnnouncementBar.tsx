@@ -8,7 +8,6 @@ import { Announcement } from "@/types/announcement";
 export default function AnnouncementBar() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [hasError, setHasError] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAnnouncements() {
@@ -20,16 +19,10 @@ export default function AnnouncementBar() {
       } catch (error: any) {
         console.error("Failed to load announcements:", error);
         setHasError(true);
-      } finally {
-        setLoading(false);
       }
     }
     fetchAnnouncements();
   }, []);
-
-  if (loading) {
-    return null;
-  }
 
   return (
     <AnnouncementMarquee
