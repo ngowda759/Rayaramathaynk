@@ -59,8 +59,23 @@ export default function Navbar() {
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
   const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
   const calendarDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Accessibility refs for mobile dialog focus management
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Scroll position & body style restoration refs
   const scrollPositionRef = useRef(0);
   const isFirstRender = useRef(true);
+  const wasOpenRef = useRef(false);
+  const prevBodyStyles = useRef<{
+    overflow: string;
+    position: string;
+    width: string;
+    top: string;
+    touchAction: string;
+  } | null>(null);
 
   // Mobile accordion state
   const [mobileGuruOpen, setMobileGuruOpen] = useState(false);
@@ -99,7 +114,7 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Lock body scroll when mobile menu is open, restore exact position on close
+  // Safe body scroll locking and precise style/position restoration
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -108,27 +123,105 @@ export default function Navbar() {
 
     if (open) {
       scrollPositionRef.current = window.scrollY;
+      prevBodyStyles.current = {
+        overflow: document.body.style.overflow,
+        position: document.body.style.position,
+        width: document.body.style.width,
+        top: document.body.style.top,
+        touchAction: document.body.style.touchAction,
+      };
+
       document.body.style.overflow = "hidden";
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
       document.body.style.top = `-${scrollPositionRef.current}px`;
       document.body.style.touchAction = "none";
     } else {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.top = "";
-      document.body.style.touchAction = "";
-      window.scrollTo(0, scrollPositionRef.current);
+      if (prevBodyStyles.current) {
+        document.body.style.overflow = prevBodyStyles.current.overflow;
+        document.body.style.position = prevBodyStyles.current.position;
+        document.body.style.width = prevBodyStyles.current.width;
+        document.body.style.top = prevBodyStyles.current.top;
+        document.body.style.touchAction = prevBodyStyles.current.touchAction;
+        prevBodyStyles.current = null;
+      } else {
+        document.body.style.overflow = "";
+        document.body.style.position = "";
+        document.body.style.width = "";
+        document.body.style.top = "";
+        document.body.style.touchAction = "";
+      }
+      window.scrollTo({ top: scrollPositionRef.current, behavior: "instant" as ScrollBehavior });
     }
 
     return () => {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.top = "";
-      document.body.style.touchAction = "";
+      if (prevBodyStyles.current) {
+        document.body.style.overflow = prevBodyStyles.current.overflow;
+        document.body.style.position = prevBodyStyles.current.position;
+        document.body.style.width = prevBodyStyles.current.width;
+        document.body.style.top = prevBodyStyles.current.top;
+        document.body.style.touchAction = prevBodyStyles.current.touchAction;
+        prevBodyStyles.current = null;
+      }
     };
+  }, [open]);
+
+  // Focus management: initial focus on open, return focus on close
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      const focusClose = () => {
+        closeButtonRef.current?.focus();
+      };
+      focusClose();
+      const raf = requestAnimationFrame(focusClose);
+      const timer = setTimeout(focusClose, 100);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      const timer = setTimeout(() => {
+        menuTriggerRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+
+  // Focus trapping within mobile dialog
+  useEffect(() => {
+    if (!open) return;
+
+    function handleFocusTrap(e: KeyboardEvent) {
+      if (e.key !== "Tab" || !dialogRef.current) return;
+
+      const focusableSelectors =
+        'button:not([disabled]):not([tabindex="-1"]), [href]:not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+      const focusables = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelectors)
+      ).filter((el) => el.offsetParent !== null || el === closeButtonRef.current);
+
+      if (focusables.length === 0) return;
+
+      const firstElement = focusables[0];
+      const lastElement = focusables[focusables.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleFocusTrap);
+    return () => document.removeEventListener("keydown", handleFocusTrap);
   }, [open]);
 
   // Close dropdowns when clicking outside
@@ -644,6 +737,7 @@ export default function Navbar() {
 
             {/* Menu trigger button */}
             <button
+              ref={menuTriggerRef}
               onClick={() => setOpen(!open)}
               aria-label={open ? "Close navigation menu" : "Open navigation menu"}
               aria-expanded={open}
@@ -688,6 +782,7 @@ export default function Navbar() {
 
         {/* Modal Dialog Content */}
         <div
+          ref={dialogRef}
           className={[
             "relative z-10 flex flex-col w-full max-w-lg mx-auto max-h-[calc(100dvh-2rem)] rounded-3xl overflow-hidden transition-all duration-300 ease-out",
             "motion-reduce:transition-none motion-reduce:transform-none",
@@ -725,9 +820,10 @@ export default function Navbar() {
             </Link>
 
             <button
+              ref={closeButtonRef}
               onClick={() => setOpen(false)}
-              tabIndex={open ? 0 : -1}
-              aria-label="Close navigation menu"
+              tabIndex={0}
+              aria-label="Close navigation dialog"
               className="rounded-xl p-2 text-[var(--temple-maroon)] hover:bg-[var(--temple-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)]"
             >
               <X size={22} />
