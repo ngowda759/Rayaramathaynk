@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
+
 import Link from "next/link";
 import { CalendarDays, MoonStar, PartyPopper, ArrowRight } from "lucide-react";
 import { calendar } from "@/data/calendar";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Temple Calendar",
+  description:
+    "Sri Parabhava Samvatsara temple calendar with festival and Ekadashi dates observed at Sri Raghavendra Swamy Matha.",
+  path: "/calendar",
+});
 
 export default function TempleCalendarPage() {
   return (

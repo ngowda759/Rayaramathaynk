@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
+
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import EventGrid from "@/components/events/EventGrid";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Temple Events",
+  description:
+    "Explore upcoming festivals, poojas, spiritual programs and community gatherings at Sri Raghavendra Swamy Matha, Yelahanka New Town.",
+  path: "/events",
+});
 
 export default function EventsPage() {
   return (

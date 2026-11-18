@@ -9,69 +9,12 @@ import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DEFAULT_FOOTER_SETTINGS,
+  type FooterSettings as FooterData,
+} from "@/lib/settings/footer";
 
-interface FooterData {
-  // Logo & Temple Name
-  templeName: string;
-  templeSubtitle: string;
-  logoUrl: string;
-  
-  // Contact Info
-  address: string;
-  phone: string;
-  phone2: string;
-  email: string;
-  mapUrl: string;
-  
-  // Footer Links
-  quickLinks: { name: string; href: string }[];
-  sevasLinks: { name: string; href: string }[];
-  calendarLinks: { name: string; href: string }[];
-  
-  // Copyright
-  copyrightText: string;
-  currentYear: boolean; // If true, show current year dynamically
-}
-
-const COLLECTION = "settings";
-const DOCUMENT = "footer";
-
-const defaultData: FooterData = {
-  templeName: "Sri Raghavendra Swamy Matha",
-  templeSubtitle: "Yelahanka New Town",
-  logoUrl: "/images/logos/ynk_matha_logo.png",
-  
-  address: "Sri Rayara Matha, Yelahanka New Town, Bengaluru",
-  phone: "+91 9886364462",
-  phone2: "",
-  email: "ngowda759@gmail.com",
-  mapUrl: "https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8",
-  
-  quickLinks: [
-    { name: "Home", href: "/" },
-    { name: "Aaradhane", href: "/aaradhane" },
-    { name: "Facilities", href: "/facilities" },
-    { name: "Guru Parampara", href: "/guruparampara" },
-    { name: "Gallery", href: "/gallery" },
-    { name: "Events", href: "/events" },
-    { name: "About", href: "/about" },
-    { name: "Shlokas", href: "/shlokas" },
-  ],
-  
-  sevasLinks: [
-    { name: "Daily Pooja", href: "/pooja" },
-    { name: "Special Sevas", href: "/sevas" },
-    { name: "Donate", href: "/donation" },
-  ],
-  
-  calendarLinks: [
-    { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
-    { name: "Festival Calendar", href: "/calendar/festivals" },
-  ],
-  
-  copyrightText: "All rights reserved",
-  currentYear: true,
-};
+const defaultData: FooterData = DEFAULT_FOOTER_SETTINGS;
 
 export default function FooterSettingsPage() {
   const { data, setData, loading, saving, save } = useSettingsDocument<FooterData>(

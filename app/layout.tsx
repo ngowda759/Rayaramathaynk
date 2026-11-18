@@ -9,6 +9,7 @@ import { AIChatProvider } from "@/components/ai/AIChatProvider";
 import { ChatWidget } from "@/components/ai/ChatWidget";
 import { A11yProvider, SkipLink, LiveRegion } from "@/components/common/A11yProvider";
 import { ProfileProvider } from "@/context/ProfileContext";
+import { SITE_NAME, SITE_URL, SITE_DESCRIPTION, SOCIAL_PREVIEW_IMAGE } from "@/lib/seo";
 
 // Primary fonts - Inter for general use, Kannada will be handled via CSS font-stack
 const inter = Inter({
@@ -50,37 +51,27 @@ const notoSansKannada = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.srsmathaynk.com"),
+  metadataBase: new URL(SITE_URL),
 
   title: {
     default: "Sri Raghavendra Swamy Temple",
     template: "%s | Sri Raghavendra Swamy Temple",
   },
-  description:
-    "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
+  description: SITE_DESCRIPTION,
   openGraph: {
     title: "Sri Raghavendra Swamy Matha – Official Website",
-    description:
-      "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
-    url: "https://www.srsmathaynk.com",
-    siteName: "Sri Raghavendra Swamy Temple",
-    images: [
-      {
-        url: "/images/logos/social-preview.png",
-        width: 1200,
-        height: 630,
-        alt: "Sri Raghavendra Swamy Matha Logo",
-      },
-    ],
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    images: [SOCIAL_PREVIEW_IMAGE],
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "Sri Raghavendra Swamy Matha – Official Website",
-    description:
-      "Official website and Temple Management Portal of Sri Raghavendra Swamy Temple, Yelahanka New Town.",
-    images: ["/images/logos/social-preview.png"],
+    description: SITE_DESCRIPTION,
+    images: [SOCIAL_PREVIEW_IMAGE.url],
   },
   icons: {
     icon: [

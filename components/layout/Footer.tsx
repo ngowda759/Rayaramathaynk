@@ -5,57 +5,13 @@ import { useSettingsDocument } from "@/hooks/useSettingsDocument";
 import Image from "next/image";
 import { MapPin, Phone, Mail, Heart, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
-
-interface FooterData {
-  templeName: string;
-  templeSubtitle: string;
-  logoUrl: string;
-  address: string;
-  phone: string;
-  phone2: string;
-  email: string;
-  mapUrl: string;
-  quickLinks: { name: string; href: string }[];
-  sevasLinks: { name: string; href: string }[];
-  calendarLinks: { name: string; href: string }[];
-  copyrightText: string;
-  currentYear: boolean;
-}
-
-const defaultData: FooterData = {
-  templeName: "Sri Raghavendra Swamy Matha",
-  templeSubtitle: "Yelahanka New Town",
-  logoUrl: "/images/logos/ynk_matha_logo.png",
-  address: "Sri Rayara Matha, Yelahanka New Town, Bengaluru",
-  phone: "+91 9886364462",
-  phone2: "",
-  email: "ngowda759@gmail.com",
-  mapUrl: "https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8",
-  quickLinks: [
-    { name: "Home", href: "/" },
-    { name: "Aaradhane", href: "/aaradhane" },
-    { name: "Facilities", href: "/facilities" },
-    { name: "Guru Parampara", href: "/guruparampara" },
-    { name: "Gallery", href: "/gallery" },
-    { name: "Events", href: "/events" },
-    { name: "About", href: "/about" },
-    { name: "Shlokas", href: "/shlokas" },
-  ],
-  sevasLinks: [
-    { name: "Daily Pooja", href: "/pooja" },
-    { name: "Special Sevas", href: "/sevas" },
-    { name: "Donate", href: "/donation" },
-  ],
-  calendarLinks: [
-    { name: "Ekadasi Calendar", href: "/calendar/ekadashi" },
-    { name: "Festival Calendar", href: "/calendar/festivals" },
-  ],
-  copyrightText: "All rights reserved",
-  currentYear: true,
-};
+import { DEFAULT_FOOTER_SETTINGS } from "@/lib/settings/footer";
 
 export default function Footer() {
-  const { data: footerData } = useSettingsDocument<FooterData>("footer", defaultData);
+  const { data: footerData } = useSettingsDocument(
+    "footer",
+    DEFAULT_FOOTER_SETTINGS
+  );
 
   const currentYear = new Date().getFullYear();
   const copyrightYear = footerData.currentYear ? currentYear : "";

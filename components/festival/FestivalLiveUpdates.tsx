@@ -28,7 +28,7 @@ const MOCK_UPDATES: FestivalUpdate[] = [
     title: "Panchamruta Abhisheka",
     description: "The sacred Panchamruta Abhisheka is currently underway.",
     type: "photo",
-    imageUrl: "/images/temple-hero.jpg",
+    imageUrl: "/images/Hero.jpg",
   },
   {
     id: "3",
