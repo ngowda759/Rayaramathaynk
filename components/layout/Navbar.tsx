@@ -53,12 +53,14 @@ export default function Navbar() {
   const [onlineServicesOpen, setOnlineServicesOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
+
   const guruParamparaDropdownRef = useRef<HTMLDivElement>(null);
   const eventsDropdownRef = useRef<HTMLDivElement>(null);
   const aboutDropdownRef = useRef<HTMLDivElement>(null);
   const onlineServicesDropdownRef = useRef<HTMLDivElement>(null);
   const calendarDropdownRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
+  const isFirstRender = useRef(true);
 
   // Mobile accordion state
   const [mobileGuruOpen, setMobileGuruOpen] = useState(false);
@@ -89,18 +91,21 @@ export default function Navbar() {
     { name: "Past Events", href: "/events?filter=past" },
   ];
 
+  // Scroll detection for navbar settling effect
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
-
     onScroll();
-
-    window.addEventListener("scroll", onScroll);
-
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Lock body scroll when mobile menu is open
+  // Lock body scroll when mobile menu is open, restore exact position on close
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
     if (open) {
       scrollPositionRef.current = window.scrollY;
       document.body.style.overflow = "hidden";
@@ -150,6 +155,23 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close dropdowns and mobile menu on Escape key
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setGuruParamparaOpen(false);
+        setEventsOpen(false);
+        setAboutOpen(false);
+        setOnlineServicesOpen(false);
+        setCalendarOpen(false);
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const isGuruParamparaActive = pathname === "/guruparampara" || pathname === "/knowledge" || pathname === "/temple-explorer";
   const isEventsActive = pathname === "/events" || pathname === "/aaradhane";
   const isAboutActive = pathname === "/about" || pathname === "/facilities" || pathname === "/trust" || pathname === "/future-plans";
@@ -165,11 +187,13 @@ export default function Navbar() {
   const activePillClass =
     "bg-[var(--temple-maroon)] text-[var(--temple-cream)] shadow-[0_2px_8px_var(--temple-maroon)/25] border border-[var(--temple-gold-dark)]/30";
   const inactivePillClass =
-    "text-[var(--temple-maroon)] hover:bg-[var(--temple-cream)] hover:scale-[1.01] hover:-translate-y-px";
+    "text-[var(--temple-maroon)] hover:bg-[var(--temple-cream)] hover:scale-[1.01] hover:-translate-y-px motion-reduce:hover:transform-none";
 
   /* ─── Dropdown item classes ─── */
-  const dropdownActiveClass = "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold border-l-2 border-[var(--temple-gold)]";
-  const dropdownInactiveClass = "text-stone-700 hover:bg-[var(--temple-cream)] hover:text-[var(--temple-maroon)]";
+  const dropdownActiveClass =
+    "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold border-l-2 border-[var(--temple-gold)]";
+  const dropdownInactiveClass =
+    "text-stone-700 hover:bg-[var(--temple-cream)] hover:text-[var(--temple-maroon)]";
 
   return (
     <header className="sticky top-0 z-50 flex w-full justify-center px-3 sm:px-4 lg:px-6">
@@ -177,6 +201,7 @@ export default function Navbar() {
       <div
         className={[
           "mt-2 w-full max-w-[1400px] transition-all duration-500 ease-out",
+          "motion-reduce:transition-none",
           "rounded-3xl",
           "border border-[var(--temple-gold-light)]/40",
           scrolled
@@ -186,42 +211,50 @@ export default function Navbar() {
       >
         <div
           className={[
-            "mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-500 ease-out",
+            "mx-auto flex items-center justify-between px-3 sm:px-5 xl:px-6 2xl:px-8 transition-all duration-500 ease-out",
+            "motion-reduce:transition-none",
             scrolled ? "h-16" : "h-[4.5rem]",
           ].join(" ")}
         >
 
-          {/* ─── Brand ─── */}
-          <Link href="/" className="flex items-center gap-3 flex-shrink-0">
+          {/* ─── Brand Area ─── */}
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0 min-w-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2"
+          >
             <Image
               src="/images/logos/ynk_matha_logo.png"
-              alt="Sri Raghavendra Swamy"
+              alt="Sri Raghavendra Swamy Matha Logo"
               width={48}
               height={48}
               className={[
                 "rounded-full object-cover flex-shrink-0 transition-all duration-500 ease-out",
+                "motion-reduce:transition-none",
                 "border-2 border-[var(--temple-gold)]/30",
                 "shadow-[0_0_12px_var(--temple-gold)/15]",
-                scrolled ? "w-10 h-10" : "w-12 h-12",
+                scrolled ? "w-9 h-9 sm:w-10 sm:h-10" : "w-10 h-10 sm:w-12 sm:h-12",
               ].join(" ")}
             />
 
-            <div className="flex-col hidden sm:flex">
-              <h1 className="text-base lg:text-lg font-bold text-[var(--temple-maroon)] leading-tight">
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-xs sm:text-base xl:text-base 2xl:text-lg font-bold text-[var(--temple-maroon)] leading-tight truncate">
                 Sri Raghavendra Swamy Matha
               </h1>
 
-              <p className="text-xs text-[var(--temple-gold-dark)] tracking-wide">
+              <p className="text-[10px] sm:text-xs text-[var(--temple-gold-dark)] tracking-wide truncate">
                 Yelahanka New Town
               </p>
             </div>
           </Link>
 
-          {/* ─── Desktop Navigation ─── */}
-          <nav className="hidden items-center gap-0.5 xl:gap-1 lg:flex" role="navigation" aria-label="Main navigation">
+          {/* ─── Desktop Navigation (xl:flex: active on 1280px, 1440px, 1920px) ─── */}
+          <nav
+            className="hidden items-center gap-0.5 xl:gap-1 2xl:gap-1.5 xl:flex"
+            role="navigation"
+            aria-label="Main navigation"
+          >
 
             {menuItems.map((item) => {
-
               const active =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
@@ -231,7 +264,9 @@ export default function Navbar() {
                   key={item.name}
                   href={item.href}
                   className={[
-                    "rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-300 ease-out",
+                    "rounded-full px-3 py-2 text-xs 2xl:text-sm font-medium transition-all duration-300 ease-out",
+                    "motion-reduce:transition-none motion-reduce:transform-none",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
                     active ? activePillClass : inactivePillClass,
                   ].join(" ")}
                 >
@@ -246,25 +281,36 @@ export default function Navbar() {
                 onClick={() => setGuruParamparaOpen(!guruParamparaOpen)}
                 aria-expanded={guruParamparaOpen}
                 aria-haspopup="true"
+                aria-controls="desktop-guru-dropdown"
                 className={[
-                  "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-300 ease-out",
+                  "flex items-center gap-1.5 rounded-full px-3 py-2 text-xs 2xl:text-sm font-medium transition-all duration-300 ease-out",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
                   isGuruParamparaActive ? activePillClass : inactivePillClass,
                 ].join(" ")}
               >
-                <BookOpen size={16} />
+                <BookOpen size={15} />
                 Guru Parampara
-                <ChevronDown size={14} className={`transition-transform duration-200 ${guruParamparaOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 motion-reduce:transition-none ${guruParamparaOpen ? "rotate-180" : ""}`}
+                />
               </button>
 
               <div
+                id="desktop-guru-dropdown"
+                role="menu"
+                aria-orientation="vertical"
+                aria-hidden={!guruParamparaOpen}
                 className={[
                   "absolute left-0 top-full mt-2 w-56 rounded-2xl overflow-hidden transition-all duration-200 ease-out origin-top",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
                   "border border-[var(--temple-gold-light)]/40",
-                  "bg-[var(--temple-warm-white)]/90 backdrop-blur-xl",
+                  "bg-[var(--temple-warm-white)]/95 backdrop-blur-xl",
                   "shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
                   guruParamparaOpen
-                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none",
+                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto visible"
+                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none invisible",
                 ].join(" ")}
               >
                 {guruParamparaDropdown.map((item) => {
@@ -273,12 +319,16 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      role="menuitem"
+                      tabIndex={guruParamparaOpen ? 0 : -1}
                       onClick={() => {
                         setGuruParamparaOpen(false);
                         setOpen(false);
                       }}
                       className={[
-                        "block px-4 py-3 text-sm transition-all duration-200",
+                        "block px-4 py-3 text-xs 2xl:text-sm transition-all duration-200",
+                        "motion-reduce:transition-none",
+                        "focus-visible:outline-none focus-visible:bg-[var(--temple-cream)] focus-visible:text-[var(--temple-maroon)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--temple-gold)]",
                         active ? dropdownActiveClass : dropdownInactiveClass,
                       ].join(" ")}
                     >
@@ -295,25 +345,36 @@ export default function Navbar() {
                 onClick={() => setCalendarOpen(!calendarOpen)}
                 aria-expanded={calendarOpen}
                 aria-haspopup="true"
+                aria-controls="desktop-calendar-dropdown"
                 className={[
-                  "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-300 ease-out",
+                  "flex items-center gap-1.5 rounded-full px-3 py-2 text-xs 2xl:text-sm font-medium transition-all duration-300 ease-out",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
                   isCalendarActive ? activePillClass : inactivePillClass,
                 ].join(" ")}
               >
-                <Calendar size={16} />
+                <Calendar size={15} />
                 Calendar
-                <ChevronDown size={14} className={`transition-transform duration-200 ${calendarOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 motion-reduce:transition-none ${calendarOpen ? "rotate-180" : ""}`}
+                />
               </button>
 
               <div
+                id="desktop-calendar-dropdown"
+                role="menu"
+                aria-orientation="vertical"
+                aria-hidden={!calendarOpen}
                 className={[
                   "absolute left-0 top-full mt-2 w-52 rounded-2xl overflow-hidden transition-all duration-200 ease-out origin-top",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
                   "border border-[var(--temple-gold-light)]/40",
-                  "bg-[var(--temple-warm-white)]/90 backdrop-blur-xl",
+                  "bg-[var(--temple-warm-white)]/95 backdrop-blur-xl",
                   "shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
                   calendarOpen
-                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none",
+                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto visible"
+                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none invisible",
                 ].join(" ")}
               >
                 {calendarDropdown.map((item) => {
@@ -322,12 +383,16 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      role="menuitem"
+                      tabIndex={calendarOpen ? 0 : -1}
                       onClick={() => {
                         setCalendarOpen(false);
                         setOpen(false);
                       }}
                       className={[
-                        "block px-4 py-3 text-sm transition-all duration-200",
+                        "block px-4 py-3 text-xs 2xl:text-sm transition-all duration-200",
+                        "motion-reduce:transition-none",
+                        "focus-visible:outline-none focus-visible:bg-[var(--temple-cream)] focus-visible:text-[var(--temple-maroon)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--temple-gold)]",
                         active ? dropdownActiveClass : dropdownInactiveClass,
                       ].join(" ")}
                     >
@@ -341,7 +406,9 @@ export default function Navbar() {
             <Link
               href="/gallery"
               className={[
-                "rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-300 ease-out",
+                "rounded-full px-3 py-2 text-xs 2xl:text-sm font-medium transition-all duration-300 ease-out",
+                "motion-reduce:transition-none motion-reduce:transform-none",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
                 pathname === "/gallery" ? activePillClass : inactivePillClass,
               ].join(" ")}
             >
@@ -354,24 +421,35 @@ export default function Navbar() {
                 onClick={() => setEventsOpen(!eventsOpen)}
                 aria-expanded={eventsOpen}
                 aria-haspopup="true"
+                aria-controls="desktop-events-dropdown"
                 className={[
-                  "flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-300 ease-out",
+                  "flex items-center gap-1 rounded-full px-3 py-2 text-xs 2xl:text-sm font-medium transition-all duration-300 ease-out",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
                   isEventsActive ? activePillClass : inactivePillClass,
                 ].join(" ")}
               >
                 Events
-                <ChevronDown size={14} className={`transition-transform duration-200 ${eventsOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 motion-reduce:transition-none ${eventsOpen ? "rotate-180" : ""}`}
+                />
               </button>
 
               <div
+                id="desktop-events-dropdown"
+                role="menu"
+                aria-orientation="vertical"
+                aria-hidden={!eventsOpen}
                 className={[
                   "absolute left-0 top-full mt-2 w-52 rounded-2xl overflow-hidden transition-all duration-200 ease-out origin-top",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
                   "border border-[var(--temple-gold-light)]/40",
-                  "bg-[var(--temple-warm-white)]/90 backdrop-blur-xl",
+                  "bg-[var(--temple-warm-white)]/95 backdrop-blur-xl",
                   "shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
                   eventsOpen
-                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none",
+                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto visible"
+                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none invisible",
                 ].join(" ")}
               >
                 {eventsDropdown.map((item) => {
@@ -381,6 +459,8 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      role="menuitem"
+                      tabIndex={eventsOpen ? 0 : -1}
                       target={item.external ? "_blank" : undefined}
                       rel={item.external ? "noopener noreferrer" : undefined}
                       onClick={() => {
@@ -388,7 +468,9 @@ export default function Navbar() {
                         setOpen(false);
                       }}
                       className={[
-                        "flex items-center gap-2 px-4 py-3 text-sm transition-all duration-200",
+                        "flex items-center gap-2 px-4 py-3 text-xs 2xl:text-sm transition-all duration-200",
+                        "motion-reduce:transition-none",
+                        "focus-visible:outline-none focus-visible:bg-[var(--temple-cream)] focus-visible:text-[var(--temple-maroon)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--temple-gold)]",
                         isLive
                           ? "bg-red-50/80 text-red-700 font-semibold hover:bg-red-100/80"
                           : active
@@ -397,13 +479,13 @@ export default function Navbar() {
                       ].join(" ")}
                     >
                       {isLive && (
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative flex h-2 w-2" aria-hidden="true">
+                          <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-red-400 opacity-75"></span>
                           <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
                         </span>
                       )}
                       {item.name}
-                      {isLive && <ExternalLink size={12} className="ml-auto text-red-400" />}
+                      {isLive && <ExternalLink size={12} className="ml-auto text-red-400" aria-label="(opens external link)" />}
                     </Link>
                   );
                 })}
@@ -416,24 +498,35 @@ export default function Navbar() {
                 onClick={() => setAboutOpen(!aboutOpen)}
                 aria-expanded={aboutOpen}
                 aria-haspopup="true"
+                aria-controls="desktop-about-dropdown"
                 className={[
-                  "flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-300 ease-out",
+                  "flex items-center gap-1 rounded-full px-3 py-2 text-xs 2xl:text-sm font-medium transition-all duration-300 ease-out",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
                   isAboutActive ? activePillClass : inactivePillClass,
                 ].join(" ")}
               >
                 About
-                <ChevronDown size={14} className={`transition-transform duration-200 ${aboutOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 motion-reduce:transition-none ${aboutOpen ? "rotate-180" : ""}`}
+                />
               </button>
 
               <div
+                id="desktop-about-dropdown"
+                role="menu"
+                aria-orientation="vertical"
+                aria-hidden={!aboutOpen}
                 className={[
                   "absolute left-0 top-full mt-2 w-52 rounded-2xl overflow-hidden transition-all duration-200 ease-out origin-top",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
                   "border border-[var(--temple-gold-light)]/40",
-                  "bg-[var(--temple-warm-white)]/90 backdrop-blur-xl",
+                  "bg-[var(--temple-warm-white)]/95 backdrop-blur-xl",
                   "shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
                   aboutOpen
-                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none",
+                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto visible"
+                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none invisible",
                 ].join(" ")}
               >
                 {aboutDropdown.map((item) => {
@@ -442,12 +535,16 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      role="menuitem"
+                      tabIndex={aboutOpen ? 0 : -1}
                       onClick={() => {
                         setAboutOpen(false);
                         setOpen(false);
                       }}
                       className={[
-                        "block px-4 py-3 text-sm transition-all duration-200",
+                        "block px-4 py-3 text-xs 2xl:text-sm transition-all duration-200",
+                        "motion-reduce:transition-none",
+                        "focus-visible:outline-none focus-visible:bg-[var(--temple-cream)] focus-visible:text-[var(--temple-maroon)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--temple-gold)]",
                         active ? dropdownActiveClass : dropdownInactiveClass,
                       ].join(" ")}
                     >
@@ -464,28 +561,39 @@ export default function Navbar() {
                 onClick={() => setOnlineServicesOpen(!onlineServicesOpen)}
                 aria-expanded={onlineServicesOpen}
                 aria-haspopup="true"
+                aria-controls="desktop-services-dropdown"
                 className={[
-                  "flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all duration-300 ease-out",
+                  "flex items-center gap-1.5 rounded-full px-4 2xl:px-5 py-2 text-xs 2xl:text-sm font-semibold transition-all duration-300 ease-out",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
                   "bg-[var(--temple-gold)] text-[var(--temple-maroon)]",
                   "shadow-[0_2px_12px_var(--temple-gold)/30]",
                   "hover:shadow-[0_4px_16px_var(--temple-gold)/40] hover:brightness-105",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-maroon)] focus-visible:ring-offset-2",
                   isOnlineServicesActive ? "ring-2 ring-[var(--temple-maroon)]/20 ring-offset-1" : "",
                 ].join(" ")}
               >
-                <Heart size={16} />
+                <Heart size={15} />
                 Online Services
-                <ChevronDown size={14} className={`transition-transform duration-200 ${onlineServicesOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 motion-reduce:transition-none ${onlineServicesOpen ? "rotate-180" : ""}`}
+                />
               </button>
 
               <div
+                id="desktop-services-dropdown"
+                role="menu"
+                aria-orientation="vertical"
+                aria-hidden={!onlineServicesOpen}
                 className={[
                   "absolute right-0 top-full mt-2 w-52 rounded-2xl overflow-hidden transition-all duration-200 ease-out origin-top",
+                  "motion-reduce:transition-none motion-reduce:transform-none",
                   "border border-[var(--temple-gold-light)]/40",
-                  "bg-[var(--temple-warm-white)]/90 backdrop-blur-xl",
+                  "bg-[var(--temple-warm-white)]/95 backdrop-blur-xl",
                   "shadow-[0_8px_32px_rgba(0,0,0,0.1)]",
                   onlineServicesOpen
-                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none",
+                    ? "opacity-100 scale-100 translate-y-0 pointer-events-auto visible"
+                    : "opacity-0 scale-95 -translate-y-1 pointer-events-none invisible",
                 ].join(" ")}
               >
                 {onlineServicesDropdown.map((item) => {
@@ -494,12 +602,16 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      role="menuitem"
+                      tabIndex={onlineServicesOpen ? 0 : -1}
                       onClick={() => {
                         setOnlineServicesOpen(false);
                         setOpen(false);
                       }}
                       className={[
-                        "flex items-center gap-2 px-4 py-3 text-sm transition-all duration-200",
+                        "flex items-center gap-2 px-4 py-3 text-xs 2xl:text-sm transition-all duration-200",
+                        "motion-reduce:transition-none",
+                        "focus-visible:outline-none focus-visible:bg-[var(--temple-cream)] focus-visible:text-[var(--temple-maroon)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--temple-gold)]",
                         active ? dropdownActiveClass : dropdownInactiveClass,
                       ].join(" ")}
                     >
@@ -514,73 +626,122 @@ export default function Navbar() {
 
           </nav>
 
-          {/* ─── Mobile Controls ─── */}
-          <div className="flex items-center gap-2 lg:hidden">
-            {/* Mobile Donate CTA */}
+          {/* ─── Mobile Controls (Active on <1280px: 375, 390, 430, 1024, 1100) ─── */}
+          <div className="flex items-center gap-1.5 sm:gap-2 xl:hidden">
+            {/* Quick Donate CTA */}
             <Link
               href="/donation"
               className={[
-                "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-all duration-300",
+                "flex items-center gap-1 rounded-full px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold transition-all duration-300",
                 "bg-[var(--temple-gold)] text-[var(--temple-maroon)]",
                 "shadow-[0_2px_8px_var(--temple-gold)/25]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-maroon)] focus-visible:ring-offset-2",
               ].join(" ")}
             >
-              <Heart size={14} />
+              <Heart size={13} />
               Donate
             </Link>
 
+            {/* Menu trigger button */}
             <button
               onClick={() => setOpen(!open)}
-              aria-label={open ? "Close menu" : "Open menu"}
+              aria-label={open ? "Close navigation menu" : "Open navigation menu"}
               aria-expanded={open}
+              aria-controls="mobile-navigation-dialog"
               className={[
-                "rounded-xl p-2 transition-all duration-200",
+                "rounded-xl p-1.5 sm:p-2 transition-all duration-200",
                 "text-[var(--temple-maroon)] hover:bg-[var(--temple-cream)]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-offset-2",
               ].join(" ")}
             >
-              {open ? <X size={26} /> : <Menu size={26} />}
+              {open ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* ─── Mobile Menu ─── */}
+      {/* ─── Mobile Overlay Dialog (Active on <1280px) ─── */}
       <div
+        id="mobile-navigation-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation Menu"
         className={[
-          "fixed inset-x-0 top-0 z-40 lg:hidden transition-all duration-300 ease-out",
+          "fixed inset-0 z-50 flex flex-col p-3 sm:p-4 xl:hidden transition-all duration-300 ease-out",
+          "motion-reduce:transition-none",
           open
-            ? "opacity-100 pointer-events-auto"
-            : "opacity-0 pointer-events-none",
+            ? "opacity-100 pointer-events-auto visible"
+            : "opacity-0 pointer-events-none invisible",
         ].join(" ")}
       >
-        {/* Backdrop */}
+        {/* Backdrop (tap to close) */}
         <div
           className={[
-            "absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity duration-300",
+            "fixed inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity duration-300",
+            "motion-reduce:transition-none",
             open ? "opacity-100" : "opacity-0",
           ].join(" ")}
           onClick={() => setOpen(false)}
+          aria-hidden="true"
         />
 
-        {/* Menu panel */}
+        {/* Modal Dialog Content */}
         <div
           className={[
-            "relative mx-3 sm:mx-4 mt-20 rounded-2xl overflow-hidden transition-all duration-300 ease-out",
+            "relative z-10 flex flex-col w-full max-w-lg mx-auto max-h-[calc(100dvh-2rem)] rounded-3xl overflow-hidden transition-all duration-300 ease-out",
+            "motion-reduce:transition-none motion-reduce:transform-none",
             "border border-[var(--temple-gold-light)]/40",
-            "bg-[var(--temple-warm-white)]/95 backdrop-blur-xl",
-            "shadow-[0_12px_48px_rgba(0,0,0,0.12)]",
+            "bg-[var(--temple-warm-white)]/95 backdrop-blur-2xl",
+            "shadow-[0_16px_48px_rgba(0,0,0,0.18)]",
             open
               ? "translate-y-0 scale-100"
               : "-translate-y-4 scale-95",
           ].join(" ")}
-          style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", maxHeight: "calc(100vh - 6rem)" }}
         >
-          <div className="overflow-y-auto space-y-1 p-4 pb-20" style={{ maxHeight: "calc(100vh - 7rem)" }}>
+          {/* Pinned Modal Header (Never scrolls away) */}
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-[var(--temple-gold-light)]/30 bg-[var(--temple-warm-white)]/90 flex-shrink-0">
+            <Link
+              href="/"
+              onClick={handleMobileNavClick}
+              tabIndex={open ? 0 : -1}
+              className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] rounded-xl"
+            >
+              <Image
+                src="/images/logos/ynk_matha_logo.png"
+                alt="Sri Raghavendra Swamy Matha"
+                width={36}
+                height={36}
+                className="rounded-full object-cover border border-[var(--temple-gold)]/40 w-9 h-9 flex-shrink-0"
+              />
+              <div className="flex flex-col">
+                <span className="text-xs sm:text-sm font-bold text-[var(--temple-maroon)] leading-tight">
+                  Sri Raghavendra Swamy Matha
+                </span>
+                <span className="text-[10px] text-[var(--temple-gold-dark)]">
+                  Yelahanka New Town
+                </span>
+              </div>
+            </Link>
 
+            <button
+              onClick={() => setOpen(false)}
+              tabIndex={open ? 0 : -1}
+              aria-label="Close navigation menu"
+              className="rounded-xl p-2 text-[var(--temple-maroon)] hover:bg-[var(--temple-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)]"
+            >
+              <X size={22} />
+            </button>
+          </div>
+
+          {/* Scrollable Navigation List */}
+          <nav
+            aria-label="Mobile navigation"
+            className="overflow-y-auto overscroll-contain p-4 pb-12 space-y-1 flex-1"
+            style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
+          >
             {/* Home, Shlokas */}
             {menuItems.map((item) => {
-
               const active =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
@@ -589,9 +750,11 @@ export default function Navbar() {
                 <Link
                   key={item.name}
                   href={item.href}
+                  tabIndex={open ? 0 : -1}
                   onClick={handleMobileNavClick}
                   className={[
-                    "flex items-center justify-between rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200",
+                    "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                     active
                       ? "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold border-l-2 border-[var(--temple-gold)]"
                       : "text-stone-700 hover:bg-[var(--temple-cream)]",
@@ -601,7 +764,6 @@ export default function Navbar() {
                   <ChevronRight size={16} className="text-stone-400" />
                 </Link>
               );
-
             })}
 
             {/* ─── Guru Parampara Accordion ─── */}
@@ -609,24 +771,33 @@ export default function Navbar() {
               <button
                 onClick={() => setMobileGuruOpen(!mobileGuruOpen)}
                 aria-expanded={mobileGuruOpen}
+                aria-controls="mobile-guru-accordion"
+                tabIndex={open ? 0 : -1}
                 className={[
                   "flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200 rounded-xl",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                   isGuruParamparaActive
                     ? "text-[var(--temple-maroon)] bg-[var(--temple-cream)]"
-                    : "text-stone-500 hover:bg-[var(--temple-cream)]/60",
+                    : "text-stone-600 hover:bg-[var(--temple-cream)]/60",
                 ].join(" ")}
               >
-                <BookOpen size={14} />
+                <BookOpen size={15} />
                 Guru Parampara
                 <ChevronDown
                   size={14}
-                  className={`ml-auto transition-transform duration-200 ${mobileGuruOpen ? "rotate-180" : ""}`}
+                  className={`ml-auto transition-transform duration-200 motion-reduce:transition-none ${mobileGuruOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               <div
+                id="mobile-guru-accordion"
+                role="region"
+                aria-label="Guru Parampara sub-navigation"
+                aria-hidden={!mobileGuruOpen}
                 className={[
                   "overflow-hidden transition-all duration-300 ease-out",
-                  mobileGuruOpen ? "max-h-60 opacity-100" : "max-h-0 opacity-0",
+                  "motion-reduce:transition-none",
+                  mobileGuruOpen ? "max-h-60 opacity-100 visible" : "max-h-0 opacity-0 invisible",
                 ].join(" ")}
               >
                 {guruParamparaDropdown.map((item) => {
@@ -635,9 +806,11 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      tabIndex={open && mobileGuruOpen ? 0 : -1}
                       onClick={handleMobileNavClick}
                       className={[
-                        "flex items-center justify-between rounded-xl px-8 py-3 text-sm transition-all duration-200",
+                        "flex items-center justify-between rounded-xl px-8 py-2.5 text-sm transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                         active
                           ? "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold"
                           : "text-stone-600 hover:bg-[var(--temple-cream)]",
@@ -656,24 +829,33 @@ export default function Navbar() {
               <button
                 onClick={() => setMobileCalendarOpen(!mobileCalendarOpen)}
                 aria-expanded={mobileCalendarOpen}
+                aria-controls="mobile-calendar-accordion"
+                tabIndex={open ? 0 : -1}
                 className={[
                   "flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200 rounded-xl",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                   isCalendarActive
                     ? "text-[var(--temple-maroon)] bg-[var(--temple-cream)]"
-                    : "text-stone-500 hover:bg-[var(--temple-cream)]/60",
+                    : "text-stone-600 hover:bg-[var(--temple-cream)]/60",
                 ].join(" ")}
               >
-                <Calendar size={14} />
+                <Calendar size={15} />
                 Calendar
                 <ChevronDown
                   size={14}
-                  className={`ml-auto transition-transform duration-200 ${mobileCalendarOpen ? "rotate-180" : ""}`}
+                  className={`ml-auto transition-transform duration-200 motion-reduce:transition-none ${mobileCalendarOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               <div
+                id="mobile-calendar-accordion"
+                role="region"
+                aria-label="Calendar sub-navigation"
+                aria-hidden={!mobileCalendarOpen}
                 className={[
                   "overflow-hidden transition-all duration-300 ease-out",
-                  mobileCalendarOpen ? "max-h-40 opacity-100" : "max-h-0 opacity-0",
+                  "motion-reduce:transition-none",
+                  mobileCalendarOpen ? "max-h-40 opacity-100 visible" : "max-h-0 opacity-0 invisible",
                 ].join(" ")}
               >
                 {calendarDropdown.map((item) => {
@@ -682,9 +864,11 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      tabIndex={open && mobileCalendarOpen ? 0 : -1}
                       onClick={handleMobileNavClick}
                       className={[
-                        "flex items-center justify-between rounded-xl px-8 py-3 text-sm transition-all duration-200",
+                        "flex items-center justify-between rounded-xl px-8 py-2.5 text-sm transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                         active
                           ? "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold"
                           : "text-stone-600 hover:bg-[var(--temple-cream)]",
@@ -701,9 +885,11 @@ export default function Navbar() {
             {/* Gallery */}
             <Link
               href="/gallery"
+              tabIndex={open ? 0 : -1}
               onClick={handleMobileNavClick}
               className={[
-                "flex items-center justify-between rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200",
+                "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                 pathname === "/gallery"
                   ? "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold border-l-2 border-[var(--temple-gold)]"
                   : "text-stone-700 hover:bg-[var(--temple-cream)]",
@@ -718,23 +904,32 @@ export default function Navbar() {
               <button
                 onClick={() => setMobileEventsOpen(!mobileEventsOpen)}
                 aria-expanded={mobileEventsOpen}
+                aria-controls="mobile-events-accordion"
+                tabIndex={open ? 0 : -1}
                 className={[
                   "flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200 rounded-xl",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                   isEventsActive
                     ? "text-[var(--temple-maroon)] bg-[var(--temple-cream)]"
-                    : "text-stone-500 hover:bg-[var(--temple-cream)]/60",
+                    : "text-stone-600 hover:bg-[var(--temple-cream)]/60",
                 ].join(" ")}
               >
                 Events
                 <ChevronDown
                   size={14}
-                  className={`ml-auto transition-transform duration-200 ${mobileEventsOpen ? "rotate-180" : ""}`}
+                  className={`ml-auto transition-transform duration-200 motion-reduce:transition-none ${mobileEventsOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               <div
+                id="mobile-events-accordion"
+                role="region"
+                aria-label="Events sub-navigation"
+                aria-hidden={!mobileEventsOpen}
                 className={[
                   "overflow-hidden transition-all duration-300 ease-out",
-                  mobileEventsOpen ? "max-h-60 opacity-100" : "max-h-0 opacity-0",
+                  "motion-reduce:transition-none",
+                  mobileEventsOpen ? "max-h-60 opacity-100 visible" : "max-h-0 opacity-0 invisible",
                 ].join(" ")}
               >
                 {eventsDropdown.map((item) => {
@@ -744,11 +939,13 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      tabIndex={open && mobileEventsOpen ? 0 : -1}
                       target={item.external ? "_blank" : undefined}
                       rel={item.external ? "noopener noreferrer" : undefined}
                       onClick={handleMobileNavClick}
                       className={[
-                        "flex items-center gap-2 rounded-xl px-8 py-3 text-sm transition-all duration-200",
+                        "flex items-center gap-2 rounded-xl px-8 py-2.5 text-sm transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                         isLive
                           ? "bg-red-50/80 text-red-700 font-semibold"
                           : active
@@ -757,13 +954,13 @@ export default function Navbar() {
                       ].join(" ")}
                     >
                       {isLive && (
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative flex h-2 w-2" aria-hidden="true">
+                          <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-red-400 opacity-75"></span>
                           <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
                         </span>
                       )}
                       {item.name}
-                      {isLive ? <ExternalLink size={14} className="ml-auto text-red-400" /> : <ChevronRight size={16} className="ml-auto text-stone-400" />}
+                      {isLive ? <ExternalLink size={14} className="ml-auto text-red-400" aria-label="(opens external link)" /> : <ChevronRight size={16} className="ml-auto text-stone-400" />}
                     </Link>
                   );
                 })}
@@ -775,23 +972,32 @@ export default function Navbar() {
               <button
                 onClick={() => setMobileAboutOpen(!mobileAboutOpen)}
                 aria-expanded={mobileAboutOpen}
+                aria-controls="mobile-about-accordion"
+                tabIndex={open ? 0 : -1}
                 className={[
                   "flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200 rounded-xl",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                   isAboutActive
                     ? "text-[var(--temple-maroon)] bg-[var(--temple-cream)]"
-                    : "text-stone-500 hover:bg-[var(--temple-cream)]/60",
+                    : "text-stone-600 hover:bg-[var(--temple-cream)]/60",
                 ].join(" ")}
               >
                 About
                 <ChevronDown
                   size={14}
-                  className={`ml-auto transition-transform duration-200 ${mobileAboutOpen ? "rotate-180" : ""}`}
+                  className={`ml-auto transition-transform duration-200 motion-reduce:transition-none ${mobileAboutOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               <div
+                id="mobile-about-accordion"
+                role="region"
+                aria-label="About sub-navigation"
+                aria-hidden={!mobileAboutOpen}
                 className={[
                   "overflow-hidden transition-all duration-300 ease-out",
-                  mobileAboutOpen ? "max-h-60 opacity-100" : "max-h-0 opacity-0",
+                  "motion-reduce:transition-none",
+                  mobileAboutOpen ? "max-h-60 opacity-100 visible" : "max-h-0 opacity-0 invisible",
                 ].join(" ")}
               >
                 {aboutDropdown.map((item) => {
@@ -800,9 +1006,11 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      tabIndex={open && mobileAboutOpen ? 0 : -1}
                       onClick={handleMobileNavClick}
                       className={[
-                        "flex items-center justify-between rounded-xl px-8 py-3 text-sm transition-all duration-200",
+                        "flex items-center justify-between rounded-xl px-8 py-2.5 text-sm transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                         active
                           ? "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold"
                           : "text-stone-600 hover:bg-[var(--temple-cream)]",
@@ -821,23 +1029,32 @@ export default function Navbar() {
               <button
                 onClick={() => setMobileServicesOpen(!mobileServicesOpen)}
                 aria-expanded={mobileServicesOpen}
+                aria-controls="mobile-services-accordion"
+                tabIndex={open ? 0 : -1}
                 className={[
                   "flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold transition-all duration-200 rounded-xl",
                   "text-[var(--temple-gold-dark)]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                   isOnlineServicesActive ? "bg-[var(--temple-cream)]" : "hover:bg-[var(--temple-cream)]/60",
                 ].join(" ")}
               >
-                <Heart size={14} />
+                <Heart size={15} />
                 Online Services
                 <ChevronDown
                   size={14}
-                  className={`ml-auto transition-transform duration-200 ${mobileServicesOpen ? "rotate-180" : ""}`}
+                  className={`ml-auto transition-transform duration-200 motion-reduce:transition-none ${mobileServicesOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               <div
+                id="mobile-services-accordion"
+                role="region"
+                aria-label="Online Services sub-navigation"
+                aria-hidden={!mobileServicesOpen}
                 className={[
                   "overflow-hidden transition-all duration-300 ease-out",
-                  mobileServicesOpen ? "max-h-60 opacity-100" : "max-h-0 opacity-0",
+                  "motion-reduce:transition-none",
+                  mobileServicesOpen ? "max-h-60 opacity-100 visible" : "max-h-0 opacity-0 invisible",
                 ].join(" ")}
               >
                 {onlineServicesDropdown.map((item) => {
@@ -846,9 +1063,11 @@ export default function Navbar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      tabIndex={open && mobileServicesOpen ? 0 : -1}
                       onClick={handleMobileNavClick}
                       className={[
-                        "flex items-center gap-2 rounded-xl px-8 py-3 text-sm transition-all duration-200",
+                        "flex items-center gap-2 rounded-xl px-8 py-2.5 text-sm transition-all duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--temple-gold)] focus-visible:ring-inset",
                         active
                           ? "bg-[var(--temple-maroon)]/10 text-[var(--temple-maroon)] font-semibold"
                           : "text-stone-600 hover:bg-[var(--temple-cream)]",
@@ -864,7 +1083,7 @@ export default function Navbar() {
               </div>
             </div>
 
-          </div>
+          </nav>
         </div>
       </div>
 
