@@ -36,6 +36,7 @@ export function sevaE2EServerEnv(env: NodeJS.ProcessEnv = process.env): Record<s
     GOOGLE_GENERATIVE_API_KEY: "",
     OPENROUTER_API_KEY: "",
     ADMIN_API_KEY: "",
+    REPORTS_API_TOKEN: "",
     BLOB_READ_WRITE_TOKEN: "",
   };
 }

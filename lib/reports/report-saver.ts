@@ -22,6 +22,10 @@ export interface SaveReportResponse {
 
 /**
  * Save a report (screenshot or PDF) to Vercel Blob storage via API
+ *
+ * The route is admin-only, so a signed-in admin's Supabase access token must be
+ * supplied via the `REPORTS_API_TOKEN` environment variable when this helper runs
+ * outside a browser session (CI / local tooling).
  */
 async function saveToBlobStorage(
   type: 'screenshot' | 'pdf',
@@ -30,10 +34,12 @@ async function saveToBlobStorage(
   contentType: string,
   metadata?: Record<string, string>
 ): Promise<SaveReportResponse> {
+  const token = process.env.REPORTS_API_TOKEN;
   const response = await fetch('/api/reports/save', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
       type,

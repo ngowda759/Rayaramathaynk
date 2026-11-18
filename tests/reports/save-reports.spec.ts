@@ -163,7 +163,10 @@ test('export page as PDF with custom options', async ({ page }) => {
  * Example 7: List saved reports from blob storage
  */
 test('list all saved reports', async ({ page }) => {
-  const response = await page.request.get('/api/reports/list');
+  const token = process.env.REPORTS_API_TOKEN;
+  const response = await page.request.get('/api/reports/list', {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   const data = await response.json();
   
   expect(data.success).toBe(true);

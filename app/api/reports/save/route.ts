@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminUser } from "@/lib/auth/admin-auth";
 import { storageService, ReportFileType } from "@/services/storage.service";
 
 export const runtime = 'nodejs';
@@ -25,6 +26,9 @@ interface SaveReportRequest {
  * }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const body: SaveReportRequest = await request.json();
     const { type, name, content, contentType, metadata } = body;

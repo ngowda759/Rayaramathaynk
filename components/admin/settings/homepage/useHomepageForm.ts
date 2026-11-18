@@ -109,7 +109,10 @@ export function useHomepageForm() {
       try {
         await fetch("/api/revalidate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ paths: ["/"] }),
         });
         console.log("[HomepageForm] Homepage revalidated successfully");
