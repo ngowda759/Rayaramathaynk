@@ -1,6 +1,17 @@
+import type { Metadata } from "next";
+
 import HomeClient from "@/components/home/HomeClient";
 import { getTempleGalleryImages } from "@/lib/gallery";
 import { dailySpiritualService } from "@/services/daily-spiritual.server";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Sri Raghavendra Swamy Matha, Yelahanka New Town",
+  description:
+    "Official website of Sri Raghavendra Swamy Matha, Yelahanka New Town, Bengaluru. Daily pooja timings, seva bookings, festivals, gallery and donations.",
+  path: "/",
+  absolute: true,
+});
 
 // Revalidate every 60 seconds to get fresh announcements
 export const revalidate = 60;

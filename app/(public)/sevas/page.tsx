@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
+
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SectionHeading from "@/components/common/SectionHeading";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import SevaBooking from "@/components/home/SevaBooking";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Special Sevas",
+  description:
+    "Book special sevas and spiritual offerings at Sri Raghavendra Swamy Matha, Yelahanka New Town, Bengaluru.",
+  path: "/sevas",
+});
 
 export default function SevasPage() {
   return (

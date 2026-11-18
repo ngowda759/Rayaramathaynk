@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
+
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/calendar/Breadcrumb";
 import DonationForm from "@/components/home/DonationForm";
 import { Heart } from "lucide-react";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "E-Donations",
+  description:
+    "Support Sri Raghavendra Swamy Matha with online donations for temple maintenance, daily rituals and community service.",
+  path: "/donation",
+});
 
 export default function DonationPage() {
   return (
