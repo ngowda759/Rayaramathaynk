@@ -23,9 +23,13 @@ async function saveReportToBlob(
   content: string,
   contentType: string
 ): Promise<{ success: boolean; url: string }> {
+  const token = process.env.REPORTS_API_TOKEN;
   const response = await fetch('http://localhost:3000/api/reports/save', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({
       type,
       name,
