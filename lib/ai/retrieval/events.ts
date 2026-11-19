@@ -16,14 +16,38 @@ function getSupabase() {
 }
 
 /**
- * Fetch published events from Supabase `events`.
+ * Parse a Supabase timestamp column into a Date, or `null` when the value is
+ * missing or unparseable. `start_date`/`end_date` are `timestamptz NOT NULL` in
+ * the schema, but a malformed value must not silently become "now" (which would
+ * make a stale event look upcoming).
+ */
+function parseDate(value: unknown): Date | null {
+  if (typeof value !== "string" && typeof value !== "number" && !(value instanceof Date)) {
+    return null;
+  }
+  const date = new Date(value as string | number | Date);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Fetch published, not-yet-ended events from Supabase `events`.
+ *
+ * The upcoming boundary is applied by the database (`end_date >= now`) *before*
+ * the limit. Ordering ascending by `start_date` and limiting first would return
+ * the oldest historical events and filter them all out in memory, which is how
+ * the retriever reported "no upcoming events" while upcoming rows existed.
+ *
+ * `end_date` is the boundary (not `start_date`) so an event that has already
+ * begun but has not ended is still returned as ongoing.
  */
 async function fetchFromSupabase(maxEvents = 10): Promise<TempleEvent[]> {
+  const nowIso = new Date().toISOString();
   try {
     const { data, error } = await getSupabase()
       .from("events")
       .select("id, title, description, start_date, end_date, start_time, end_time, location, featured, category")
       .eq("published", true)
+      .gte("end_date", nowIso)
       .order("start_date", { ascending: true })
       .limit(maxEvents);
 
@@ -32,18 +56,29 @@ async function fetchFromSupabase(maxEvents = 10): Promise<TempleEvent[]> {
       return cachedEvents;
     }
 
-    return (data || []).map((doc) => ({
-      id: doc.id,
-      title: doc.title || "Event",
-      description: doc.description || "",
-      startDate: doc.start_date ? new Date(doc.start_date) : new Date(),
-      endDate: doc.end_date ? new Date(doc.end_date) : new Date(),
-      startTime: doc.start_time ?? undefined,
-      endTime: doc.end_time ?? undefined,
-      location: doc.location || "",
-      featured: doc.featured || false,
-      category: doc.category ?? undefined,
-    }));
+    const events: TempleEvent[] = [];
+    for (const doc of data || []) {
+      const startDate = parseDate(doc.start_date);
+      const endDate = parseDate(doc.end_date);
+      // Skip rows whose dates cannot be interpreted rather than fabricating them.
+      if (!startDate || !endDate) {
+        continue;
+      }
+      events.push({
+        id: doc.id,
+        title: doc.title || "Event",
+        description: doc.description || "",
+        startDate,
+        endDate,
+        startTime: doc.start_time ?? undefined,
+        endTime: doc.end_time ?? undefined,
+        location: doc.location || "",
+        featured: doc.featured || false,
+        category: doc.category ?? undefined,
+      });
+    }
+
+    return events;
   } catch (error) {
     console.error("[Events Retrieval] Error fetching events:", error);
     return cachedEvents;
@@ -51,16 +86,24 @@ async function fetchFromSupabase(maxEvents = 10): Promise<TempleEvent[]> {
 }
 
 /**
+ * Keep only events that have not yet ended, preserving ascending `start_date`
+ * order. Defensive layer on top of the database `end_date` filter.
+ */
+function filterUpcoming(events: TempleEvent[], now: Date): TempleEvent[] {
+  return events.filter(
+    (event) => event.endDate instanceof Date && event.endDate.getTime() >= now.getTime()
+  );
+}
+
+/**
  * Get upcoming events with caching
  */
 export async function getUpcomingEvents(maxEvents = 5): Promise<RetrievedData<TempleEvent[]>> {
   const now = Date.now();
-  const fromCache = cachedEvents.length > 0 && now - lastFetchTime < CACHE_DURATION;
+  const fromCache = lastFetchTime > 0 && now - lastFetchTime < CACHE_DURATION;
 
   if (fromCache) {
-    const upcoming = cachedEvents.filter(
-      (event) => event.endDate >= new Date()
-    );
+    const upcoming = filterUpcoming(cachedEvents, new Date(now));
     return {
       data: upcoming.slice(0, maxEvents),
       source: RetrievalType.REPOSITORY,
@@ -71,12 +114,12 @@ export async function getUpcomingEvents(maxEvents = 5): Promise<RetrievedData<Te
   }
 
   try {
-    const events = await fetchFromSupabase(20); // Fetch more to filter
+    const events = await fetchFromSupabase(20); // Fetch more than requested so the slice is stable
     cachedEvents = events;
     lastFetchTime = now;
 
-    const upcoming = events.filter((event) => event.endDate >= new Date());
-    
+    const upcoming = filterUpcoming(events, new Date(now));
+
     return {
       data: upcoming.slice(0, maxEvents),
       source: RetrievalType.REPOSITORY,
