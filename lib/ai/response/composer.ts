@@ -42,6 +42,7 @@ const AUTHORITATIVE_SETTINGS_INTENTS = new Set<Intent>([
   Intent.DRESS_CODE,
   Intent.PHOTOGRAPHY,
   Intent.PARKING,
+  Intent.VOLUNTEER,
 ]);
 
 export class ResponseComposer {
@@ -132,7 +133,14 @@ export class ResponseComposer {
     }
 
     const data = retrievalResult.data ?? {};
-    const hasTempleSettings = Boolean(data.templeSettings) && AUTHORITATIVE_SETTINGS_INTENTS.has(intent);
+    const templeSettings = data.templeSettings;
+    const hasTempleSettings =
+      Boolean(templeSettings) &&
+      AUTHORITATIVE_SETTINGS_INTENTS.has(intent) &&
+      // Volunteer answers come from `visitor_information.volunteerInfo`; empty
+      // text is no answer at all, so it must fall through to the fallback.
+      (intent !== Intent.VOLUNTEER ||
+        Boolean(String(templeSettings?.visitorInfo?.volunteerInfo ?? "").trim()));
     const hasEvents =
       Array.isArray(data.upcomingEvents) &&
       data.upcomingEvents.length > 0 &&
@@ -166,6 +174,14 @@ export class ResponseComposer {
   private formatTempleSettings(settings: TempleSettings, intent: Intent, language: string) {
     if (intent === Intent.TEMPLE_TIMINGS) {
       return language === "en" ? `🕒 **Temple Timings**\n\nMorning: ${settings.timings.morningOpen} - ${settings.timings.morningClose}\nEvening: ${settings.timings.eveningOpen} - ${settings.timings.eveningClose}` : `🕒 **ದೇವಸ್ಥಾನದ ಸಮಯ**\n\nಬೆಳಗ್ಗೆ: ${settings.timings.morningOpen} - ${settings.timings.morningClose}\nಸಂಜೆ: ${settings.timings.eveningOpen} - ${settings.timings.eveningClose}`;
+    }
+    if (intent === Intent.VOLUNTEER) {
+      // Preserve the stored `volunteerInfo` text verbatim; never invent procedures.
+      const info = settings.visitorInfo?.volunteerInfo?.trim() ?? "";
+      if (language === "en") {
+        return `🙏 **Volunteer at the Temple**\n\n${info}\n\nYou can also learn more and sign up on the volunteer page: /volunteer`;
+      }
+      return `🙏 **ದೇವಸ್ಥಾನದಲ್ಲಿ ಸ್ವಯಂಸೇವೆ**\n\n${info}\n\nಹೆಚ್ಚಿನ ಮಾಹಿತಿಗಾಗಿ ಮತ್ತು ನೋಂದಣಿಗಾಗಿ ಸ್ವಯಂಸೇವಕ ಪುಟವನ್ನು ನೋಡಿ: /volunteer`;
     }
     if (intent === Intent.CONTACT_INFORMATION) {
       return language === "en" ? `📞 **Contact Information**\n\nPhone: ${settings.phone}\nEmail: ${settings.email}` : `📞 **ಸಂಪರ್ಕ ಮಾಹಿತಿ**\n\nಫೋನ್: ${settings.phone}\nಇಮೇಲ್: ${settings.email}`;

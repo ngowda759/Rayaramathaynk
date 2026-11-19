@@ -552,7 +552,7 @@ export const INTENT_PATTERNS: IntentPattern[] = [
         "ಸ್ಯಾಂಪಂದನಾ", "ಸೇವೆ", "ಸ್ವಯಂಸೇವಕ"
       ]
     },
-    requiresStructuredData: false,
+    requiresStructuredData: true,
   },
   {
     intent: Intent.CONTACT_REQUEST,
