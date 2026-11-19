@@ -4,8 +4,33 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
-import { AIBehaviorSettings } from "@/types/ai-settings";
+import { AIBehaviorSettings, DEFAULT_AI_BEHAVIOR_SETTINGS } from "@/types/ai-settings";
+import { AIExtendedBehaviorSettingsSchema } from "@/lib/ai/ai-settings/validation";
 import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+
+/**
+ * Validate the 0-1 `confidenceThreshold`/`semanticThreshold` representation.
+ * The persisted scale is a ratio (`0.85`); a percentage such as `85` is a
+ * different scale and is rejected rather than silently coerced.
+ */
+function validateBehaviorSettings(candidate: AIBehaviorSettings): string | null {
+  const parsed = AIExtendedBehaviorSettingsSchema.safeParse({
+    ...candidate,
+    enableFollowUpContext: true,
+    enableSuggestedQuestions: true,
+    enableAnalytics: true,
+    enableUnknownQuestionLogging: candidate.unknownLogging,
+    enableDebugMode: candidate.debugMode,
+    maxKnowledgeResults: DEFAULT_AI_BEHAVIOR_SETTINGS.maxRelatedArticles,
+  });
+  if (!parsed.success) {
+    const detail = parsed.error.issues
+      .map((issue) => `${issue.path.join(".") || "value"}: ${issue.message}`)
+      .join("; ");
+    return detail || "Invalid AI behavior settings";
+  }
+  return null;
+}
 
 export async function GET(request: NextRequest) {
   const guard = await requireRayaAdminUser(request);
@@ -34,9 +59,20 @@ export async function PUT(request: NextRequest) {
     const { setting, value } = body;
 
     switch (setting) {
-      case "confidenceThreshold":
+      case "confidenceThreshold": {
+        const error = validateBehaviorSettings({
+          ...(await aiSettingsService.getAIBehavior()),
+          confidenceThreshold: value,
+        });
+        if (error) {
+          return NextResponse.json(
+            { error: `Invalid confidenceThreshold: expected a 0-1 ratio such as 0.85 (${error})` },
+            { status: 400 },
+          );
+        }
         await aiSettingsService.setConfidenceThreshold(value, userId);
         break;
+      }
       case "debugMode":
         await aiSettingsService.setDebugMode(value, userId);
         break;
@@ -47,14 +83,21 @@ export async function PUT(request: NextRequest) {
         // Support both spread body and nested data property, and strictly reconstruct to strip out 'setting' field
         const rawData = body.data || body;
         const behaviorData: AIBehaviorSettings = {
-          confidenceThreshold: rawData.confidenceThreshold ?? 85,
-          semanticThreshold: rawData.semanticThreshold ?? 70,
+          confidenceThreshold: rawData.confidenceThreshold ?? DEFAULT_AI_BEHAVIOR_SETTINGS.confidenceThreshold,
+          semanticThreshold: rawData.semanticThreshold ?? DEFAULT_AI_BEHAVIOR_SETTINGS.semanticThreshold,
           maxRelatedArticles: rawData.maxRelatedArticles ?? 3,
           conversationTimeout: rawData.conversationTimeout ?? 30,
           streaming: rawData.streaming ?? false,
           debugMode: rawData.debugMode ?? false,
           unknownLogging: rawData.unknownLogging ?? true,
         };
+        const error = validateBehaviorSettings(behaviorData);
+        if (error) {
+          return NextResponse.json(
+            { error: `Invalid AI behavior settings: ${error}` },
+            { status: 400 },
+          );
+        }
         await aiSettingsService.updateAIBehavior(behaviorData, userId);
         break;
       }

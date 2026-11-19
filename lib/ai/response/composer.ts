@@ -22,23 +22,56 @@ export interface ComposerOutput {
   debugInfo?: Record<string, unknown>;
 }
 
+/**
+ * Fallback threshold (percent) when the configured value is missing/invalid.
+ * Mirrors `DEFAULT_AI_BEHAVIOR_SETTINGS.confidenceThreshold` (0.85).
+ */
+const DEFAULT_CONFIDENCE_THRESHOLD_PERCENT = 85;
+
+/**
+ * Intents whose authoritative answer is the temple settings document. These may
+ * bypass the numeric threshold, but only when `data.templeSettings` is present.
+ */
+const AUTHORITATIVE_SETTINGS_INTENTS = new Set<Intent>([
+  Intent.TEMPLE_TIMINGS,
+  Intent.CONTACT_INFORMATION,
+  Intent.LOCATION,
+  Intent.ADDRESS,
+  Intent.OFFICE_HOURS,
+  Intent.VISITOR_GUIDELINES,
+  Intent.DRESS_CODE,
+  Intent.PHOTOGRAPHY,
+  Intent.PARKING,
+]);
+
 export class ResponseComposer {
   /**
-   * Compose the final response
+   * Compose the final response.
+   *
+   * Confidence gating is source-aware. An authoritative repository result (a
+   * supported factual intent whose retrieval returned non-empty data) is
+   * returned even when intent confidence is below `extendedBehavior.confidenceThreshold`.
+   * Intent confidence scores the *classification*, and keyword/hybrid detection
+   * legitimately lands in the 55-75 band; discarding real retrieved data on that
+   * basis turned correct answers into "unknown" responses. Knowledge-base answers
+   * and non-authoritative results still respect the numeric threshold, and the
+   * generator's `requireSourceForFacts` check remains the factual grounding guard.
    */
   async compose(input: ComposerInput): Promise<ComposerOutput> {
     const { intent, confidence, language, retrievalResult } = input;
     const settings = await aiSettingsService.getAISettings();
     const behavior = settings.extendedBehavior;
 
-    const meetsThreshold = confidence >= behavior.confidenceThreshold * 100;
+    const threshold = this.resolveThreshold(behavior.confidenceThreshold);
+    const hasAuthoritativeData = this.hasAuthoritativeData(intent, retrievalResult);
+    const meetsThreshold = confidence >= threshold;
 
     let content = "";
     let usesLLM = false;
     let finalSource = retrievalResult.source;
 
-    if (!meetsThreshold) {
-       // Fallback
+    if (!meetsThreshold && !hasAuthoritativeData) {
+       // Fallback: low-confidence answer with no authoritative repository data.
        content = settings.aiResponses.unknownQuestion;
        finalSource = RetrievalType.FALLBACK;
     } else {
@@ -73,6 +106,61 @@ export class ResponseComposer {
       usesLLM,
       language
     };
+  }
+
+  /**
+   * The configured threshold is a 0-1 ratio (`0.85`); intent confidence is a
+   * 0-100 percentage. Convert to percent. A legacy percentage value (> 1) is
+   * treated as already being on the percent scale so a stale row cannot demand
+   * an impossible confidence.
+   */
+  private resolveThreshold(configured: number | undefined): number {
+    if (typeof configured !== "number" || !Number.isFinite(configured) || configured <= 0) {
+      return DEFAULT_CONFIDENCE_THRESHOLD_PERCENT;
+    }
+    return configured > 1 ? configured : configured * 100;
+  }
+
+  /**
+   * True when retrieval produced usable authoritative data for a supported
+   * factual intent. Knowledge articles are not authoritative temple facts, so
+   * they are excluded here and remain subject to the numeric threshold.
+   */
+  private hasAuthoritativeData(intent: Intent, retrievalResult: RetrievalResult): boolean {
+    if (retrievalResult.source === RetrievalType.FALLBACK) {
+      return false;
+    }
+
+    const data = retrievalResult.data ?? {};
+    const hasTempleSettings = Boolean(data.templeSettings) && AUTHORITATIVE_SETTINGS_INTENTS.has(intent);
+    const hasEvents =
+      Array.isArray(data.upcomingEvents) &&
+      data.upcomingEvents.length > 0 &&
+      intent === Intent.UPCOMING_EVENTS;
+    const hasSevas =
+      Array.isArray(data.availableSevas) &&
+      data.availableSevas.length > 0 &&
+      [Intent.SPECIAL_SEVAS, Intent.DAILY_POOJA, Intent.SEVA_BOOKING].includes(intent);
+    const hasAnnouncements =
+      Array.isArray(data.currentAnnouncements) &&
+      data.currentAnnouncements.length > 0 &&
+      intent === Intent.ANNOUNCEMENTS;
+    const hasPanchanga = Boolean(data.todayPanchanga) && intent === Intent.PANCHANGA;
+    const hasDonations =
+      Boolean(data.donationInfo) &&
+      [Intent.DONATION, Intent.DONATION_PURPOSE, Intent.DONATION_80G].includes(intent);
+    const hasAaradhane =
+      Boolean(data.nextAaradhane) && [Intent.NEXT_AARADHANE, Intent.FESTIVAL_INFO].includes(intent);
+
+    return (
+      hasTempleSettings ||
+      hasEvents ||
+      hasSevas ||
+      hasAnnouncements ||
+      hasPanchanga ||
+      hasDonations ||
+      hasAaradhane
+    );
   }
 
   private formatTempleSettings(settings: TempleSettings, intent: Intent, language: string) {
