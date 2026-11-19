@@ -31,10 +31,12 @@ export const INTENT_PATTERNS: IntentPattern[] = [
       en: [
         "contact", "phone", "email", "call", "reach", "number",
         "mobile", "telephone", "reach", "connect",
-        "ಸಂಪರ್ಕ", "ಫೋನ್", "ಇಮೇಲ್"
+        "ಸಂಪರ್ಕ", "ಫೋನ್", "ಇಮೇಲ್", "ಸಂಪರ್ಕಿಸಿ"
       ],
       kn: [
-        "ಸಂಪರ್ಕ", "ಫೋನ್", "ಇಮೇಲ್", "ಕರೆ"
+        // "ಸಂಪರ್ಕಿಸಬಹುದು"/"ಸಂಪರ್ಕಿಸಿ" (to contact) are distinct inflections of
+        // "ಸಂಪರ್ಕ"; include them so Kannada contact questions match directly.
+        "ಸಂಪರ್ಕ", "ಫೋನ್", "ಇಮೇಲ್", "ಕರೆ", "ಸಂಪರ್ಕಿಸಿ"
       ]
     },
     requiresStructuredData: true,
@@ -688,4 +690,20 @@ export function containsKannada(text: string): boolean {
  */
 export function normalizeText(text: string): string {
   return text.toLowerCase().trim();
+}
+
+/**
+ * Interrogative words that carry no domain meaning. They mark a question but do
+ * not say what the question is about, so a match on one of them alone must not
+ * outrank a pattern that matched an actual domain term.
+ */
+export const GENERIC_INTERROGATIVES: ReadonlySet<string> = new Set([
+  "what", "why", "how", "which", "who", "whom", "whose",
+  "question", "answer", "tell me", "can i", "is it possible",
+  "what is this", "what do you", "what are you", "who are you",
+  "ಏನು", "ಹೇಗೆ", "ಯಾವ", "ಯಾರು", "ಪ್ರಶ್ನೆ", "ಉತ್ತರ",
+]);
+
+export function isGenericInterrogative(keyword: string): boolean {
+  return GENERIC_INTERROGATIVES.has(keyword.toLowerCase().trim());
 }

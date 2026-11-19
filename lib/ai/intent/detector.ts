@@ -12,6 +12,7 @@ import {
   OUT_OF_SCOPE_PATTERNS,
   OUT_OF_SCOPE_KEYWORDS,
   containsKannada,
+  isGenericInterrogative,
   normalizeText,
 } from "./patterns";
 import { 
@@ -28,6 +29,13 @@ import {
   getBestSemanticMatch,
   type SemanticMatch
 } from "@/services/ml.service";
+
+/**
+ * Ceiling for a keyword match that only hit generic interrogatives ("how",
+ * "ಹೇಗೆ"). Kept below the confidence a real domain match produces so a
+ * generic-question pattern (FAQ) cannot outrank a specific one.
+ */
+const GENERIC_ONLY_CONFIDENCE_CAP = 45;
 
 // Intent examples for semantic matching (paraphrases)
 const INTENT_EXAMPLES: Record<Intent, string[]> = {
@@ -593,10 +601,17 @@ export class IntentDetector {
     const priorityBonus = Math.min((pattern.priority / 100) * 30, 30);
     const confidence = Math.min(Math.round(20 + keywordScore + priorityBonus), 95);
 
+    // A generic interrogative ("how", "ಹೇಗೆ") only marks a question. When it is
+    // the sole match, the pattern says nothing about *what* was asked, so rank it
+    // below any pattern that matched a real domain term. Without this, FAQ's
+    // generic keywords (priority 75) beat CONTACT_INFORMATION (71) for
+    // "ದೇವಸ್ಥಾನವನ್ನು ಹೇಗೆ ಸಂಪರ್ಕಿಸಬಹುದು?" and the contact answer is never fetched.
+    const hasDomainMatch = matchedKeywords.some((keyword) => !isGenericInterrogative(keyword));
+
     return {
       intent: pattern.intent,
       category: pattern.category,
-      confidence,
+      confidence: hasDomainMatch ? confidence : Math.min(confidence, GENERIC_ONLY_CONFIDENCE_CAP),
       source: pattern.requiresStructuredData
         ? RetrievalType.REPOSITORY
         : RetrievalType.KNOWLEDGE_BASE,
