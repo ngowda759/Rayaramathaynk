@@ -5,6 +5,7 @@ import { Intent, IntentDetectionResult, RetrievalType, detectIntent } from "./in
 import { retrieve } from "./retrieval/registry";
 import { responseComposer } from "./response/composer";
 import { containsKannada } from "./intent/patterns";
+import { looksRomanizedKannada } from "./intent/transliteration";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 
 export { detectIntent } from "./intent";
@@ -24,20 +25,31 @@ export interface AIResponseResult {
 }
 
 /**
- * Detect language from message
+ * Detect language from message.
+ *
+ * Romanized Kannada ("Temple volunteer aagbekadre enu madbeku?") has no Kannada
+ * codepoints, so `containsKannada` alone reports it as English. That made the
+ * assistant reply in English to a user who wrote Kannada. Messages that are
+ * Latin script but contain Kannada-like words are reported as "mixed".
  */
 function detectLanguage(message: string): "en" | "kn" | "mixed" {
   const hasKannada = containsKannada(message);
-  
+
   if (hasKannada) {
-    const englishPattern = /\b(the|is|are|what|when|how|where|temple|seva|donation)\b/gi;
-    const englishMatches = message.match(englishPattern);
-    
-    if (englishMatches && englishMatches.length > 2) {
+    // Any ASCII word alongside Kannada script means the message is mixed. Testing
+    // only a fixed word list missed domain nouns ("Temple timings ಏನು?").
+    const asciiWords = message.match(/\b[a-zA-Z]{2,}\b/g);
+
+    if (asciiWords && asciiWords.length > 0) {
       return "mixed";
     }
     return "kn";
   }
+
+  if (looksRomanizedKannada(message)) {
+    return "mixed";
+  }
+
   return "en";
 }
 
@@ -57,28 +69,22 @@ export async function generateResponse(
   const behavior = settings.extendedBehavior;
   const safety = settings.safety;
 
-  // 1. Check for low confidence / unknown questions
-  if (intentResult.confidence < LOW_CONFIDENCE_THRESHOLD && 
-      intentResult.intent !== Intent.OUT_OF_SCOPE &&
-      intentResult.intent !== Intent.GENERAL_GREETING &&
-      intentResult.intent !== Intent.THANKS &&
-      intentResult.intent !== Intent.GOODBYE) {
-
+  const respondUnknown = async (): Promise<AIResponseResult> => {
     console.log(`[AI Generator] Low confidence (${intentResult.confidence}%), redirecting to FAQ`);
-    
+
     // Log unknown question safely (Supabase-only; never blocks the response).
     if (behavior.enableUnknownQuestionLogging) {
-       try {
-         await aiSettingsService.logUnknownQuestion(
-           message,
-           intentResult.intent,
-           intentResult.confidence,
-           language,
-           sessionId || "anonymous"
-         );
-       } catch (error) {
-         console.error("[AI Generator] Failed to log unknown question (analytics non-blocking):", error);
-       }
+      try {
+        await aiSettingsService.logUnknownQuestion(
+          message,
+          intentResult.intent,
+          intentResult.confidence,
+          language,
+          sessionId || "anonymous"
+        );
+      } catch (error) {
+        console.error("[AI Generator] Failed to log unknown question (analytics non-blocking):", error);
+      }
     }
 
     return {
@@ -89,9 +95,9 @@ export async function generateResponse(
       usesLLM: false,
       language,
     };
-  }
+  };
 
-  // Handle conversational intents separately if needed (greetings, thanks)
+  // Conversational intents never consult a repository; answer them directly.
   if (intentResult.intent === Intent.GENERAL_GREETING) {
       return {
           content: settings.aiResponses.welcome,
@@ -121,15 +127,28 @@ export async function generateResponse(
       };
   }
 
+  // 1. Authoritative retrieval happens before the confidence gate: keyword and
+  // hybrid intent confidence legitimately lands in the 55-75 band, so a real
+  // repository answer must not be discarded merely because the classification
+  // score is mid-range. The composer applies the same source-aware policy.
+  // Intents that do not require structured data (FAQ, knowledge, unknown) keep
+  // the plain confidence gate and skip retrieval entirely.
+  if (intentResult.confidence < LOW_CONFIDENCE_THRESHOLD && !intentResult.requiresStructuredData) {
+    return await respondUnknown();
+  }
 
-  // 2. Perform Authoritative Retrieval
   const retrievalResult = await retrieve(intentResult.intent, message);
 
-  // Enforce Retrieval-First Safety
-  const requiresSource = safety.requireSourceForFacts;
   const hasAuthoritativeSource =
     retrievalResult.source !== RetrievalType.FALLBACK &&
-    (Object.keys(retrievalResult.data).length > 0 || retrievalResult.knowledgeArticles?.length);
+    (Object.keys(retrievalResult.data ?? {}).length > 0 || (retrievalResult.knowledgeArticles?.length ?? 0) > 0);
+
+  if (intentResult.confidence < LOW_CONFIDENCE_THRESHOLD && !hasAuthoritativeSource) {
+    return await respondUnknown();
+  }
+
+  // 2. Enforce Retrieval-First Safety
+  const requiresSource = safety.requireSourceForFacts;
 
   if (requiresSource && !hasAuthoritativeSource) {
      console.log(`[AI Generator] Enforcing safety: No authoritative source found for ${intentResult.intent}`);

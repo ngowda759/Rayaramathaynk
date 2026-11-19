@@ -166,6 +166,13 @@ export const INTENT_RETRIEVAL_MAP: IntentRetrievalMapping[] = [
     intent: Intent.PANCHANGA,
     retrievers: [{ name: "panchanga", priority: 1 }],
   },
+  {
+    // Volunteer participation is served from the authoritative
+    // `ai_settings.visitor_information.volunteerInfo` document, the same source
+    // the admin editor writes. No separate volunteer content is duplicated here.
+    intent: Intent.VOLUNTEER,
+    retrievers: [{ name: "settings", priority: 1 }],
+  },
 ];
 
 /**

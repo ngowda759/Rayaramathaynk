@@ -112,22 +112,40 @@ const COMMON_KANNADA_WORDS: Record<string, string> = {
 };
 
 /**
- * Check if a word is likely Romanized Kannada
- * (contains only transliteratable characters)
+ * Function words that are characteristic of romanized Kannada and are not
+ * plausible English. Deliberately excludes shared temple vocabulary ("matha",
+ * "seva", "darshan", "swami") because those appear in English sentences too and
+ * would mislabel English input as Kannada.
  */
-function isRomanizedKannada(text: string): boolean {
-  // Check if text contains common transliteration characters
-  const romanizedPattern = /^[a-zA-Z]+$/;
-  if (!romanizedPattern.test(text)) {
-    return false;
-  }
-  
-  // Check if it could be transliterated Kannada
-  // (contains vowels like aa, ii, ee, oo, etc.)
-  const hasKannadaVowels = /aa|ii|ee|oo|ai|au/i.test(text);
-  const hasKannadaConsonants = /sh|ch|th|ng|ny|tt|dd|nn/i.test(text);
-  
-  return hasKannadaVowels || hasKannadaConsonants;
+const ROMANIZED_KANNADA_MARKERS: ReadonlySet<string> = new Set([
+  // Function words and verb endings, which do not occur in English.
+  "alli", "enu", "yavuvu", "yavudu", "yavaga", "yavude",
+  "madbeku", "bekadre", "aagbekadre", "beku", "madodu", "aagodu",
+  "hege", "hegiddare", "elli", "iddare", "sigutte", "tillide",
+  "barutte", "namma", "nimma", "avara", "ivara", "ondu", "eradu",
+]);
+
+/**
+ * Check whether text is likely romanized Kannada.
+ *
+ * Matching is done per word: an anchored `^[a-zA-Z]+$` test on the whole string
+ * rejected every message containing a space, so detection was dead for real
+ * sentences ("Temple volunteer aagbekadre enu madbeku?").
+ *
+ * Only the marker list is used. A transliteration-digraph heuristic ("th", "sh",
+ * "ee") was tried and rejected: those sequences are everywhere in English, so
+ * "thank you" and "This temple is beautiful" were mislabelled as Kannada.
+ * Romanized Kannada sentences reliably contain a function word instead.
+ */
+export function looksRomanizedKannada(text: string): boolean {
+  const words = text
+    .toLowerCase()
+    .replace(/[?.,!]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0);
+
+  return words.some((word) => ROMANIZED_KANNADA_MARKERS.has(word));
 }
 
 /**
@@ -148,7 +166,7 @@ export function transliterateToKannada(text: string): string {
     }
     
     // Check if it looks like transliterated Kannada
-    if (!isRomanizedKannada(word)) {
+    if (!looksRomanizedKannada(word)) {
       result.push(word);
       continue;
     }
@@ -326,7 +344,7 @@ export function enhanceWithTransliteration(text: string): {
   isTransliterated: boolean;
 } {
   const hasKannada = /[\u0C80-\u0CFF]/.test(text);
-  const isRomanized = isRomanizedKannada(text);
+  const isRomanized = looksRomanizedKannada(text);
   
   if (hasKannada) {
     return {
