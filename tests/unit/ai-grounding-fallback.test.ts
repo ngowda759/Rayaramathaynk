@@ -233,6 +233,26 @@ describe("settings answers require the specific field (P5.3)", () => {
     expect(out.content).toBe("UNKNOWN_FALLBACK");
   });
 
+  it("does not ground an unrelated intent with a settings row", async () => {
+    // formatTempleSettings falls through to the address for any intent it does
+    // not recognise, so a settings row must not count as grounding for an
+    // intent such as TEMPLE_HISTORY.
+    const out = await composer.compose({
+      intent: Intent.TEMPLE_HISTORY,
+      confidence: 56,
+      language: "en",
+      retrievalResult: {
+        source: RetrievalType.REPOSITORY,
+        data: { templeSettings: templeSettings() },
+        sources: [],
+      },
+    });
+
+    expect(out.source).toBe(RetrievalType.FALLBACK);
+    expect(out.content).toBe("UNKNOWN_FALLBACK");
+    expect(out.content).not.toContain("Yelahanka");
+  });
+
   it("still answers when the settings field is present", async () => {
     const out = await composer.compose({
       intent: Intent.TEMPLE_TIMINGS,
