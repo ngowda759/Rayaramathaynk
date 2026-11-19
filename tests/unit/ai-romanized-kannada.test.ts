@@ -100,6 +100,15 @@ describe("looksRomanizedKannada (P4.7)", () => {
   it("does not flag plain Unicode Kannada", () => {
     expect(looksRomanizedKannada("ದೇವಸ್ಥಾನದ ಸಮಯವೇನು?")).toBe(false);
   });
+
+  it("does not flag English carrying Kannada-like letter pairs", () => {
+    // The digraph heuristic (th/sh/ee/oo/ai) matched these and answered in
+    // Kannada; the marker list is what distinguishes the two.
+    expect(looksRomanizedKannada("thank you")).toBe(false);
+    expect(looksRomanizedKannada("This temple is beautiful")).toBe(false);
+    expect(looksRomanizedKannada("I would like to see the festival schedule")).toBe(false);
+    expect(looksRomanizedKannada("The temple is open on Thursday")).toBe(false);
+  });
 });
 
 describe("language reporting for mixed input (P4.8)", () => {

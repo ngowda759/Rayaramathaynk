@@ -21,6 +21,13 @@ import {
   ROMANIZED_KANNADA_PHRASES 
 } from "./transliteration";
 
+/**
+ * Minimum confidence for a similarity-only match to count as structured
+ * evidence. Similarity alone is a guess, not proof the user asked about a
+ * repository-backed topic.
+ */
+const SEMANTIC_EVIDENCE_FLOOR = 55;
+
 // Import ML service for semantic matching and fuzzy correction
 import {
   calculateIntentSimilarity,
@@ -499,13 +506,20 @@ export class IntentDetector {
       }
     }
 
+    // Reaching here means no domain keyword matched (those return early at 100).
+    // Pure similarity is a guess, so it must not claim structured evidence: below
+    // the floor the result is reported as unstructured and the generator's
+    // confidence gate applies. A bare statement like "This temple is beautiful"
+    // scored 39% on similarity alone and used to trigger unrelated retrieval.
+    const hasKeywordEvidence = finalConfidence >= SEMANTIC_EVIDENCE_FLOOR;
+
     return {
       intent: finalIntent,
       category: this.getCategoryForIntent(finalIntent),
       confidence: Math.round(finalConfidence),
       source: mlBoost ? RetrievalType.LEARNED : RetrievalType.SEMANTIC_MATCH,
       matchedKeywords: [],
-      requiresStructuredData: true,
+      requiresStructuredData: hasKeywordEvidence,
     };
   }
 

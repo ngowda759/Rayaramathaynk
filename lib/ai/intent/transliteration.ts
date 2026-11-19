@@ -132,9 +132,10 @@ const ROMANIZED_KANNADA_MARKERS: ReadonlySet<string> = new Set([
  * rejected every message containing a space, so detection was dead for real
  * sentences ("Temple volunteer aagbekadre enu madbeku?").
  *
- * A message counts as romanized Kannada when it contains a characteristic
- * function word, or when at least half its words carry Kannada-typical
- * transliteration digraphs — a high bar so ordinary English is not mislabelled.
+ * Only the marker list is used. A transliteration-digraph heuristic ("th", "sh",
+ * "ee") was tried and rejected: those sequences are everywhere in English, so
+ * "thank you" and "This temple is beautiful" were mislabelled as Kannada.
+ * Romanized Kannada sentences reliably contain a function word instead.
  */
 export function looksRomanizedKannada(text: string): boolean {
   const words = text
@@ -144,21 +145,7 @@ export function looksRomanizedKannada(text: string): boolean {
     .split(/\s+/)
     .filter((word) => word.length > 0);
 
-  if (words.length === 0) {
-    return false;
-  }
-
-  if (words.some((word) => ROMANIZED_KANNADA_MARKERS.has(word))) {
-    return true;
-  }
-
-  const romanizedWord = /^[a-zA-Z]+$/;
-  const kannadaDigraphs = /aa|ii|ee|oo|ai|au|sh|ch|th|ng|ny|tt|dd|nn/i;
-  const kannadaLikeWords = words.filter(
-    (word) => romanizedWord.test(word) && kannadaDigraphs.test(word)
-  );
-
-  return kannadaLikeWords.length > 0 && kannadaLikeWords.length * 2 >= words.length;
+  return words.some((word) => ROMANIZED_KANNADA_MARKERS.has(word));
 }
 
 /**
