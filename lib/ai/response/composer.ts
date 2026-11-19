@@ -29,10 +29,40 @@ export interface ComposerOutput {
 const DEFAULT_CONFIDENCE_THRESHOLD_PERCENT = 85;
 
 /**
- * Intents whose authoritative answer is the temple settings document. These may
- * bypass the numeric threshold, but only when `data.templeSettings` is present.
+ * Intents whose answer must come from repository data. These never render a
+ * template with missing values, so a settings row holding an address but no
+ * phone number falls back for a contact question instead of rendering "Phone: ".
  */
-const AUTHORITATIVE_SETTINGS_INTENTS = new Set<Intent>([
+const FACTUAL_INTENTS = new Set<Intent>([
+  Intent.TEMPLE_TIMINGS,
+  Intent.CONTACT_INFORMATION,
+  Intent.LOCATION,
+  Intent.ADDRESS,
+  Intent.OFFICE_HOURS,
+  Intent.VISITOR_GUIDELINES,
+  Intent.DRESS_CODE,
+  Intent.PHOTOGRAPHY,
+  Intent.PARKING,
+  Intent.VOLUNTEER,
+  Intent.UPCOMING_EVENTS,
+  Intent.SPECIAL_SEVAS,
+  Intent.DAILY_POOJA,
+  Intent.SEVA_BOOKING,
+  Intent.ANNOUNCEMENTS,
+  Intent.PANCHANGA,
+  Intent.DONATION,
+  Intent.DONATION_PURPOSE,
+  Intent.DONATION_80G,
+  Intent.NEXT_AARADHANE,
+  Intent.FESTIVAL_INFO,
+]);
+
+/**
+ * The subset of factual intents answered from the temple settings document.
+ * When the settings row exists but lacks the field for one of these intents,
+ * there is no answer to give and the composer must fall back.
+ */
+const FACTUAL_SETTINGS_INTENTS = new Set<Intent>([
   Intent.TEMPLE_TIMINGS,
   Intent.CONTACT_INFORMATION,
   Intent.LOCATION,
@@ -64,15 +94,25 @@ export class ResponseComposer {
     const behavior = settings.extendedBehavior;
 
     const threshold = this.resolveThreshold(behavior.confidenceThreshold);
-    const hasAuthoritativeData = this.hasAuthoritativeData(intent, retrievalResult);
     const meetsThreshold = confidence >= threshold;
+
+    // Factual intents answer from repository data or not at all. Passing the
+    // confidence bar is not evidence that the field exists.
+    const hasGroundedData = this.hasGroundedData(intent, retrievalResult);
 
     let content = "";
     let usesLLM = false;
     let finalSource = retrievalResult.source;
 
-    if (!meetsThreshold && !hasAuthoritativeData) {
-       // Fallback: low-confidence answer with no authoritative repository data.
+    // Two independent reasons to fall back:
+    //  - a factual intent whose specific field is absent (a partial settings row
+    //    is not an answer), or
+    //  - a low-confidence classification with no grounded repository data.
+    // Grounded data still bypasses the numeric threshold, because intent
+    // confidence scores the classification, not the retrieved facts.
+    const shouldFallback = !hasGroundedData && (!meetsThreshold || FACTUAL_INTENTS.has(intent));
+
+    if (shouldFallback) {
        content = settings.aiResponses.unknownQuestion;
        finalSource = RetrievalType.FALLBACK;
     } else {
@@ -123,52 +163,85 @@ export class ResponseComposer {
   }
 
   /**
-   * True when retrieval produced usable authoritative data for a supported
-   * factual intent. Knowledge articles are not authoritative temple facts, so
-   * they are excluded here and remain subject to the numeric threshold.
+   * True when retrieval produced usable data for this intent. For settings-backed
+   * intents this checks the *specific* field the intent answers from, because a
+   * partially-populated row is not an answer.
    */
-  private hasAuthoritativeData(intent: Intent, retrievalResult: RetrievalResult): boolean {
+  private hasGroundedData(intent: Intent, retrievalResult: RetrievalResult): boolean {
     if (retrievalResult.source === RetrievalType.FALLBACK) {
       return false;
     }
 
     const data = retrievalResult.data ?? {};
-    const templeSettings = data.templeSettings;
-    const hasTempleSettings =
-      Boolean(templeSettings) &&
-      AUTHORITATIVE_SETTINGS_INTENTS.has(intent) &&
-      // Volunteer answers come from `visitor_information.volunteerInfo`; empty
-      // text is no answer at all, so it must fall through to the fallback.
-      (intent !== Intent.VOLUNTEER ||
-        Boolean(String(templeSettings?.visitorInfo?.volunteerInfo ?? "").trim()));
-    const hasEvents =
-      Array.isArray(data.upcomingEvents) &&
-      data.upcomingEvents.length > 0 &&
-      intent === Intent.UPCOMING_EVENTS;
-    const hasSevas =
-      Array.isArray(data.availableSevas) &&
-      data.availableSevas.length > 0 &&
-      [Intent.SPECIAL_SEVAS, Intent.DAILY_POOJA, Intent.SEVA_BOOKING].includes(intent);
-    const hasAnnouncements =
-      Array.isArray(data.currentAnnouncements) &&
-      data.currentAnnouncements.length > 0 &&
-      intent === Intent.ANNOUNCEMENTS;
-    const hasPanchanga = Boolean(data.todayPanchanga) && intent === Intent.PANCHANGA;
-    const hasDonations =
-      Boolean(data.donationInfo) &&
-      [Intent.DONATION, Intent.DONATION_PURPOSE, Intent.DONATION_80G].includes(intent);
-    const hasAaradhane =
-      Boolean(data.nextAaradhane) && [Intent.NEXT_AARADHANE, Intent.FESTIVAL_INFO].includes(intent);
+    const settings = data.templeSettings;
 
-    return (
-      hasTempleSettings ||
-      hasEvents ||
-      hasSevas ||
-      hasAnnouncements ||
-      hasPanchanga ||
-      hasDonations ||
-      hasAaradhane
-    );
+    if (settings) {
+      if (this.hasSettingsFieldForIntent(intent, settings)) {
+        return true;
+      }
+      // A settings row that does not answer this intent may still leave other
+      // data below (events, sevas, ...), so fall through rather than returning.
+      if (FACTUAL_SETTINGS_INTENTS.has(intent)) {
+        return false;
+      }
+    }
+
+    if (intent === Intent.UPCOMING_EVENTS) {
+      return Array.isArray(data.upcomingEvents) && data.upcomingEvents.length > 0;
+    }
+    if ([Intent.SPECIAL_SEVAS, Intent.DAILY_POOJA, Intent.SEVA_BOOKING].includes(intent)) {
+      return Array.isArray(data.availableSevas) && data.availableSevas.length > 0;
+    }
+    if (intent === Intent.ANNOUNCEMENTS) {
+      return Array.isArray(data.currentAnnouncements) && data.currentAnnouncements.length > 0;
+    }
+    if (intent === Intent.PANCHANGA) {
+      return Boolean(data.todayPanchanga);
+    }
+    if ([Intent.DONATION, Intent.DONATION_PURPOSE, Intent.DONATION_80G].includes(intent)) {
+      return Boolean(data.donationInfo);
+    }
+    if ([Intent.NEXT_AARADHANE, Intent.FESTIVAL_INFO].includes(intent)) {
+      return Boolean(data.nextAaradhane);
+    }
+
+    // Non-settings intents: any non-empty payload counts, except a settings row.
+    // `formatTempleSettings` falls through to the address for unrecognised
+    // intents, so a settings row alone must not ground an unrelated question.
+    return Object.keys(data).some((key) => key !== "templeSettings");
+  }
+
+  /**
+   * True when the settings document actually holds the field this intent answers
+   * from. Keeps a partially-populated row from producing an authoritative reply
+   * with blank values.
+   */
+  private hasSettingsFieldForIntent(intent: Intent, settings: TempleSettings): boolean {
+    const filled = (value: string | undefined) => Boolean((value ?? "").trim());
+
+    switch (intent) {
+      case Intent.TEMPLE_TIMINGS:
+        return filled(settings.timings?.morningOpen) || filled(settings.timings?.eveningOpen);
+      case Intent.CONTACT_INFORMATION:
+        return filled(settings.phone) || filled(settings.email) || filled(settings.contact?.phone);
+      case Intent.LOCATION:
+      case Intent.ADDRESS:
+        return filled(settings.address) || filled(settings.contact?.address);
+      case Intent.OFFICE_HOURS:
+        return filled(settings.officeHours?.weekday) || filled(settings.officeHours?.weekend);
+      case Intent.VOLUNTEER:
+        return filled(settings.visitorInfo?.volunteerInfo);
+      case Intent.VISITOR_GUIDELINES:
+        return filled(settings.visitorInfo?.guidelines);
+      case Intent.DRESS_CODE:
+        return filled(settings.visitorInfo?.dressCode);
+      case Intent.PHOTOGRAPHY:
+        return filled(settings.visitorInfo?.photographyPolicy);
+      case Intent.PARKING:
+        return filled(settings.visitorInfo?.parking);
+      default:
+        return false;
+    }
   }
 
   private formatTempleSettings(settings: TempleSettings, intent: Intent, language: string) {
@@ -184,7 +257,14 @@ export class ResponseComposer {
       return `🙏 **ದೇವಸ್ಥಾನದಲ್ಲಿ ಸ್ವಯಂಸೇವೆ**\n\n${info}\n\nಹೆಚ್ಚಿನ ಮಾಹಿತಿಗಾಗಿ ಮತ್ತು ನೋಂದಣಿಗಾಗಿ ಸ್ವಯಂಸೇವಕ ಪುಟವನ್ನು ನೋಡಿ: /volunteer`;
     }
     if (intent === Intent.CONTACT_INFORMATION) {
-      return language === "en" ? `📞 **Contact Information**\n\nPhone: ${settings.phone}\nEmail: ${settings.email}` : `📞 **ಸಂಪರ್ಕ ಮಾಹಿತಿ**\n\nಫೋನ್: ${settings.phone}\nಇಮೇಲ್: ${settings.email}`;
+      const phone = (settings.phone || settings.contact?.phone || "").trim();
+      const email = (settings.email || settings.contact?.email || "").trim();
+      const contactLines = [
+        phone ? (language === "en" ? `Phone: ${phone}` : `ಫೋನ್: ${phone}`) : "",
+        email ? (language === "en" ? `Email: ${email}` : `ಇಮೇಲ್: ${email}`) : "",
+      ].filter(Boolean);
+      const title = language === "en" ? "📞 **Contact Information**" : "📞 **ಸಂಪರ್ಕ ಮಾಹಿತಿ**";
+      return `${title}\n\n${contactLines.join("\n")}`;
     }
     if (intent === Intent.OFFICE_HOURS) {
       return language === "en" ? `🕒 **Office Hours**\n\nWeekday: ${settings.officeHours.weekday}\nWeekend: ${settings.officeHours.weekend}` : `🕒 **ಕಛೇರಿ ಸಮಯ**\n\nವಾರದ ದಿನಗಳು: ${settings.officeHours.weekday}\nವಾರಾಂತ್ಯ: ${settings.officeHours.weekend}`;
@@ -207,7 +287,20 @@ export class ResponseComposer {
   private formatEvents(events: TempleEvent[], language: string) {
     if (!events || events.length === 0) return language === "en" ? "No upcoming events." : "ಯಾವುದೇ ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳಿಲ್ಲ.";
     let res = language === "en" ? "📅 **Upcoming Events**\n\n" : "📅 **ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು**\n\n";
-    events.forEach(e => res += `- ${e.title}\n`);
+    // Include the details the event rows already carry (date, time, venue) so the
+    // answer is genuinely about the event rather than a bare list of titles.
+    events.forEach(e => {
+      const date = e.startDate instanceof Date && !Number.isNaN(e.startDate.getTime())
+        ? e.startDate.toLocaleDateString(language === "en" ? "en-IN" : "kn-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "";
+      const time = [e.startTime, e.endTime].filter(Boolean).join(" - ");
+      const details = [date, time, e.location?.trim()].filter(Boolean).join(" | ");
+      res += details ? `- **${e.title}** — ${details}\n` : `- **${e.title}**\n`;
+    });
     return res;
   }
 
