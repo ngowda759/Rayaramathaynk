@@ -5,6 +5,7 @@ import { Intent, IntentDetectionResult, RetrievalType, detectIntent } from "./in
 import { retrieve } from "./retrieval/registry";
 import { responseComposer } from "./response/composer";
 import { containsKannada } from "./intent/patterns";
+import { looksRomanizedKannada } from "./intent/transliteration";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 
 export { detectIntent } from "./intent";
@@ -24,20 +25,31 @@ export interface AIResponseResult {
 }
 
 /**
- * Detect language from message
+ * Detect language from message.
+ *
+ * Romanized Kannada ("Temple volunteer aagbekadre enu madbeku?") has no Kannada
+ * codepoints, so `containsKannada` alone reports it as English. That made the
+ * assistant reply in English to a user who wrote Kannada. Messages that are
+ * Latin script but contain Kannada-like words are reported as "mixed".
  */
 function detectLanguage(message: string): "en" | "kn" | "mixed" {
   const hasKannada = containsKannada(message);
-  
+
   if (hasKannada) {
-    const englishPattern = /\b(the|is|are|what|when|how|where|temple|seva|donation)\b/gi;
-    const englishMatches = message.match(englishPattern);
-    
-    if (englishMatches && englishMatches.length > 2) {
+    // Any ASCII word alongside Kannada script means the message is mixed. Testing
+    // only a fixed word list missed domain nouns ("Temple timings ಏನು?").
+    const asciiWords = message.match(/\b[a-zA-Z]{2,}\b/g);
+
+    if (asciiWords && asciiWords.length > 0) {
       return "mixed";
     }
     return "kn";
   }
+
+  if (looksRomanizedKannada(message)) {
+    return "mixed";
+  }
+
   return "en";
 }
 
