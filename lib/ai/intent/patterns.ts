@@ -707,3 +707,43 @@ export const GENERIC_INTERROGATIVES: ReadonlySet<string> = new Set([
 export function isGenericInterrogative(keyword: string): boolean {
   return GENERIC_INTERROGATIVES.has(keyword.toLowerCase().trim());
 }
+
+/**
+ * Keywords that must match a whole word. These are short enough to appear inside
+ * unrelated words ("hi" in "which", "this", "history", "hire") and have no
+ * prefix family of their own, so substring matching is never correct for them.
+ * All other keywords keep prefix matching, which families like "book" ->
+ * "booking", "park" -> "parking" and "math" -> "matha" rely on.
+ */
+const WHOLE_WORD_KEYWORDS: ReadonlySet<string> = new Set([
+  "hi", "hey", "pm", "80g",
+]);
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Test whether `keyword` occurs in `text` at a word boundary.
+ *
+ * A plain `text.includes(keyword)` test made short keywords match inside
+ * unrelated words: "hi" matched "Which", "this", "history" and "hire", so the
+ * greeting pattern (priority 100) claimed those questions and the real answer
+ * was never retrieved.
+ */
+export function containsKeyword(text: string, keyword: string): boolean {
+  const normalized = keyword.toLowerCase().trim();
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  const hasKannada = /[\u0C80-\u0CFF]/.test(normalized);
+  // Kannada has no word separator inside compounds, so no trailing guard is
+  // applied there; the leading boundary is what prevents mid-word hits.
+  const trailing = !hasKannada && WHOLE_WORD_KEYWORDS.has(normalized)
+    ? "(?![\\p{L}\\p{N}])"
+    : "";
+
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(normalized)}${trailing}`, "u");
+  return pattern.test(text);
+}

@@ -13,6 +13,7 @@ import {
   OUT_OF_SCOPE_KEYWORDS,
   containsKannada,
   isGenericInterrogative,
+  containsKeyword,
   normalizeText,
 } from "./patterns";
 import { 
@@ -427,7 +428,9 @@ export class IntentDetector {
 
     // Check for domain-specific keywords first (order preserved, using corrected message)
     for (const [keyword, intent] of domainKeywords) {
-      if (matchingMessage.includes(keyword)) {
+      // Word-boundary match: a substring test let short entries such as "seva"
+      // and "hi" fire inside unrelated words.
+      if (containsKeyword(matchingMessage, keyword)) {
         // Look up requiresStructuredData from INTENT_PATTERNS
         const pattern = INTENT_PATTERNS.find(p => p.intent === intent);
         return {
@@ -591,8 +594,7 @@ export class IntentDetector {
 
     // Check English keywords
     for (const keyword of pattern.keywords.en) {
-      const normalizedKeyword = normalizeText(keyword);
-      if (normalizedMessage.includes(normalizedKeyword)) {
+      if (containsKeyword(normalizedMessage, keyword)) {
         matchedKeywords.push(keyword);
       }
     }
@@ -600,7 +602,10 @@ export class IntentDetector {
     // Check Kannada keywords
     if (hasKannada && pattern.keywords.kn) {
       for (const keyword of pattern.keywords.kn) {
-        if (normalizedMessage.includes(keyword) && !matchedKeywords.includes(keyword)) {
+        if (
+          containsKeyword(normalizedMessage, keyword) &&
+          !matchedKeywords.includes(keyword)
+        ) {
           matchedKeywords.push(keyword);
         }
       }
