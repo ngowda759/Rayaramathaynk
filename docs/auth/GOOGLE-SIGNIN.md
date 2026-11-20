@@ -1,13 +1,19 @@
 # Google Sign-In — Implementation Plan
 
 **Status:** Planned. **Not implemented. Not configured. Not enabled.**
-**Date:** 2026-11-20
+**Date:** 2026-11-20 (revised: Phase 0 security findings added)
 **Scope:** Documentation only. This document describes an intended change; no application code,
 migration, Supabase setting or Google Cloud resource exists yet.
 
 > **Do not describe Google Sign-In as available** in any user-facing text, release note or
-> documentation until the three implementation PRs have merged, the owner has completed the
-> dashboard steps in §9 and §10, and staging verification in §17 has passed.
+> documentation until the Phase 0 security remediation has merged (§5.2), the three Google PRs
+> have merged, the owner has completed the dashboard steps in §9 and §10, and staging
+> verification in §17 has passed.
+
+> **Prerequisite:** Google OAuth must **not** be enabled until the Phase 0 provisioning
+> vulnerabilities **S2**, **S3** and **S4** (§5.2) are remediated and merged in their own
+> security PR. Adding a second identity provider on top of the current provisioning code would
+> make existing-account takeover and duplicate-account creation easier to trigger, not harder.
 
 ---
 
@@ -25,7 +31,8 @@ second authentication system, not adding a second identity store, and not adding
 | Role granted to a Google user? | `devotee`, always. See §7. |
 | Does an existing admin change? | No. See §4. |
 | Does an existing password user change? | No. See §3. |
-| Automatic linking by matching email? | **Prohibited.** See §5. |
+| Automatic linking by matching email? | **Prohibited**, including when the email is verified. See §5. |
+| Precondition? | Phase 0 remediation of S2, S3 and S4 must merge first. See §5.2. |
 
 ---
 
@@ -87,12 +94,13 @@ There are four write paths today, and they do not deduplicate identically:
 
 | # | Entry point | Behaviour |
 | --- | --- | --- |
-| 1 | `POST /api/auth/register` | Verifies the caller's identity first — a Bearer token whose `uid` **and** email must match the payload, or (for a freshly signed-up session that has no token yet) `auth.admin.getUserById` fail-closed. Rejects ambiguous `email`/`auth_user_id` matches with 409. Then links, inserts `role: 'devotee', active: true`, or resolves a `23505` race idempotently. |
-| 2 | `GET /api/auth/me` | After verifying the caller, **auto-inserts** a devotee row when no row matches `auth_user_id`. It does **not** consider email. |
+| 1 | `POST /api/auth/register` | Verifies the caller's identity first — a Bearer token whose `uid` **and** email must match the payload, or (for a freshly signed-up session that has no token yet) `auth.admin.getUserById` fail-closed. Rejects ambiguous `email`/`auth_user_id` matches with 409. Then **links an unlinked row by email (finding S2, §5.2)**, inserts `role: 'devotee', active: true`, or resolves a `23505` race idempotently. |
+| 2 | `GET /api/auth/me` | After verifying the caller, **auto-inserts** a devotee row when no row matches `auth_user_id`. It does **not** consider email, so an existing manually created row yields a duplicate (**finding S3**), and its `23505` recovery can adopt an unlinked row (**finding S4**). See §5.2. |
 | 3 | `POST /api/auth/profile` | Same auto-insert (`role: 'devotee'`, `active: true`, `is_approved: false`), with a strict schema that rejects privileged fields. |
 | 4 | Admin/staff onboarding | `POST /api/admin/users/create-admin`, `POST /api/admin/users/set-role`, and `lib/seva/server/staff.ts:onboardStaff`. Creates or links the Supabase Auth login, writes the `users` row, the `staff` row and the audit row. Super-admin gated; `existingLogin()` already refuses an unverified email and requires a super admin to link an account that already holds an admin role. |
 
-Paths 2 and 3 are the ones a Google user reaches first, and they are the reason PR 1 exists (§8).
+Paths 1 and 2 are the ones a Google user reaches first, and they are the reason Phase 0 (§5.2) is a
+prerequisite.
 
 ### 3.1 Schema facts that constrain this plan
 
@@ -151,6 +159,10 @@ structurally satisfied, provided no new code writes a privileged role. **No chan
 ## 5. Identity rule (critical)
 
 > **No automatic account linking based solely on a matching email address.**
+>
+> **This prohibition applies even when the email is verified.** Email verification proves control of
+> an email address. It does **not** authorize automatic inheritance of an existing temple account's
+> identity, role or history.
 
 This restates the existing policy in `docs/auth/PHASE-2-IDENTITY-UNIFICATION.md`:
 
@@ -163,40 +175,55 @@ How this applies to Google Sign-In:
 - **A Google sign-in with no `public.users` row** provisions a new row with
   `role = 'devotee'`, `active = true`. This is a *creation*, not a *link*, and it is the only
   automatic outcome the feature may produce.
-- **A Google sign-in whose verified email matches an existing `public.users` row that has
-  `auth_user_id IS NULL`** must **not** be linked automatically. The implementation must refuse to
-  provision a duplicate row and must refuse to adopt the existing one. The person is told to
-  contact the temple office, and the office resolves it through an explicitly approved,
-  audited, super-admin-gated process — the existing `POST /api/admin/users/set-role` /
-  staff-onboarding tooling, which writes `auth_user_id` deliberately and records an audit row.
-- **A Google sign-in whose verified email matches a row owned by a different `auth_user_id`**
-  must be refused with `409`, exactly as `POST /api/auth/register` already does. No write.
+- **A Google sign-in whose email matches an existing `public.users` row that has
+  `auth_user_id IS NULL`** must **not** be linked automatically — **not even when Google reports
+  `email_verified: true`**. The implementation must refuse to provision a duplicate row and must
+  refuse to adopt the existing one. No `auth_user_id`, `role`, `display_name` or any other field
+  is written. The person is told to contact the temple office.
+- **A Google sign-in whose email matches a row owned by a different `auth_user_id`** must be
+  refused with `409`. No write.
+- **Matching emails must never cause duplicate account creation or privilege inheritance.**
+  Creating a second `devotee` row for an email that already has a row is a defect, not a
+  fallback: it splits a person's history and, for a staff or admin row, silently strips their
+  access.
 - **An unverified provider email must never be used as a matching key at all.** Google normally
   returns `email_verified: true`; the implementation must check it, not assume it.
 
-### 5.1 The one decision that needs the owner, not the code
+### 5.1 Existing unlinked accounts require audited administrative reconciliation
 
-GoTrue itself performs account linking at the provider level
-(`DetermineAccountLinking`). When a new OAuth identity arrives with a **verified** email and
-exactly one existing Supabase **auth** user has that email, GoTrue reuses that auth user instead
-of creating a second one. This means:
+An existing `public.users` row with `auth_user_id IS NULL` is an account the temple created
+manually (or migrated from a previous system). It has no proven owner. Because email is the only
+thing connecting a new sign-in to that row, and email alone is not proof of ownership of the
+temple account, the **only** way such a row may become linked is an explicit, audited act by an
+authorized human:
 
-- The person keeps a **single** `auth.users` row, so there is no duplicate identity and no
-  duplicate `public.users` row. That is the desired outcome for an existing devotee.
-- It is still "linking because the email matched", performed by the provider rather than by
-  application code, and it happens *before* our route handler sees anything.
+| Path | Who may run it | Audit |
+| --- | --- | --- |
+| `POST /api/admin/users/set-role` | Super admin for `super_admin`; permission-gated otherwise | Writes `auth_user_id` deliberately and records an audit row |
+| Staff onboarding (`lib/seva/server/staff.ts`) | Super admin | Records an audit row; refuses an unverified email |
+| `scripts/bootstrap-raya-admin.ts` | Operator, server-side only | Idempotent, fails closed on ambiguity, opt-in flags only |
 
-**This is a configuration decision, not a code decision.** Before the provider is enabled, the
-owner must confirm what the project actually does and record the answer in this document.
-Application code must not attempt to *compensate* for either behaviour by writing
-`auth_user_id` on an email match — that is the prohibited pattern.
+None of these paths is changed by this plan. The point is that reconciliation is a **human
+decision with an audit trail**, never an automatic consequence of a matching email string.
 
-### 5.2 A pre-existing divergence that must not be extended
+### 5.2 Confirmed security findings that block Google OAuth (Phase 0)
 
-`POST /api/auth/register` today **does** link an unclaimed row by email:
+Three provisioning defects exist **today**, independently of Google Sign-In. They are recorded
+here as **existing, unfixed findings** so that this plan does not silently bless them. They must
+be remediated in their own security PR before any OAuth provider is enabled.
+
+| ID | Location | Finding | Severity |
+| --- | --- | --- | --- |
+| **S2** | `app/api/auth/register/route.ts` | Unsafe email-based linking of unlinked legacy rows | High |
+| **S3** | `app/api/auth/me/route.ts` | Duplicate account creation for an existing email | High |
+| **S4** | `app/api/auth/me/route.ts` | Unsafe `23505` race recovery can adopt an unlinked row | Medium |
+
+#### S2 — unsafe email-based linking in `/api/auth/register`
+
+The route links an unclaimed row to the caller's Auth UID purely because the email matches:
 
 ```ts
-// app/api/auth/register/route.ts — existing behaviour
+// app/api/auth/register/route.ts — CURRENT, VULNERABLE behaviour
 // If email matches but auth_user_id was unpopulated (legacy record), link it
 if (!existing.auth_user_id && existing.email?.toLowerCase() === email) {
   await supabase.from("users").update({ auth_user_id: userId, display_name: name })
@@ -204,20 +231,65 @@ if (!existing.auth_user_id && existing.email?.toLowerCase() === email) {
 }
 ```
 
-That is email-based linking, and it contradicts the policy quoted in §5. It is pinned by
-`tests/security/auth-hardening.test.ts` ("returns 500 when updating legacy profile with
-`auth_user_id` fails").
+The route never inspects `email_confirmed_at`. An attacker who signs up with a victim's email —
+before confirming it — can bind their own Auth identity to the victim's pre-existing unlinked row
+and **inherit that row's role**. Google Sign-In would make this easier to trigger, because Google
+identities arrive pre-verified.
 
-Consequences for this plan:
+**Required remediation:** remove the automatic link entirely. Refuse a matching unlinked row with
+a neutral `409` and perform **no database write**. Preserve same-UID idempotency and preserve the
+`409` for rows linked to a different identity. Require authoritative Supabase email verification
+before provisioning a *new* account, and fail closed when verification status cannot be
+established.
 
-- **The new OAuth path must not copy it.** The provisioning helper in PR 1 refuses an unclaimed
-  email match; it never writes `auth_user_id` onto an existing row.
-- **PR 1 does not rewire `/api/auth/register`.** Changing that route's linking rule is an
-  application behaviour change with its own test, its own threat analysis and its own approval. It
-  is out of scope for a documentation PR and out of scope for the Google Sign-In feature itself.
-- **The divergence is recorded here so it is not silently blessed.** Reconciling
-  `/api/auth/register` with the written policy is a separate decision for the owner; this document
-  does not make it.
+#### S3 — duplicate account creation in `/api/auth/me`
+
+`/api/auth/me` matches **only** on `auth_user_id`; it never considers email:
+
+```ts
+// app/api/auth/me/route.ts — CURRENT, VULNERABLE behaviour
+const filterQuery = `auth_user_id.eq.${callerUid},id.eq.${callerUid}`;
+// ... no row found ...
+const insertPayload = { email: callerEmail || "", role: "devotee", active: true, ... };
+await supabase.from("users").insert(insertPayload);
+```
+
+If an admin was created manually (the manual path writes no `auth_user_id`) and later signs in,
+`/api/auth/me` finds no row and inserts a **second** row with `role: 'devotee'`. The person gets a
+duplicate account and silently loses their role.
+
+**Required remediation:** before provisioning, detect a matching unlinked row by email and refuse
+with a safe conflict. Do not link it, do not insert a duplicate, and do not expose its role.
+
+#### S4 — unsafe `23505` race recovery in `/api/auth/me`
+
+On a unique-constraint conflict, the route re-queries and returns whatever row it finds, **without
+checking that the row belongs to the caller**:
+
+```ts
+// app/api/auth/me/route.ts — CURRENT, VULNERABLE behaviour
+if (isConflict) {
+  const { data: recheck } = await supabase.from("users")...maybeSingle();
+  if (recheck) return NextResponse.json(mapRowToProfile(recheck, callerEmail));  // adopts an unlinked row
+}
+```
+
+**Required remediation:** after a `23505`, return success **only** when the resulting row is
+demonstrably linked to the requesting Auth UID. An unlinked row or a row linked to another UID
+returns a safe conflict. Fail closed on database errors and on ambiguous results.
+
+#### Why Phase 0 is a hard prerequisite
+
+Google OAuth adds a second way to reach exactly these code paths. Enabling it first would widen
+the S2 takeover window (pre-verified emails) and increase the S3 duplicate rate (more people
+arriving with an email the temple already has on file). The remediation is therefore **not**
+optional hardening; it is the foundation the OAuth work stands on.
+
+#### Scope boundary
+
+The Phase 0 PR covers S2, S3 and S4 **only**. It does not add OAuth, does not add admin-mediated
+account claiming, does not change `admin-auth.ts` or `ADMIN_CONSOLE_ROLES`, does not change staff
+authorization, and does not add an email-uniqueness migration.
 
 ---
 
@@ -286,27 +358,48 @@ and must never influence `role`, `active` or `is_approved`.
 
 ---
 
-## 8. Three-PR implementation sequence
+## 8. Implementation sequence
 
-Each PR is independently reviewable, independently revertible, and leaves `main` shippable.
+Four PRs, in order. Each is independently reviewable and independently revertible. **PR 0 must
+merge before PR 1 begins**, because PR 1 builds on the provisioning semantics PR 0 establishes.
 
-### PR 1 — Provisioning hardening (no Google)
+### PR 0 — Phase 0 security remediation (prerequisite, no Google)
 
-Purpose: remove the duplicate-account hazard *before* a second provider can reach it.
+Purpose: remove the S2, S3 and S4 vulnerabilities (§5.2) *before* a second provider can reach
+them. This PR is a **security fix in its own right**; it is not part of the Google feature and is
+not gated on it.
 
-- Add one shared, email-aware devotee provisioning helper that:
+- **S2 — `app/api/auth/register/route.ts`**: delete the automatic email-based linking of an
+  unlinked row. A matching unlinked row is refused with a neutral `409` and **no database write**
+  occurs. Same-UID idempotency and the different-UID `409` are preserved. Provisioning a new
+  account requires authoritative Supabase email verification; a verification status that cannot be
+  established fails closed.
+- **S3 — `app/api/auth/me/route.ts`**: resolve the caller's row by Auth UID first. If none exists
+  but an unlinked row matches the caller's email, refuse with a safe conflict — do not link it, do
+  not insert a duplicate, and do not disclose its role.
+- **S4 — `app/api/auth/me/route.ts`**: after a `23505`, return success only when the re-queried
+  row is demonstrably linked to the requesting Auth UID. Unlinked, foreign-owned and ambiguous
+  results return a safe conflict; database errors fail closed.
+- Tests: the fifteen regression cases in the Phase 0 delivery report, each of which must fail
+  against the vulnerable implementation and pass after the fix.
+
+Touches: `app/api/auth/register/route.ts`, `app/api/auth/me/route.ts`, and their tests. Does
+**not** touch `admin-auth.ts`, `ADMIN_CONSOLE_ROLES`, `verify-id-token.ts`, the seva module,
+`/api/auth/profile`, or any migration.
+
+### PR 1 — Shared provisioning helper (no Google)
+
+- Extract the now-safe provisioning rules from PR 0 into one shared, email-aware helper used by
+  `GET /api/auth/me` and `POST /api/auth/profile`, so the two paths cannot drift:
   - returns the existing row when `auth_user_id` matches (no write);
   - **refuses** (no write) when a row exists with the same `lower(email)` and
     `auth_user_id IS NULL` — per §5, no automatic linking;
   - **refuses with 409** when a row exists with the same email owned by a different
     `auth_user_id`;
   - inserts `role = 'devotee'`, `active = true` only when neither exists;
-  - resolves a `23505` race by re-querying and returning the winner.
-- Rewire `GET /api/auth/me` and `POST /api/auth/profile` to use it.
+  - resolves a `23505` race by re-querying and returning the winner **only if it is linked to the
+    caller**.
 - Tests: the five cases above, including "one row after first sign-in".
-
-Touches: the new helper, `app/api/auth/me/route.ts`, `app/api/auth/profile/route.ts`, tests.
-Does **not** touch `admin-auth.ts`, `verify-id-token.ts`, the seva module, or any migration.
 
 ### PR 2 — Callback route and CSP
 
@@ -327,7 +420,7 @@ The route exists after this PR but nothing links to it, so it is inert in produc
 - Update `docs/SECURITY.md` to state the provider is enabled (only once §9–§10 are actually done),
   and update this document's status line.
 
-### Separate, later (not part of the three)
+### Separate, later (not part of PR 0–PR 3)
 
 - **Optional** `CREATE UNIQUE INDEX ... ON public.users (lower(email))`. This is a production DDL
   change and needs its own PR and explicit owner approval — see §15 and the operational warning in
@@ -346,7 +439,7 @@ Project → **Authentication**:
    `SITE_URL` in `lib/seo.ts`).
 3. **URL Configuration → Redirect URLs** — add every entry in §11. Keep the existing
    `/admin/ai/reset-password` entries; do not replace the list.
-4. **Confirm the account-linking behaviour** described in §5.1 and record the answer here before
+4. **Confirm the account-linking behaviour** described in §5 and record the answer here before
    enabling the provider for the public.
 5. Leave **email confirmations** and the existing email templates unchanged.
 
@@ -476,8 +569,10 @@ that configuration entirely and is the simpler option.
    conflict and refuse*, never to merge two identities.
 4. **Unverified-email takeover.** An attacker who registers `someone@example.com` with a password
    and never confirms it must not be able to absorb — or be absorbed by — the real owner's Google
-   identity. Require `email_verified === true` from the provider; `lib/seva/server/staff.ts`
-   already enforces the same rule for staff.
+   identity. Require `email_verified === true` from the provider before provisioning a *new*
+   account; `lib/seva/server/staff.ts` already enforces the same rule for staff. **Verification is
+   necessary but never sufficient:** a verified email still does not authorize claiming an
+   existing unlinked row (§5), so verification must never be treated as a linking permit.
 5. **PKCE.** Keep the SDK default — the `@supabase/ssr` browser client uses the PKCE flow, and the
    existing Raya AI reset-password page already depends on that (`?code=` exchange). Exchange the
    code server-side in the callback. Do not set `flowType: 'implicit'`, do not disable
@@ -505,7 +600,7 @@ that configuration entirely and is the simpler option.
 
 ## 15. Production pre-flight checks (read-only)
 
-Run these **before** PR 1 is merged, and again before the provider is enabled. They are read-only.
+Run these **before** PR 0 is merged, and again before the provider is enabled. They are read-only.
 They must be executed by someone authorized to read production, through the read-only diagnostic
 tooling — not by ad-hoc writes, and not from this document.
 
@@ -514,7 +609,7 @@ tooling — not by ad-hoc writes, and not from this document.
 | 1 | Count `public.users` rows grouped by `lower(email)` where `count(*) > 1` | Duplicate profiles would make "which row does this person get?" ambiguous | Zero groups |
 | 2 | Count `public.users` rows with `email IS NOT NULL AND auth_user_id IS NULL` | Each is a row a Google sign-in could collide with; per §5 these are refused, not linked | Each one enumerated and understood |
 | 3 | Enumerate the admin rows (`role` on the allow-list) and their `auth_user_id` | Confirm every admin is already linked, so no admin is affected by the refusal path | Every admin has a non-null `auth_user_id` |
-| 4 | Confirm the Supabase project's account-linking behaviour (§5.1) | Decides whether GoTrue reuses an existing auth user or creates a second one | Recorded in this document |
+| 4 | Confirm the Supabase project's account-linking behaviour (§5) | Decides whether GoTrue reuses an existing auth user or creates a second one. The application refuses email-based linking either way | Recorded in this document |
 | 5 | Confirm the Site URL and the current Redirect-URL allow-list | A missing entry silently falls back to the Site URL | Matches §11 |
 | 6 | Confirm `NEXT_PUBLIC_SUPABASE_URL` / key in Vercel are the project's real values, not placeholders | A placeholder build makes every sign-in look like a wrong password | `getSupabaseConfigStatus().isConfigured === true` on production |
 
@@ -577,6 +672,12 @@ authentication provider for this application.
   is refused; no token or code appears in any redirect URL.
 - The provisioning helper — the five cases in §8/PR 1, plus "exactly one row after first sign-in"
   and "no write when refusing".
+- **Phase 0 (PR 0) regression set** — every case in §5.2: an unverified identity cannot provision
+  and cannot claim an unlinked row; a *verified* identity still cannot claim an unlinked row; the
+  unlinked row is byte-for-byte unchanged after refusal; a manually created unlinked row with a
+  matching email yields no duplicate in `/api/auth/me`; `23505` recovery resolves to a conflict
+  when the winner is unlinked or foreign-owned, and to success only when it is the caller's own
+  row; a database error fails closed.
 - `GoogleSignInButton` — renders, calls `signInWithOAuth` once, exposes an accessible name, is
   keyboard focusable, and shows the "not configured" state when Supabase config is a placeholder.
 
@@ -637,7 +738,7 @@ Every step is reversible without touching user data.
 | --- | --- |
 | Google sign-in misbehaves in production | **Disable the Google provider** in Supabase → Authentication → Providers. Sign-in with Google stops immediately; every email/password session and every admin authorization path is unaffected. This is the primary kill-switch and requires no deployment. |
 | The feature must disappear from the UI | Set `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=false` (or unset it) and redeploy. The button is not rendered; the callback route stays reachable but harmless. |
-| A bad deploy | Revert the PR. PR 1, PR 2 and PR 3 are independent, so the UI can be reverted without reverting the provisioning hardening. |
+| A bad deploy | Revert the PR. PR 0, PR 1, PR 2 and PR 3 are independent, so the UI can be reverted without reverting the Phase 0 security remediation, and vice versa. |
 | A callback bug is redirecting people wrongly | Disable the provider (row 1). No code change is needed to stop the flow. |
 | A duplicate row was created by a bug | Do **not** delete rows as a first response. Disable the provider, capture the affected ids, and reconcile through the approved administrative process. |
 
@@ -655,16 +756,18 @@ PR merges. It needs its own PR, its own approval, and nothing else in that PR.
 
 ## 19. What must be true before this document says "enabled"
 
-- [ ] PR 1 merged and deployed (provisioning refuses email collisions, never auto-links).
+- [ ] **PR 0 merged and deployed** — S2, S3 and S4 remediated: no email-based linking anywhere,
+      no duplicate provisioning, and `23505` recovery can never adopt an unlinked row.
+- [ ] PR 1 merged and deployed (shared provisioning helper; email collisions refused, never
+      auto-linked).
 - [ ] PR 2 merged and deployed (`/auth/callback` exists; CSP allows `googleusercontent`).
 - [ ] PR 3 merged and deployed (button, flag, docs).
 - [ ] §15 pre-flight checks pass, including a zero duplicate-email count.
 - [ ] §9 dashboard steps completed, with the Site URL and full Redirect-URL list in place.
 - [ ] §10 Google Cloud client created, consent screen **published**, redirect URI exact.
-- [ ] §5.1 linking behaviour confirmed and recorded here.
-- [ ] The §5.2 divergence in `/api/auth/register` has an owner decision recorded (left as-is, or
-      reconciled separately). Google Sign-In must not ship while that question is unresolved and
-      unanswered, because it determines whether an unclaimed row can ever be adopted.
+- [ ] The owner has confirmed and recorded the Supabase account-linking behaviour for this
+      project, and accepted that the application never links by email regardless of that
+      behaviour (§5).
 - [ ] §17 staging verification passed, including the three manual sign-in scenarios.
 - [ ] `docs/SECURITY.md` provider table updated to "enabled" in the same change that completes the
       above.

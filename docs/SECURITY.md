@@ -31,6 +31,23 @@ provider; there is no Firebase fallback.
 A person who signs in with an OAuth provider would receive the `devotee` role only, never an
 admin role; see `docs/auth/GOOGLE-SIGNIN.md` §7.
 
+#### Known provisioning findings (open, unfixed)
+
+Google OAuth is blocked on the remediation of three provisioning defects that exist today,
+independently of any OAuth provider. They are documented in `docs/auth/GOOGLE-SIGNIN.md` §5.2:
+
+| ID | Location | Finding |
+|----|----------|---------|
+| S2 | `app/api/auth/register/route.ts` | Unsafe email-based linking of an unlinked legacy row; can inherit that row's role. |
+| S3 | `app/api/auth/me/route.ts` | Duplicate account creation when an existing manually created (unlinked) row has the same email. |
+| S4 | `app/api/auth/me/route.ts` | Unsafe `23505` race recovery can return an unlinked row as the caller's profile. |
+
+**Policy:** an existing `public.users` row must never be automatically linked to an Auth identity
+on the basis of a matching email, **including when that email is verified**. Email verification
+proves control of an address; it does not authorize inheritance of an existing account's identity
+or role. Existing unlinked accounts are reconciled only through the audited administrative paths
+(`POST /api/admin/users/set-role`, staff onboarding, `scripts/bootstrap-raya-admin.ts`).
+
 #### Session Management
 
 ```typescript
