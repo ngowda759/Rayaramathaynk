@@ -26,4 +26,24 @@ describe("proxy.ts Content-Security-Policy", () => {
 
     expect(imgSrc).not.toContain("https://*.supabase.co");
   });
+
+  // docs/auth/GOOGLE-SIGNIN.md §13: a Google account avatar is served from *.googleusercontent.com,
+  // so `img-src` needs that one host or the picture is silently blocked.
+  it("allows Google account avatars in img-src", async () => {
+    const response = await proxy(request);
+    const csp = response.headers.get("content-security-policy") ?? "";
+    const imgSrc = csp.split(";").find((part) => part.trim().startsWith("img-src")) ?? "";
+
+    expect(imgSrc).toContain("https://*.googleusercontent.com");
+  });
+
+  it("adds no broad wildcard or unrelated Google origin to img-src", async () => {
+    const response = await proxy(request);
+    const csp = response.headers.get("content-security-policy") ?? "";
+    const imgSrc = csp.split(";").find((part) => part.trim().startsWith("img-src")) ?? "";
+
+    expect(imgSrc).not.toMatch(/\s\*(?:\s|;|$)/);
+    expect(imgSrc).not.toContain("https://*.google.com");
+    expect(imgSrc).not.toContain("https://google.com");
+  });
 });

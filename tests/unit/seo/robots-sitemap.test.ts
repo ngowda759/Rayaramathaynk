@@ -21,6 +21,12 @@ describe("robots.txt", () => {
     expect(disallow).not.toContain("/seva");
   });
 
+  it("keeps the OAuth callback out of crawlers", () => {
+    const disallow = rules.disallow as string[];
+    // The callback carries a single-use PKCE code in its query string.
+    expect(disallow).toContain("/auth/");
+  });
+
   it("references the canonical sitemap on the production domain", () => {
     expect(result.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
   });
