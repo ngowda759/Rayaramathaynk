@@ -403,4 +403,61 @@ describe("/api/auth/profile applies the same invariants", () => {
     expect(res.status).toBe(409);
     expect(mockFrom).toHaveBeenCalledTimes(2);
   });
+
+  it("refuses an unlinked row that holds the caller's address", async () => {
+    // Same shape as the register S2 case: the row exists but was never linked to
+    // any Auth identity, so binding it would be the prohibited email-based adoption.
+    stubCaller();
+    mockFrom.mockReturnValueOnce(selectEqMaybeSingle(null));
+    mockFrom.mockReturnValueOnce(
+      selectOrReturns([{ id: "row-1", auth_user_id: null, email: EMAIL }])
+    );
+
+    const res = await profileHandler(profileRequest());
+
+    expect(res.status).toBe(409);
+    // A refusal must never be followed by an insert.
+    expect(mockFrom).toHaveBeenCalledTimes(2);
+  });
+
+  it("checks conflicts against the authenticated address, not the request body", async () => {
+    // The body is client-controlled. If the conflict lookup used `payload.email`,
+    // a caller could pass an address no row holds, skip the conflict check, and
+    // still insert a row carrying a victim's address.
+    stubCaller();
+    mockFrom.mockReturnValueOnce(selectEqMaybeSingle(null));
+    const conflictLookup = selectOrReturns([{ id: "row-1", auth_user_id: null, email: EMAIL }]);
+    mockFrom.mockReturnValueOnce(conflictLookup);
+
+    const res = await profileHandler(
+      new NextRequest("http://localhost/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+        body: JSON.stringify({ email: "someone.else@example.test", name: "Devotee" }),
+      })
+    );
+
+    expect(res.status).toBe(409);
+    const filter = (conflictLookup.select as jest.Mock).mock.results[0].value.or as jest.Mock;
+    expect(filter.mock.calls[0][0]).toContain(EMAIL.toLowerCase());
+  });
+
+  it("stores the authenticated address rather than the client-supplied one", async () => {
+    stubCaller();
+    mockFrom.mockReturnValueOnce(selectEqMaybeSingle(null));
+    mockFrom.mockReturnValueOnce(selectOrReturns([]));
+    const insert = jest.fn().mockResolvedValue({ error: null });
+    mockFrom.mockReturnValueOnce({ insert });
+
+    const res = await profileHandler(
+      new NextRequest("http://localhost/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+        body: JSON.stringify({ email: "someone.else@example.test", name: "Devotee" }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(insert.mock.calls[0][0].email).toBe(EMAIL);
+  });
 });

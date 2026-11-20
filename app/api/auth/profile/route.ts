@@ -177,7 +177,10 @@ export async function POST(request: NextRequest) {
     }
 
     const updateFields: Record<string, unknown> = {
-      email: payload.email || caller.email || "",
+      // The address is taken from the verified identity, never from the request body: it is what
+      // the conflict check above queried, and a client-chosen value would let a caller store an
+      // address another row already holds while the check saw a different one.
+      email: caller.email || "",
       display_name: payload.name || "",
       phone_number: payload.phone || "",
       photo_url: payload.profileImage || "",
