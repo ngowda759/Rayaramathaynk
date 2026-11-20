@@ -20,6 +20,8 @@ export default function robots(): MetadataRoute.Robots {
       disallow: [
         "/admin/",
         "/api/",
+        // The OAuth/PKCE callback: a single-use code in the URL must never be crawled or cached.
+        "/auth/",
         "/seva$",
         "/seva/",
         "/debug/",

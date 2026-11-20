@@ -13,6 +13,8 @@ import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import Input from "@/components/ui/input";
 
+import GoogleSignInButton from "./GoogleSignInButton";
+
 const schema = z
   .object({
     name: z
@@ -95,6 +97,8 @@ export default function RegisterForm() {
             Register as a devotee to book sevas and manage your temple requests.
           </p>
         </div>
+
+        <GoogleSignInButton className="mt-8 mb-6" />
 
         <form
           onSubmit={handleSubmit(onSubmit)}
