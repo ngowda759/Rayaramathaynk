@@ -1,7 +1,7 @@
 # Security Documentation
 
 **Project:** Sri Raghavendra Swamy Matha Website
-**Last Updated:** 2026-11-16
+**Last Updated:** 2026-11-20
 
 ---
 
@@ -23,8 +23,13 @@ provider; there is no Firebase fallback.
 | Provider | Status | Usage |
 |----------|--------|-------|
 | Email/Password | ✅ Enabled | Primary authentication |
-| Google | ✅ Enabled | OAuth login |
+| Google | ⛔ Not enabled | OAuth sign-in is **planned only**. No callback route exists, the provider is not configured in the Supabase project, and no Google Cloud OAuth client has been created. See `docs/auth/GOOGLE-SIGNIN.md`. |
+| Facebook | ⛔ Not enabled | Deferred; not planned for the current phase. |
+| Instagram | ⛔ Not supported | Instagram exposes no email address and has no Supabase provider; it is unsuitable for consumer authentication. |
 | Phone | 🔒 Admin only | Reserved for admin verification |
+
+A person who signs in with an OAuth provider would receive the `devotee` role only, never an
+admin role; see `docs/auth/GOOGLE-SIGNIN.md` §7.
 
 #### Session Management
 
