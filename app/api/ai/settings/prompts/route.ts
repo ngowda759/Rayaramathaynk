@@ -1,10 +1,12 @@
 // Prompt Management API Route
-// GET /api/ai/settings/prompts - Get prompt versions
-// POST /api/ai/settings/prompts - Create new prompt version
-// PUT /api/ai/settings/prompts - Update prompt version
+// GET    /api/ai/settings/prompts - Get prompt versions
+// POST   /api/ai/settings/prompts - Create new prompt version
+// PUT    /api/ai/settings/prompts - Update prompt version
+// DELETE /api/ai/settings/prompts - Delete one prompt version (?versionId=)
 
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
+import { PromptVersionDeleteError } from "@/lib/ai/ai-settings/prompt-errors";
 import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
 
 export async function GET(request: NextRequest) {
@@ -111,6 +113,53 @@ export async function PUT(request: NextRequest) {
     console.error("Error updating prompt version:", error);
     return NextResponse.json(
       { error: "Failed to update prompt version" },
+      { status: 500 }
+    );
+  }
+}
+
+const DELETE_FAILURE_STATUS: Record<
+  PromptVersionDeleteError["reason"],
+  number
+> = {
+  settings_missing: 500,
+  not_found: 404,
+  in_use: 409,
+};
+
+export async function DELETE(request: NextRequest) {
+  const guard = await requireRayaAdminUser(request);
+  if (!guard.ok) return guard.response;
+  const userId = guard.user.uid;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const versionId = searchParams.get("versionId");
+
+    if (!versionId) {
+      return NextResponse.json(
+        { error: "Version ID is required" },
+        { status: 400 }
+      );
+    }
+
+    await aiSettingsService.deletePromptVersion(versionId, userId);
+
+    const promptVersions = await aiSettingsService.getPromptVersions();
+    return NextResponse.json({
+      versions: promptVersions,
+      message: "Prompt version deleted successfully",
+    });
+  } catch (error) {
+    if (error instanceof PromptVersionDeleteError) {
+      return NextResponse.json(
+        { error: error.message, reason: error.reason },
+        { status: DELETE_FAILURE_STATUS[error.reason] }
+      );
+    }
+    console.error("Error deleting prompt version:", error);
+    return NextResponse.json(
+      { error: "Failed to delete prompt version" },
       { status: 500 }
     );
   }

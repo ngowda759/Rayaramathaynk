@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
-import { POST } from "../../app/api/ai/settings/prompts/route";
+import { DELETE, POST } from "../../app/api/ai/settings/prompts/route";
 import { NextRequest } from "next/server";
 import { aiSettingsService } from "../../lib/ai/ai-settings";
+import { PromptVersionDeleteError } from "../../lib/ai/ai-settings/prompt-errors";
 import { requireRayaAdminUser } from "../../lib/auth/raya-admin-auth";
 
 jest.mock("../../lib/auth/raya-admin-auth", () => ({
@@ -15,6 +16,7 @@ jest.mock("../../lib/ai/ai-settings", () => ({
     updatePromptVersion: jest.fn(),
     publishPromptVersion: jest.fn(),
     rollbackPromptVersion: jest.fn(),
+    deletePromptVersion: jest.fn(),
     getPromptVersions: jest.fn(),
     getCurrentPrompt: jest.fn(),
     getPromptSettings: jest.fn(),
@@ -334,5 +336,121 @@ describe("Auth checks", () => {
     expect(res.status).toBe(403);
     const json = await res.json();
     expect(json.reason).toBe("insufficient_role");
+  });
+});
+
+describe("DELETE /api/ai/settings/prompts", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const version = {
+    id: "prompt_v2",
+    name: "Draft",
+    version: 2,
+    content: "text",
+    status: "draft" as const,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdBy: "admin-uid",
+  };
+
+  function makeRequest(versionId?: string) {
+    const url = versionId
+      ? `http://localhost/api/ai/settings/prompts?versionId=${versionId}`
+      : "http://localhost/api/ai/settings/prompts";
+    return new NextRequest(url, { method: "DELETE" });
+  }
+
+  function authorize() {
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: true,
+      user: { uid: "admin-uid", email: "admin@example.com", role: "admin" },
+    });
+  }
+
+  it("deletes only the selected version and returns the refreshed list", async () => {
+    authorize();
+    (aiSettingsService.deletePromptVersion as jest.Mock).mockResolvedValue(undefined);
+    (aiSettingsService.getPromptVersions as jest.Mock).mockResolvedValue([version]);
+
+    const res = await DELETE(makeRequest("prompt_v2"));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.versions).toEqual([version]);
+    expect(aiSettingsService.deletePromptVersion).toHaveBeenCalledWith(
+      "prompt_v2",
+      "admin-uid"
+    );
+  });
+
+  it("rejects the request before touching data when unauthorized", async () => {
+    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Unauthorized", reason: "missing_token" }), { status: 401 }),
+    });
+
+    const res = await DELETE(makeRequest("prompt_v2"));
+    expect(res.status).toBe(401);
+    expect(aiSettingsService.deletePromptVersion).not.toHaveBeenCalled();
+    expect(aiSettingsService.getPromptVersions).not.toHaveBeenCalled();
+  });
+
+  it("refuses to delete the active prompt with 409", async () => {
+    authorize();
+    (aiSettingsService.deletePromptVersion as jest.Mock).mockRejectedValue(
+      new PromptVersionDeleteError("in_use", "This is the active prompt.")
+    );
+
+    const res = await DELETE(makeRequest("prompt_v1_seed"));
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.reason).toBe("in_use");
+  });
+
+  it("returns 404 for an unknown version", async () => {
+    authorize();
+    (aiSettingsService.deletePromptVersion as jest.Mock).mockRejectedValue(
+      new PromptVersionDeleteError("not_found", "Prompt version not found")
+    );
+
+    const res = await DELETE(makeRequest("does_not_exist"));
+    expect(res.status).toBe(404);
+  });
+
+  it("requires a versionId", async () => {
+    authorize();
+    const res = await DELETE(makeRequest());
+    expect(res.status).toBe(400);
+    expect(aiSettingsService.deletePromptVersion).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed delete as 500 without a success payload", async () => {
+    authorize();
+    (aiSettingsService.deletePromptVersion as jest.Mock).mockRejectedValue(
+      new Error("write failed")
+    );
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await DELETE(makeRequest("prompt_v2"));
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe("Failed to delete prompt version");
+    expect(json.versions).toBeUndefined();
+    consoleError.mockRestore();
+  });
+
+  it("does not claim success when the repository throws", async () => {
+    authorize();
+    (aiSettingsService.deletePromptVersion as jest.Mock).mockRejectedValue(
+      new Error("boom")
+    );
+    (aiSettingsService.getPromptVersions as jest.Mock).mockResolvedValue([version]);
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await DELETE(makeRequest("prompt_v2"));
+    expect(res.status).toBe(500);
+    expect(aiSettingsService.getPromptVersions).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

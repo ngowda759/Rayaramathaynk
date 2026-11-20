@@ -48,8 +48,10 @@ const STATUS_COLORS: Record<
 export default function PromptManagerPage() {
   const adminFetch = useAdminFetch();
   const [prompts, setPrompts] = useState<PromptVersion[]>([]);
+  const [currentPromptId, setCurrentPromptId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -80,6 +82,7 @@ export default function PromptManagerPage() {
       const data = await response.json();
       const versions = data.versions || [];
       setPrompts(versions);
+      setCurrentPromptId(data.currentPromptId || "");
 
       // Auto-select published prompt
       const published = versions.find(
@@ -210,32 +213,48 @@ export default function PromptManagerPage() {
   };
 
   const handleDelete = async (prompt: PromptVersion) => {
-    if (!confirm(`Delete prompt "${prompt.name}"? This cannot be undone.`))
+    if (prompt.id === currentPromptId) {
+      showMsg(
+        "error",
+        "This is the active prompt. Publish or roll back to another version before deleting it.",
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Delete prompt "${prompt.name}" (v${prompt.version})? This cannot be undone.`,
+      )
+    )
       return;
 
+    setDeletingId(prompt.id);
     try {
-      const response = await adminFetch("/api/ai/settings/prompts", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            versionId: prompt.id,
-            action: "update",
-            status: "archived"
-          }),
-        });
+      const response = await adminFetch(
+        `/api/ai/settings/prompts?versionId=${encodeURIComponent(prompt.id)}`,
+        { method: "DELETE" },
+      );
 
-      const data = await response.json();
-      if (response.ok) {
-        showMsg("success", "Prompt deleted successfully");
-        if (selectedPrompt?.id === prompt.id) {
-          setSelectedPrompt(null);
-        }
-        loadPrompts();
-      } else {
-        showMsg("error", data.error || "Failed to delete prompt");
+      // Auth is still initializing; the effect re-runs once the session resolves.
+      if (response.status === ADMIN_FETCH_STATUS.AUTH_INITIALIZING) return;
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        showMsg("error", data?.error || "Failed to delete prompt");
+        return;
       }
+
+      showMsg("success", data?.message || "Prompt deleted successfully");
+      if (selectedPrompt?.id === prompt.id) {
+        setSelectedPrompt(null);
+        setIsEditing(false);
+      }
+      await loadPrompts();
     } catch (error) {
+      console.error("Error deleting prompt:", error);
       showMsg("error", "Failed to delete prompt. Please try again.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -516,6 +535,26 @@ export default function PromptManagerPage() {
                         Restore to Draft
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDelete(selectedPrompt)}
+                      disabled={
+                        deletingId !== null ||
+                        selectedPrompt.id === currentPromptId
+                      }
+                      title={
+                        selectedPrompt.id === currentPromptId
+                          ? "The active prompt cannot be deleted. Publish or roll back to another version first."
+                          : "Delete this prompt version"
+                      }
+                      className="ml-auto flex items-center gap-1 px-4 py-2 text-sm text-red-700 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deletingId === selectedPrompt.id ? (
+                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      {deletingId === selectedPrompt.id ? "Deleting..." : "Delete"}
+                    </button>
                   </div>
                 </div>
               </div>

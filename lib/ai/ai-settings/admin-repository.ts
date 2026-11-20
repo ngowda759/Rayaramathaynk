@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AISettingsSchema } from "./validation";
+import { AISettingsSchema, PromptSettingsSchema } from "./validation";
+import { PromptVersionDeleteError } from "./prompt-errors";
 import {
   AISettings,
   PromptSettings,
@@ -274,6 +275,92 @@ export class AIAdminRepository {
       },
       userId
     );
+  }
+
+  /**
+   * Read `ai_settings.prompt` as raw JSONB.
+   *
+   * Deletion must not depend on the whole settings document validating: the
+   * seeded `main` row ships with `updated_by` NULL, which the strict
+   * `AISettingsSchema` rejects, so `getSettings()` reports "missing" for a row
+   * that exists. The raw JSONB is returned so the write-back preserves every
+   * field on the versions that survive; the schema only decides whether the
+   * slice is usable at all.
+   */
+  private async getPromptSettings(): Promise<PromptSettings | null> {
+    const supabase = this.getSupabase();
+    const { data, error } = await supabase
+      .from(AI_SETTINGS_COLLECTION)
+      .select("prompt")
+      .eq("id", AI_SETTINGS_DOC_ID)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching prompt settings from Supabase admin:", error);
+      throw error;
+    }
+    if (!data) return null;
+
+    const parsed = PromptSettingsSchema.safeParse(data.prompt);
+    if (!parsed.success) {
+      console.error("Invalid prompt settings found in database (Admin):", parsed.error);
+      throw new PromptVersionDeleteError(
+        "settings_missing",
+        "Prompt settings are not readable"
+      );
+    }
+    return data.prompt as PromptSettings;
+  }
+
+  /**
+   * Remove one prompt version from `ai_settings.prompt.versions`.
+   *
+   * Prompt versions are elements of a JSONB array inside the single
+   * `ai_settings` row (`id = 'main'`), so deletion splices that element out and
+   * writes the array back. The row, the `prompt` column and
+   * `prompt.defaultPrompt` are never dropped.
+   *
+   * The version referenced by `currentPromptId` is the configuration Raya AI
+   * actually serves, so deleting it is refused: an accidental click can never
+   * leave the assistant without its active prompt.
+   */
+  async deletePromptVersion(versionId: string, userId: string): Promise<void> {
+    const promptSettings = await this.getPromptSettings();
+    if (!promptSettings) {
+      throw new PromptVersionDeleteError("settings_missing", "AI Settings not found");
+    }
+
+    const versions = promptSettings.versions ?? [];
+    if (!versions.some((v) => v.id === versionId)) {
+      throw new PromptVersionDeleteError("not_found", "Prompt version not found");
+    }
+
+    if (promptSettings.currentPromptId === versionId) {
+      throw new PromptVersionDeleteError(
+        "in_use",
+        "This is the active prompt. Publish or roll back to another version before deleting it."
+      );
+    }
+
+    // Written here rather than through `updatePromptSettings` because a failed
+    // write must surface as an error: reporting success for a delete that never
+    // reached the database would leave the list silently stale.
+    const supabase = this.getSupabase();
+    const { error } = await supabase
+      .from(AI_SETTINGS_COLLECTION)
+      .update({
+        prompt: {
+          ...promptSettings,
+          versions: versions.filter((v) => v.id !== versionId),
+        },
+        updated_by: userId,
+      })
+      .eq("id", AI_SETTINGS_DOC_ID);
+
+    if (error) {
+      console.error("Error deleting prompt version:", error);
+      throw error;
+    }
   }
 
   private getDefaultPrompt(): string {

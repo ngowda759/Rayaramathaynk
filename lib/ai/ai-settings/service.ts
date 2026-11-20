@@ -513,6 +513,17 @@ export class AISettingsService {
     await aiAdminRepository.rollbackPromptVersion(versionId, userId);
   }
 
+  /**
+   * Delete a single prompt version.
+   *
+   * Throws `PromptVersionDeleteError` when the settings row is unreadable
+   * (`settings_missing`), the id is not a version (`not_found`) or the id is the
+   * active `currentPromptId` (`in_use`). The route maps those to 500/404/409.
+   */
+  async deletePromptVersion(versionId: string, userId: string): Promise<void> {
+    await aiAdminRepository.deletePromptVersion(versionId, userId);
+  }
+
   // ==================== INTENT MANAGEMENT ====================
 
   async getIntentSettings(): Promise<IntentSettings> {
