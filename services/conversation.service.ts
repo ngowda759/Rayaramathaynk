@@ -11,7 +11,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { rowIdFilter } from "@/lib/supabase/identifier";
+import { publicIdFilter } from "@/lib/supabase/identifier";
 
 // Types
 export interface ConversationMessage {
@@ -87,7 +87,7 @@ export async function getSession(sessionId: string): Promise<ConversationSession
     const { data: sessionRow, error: sessionError } = await supabase
       .from("chat_sessions")
       .select("*")
-      .or(rowIdFilter(sessionId))
+      .or(publicIdFilter(sessionId))
       .maybeSingle();
 
     if (sessionError) {
@@ -372,7 +372,7 @@ export async function clearSession(sessionId: string): Promise<void> {
     await supabase
       .from("chat_sessions")
       .update({ last_message: "", detected_language: null })
-      .or(rowIdFilter(sessionId));
+      .or(publicIdFilter(sessionId));
 
     conversationalState.delete(sessionId);
   } catch (error) {
@@ -389,7 +389,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
   try {
     const supabase = getSupabase();
     await supabase.from("chat_messages").delete().eq("session_id", sessionId);
-    await supabase.from("chat_sessions").delete().or(rowIdFilter(sessionId));
+    await supabase.from("chat_sessions").delete().or(publicIdFilter(sessionId));
     conversationalState.delete(sessionId);
   } catch (error) {
     console.error("[Session] Error deleting session:", error);

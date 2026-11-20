@@ -1,6 +1,6 @@
 "use client";
 
-import { useAdminFetch } from "@/hooks/useAdminFetch";
+import { useAdminFetch, ADMIN_FETCH_STATUS } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
 import {
   Save,
@@ -69,6 +69,14 @@ export default function PromptManagerPage() {
     try {
       setLoading(true);
       const response = await adminFetch("/api/ai/settings/prompts");
+      // Auth is still initializing; `adminFetch` changes identity once the
+      // session resolves, which re-runs the effect below.
+      if (response.status === ADMIN_FETCH_STATUS.AUTH_INITIALIZING) return;
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        showMsg("error", body?.error || "Failed to load prompts");
+        return;
+      }
       const data = await response.json();
       const versions = data.versions || [];
       setPrompts(versions);
@@ -88,7 +96,7 @@ export default function PromptManagerPage() {
     } finally {
       setLoading(false);
     }
-  }, [showMsg]);
+  }, [adminFetch, showMsg]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern

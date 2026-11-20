@@ -24,6 +24,20 @@ export function rowIdFilter(id: string): string {
 }
 
 /**
+ * Match a public id against *both* columns.
+ *
+ * `rowIdFilter` picks one column from the id's shape, which fails for tables whose
+ * public id is a UUID stored in `firestore_id`: `chat_sessions.firestore_id` holds
+ * the client-generated session id (a UUID), so `rowIdFilter` emitted `id.eq.<uuid>`
+ * and every lookup missed. This variant compares the primary key and `firestore_id`,
+ * and only emits the `id` comparison for a UUID so Postgres never sees a non-UUID
+ * literal in a uuid column.
+ */
+export function publicIdFilter(id: string): string {
+  return isUuid(id) ? `id.eq.${id},firestore_id.eq.${id}` : `firestore_id.eq.${id}`;
+}
+
+/**
  * Look up a single row by a public id that may be either the primary key or the
  * nullable `firestore_id`. Returns `null` when the row does not exist.
  */
