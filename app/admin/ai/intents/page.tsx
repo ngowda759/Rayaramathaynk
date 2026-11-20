@@ -1,6 +1,6 @@
 "use client";
 
-import { useAdminFetch } from "@/hooks/useAdminFetch";
+import { useAdminFetch, ADMIN_FETCH_STATUS } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
 import {
   Search,
@@ -71,6 +71,13 @@ export default function IntentManagerPage() {
     try {
       setLoading(true);
       const response = await adminFetch("/api/ai/settings/intents");
+      // Auth is still initializing; `adminFetch` changes identity once the
+      // session resolves, which re-runs the effect below.
+      if (response.status === ADMIN_FETCH_STATUS.AUTH_INITIALIZING) return;
+      if (!response.ok) {
+        showMsg("error", "Failed to load intents");
+        return;
+      }
       const data = await response.json();
       setIntents(data.intents || []);
     } catch (error) {
@@ -79,7 +86,7 @@ export default function IntentManagerPage() {
     } finally {
       setLoading(false);
     }
-  }, [showMsg]);
+  }, [showMsg, adminFetch]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
