@@ -1,5 +1,5 @@
 import "server-only";
-import { rowIdFilter } from "@/lib/supabase/identifier";
+import { publicIdFilter, rowIdFilter } from "@/lib/supabase/identifier";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AIMessage, ChatSession, Testimonial, VolunteerRequest, ChatFeedback } from "@/types/ai";
@@ -46,7 +46,7 @@ export async function updateChatSession(
   const { error } = await supabase
     .from("chat_sessions")
     .update(updates)
-    .or(rowIdFilter(sessionId));
+    .or(publicIdFilter(sessionId));
 
   if (error) throw new Error(`Failed to update chat session: ${error.message}`);
 }
@@ -69,7 +69,7 @@ export async function getChatSession(sessionId: string): Promise<ChatSession | n
   const { data, error } = await supabase
     .from("chat_sessions")
     .select("*")
-    .or(rowIdFilter(sessionId))
+    .or(publicIdFilter(sessionId))
     .maybeSingle();
 
   if (error) throw new Error(`Failed to get chat session: ${error.message}`);
