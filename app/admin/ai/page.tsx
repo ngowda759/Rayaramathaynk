@@ -1,6 +1,6 @@
 "use client";
 
-import { useAdminFetch } from "@/hooks/useAdminFetch";
+import { useAdminFetch, ADMIN_FETCH_STATUS } from "@/hooks/useAdminFetch";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
@@ -44,6 +44,13 @@ export default function AdminAIPage() {
   const loadCoverage = useCallback(async () => {
     try {
       const response = await adminFetch("/api/ai/knowledge/coverage");
+      // Auth is still initializing; `adminFetch` changes identity once the
+      // session resolves, which re-runs the effect below.
+      if (response.status === ADMIN_FETCH_STATUS.AUTH_INITIALIZING) return;
+      if (!response.ok) {
+        console.warn("Failed to load coverage:", response.status);
+        return;
+      }
       const data = await response.json();
       if (data.success) {
         setCoverage(data.data.summary);
@@ -51,7 +58,7 @@ export default function AdminAIPage() {
     } catch (error) {
       console.error("Failed to load coverage:", error);
     }
-  }, []);
+  }, [adminFetch]);
 
   const handleImportKnowledge = async () => {
     setImporting(true);
@@ -116,7 +123,7 @@ export default function AdminAIPage() {
     loadStats();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadCoverage();
-  }, [loadCoverage]);
+  }, [loadCoverage, adminFetch]);
 
   const menuItems = [
     {

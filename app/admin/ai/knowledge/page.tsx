@@ -1,8 +1,8 @@
 /* eslint-disable */
 "use client";
 
-import { useAdminFetch } from "@/hooks/useAdminFetch";
-import { useState, useEffect } from "react";
+import { useAdminFetch, ADMIN_FETCH_STATUS } from "@/hooks/useAdminFetch";
+import { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -46,10 +46,22 @@ export default function KnowledgeCoveragePage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
 
-  const loadCoverage = async () => {
+  const loadCoverage = useCallback(async () => {
+    let deferred = false;
     setLoading(true);
     try {
       const response = await adminFetch("/api/ai/knowledge/coverage");
+      // Auth is still initializing; `adminFetch` changes identity once the
+      // session resolves, which re-runs the effect below. Keep the spinner up
+      // so the page does not flash its empty state.
+      if (response.status === ADMIN_FETCH_STATUS.AUTH_INITIALIZING) {
+        deferred = true;
+        return;
+      }
+      if (!response.ok) {
+        toast.error("Failed to load knowledge coverage");
+        return;
+      }
       const data = await response.json();
       if (data.success) {
         setCoverage(data.data);
@@ -58,14 +70,14 @@ export default function KnowledgeCoveragePage() {
       console.error("Failed to load coverage:", error);
       toast.error("Failed to load knowledge coverage");
     } finally {
-      setLoading(false);
+      if (!deferred) setLoading(false);
     }
-  };
+  }, [adminFetch]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching pattern
     loadCoverage();
-  }, []);
+  }, [loadCoverage]);
 
   const handleImport = async (overwrite = false) => {
     setImporting(true);
