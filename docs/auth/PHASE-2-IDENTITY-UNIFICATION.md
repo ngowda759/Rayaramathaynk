@@ -83,6 +83,33 @@ The reconciliation model governs how identities in Firebase Auth, Supabase Auth,
 
 > **CRITICAL POLICY**: Automated linking based solely on email is strictly prohibited. Any ambiguous or conflicting identity must be inspected and reconciled via verified administrative process.
 
+#### 3.1 Clarification: verification does not authorize linking
+
+Email verification proves that the person controls an email address. It does **not** prove that the
+person is the owner of an existing `public.users` row that happens to carry the same address, and
+it therefore does **not** authorize automatic inheritance of that row's `auth_user_id`, `role`,
+`active` flag or history.
+
+Consequently, automated linking is prohibited **even when the incoming identity's email is
+verified** — including a Google identity that arrives with `email_verified: true`. The permitted
+outcomes for an incoming identity are:
+
+| Existing account state | Permitted behaviour |
+| --- | --- |
+| Row linked to the caller's Auth UID | Idempotent success (no write) |
+| Row linked to a different Auth UID | Refuse with `409` (no write) |
+| Matching email, `auth_user_id IS NULL` | **Refuse** (no write); no automatic linking |
+| No matching row | Provision a new `devotee` row, subject to the verification requirements |
+| Multiple matching email rows | Fail safely (no linking, no duplicate creation) |
+
+An existing unlinked account is reconciled only through an audited administrative path
+(`POST /api/admin/users/set-role`, staff onboarding, or `scripts/bootstrap-raya-admin.ts`), never
+as a side effect of a sign-in.
+
+Three provisioning defects that currently violate parts of this policy are documented, with their
+remediation requirements, in `docs/auth/GOOGLE-SIGNIN.md` §5.2 (findings S2, S3 and S4). That
+remediation is a prerequisite for adding an OAuth provider.
+
 ---
 
 ## 4. Zero-Lockout Behavior
