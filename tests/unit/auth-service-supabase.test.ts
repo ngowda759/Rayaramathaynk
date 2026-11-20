@@ -105,12 +105,13 @@ describe("authService (Supabase)", () => {
         error: null,
       });
 
-      const mockOr = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-      const mockSelect = jest.fn().mockReturnValue({ or: mockOr });
+      const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
       mockFrom.mockReturnValue({ select: mockSelect });
 
       const profile = await authService.getUserProfile("test-uuid-1");
 
+      expect(mockEq).toHaveBeenCalledWith("auth_user_id", "test-uuid-1");
       expect(profile).not.toBeNull();
       expect(profile?.role).toBe("devotee");
       expect(profile?.email).toBe("user@example.com");
@@ -122,8 +123,8 @@ describe("authService (Supabase)", () => {
         data: null,
         error: null,
       });
-      const mockOr = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-      const mockSelect = jest.fn().mockReturnValue({ or: mockOr });
+      const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
       mockFrom.mockReturnValue({ select: mockSelect });
 
       const profile = await authService.getUserProfile("nonexistent-id");

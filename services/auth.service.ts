@@ -14,6 +14,13 @@ export interface SupabaseAuthResult {
     session: unknown;
   };
   error?: unknown;
+  /**
+   * Outcome of the post-signUp provisioning call. `pending` means the identity
+   * still has to confirm its email, so no profile row exists yet (it is created
+   * by /api/auth/me once the address is verified); `provisioned` means the
+   * devotee row now exists.
+   */
+  provisioning?: "provisioned" | "pending";
 }
 
 class AuthService {
@@ -40,13 +47,27 @@ class AuthService {
       throw error;
     }
 
+    // An identity that has not confirmed its email cannot be provisioned: the
+    // server refuses to create a row until ownership is proven, so calling it
+    // here would only surface an error the person cannot act on. The row is
+    // created later by /api/auth/me once the session is verified.
+    const signedUpUser = data.user as
+      | { id?: string; email_confirmed_at?: string | null; confirmed_at?: string | null }
+      | undefined;
+    const userId = signedUpUser?.id;
+    const confirmedAt = signedUpUser?.email_confirmed_at ?? signedUpUser?.confirmed_at ?? null;
+
+    if (!userId || !confirmedAt) {
+      return { data, error, provisioning: "pending" };
+    }
+
     // Call user self-provisioning endpoint to guarantee public.users row exists
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: (data.user as { id?: string } | undefined)?.id,
+          userId,
           email,
           name,
           phone,
@@ -64,7 +85,7 @@ class AuthService {
       throw err;
     }
 
-    return { data, error };
+    return { data, error, provisioning: "provisioned" };
   }
 
   async login(
@@ -129,14 +150,15 @@ class AuthService {
       }
     }
 
-    // 2. Client SDK query (used in unit tests and as a server-side fallback). `uid` is a Supabase Auth UUID, so the
-    // row is matched on `auth_user_id` (its primary key as a fallback); no Firestore id is consulted.
+    // 2. Client SDK query (used in unit tests and as a server-side fallback). `uid` is a Supabase
+    //    Auth UUID, so the row is matched on `auth_user_id` only: a row whose `id` equals the Auth
+    //    UID was never linked, and matching it here would hand back a profile the caller does not own.
     try {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("users")
         .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
-        .or(`auth_user_id.eq.${uid},id.eq.${uid}`)
+        .eq("auth_user_id", uid)
         .maybeSingle();
 
       if (error || !data) return null;

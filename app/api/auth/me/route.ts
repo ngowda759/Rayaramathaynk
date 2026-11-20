@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  EMAIL_CONFLICT_MESSAGE,
+  findEmailConflicts,
+  findOwnedRowAfterConflict,
+  isUniqueViolation,
+} from "@/lib/auth/provisioning";
 import type { UserProfile } from "@/types/user";
+
+const PROFILE_COLUMNS =
+  "id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at";
+
+type ProfileRow = Record<string, unknown> & { auth_user_id: string | null };
 
 function mapRowToProfile(
   row: Record<string, unknown>,
@@ -50,14 +61,13 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    // Supabase Auth is the only sign-in provider, so `callerUid` is always a Supabase Auth UUID. The users row is
-    // matched on `auth_user_id` (its primary key as a fallback); no Firestore id is consulted.
-    const filterQuery = `auth_user_id.eq.${callerUid},id.eq.${callerUid}`;
-
+    // Supabase Auth is the only sign-in provider, so `callerUid` is always a Supabase Auth UUID. The
+    // authorization row is matched on `auth_user_id` only: a row whose `id` happens to equal the Auth
+    // UID has never been linked, and treating it as the caller's would be an implicit link.
     const { data: userRow, error: queryError } = await supabase
       .from("users")
-      .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
-      .or(filterQuery)
+      .select(PROFILE_COLUMNS)
+      .eq("auth_user_id", callerUid)
       .maybeSingle();
 
     if (queryError) {
@@ -69,7 +79,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(mapRowToProfile(userRow as Record<string, unknown>, callerEmail));
     }
 
-    // Idempotent devotee self-provisioning for valid authenticated user
+    // A row that already carries this address but is not linked to this identity must never be
+    // adopted or duplicated: adopting it would be an email-based link, and duplicating it would
+    // strand the person's existing role and history. Reconciliation is an administrative act.
+    const conflictCheck = await findEmailConflicts(supabase, callerEmail, callerUid);
+    if (!conflictCheck.ok) {
+      console.error("[api/auth/me] Email conflict check failed");
+      return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
+    }
+    if (conflictCheck.conflicts.length > 0) {
+      return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
+    }
+
+    // Idempotent devotee self-provisioning for a verified identity with no existing row.
     const insertPayload: Record<string, unknown> = {
       email: callerEmail || "",
       role: "devotee",
@@ -81,25 +103,24 @@ export async function GET(request: NextRequest) {
     const { data: created, error: insertError } = await supabase
       .from("users")
       .insert(insertPayload)
-      .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
+      .select(PROFILE_COLUMNS)
       .single();
 
     if (insertError || !created) {
-      // Handle concurrent insert race condition (Postgres error 23505)
-      const isConflict =
-        (insertError as { code?: string })?.code === "23505" ||
-        /duplicate key|already exists/i.test(insertError?.message || "");
+      // Concurrent insert race (Postgres 23505): only a row that is demonstrably this caller's
+      // may be returned. Anything else fails closed rather than being adopted.
+      if (isUniqueViolation(insertError)) {
+        const recheck = await findOwnedRowAfterConflict<ProfileRow>(supabase, callerUid, PROFILE_COLUMNS);
 
-      if (isConflict) {
-        const { data: recheck } = await supabase
-          .from("users")
-          .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
-          .or(filterQuery)
-          .maybeSingle();
-
-        if (recheck) {
-          return NextResponse.json(mapRowToProfile(recheck as Record<string, unknown>, callerEmail));
+        if (!recheck.ok) {
+          console.error("[api/auth/me] Race recovery lookup failed");
+          return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
         }
+        if (recheck.row) {
+          return NextResponse.json(mapRowToProfile(recheck.row, callerEmail));
+        }
+
+        return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
       }
 
       console.error("[api/auth/me] Failed to self-provision devotee:", insertError);
