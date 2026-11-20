@@ -150,14 +150,15 @@ class AuthService {
       }
     }
 
-    // 2. Client SDK query (used in unit tests and as a server-side fallback). `uid` is a Supabase Auth UUID, so the
-    // row is matched on `auth_user_id` (its primary key as a fallback); no Firestore id is consulted.
+    // 2. Client SDK query (used in unit tests and as a server-side fallback). `uid` is a Supabase
+    //    Auth UUID, so the row is matched on `auth_user_id` only: a row whose `id` equals the Auth
+    //    UID was never linked, and matching it here would hand back a profile the caller does not own.
     try {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("users")
         .select("id, auth_user_id, email, display_name, phone_number, role, active, created_at, updated_at")
-        .or(`auth_user_id.eq.${uid},id.eq.${uid}`)
+        .eq("auth_user_id", uid)
         .maybeSingle();
 
       if (error || !data) return null;

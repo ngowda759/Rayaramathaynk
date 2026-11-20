@@ -89,14 +89,14 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    // Supabase Auth is the only sign-in provider, so `caller.uid` is always a Supabase Auth UUID; the users row is
-    // matched on `auth_user_id` (its primary key as a fallback). No Firestore id is consulted.
-    const filterQuery = `auth_user_id.eq.${caller.uid},id.eq.${caller.uid}`;
-
+    // Supabase Auth is the only sign-in provider, so `caller.uid` is always a Supabase Auth UUID.
+    // The row is matched on `auth_user_id` only: `id` is an independent random uuid and a row whose
+    // `id` equals the Auth UID was never linked, so matching it would return a profile the caller
+    // does not own.
     const { data, error } = await supabase
       .from("users")
       .select("*")
-      .or(filterQuery)
+      .eq("auth_user_id", caller.uid)
       .maybeSingle();
 
     if (error) {
